@@ -142,14 +142,15 @@ def to_xcsv(metadata_path, labels, *seqParsers):
         if not isinstance(seqParser, (coordinateListSeqParser, coordinateListSeqCLIParser)):
             raise TypeError("seqParsers must be coordinateListSeqParser or coordinateListSeqCLIParser objects, aborting")
     
-    labels_ls = list()
-    metadata_df = pd.DataFrame()
+    barcodes_ls = list(); labels_ls = list()
+    metadata_df = pd.DataFrame(columns=['column', 'label'])
 
     for idx, seqParser in enumerate(seqParsers):
         counts_df = seqParser.to_df()
-        counts_df.to_csv(seqParser._output, sep=",", index=False)
-        labels_ls.append(list(labels[idx])*len(counts_df.columns))
+        #counts_df.to_csv(seqParser._output, sep=",", index=False)
+        barcodes_ls.extend(seqParser.barcodes)
+        labels_ls.extend([labels[idx]]*(len(counts_df.columns)-1))
     
-    metadata_df['barcode'] = seqParsers.barcodes
+    metadata_df['barcode'] = barcodes_ls
     metadata_df['label'] = labels_ls
     metadata_df.to_csv(metadata_path, sep=",", index=False)
