@@ -173,21 +173,18 @@ def to_hdf5(labels, *seqParsers, gene_barcode=True, out="out.h5ad"):
         if not isinstance(seqParser, (coordinateListSeqParser, coordinateListSeqCLIParser)):
             raise TypeError("seqParsers must be coordinateListSeqParser or coordinateListSeqCLIParser objects, aborting")
     
-    labels_ls = list()
+    adatas = dict()
 
     for i, seqParser in enumerate(seqParsers):
-        n_labels = len(seqParser.barcodes)
-        labels_ls.extend([labels[i]]*n_labels)
-        _adata = seqParser.to_anndata()
+        adatas[labels[i]] = seqParser.to_anndata()
         if i==0:
-            adata = _adata
-            adata.obs["transcript_ids"] = seqParser.transcript_ids
-            adata.obs["feature_types"] = seqParser.feature_types
-        else:
-            adata = sc.concat([adata, _adata], join="outer", axis=1)
-    
-    adata.var["label"] = labels_ls 
+            obs = adatas[labels[i]].obs
+        elif not obs.equals(adatas[labels[i]].obs):
+            raise ValueError("Gene names are different or not ordered between seqParsers, aborting")
+
+    adata = sc.concat(adatas, join="outer", label="label", axis=1)
     adata.obs_names_make_unique(); adata.var_names_make_unique()
+    adata.obs = obs
 
     if not gene_barcode:
         adata = adata.transpose()
