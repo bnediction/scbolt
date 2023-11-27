@@ -36,26 +36,33 @@ class coordinateListSeqParser(object):
         with open(barcodes, newline='') as f:
             self.barcodes = [row[0] for row in csv.reader(f, delimiter='\t')]
     
-    def to_anndata(self):
-        """Return an AnnData object corresponding to gene-barcode Rna-seq matrix."""
+    def to_anndata(self, gene_barcode=True):
+        """Return an AnnData object corresponding to gene-barcode RNA-seq matrix."""
         
-        genes_df = pd.Series({
+        genes_df = pd.DataFrame({
             'transcript_id':self.transcript_ids,
             'gene_name':self.gene_names,
             'feature_type':self.feature_types
         })
-        barcodes_df = pd.Series({'barcodes':self.barcodes})
+        barcodes_df = pd.DataFrame({'barcodes':self.barcodes})
 
-        counting_matrix = sc.AnnData(
-            X=self.counts,
-            obs=genes_df,
-            var=barcodes_df
-        )
+        if gene_barcode:
+            counting_matrix = sc.AnnData(
+                X=self.counts,
+                obs=genes_df,
+                var=barcodes_df
+            )
+        else:
+            counting_matrix = sc.AnnData(
+                X=self.counts.T,
+                obs=barcodes_df,
+                var=genes_df
+            )
 
         return counting_matrix
 
     def to_df(self, gene_label='gene_name'):
-        """Return a Pandas DataFrame object corresponding to gene-barcode Rna-seq matrix."""
+        """Return a Pandas DataFrame object corresponding to gene-barcode RNA-seq matrix."""
 
         counting_matrix = pd.DataFrame.sparse.from_spmatrix(self.counts)
         counting_matrix.columns = self.barcodes
@@ -130,9 +137,9 @@ class coordinateListSeqCLIParser(coordinateListSeqParser):
         else:
             super().__init__(args.counts_path, args.features_path, args.barcodes_path, out=args.out)
 
-def to_xcsv(metadata_path, labels, *seqParsers):
-    """Uncompressed multiple Rna-Seq data and generate a metadata file.
-    Then, save them.\n
+def to_xcsv(metadata_path, labels, *seqParsers, gene_barcode=True):
+    """Uncompress multiple Rna-Seq data and generate a metadata file on barcodes.
+    Then, save them into csv format.\n
     """
 
     if not isinstance(metadata_path, Path):
@@ -143,14 +150,46 @@ def to_xcsv(metadata_path, labels, *seqParsers):
             raise TypeError("seqParsers must be coordinateListSeqParser or coordinateListSeqCLIParser objects, aborting")
     
     barcodes_ls = list(); labels_ls = list()
-    metadata_df = pd.DataFrame(columns=['column', 'label'])
+    metadata_df = pd.DataFrame(columns=['barcode', 'label'])
 
     for idx, seqParser in enumerate(seqParsers):
         counts_df = seqParser.to_df()
-        #counts_df.to_csv(seqParser._output, sep=",", index=False)
+        if gene_barcode:
+            counts_df.to_csv(seqParser._output, sep=",", index=False)
+        else:
+            counts_df.set_index('gene').transpose().to_csv(seqParser._output, sep=",", index=True)
         barcodes_ls.extend(seqParser.barcodes)
         labels_ls.extend([labels[idx]]*(len(counts_df.columns)-1))
     
     metadata_df['barcode'] = barcodes_ls
     metadata_df['label'] = labels_ls
     metadata_df.to_csv(metadata_path, sep=",", index=False)
+
+def to_hdf5(labels, *seqParsers, gene_barcode=True, out="out.h5ad"):
+    """Uncompress and merge multiple Rna-Seq data and generate a serialized object.
+    Then, save it into hdf5 format.\n"""
+
+    for seqParser in seqParsers:
+        if not isinstance(seqParser, (coordinateListSeqParser, coordinateListSeqCLIParser)):
+            raise TypeError("seqParsers must be coordinateListSeqParser or coordinateListSeqCLIParser objects, aborting")
+    
+    labels_ls = list()
+
+    for i, seqParser in enumerate(seqParsers):
+        n_labels = len(seqParser.barcodes)
+        labels_ls.extend([labels[i]]*n_labels)
+        _adata = seqParser.to_anndata()
+        if i==0:
+            adata = _adata
+            adata.obs["transcript_ids"] = seqParser.transcript_ids
+            adata.obs["feature_types"] = seqParser.feature_types
+        else:
+            adata = sc.concat([adata, _adata], join="outer", axis=1)
+    
+    adata.var["label"] = labels_ls 
+    adata.obs_names_make_unique(); adata.var_names_make_unique()
+
+    if not gene_barcode:
+        adata = adata.transpose()
+
+    adata.write_h5ad(filename=out, compression="gzip")
