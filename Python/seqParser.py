@@ -3,6 +3,7 @@ import csv
 import scipy.io
 import pandas as pd
 import scanpy as sc
+import numpy as np
 import warnings
 
 from pathlib import Path
@@ -36,15 +37,19 @@ class coordinateListSeqParser(object):
         with open(barcodes, newline='') as f:
             self.barcodes = [row[0] for row in csv.reader(f, delimiter='\t')]
     
-    def to_anndata(self, gene_barcode=True):
+    def to_anndata(self, gene_barcode=True, gene_labels=["gene_name"]):
         """Return an AnnData object corresponding to gene-barcode RNA-seq matrix."""
-        
-        genes_df = pd.DataFrame({
-            'transcript_id':self.transcript_ids,
-            'gene_name':self.gene_names,
-            'feature_type':self.feature_types
-        })
-        barcodes_df = pd.DataFrame({'barcodes':self.barcodes})
+
+        genes_df = pd.DataFrame()
+
+        if "transcript_id" in gene_labels:
+            genes_df = genes_df.assign(transcript_id = self.transcript_ids)
+        if "gene_name" in gene_labels:
+            genes_df = genes_df.assign(gene_name = self.gene_names)
+        if "feature_type" in gene_labels:
+            genes_df = genes_df.assign(feature_types = self.feature_types)
+
+        barcodes_df = pd.DataFrame({'barcode':self.barcodes})
 
         if gene_barcode:
             counting_matrix = sc.AnnData(
@@ -176,7 +181,7 @@ def to_hdf5(labels, *seqParsers, gene_barcode=True, out="out.h5ad"):
     adatas = dict()
 
     for i, seqParser in enumerate(seqParsers):
-        adatas[labels[i]] = seqParser.to_anndata()
+        adatas[labels[i]] = seqParser.to_anndata(gene_labels=["gene_name","transcript_id","feature_type"])
         if i==0:
             obs = adatas[labels[i]].obs
         elif not obs.equals(adatas[labels[i]].obs):
@@ -184,7 +189,9 @@ def to_hdf5(labels, *seqParsers, gene_barcode=True, out="out.h5ad"):
 
     adata = sc.concat(adatas, join="outer", label="label", axis=1)
     adata.obs_names_make_unique(); adata.var_names_make_unique()
-    adata.obs = obs
+    adata.obs = obs.set_index("gene_name")
+    adata.var = adata.var.set_index("barcode")
+    adata.X = adata.X.toarray().astype(np.float64)
 
     if not gene_barcode:
         adata = adata.transpose()
