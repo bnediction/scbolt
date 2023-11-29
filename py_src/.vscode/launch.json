@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python : merge-data",
+            "type": "python",
+            "request": "launch",
+            "program": "save_hdf5.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}
