@@ -8,7 +8,7 @@ path_to_data = Path(f"../data").resolve()
 _inpath = Path(f"{path_to_data}/raw/merge").resolve()
 _infile = Path(f"{_inpath}/barcode_gene_RNA_PLZF_RARA_RA.h5ad").resolve()
 _outpath = Path(f"{path_to_data}/results/preprocess").resolve()
-_outfile = Path(f"{_outpath}/barcode_gene_RNA_PLZF_RARA_RA.tsv")
+_outfile = Path(f"{_outpath}/barcode_gene_RNA_PLZF_RARA_RA.h5ad")
 
 if not _outpath.exists():
     _outpath.mkdir()
@@ -38,4 +38,7 @@ sc.pp.scale(adata, max_value=10)                # Scale gene values to unit vari
 
 print(f"Saving files...\n")
 
-adata.write_csvs(dirname=_outpath, skip_data=False, sep="\t")
+if str(_outfile).split(".")[-1] == "h5ad":
+    adata.write_h5ad(filename=_outfile, compression="gzip")
+else:
+    adata.write_csvs(dirname=_outpath, skip_data=False, sep="\t")
