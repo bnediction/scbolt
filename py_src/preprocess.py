@@ -12,27 +12,30 @@ args = {
     "relative_deviation_from_mad":2,
     "mitochondrial_filter":1,
     "expressed_cells_number_threshold":10,
-    "fig_path":Path(f"../data/fig")
+    "inpath":Path(f"../data/raw/merge"),
+    "outpath":Path(f"../data/preprocess"),
+    "infile":Path(f"barcode_gene_RNA_PLZF_RARA_RA.h5ad")
 }
 
 def median_absolute_deviation(x):
     return np.median(np.absolute(x - np.median(x)))
 
-path_to_data = Path(f"../data").resolve()
-_inpath = Path(f"{path_to_data}/raw/merge").resolve()
-_infile = Path(f"{_inpath}/barcode_gene_RNA_PLZF_RARA_RA.h5ad").resolve()
-_outpath = Path(f"{path_to_data}/results/preprocess").resolve()
-_outfile = Path(f"{_outpath}/barcode_gene_RNA_PLZF_RARA_RA.csv")
+_data_outpath = Path(f"{args['outpath']}/results").resolve()
+_fig_outpath = Path(f"{args['outpath']}/figures").resolve()
 
-if not _outpath.exists():
-    _outpath.mkdir()
+if not args['outpath'].resolve().exists():
+    args['outpath'].resolve().mkdir()
+if not _data_outpath.exists():
+    _data_outpath.mkdir()
+if not _fig_outpath.exists():
+    _fig_outpath.mkdir()
 
 #### Loading ####
 
-adata = sc.read_h5ad(_infile)
+adata = sc.read_h5ad(Path(f"{args['inpath']}/{args['infile']}").resolve().as_posix())
 adata.obs_names_make_unique(); adata.var_names_make_unique()
 
-print(f"\nCompute violin plot before filtering...\n")
+print(f"\nComputing violin plot before filtering...\n")
 
 sc.pp.calculate_qc_metrics(adata, percent_top=None, log1p=False, inplace=True)
 
@@ -42,10 +45,11 @@ sc.pl.violin(
     groupby="label",
     jitter=0.4,
     multi_panel=True,
+    stripplot=False,
     show=False,
     save=False
 )
-plt.savefig(f"{args['fig_path']}/violin_plot_before_filtering.png")
+plt.savefig(f"{_fig_outpath}/violin_plot_before_filtering.png")
 
 # Compute mitochondrial and ribosomal proportions before filtering
 adata.var["mito"] = adata.var_names.str.startswith("mt-")                   # annotate the group of mitochondrial genes
@@ -68,7 +72,7 @@ sc.pp.filter_genes(adata, min_cells=args["expressed_cells_number_threshold"])
 adata[:, adata.var.mito == False]
 adata.var.drop(["mito"], axis=1, inplace=True)
 
-print(f"Compute violin plot after filtering...\n")
+print(f"Computing violin plot after filtering...\n")
 
 sc.pp.calculate_qc_metrics(adata, percent_top=None, log1p=False, inplace=True)
 
@@ -78,10 +82,11 @@ sc.pl.violin(
     groupby="label",
     jitter=0.4,
     multi_panel=True,
+    stripplot=False,
     show=False,
     save=False
 )
-plt.savefig(f"{args['fig_path']}/violin_plot_after_filtering.png")
+plt.savefig(f"{_fig_outpath}/violin_plot_after_filtering.png")
 
 #### Normalizing ####
 
@@ -99,7 +104,4 @@ if args["scale"]:
 
 print(f"Saving files...\n")
 
-if str(_outfile).split(".")[-1] == "h5ad":
-    adata.write_h5ad(filename=_outfile, compression="gzip")
-else:
-    adata.write_csvs(dirname=_outpath, skip_data=False, sep="\t")
+adata.write_csvs(dirname=_data_outpath, skip_data=False, sep="\t")
