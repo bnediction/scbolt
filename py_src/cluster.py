@@ -1,6 +1,10 @@
+import warnings
+warnings.filterwarnings("ignore")
+
 from pathlib import Path
 
 import os
+import math
 import scanpy as sc
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -8,7 +12,10 @@ import matplotlib.pyplot as plt
 args = {
     "inpath":Path(f"../data/preprocess/results"),
     "uns":True,
-    "outpath":Path(f"../data/cluster/scanpy")
+    "outpath":Path(f"../data/cluster/scanpy"),
+    "non_expressed_genes_removed":False,
+    "min_proportion_cell_expressed":0.01,
+    "n_dimensions":15
 }
 
 def csv_to_anndata(inpath, file_count, file_barcode=None, file_gene=None, uns=False):
@@ -34,31 +41,47 @@ if not outpath.exists():
 if not _fig_outpath.exists():
     _fig_outpath.mkdir()
 
-##### High variables genes #####
+if not args["non_expressed_genes_removed"]:
+    threshold = math.floor(args["min_proportion_cell_expressed"] * adata.n_vars)
+    sc.pp.filter_cells(data=adata, min_genes=threshold)
 
-print(f"\nSelecting hvg...\n")
+##### Filtering and scaling #####
 
-sc.pp.highly_variable_genes(adata, min_mean=0.0125, max_mean=3, min_disp=0.5)
-adata.raw = adata
-adata = adata[:, adata.var.highly_variable]
+print(f"\nFiltering and scaling data...\n")
+
+sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat", inplace=True)
+#adata.raw = adata
+#adata = adata[:, adata.var.highly_variable]
 sc.pp.scale(adata, max_value=10)                # Scale gene values to unit variance
 
-##### Clustering #####
-
-## Principal component analysis ##
+#### PCA ####
 
 print(f"Computing Principal Component Analysis (PCA)...\n")
 
-sc.tl.pca(adata, svd_solver='arpack', n_comps=15)
+sc.tl.pca(adata, svd_solver='arpack', n_comps=50)
 sc.pl.pca(adata, color='label', show=False, save=False)
 plt.savefig(f"{_fig_outpath}/pca.png")
-#sc.pl.pca_variance_ratio(adata, log=False)
+sc.pl.pca_variance_ratio(adata, n_pcs=20, log=False, show=False, save=False)
+plt.savefig(f"{_fig_outpath}/pca_variance_ratio.png")
 
-## Neighborhood graph ##
+##### Clustering #####
+
+print(f"Clustering data...\n")
+
+sc.pp.neighbors(adata, n_neighbors=20, n_pcs=args["n_dimensions"])
+
+#### t-SNE ####
+
+print(f"Computing t-SNE...\n")
+
+sc.tl.tsne(adata, n_pcs=args["n_dimensions"])
+sc.pl.tsne(adata, color="label", show=False, save=False)
+plt.savefig(f"{_fig_outpath}/tsne.png")
+
+#### UMAP ####
 
 print(f"Computing Uniform Manifold Approximation and Projection (UMAP)...\n")
 
-sc.pp.neighbors(adata, n_neighbors=50, n_pcs=15)
 sc.tl.umap(adata)
 sc.pl.umap(adata, color="label", show=False, save=False)
 plt.savefig(f"{_fig_outpath}/umap.png")
