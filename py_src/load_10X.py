@@ -1,29 +1,59 @@
+#!/usr/bin/python3
+
 from pathlib import Path
-from datetime import date
 
 import os
+import argparse
 import scanpy as sc
 
-args = {
-    "inpath":Path(f"data/scRNA/raw/ct").resolve(),
-    "outfile":Path(f"data/scRNA/raw/ct/ct.h5ad").resolve(),
-    "sample info":{
-        "age":"adult",
-        "date":str(date(2020, 9, 29)),
-        "sample name":"ctrl",
-        "condition":"control"
-    },
-}
+parser = argparse.ArgumentParser(
+    prog="Loading 10X sparse matrix format sc-RNAseq data",
+    description="""converter of sc-rnaSeq data in the 10X sparse matrix format into the hdf5 format.\n
+    The structure of 10X sparse matrix format is a directory containing three files:\n
+    - matrix.mtx (sparse matrix in the Market Exchange MEX format\n
+    -- also named coordinate list format -- which corresponds to compressed reordered sparse counting data)\n
+    - barcodes.tsv (information about each cell)\n
+    - features.tsv (information about each gene)\n""",
+    usage="python load_10X [<args>]")
 
-outpath = Path(os.path.split(args["outfile"])[0]).resolve()
+parser.add_argument(
+    "-i", "--inpath",
+    dest="inpath",
+    type=lambda x: Path(x).resolve(),
+    required=True,
+    help="directory to the 10X sparse matrix data"
+)
+
+parser.add_argument(
+    "-o", "--outfile",
+    dest="outfile",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=Path("./").resolve(),
+    help="hdf5 output filename"
+)
+
+parser.add_argument(
+    "-s", "--sample_info",
+    dest="sample_info",
+    type=str,
+    required=False,
+    default=None,
+    help="sample metadata (format : key_1=value_1,...,key_n=value_n"
+)
+
+args = parser.parse_args()
+
+outpath = Path(os.path.split(args.outfile)[0]).resolve()
 
 if not outpath.exists():
     os.makedirs(outpath)
 
-adata = sc.read_10x_mtx(path=args["inpath"])
+adata = sc.read_10x_mtx(path=args.inpath)
 adata.var["symbol"] = list(adata.var.index)
 
-for key, value in args["sample info"].items():
+for metadatum in args.sample_info.split(","):
+    key, value = metadatum.split("=")
     adata.uns[key] = value
 
-adata.write_h5ad(filename=args["outfile"], compression="gzip")
+adata.write_h5ad(filename=args.outfile, compression="gzip")
