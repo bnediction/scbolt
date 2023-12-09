@@ -10,10 +10,10 @@ parser = argparse.ArgumentParser(
     prog="Loading 10X sparse matrix format sc-RNAseq data",
     description="""converter of sc-rnaSeq data in the 10X sparse matrix format into the hdf5 format.\n
     The structure of 10X sparse matrix format is a directory containing three files:\n
-    - matrix.mtx (sparse matrix in the Market Exchange MEX format\n
+    - matrix.mtx.gz (sparse matrix in the Market Exchange MEX format\n
     -- also named coordinate list format -- which corresponds to compressed reordered sparse counting data)\n
-    - barcodes.tsv (information about each cell)\n
-    - features.tsv (information about each gene)\n""",
+    - barcodes.tsv.gz (information about each cell)\n
+    - features.tsv.gz (information about each gene)\n""",
     usage="python load_10X [<args>]")
 
 parser.add_argument(
@@ -39,7 +39,7 @@ parser.add_argument(
     type=str,
     required=False,
     default=None,
-    help="sample metadata (format : key_1=value_1,...,key_n=value_n"
+    help="sample metadata (format: key_1=value_1,...,key_n=value_n"
 )
 
 args = parser.parse_args()
