@@ -1,8 +1,7 @@
 #!/usr/bin/python3
 
 import matplotlib as mpl
-
-import cycler, color_settings as color
+import cycler, py_src.color_settings as color
 
 mpl.style.use("default")
 
