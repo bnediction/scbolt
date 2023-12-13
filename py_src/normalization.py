@@ -48,7 +48,7 @@ args = {
     "min_cell_expression_proportion": 0.001,
     "dim": 15,
     "intercept":False,
-    "n_jobs":1
+    "n_jobs":6
 }
 
 data_outpath = Path(f"{args['outpath']}/tables")
@@ -88,19 +88,20 @@ if args["gene_filtering"]:
     ax.update({"xmargin": 0.1})
     plt.savefig(f"{fig_outpath}/gene-number.png")
 
-print(f"Normalizing Data...")
-
-sc.pp.normalize_total(adata, target_sum=1e4, inplace=True)
-sc.pp.log1p(adata)
-
 print(f"Selecting Higly variable genes...")
 
 sc.pp.highly_variable_genes(adata, flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
 adata = adata[:, adata.var.highly_variable]
 
-print(f"Correcting unwanted effects...")
+print(f"Normalizing Data...")
+
+sc.pp.normalize_total(adata, target_sum=1e4, inplace=True)
+sc.pp.log1p(adata)
+
+print(f"Correcting batch (unwanted) effects...")
 
 corrected_ad = adata.copy()
 corrected_ad = regress_out(corrected_ad, correction, intercept=False, n_jobs=args["n_jobs"])
 sc.pp.scale(corrected_ad)
 corrected_ad.write_h5ad(filename=f"{data_outpath}/corrected_{args['suffix']}", compression="gzip")
+
