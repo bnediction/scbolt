@@ -42,12 +42,13 @@ def regress_out(adata, correction, intercept=False, n_jobs=1):
 args = {
     "infile": Path(f"data/scRNA/cell_filtering/ct/tables/counts.h5ad").resolve(),
     "outpath": Path(f"data/scRNA/normalizing/ct").resolve(),
+    "suffix": "ct",
     "correction": "G2M_score+S_score+G1_score",
     "gene_filtering": True,
     "min_cell_expression_proportion": 0.001,
     "dim": 15,
-    "n_jobs":6,
-    "intercept":False
+    "intercept":False,
+    "n_jobs":1
 }
 
 data_outpath = Path(f"{args['outpath']}/tables")
@@ -87,29 +88,19 @@ if args["gene_filtering"]:
     ax.update({"xmargin": 0.1})
     plt.savefig(f"{fig_outpath}/gene-number.png")
 
-norm_adata = adata.copy()
+print(f"Normalizing Data...")
 
-norm_adata.X.todense()
+sc.pp.normalize_total(adata, target_sum=1e4, inplace=True)
+sc.pp.log1p(adata)
 
-sc.pp.normalize_total(norm_adata, target_sum=1e4, inplace=True)
-sc.pp.log1p(norm_adata)
+print(f"Selecting Higly variable genes...")
 
-### Jusqu'ici tout est bon. Il faut vérifier la suite.
-### Ligne 283 de Seurat4CL.R, attention pas de correction faîte contrairement à ce que je pensais (no regress_out)
+sc.pp.highly_variable_genes(adata, flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
+adata = adata[:, adata.var.highly_variable]
 
-#sc.pp.highly_variable_genes(norm_adata, flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
-#norm_adata = norm_adata[:, norm_adata.var.highly_variable]
+print(f"Correcting unwanted effects...")
 
-###
-
-# res = regress_out(norm_adata, correction, intercept=args["intercept"], n_jobs=args["n_jobs"])
-# sc.pp.regress_out(norm_adata, n_jobs=args["n_jobs"], keys=correction)
-# sc.pp.scale(norm_adata)
-# 
-# intercept = True
-# 
-# interest = norm_adata.X[:,0].reshape(-1, 1).toarray()
-# regressors = regressors.to_numpy()
-# XtX = np.linalg.inv(regressors.T.dot(regressors))
-# XtY = regressors.T.dot(interest)
-# beta = XtX.dot(XtY)
+corrected_ad = adata.copy()
+corrected_ad = regress_out(corrected_ad, correction, intercept=False, n_jobs=args["n_jobs"])
+sc.pp.scale(corrected_ad)
+corrected_ad.write_h5ad(filename=f"{data_outpath}/corrected_{args['suffix']}", compression="gzip")
