@@ -1,7 +1,17 @@
 #!/usr/bin/python3
 
+from itertools import cycle
+
 def rgb(color: list):
     return list(map(lambda x: x/255, color))
+
+def rgb2hex(rgb):
+    r, g, b = rgb
+    if isinstance(r, float) and isinstance(g, float) and isinstance(b, float):
+        r = round(r*255) if 0<r<1 else int(r)
+        g = round(g*255) if 0<g<1 else int(g)
+        b = round(b*255) if 0<b<1 else int(b)
+    return "#{:02x}{:02x}{:02x}".format(r, g, b)
 
 black       = rgb([  0,   0,   0])
 white       = rgb([255, 255, 255])
@@ -35,3 +45,28 @@ olive       = rgb([142, 142,  56])
 navy        = rgb([  0,   0, 128])
 darkblue    = rgb([  0,   0, 139])
 skyblue     = rgb([135, 206, 235])
+
+color_cycle = cycle([
+    blue,
+    red,
+    green,
+    orange,
+    purple,
+    skyblue,
+    teal,
+    pink,
+    violet,
+    darkblue,
+    magenta,
+    darkgreen,
+    darkorange,
+    gray,
+    maroon,
+    olive,
+    orchid,
+    beet,
+    indigo,
+    gold,
+    navy,
+    salmon
+])
