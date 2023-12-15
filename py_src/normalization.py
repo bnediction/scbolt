@@ -9,10 +9,10 @@ from color_settings import color_cycle
 
 import scanpy as sc
 
-import numpy as np, scipy, math
+import numpy as np, math, random
 from sklearn.linear_model import LinearRegression
 
-from itertools import cycle
+random.seed(100)
 
 def regress_out_feature(interest, regressors, intercept=False, n_jobs=1):
 
@@ -53,7 +53,7 @@ args = {
     "dim": 15,
     "intercept":False,
     "n_jobs":6,
-    "n_dimensions":15,
+    "n_dimensions":15
 }
 
 data_outpath = Path(f"{args['outpath']}/tables")
@@ -121,8 +121,8 @@ corrected_ad.write_h5ad(filename=f"{data_outpath}/corrected_{args['suffix']}.h5a
 
 
 adata = sc.read_h5ad(Path("data/scRNA/normalizing/ct/tables/corrected_ct.h5ad"))
+n_comps = 30
 
-ndims = 30
 resolutions = [0.6,0.8,1,1.2]
 
 colour_d = {
@@ -134,7 +134,7 @@ phase = adata.obs["pypairs_cc_prediction"]
 
 print(f"Running principal component analysis (PCA)...")
 
-sc.tl.pca(adata, svd_solver='arpack', n_comps=ndims)
+sc.tl.pca(adata, svd_solver='arpack', n_comps=n_comps)
 
 pc1 = adata.obsm["X_pca"][:,0]
 pc2 = adata.obsm["X_pca"][:,1]
@@ -158,7 +158,7 @@ for resolution in resolutions:
 
 print(f"Running t-SNE...")
 
-sc.tl.tsne(adata, n_pcs=args["n_dimensions"])
+sc.tl.tsne(adata, n_pcs=args["n_dimensions"], learning_rate=1000)
 
 tsne1 = adata.obsm["X_tsne"][:,0]
 tsne2 = adata.obsm["X_tsne"][:,1]
@@ -180,7 +180,7 @@ plt.savefig(f"{fig_outpath}/{args['suffix']}_tsne_clusters")
 
 print(f"Running uniform manifold approximation and projection (UMAP)...")
 
-sc.tl.umap(adata, n_components=args["n_dimensions"])
+sc.tl.umap(adata, n_components=2)
 
 umap1 = adata.obsm["X_umap"][:,0]
 umap2 = adata.obsm["X_umap"][:,1]
