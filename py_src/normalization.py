@@ -53,7 +53,7 @@ args = {
     "dim": 15,
     "intercept":False,
     "n_jobs":6,
-    "n_dimensions":15
+    "n_dimensions":15,
 }
 
 data_outpath = Path(f"{args['outpath']}/tables")
@@ -93,15 +93,15 @@ if args["gene_filtering"]:
     ax.update({"xmargin": 0.1})
     plt.savefig(f"{fig_outpath}/gene-number.png")
 
-print(f"Selecting Higly variable genes...")
+print(f"Selecting higly variable genes (HVG)...")
 
 sc.pp.highly_variable_genes(adata, flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
-adata = adata[:, adata.var.highly_variable]
 
 print(f"Normalizing data...")
 
 sc.pp.normalize_total(adata, target_sum=1e4, inplace=True)
 sc.pp.log1p(adata)
+adata = adata[:, adata.var.highly_variable]
 
 normalized_ad = adata.copy(); corrected_ad = adata.copy()
 del adata
@@ -117,7 +117,10 @@ corrected_ad = regress_out(corrected_ad, correction, intercept=False, n_jobs=arg
 sc.pp.scale(corrected_ad)
 corrected_ad.write_h5ad(filename=f"{data_outpath}/corrected_{args['suffix']}.h5ad", compression="gzip")
 
-# corrected_ad = sc.read_h5ad(Path("data/scRNA/normalizing/ct/tables/corrected_ct.h5ad"))
+#####################
+
+
+adata = sc.read_h5ad(Path("data/scRNA/normalizing/ct/tables/corrected_ct.h5ad"))
 
 ndims = 30
 resolutions = [0.6,0.8,1,1.2]
@@ -157,36 +160,42 @@ print(f"Running t-SNE...")
 
 sc.tl.tsne(adata, n_pcs=args["n_dimensions"])
 
-fig, axes = plt.subplots(nrows=2, ncols=2)
 tsne1 = adata.obsm["X_tsne"][:,0]
 tsne2 = adata.obsm["X_tsne"][:,1]
+
+fig, axes = plt.subplots(nrows=2, ncols=2)
+fig.set_figheight(8)
+fig.set_figwidth(8)
 for i, resolution in enumerate(resolutions):
     for _cluster, _color in zip(np.unique(adata.obs[f"leiden_{resolution}"]), color_cycle):
         idx = np.where(adata.obs[f"leiden_{resolution}"] == _cluster)[0]
         ax = [math.floor(i/2), i%2]
         axes[*ax].scatter(tsne1[idx], tsne2[idx], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
+        axes[*ax].title.set_text(f"resolution: {resolution}")
         if ax[0] == 1:
             axes[*ax].set_xlabel(r"$\mathrm{t-SNE_{1}}$")
         if ax[1] == 0:
             axes[*ax].set_ylabel(r"$\mathrm{t-SNE_{2}}$")
 plt.savefig(f"{fig_outpath}/{args['suffix']}_tsne_clusters")
 
-print(f"Running uniform manifold approximation and projection (UMAP)...\n")
+print(f"Running uniform manifold approximation and projection (UMAP)...")
 
 sc.tl.umap(adata, n_components=args["n_dimensions"])
 
-fig, axes = plt.subplots(nrows=2, ncols=2)
 umap1 = adata.obsm["X_umap"][:,0]
 umap2 = adata.obsm["X_umap"][:,1]
+
+fig, axes = plt.subplots(nrows=2, ncols=2)
+fig.set_figheight(8)
+fig.set_figwidth(8)
 for i, resolution in enumerate(resolutions):
     for _cluster, _color in zip(np.unique(adata.obs[f"leiden_{resolution}"]), color_cycle):
         idx = np.where(adata.obs[f"leiden_{resolution}"] == _cluster)[0]
         ax = [math.floor(i/2), i%2]
         axes[*ax].scatter(umap1[idx], umap2[idx], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
+        axes[*ax].title.set_text(f"resolution: {resolution}")
         if ax[0] == 1:
             axes[*ax].set_xlabel(r"$\mathrm{UMAP_{1}}$")
         if ax[1] == 0:
             axes[*ax].set_ylabel(r"$\mathrm{UMAP_{2}}$")
 plt.savefig(f"{fig_outpath}/{args['suffix']}_umap_clusters")
-
-sc.pl.umap(adata, show=True, save=False)
