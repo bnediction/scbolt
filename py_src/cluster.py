@@ -1,87 +1,154 @@
+#!/usr/bin/python3
+
 import warnings
 warnings.filterwarnings("ignore")
 
+import random
+random.seed(100)
+
+import os, argparse
 from pathlib import Path
 
-import os
-import math
+import matplotlib.pyplot as plt, color_settings as colour, plot_settings
+from matplotlib.ticker import FormatStrFormatter
+from color_settings import color_cycle
+
 import scanpy as sc
-import pandas as pd
-import matplotlib.pyplot as plt
+
+import numpy as np, math
 
 args = {
-    "inpath":Path(f"../data/preprocess/results"),
-    "uns":True,
-    "outpath":Path(f"../data/cluster/scanpy"),
-    "non_expressed_genes_removed":False,
-    "min_proportion_cell_expressed":0.01,
-    "n_dimensions":15
+    "infile":Path("data/scRNA/normalizing/ra/tables/corrected.h5ad").resolve(),
+    "outpath":Path("data/scRNA/cluster/ra").resolve(),
+    "prefix":"ra_",
+    "n_dimensions":15,
+    "resolution":0.6
 }
 
-def csv_to_anndata(inpath, file_count, file_barcode=None, file_gene=None, uns=False):
-    adata = sc.read_csv(filename=Path(f"{inpath}/{file_count}"), delimiter="\t")
-    if file_barcode:
-        adata.obs = pd.read_csv(Path(f"{inpath}/{file_barcode}"), delimiter="\t").set_index("barcode")
-    if file_gene:
-        adata.var = pd.read_csv(Path(f"{inpath}/{file_gene}"), delimiter="\t").set_index("gene_name")
-    if uns:
-        for file in os.listdir(Path(f"{args['inpath']}/uns")):
-            adata.uns[file] = pd.read_csv(Path(f"{args['inpath']}/uns/{file}"), delimiter="\t")
-    return adata
+data_outpath = Path(f"{args['outpath']}/tables")
+fig_outpath = Path(f"{args['outpath']}/figures")
 
-sc.settings.set_figure_params(dpi=80, frameon=False, figsize=(3, 3), facecolor='white')
+if not data_outpath.exists():
+    os.makedirs(data_outpath)
+if not fig_outpath.exists():
+    os.makedirs(fig_outpath)
 
-adata = csv_to_anndata(args["inpath"].resolve(), "X.csv", file_barcode="obs.csv", file_gene="var.csv", uns=args["uns"])
+print(f"Loading data...")
 
-outpath = args["outpath"].resolve()
-_fig_outpath = Path(f"{outpath}/figures").resolve()
+adata = sc.read_h5ad(args["infile"])
 
-if not outpath.exists():
-    os.makedirs(outpath)
-if not _fig_outpath.exists():
-    _fig_outpath.mkdir()
+### Clusterization ###
 
-if not args["non_expressed_genes_removed"]:
-    threshold = math.floor(args["min_proportion_cell_expressed"] * adata.n_vars)
-    sc.pp.filter_cells(data=adata, min_genes=threshold)
+n_comps = 30 if args["n_dimensions"] <= 15 else args["n_dimensions"]
 
-##### Filtering and scaling #####
+resolutions = [0.6,0.8,1,1.2]
 
-print(f"\nFiltering and scaling data...\n")
+colour_d = {
+    "G1": colour.blue,
+    "G2M": colour.red,
+    "S": colour.green
+}
+phase = adata.obs["pypairs_cc_prediction"]
 
-sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat", inplace=True)
-#adata.raw = adata
-#adata = adata[:, adata.var.highly_variable]
-sc.pp.scale(adata, max_value=10)                # Scale gene values to unit variance
+print(f"Running principal component analysis (PCA)...")
 
-#### PCA ####
+sc.tl.pca(adata, svd_solver="arpack", n_comps=n_comps)
 
-print(f"Computing Principal Component Analysis (PCA)...\n")
+pc1 = adata.obsm["X_pca"][:,0]
+pc2 = adata.obsm["X_pca"][:,1]
+fig, ax = plt.subplots(nrows=1, ncols=1)
+for p in np.unique(phase):
+    idx = np.where(phase == p)[0]
+    ax.scatter(pc1[idx], pc2[idx], s=5, facecolors=colour_d[p], edgecolors="none", alpha=1, label=p)
+ax.set_xlabel(r"$\mathrm{PC_{1}}$")
+ax.set_ylabel(r"$\mathrm{PC_{2}}$")
+ax.legend(markerscale=2, edgecolor=colour.black)
+plt.sca(ax)
+ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+plt.savefig(f"{fig_outpath}/{args['prefix']}principal-component-analysis")
 
-sc.tl.pca(adata, svd_solver='arpack', n_comps=50)
-sc.pl.pca(adata, color='label', show=False, save=False)
-plt.savefig(f"{_fig_outpath}/pca.png")
-sc.pl.pca_variance_ratio(adata, n_pcs=20, log=False, show=False, save=False)
-plt.savefig(f"{_fig_outpath}/pca_variance_ratio.png")
+print(f"Clustering...")
 
-##### Clustering #####
+sc.pp.neighbors(adata, n_neighbors=20, n_pcs=args['n_dimensions'])
+for resolution in resolutions:
+    sc.tl.leiden(adata, resolution=resolution, key_added=f"leiden_{resolution}")
 
-print(f"Clustering data...\n")
+if args["resolution"] in resolutions:
+    adata.obs["cluster"] = adata.obs[f"leiden_{args['resolution']}"]
+else:
+    sc.tl.leiden(adata, resolution=args["resolution"], key_added=f"cluster")
 
-sc.pp.neighbors(adata, n_neighbors=20, n_pcs=args["n_dimensions"])
+print(f"Running t-SNE...")
 
-#### t-SNE ####
+sc.tl.tsne(adata, n_pcs=args["n_dimensions"], learning_rate=1000)
 
-print(f"Computing t-SNE...\n")
+tsne1 = adata.obsm["X_tsne"][:,0]
+tsne2 = adata.obsm["X_tsne"][:,1]
 
-sc.tl.tsne(adata, n_pcs=args["n_dimensions"])
-sc.pl.tsne(adata, color="label", show=False, save=False)
-plt.savefig(f"{_fig_outpath}/tsne.png")
+fig, axes = plt.subplots(nrows=2, ncols=2)
+fig.set_figheight(8)
+fig.set_figwidth(8)
+for i, resolution in enumerate(resolutions):
+    for _cluster, _color in zip(np.unique(adata.obs[f"leiden_{resolution}"]), color_cycle):
+        idx = np.where(adata.obs[f"leiden_{resolution}"] == _cluster)[0]
+        ax = [math.floor(i/2), i%2]
+        axes[*ax].scatter(tsne1[idx], tsne2[idx], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
+        axes[*ax].title.set_text(f"resolution: {resolution}")
+        if ax[0] == 1:
+            axes[*ax].set_xlabel(r"$t$-$\mathrm{SNE_{1}}$")
+        if ax[1] == 0:
+            axes[*ax].set_ylabel(r"$t$-$\mathrm{SNE_{2}}$")
+plt.savefig(f"{fig_outpath}/{args['prefix']}tsne_clusters")
 
-#### UMAP ####
+print(f"Running uniform manifold approximation and projection (UMAP)...")
 
-print(f"Computing Uniform Manifold Approximation and Projection (UMAP)...\n")
+sc.tl.umap(adata, n_components=2)
 
-sc.tl.umap(adata)
-sc.pl.umap(adata, color="label", show=False, save=False)
-plt.savefig(f"{_fig_outpath}/umap.png")
+umap1 = adata.obsm["X_umap"][:,0]
+umap2 = adata.obsm["X_umap"][:,1]
+
+fig, axes = plt.subplots(nrows=2, ncols=2)
+fig.set_figheight(8)
+fig.set_figwidth(8)
+for i, resolution in enumerate(resolutions):
+    for _cluster, _color in zip(np.unique(adata.obs[f"leiden_{resolution}"]), color_cycle):
+        idx = np.where(adata.obs[f"leiden_{resolution}"] == _cluster)[0]
+        ax = [math.floor(i/2), i%2]
+        axes[*ax].scatter(umap1[idx], umap2[idx], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
+        axes[*ax].title.set_text(f"resolution: {resolution}")
+        if ax[0] == 1:
+            axes[*ax].set_xlabel(r"$\mathrm{UMAP_{1}}$")
+        if ax[1] == 0:
+            axes[*ax].set_ylabel(r"$\mathrm{UMAP_{2}}$")
+plt.savefig(f"{fig_outpath}/{args['prefix']}umap_clusters")
+
+fig, ax = plt.subplots(nrows=1, ncols=1)
+for p in np.unique(phase):
+    idx = np.where(phase == p)[0]
+    ax.scatter(umap1[idx], umap2[idx], s=2, facecolors=colour_d[p], edgecolors="none", alpha=1, label=p)
+ax.set_xlabel(r"$\mathrm{UMAP_{1}}$")
+ax.set_ylabel(r"$\mathrm{UMAP_{2}}$")
+ax.legend(markerscale=5, edgecolor=colour.black)
+plt.sca(ax)
+ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+plt.savefig(f"{fig_outpath}/{args['prefix']}umap_phases")
+
+for metric in ["total_counts", "pct_counts_mitochondrion"]:
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    if metric == "total_counts":
+        cmap = "Greens"
+        label = r"$\# \mathrm{read\ counts}$"
+    elif metric == "pct_counts_mitochondrion":
+        cmap = "Blues"
+        label = r"$\frac{\# \mathrm{mitochondrion\ counts}}{\# \mathrm{read\ counts}}$"
+    mapping = ax.scatter(umap1, umap2, s=2, c=adata.obs[metric], cmap=cmap, alpha=1)
+    cbar = fig.colorbar(mapping)
+    cbar.set_label(label, loc="center", labelpad=5)
+    ax.set_xlabel(r"$\mathrm{UMAP_{1}}$")
+    ax.set_ylabel(r"$\mathrm{UMAP_{2}}$")
+    plt.sca(ax)
+    ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+    ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+    plt.savefig(f"{fig_outpath}/{args['prefix']}umap_{metric}")
