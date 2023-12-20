@@ -44,20 +44,25 @@ def regress_out_feature(interest, regressors, intercept=False, n_jobs=1):
     
     return _result[:,0]
 
-def regress_out(adata, correction, intercept=False, n_jobs=1):
+def regress_out(adata, correction, layer=None, intercept=False, n_jobs=1):
 
-    if sc.preprocessing._simple.issparse(adata.X):
-        adata.X = adata.X.toarray()
+    if layer is None:
+        counts = adata.X.copy()
+    else:
+        counts = adata.layers[layer]
+
+    if sc.preprocessing._simple.issparse(counts):
+        counts = counts.toarray()
     regressors = adata.obs[correction]
     regressors.insert(0, 'ones', 1.0)
     regressors = regressors.to_numpy()
 
     for i in range(adata.n_vars):
-        interest = adata.X[:,i].reshape(-1, 1)
+        interest = counts[:,i].reshape(-1, 1)
         corrected_interest = regress_out_feature(interest, regressors, intercept=intercept, n_jobs=n_jobs)
-        adata.X[:,i] = corrected_interest
+        counts[:,i] = corrected_interest
     
-    return adata
+    return counts
 
 parser = argparse.ArgumentParser(
     prog="Normalization of sc-RNAseq data",
@@ -134,13 +139,12 @@ if not fig_outpath.exists():
 print(f"Loading data...")
 
 adata = sc.read_h5ad(args.infile)
-_k = list()
 
 print(f"Filtering genes...")
 
 if args.min_cell_expression_proportion:
 
-    _k.append(adata.n_vars)
+    _k = [adata.n_vars]
 
     threshold = args.min_cell_expression_proportion*adata.n_obs
     sc.pp.filter_genes(data=adata, min_cells=threshold)
@@ -158,26 +162,23 @@ if args.min_cell_expression_proportion:
     ax.update({"xmargin": 0.1})
     plt.savefig(f"{fig_outpath}/gene-number.png")
 
+print(f"Normalizing data...")
+
+adata.layers["normalize"] = sc.pp.normalize_total(adata, target_sum=1e4, inplace=False)["X"]
+sc.pp.log1p(adata, layer="normalize")
+
 print(f"Selecting higly variable genes (HVG)...")
 
 sc.pp.highly_variable_genes(adata, flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
-
-print(f"Normalizing data...")
-
-sc.pp.normalize_total(adata, target_sum=1e4, inplace=True)
-sc.pp.log1p(adata)
 adata = adata[:, adata.var.highly_variable]
-
-normalized_ad = adata.copy(); corrected_ad = adata.copy()
-del adata
 
 print(f"Scaling data...")
 
-sc.pp.scale(normalized_ad)
-normalized_ad.write_h5ad(filename=f"{data_outpath}/{args.prefix}uncorrected.h5ad", compression="gzip")
+adata.layers["scale"] = adata.layers["normalize"]
+sc.pp.scale(adata, layer="scale")
 
 print(f"Correcting batch (unwanted) effects and scaling data...")
 
-corrected_ad = regress_out(corrected_ad, args.correction, intercept=False, n_jobs=args.n_jobs)
-sc.pp.scale(corrected_ad)
-corrected_ad.write_h5ad(filename=f"{data_outpath}/{args.prefix}corrected.h5ad", compression="gzip")
+adata.layers["correct"] = regress_out(adata, args.correction, layer="normalize", intercept=False, n_jobs=args.n_jobs)
+sc.pp.scale(adata, layer="correct")
+adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}corrected.h5ad", compression="gzip")

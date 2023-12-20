@@ -44,8 +44,6 @@ python py_src/normalization.py \
   --outpath data/scRNA/normalizing/ct \
   --correction G2M_score+S_score+G1_score \
   --min-cell-expression-proportion 0.001 \
-  --dimensions 15 \
-  --resolution 0.6 \
   --jobs 6
 
 python py_src/normalization.py \
@@ -53,6 +51,4 @@ python py_src/normalization.py \
   --outpath data/scRNA/normalizing/ra \
   --correction G2M_score+S_score+G1_score \
   --min-cell-expression-proportion 0.001 \
-  --dimensions 15 \
-  --resolution 0.6 \
   --jobs 6
