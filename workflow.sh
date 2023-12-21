@@ -1,19 +1,24 @@
+RED='\033[0;31m'
+NC='\033[0m'
+
 ### Load 10X data ###
 
+echo -e "${RED}10X data loading...${NC}"
+
 mkdir -p data/scRNA/raw/ct
-wget --recursive --no-parent -nd --reject "index.html" \
+wget --quiet --recursive --no-parent -nd --reject "index.html" \
   --directory-prefix=data/scRNA/raw/ct \
   ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
 mv data/scRNA/raw/ct/*matrix.mtx.gz data/scRNA/raw/ct/matrix.mtx.gz
-mv data/scRNA/raw/ct/*genes.tsv.gz data/scRNA/raw/ct/genes.tsv.gz
+mv data/scRNA/raw/ct/*genes.tsv.gz data/scRNA/raw/ct/features.tsv.gz
 mv data/scRNA/raw/ct/*barcodes.tsv.gz data/scRNA/raw/ct/barcodes.tsv.gz
 
 mkdir -p data/scRNA/raw/ra
-wget --recursive --no-parent -nd --reject "index.html" \
+wget --quiet --recursive --no-parent -nd --reject "index.html" \
   --directory-prefix=data/scRNA/raw/ra \
   ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
 mv data/scRNA/raw/ra/*matrix.mtx.gz data/scRNA/raw/ra/matrix.mtx.gz
-mv data/scRNA/raw/ra/*genes.tsv.gz data/scRNA/raw/ra/genes.tsv.gz
+mv data/scRNA/raw/ra/*genes.tsv.gz data/scRNA/raw/ra/features.tsv.gz
 mv data/scRNA/raw/ra/*barcodes.tsv.gz data/scRNA/raw/ra/barcodes.tsv.gz
 
 python py_src/load_10X.py -i data/scRNA/raw/ct \
@@ -26,8 +31,10 @@ python py_src/load_10X.py -i data/scRNA/raw/ra \
 
 ### Cell filtering ###
 
+echo -e "${RED}Cell filtering...${NC}"
+
 mkdir -p data/public/cycle-phases
-wget -cO data/public/cycle-phases/mouse_cycle_markers.rds https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
+wget --quiet -cO data/public/cycle-phases/mouse_cycle_markers.rds https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
 
 python py_src/cell_filtering.py \
   --infile data/scRNA/raw/ct/ct.h5ad \
@@ -47,13 +54,22 @@ python py_src/cell_filtering.py \
   --lower-mad 3 \
   --consistency-mad 1
 
-### Cell type signature ###
+### Cell type signatures ###
+
+echo -e "${RED}Cell type signatures loading...${NC}"
 
 mkdir -p data/public/signatures
-wget -cO data/public/signatures/geiger.xls https://doi.org/10.1371/journal.pbio.2003389.s025 
-wget -cO data/public/signatures/chambers.xls https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
+wget --quiet -cO data/public/signatures/geiger.xls https://doi.org/10.1371/journal.pbio.2003389.s025 
+wget --quiet -cO data/public/signatures/chambers.xls https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
+
+python py_src/load_signatures.py \
+  --table-infile data/public/signatures/chambers.xls \
+  --list-infile data/public/signatures/geiger.xls \
+  --outfile data/public/signatures/signatures.json
 
 ### Gene filtering and normalization ###
+
+echo -e "${RED}Gene filtering and normalization...${NC}"
 
 python py_src/normalization.py \
   --infile data/scRNA/cell_filtering/ct/tables/counts.h5ad \
