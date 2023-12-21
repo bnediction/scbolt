@@ -1,9 +1,10 @@
 #!/usr/bin/python3
 
-from pathlib import Path
-import json
+import argparse, os
 
-import pandas as pd
+from pathlib import Path
+
+import pandas as pd, json
 
 def file2signatures(file):
     signatures_d = dict()
@@ -21,27 +22,61 @@ def df2signatures(df):
         signatures_d[cell_type] = gene_symbols
     return signatures_d
 
+parser = argparse.ArgumentParser(
+    prog="Load signatures data",
+    description="""Load signatures data from two files,
+    one in a table format and the other one in list format.""",
+    usage="python load_signatures.py <args>"
+)
+
+parser.add_argument(
+    "-t", "--table-infile",
+    dest="table_infile",
+    type=lambda x: Path(x).resolve(),
+    required=True,
+    help="path to table signatures file"
+)
+
+parser.add_argument(
+    "-l", "--list-infile",
+    dest="list_infile",
+    type=lambda x: Path(x).resolve(),
+    required=True,
+    help="path to list signatures file"
+)
+
+parser.add_argument(
+    "-o", "--outfile",
+    dest="outfile",
+    type=lambda x: Path(x).resolve(),
+    required=True,
+    help="output file"
+)
+
 args = {
-    "type_signatures_infile": Path(f"data/public/signatures/chambers.xls").resolve(),
+    "table_signatures_infile": Path(f"data/public/signatures/chambers.xls").resolve(),
     "list_signatures_infile": Path(f"data/public/signatures/geiger.xls").resolve(),
     "outpath": Path(f"data/public/signatures").resolve()
 }
 
-if not args["outpath"].resolve().exists():
-    args["outpath"].resolve().mkdir()
+args = parser.parse_args()
 
-type_signatures_df = pd.read_excel(io=args["type_signatures_infile"], sheet_name=None)
-type_signatures_d = file2signatures(type_signatures_df)
+outpath = os.path.dirname(args.outfile)
+if not outpath:
+    os.makedirs(outpath)
 
-list_signatures_df = pd.read_excel(io=args["list_signatures_infile"], sheet_name=0)
+table_signatures_df = pd.read_excel(io=args.table_infile, sheet_name=None)
+table_signatures_d = file2signatures(table_signatures_df)
+
+list_signatures_df = pd.read_excel(io=args.list_infile, sheet_name=0)
 list_signatures_df.columns = list(list_signatures_df.iloc[0])
 list_signatures_df.drop([0, 1], axis=0, inplace=True)
 list_signatures_d = df2signatures(list_signatures_df)
 
 signatures_d = {
-    **type_signatures_d,
+    **table_signatures_d,
     **list_signatures_d
 }
 
-with open(f"{args['outpath']}/signatures.json", "w") as file:
-    json.dump(signatures_d, file, indent=2)
+with open(f"{args.outfile}", "w") as file:
+    json.dump(signatures_d, file, indent=1)
