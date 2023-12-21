@@ -1,5 +1,21 @@
 ### Load 10X data ###
 
+mkdir -p data/scRNA/raw/ct
+wget --recursive --no-parent -nd --reject "index.html" \
+  --directory-prefix=data/scRNA/raw/ct \
+  ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
+mv data/scRNA/raw/ct/*matrix.mtx.gz data/scRNA/raw/ct/matrix.mtx.gz
+mv data/scRNA/raw/ct/*genes.tsv.gz data/scRNA/raw/ct/genes.tsv.gz
+mv data/scRNA/raw/ct/*barcodes.tsv.gz data/scRNA/raw/ct/barcodes.tsv.gz
+
+mkdir -p data/scRNA/raw/ra
+wget --recursive --no-parent -nd --reject "index.html" \
+  --directory-prefix=data/scRNA/raw/ra \
+  ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
+mv data/scRNA/raw/ra/*matrix.mtx.gz data/scRNA/raw/ra/matrix.mtx.gz
+mv data/scRNA/raw/ra/*genes.tsv.gz data/scRNA/raw/ra/genes.tsv.gz
+mv data/scRNA/raw/ra/*barcodes.tsv.gz data/scRNA/raw/ra/barcodes.tsv.gz
+
 python py_src/load_10X.py -i data/scRNA/raw/ct \
   -o data/scRNA/raw/ct/ct.h5ad \
   -s age=adult,date=29-09-2020,sample_name=ctrl,condition=control
