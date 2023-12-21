@@ -50,6 +50,7 @@ if not outpath.exists():
     os.makedirs(outpath)
 
 adata = sc.read_10x_mtx(path=args.inpath)
+adata.raw = adata
 adata.var["symbol"] = list(adata.var.index)
 
 for metadatum in args.sample_info.split(","):
