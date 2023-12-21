@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 
 import matplotlib as mpl
-import cycler, py_src.color_settings as color
+import cycler, color_settings as color
 
-mpl.style.use("default")
+mpl.rcParams.update(mpl.rcParamsDefault)
 
 font = {"family" : "normal",
         "weight" : "normal",
@@ -13,6 +13,8 @@ mpl.rc("font", **font)
 mpl.rcParams["text.usetex"] = True
 
 mpl.rcParams["lines.linewidth"] = 1.5
+
+# mpl.rcParams["patch.edgecolor"] = color.black
 
 margin = 0
 mpl.rcParams.update({

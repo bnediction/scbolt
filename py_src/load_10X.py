@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser(
     -- also named coordinate list format -- which corresponds to compressed reordered sparse counting data)\n
     - barcodes.tsv.gz (information about each cell)\n
     - features.tsv.gz (information about each gene)\n""",
-    usage="python load_10X [<args>]")
+    usage="python load_10X.py -i <inpath>  [<args>]")
 
 parser.add_argument(
     "-i", "--inpath",
@@ -29,7 +29,7 @@ parser.add_argument(
     dest="outfile",
     type=lambda x: Path(x).resolve(),
     required=False,
-    default=Path("./").resolve(),
+    default=Path("./out.h5ad").resolve(),
     help="hdf5 output filename"
 )
 

@@ -53,12 +53,6 @@ parser.add_argument(
     help="output file"
 )
 
-args = {
-    "table_signatures_infile": Path(f"data/public/signatures/chambers.xls").resolve(),
-    "list_signatures_infile": Path(f"data/public/signatures/geiger.xls").resolve(),
-    "outpath": Path(f"data/public/signatures").resolve()
-}
-
 args = parser.parse_args()
 
 outpath = os.path.dirname(args.outfile)

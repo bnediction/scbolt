@@ -9,11 +9,10 @@ random.seed(100)
 import os, argparse
 from pathlib import Path
 
-import matplotlib.pyplot as plt, color_settings as colour, plot_settings
-
 import scanpy as sc
-
 from sklearn.linear_model import LinearRegression
+
+import matplotlib.pyplot as plt, color_settings as colour, plot_settings
 
 def str2prefix(v: str):
     if v:

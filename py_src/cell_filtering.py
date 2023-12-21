@@ -53,9 +53,10 @@ def marker_pairs_converter(ensembl_to_symbol: dict, ensembl_marker_pairs):
 parser = argparse.ArgumentParser(
     prog="Cell filtering and cell cycle phases assignement on sc-RNAseq data",
     description="""From sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
-    filter low-quality cell and assign cell cycle phases using marker pairs.
+    filter low-quality cells and assign cell cycle phases using marker pairs.
     Some quality metrics are computed before and after filtering.""",
-    usage="python cell_filtering.py [<args>]")
+    usage="python cell_filtering.py [<args>]"
+)
 
 parser.add_argument(
     "-i", "--infile",
@@ -112,9 +113,9 @@ parser.add_argument(
 parser.add_argument(
     "-m", "--consistency-mad",
     dest="consistency_mad",
+    type=str2bool,
     required=False,
     default=False,
-    type=str2bool,
     help="if true, median absolute deviation (MAD) is refactorised for asymptotically normal consistency"
 )
 
@@ -143,9 +144,14 @@ parser = rdata.parser.parse_file(args.marker_infile)
 marker_pairs = rdata.conversion.convert(parser)
 marker_pairs = marker_pairs_converter(ensembl_to_symbol, marker_pairs)
 scores = pairs.cyclone(adata, marker_pairs)
+adata.obs.rename(columns={
+    "pypairs_G1": "G1_score",
+    "pypairs_S": "S_score",
+    "pypairs_G2M": "G2M_score"
+}, inplace=True)
 
 fig, ax = plt.subplots(nrows=1, ncols=1)
-ax.scatter(adata.obs.pypairs_G1, adata.obs.pypairs_G2M, s=30, facecolors=color.white, edgecolors=color.blue, alpha=1)
+ax.scatter(adata.obs.G1_score, adata.obs.G2M_score, s=30, facecolors=color.white, edgecolors=color.blue, alpha=1)
 ax.set_xlabel(r"score $\mathrm{G_{1}}$")
 ax.set_ylabel(r"score $\mathrm{G_{2}/M}$")
 plt.sca(ax)
@@ -242,7 +248,7 @@ ax.axes[0,2].set_title(r"mitochondrion proportion")
 ax.axes[0,3].set_title(r"ribosome proportion")
 plt.savefig(f"{fig_outpath}/violin-plot-on-UMI-after-filtering2.png")
 
-print("Saving data...\n")
+print("Saving data...")
 
 adata.write_h5ad(filename=f"{data_outpath}/counts.h5ad")
 
