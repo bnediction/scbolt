@@ -9,17 +9,19 @@ random.seed(100)
 import os, argparse
 from pathlib import Path
 
+import numpy as np, math
+
+import pandas as pd, scanpy as sc, json
+
 import matplotlib.pyplot as plt, color_settings as colour, plot_settings
 from matplotlib.ticker import FormatStrFormatter
 from color_settings import color_cycle
 
-import scanpy as sc
-
-import numpy as np, math
-
 args = {
     "infile":Path("data/scRNA/normalizing/ra/tables/corrected.h5ad").resolve(),
     "outpath":Path("data/scRNA/cluster/ra").resolve(),
+    "signatures":Path("data/public/signatures/signatures.json").resolve(),
+    "condition":"ra",
     "prefix":"ra_",
     "n_dimensions":15,
     "resolution":0.6
@@ -37,8 +39,6 @@ print(f"Loading data...")
 
 adata = sc.read_h5ad(args["infile"])
 
-### Clusterization ###
-
 n_comps = 30 if args["n_dimensions"] <= 15 else args["n_dimensions"]
 
 resolutions = [0.6,0.8,1,1.2]
@@ -52,7 +52,9 @@ phase = adata.obs["pypairs_cc_prediction"]
 
 print(f"Running principal component analysis (PCA)...")
 
-sc.tl.pca(adata, svd_solver="arpack", n_comps=n_comps)
+adata.obsm["X_pca"], PCs, _, _ = sc.tl.pca(adata.layers["correct"], svd_solver="arpack", n_comps=n_comps, return_info=True)
+adata.varm["PCs"] = PCs.transpose()
+del PCs
 
 pc1 = adata.obsm["X_pca"][:,0]
 pc2 = adata.obsm["X_pca"][:,1]
@@ -152,3 +154,87 @@ for metric in ["total_counts", "pct_counts_mitochondrion"]:
     ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
     ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
     plt.savefig(f"{fig_outpath}/{args['prefix']}umap_{metric}")
+
+print(f"Marker analysis...")
+
+sc.tl.rank_genes_groups(adata,
+    layer="normalize",
+    groupby="cluster",
+    method="wilcoxon",
+    corr_method='benjamini-hochberg'
+)
+
+markers = adata.uns["rank_genes_groups"]
+markers_d = {
+    "gene":list(),
+    "cluster":list(),
+    "p_value":list(),
+    "adj_p_value":list(),
+    "log2foldchange":list(),
+    "score":list()
+}
+
+for cluster in sorted(adata.obs["cluster"].unique()):
+    markers_d["gene"].extend(markers["names"][cluster])
+    markers_d["cluster"].extend([cluster] * adata.n_vars)
+    markers_d["p_value"].extend(markers["pvals"][cluster])
+    markers_d["adj_p_value"].extend(markers["pvals_adj"][cluster])
+    markers_d["log2foldchange"].extend(markers["logfoldchanges"][cluster])
+    markers_d["score"].extend(markers["scores"][cluster])
+
+markers_df = pd.DataFrame(data=markers_d)
+del marker, markers_d
+markers_df = markers_df[markers_df["adj_p_value"] < 0.05]
+
+markers_df.to_csv(f"{data_outpath}/markers.csv", sep=",", index=False)
+
+print(f"Signature analysis...")
+
+with open(args["signatures"], "r") as signatures_f:
+    signatures_d = json.load(signatures_f)
+
+valid_gene_names = list(adata.var.index)
+for name, genes in signatures_d.items():
+    signatures_d[name] = [gene for gene in genes if gene in valid_gene_names]
+signatures_d = {f"{name}_{args['condition']}": genes for name, genes in signatures_d.items() if genes}
+del valid_gene_names
+
+adata.X = adata.layers["scale"]
+for name, genes in signatures_d.items():
+    sc.tl.score_genes(adata,
+        gene_list=genes,
+        ctrl_size=100,
+        gene_pool=None,
+        n_bins=25,
+        score_name=name,
+        random_state=1,
+        copy=False,
+        use_raw=False
+    )
+
+print("Summarizing markers...")
+
+def get_cluster_info(adata, cluster):
+    
+    info_d = dict()
+    info_d = {"n_cells":sum(adata.obs["cluster"] == cluster)}
+    info_d["proportion_cells"] = info_d["n_cells"]/adata.n_vars
+    proportion_phases = adata.obs[adata.obs["cluster"] == cluster]["pypairs_max_class"].value_counts() / sum(adata.obs["cluster"] == cluster)
+    info_d.update({phase: proportion_phases[phase] for phase in proportion_phases.index})
+    info_d["median_n_genes_by_UMI"] = int(adata.obs[adata.obs["cluster"] == cluster]["n_genes_by_counts"].median())
+    info_d["median_total_counts_by_UMI"] = int(adata.obs[adata.obs["cluster"] == cluster]["total_counts"].median())
+    info_d["median_proportion_mito_by_UMI"] = f"{adata.obs[adata.obs['cluster'] == cluster]['pct_counts_mitochondrion'].median()}%"
+    
+    return info_d
+
+cluster_info_d = get_cluster_info(adata, cluster="0")
+
+### le cluster 1 sur Python correspond au cluster 5 sur R.
+### marker_df[marker_df["cluster"]=="1"][0:10]
+
+#data["names"]["0"], data["pvals"]["0"]
+
+### Attention les groupes sont pas équivalents entre seurat et python
+### Que je prenne le layer normalize ou scale, même p-values !!! Ne pas prendre le correct, ça change vraiment tout.
+
+# adata.uns["rank_genes_groups"]["names"]["1"]
