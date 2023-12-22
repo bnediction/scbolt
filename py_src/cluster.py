@@ -10,6 +10,7 @@ import os, argparse
 from pathlib import Path
 
 import numpy as np, math
+from scipy.stats import hypergeom
 
 import pandas as pd, scanpy as sc, json
 
@@ -183,8 +184,8 @@ for cluster in sorted(adata.obs["cluster"].unique()):
     markers_d["score"].extend(markers["scores"][cluster])
 
 markers_df = pd.DataFrame(data=markers_d)
-del marker, markers_d
 markers_df = markers_df[markers_df["adj_p_value"] < 0.05]
+del markers, markers_d
 
 markers_df.to_csv(f"{data_outpath}/markers.csv", sep=",", index=False)
 
@@ -212,9 +213,34 @@ for name, genes in signatures_d.items():
         use_raw=False
     )
 
-print("Summarizing markers...")
+print("Summarizing clusters...")
 
-def get_cluster_info(adata, cluster):
+def hypergeometric_test(adata, signatures, markers):
+    
+    background = list(adata.var.index)
+    marked_genes = list(set(markers).intersection(signatures))
+    pvalue = 1 - hypergeom.sf(
+        len(marked_genes)-1,
+        len(background),
+        len(signatures),
+        len(markers),
+        loc=0
+    )
+    
+    return pvalue
+
+def multiple_hypergeometric_test(adata, signatures_d, markers_df, cluster):
+
+    cell_type_pvalue_d = dict()
+    markers = markers_df[markers_df["cluster"] == cluster]["gene"]
+
+    for cell_type, signatures in signatures_d.items():
+        pvalue = hypergeometric_test(adata, signatures, markers)
+        cell_type_pvalue_d[cell_type] = pvalue
+    
+    return cell_type_pvalue_d
+
+def get_cluster_info(adata, signatures_d, markers_df, cluster):
     
     info_d = dict()
     info_d = {"n_cells":sum(adata.obs["cluster"] == cluster)}
@@ -224,17 +250,14 @@ def get_cluster_info(adata, cluster):
     info_d["median_n_genes_by_UMI"] = int(adata.obs[adata.obs["cluster"] == cluster]["n_genes_by_counts"].median())
     info_d["median_total_counts_by_UMI"] = int(adata.obs[adata.obs["cluster"] == cluster]["total_counts"].median())
     info_d["median_proportion_mito_by_UMI"] = f"{adata.obs[adata.obs['cluster'] == cluster]['pct_counts_mitochondrion'].median()}%"
+    info_d.update(multiple_hypergeometric_test(adata, signatures_d, markers_df, cluster))
     
     return info_d
 
-cluster_info_d = get_cluster_info(adata, cluster="0")
+cluster_info_d = {cluster: get_cluster_info(adata, signatures_d, markers_df, cluster) for cluster in sorted(adata.obs["cluster"].unique())}
+cluster_info_df = pd.DataFrame.from_dict(cluster_info_d, orient='index')
+
+cluster_info_df.to_csv(f"{data_outpath}/cluster_info.csv", sep=",", index=True)
+adata.write_h5ad(filename=f"{data_outpath}/counts.h5ad", compression="gzip")
 
 ### le cluster 1 sur Python correspond au cluster 5 sur R.
-### marker_df[marker_df["cluster"]=="1"][0:10]
-
-#data["names"]["0"], data["pvals"]["0"]
-
-### Attention les groupes sont pas équivalents entre seurat et python
-### Que je prenne le layer normalize ou scale, même p-values !!! Ne pas prendre le correct, ça change vraiment tout.
-
-# adata.uns["rank_genes_groups"]["names"]["1"]
