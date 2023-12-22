@@ -18,6 +18,45 @@ import matplotlib.pyplot as plt, color_settings as colour, plot_settings
 from matplotlib.ticker import FormatStrFormatter
 from color_settings import color_cycle
 
+def hypergeometric_test(adata, signatures, markers):
+    
+    background = list(adata.var.index)
+    marked_genes = list(set(markers).intersection(signatures))
+    pvalue = 1 - hypergeom.sf(
+        len(marked_genes)-1,
+        len(background),
+        len(signatures),
+        len(markers),
+        loc=0
+    )
+    
+    return pvalue
+
+def multiple_hypergeometric_test(adata, signatures_d, markers_df, cluster):
+
+    cell_type_pvalue_d = dict()
+    markers = markers_df[markers_df["cluster"] == cluster]["gene"]
+
+    for cell_type, signatures in signatures_d.items():
+        pvalue = hypergeometric_test(adata, signatures, markers)
+        cell_type_pvalue_d[cell_type] = pvalue
+    
+    return cell_type_pvalue_d
+
+def get_cluster_info(adata, signatures_d, markers_df, cluster):
+    
+    info_d = dict()
+    info_d = {"n_cells":sum(adata.obs["cluster"] == cluster)}
+    info_d["proportion_cells"] = info_d["n_cells"]/adata.n_obs
+    proportion_phases = adata.obs[adata.obs["cluster"] == cluster]["pypairs_max_class"].value_counts() / sum(adata.obs["cluster"] == cluster)
+    info_d.update({phase: proportion_phases[phase] for phase in proportion_phases.index})
+    info_d["median_n_genes_by_UMI"] = adata.obs[adata.obs["cluster"] == cluster]["n_genes_by_counts"].median()
+    info_d["median_total_counts_by_UMI"] = adata.obs[adata.obs["cluster"] == cluster]["total_counts"].median()
+    info_d["median_proportion_mito_by_UMI"] = f"{adata.obs[adata.obs['cluster'] == cluster]['pct_counts_mitochondrion'].median()}%"
+    info_d.update(multiple_hypergeometric_test(adata, signatures_d, markers_df, cluster))
+    
+    return info_d
+
 args = {
     "infile":Path("data/scRNA/normalizing/ra/tables/corrected.h5ad").resolve(),
     "outpath":Path("data/scRNA/cluster/ra").resolve(),
@@ -25,7 +64,7 @@ args = {
     "condition":"ra",
     "prefix":"ra_",
     "n_dimensions":15,
-    "resolution":0.6
+    "resolution":0.6,
 }
 
 data_outpath = Path(f"{args['outpath']}/tables")
@@ -158,11 +197,15 @@ for metric in ["total_counts", "pct_counts_mitochondrion"]:
 
 print(f"Marker analysis...")
 
+layer = "normalize"
+
 sc.tl.rank_genes_groups(adata,
-    layer="normalize",
+    layer=layer,
     groupby="cluster",
+    reference="rest",
     method="wilcoxon",
-    corr_method='benjamini-hochberg'
+    tie_correct=True,
+    corr_method="bonferroni"
 )
 
 markers = adata.uns["rank_genes_groups"]
@@ -183,7 +226,8 @@ for cluster in sorted(adata.obs["cluster"].unique()):
     markers_d["log2foldchange"].extend(markers["logfoldchanges"][cluster])
     markers_d["score"].extend(markers["scores"][cluster])
 
-markers_df = pd.DataFrame(data=markers_d)
+markers_df = pd.DataFrame.from_dict(markers_d, orient="columns")
+markers_df = markers_df[markers_df["log2foldchange"] > 0]
 markers_df = markers_df[markers_df["adj_p_value"] < 0.05]
 del markers, markers_d
 
@@ -200,7 +244,7 @@ for name, genes in signatures_d.items():
 signatures_d = {f"{name}_{args['condition']}": genes for name, genes in signatures_d.items() if genes}
 del valid_gene_names
 
-adata.X = adata.layers["scale"]
+adata.X = adata.layers[layer]
 for name, genes in signatures_d.items():
     sc.tl.score_genes(adata,
         gene_list=genes,
@@ -213,49 +257,12 @@ for name, genes in signatures_d.items():
         use_raw=False
     )
 
+# Gran_ra[1:11] = 5.308798e-02 -3.626784e-02  3.567167e-02  8.583298e-04  3.648064e-02  1.078491e-01  2.998679e-03  7.809729e-02 -1.441389e-02  9.431097e-02
+
 print("Summarizing clusters...")
 
-def hypergeometric_test(adata, signatures, markers):
-    
-    background = list(adata.var.index)
-    marked_genes = list(set(markers).intersection(signatures))
-    pvalue = 1 - hypergeom.sf(
-        len(marked_genes)-1,
-        len(background),
-        len(signatures),
-        len(markers),
-        loc=0
-    )
-    
-    return pvalue
-
-def multiple_hypergeometric_test(adata, signatures_d, markers_df, cluster):
-
-    cell_type_pvalue_d = dict()
-    markers = markers_df[markers_df["cluster"] == cluster]["gene"]
-
-    for cell_type, signatures in signatures_d.items():
-        pvalue = hypergeometric_test(adata, signatures, markers)
-        cell_type_pvalue_d[cell_type] = pvalue
-    
-    return cell_type_pvalue_d
-
-def get_cluster_info(adata, signatures_d, markers_df, cluster):
-    
-    info_d = dict()
-    info_d = {"n_cells":sum(adata.obs["cluster"] == cluster)}
-    info_d["proportion_cells"] = info_d["n_cells"]/adata.n_vars
-    proportion_phases = adata.obs[adata.obs["cluster"] == cluster]["pypairs_max_class"].value_counts() / sum(adata.obs["cluster"] == cluster)
-    info_d.update({phase: proportion_phases[phase] for phase in proportion_phases.index})
-    info_d["median_n_genes_by_UMI"] = int(adata.obs[adata.obs["cluster"] == cluster]["n_genes_by_counts"].median())
-    info_d["median_total_counts_by_UMI"] = int(adata.obs[adata.obs["cluster"] == cluster]["total_counts"].median())
-    info_d["median_proportion_mito_by_UMI"] = f"{adata.obs[adata.obs['cluster'] == cluster]['pct_counts_mitochondrion'].median()}%"
-    info_d.update(multiple_hypergeometric_test(adata, signatures_d, markers_df, cluster))
-    
-    return info_d
-
 cluster_info_d = {cluster: get_cluster_info(adata, signatures_d, markers_df, cluster) for cluster in sorted(adata.obs["cluster"].unique())}
-cluster_info_df = pd.DataFrame.from_dict(cluster_info_d, orient='index')
+cluster_info_df = pd.DataFrame.from_dict(cluster_info_d, orient="index")
 
 cluster_info_df.to_csv(f"{data_outpath}/cluster_info.csv", sep=",", index=True)
 adata.write_h5ad(filename=f"{data_outpath}/counts.h5ad", compression="gzip")
