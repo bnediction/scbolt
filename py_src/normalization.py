@@ -48,7 +48,7 @@ def regress_out(adata, correction, layer=None, intercept=False, n_jobs=1):
     if layer is None:
         counts = adata.X.copy()
     else:
-        counts = adata.layers[layer]
+        counts = adata.layers[layer].copy()
 
     if sc.preprocessing._simple.issparse(counts):
         counts = counts.toarray()
@@ -161,10 +161,13 @@ if args.min_cell_expression_proportion:
     ax.update({"xmargin": 0.1})
     plt.savefig(f"{fig_outpath}/gene-number.png")
 
+adata.layers["raw"] = adata.X.copy()
+
 print(f"Normalizing data...")
 
 adata.layers["normalize"] = sc.pp.normalize_total(adata, target_sum=1e4, inplace=False)["X"]
-sc.pp.log1p(adata, layer="normalize")
+adata.layers["log-normalize"] = adata.layers["normalize"].copy()
+sc.pp.log1p(adata, layer="log-normalize")
 
 print(f"Selecting higly variable genes (HVG)...")
 
@@ -173,11 +176,11 @@ adata = adata[:, adata.var.highly_variable]
 
 print(f"Scaling data...")
 
-adata.layers["scale"] = adata.layers["normalize"]
+adata.layers["scale"] = adata.layers["log-normalize"].copy()
 sc.pp.scale(adata, layer="scale")
 
 print(f"Correcting batch (unwanted) effects and scaling data...")
 
-adata.layers["correct"] = regress_out(adata, args.correction, layer="normalize", intercept=False, n_jobs=args.n_jobs)
+adata.layers["correct"] = regress_out(adata, args.correction, layer="log-normalize", intercept=False, n_jobs=args.n_jobs)
 sc.pp.scale(adata, layer="correct")
 adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}corrected.h5ad", compression="gzip")
