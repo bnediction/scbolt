@@ -13,6 +13,7 @@ import numpy as np, math
 from scipy.stats import hypergeom
 
 import pandas as pd, scanpy as sc, json
+import anndatatools as adt
 
 import matplotlib.pyplot as plt, color_settings as colour, plot_settings
 from matplotlib.ticker import FormatStrFormatter
@@ -50,9 +51,9 @@ def get_cluster_info(adata, signatures_d, markers_df, cluster):
     info_d["proportion_cells"] = info_d["n_cells"]/adata.n_obs
     proportion_phases = adata.obs[adata.obs["cluster"] == cluster]["pypairs_max_class"].value_counts() / sum(adata.obs["cluster"] == cluster)
     info_d.update({phase: proportion_phases[phase] for phase in proportion_phases.index})
-    info_d["median_n_genes_by_UMI"] = adata.obs[adata.obs["cluster"] == cluster]["n_genes_by_counts"].median()
-    info_d["median_total_counts_by_UMI"] = adata.obs[adata.obs["cluster"] == cluster]["total_counts"].median()
-    info_d["median_proportion_mito_by_UMI"] = f"{adata.obs[adata.obs['cluster'] == cluster]['pct_counts_mitochondrion'].median()}%"
+    info_d["median_n_UMI"] = adata.obs[adata.obs["cluster"] == cluster]["n_genes_by_counts"].median()
+    info_d["median_total_UMI"] = adata.obs[adata.obs["cluster"] == cluster]["total_counts"].median()
+    info_d["median_proportion_mito_by_cell"] = f"{adata.obs[adata.obs['cluster'] == cluster]['pct_counts_mitochondrion'].median()}%"
     info_d.update(multiple_hypergeometric_test(adata, signatures_d, markers_df, cluster))
     
     return info_d
@@ -65,6 +66,7 @@ args = {
     "prefix":"ra_",
     "n_dimensions":15,
     "resolution":0.6,
+    "logfc_threshold":0.25
 }
 
 data_outpath = Path(f"{args['outpath']}/tables")
@@ -197,7 +199,7 @@ for metric in ["total_counts", "pct_counts_mitochondrion"]:
 
 print(f"Marker analysis...")
 
-layer = "normalize"
+layer = "log-normalize"
 
 sc.tl.rank_genes_groups(adata,
     layer=layer,
@@ -227,9 +229,21 @@ for cluster in sorted(adata.obs["cluster"].unique()):
     markers_d["score"].extend(markers["scores"][cluster])
 
 markers_df = pd.DataFrame.from_dict(markers_d, orient="columns")
-markers_df = markers_df[markers_df["log2foldchange"] > 0]
-markers_df = markers_df[markers_df["adj_p_value"] < 0.05]
+markers_df = markers_df.loc[:,markers_df.columns!="log2foldchange"]
 del markers, markers_d
+
+log_fold_changes_df = adt.log_fold_changes(adata, groupby="cluster", layer=layer, is_log=True, cluster_rebalancing=False)
+
+markers_df = pd.merge(
+    markers_df,
+    log_fold_changes_df,
+    left_on=["gene", "cluster"],
+    right_on=["gene", "cluster"],
+    how="left"
+)
+
+markers_df = markers_df[abs(markers_df["log2foldchange"]) > args["logfc_threshold"]]
+markers_df = markers_df[markers_df["adj_p_value"] < 0.05]
 
 markers_df.to_csv(f"{data_outpath}/markers.csv", sep=",", index=False)
 
@@ -257,8 +271,6 @@ for name, genes in signatures_d.items():
         use_raw=False
     )
 
-# Gran_ra[1:11] = 5.308798e-02 -3.626784e-02  3.567167e-02  8.583298e-04  3.648064e-02  1.078491e-01  2.998679e-03  7.809729e-02 -1.441389e-02  9.431097e-02
-
 print("Summarizing clusters...")
 
 cluster_info_d = {cluster: get_cluster_info(adata, signatures_d, markers_df, cluster) for cluster in sorted(adata.obs["cluster"].unique())}
@@ -266,5 +278,3 @@ cluster_info_df = pd.DataFrame.from_dict(cluster_info_d, orient="index")
 
 cluster_info_df.to_csv(f"{data_outpath}/cluster_info.csv", sep=",", index=True)
 adata.write_h5ad(filename=f"{data_outpath}/counts.h5ad", compression="gzip")
-
-### le cluster 1 sur Python correspond au cluster 5 sur R.

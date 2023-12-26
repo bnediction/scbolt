@@ -80,7 +80,7 @@ def log_fold_changes(
 
     def add_one_cluster_log_fold_changes(log_fold_changes_df, _mean_in, _mean_out, cluster):
 
-        log_fold_changes_one_cluster_df = pd.DataFrame(np.log2(_mean_in) - np.log2(_mean_out), columns=["log2fc"])
+        log_fold_changes_one_cluster_df = pd.DataFrame(np.log2(_mean_in) - np.log2(_mean_out), columns=["log2foldchange"])
         log_fold_changes_one_cluster_df.reset_index(names="gene", inplace=True)
         log_fold_changes_one_cluster_df.insert(0, "cluster", cluster)
         log_fold_changes_df = pd.concat([log_fold_changes_df, log_fold_changes_one_cluster_df.copy()])
@@ -101,10 +101,8 @@ def log_fold_changes(
 
         for cluster in sorted(pd.unique(adata.obs[groupby])):
             counts_df = expression_with_cluster(adata, groupby=groupby, layer=layer, is_log=is_log)
-            in_df = counts_df.loc[counts_df[groupby] == cluster, counts_df.columns != groupby]
-            out_df = counts_df.loc[counts_df[groupby] != cluster, counts_df.columns != groupby]
-            _mean_in = in_df.mean()
-            _mean_out = out_df.mean()
+            _mean_in = counts_df.loc[counts_df[groupby] == cluster, counts_df.columns != groupby].mean()
+            _mean_out = counts_df.loc[counts_df[groupby] != cluster, counts_df.columns != groupby].mean()
             log_fold_changes_df = add_one_cluster_log_fold_changes(log_fold_changes_df, _mean_in, _mean_out, cluster)
 
-    return log_fold_changes_df
+    return log_fold_changes_df.reset_index(drop=True)
