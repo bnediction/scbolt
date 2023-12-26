@@ -1,3 +1,5 @@
+#!/usr/bin/bash
+
 RED='\033[0;31m'
 NC='\033[0m'
 
@@ -76,6 +78,7 @@ python py_src/normalization.py \
   --outpath data/scRNA/normalizing/ct \
   --correction G2M_score+S_score+G1_score \
   --min-cell-expression-proportion 0.001 \
+  --hvg-filtering 0 \
   --jobs 6
 
 python py_src/normalization.py \
@@ -83,4 +86,5 @@ python py_src/normalization.py \
   --outpath data/scRNA/normalizing/ra \
   --correction G2M_score+S_score+G1_score \
   --min-cell-expression-proportion 0.001 \
+  --hvg-filtering 0 \
   --jobs 6

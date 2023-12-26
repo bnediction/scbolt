@@ -10,6 +10,7 @@ import os, argparse
 from pathlib import Path
 
 import scanpy as sc
+import numpy as np
 from sklearn.linear_model import LinearRegression
 
 import matplotlib.pyplot as plt, color_settings as colour, plot_settings
@@ -117,6 +118,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "-f", "--hvg-filtering",
+    dest="hvg_filtering",
+    type=str2bool,
+    required=False,
+    default=False,
+    help="remove gene for which the proportion of expressed cells is inferior to the given value (between 0 and 1, default=0.001)"
+)
+
+parser.add_argument(
     "-j", "--jobs",
     dest="n_jobs",
     type=int,
@@ -167,17 +177,18 @@ print(f"Normalizing data...")
 
 adata.layers["normalize"] = sc.pp.normalize_total(adata, target_sum=1e4, inplace=False)["X"]
 adata.layers["log-normalize"] = adata.layers["normalize"].copy()
-sc.pp.log1p(adata, layer="log-normalize")
+sc.pp.log1p(adata, base=np.exp(1), layer="log-normalize")
 
 print(f"Selecting higly variable genes (HVG)...")
 
-sc.pp.highly_variable_genes(adata, flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
-adata = adata[:, adata.var.highly_variable]
+sc.pp.highly_variable_genes(adata, layer="raw", flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
+if args.hvg_filtering:
+    adata = adata[:, adata.var.highly_variable]
 
 print(f"Scaling data...")
 
 adata.layers["scale"] = adata.layers["log-normalize"].copy()
-sc.pp.scale(adata, layer="scale")
+sc.pp.scale(adata, layer="scale", copy=False)
 
 print(f"Correcting batch (unwanted) effects and scaling data...")
 
