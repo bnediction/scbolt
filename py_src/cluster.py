@@ -209,31 +209,10 @@ sc.tl.rank_genes_groups(adata,
     tie_correct=True,
     corr_method="bonferroni"
 )
+markers_df = adt.extract_markers(adata)
 
-markers = adata.uns["rank_genes_groups"]
-markers_d = {
-    "gene":list(),
-    "cluster":list(),
-    "p_value":list(),
-    "adj_p_value":list(),
-    "log2foldchange":list(),
-    "score":list()
-}
-
-for cluster in sorted(adata.obs["cluster"].unique()):
-    markers_d["gene"].extend(markers["names"][cluster])
-    markers_d["cluster"].extend([cluster] * adata.n_vars)
-    markers_d["p_value"].extend(markers["pvals"][cluster])
-    markers_d["adj_p_value"].extend(markers["pvals_adj"][cluster])
-    markers_d["log2foldchange"].extend(markers["logfoldchanges"][cluster])
-    markers_d["score"].extend(markers["scores"][cluster])
-
-markers_df = pd.DataFrame.from_dict(markers_d, orient="columns")
-markers_df = markers_df.loc[:,markers_df.columns!="log2foldchange"]
-del markers, markers_d
-
+markers_df = markers_df.loc[:, markers_df.columns!="log2foldchange"]
 log_fold_changes_df = adt.log_fold_changes(adata, groupby="cluster", layer=layer, is_log=True, cluster_rebalancing=False)
-
 markers_df = pd.merge(
     markers_df,
     log_fold_changes_df,
@@ -241,8 +220,7 @@ markers_df = pd.merge(
     right_on=["gene", "cluster"],
     how="left"
 )
-
-markers_df = markers_df[abs(markers_df["log2foldchange"]) > args["logfc_threshold"]]
+markers_df = markers_df[markers_df["log2foldchange"] > args["logfc_threshold"]]
 markers_df = markers_df[markers_df["adj_p_value"] < 0.05]
 
 markers_df.to_csv(f"{data_outpath}/markers.csv", sep=",", index=False)

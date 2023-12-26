@@ -21,8 +21,8 @@ def expression_with_cluster(
     groupby
         Any key in anndata.obs corresponding to defined clusters or groups.
     layer
-        Any key in anndata.layer.
-        If not specify, counts are derived from anndata.X.
+        Any key in adata.layers.
+        If provided, use adata.layers[layer] for expression values instead of adata.X.
     is_log
         Boolean value specifying if the counts are logarithmized.
     """
@@ -43,6 +43,43 @@ def expression_with_cluster(
             counts_df = np.expm1(counts_df)
     
     return counts_df.assign(cluster=adata.obs[groupby])
+
+def extract_markers(
+    adata: ad.AnnData
+    ) -> pd.DataFrame:
+    """Extract markers in adata.uns['rank_genes_groups'] and convert it into a marker-defined dataframe.
+    
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    """
+
+    if "rank_genes_groups" in adata.uns.keys():
+        markers_uns = adata.uns["rank_genes_groups"]
+    else:
+        raise ValueError("adata.uns does not contain key 'rank_genes_groups', please use before scanpy.tl.rank_genes_groups(adata), aborting")
+
+    markers_d = {
+        "gene":list(),
+        "cluster":list(),
+        "p_value":list(),
+        "adj_p_value":list(),
+        "log2foldchange":list(),
+        "score":list()
+    }
+
+    for cluster in sorted(adata.obs["cluster"].unique()):
+        markers_d["gene"].extend(markers_uns["names"][cluster])
+        markers_d["cluster"].extend([cluster] * adata.n_vars)
+        markers_d["p_value"].extend(markers_uns["pvals"][cluster])
+        markers_d["adj_p_value"].extend(markers_uns["pvals_adj"][cluster])
+        markers_d["log2foldchange"].extend(markers_uns["logfoldchanges"][cluster])
+        markers_d["score"].extend(markers_uns["scores"][cluster])
+
+    markers_df = pd.DataFrame.from_dict(markers_d, orient="columns")
+
+    return markers_df
 
 def log_fold_changes(
     adata: ad.AnnData,
@@ -90,15 +127,12 @@ def log_fold_changes(
     counts_df = expression_with_cluster(adata, groupby=groupby, layer=layer, is_log=is_log)
 
     if cluster_rebalancing:
-        
         mean_counts_df = counts_df.groupby(by="cluster", sort=True).mean()
         for cluster in sorted(pd.unique(adata.obs[groupby])):
             _mean_in = mean_counts_df.loc[cluster]
             _mean_out = mean_counts_df.drop(index=cluster, inplace=False).mean()
             log_fold_changes_df = add_one_cluster_log_fold_changes(log_fold_changes_df, _mean_in, _mean_out, cluster)
-    
     else:
-
         for cluster in sorted(pd.unique(adata.obs[groupby])):
             counts_df = expression_with_cluster(adata, groupby=groupby, layer=layer, is_log=is_log)
             _mean_in = counts_df.loc[counts_df[groupby] == cluster, counts_df.columns != groupby].mean()
