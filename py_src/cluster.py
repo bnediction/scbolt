@@ -10,53 +10,50 @@ import os, argparse
 from pathlib import Path
 
 import numpy as np, math
-from scipy.stats import hypergeom
 
-import pandas as pd, scanpy as sc, json
+import pandas as pd, anndata as ad, scanpy as sc, json
 import anndatatools as adt
 
 import matplotlib.pyplot as plt, color_settings as colour, plot_settings
 from matplotlib.ticker import FormatStrFormatter
 from color_settings import color_cycle
 
-def hypergeometric_test(adata, signatures, markers):
-    
-    background = list(adata.var.index)
-    marked_genes = list(set(markers).intersection(signatures))
-    pvalue = 1 - hypergeom.sf(
-        len(marked_genes)-1,
-        len(background),
-        len(signatures),
-        len(markers),
-        loc=0
-    )
-    
-    return pvalue
+def multiple_hypergeometric_test(
+    adata: ad.AnnData,
+    signatures_d: dict,
+    markers_df: pd.DataFrame,
+    cluster: str,
+    colname: str = "cluster"
+    ) -> dict:
 
-def multiple_hypergeometric_test(adata, signatures_d, markers_df, cluster):
+    markers = markers_df[markers_df[colname] == cluster]["gene"]
 
-    cell_type_pvalue_d = dict()
-    markers = markers_df[markers_df["cluster"] == cluster]["gene"]
+    pvalues_d = {cell_type: adt.hypergeometric_test(adata, signature, markers) for cell_type, signature in signatures_d.items()}
+    
+    return pvalues_d
 
-    for cell_type, signatures in signatures_d.items():
-        pvalue = hypergeometric_test(adata, signatures, markers)
-        cell_type_pvalue_d[cell_type] = pvalue
-    
-    return cell_type_pvalue_d
+def get_one_cluster_info(
+    adata: ad.AnnData,
+    signatures: dict,
+    markers: pd.DataFrame,
+    cluster: str,
+    colname: str = "cluster",
+    ) -> dict:
 
-def get_cluster_info(adata, signatures_d, markers_df, cluster):
-    
-    info_d = dict()
-    info_d = {"n_cells":sum(adata.obs["cluster"] == cluster)}
-    info_d["proportion_cells"] = info_d["n_cells"]/adata.n_obs
-    proportion_phases = adata.obs[adata.obs["cluster"] == cluster]["pypairs_max_class"].value_counts() / sum(adata.obs["cluster"] == cluster)
-    info_d.update({phase: proportion_phases[phase] for phase in proportion_phases.index})
-    info_d["median_n_UMI"] = adata.obs[adata.obs["cluster"] == cluster]["n_genes_by_counts"].median()
-    info_d["median_total_UMI"] = adata.obs[adata.obs["cluster"] == cluster]["total_counts"].median()
-    info_d["median_proportion_mito_by_cell"] = f"{adata.obs[adata.obs['cluster'] == cluster]['pct_counts_mitochondrion'].median()}%"
-    info_d.update(multiple_hypergeometric_test(adata, signatures_d, markers_df, cluster))
-    
-    return info_d
+    cluster_ad = adata[adata.obs[colname] == cluster]
+
+    cluster_info_d = dict()
+    cluster_info_d["n_cells"] = cluster_ad.n_obs
+    cluster_info_d["proportion_cells"] = round(cluster_ad.n_obs / adata.n_obs, ndigits=6)
+    cluster_proportion_phases = cluster_ad.obs["pypairs_max_class"].value_counts() / cluster_ad.n_obs
+    cluster_info_d.update({phase: round(cluster_proportion_phases[phase], ndigits=6) for phase in sorted(cluster_proportion_phases.index)})
+    cluster_info_d["median_expressed_genes"] = cluster_ad.obs["n_genes_by_counts"].median()
+    cluster_info_d["median_total_counts"] = cluster_ad.obs["total_counts"].median()
+    cluster_info_d["median_proportion_mito"] = f"{cluster_ad.obs['pct_counts_mitochondrion'].median():.4f}%"
+    cluster_pvalues_d = multiple_hypergeometric_test(cluster_ad, signatures, markers, cluster, colname=colname)
+    cluster_info_d.update({cell_type: round(pvalue, ndigits=6) for cell_type, pvalue in cluster_pvalues_d.items()})
+
+    return cluster_info_d
 
 args = {
     "infile":Path("data/scRNA/normalizing/ra/tables/corrected.h5ad").resolve(),
@@ -200,59 +197,64 @@ for metric in ["total_counts", "pct_counts_mitochondrion"]:
 print(f"Marker analysis...")
 
 layer = "log-normalize"
+groupby="cluster"
 
-sc.tl.rank_genes_groups(adata,
+sc.tl.rank_genes_groups(
+    adata,
     layer=layer,
-    groupby="cluster",
+    groupby=groupby,
     reference="rest",
     method="wilcoxon",
     tie_correct=True,
     corr_method="bonferroni"
 )
-markers_df = adt.extract_markers(adata)
+markers_df = adt.extract_markers(adata, keep_logfoldchanges=False)
+markers_df = markers_df.loc[markers_df["adj_p_value"] < 0.05]
 
-markers_df = markers_df.loc[:, markers_df.columns!="log2foldchange"]
-log_fold_changes_df = adt.log_fold_changes(adata, groupby="cluster", layer=layer, is_log=True, cluster_rebalancing=False)
+log_fold_changes_df = adt.log_fold_changes(adata, groupby=groupby, layer=layer, is_log=True, cluster_rebalancing=False)
+log_fold_changes_df = log_fold_changes_df.loc[log_fold_changes_df["log2foldchange"] > args["logfc_threshold"]]
+
 markers_df = pd.merge(
     markers_df,
     log_fold_changes_df,
     left_on=["gene", "cluster"],
     right_on=["gene", "cluster"],
-    how="left"
+    how="inner"
 )
-markers_df = markers_df[markers_df["log2foldchange"] > args["logfc_threshold"]]
-markers_df = markers_df[markers_df["adj_p_value"] < 0.05]
-
-markers_df.to_csv(f"{data_outpath}/markers.csv", sep=",", index=False)
 
 print(f"Signature analysis...")
 
 with open(args["signatures"], "r") as signatures_f:
     signatures_d = json.load(signatures_f)
 
-valid_gene_names = list(adata.var.index)
-for name, genes in signatures_d.items():
-    signatures_d[name] = [gene for gene in genes if gene in valid_gene_names]
-signatures_d = {f"{name}_{args['condition']}": genes for name, genes in signatures_d.items() if genes}
+valid_gene_names = set(adata.var_names)
+for cell_type, signature in signatures_d.items():
+    signatures_d[cell_type] = {gene for gene in signature if gene in valid_gene_names}
+signatures_d = {f"{cell_type}_{args['condition']}": signature for cell_type, signature in signatures_d.items() if signature}
 del valid_gene_names
 
+layer="log-normalize"
 adata.X = adata.layers[layer]
-for name, genes in signatures_d.items():
-    sc.tl.score_genes(adata,
-        gene_list=genes,
-        ctrl_size=100,
+for cell_type, signature in signatures_d.items():
+    sc.tl.score_genes(
+        adata,
+        gene_list=signature,
         gene_pool=None,
         n_bins=25,
-        score_name=name,
-        random_state=1,
+        ctrl_size=100,
+        score_name=cell_type,
+        random_state=0,
         copy=False,
         use_raw=False
     )
 
 print("Summarizing clusters...")
 
-cluster_info_d = {cluster: get_cluster_info(adata, signatures_d, markers_df, cluster) for cluster in sorted(adata.obs["cluster"].unique())}
+cluster_info_d = {cluster: get_one_cluster_info(adata, signatures_d, markers_df, cluster, groupby) for cluster in sorted(adata.obs[groupby].unique())}
 cluster_info_df = pd.DataFrame.from_dict(cluster_info_d, orient="index")
 
-cluster_info_df.to_csv(f"{data_outpath}/cluster_info.csv", sep=",", index=True)
+print("Saving data...")
+
 adata.write_h5ad(filename=f"{data_outpath}/counts.h5ad", compression="gzip")
+markers_df.to_csv(f"{data_outpath}/markers.csv", sep=",", index=False)
+cluster_info_df.to_csv(f"{data_outpath}/cluster_info.csv", sep=",", index=True)
