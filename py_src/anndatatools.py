@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import Optional, Sequence
 
 import numpy as np
+from scipy.stats import hypergeom
 
 import anndata as ad
 import pandas as pd
@@ -45,7 +46,8 @@ def expression_with_cluster(
     return counts_df.assign(cluster=adata.obs[groupby])
 
 def extract_markers(
-    adata: ad.AnnData
+    adata: ad.AnnData,
+    keep_logfoldchanges: bool = False
     ) -> pd.DataFrame:
     """Extract markers in adata.uns['rank_genes_groups'] and convert it into a marker-defined dataframe.
     
@@ -53,6 +55,10 @@ def extract_markers(
     ----------
     adata
         Annotated data matrix.
+    keep_logfoldchanges
+        Specify if dataframe columns contain log2_fold_changes computed with Scanpy.
+        Since these values are inconsistent (<https://www.biostars.org/p/453129/>),
+        one do prefer recompute consistent log2_fold_changes.
     """
 
     if "rank_genes_groups" in adata.uns.keys():
@@ -65,17 +71,19 @@ def extract_markers(
         "cluster":list(),
         "p_value":list(),
         "adj_p_value":list(),
-        "log2foldchange":list(),
         "score":list()
     }
+    if keep_logfoldchanges:
+        markers_d["log2foldchange"] = list()
 
     for cluster in sorted(adata.obs["cluster"].unique()):
         markers_d["gene"].extend(markers_uns["names"][cluster])
         markers_d["cluster"].extend([cluster] * adata.n_vars)
         markers_d["p_value"].extend(markers_uns["pvals"][cluster])
         markers_d["adj_p_value"].extend(markers_uns["pvals_adj"][cluster])
-        markers_d["log2foldchange"].extend(markers_uns["logfoldchanges"][cluster])
         markers_d["score"].extend(markers_uns["scores"][cluster])
+        if keep_logfoldchanges:
+            markers_d["log2foldchange"].extend(markers_uns["logfoldchanges"][cluster])
 
     markers_df = pd.DataFrame.from_dict(markers_d, orient="columns")
 
@@ -140,3 +148,48 @@ def log_fold_changes(
             log_fold_changes_df = add_one_cluster_log_fold_changes(log_fold_changes_df, _mean_in, _mean_out, cluster)
 
     return log_fold_changes_df.reset_index(drop=True)
+
+def hypergeometric_test(
+    adata: ad.AnnData,
+    signature: Sequence[str],
+    markers: Sequence[str]
+    ) -> float:
+    """Computes the p-value of an hypergeometric distribution.
+    Given a population size N and a number of success states K,
+    it describes the probability of having at least k successes
+    in n draws, without replacement, where:
+    - N is the number of genes in anndata,
+    - K is the number of signature genes,
+    - n is the number of markers,
+    - k is the number of gene matching both signature genes and markers.
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    signature
+        Set of signature genes in a given cell-type.
+    markers
+        Set of markers (genes) in a given cluster.
+    """
+    
+    background = set(adata.var.index)
+    if not isinstance(signature, set):
+        signature = set(signature)
+    if not isinstance(markers, set):
+        markers = set(markers)
+    marked_genes = markers.intersection(signature)
+
+    N = len(background)         # population size
+    K = len(signature)          # number of success states
+    n = len(markers)            # number of draws
+    k = len(marked_genes)       # number of observed successes
+    pvalue = hypergeom.sf(
+        k = k,
+        M = N,
+        n = K,
+        N = n,
+        loc = 1
+    )
+    
+    return pvalue
