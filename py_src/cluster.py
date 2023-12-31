@@ -18,6 +18,21 @@ import matplotlib.pyplot as plt, color_settings as colour, plot_settings
 from matplotlib.ticker import FormatStrFormatter
 from color_settings import color_cycle
 
+def str2prefix(v: str):
+    if v:
+        v = v if v[-1] in ["-","_"] else v + "_"
+    return v
+
+def str2bool(v: str):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
+
 def multiple_hypergeometric_test(
     adata: ad.AnnData,
     signatures_d: dict,
@@ -27,7 +42,6 @@ def multiple_hypergeometric_test(
     ) -> dict:
 
     markers = markers_df[markers_df[colname] == cluster]["gene"]
-
     pvalues_d = {cell_type: adt.hypergeometric_test(adata, signature, markers) for cell_type, signature in signatures_d.items()}
     
     return pvalues_d
@@ -55,19 +69,90 @@ def get_one_cluster_info(
 
     return cluster_info_d
 
-args = {
-    "infile":Path("data/scRNA/normalizing/ra/tables/corrected.h5ad").resolve(),
-    "outpath":Path("data/scRNA/cluster/ra").resolve(),
-    "signatures":Path("data/public/signatures/signatures.json").resolve(),
-    "condition":"ra",
-    "prefix":"ra_",
-    "n_dimensions":15,
-    "resolution":0.6,
-    "logfc_threshold":0.25
-}
+parser = argparse.ArgumentParser(
+    prog="Clusterization of sc-RNAseq data",
+    description="""From one-condition sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
+    perform dimension reduction using PCA, create cluster using leiden algorithm,
+    run t-SNE and UMAP algorithm, search for gene markers and compare markers and
+    signatures in order to provide useful information about potential cell-types
+    of each cluster.""",
+    usage="python cluster.py [<args>]"
+)
 
-data_outpath = Path(f"{args['outpath']}/tables")
-fig_outpath = Path(f"{args['outpath']}/figures")
+parser.add_argument(
+    "-i", "--infile",
+    dest="infile",
+    type=lambda x: Path(x).resolve(),
+    required=True,
+    help="path to .h5ad file (including file)"
+)
+
+parser.add_argument(
+    "-s", "--signatures",
+    dest="signatures",
+    type=lambda x: Path(x).resolve(),
+    required=True,
+    help="path to .json signatures file (including file)"
+)
+
+parser.add_argument(
+    "-o", "--outpath",
+    dest="outpath",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=Path("./").resolve(),
+    help="output path"
+)
+
+parser.add_argument(
+    "-p", "--prefix",
+    dest="prefix",
+    type=str2prefix,
+    required=False,
+    default="",
+    help="prefix for each saving file"
+)
+
+parser.add_argument(
+    "-n", "--dimensions",
+    dest="n_dimensions",
+    type=int,
+    required=False,
+    default=15,
+    help="number of principal components taken into account for clustering cells and running t-SNE/UMAP"
+)
+
+parser.add_argument(
+    "-r", "--resolution",
+    dest="resolution",
+    type=float,
+    required=False,
+    default=0.6,
+    help="parameter value controlling the coarseness of the clustering when using Leiden algorithm"
+)
+
+parser.add_argument(
+    "-l", "--logfc-threshold",
+    dest="logfc_threshold",
+    type=float,
+    required=False,
+    default=0.25,
+    help="threshold describing the minimum log2 fold-changes for being a gene marker"
+)
+
+parser.add_argument(
+    "-v", "--verbose",
+    dest="verbose",
+    type=str2bool,
+    required=False,
+    default=False,
+    help="get summarizing information about cluster in stdin"
+)
+
+args = parser.parse_args()
+
+data_outpath = Path(f"{args.outpath}/tables")
+fig_outpath = Path(f"{args.outpath}/figures")
 
 if not data_outpath.exists():
     os.makedirs(data_outpath)
@@ -76,9 +161,9 @@ if not fig_outpath.exists():
 
 print(f"Loading data...")
 
-adata = sc.read_h5ad(args["infile"])
+adata = sc.read_h5ad(args.infile)
 
-n_comps = 30 if args["n_dimensions"] <= 15 else args["n_dimensions"]
+n_comps = 50 if args.n_dimensions <= 15 else args.n_dimensions
 
 resolutions = [0.6,0.8,1,1.2]
 
@@ -91,9 +176,14 @@ phase = adata.obs["pypairs_cc_prediction"]
 
 print(f"Running principal component analysis (PCA)...")
 
-adata.obsm["X_pca"], PCs, _, _ = sc.tl.pca(adata.layers["correct"], svd_solver="arpack", n_comps=n_comps, return_info=True)
-adata.varm["PCs"] = PCs.transpose()
-del PCs
+adata.X = adata.layers["correct"]
+sc.tl.pca(
+    adata,
+    zero_center=False,
+    n_comps=n_comps,
+    use_highly_variable=True,
+    copy=False
+)
 
 pc1 = adata.obsm["X_pca"][:,0]
 pc2 = adata.obsm["X_pca"][:,1]
@@ -107,22 +197,22 @@ ax.legend(markerscale=2, edgecolor=colour.black)
 plt.sca(ax)
 ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
 ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-plt.savefig(f"{fig_outpath}/{args['prefix']}principal-component-analysis")
+plt.savefig(f"{fig_outpath}/{args.prefix}principal-component-analysis")
 
 print(f"Clustering...")
 
-sc.pp.neighbors(adata, n_neighbors=20, n_pcs=args['n_dimensions'])
+sc.pp.neighbors(adata, n_neighbors=20, n_pcs=args.n_dimensions)
 for resolution in resolutions:
     sc.tl.leiden(adata, resolution=resolution, key_added=f"leiden_{resolution}")
 
-if args["resolution"] in resolutions:
-    adata.obs["cluster"] = adata.obs[f"leiden_{args['resolution']}"]
+if args.resolution in resolutions:
+    adata.obs["cluster"] = adata.obs[f"leiden_{args.resolution}"]
 else:
-    sc.tl.leiden(adata, resolution=args["resolution"], key_added=f"cluster")
+    sc.tl.leiden(adata, resolution=args.resolution, key_added=f"cluster")
 
 print(f"Running t-SNE...")
 
-sc.tl.tsne(adata, n_pcs=args["n_dimensions"], learning_rate=1000)
+sc.tl.tsne(adata, n_pcs=args.n_dimensions, learning_rate=1000)
 
 tsne1 = adata.obsm["X_tsne"][:,0]
 tsne2 = adata.obsm["X_tsne"][:,1]
@@ -140,7 +230,7 @@ for i, resolution in enumerate(resolutions):
             axes[*ax].set_xlabel(r"$t$-$\mathrm{SNE_{1}}$")
         if ax[1] == 0:
             axes[*ax].set_ylabel(r"$t$-$\mathrm{SNE_{2}}$")
-plt.savefig(f"{fig_outpath}/{args['prefix']}tsne_clusters")
+plt.savefig(f"{fig_outpath}/{args.prefix}tsne_clusters")
 
 print(f"Running uniform manifold approximation and projection (UMAP)...")
 
@@ -162,7 +252,7 @@ for i, resolution in enumerate(resolutions):
             axes[*ax].set_xlabel(r"$\mathrm{UMAP_{1}}$")
         if ax[1] == 0:
             axes[*ax].set_ylabel(r"$\mathrm{UMAP_{2}}$")
-plt.savefig(f"{fig_outpath}/{args['prefix']}umap_clusters")
+plt.savefig(f"{fig_outpath}/{args.prefix}umap_clusters")
 
 fig, ax = plt.subplots(nrows=1, ncols=1)
 for p in np.unique(phase):
@@ -174,7 +264,7 @@ ax.legend(markerscale=5, edgecolor=colour.black)
 plt.sca(ax)
 ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
 ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-plt.savefig(f"{fig_outpath}/{args['prefix']}umap_phases")
+plt.savefig(f"{fig_outpath}/{args.prefix}umap_phases")
 
 for metric in ["total_counts", "pct_counts_mitochondrion"]:
     fig, ax = plt.subplots(nrows=1, ncols=1)
@@ -192,7 +282,7 @@ for metric in ["total_counts", "pct_counts_mitochondrion"]:
     plt.sca(ax)
     ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
     ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-    plt.savefig(f"{fig_outpath}/{args['prefix']}umap_{metric}")
+    plt.savefig(f"{fig_outpath}/{args.prefix}umap_{metric}")
 
 print(f"Marker analysis...")
 
@@ -212,7 +302,7 @@ markers_df = adt.extract_markers(adata, keep_logfoldchanges=False)
 markers_df = markers_df.loc[markers_df["adj_p_value"] < 0.05]
 
 log_fold_changes_df = adt.log_fold_changes(adata, groupby=groupby, layer=layer, is_log=True, cluster_rebalancing=False)
-log_fold_changes_df = log_fold_changes_df.loc[log_fold_changes_df["log2foldchange"] > args["logfc_threshold"]]
+log_fold_changes_df = log_fold_changes_df.loc[log_fold_changes_df["log2foldchange"] > args.logfc_threshold]
 
 markers_df = pd.merge(
     markers_df,
@@ -224,13 +314,13 @@ markers_df = pd.merge(
 
 print(f"Signature analysis...")
 
-with open(args["signatures"], "r") as signatures_f:
+with open(args.signatures, "r") as signatures_f:
     signatures_d = json.load(signatures_f)
 
 valid_gene_names = set(adata.var_names)
 for cell_type, signature in signatures_d.items():
     signatures_d[cell_type] = {gene for gene in signature if gene in valid_gene_names}
-signatures_d = {f"{cell_type}_{args['condition']}": signature for cell_type, signature in signatures_d.items() if signature}
+signatures_d = {cell_type: signature for cell_type, signature in signatures_d.items() if signature}
 del valid_gene_names
 
 layer="log-normalize"
@@ -258,3 +348,6 @@ print("Saving data...")
 adata.write_h5ad(filename=f"{data_outpath}/counts.h5ad", compression="gzip")
 markers_df.to_csv(f"{data_outpath}/markers.csv", sep=",", index=False)
 cluster_info_df.to_csv(f"{data_outpath}/cluster_info.csv", sep=",", index=True)
+
+if args.verbose:
+    print(cluster_info_df.transpose())

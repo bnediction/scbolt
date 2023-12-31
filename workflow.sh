@@ -88,3 +88,17 @@ python py_src/normalization.py \
   --min-cell-expression-proportion 0.001 \
   --hvg-filtering 0 \
   --jobs 6
+
+### Clustering cells and marker analysis ###
+
+echo -e "${RED}Cell clustering and marker analysis...${NC}"
+
+python py_src/cluster.py \
+  --infile data/scRNA/normalizing/ra/tables/corrected.h5ad \
+  --signatures data/public/signatures/signatures.json \
+  --outpath data/scRNA/cluster/ra \
+  --prefix ra \
+  --dimensions 15 \
+  --resolution 0.6 \
+  --logfc-threshold 0.25 \
+  --verbose 1
