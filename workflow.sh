@@ -98,6 +98,20 @@ python py_src/cluster.py \
   --signatures data/public/signatures/signatures.json \
   --outpath data/scRNA/cluster/ra \
   --prefix ra \
+  --k-neighbors 20 \
+  --neighborhood-graph knn \
+  --dimensions 15 \
+  --resolution 0.6 \
+  --logfc-threshold 0.25 \
+  --verbose 1
+
+python py_src/cluster.py \
+  --infile data/scRNA/normalizing/ct/tables/corrected.h5ad \
+  --signatures data/public/signatures/signatures.json \
+  --outpath data/scRNA/cluster/ct \
+  --prefix ct \
+  --k-neighbors 20 \
+  --neighborhood-graph knn \
   --dimensions 15 \
   --resolution 0.6 \
   --logfc-threshold 0.25 \

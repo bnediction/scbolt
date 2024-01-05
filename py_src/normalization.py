@@ -194,4 +194,7 @@ print(f"Correcting batch (unwanted) effects and scaling data...")
 
 adata.layers["correct"] = regress_out(adata, args.correction, layer="log-normalize", intercept=False, n_jobs=args.n_jobs)
 sc.pp.scale(adata, layer="correct")
+
+print("Saving data...")
+
 adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}corrected.h5ad", compression="gzip")

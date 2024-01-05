@@ -114,6 +114,25 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "-k", "--k-neighbors",
+    dest="k_neighbors",
+    type=int,
+    required=False,
+    default=20,
+    help="number of closest neighbors computed when computing KNN graph"
+)
+
+parser.add_argument(
+    "-ng", "--neighborhood-graph",
+    dest="neighborhood_graph",
+    type=str,
+    required=False,
+    default="knn",
+    choices=["knn","snn"],
+    help="neighborhood graph used by Leiden clustering algorithm"
+)
+
+parser.add_argument(
     "-n", "--dimensions",
     dest="n_dimensions",
     type=int,
@@ -201,14 +220,21 @@ plt.savefig(f"{fig_outpath}/{args.prefix}principal-component-analysis")
 
 print(f"Clustering...")
 
-sc.pp.neighbors(adata, n_neighbors=20, n_pcs=args.n_dimensions)
-for resolution in resolutions:
-    sc.tl.leiden(adata, resolution=resolution, key_added=f"leiden_{resolution}")
+knn_key = "knn"
+snn_key = "snn"
+sc.pp.neighbors(adata, n_neighbors=args.k_neighbors, n_pcs=args.n_dimensions, key_added=knn_key, copy=False)
+adt.shared_neighbors(adata, knn_key=knn_key, snn_key=snn_key, prune_snn = 1/15, copy=False)
 
-if args.resolution in resolutions:
+for resolution in resolutions:
+    sc.tl.leiden(adata, resolution=resolution, neighbors_key=knn_key, key_added=f"leiden_{resolution}")
+
+if args.resolution in resolutions and args.neighborhood_graph == "knn":
     adata.obs["cluster"] = adata.obs[f"leiden_{args.resolution}"]
+elif args.neighborhood_graph == "knn":
+    sc.tl.leiden(adata, resolution=args.resolution, neighbors_key=knn_key, key_added=f"cluster")
 else:
-    sc.tl.leiden(adata, resolution=args.resolution, key_added=f"cluster")
+    obsp = adata.uns[snn_key]["similarities_key"]
+    sc.tl.leiden(adata, resolution=resolution, adjacency=adata.obsp[obsp].copy(), key_added=f"cluster")
 
 print(f"Running t-SNE...")
 
@@ -234,7 +260,7 @@ plt.savefig(f"{fig_outpath}/{args.prefix}tsne_clusters")
 
 print(f"Running uniform manifold approximation and projection (UMAP)...")
 
-sc.tl.umap(adata, n_components=2)
+sc.tl.umap(adata, neighbors_key=knn_key, n_components=2)
 
 umap1 = adata.obsm["X_umap"][:,0]
 umap2 = adata.obsm["X_umap"][:,1]
@@ -287,7 +313,7 @@ for metric in ["total_counts", "pct_counts_mitochondrion"]:
 print(f"Marker analysis...")
 
 layer = "log-normalize"
-groupby="cluster"
+groupby = "cluster" 
 
 sc.tl.rank_genes_groups(
     adata,
@@ -307,8 +333,8 @@ log_fold_changes_df = log_fold_changes_df.loc[log_fold_changes_df["log2foldchang
 markers_df = pd.merge(
     markers_df,
     log_fold_changes_df,
-    left_on=["gene", "cluster"],
-    right_on=["gene", "cluster"],
+    left_on=["gene", groupby],
+    right_on=["gene", groupby],
     how="inner"
 )
 
@@ -345,9 +371,9 @@ cluster_info_df = pd.DataFrame.from_dict(cluster_info_d, orient="index")
 
 print("Saving data...")
 
-adata.write_h5ad(filename=f"{data_outpath}/counts.h5ad", compression="gzip")
-markers_df.to_csv(f"{data_outpath}/markers.csv", sep=",", index=False)
-cluster_info_df.to_csv(f"{data_outpath}/cluster_info.csv", sep=",", index=True)
+adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}counts.h5ad", compression="gzip")
+markers_df.to_csv(f"{data_outpath}/{args.prefix}markers.csv", sep=",", index=False)
+cluster_info_df.to_csv(f"{data_outpath}/{args.prefix}cluster_info.csv", sep=",", index=True)
 
 if args.verbose:
     print(cluster_info_df.transpose())
