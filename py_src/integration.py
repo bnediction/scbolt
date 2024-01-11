@@ -3,6 +3,8 @@
 import os
 from pathlib import Path
 
+from typing import Sequence
+
 from itertools import cycle
 from collections import OrderedDict as odict
 
@@ -16,10 +18,28 @@ from matplotlib.ticker import FormatStrFormatter
 from color_settings import color_cycle
 
 def clean_adata(
-    adata: ad.AnnData
+    adata: ad.AnnData,
+    obs: Sequence[str] = None,
+    var: Sequence[str] = None,
+    copy: bool = False
     ) -> None:
+        
+        adata = adata.copy() if copy else adata
+
+        if obs:
+            for _obs in obs:
+                if _obs in adata.obs.columns:
+                    del adata.obs[_obs]
+        if var:
+            for _var in var:
+                if _var in adata.var.columns:
+                    del adata.var[_var]
         if "pca" in adata.uns.keys():
             del adata.uns["pca"]
+        if "neighbors" in adata.uns.keys():
+            del adata.uns["neighbors"]
+        if "leiden" in adata.uns.keys():
+            del adata.uns["leiden"]
         if "tsne" in adata.uns.keys():
             del adata.uns["tsne"]
         if "umap" in adata.uns.keys():
@@ -32,6 +52,10 @@ def clean_adata(
             except:
                 pass
         del adata.obsm, adata.obsp, adata.varm, adata.varp
+
+        if copy:
+            return adata
+
 
 class arguments:
 
@@ -90,15 +114,15 @@ else:
     label = ["reference", "interest"]
 valid_genes = list(set(adata_d["reference"].var.index).intersection(set(adata_d["interest"].var.index)))
 
-for label in adata_d.keys():
-    clean_adata(adata_d[label])
-    adata_d[label].X = adata_d[label].layers["correct"]
-    adata_d[label] = adata_d[label][:,valid_genes]
-    sc.pp.highly_variable_genes(adata_d[label], layer="raw", flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
+for key in adata_d.keys():
+    clean_adata(adata_d[key])
+    adata_d[key].X = adata_d[key].layers["correct"]
+    adata_d[key] = adata_d[key][:,valid_genes]
+    sc.pp.highly_variable_genes(adata_d[key], layer="raw", flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
 
 del valid_genes
 
-print("integration using mnn...")
+print("Integration using mnn...")
 
 sc.tl.pca(
     adata_d["reference"],
@@ -115,7 +139,8 @@ sc.pp.neighbors(
 )
 sc.tl.umap(
     adata_d["reference"],
-    n_components=2
+    n_components=2,
+    random_state=0
 )
 
 sc.tl.ingest(
@@ -190,3 +215,83 @@ ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
 plt.savefig(f"{fig_outpath}/ingest_umap_clusters")
 
 concat_adata.write_h5ad(filename=f"{data_outpath}/ingest.h5ad", compression="gzip")
+
+print("Integration using bbknn...")
+
+clean_adata(
+    concat_adata,
+    obs="cluster"
+)
+
+sc.pp.highly_variable_genes(
+    concat_adata,
+    layer="raw",
+    flavor="seurat_v3",
+    span=0.3,
+    n_bins=20,
+    n_top_genes=2000,
+    inplace=True
+)
+sc.tl.pca(
+    concat_adata,
+    zero_center=False,
+    n_comps=max(args.dim_clustering, args.dim_integration),
+    use_highly_variable=True,
+    copy=False
+)
+sc.external.pp.bbknn(
+    concat_adata,
+    batch_key=args.label,
+    use_rep="X_pca",
+    metric=args.metric,
+    copy=False,
+    neighbors_within_batch=args.k_neighbors,
+    n_pcs=args.dim_clustering,
+)
+sc.tl.umap(
+    concat_adata,
+    n_components=2,
+    random_state=0
+)
+
+fig, ax = plt.subplots(nrows=1, ncols=1)
+fig.set_figheight(5)
+fig.set_figwidth(5)
+ref_idx = concat_adata.obs["condition"] == label[0]
+idx = concat_adata.obs["condition"] == label[1]
+ax.scatter(concat_adata.obsm["X_umap"][ref_idx,0], concat_adata.obsm["X_umap"][ref_idx,1], s=2, facecolors=colour.green, edgecolors="none", alpha=1, label=label[0])
+ax.scatter(concat_adata.obsm["X_umap"][idx,0], concat_adata.obsm["X_umap"][idx,1], s=2, facecolors=colour.red, edgecolors="none", alpha=1, label=label[1])
+ax.set_xlabel(r"$\mathrm{UMAP_{1}}$")
+ax.set_ylabel(r"$\mathrm{UMAP_{2}}$")
+plt.sca(ax)
+ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+ax.legend(markerscale=5, edgecolor=colour.black)
+plt.savefig(f"{fig_outpath}/bbknn_umap")
+
+sc.pp.neighbors(
+    concat_adata,
+    n_neighbors=args.k_neighbors,
+    n_pcs=args.dim_clustering,
+    copy=False
+)
+sc.tl.leiden(
+    concat_adata,
+    resolution=args.resolution,
+    key_added=f"cluster"
+)
+
+fig, ax = plt.subplots(nrows=1, ncols=1)
+fig.set_figheight(5)
+fig.set_figwidth(5)
+for _cluster, _color in zip(sorted(np.unique(concat_adata.obs["cluster"])), color_cycle):
+    idx = np.where(concat_adata.obs["cluster"] == _cluster)[0]
+    ax.scatter(concat_adata.obsm["X_umap"][idx,0], concat_adata.obsm["X_umap"][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1)
+ax.set_xlabel(r"$\mathrm{UMAP_{1}}$")
+ax.set_ylabel(r"$\mathrm{UMAP_{2}}$")
+plt.sca(ax)
+ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+plt.savefig(f"{fig_outpath}/bbknn_umap_clusters")
+
+concat_adata.write_h5ad(filename=f"{data_outpath}/bbknn.h5ad", compression="gzip")
