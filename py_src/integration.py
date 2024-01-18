@@ -12,6 +12,7 @@ import numpy as np
 
 import anndata as ad
 import scanpy as sc
+import scanorama
 
 import matplotlib.pyplot as plt, color_settings as colour, plot_settings
 from matplotlib.ticker import FormatStrFormatter
@@ -295,3 +296,95 @@ ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
 plt.savefig(f"{fig_outpath}/bbknn_umap_clusters")
 
 concat_adata.write_h5ad(filename=f"{data_outpath}/bbknn.h5ad", compression="gzip")
+
+del concat_adata
+
+print("Integration using scanorama...")
+
+for key in adata_d.keys():
+    clean_adata(adata_d[key])
+
+adata_l = list(adata_d.values())
+del adata_d
+
+adata_l = scanorama.correct_scanpy(
+    adata_l,
+    dimred=max(args.dim_clustering, args.dim_integration),
+    return_dimred=True
+)
+
+try:
+    concat_adata = ad.concat(
+        adata_l,
+        join="inner",
+        label=args.label,
+        keys=label,
+        merge="same",
+        uns_merge="same"
+    )
+    del adata_l
+except:
+    raise RuntimeError("Anndatas concatenation did not work, aborting")
+
+fig, ax = plt.subplots(nrows=1, ncols=1)
+fig.set_figheight(5)
+fig.set_figwidth(5)
+ref_idx = concat_adata.obs["condition"] == label[0]
+idx = concat_adata.obs["condition"] == label[1]
+ax.scatter(concat_adata.obsm["X_scanorama"][ref_idx,0], concat_adata.obsm["X_umap"][ref_idx,1], s=2, facecolors=colour.green, edgecolors="none", alpha=1, label=label[0])
+ax.scatter(concat_adata.obsm["X_scanorama"][idx,0], concat_adata.obsm["X_umap"][idx,1], s=2, facecolors=colour.red, edgecolors="none", alpha=1, label=label[1])
+ax.set_xlabel(r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$")
+ax.set_ylabel(r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$")
+plt.sca(ax)
+ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+ax.legend(markerscale=5, edgecolor=colour.black)
+plt.savefig(f"{fig_outpath}/scanorama_components")
+
+sc.pp.neighbors(
+    concat_adata,
+    n_neighbors=args.k_neighbors,
+    use_rep="X_scanorama",
+    n_pcs=args.dim_clustering,
+    copy=False
+)
+sc.tl.leiden(
+    concat_adata,
+    resolution=args.resolution,
+    key_added=f"cluster"
+)
+sc.tl.umap(
+    concat_adata,
+    n_components=2,
+    random_state=0
+)
+
+fig, ax = plt.subplots(nrows=1, ncols=1)
+fig.set_figheight(5)
+fig.set_figwidth(5)
+ref_idx = concat_adata.obs["condition"] == label[0]
+idx = concat_adata.obs["condition"] == label[1]
+ax.scatter(concat_adata.obsm["X_umap"][ref_idx,0], concat_adata.obsm["X_umap"][ref_idx,1], s=2, facecolors=colour.green, edgecolors="none", alpha=1, label=label[0])
+ax.scatter(concat_adata.obsm["X_umap"][idx,0], concat_adata.obsm["X_umap"][idx,1], s=2, facecolors=colour.red, edgecolors="none", alpha=1, label=label[1])
+ax.set_xlabel(r"$\mathrm{UMAP_{1}}$")
+ax.set_ylabel(r"$\mathrm{UMAP_{2}}$")
+plt.sca(ax)
+ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+ax.legend(markerscale=5, edgecolor=colour.black)
+plt.savefig(f"{fig_outpath}/scanorama_umap")
+
+fig, ax = plt.subplots(nrows=1, ncols=1)
+fig.set_figheight(5)
+fig.set_figwidth(5)
+for _cluster, _color in zip(sorted(np.unique(concat_adata.obs["cluster"])), color_cycle):
+    idx = np.where(concat_adata.obs["cluster"] == _cluster)[0]
+    ax.scatter(concat_adata.obsm["X_umap"][idx,0], concat_adata.obsm["X_umap"][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1)
+ax.set_xlabel(r"$\mathrm{UMAP_{1}}$")
+ax.set_ylabel(r"$\mathrm{UMAP_{2}}$")
+plt.sca(ax)
+ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+plt.savefig(f"{fig_outpath}/scanorama_umap_clusters")
+
+concat_adata.write_h5ad(filename=f"{data_outpath}/scanorama.h5ad", compression="gzip")
