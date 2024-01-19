@@ -90,7 +90,7 @@ def scatterplot(
     else:
         print_legend = False
 
-        colors = cycle([
+    colors = cycle([
         colour.red,
         colour.green,
         colour.blue,
@@ -270,7 +270,7 @@ del valid_genes
 print("Integration using mnn...")
 
 if args.verbose:
-    print("\tcomputation of reference sample embedding components...")
+    print("\tComputation of reference sample embedding components...")
 sc.tl.pca(
     adata_d["reference"],
     zero_center=False,
@@ -291,7 +291,7 @@ sc.tl.umap(
 )
 
 if args.verbose:
-    print("\tintegration of interest sample")
+    print("\tIntegration of interest sample")
 sc.tl.ingest(
     adata=adata_d["interest"],
     adata_ref=adata_d["reference"],
@@ -361,7 +361,7 @@ clean_adata(
 )
 
 if args.verbose:
-    print("\tcomputation of embedding components...")
+    print("\tComputation of embedding components...")
 sc.pp.highly_variable_genes(
     concat_adata,
     layer="raw",
@@ -380,7 +380,7 @@ sc.tl.pca(
 )
 
 if args.verbose:
-    print("\tintegration of embedding components...")
+    print("\tIntegration of embedding components...")
 sc.external.pp.bbknn(
     concat_adata,
     batch_key=args.label,
@@ -449,7 +449,7 @@ adata_l = list(adata_d.values())
 del adata_d
 
 if args.verbose:
-    print("\tcomputation of integrated embedding components...")
+    print("\tComputation of integrated embedding components...")
 adata_l = scanorama.correct_scanpy(
     adata_l,
     dimred=max(args.dim_clustering, args.dim_integration),
