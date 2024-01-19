@@ -1,6 +1,9 @@
 #!/usr/bin/python3
 
-import os
+import warnings
+warnings.filterwarnings("ignore")
+
+import os, argparse
 from pathlib import Path
 
 from typing import Sequence
@@ -16,7 +19,6 @@ import scanorama
 
 import matplotlib.pyplot as plt, color_settings as colour, plot_settings
 from matplotlib.ticker import FormatStrFormatter
-from color_settings import color_cycle
 
 def clean_adata(
     adata: ad.AnnData,
@@ -57,44 +59,167 @@ def clean_adata(
         if copy:
             return adata
 
+def scatterplot(
+    adata: ad.AnnData,
+    obs: str,
+    obsm: str,
+    xlabel: str = r"$x_{1}",
+    ylabel: str = r"$x_{2}",
+    outfile: Path = Path("./figure"),
+):
 
-class arguments:
+    if obs not in adata.obs:
+        raise ValueError(f"adata.obs[{obs}] does not exist, aborting")
+    if obsm not in adata.obsm:
+        raise ValueError(f"adata.obsm[{obsm}] does not exist, aborting")
 
-    def __init__(
-        self,
-        infile_ref="data/scRNA/normalizing/ct/tables/corrected.h5ad",
-        infile_interest="data/scRNA/normalizing/ra/tables/corrected.h5ad",
-        outpath="data/scRNA/integration",
-        label="condition",
-        metadata="age+condition+date",
-        metric="euclidean",
-        k_neighbors=20,
-        correction="G2M_score+S_score+G1_score",
-        n_dimensions=15,
-        dim_clustering=15,
-        dim_integration=50,
-        dim_CCA=15,
-        resolution=0.5,
-        logfc_threshold=0.25,
-        n_jobs=5
-    ):
-        self.infile_ref = Path(infile_ref)
-        self.infile_interest = Path(infile_interest)
-        self.outpath = Path(outpath)
-        self.label = label
-        self.metadata = metadata.split("+")
-        self.metric = metric
-        self.k_neighbors = k_neighbors
-        self.correction = correction.split("+")
-        self.n_dimensions = n_dimensions
-        self.dim_clustering = dim_clustering
-        self.dim_integration = dim_integration
-        self.dim_CCA = dim_CCA
-        self.resolution = resolution
-        self.logfc_threshold = logfc_threshold
-        self.n_jobs = n_jobs
+    if len(adata.obs[obs].unique()) < 2:
+        raise ValueError(f"adata.obs[{obs}] specifies only one category, aborting")
+    elif len(adata.obs[obs].unique()) == 2:
+        print_legend = True
+    else:
+        print_legend = False
 
-args = arguments()
+        colors = cycle([
+        colour.red,
+        colour.green,
+        colour.blue,
+        colour.orange,
+        colour.purple,
+        colour.skyblue,
+        colour.teal,
+        colour.pink,
+        colour.violet,
+        colour.darkblue,
+        colour.magenta,
+        colour.darkgreen,
+        colour.darkorange,
+        colour.gray,
+        colour.maroon,
+        colour.olive,
+        colour.orchid,
+        colour.beet,
+        colour.indigo,
+        colour.gold,
+        colour.navy,
+        colour.salmon
+    ])
+
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    fig.set_figheight(5)
+    fig.set_figwidth(5)
+    for _cluster, _color in zip(sorted(adata.obs[obs].unique()), colors):
+        idx = np.where(adata.obs[obs] == _cluster)[0]
+        if print_legend:
+            ax.scatter(adata.obsm[obsm][idx,0], adata.obsm[obsm][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
+        else:
+            ax.scatter(adata.obsm[obsm][idx,0], adata.obsm[obsm][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    plt.sca(ax)
+    ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+    ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+    if print_legend:
+        ax.legend(markerscale=5, edgecolor=colour.black)
+    plt.savefig(outfile)
+
+parser = argparse.ArgumentParser(
+    prog="Integration of sc-RNAseq data",
+    description="""From two samples of sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
+    perform integration on embedding dimensions, create clusters using leiden algorithm,
+    and run UMAP algorithm. This programm allows to search cell evolutions between two experiments""",
+    usage="python cluster.py [<args>]"
+)
+
+parser.add_argument(
+    "--i1", "--infile1", "--infile-ref",
+    dest="infile_ref",
+    type=lambda x: Path(x).resolve(),
+    required=True,
+    help="path to .h5ad file (including file) considering as reference sample"
+)
+
+parser.add_argument(
+    "--i2", "--infile2", "--infile-interest",
+    dest="infile_interest",
+    type=lambda x: Path(x).resolve(),
+    required=True,
+    help="path to .h5ad file (including file) considering as sample to integrate"
+)
+
+parser.add_argument(
+    "-o", "--outpath",
+    dest="outpath",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=Path("./").resolve(),
+    help="output path"
+)
+
+parser.add_argument(
+    "-l", "--label",
+    dest="label",
+    type=str,
+    required=False,
+    default=None,
+    help="label used in `adata.obs` for characterizing sample, useful for plotting"
+)
+
+parser.add_argument(
+    "-m", "--metric",
+    dest="metric",
+    type=str,
+    required=False,
+    default="euclidean",
+    help="metric used for bbknn-based integration algorithm"
+)
+
+parser.add_argument(
+    "-k", "--k-neighbors",
+    dest="k_neighbors",
+    type=int,
+    required=False,
+    default=20,
+    help="number of closest neighbors computed when computing KNN graph"
+)
+
+parser.add_argument(
+    "-c", "--dim_clustering",
+    dest="dim_clustering",
+    type=int,
+    required=False,
+    default=15,
+    help="number of principal components taken into account for clustering cells and running UMAP"
+)
+
+parser.add_argument(
+    "-i", "--dim_integration",
+    dest="dim_integration",
+    type=int,
+    required=False,
+    default=50,
+    help="number of integrating embedding dimensions computed"
+)
+
+parser.add_argument(
+    "-r", "--resolution",
+    dest="resolution",
+    type=float,
+    required=False,
+    default=0.6,
+    help="parameter value controlling the coarseness of the clustering when using Leiden algorithm"
+)
+
+parser.add_argument(
+    "-j", "--jobs",
+    dest="n_jobs",
+    type=int,
+    required=False,
+    default=1,
+    help="number of process to use"
+)
+
+args = parser.parse_args()
 
 data_outpath = Path(f"{args.outpath}/tables")
 fig_outpath = Path(f"{args.outpath}/figures")
@@ -202,18 +327,30 @@ sc.tl.leiden(
     key_added=f"cluster"
 )
 
-fig, ax = plt.subplots(nrows=1, ncols=1)
-fig.set_figheight(5)
-fig.set_figwidth(5)
-for _cluster, _color in zip(sorted(np.unique(concat_adata.obs["cluster"])), color_cycle):
-    idx = np.where(concat_adata.obs["cluster"] == _cluster)[0]
-    ax.scatter(concat_adata.obsm["X_umap"][idx,0], concat_adata.obsm["X_umap"][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1)
-ax.set_xlabel(r"$\mathrm{UMAP_{1}}$")
-ax.set_ylabel(r"$\mathrm{UMAP_{2}}$")
-plt.sca(ax)
-ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-plt.savefig(f"{fig_outpath}/ingest_umap_clusters")
+scatterplot(
+    concat_adata,
+    obs="condition",
+    obsm="X_pca",
+    xlabel=r"$\mathrm{PC_{1}}$",
+    ylabel=r"$\mathrm{PC_{2}}$",
+    outfile=Path(f"{fig_outpath}/ingest_pca"),
+)
+scatterplot(
+    concat_adata,
+    obs="condition",
+    obsm="X_umap",
+    xlabel=r"$\mathrm{UMAP_{1}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$",
+    outfile=Path(f"{fig_outpath}/ingest_umap"),
+)
+scatterplot(
+    concat_adata,
+    obs="cluster",
+    obsm="X_umap",
+    xlabel=r"$\mathrm{UMAP_{1}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$",
+    outfile=Path(f"{fig_outpath}/ingest_umap_clusters"),
+)
 
 concat_adata.write_h5ad(filename=f"{data_outpath}/ingest.h5ad", compression="gzip")
 
@@ -255,21 +392,6 @@ sc.tl.umap(
     random_state=0
 )
 
-fig, ax = plt.subplots(nrows=1, ncols=1)
-fig.set_figheight(5)
-fig.set_figwidth(5)
-ref_idx = concat_adata.obs["condition"] == label[0]
-idx = concat_adata.obs["condition"] == label[1]
-ax.scatter(concat_adata.obsm["X_umap"][ref_idx,0], concat_adata.obsm["X_umap"][ref_idx,1], s=2, facecolors=colour.green, edgecolors="none", alpha=1, label=label[0])
-ax.scatter(concat_adata.obsm["X_umap"][idx,0], concat_adata.obsm["X_umap"][idx,1], s=2, facecolors=colour.red, edgecolors="none", alpha=1, label=label[1])
-ax.set_xlabel(r"$\mathrm{UMAP_{1}}$")
-ax.set_ylabel(r"$\mathrm{UMAP_{2}}$")
-plt.sca(ax)
-ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.legend(markerscale=5, edgecolor=colour.black)
-plt.savefig(f"{fig_outpath}/bbknn_umap")
-
 sc.pp.neighbors(
     concat_adata,
     n_neighbors=args.k_neighbors,
@@ -282,18 +404,30 @@ sc.tl.leiden(
     key_added=f"cluster"
 )
 
-fig, ax = plt.subplots(nrows=1, ncols=1)
-fig.set_figheight(5)
-fig.set_figwidth(5)
-for _cluster, _color in zip(sorted(np.unique(concat_adata.obs["cluster"])), color_cycle):
-    idx = np.where(concat_adata.obs["cluster"] == _cluster)[0]
-    ax.scatter(concat_adata.obsm["X_umap"][idx,0], concat_adata.obsm["X_umap"][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1)
-ax.set_xlabel(r"$\mathrm{UMAP_{1}}$")
-ax.set_ylabel(r"$\mathrm{UMAP_{2}}$")
-plt.sca(ax)
-ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-plt.savefig(f"{fig_outpath}/bbknn_umap_clusters")
+scatterplot(
+    concat_adata,
+    obs="condition",
+    obsm="X_pca",
+    xlabel=r"$\mathrm{PC_{1}}$",
+    ylabel=r"$\mathrm{PC_{2}}$",
+    outfile=Path(f"{fig_outpath}/bbknn_pca"),
+)
+scatterplot(
+    concat_adata,
+    obs="condition",
+    obsm="X_umap",
+    xlabel=r"$\mathrm{UMAP_{1}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$",
+    outfile=Path(f"{fig_outpath}/bbknn_umap"),
+)
+scatterplot(
+    concat_adata,
+    obs="cluster",
+    obsm="X_umap",
+    xlabel=r"$\mathrm{UMAP_{1}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$",
+    outfile=Path(f"{fig_outpath}/bbknn_umap_clusters"),
+)
 
 concat_adata.write_h5ad(filename=f"{data_outpath}/bbknn.h5ad", compression="gzip")
 
@@ -326,21 +460,6 @@ try:
 except:
     raise RuntimeError("Anndatas concatenation did not work, aborting")
 
-fig, ax = plt.subplots(nrows=1, ncols=1)
-fig.set_figheight(5)
-fig.set_figwidth(5)
-ref_idx = concat_adata.obs["condition"] == label[0]
-idx = concat_adata.obs["condition"] == label[1]
-ax.scatter(concat_adata.obsm["X_scanorama"][ref_idx,0], concat_adata.obsm["X_umap"][ref_idx,1], s=2, facecolors=colour.green, edgecolors="none", alpha=1, label=label[0])
-ax.scatter(concat_adata.obsm["X_scanorama"][idx,0], concat_adata.obsm["X_umap"][idx,1], s=2, facecolors=colour.red, edgecolors="none", alpha=1, label=label[1])
-ax.set_xlabel(r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$")
-ax.set_ylabel(r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$")
-plt.sca(ax)
-ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.legend(markerscale=5, edgecolor=colour.black)
-plt.savefig(f"{fig_outpath}/scanorama_components")
-
 sc.pp.neighbors(
     concat_adata,
     n_neighbors=args.k_neighbors,
@@ -359,32 +478,29 @@ sc.tl.umap(
     random_state=0
 )
 
-fig, ax = plt.subplots(nrows=1, ncols=1)
-fig.set_figheight(5)
-fig.set_figwidth(5)
-ref_idx = concat_adata.obs["condition"] == label[0]
-idx = concat_adata.obs["condition"] == label[1]
-ax.scatter(concat_adata.obsm["X_umap"][ref_idx,0], concat_adata.obsm["X_umap"][ref_idx,1], s=2, facecolors=colour.green, edgecolors="none", alpha=1, label=label[0])
-ax.scatter(concat_adata.obsm["X_umap"][idx,0], concat_adata.obsm["X_umap"][idx,1], s=2, facecolors=colour.red, edgecolors="none", alpha=1, label=label[1])
-ax.set_xlabel(r"$\mathrm{UMAP_{1}}$")
-ax.set_ylabel(r"$\mathrm{UMAP_{2}}$")
-plt.sca(ax)
-ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.legend(markerscale=5, edgecolor=colour.black)
-plt.savefig(f"{fig_outpath}/scanorama_umap")
-
-fig, ax = plt.subplots(nrows=1, ncols=1)
-fig.set_figheight(5)
-fig.set_figwidth(5)
-for _cluster, _color in zip(sorted(np.unique(concat_adata.obs["cluster"])), color_cycle):
-    idx = np.where(concat_adata.obs["cluster"] == _cluster)[0]
-    ax.scatter(concat_adata.obsm["X_umap"][idx,0], concat_adata.obsm["X_umap"][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1)
-ax.set_xlabel(r"$\mathrm{UMAP_{1}}$")
-ax.set_ylabel(r"$\mathrm{UMAP_{2}}$")
-plt.sca(ax)
-ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-plt.savefig(f"{fig_outpath}/scanorama_umap_clusters")
+scatterplot(
+    concat_adata,
+    obs="condition",
+    obsm="X_scanorama",
+    xlabel=r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
+    ylabel=r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
+    outfile=Path(f"{fig_outpath}/scanorama_components2"),
+)
+scatterplot(
+    concat_adata,
+    obs="condition",
+    obsm="X_umap",
+    xlabel=r"$\mathrm{UMAP_{1}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$",
+    outfile=Path(f"{fig_outpath}/scanorama_umap2"),
+)
+scatterplot(
+    concat_adata,
+    obs="cluster",
+    obsm="X_umap",
+    xlabel=r"$\mathrm{UMAP_{1}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$",
+    outfile=Path(f"{fig_outpath}/scanorama_umap_clusters2"),
+)
 
 concat_adata.write_h5ad(filename=f"{data_outpath}/scanorama.h5ad", compression="gzip")
