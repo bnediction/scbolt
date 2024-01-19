@@ -122,8 +122,8 @@ python py_src/cluster.py \
 echo -e "${RED}Integration...${NC}"
 
 python py_src/integration.py \
-  --infile_ref data/scRNA/normalizing/ct/tables/corrected.h5ad \
-  --infile_interest data/scRNA/normalizing/ra/tables/corrected.h5ad \
+  --infile-ref data/scRNA/normalizing/ct/tables/corrected.h5ad \
+  --infile-interest data/scRNA/normalizing/ra/tables/corrected.h5ad \
   --outpath data/scRNA/integration \
   --label condition \
   --metric euclidean \
@@ -131,4 +131,5 @@ python py_src/integration.py \
   --dim-integration 50 \
   --dim-clustering 15 \
   --resolution 0.6 \
-  --jobs 6
+  --jobs 6 \
+  --verbose 1
