@@ -291,7 +291,7 @@ sc.tl.umap(
 )
 
 if args.verbose:
-    print("\tIntegration of interest sample")
+    print("\tIntegration of interest sample...")
 sc.tl.ingest(
     adata=adata_d["interest"],
     adata_ref=adata_d["reference"],
@@ -323,7 +323,7 @@ sc.tl.leiden(
 )
 
 if args.verbose:
-    print("\tPlot of embedding components")
+    print("\tPlot of embedding components...")
 scatterplot(
     concat_adata,
     obs="condition",
@@ -408,7 +408,7 @@ sc.tl.leiden(
 )
 
 if args.verbose:
-    print("\tPlot of embedding components")
+    print("\tPlot of embedding components...")
 scatterplot(
     concat_adata,
     obs="condition",
@@ -486,14 +486,14 @@ sc.tl.umap(
 )
 
 if args.verbose:
-    print("\tPlot of embedding components")
+    print("\tPlot of embedding components...")
 scatterplot(
     concat_adata,
     obs="condition",
     obsm="X_scanorama",
     xlabel=r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
     ylabel=r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
-    outfile=Path(f"{fig_outpath}/scanorama_components2"),
+    outfile=Path(f"{fig_outpath}/scanorama_components"),
 )
 scatterplot(
     concat_adata,
@@ -501,7 +501,7 @@ scatterplot(
     obsm="X_umap",
     xlabel=r"$\mathrm{UMAP_{1}}$",
     ylabel=r"$\mathrm{UMAP_{2}}$",
-    outfile=Path(f"{fig_outpath}/scanorama_umap2"),
+    outfile=Path(f"{fig_outpath}/scanorama_umap"),
 )
 scatterplot(
     concat_adata,
@@ -509,7 +509,7 @@ scatterplot(
     obsm="X_umap",
     xlabel=r"$\mathrm{UMAP_{1}}$",
     ylabel=r"$\mathrm{UMAP_{2}}$",
-    outfile=Path(f"{fig_outpath}/scanorama_umap_clusters2"),
+    outfile=Path(f"{fig_outpath}/scanorama_umap_clusters"),
 )
 
 if args.verbose:
