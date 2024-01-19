@@ -20,6 +20,16 @@ import scanorama
 import matplotlib.pyplot as plt, color_settings as colour, plot_settings
 from matplotlib.ticker import FormatStrFormatter
 
+def str2bool(v: str):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
+
 def clean_adata(
     adata: ad.AnnData,
     obs: Sequence[str] = None,
@@ -184,21 +194,21 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-c", "--dim_clustering",
-    dest="dim_clustering",
-    type=int,
-    required=False,
-    default=15,
-    help="number of principal components taken into account for clustering cells and running UMAP"
-)
-
-parser.add_argument(
-    "-i", "--dim_integration",
+    "-i", "--dim-integration",
     dest="dim_integration",
     type=int,
     required=False,
     default=50,
     help="number of integrating embedding dimensions computed"
+)
+
+parser.add_argument(
+    "-c", "--dim-clustering",
+    dest="dim_clustering",
+    type=int,
+    required=False,
+    default=15,
+    help="number of principal components taken into account for clustering cells and running UMAP"
 )
 
 parser.add_argument(
@@ -217,6 +227,15 @@ parser.add_argument(
     required=False,
     default=1,
     help="number of process to use"
+)
+
+parser.add_argument(
+    "-v", "--verbose",
+    dest="verbose",
+    type=str2bool,
+    required=False,
+    default=False,
+    help="get information about running programm"
 )
 
 args = parser.parse_args()
@@ -250,6 +269,8 @@ del valid_genes
 
 print("Integration using mnn...")
 
+if args.verbose:
+    print("\tcomputation of reference sample embedding components...")
 sc.tl.pca(
     adata_d["reference"],
     zero_center=False,
@@ -269,6 +290,8 @@ sc.tl.umap(
     random_state=0
 )
 
+if args.verbose:
+    print("\tintegration of interest sample")
 sc.tl.ingest(
     adata=adata_d["interest"],
     adata_ref=adata_d["reference"],
@@ -276,33 +299,6 @@ sc.tl.ingest(
     embedding_method=["pca", "umap"],
     n_jobs=args.n_jobs
 )
-
-fig, ax = plt.subplots(nrows=1, ncols=1)
-fig.set_figheight(5)
-fig.set_figwidth(5)
-ax.scatter(adata_d["reference"].obsm["X_pca"][:,0], adata_d["reference"].obsm["X_pca"][:,1], s=2, facecolors=colour.green, edgecolors="none", alpha=1, label=label[0])
-ax.scatter(adata_d["interest"].obsm["X_pca"][:,0], adata_d["interest"].obsm["X_pca"][:,1], s=2, facecolors=colour.red, edgecolors="none", alpha=1, label=label[1])
-ax.set_xlabel(r"$\mathrm{PC_{1}}$")
-ax.set_ylabel(r"$\mathrm{PC_{2}}$")
-plt.sca(ax)
-ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.legend(markerscale=5, edgecolor=colour.black)
-plt.savefig(f"{fig_outpath}/ingest_pca")
-
-fig, ax = plt.subplots(nrows=1, ncols=1)
-fig.set_figheight(5)
-fig.set_figwidth(5)
-ax.scatter(adata_d["reference"].obsm["X_umap"][:,0], adata_d["reference"].obsm["X_umap"][:,1], s=2, facecolors=colour.green, edgecolors="none", alpha=1, label=label[0])
-ax.scatter(adata_d["interest"].obsm["X_umap"][:,0], adata_d["interest"].obsm["X_umap"][:,1], s=2, facecolors=colour.red, edgecolors="none", alpha=1, label=label[1])
-ax.set_xlabel(r"$\mathrm{UMAP_{1}}$")
-ax.set_ylabel(r"$\mathrm{UMAP_{2}}$")
-plt.sca(ax)
-ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.legend(markerscale=5, edgecolor=colour.black)
-plt.savefig(f"{fig_outpath}/ingest_umap")
-
 try:
     concat_adata = ad.concat(
         list(adata_d.values()),
@@ -314,7 +310,6 @@ try:
     )
 except:
     raise RuntimeError("Anndatas concatenation did not work, aborting")
-
 sc.pp.neighbors(
     concat_adata,
     n_neighbors=args.k_neighbors,
@@ -327,6 +322,8 @@ sc.tl.leiden(
     key_added=f"cluster"
 )
 
+if args.verbose:
+    print("\tPlot of embedding components")
 scatterplot(
     concat_adata,
     obs="condition",
@@ -352,6 +349,8 @@ scatterplot(
     outfile=Path(f"{fig_outpath}/ingest_umap_clusters"),
 )
 
+if args.verbose:
+    print("\tSaving data...")
 concat_adata.write_h5ad(filename=f"{data_outpath}/ingest.h5ad", compression="gzip")
 
 print("Integration using bbknn...")
@@ -361,6 +360,8 @@ clean_adata(
     obs="cluster"
 )
 
+if args.verbose:
+    print("\tcomputation of embedding components...")
 sc.pp.highly_variable_genes(
     concat_adata,
     layer="raw",
@@ -377,6 +378,9 @@ sc.tl.pca(
     use_highly_variable=True,
     copy=False
 )
+
+if args.verbose:
+    print("\tintegration of embedding components...")
 sc.external.pp.bbknn(
     concat_adata,
     batch_key=args.label,
@@ -391,7 +395,6 @@ sc.tl.umap(
     n_components=2,
     random_state=0
 )
-
 sc.pp.neighbors(
     concat_adata,
     n_neighbors=args.k_neighbors,
@@ -404,6 +407,8 @@ sc.tl.leiden(
     key_added=f"cluster"
 )
 
+if args.verbose:
+    print("\tPlot of embedding components")
 scatterplot(
     concat_adata,
     obs="condition",
@@ -429,6 +434,8 @@ scatterplot(
     outfile=Path(f"{fig_outpath}/bbknn_umap_clusters"),
 )
 
+if args.verbose:
+    print("\tSaving data...")
 concat_adata.write_h5ad(filename=f"{data_outpath}/bbknn.h5ad", compression="gzip")
 
 del concat_adata
@@ -441,12 +448,13 @@ for key in adata_d.keys():
 adata_l = list(adata_d.values())
 del adata_d
 
+if args.verbose:
+    print("\tcomputation of integrated embedding components...")
 adata_l = scanorama.correct_scanpy(
     adata_l,
     dimred=max(args.dim_clustering, args.dim_integration),
     return_dimred=True
 )
-
 try:
     concat_adata = ad.concat(
         adata_l,
@@ -459,7 +467,6 @@ try:
     del adata_l
 except:
     raise RuntimeError("Anndatas concatenation did not work, aborting")
-
 sc.pp.neighbors(
     concat_adata,
     n_neighbors=args.k_neighbors,
@@ -478,6 +485,8 @@ sc.tl.umap(
     random_state=0
 )
 
+if args.verbose:
+    print("\tPlot of embedding components")
 scatterplot(
     concat_adata,
     obs="condition",
@@ -503,4 +512,6 @@ scatterplot(
     outfile=Path(f"{fig_outpath}/scanorama_umap_clusters2"),
 )
 
+if args.verbose:
+    print("\tSaving data...")
 concat_adata.write_h5ad(filename=f"{data_outpath}/scanorama.h5ad", compression="gzip")

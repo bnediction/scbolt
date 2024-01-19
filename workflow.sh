@@ -116,3 +116,19 @@ python py_src/cluster.py \
   --resolution 0.6 \
   --logfc-threshold 0.25 \
   --verbose 1
+
+### Clustering cells and marker analysis ###
+
+echo -e "${RED}Integration...${NC}"
+
+python py_src/integration.py \
+  --infile_ref data/scRNA/normalizing/ct/tables/corrected.h5ad \
+  --infile_interest data/scRNA/normalizing/ra/tables/corrected.h5ad \
+  --outpath data/scRNA/integration \
+  --label condition \
+  --metric euclidean \
+  --k-neighbors 20 \
+  --dim-integration 50 \
+  --dim-clustering 15 \
+  --resolution 0.6 \
+  --jobs 6
