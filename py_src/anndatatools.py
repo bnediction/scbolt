@@ -9,7 +9,7 @@ from sklearn.metrics import pairwise_distances
 import anndata as ad
 import pandas as pd
 
-def expression_with_cluster(
+def _expression_with_cluster(
     adata: ad.AnnData,
     groupby: str,
     layer: Optional[str] = None,
@@ -148,7 +148,7 @@ def log_fold_changes(
         raise TypeError(f"Argument `adata` must be of type {type(ad.AnnData)}, not {type(adata)}")
     
     log_fold_changes_df = pd.DataFrame(columns=["cluster","gene","log2foldchange"])
-    counts_df = expression_with_cluster(adata, groupby=groupby, layer=layer, is_log=is_log)
+    counts_df = _expression_with_cluster(adata, groupby=groupby, layer=layer, is_log=is_log)
 
     if cluster_rebalancing:
         mean_counts_df = counts_df.groupby(by=groupby, sort=True).mean()
@@ -158,7 +158,7 @@ def log_fold_changes(
             log_fold_changes_df = add_one_cluster_log_fold_changes(log_fold_changes_df, _mean_in, _mean_out, cluster)
     else:
         for cluster in sorted(pd.unique(adata.obs[groupby])):
-            counts_df = expression_with_cluster(adata, groupby=groupby, layer=layer, is_log=is_log)
+            counts_df = _expression_with_cluster(adata, groupby=groupby, layer=layer, is_log=is_log)
             _mean_in = counts_df.loc[counts_df[groupby] == cluster, counts_df.columns != groupby].mean()
             _mean_out = counts_df.loc[counts_df[groupby] != cluster, counts_df.columns != groupby].mean()
             log_fold_changes_df = add_one_cluster_log_fold_changes(log_fold_changes_df, _mean_in, _mean_out, cluster)
@@ -262,6 +262,53 @@ def shared_neighbors(
     similarities_key: Optional[str] = None,
     copy: bool = False
 ) -> ad.AnnData:
+    """Compute a shared neighborhood (SNN) graph of observations.
+
+    The neighbor search relies on a previously computed neighborhood graph
+    (such as kNN algorithm).
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    knn_key
+        If not specified, the used neighbors data are retrieved from .uns['neighbors'].
+        If specified, the used neighbors data are retrieved from .uns[key_added].
+    snn_key
+        If not specified, the shared neighbors data are stored in .uns['shared_neighbors'].
+        If specified, the shared neighbors data are added to .uns[key_added].
+    prune_snn
+        If strictly positive, removes edge between two neighbors in the shared neighborhood graph
+        who have a number of neighbors less than the specified value.
+        Value can be relative (float between 0 and 1) or absolute (integer between 1 and k).
+    metric
+        Metric used for computing distances between two neighbors by using .obsm['X_pca'].
+    normalize_similarities
+        If false, similarities provide the absolute number of shared neighbors (integer between 0 and k),
+        otherwise provide the relative number of shared neighbors (float between 0 and k).
+    distances_key
+        If specified, distances are stored in .obsp[distances_key],
+        otherwise in .obsp[snn_key+'_distances'].
+    similarities_key
+        If specified, distances are stored in .obsp[similarities_key],
+        otherwise in .obsp[snn_key+'_similarities'].
+    copy
+        Return a copy instead of writing to adata.
+
+    Returns
+    -------
+    Depending on `copy`, updates or returns `adata` with the following:
+
+    See `snn_key` parameter description for the storage path of
+    similarities and distances.
+
+    **similarities** : sparse matrix.
+        Weighted adjacency matrix of the shared neighborhood graph.
+        Weights should be interpreted as number of shared neighbors.
+    **distances** : sparse matrix of dtype `float64`.
+        Instead of decaying weights, this stores distances for each pair of
+        neighbors.
+    """
 
     if not isinstance(adata, ad.AnnData):
         raise TypeError(f"Argument `adata` must be of type {type(ad.AnnData)}, not {type(adata)}")
@@ -271,6 +318,10 @@ def shared_neighbors(
             "Please use `scanpy.pp.neighbors` function before or "
             "specify `key_added` parameter when scanpy.pp.neighbors has been called, aborting"
     ))
+    if prune_snn is None:
+        prune_snn = 0
+    if metric is None:
+        metric = "euclidean"
     if distances_key is None:
         distances_key = f"{snn_key}_distances"
     if similarities_key is None:
