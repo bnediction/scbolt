@@ -278,8 +278,8 @@ def shared_neighbors(
         If not specified, the shared neighbors data are stored in .uns['shared_neighbors'].
         If specified, the shared neighbors data are added to .uns[key_added].
     prune_snn
-        If strictly positive, removes edge between two neighbors in the shared neighborhood graph
-        who have a number of neighbors less than the specified value.
+        If zero value, no prunning is performed. If strictly positive, removes edge between two neighbors
+        in the shared neighborhood graph who have a number of neighbors less than the specified value.
         Value can be relative (float between 0 and 1) or absolute (integer between 1 and k).
     metric
         Metric used for computing distances between two neighbors by using .obsm['X_pca'].
