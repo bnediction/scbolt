@@ -1,6 +1,4 @@
-# This file may be used to create an environment using:
-# $ conda create --name <env> --file <this file>
-# platform: linux-64
+# $ conda create --name preprocess --file preprocess.yml
 _libgcc_mutex=0.1=conda_forge
 _openmp_mutex=4.5=2_gnu
 anndata=0.10.4=pyhd8ed1ab_0
