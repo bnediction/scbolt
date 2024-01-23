@@ -72,7 +72,7 @@ def get_one_cluster_info(
 parser = argparse.ArgumentParser(
     prog="Clusterization of sc-RNAseq data",
     description="""From one-condition sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
-    perform dimension reduction using PCA, create cluster using leiden algorithm,
+    perform dimension reduction using PCA, create clusters using leiden algorithm,
     run t-SNE and UMAP algorithm, search for gene markers and compare markers and
     signatures in order to provide useful information about potential cell-types
     of each cluster.""",

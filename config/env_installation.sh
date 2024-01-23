@@ -1,4 +1,4 @@
-[ -d "config" ] && config_dir="config" || config_dir=""
+[ -d "config" ] && config_dir="config/" || config_dir=""
 
 install_env() {
     if conda env list | grep -q "^$1 ";
@@ -6,12 +6,12 @@ install_env() {
         read -p "$1 conda env already exists. do you want to reinstall $1 env? ([y]/n): " choice
         if [[ "$choice" == "y" || -z "$choice" ]];
         then
-            conda env create -f ${config_dir}/$1.yml
+            conda env create -f ${config_dir}$1.yml
         else
             echo "$1 env not reinstalled."
         fi
     else
-        conda env create -f ${config_dir}/$1.yml
+        conda env create -f ${config_dir}$1.yml
     fi
 }
 
