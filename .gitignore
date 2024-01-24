@@ -1,0 +1,27 @@
+# folder to ignore
+
+**/data/*
+
+# generic files to ignore
+
+**/.*
+**/*.log
+**/*.png
+**/*.txt
+**/*.csv
+**/*.tsv
+
+**/*_[0-9]
+**/*_[0-9][0-9]
+**/*.[0-9]
+**/*.[0-9][0-9]
+
+**/.vscode
+**/__pycache__
+**/__pycache__/*
+
+!.gitignore
+
+# specific files to ignore
+
+**/*.h5ad
