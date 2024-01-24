@@ -71,6 +71,7 @@ else:
     raise ValueError("Integrated counting (`X_umap` or `X_scanorama`) in adata.obsm not found, aborting")
 
 print("Computing elastic principal graph...")
+
 with disable_print():
     st.seed_elastic_principal_graph(
         adata,
@@ -88,10 +89,12 @@ with disable_print():
         epg_ext_par=0.8
     )
 
+print("Plotting trajectories...")
+
 st.plot_stream(
     adata,
     root="S1",
-    color=['S1_pseudotime'],
+    color=["S1_pseudotime"],
     log_scale=False,
     factor_zoomin=100,
     save_fig=False,
@@ -102,7 +105,35 @@ ax.tick_params(axis='x', which='major', pad=2)
 ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
 ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
 ax.images[-1].colorbar.remove()
-plt.show()
+plt.savefig(f"{fig_outpath}/pseudotime")
 
-#st.add_cell_labels(adata, file_name=conditionCells)
-#st.add_cell_colors(adata, file_name=conditionColors)
+st.plot_stream(
+    adata,
+    root="S1",
+    color=["kmeans"],
+    log_scale=False,
+    factor_zoomin=100,
+    save_fig=False,
+)
+fig = plt.gcf(); ax = plt.gca()
+ax.set_title("")
+ax.tick_params(axis='x', which='major', pad=2)
+ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+plt.savefig(f"{fig_outpath}/kmeans")
+
+adata.obs["cluster"] = adata.obs["cluster"].astype(object)
+st.plot_stream(
+    adata,
+    root="S1",
+    color=["cluster"],
+    log_scale=False,
+    factor_zoomin=100,
+    save_fig=False,
+)
+fig = plt.gcf(); ax = plt.gca()
+ax.set_title("")
+ax.tick_params(axis='x', which='major', pad=2)
+ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+plt.savefig(f"{fig_outpath}/cluster")
