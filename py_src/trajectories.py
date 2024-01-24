@@ -8,6 +8,12 @@ from pathlib import Path
 
 import anndata as ad, stream as st
 
+import numpy as np
+from scipy.sparse import issparse
+
+import matplotlib.pyplot as plt, color_settings as colour, plot_settings
+from matplotlib.ticker import FormatStrFormatter
+
 @contextlib.contextmanager
 def disable_print():
     with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
@@ -19,6 +25,8 @@ class arguments:
         infile=Path("data/scRNA/integration/tables/bbknn.h5ad"),
         outpath=Path("data/scRNA/stream"),
         hvg=False,
+        layer="correct",
+        n_clusters=6,
         epg_alpha=0.01,
         epg_mu=0.05,
         epg_lambda=0.05,
@@ -28,6 +36,8 @@ class arguments:
         self.infile = infile
         self.outpath = outpath
         self.hvg = hvg
+        self.layer = layer
+        self.n_clusters=n_clusters
         self.epg_alpha = epg_alpha
         self.epg_mu = epg_mu
         self.epg_lambda = epg_lambda
@@ -50,46 +60,21 @@ adata = ad.read_h5ad(args.infile)
 adata.obs_names_make_unique()
 adata.uns["workdir"] = args.outpath
 
-layer = "correct"
-adata.X = adata.layers[layer]
+#adata.X = adata.layers[args.layer] if not issparse(adata.layers[args.layer]) else adata.layers[args.layer].toarray()
+#adata.X = adata.X.astype(np.float64)
 
-if args.hvg:
-    print("Selecting higly variable genes (HVG)...")
-    with disable_print():
-        st.select_variable_genes(adata,loess_frac=0.02)
-
-print("Running principal component analysis (PCA)...")
-with disable_print():
-    if args.hvg:
-        st.select_top_principal_components(
-            adata,
-            first_pc=True,
-            n_pc=15,
-            feature="var_genes"
-        )
-    else:
-        st.select_top_principal_components(
-            adata,
-            first_pc=True,
-            n_pc=15
-        )
-
-print(f"Integration using mlle...")
-with disable_print():
-    st.dimension_reduction(
-        adata,
-        method="mlle",
-        feature="top_pcs",
-        n_components=4,
-        n_neighbors=50,
-        n_jobs=args.jobs
-    )
+if "X_umap" in adata.obsm.keys():
+    adata.obsm["X_dr"] = adata.obsm["X_umap"].copy()
+elif "X_scanorama" in adata.obsm.keys():
+    adata.obsm["X_dr"] = adata.obsm["X_scanorama"].copy()
+else:
+    raise ValueError("Integrated counting (`X_umap` or `X_scanorama`) in adata.obsm not found, aborting")
 
 print("Computing elastic principal graph...")
 with disable_print():
     st.seed_elastic_principal_graph(
         adata,
-        n_clusters=10
+        n_clusters=args.n_clusters
     )
     st.elastic_principal_graph(
         adata,
@@ -108,11 +93,16 @@ st.plot_stream(
     root="S1",
     color=['S1_pseudotime'],
     log_scale=False,
-    factor_zoomin=200,
-    save_fig=True,
-    fig_path=Path(f"{args.outpath}/stream"),
-    fig_format="png"
+    factor_zoomin=100,
+    save_fig=False,
 )
+fig = plt.gcf(); ax = plt.gca()
+ax.set_title("")
+ax.tick_params(axis='x', which='major', pad=2)
+ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+ax.images[-1].colorbar.remove()
+plt.show()
 
 #st.add_cell_labels(adata, file_name=conditionCells)
 #st.add_cell_colors(adata, file_name=conditionColors)
