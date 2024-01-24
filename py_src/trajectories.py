@@ -115,6 +115,20 @@ st.plot_stream(
 fig, ax = (plt.gcf(), plt.gca())
 ax.tick_params(axis='x', which='major', pad=2)
 ps.set_default(ax)
+for idx, patch in enumerate(ax.patches):
+    patch.set_color(colour.COLORS[idx])
+    patch.set_alpha(1)
+ax.legend(
+    [string.replace("cluster ","") for string in np.sort(adata.obs["kmeans"].unique())],
+    bbox_to_anchor=(1.03, 0.5),
+    loc='center left',
+    title="cluster",
+    ncol=1,
+    frameon=False,
+    columnspacing=0.4,
+    borderaxespad=0.2,
+    handletextpad=0.3
+)
 plt.savefig(f"{fig_outpath}/kmeans")
 
 adata.obs["cluster"] = adata.obs["cluster"].astype(object)
@@ -129,4 +143,22 @@ st.plot_stream(
 fig, ax = (plt.gcf(), plt.gca())
 ax.tick_params(axis='x', which='major', pad=2)
 ps.set_default(ax)
+for idx, patch in enumerate(ax.patches):
+    patch.set_color(colour.COLORS[idx])
+    patch.set_alpha(1)
+ax.legend(
+    [string.replace("cluster ","") for string in np.sort(adata.obs["kmeans"].unique())],
+    bbox_to_anchor=(1.03, 0.5),
+    loc='center left',
+    title="cluster",
+    ncol=1,
+    frameon=False,
+    columnspacing=0.4,
+    borderaxespad=0.2,
+    handletextpad=0.3
+)
 plt.savefig(f"{fig_outpath}/cluster")
+
+# print("Saving data...")
+# 
+# adata.write_h5ad(filename=f"{data_outpath}/stream.h5ad", compression="gzip")

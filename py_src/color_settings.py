@@ -46,7 +46,7 @@ navy        = rgb([  0,   0, 128])
 darkblue    = rgb([  0,   0, 139])
 skyblue     = rgb([135, 206, 235])
 
-color_cycle = cycle([
+COLORS = [
     blue,
     red,
     green,
@@ -69,4 +69,6 @@ color_cycle = cycle([
     gold,
     navy,
     salmon
-])
+]
+
+color_cycle = cycle(COLORS)

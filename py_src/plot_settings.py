@@ -45,3 +45,14 @@ def set_default(ax):
     ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
     ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
     return None
+
+from matplotlib.colors import ListedColormap
+import color_settings as colour
+
+cmap = ListedColormap(
+    colors  = colour.COLORS,
+    name    = "default",
+    N       = None
+)
+
+mpl.colormaps.register(cmap)
