@@ -11,8 +11,7 @@ import anndata as ad, stream as st
 import numpy as np
 from scipy.sparse import issparse
 
-import matplotlib.pyplot as plt, color_settings as colour, plot_settings
-from matplotlib.ticker import FormatStrFormatter
+import matplotlib.pyplot as plt, color_settings as colour, plot_settings as ps
 
 @contextlib.contextmanager
 def disable_print():
@@ -99,11 +98,9 @@ st.plot_stream(
     factor_zoomin=100,
     save_fig=False,
 )
-fig = plt.gcf(); ax = plt.gca()
-ax.set_title("")
+fig, ax = (plt.gcf(), plt.gca())
+ps.set_default(ax)
 ax.tick_params(axis='x', which='major', pad=2)
-ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
 ax.images[-1].colorbar.remove()
 plt.savefig(f"{fig_outpath}/pseudotime")
 
@@ -115,11 +112,9 @@ st.plot_stream(
     factor_zoomin=100,
     save_fig=False,
 )
-fig = plt.gcf(); ax = plt.gca()
-ax.set_title("")
+fig, ax = (plt.gcf(), plt.gca())
 ax.tick_params(axis='x', which='major', pad=2)
-ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+ps.set_default(ax)
 plt.savefig(f"{fig_outpath}/kmeans")
 
 adata.obs["cluster"] = adata.obs["cluster"].astype(object)
@@ -131,9 +126,7 @@ st.plot_stream(
     factor_zoomin=100,
     save_fig=False,
 )
-fig = plt.gcf(); ax = plt.gca()
-ax.set_title("")
+fig, ax = (plt.gcf(), plt.gca())
 ax.tick_params(axis='x', which='major', pad=2)
-ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+ps.set_default(ax)
 plt.savefig(f"{fig_outpath}/cluster")
