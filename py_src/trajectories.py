@@ -148,7 +148,7 @@ for idx, patch in enumerate(ax.patches):
     patch.set_color(colour.COLORS[idx])
     patch.set_alpha(1)
 ax.legend(
-    [string.replace("cluster ","") for string in np.sort(adata.obs["kmeans"].unique())],
+    [string.replace("cluster ","") for string in np.sort(adata.obs["cluster"].unique())],
     bbox_to_anchor=(1.03, 0.5),
     loc='center left',
     title="cluster",
