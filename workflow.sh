@@ -121,6 +121,8 @@ python py_src/cluster.py \
 
 echo -e "${RED}Integration...${NC}"
 
+conda activate stream
+
 python py_src/integration.py \
   --infile-ref data/scRNA/normalizing/ct/tables/corrected.h5ad \
   --infile-interest data/scRNA/normalizing/ra/tables/corrected.h5ad \
@@ -130,6 +132,7 @@ python py_src/integration.py \
   --k-neighbors 20 \
   --dim-integration 50 \
   --dim-clustering 15 \
+  --dim-embedding 2 \
   --resolution 0.6 \
   --jobs 6 \
   --verbose 1
