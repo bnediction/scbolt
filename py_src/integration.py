@@ -126,12 +126,21 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--methods", "--integration-methods",
+    dest="methods",
+    type=str,
+    required=False,
+    default="all",
+    help="integration methods to use (values: all, mnn or ingest, bbknn, scanorama)"
+)
+
+parser.add_argument(
     "-i", "--dim-integration",
     dest="dim_integration",
     type=int,
     required=False,
     default=50,
-    help="number of integrating embedding dimensions computed"
+    help="minimum number of dimensions to integrate"
 )
 
 parser.add_argument(
@@ -142,6 +151,16 @@ parser.add_argument(
     default=15,
     help="number of principal components taken into account for clustering cells and running UMAP"
 )
+
+parser.add_argument(
+    "-e", "--dim-embedding",
+    dest="dim_embedding",
+    type=int,
+    required=False,
+    default=2,
+    help="number of embedding dimensions computed"
+)
+
 
 parser.add_argument(
     "-r", "--resolution",
@@ -180,6 +199,12 @@ if not data_outpath.exists():
 if not fig_outpath.exists():
     os.makedirs(fig_outpath)
 
+if args.methods == "all":
+    methods = ["mnn", "bbknn", "scanorama"]
+else:
+    methods = args.method.split("+")
+
+
 print(f"Loading data...")
 
 adata_d = odict()
@@ -199,251 +224,257 @@ for key in adata_d.keys():
 
 del valid_genes
 
-print("Integration using mnn...")
+if "mnn" in methods or "ingest" in methods:
 
-if args.verbose:
-    print("\tComputation of reference sample embedding components...")
-sc.tl.pca(
-    adata_d["reference"],
-    zero_center=False,
-    n_comps=max(args.dim_clustering, args.dim_integration),
-    use_highly_variable=True,
-    copy=False
-)
-sc.pp.neighbors(
-    adata_d["reference"],
-    n_neighbors=args.k_neighbors,
-    n_pcs=args.dim_clustering,
-    copy=False
-)
-sc.tl.umap(
-    adata_d["reference"],
-    n_components=2,
-    random_state=0
-)
+    print("Integration using mnn...")
 
-if args.verbose:
-    print("\tIntegration of interest sample...")
-sc.tl.ingest(
-    adata=adata_d["interest"],
-    adata_ref=adata_d["reference"],
-    obs=None,
-    embedding_method=["pca", "umap"],
-    n_jobs=args.n_jobs
-)
-try:
-    concat_adata = ad.concat(
-        list(adata_d.values()),
-        join="inner",
-        label=args.label,
-        keys=label,
-        merge="same",
-        uns_merge="same"
+    if args.verbose:
+        print("\tComputation of reference sample embedding components...")
+    sc.tl.pca(
+        adata_d["reference"],
+        zero_center=False,
+        n_comps=max(args.dim_clustering, args.dim_integration, args.dim_embedding),
+        use_highly_variable=True,
+        copy=False
     )
-except:
-    raise RuntimeError("Anndatas concatenation did not work, aborting")
-sc.pp.neighbors(
-    concat_adata,
-    n_neighbors=args.k_neighbors,
-    n_pcs=args.dim_clustering,
-    copy=False
-)
-sc.tl.leiden(
-    concat_adata,
-    resolution=args.resolution,
-    key_added=f"cluster"
-)
+    sc.pp.neighbors(
+        adata_d["reference"],
+        n_neighbors=args.k_neighbors,
+        n_pcs=args.dim_clustering,
+        copy=False
+    )
+    sc.tl.umap(
+        adata_d["reference"],
+        n_components=args.dim_embedding,
+        random_state=0
+    )
 
-if args.verbose:
-    print("\tPlot of embedding components...")
-adt.scatterplot(
-    concat_adata,
-    obs="condition",
-    obsm="X_pca",
-    xlabel=r"$\mathrm{PC_{1}}$",
-    ylabel=r"$\mathrm{PC_{2}}$",
-    outfile=Path(f"{fig_outpath}/ingest_pca"),
-)
-adt.scatterplot(
-    concat_adata,
-    obs="condition",
-    obsm="X_umap",
-    xlabel=r"$\mathrm{UMAP_{1}}$",
-    ylabel=r"$\mathrm{UMAP_{2}}$",
-    outfile=Path(f"{fig_outpath}/ingest_umap"),
-)
-adt.scatterplot(
-    concat_adata,
-    obs="cluster",
-    obsm="X_umap",
-    xlabel=r"$\mathrm{UMAP_{1}}$",
-    ylabel=r"$\mathrm{UMAP_{2}}$",
-    outfile=Path(f"{fig_outpath}/ingest_umap_clusters"),
-)
+    if args.verbose:
+        print("\tIntegration of interest sample...")
+    sc.tl.ingest(
+        adata=adata_d["interest"],
+        adata_ref=adata_d["reference"],
+        obs=None,
+        embedding_method=["pca", "umap"],
+        n_jobs=args.n_jobs
+    )
+    try:
+        concat_adata = ad.concat(
+            list(adata_d.values()),
+            join="inner",
+            label=args.label,
+            keys=label,
+            merge="same",
+            uns_merge="same"
+        )
+    except:
+        raise RuntimeError("Anndatas concatenation did not work, aborting")
+    sc.pp.neighbors(
+        concat_adata,
+        n_neighbors=args.k_neighbors,
+        n_pcs=args.dim_clustering,
+        copy=False
+    )
+    sc.tl.leiden(
+        concat_adata,
+        resolution=args.resolution,
+        key_added=f"cluster"
+    )
 
-if args.verbose:
-    print("\tSaving data...")
-concat_adata.write_h5ad(filename=f"{data_outpath}/ingest.h5ad", compression="gzip")
+    if args.verbose:
+        print("\tPlot of embedding components...")
+    adt.scatterplot(
+        concat_adata,
+        obs="condition",
+        obsm="X_pca",
+        xlabel=r"$\mathrm{PC_{1}}$",
+        ylabel=r"$\mathrm{PC_{2}}$",
+        outfile=Path(f"{fig_outpath}/ingest_pca"),
+    )
+    adt.scatterplot(
+        concat_adata,
+        obs="condition",
+        obsm="X_umap",
+        xlabel=r"$\mathrm{UMAP_{1}}$",
+        ylabel=r"$\mathrm{UMAP_{2}}$",
+        outfile=Path(f"{fig_outpath}/ingest_umap"),
+    )
+    adt.scatterplot(
+        concat_adata,
+        obs="cluster",
+        obsm="X_umap",
+        xlabel=r"$\mathrm{UMAP_{1}}$",
+        ylabel=r"$\mathrm{UMAP_{2}}$",
+        outfile=Path(f"{fig_outpath}/ingest_umap_clusters"),
+    )
 
-print("Integration using bbknn...")
+    if args.verbose:
+        print("\tSaving data...")
+    concat_adata.write_h5ad(filename=f"{data_outpath}/ingest.h5ad", compression="gzip")
 
-clean_adata(
-    concat_adata,
-    obs="cluster"
-)
+if "bbknn" in methods:
 
-if args.verbose:
-    print("\tComputation of embedding components...")
-sc.pp.highly_variable_genes(
-    concat_adata,
-    layer="raw",
-    flavor="seurat_v3",
-    span=0.3,
-    n_bins=20,
-    n_top_genes=2000,
-    inplace=True
-)
-sc.tl.pca(
-    concat_adata,
-    zero_center=False,
-    n_comps=max(args.dim_clustering, args.dim_integration),
-    use_highly_variable=True,
-    copy=False
-)
+    print("Integration using bbknn...")
 
-if args.verbose:
-    print("\tIntegration of embedding components...")
-sc.external.pp.bbknn(
-    concat_adata,
-    batch_key=args.label,
-    use_rep="X_pca",
-    metric=args.metric,
-    copy=False,
-    neighbors_within_batch=args.k_neighbors,
-    n_pcs=args.dim_clustering,
-)
-sc.tl.umap(
-    concat_adata,
-    n_components=2,
-    random_state=0
-)
-sc.pp.neighbors(
-    concat_adata,
-    n_neighbors=args.k_neighbors,
-    n_pcs=args.dim_clustering,
-    copy=False
-)
-sc.tl.leiden(
-    concat_adata,
-    resolution=args.resolution,
-    key_added=f"cluster"
-)
+    clean_adata(
+        concat_adata,
+        obs="cluster"
+    )
 
-if args.verbose:
-    print("\tPlot of embedding components...")
-adt.scatterplot(
-    concat_adata,
-    obs="condition",
-    obsm="X_pca",
-    xlabel=r"$\mathrm{PC_{1}}$",
-    ylabel=r"$\mathrm{PC_{2}}$",
-    outfile=Path(f"{fig_outpath}/bbknn_pca"),
-)
-adt.scatterplot(
-    concat_adata,
-    obs="condition",
-    obsm="X_umap",
-    xlabel=r"$\mathrm{UMAP_{1}}$",
-    ylabel=r"$\mathrm{UMAP_{2}}$",
-    outfile=Path(f"{fig_outpath}/bbknn_umap"),
-)
-adt.scatterplot(
-    concat_adata,
-    obs="cluster",
-    obsm="X_umap",
-    xlabel=r"$\mathrm{UMAP_{1}}$",
-    ylabel=r"$\mathrm{UMAP_{2}}$",
-    outfile=Path(f"{fig_outpath}/bbknn_umap_clusters"),
-)
+    if args.verbose:
+        print("\tComputation of embedding components...")
+    sc.pp.highly_variable_genes(
+        concat_adata,
+        layer="raw",
+        flavor="seurat_v3",
+        span=0.3,
+        n_bins=20,
+        n_top_genes=2000,
+        inplace=True
+    )
+    sc.tl.pca(
+        concat_adata,
+        zero_center=False,
+        n_comps=max(args.dim_clustering, args.dim_integration, args.dim_embedding),
+        use_highly_variable=True,
+        copy=False
+    )
 
-if args.verbose:
-    print("\tSaving data...")
-concat_adata.write_h5ad(filename=f"{data_outpath}/bbknn.h5ad", compression="gzip")
+    if args.verbose:
+        print("\tIntegration of embedding components...")
+    sc.external.pp.bbknn(
+        concat_adata,
+        batch_key=args.label,
+        use_rep="X_pca",
+        metric=args.metric,
+        copy=False,
+        neighbors_within_batch=args.k_neighbors,
+        n_pcs=args.dim_clustering,
+    )
+    sc.tl.umap(
+        concat_adata,
+        n_components=args.dim_embedding,
+        random_state=0
+    )
+    sc.pp.neighbors(
+        concat_adata,
+        n_neighbors=args.k_neighbors,
+        n_pcs=args.dim_clustering,
+        copy=False
+    )
+    sc.tl.leiden(
+        concat_adata,
+        resolution=args.resolution,
+        key_added=f"cluster"
+    )
 
-del concat_adata
+    if args.verbose:
+        print("\tPlot of embedding components...")
+    adt.scatterplot(
+        concat_adata,
+        obs="condition",
+        obsm="X_pca",
+        xlabel=r"$\mathrm{PC_{1}}$",
+        ylabel=r"$\mathrm{PC_{2}}$",
+        outfile=Path(f"{fig_outpath}/bbknn_pca"),
+    )
+    adt.scatterplot(
+        concat_adata,
+        obs="condition",
+        obsm="X_umap",
+        xlabel=r"$\mathrm{UMAP_{1}}$",
+        ylabel=r"$\mathrm{UMAP_{2}}$",
+        outfile=Path(f"{fig_outpath}/bbknn_umap"),
+    )
+    adt.scatterplot(
+        concat_adata,
+        obs="cluster",
+        obsm="X_umap",
+        xlabel=r"$\mathrm{UMAP_{1}}$",
+        ylabel=r"$\mathrm{UMAP_{2}}$",
+        outfile=Path(f"{fig_outpath}/bbknn_umap_clusters"),
+    )
 
-print("Integration using scanorama...")
+    if args.verbose:
+        print("\tSaving data...")
+    concat_adata.write_h5ad(filename=f"{data_outpath}/bbknn.h5ad", compression="gzip")
 
-for key in adata_d.keys():
-    clean_adata(adata_d[key])
+    del concat_adata
 
-adata_l = list(adata_d.values())
-del adata_d
+if "scanorama" in methods:
 
-if args.verbose:
-    print("\tComputation of integrated embedding components...")
-adata_l = scanorama.correct_scanpy(
-    adata_l,
-    dimred=max(args.dim_clustering, args.dim_integration),
-    return_dimred=True
-)
-try:
-    concat_adata = ad.concat(
+    print("Integration using scanorama...")
+
+    for key in adata_d.keys():
+        clean_adata(adata_d[key])
+
+    adata_l = list(adata_d.values())
+    del adata_d
+
+    if args.verbose:
+        print("\tComputation of integrated embedding components...")
+    adata_l = scanorama.correct_scanpy(
         adata_l,
-        join="inner",
-        label=args.label,
-        keys=label,
-        merge="same",
-        uns_merge="same"
+        dimred=max(args.dim_clustering, args.dim_integration, args.dim_embedding),
+        return_dimred=True
     )
-    del adata_l
-except:
-    raise RuntimeError("Anndatas concatenation did not work, aborting")
-sc.pp.neighbors(
-    concat_adata,
-    n_neighbors=args.k_neighbors,
-    use_rep="X_scanorama",
-    n_pcs=args.dim_clustering,
-    copy=False
-)
-sc.tl.leiden(
-    concat_adata,
-    resolution=args.resolution,
-    key_added=f"cluster"
-)
-sc.tl.umap(
-    concat_adata,
-    n_components=2,
-    random_state=0
-)
+    try:
+        concat_adata = ad.concat(
+            adata_l,
+            join="inner",
+            label=args.label,
+            keys=label,
+            merge="same",
+            uns_merge="same"
+        )
+        del adata_l
+    except:
+        raise RuntimeError("Anndatas concatenation did not work, aborting")
+    sc.pp.neighbors(
+        concat_adata,
+        n_neighbors=args.k_neighbors,
+        use_rep="X_scanorama",
+        n_pcs=args.dim_clustering,
+        copy=False
+    )
+    sc.tl.leiden(
+        concat_adata,
+        resolution=args.resolution,
+        key_added=f"cluster"
+    )
+    sc.tl.umap(
+        concat_adata,
+        n_components=args.dim_embedding,
+        random_state=0
+    )
 
-if args.verbose:
-    print("\tPlot of embedding components...")
-adt.scatterplot(
-    concat_adata,
-    obs="condition",
-    obsm="X_scanorama",
-    xlabel=r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
-    ylabel=r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
-    outfile=Path(f"{fig_outpath}/scanorama_components"),
-)
-adt.scatterplot(
-    concat_adata,
-    obs="condition",
-    obsm="X_umap",
-    xlabel=r"$\mathrm{UMAP_{1}}$",
-    ylabel=r"$\mathrm{UMAP_{2}}$",
-    outfile=Path(f"{fig_outpath}/scanorama_umap"),
-)
-adt.scatterplot(
-    concat_adata,
-    obs="cluster",
-    obsm="X_umap",
-    xlabel=r"$\mathrm{UMAP_{1}}$",
-    ylabel=r"$\mathrm{UMAP_{2}}$",
-    outfile=Path(f"{fig_outpath}/scanorama_umap_clusters"),
-)
+    if args.verbose:
+        print("\tPlot of embedding components...")
+    adt.scatterplot(
+        concat_adata,
+        obs="condition",
+        obsm="X_scanorama",
+        xlabel=r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
+        ylabel=r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
+        outfile=Path(f"{fig_outpath}/scanorama_components"),
+    )
+    adt.scatterplot(
+        concat_adata,
+        obs="condition",
+        obsm="X_umap",
+        xlabel=r"$\mathrm{UMAP_{1}}$",
+        ylabel=r"$\mathrm{UMAP_{2}}$",
+        outfile=Path(f"{fig_outpath}/scanorama_umap"),
+    )
+    adt.scatterplot(
+        concat_adata,
+        obs="cluster",
+        obsm="X_umap",
+        xlabel=r"$\mathrm{UMAP_{1}}$",
+        ylabel=r"$\mathrm{UMAP_{2}}$",
+        outfile=Path(f"{fig_outpath}/scanorama_umap_clusters"),
+    )
 
-if args.verbose:
-    print("\tSaving data...")
-concat_adata.write_h5ad(filename=f"{data_outpath}/scanorama.h5ad", compression="gzip")
+    if args.verbose:
+        print("\tSaving data...")
+    concat_adata.write_h5ad(filename=f"{data_outpath}/scanorama.h5ad", compression="gzip")
