@@ -8,17 +8,13 @@ from pathlib import Path
 
 from typing import Sequence
 
-from itertools import cycle
 from collections import OrderedDict as odict
 
 import numpy as np
 
-import anndata as ad
+import anndata as ad, anndatatools as adt
 import scanpy as sc
 import scanorama
-
-import matplotlib.pyplot as plt, color_settings as colour, plot_settings
-from matplotlib.ticker import FormatStrFormatter
 
 def str2bool(v: str):
     if isinstance(v, bool):
@@ -68,70 +64,6 @@ def clean_adata(
 
         if copy:
             return adata
-
-def scatterplot(
-    adata: ad.AnnData,
-    obs: str,
-    obsm: str,
-    xlabel: str = r"$x_{1}",
-    ylabel: str = r"$x_{2}",
-    outfile: Path = Path("./figure"),
-):
-
-    if obs not in adata.obs:
-        raise ValueError(f"adata.obs[{obs}] does not exist, aborting")
-    if obsm not in adata.obsm:
-        raise ValueError(f"adata.obsm[{obsm}] does not exist, aborting")
-
-    if len(adata.obs[obs].unique()) < 2:
-        raise ValueError(f"adata.obs[{obs}] specifies only one category, aborting")
-    elif len(adata.obs[obs].unique()) == 2:
-        print_legend = True
-    else:
-        print_legend = False
-
-    colors = cycle([
-        colour.red,
-        colour.green,
-        colour.blue,
-        colour.orange,
-        colour.purple,
-        colour.skyblue,
-        colour.teal,
-        colour.pink,
-        colour.violet,
-        colour.darkblue,
-        colour.magenta,
-        colour.darkgreen,
-        colour.darkorange,
-        colour.gray,
-        colour.maroon,
-        colour.olive,
-        colour.orchid,
-        colour.beet,
-        colour.indigo,
-        colour.gold,
-        colour.navy,
-        colour.salmon
-    ])
-
-    fig, ax = plt.subplots(nrows=1, ncols=1)
-    fig.set_figheight(5)
-    fig.set_figwidth(5)
-    for _cluster, _color in zip(sorted(adata.obs[obs].unique()), colors):
-        idx = np.where(adata.obs[obs] == _cluster)[0]
-        if print_legend:
-            ax.scatter(adata.obsm[obsm][idx,0], adata.obsm[obsm][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
-        else:
-            ax.scatter(adata.obsm[obsm][idx,0], adata.obsm[obsm][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    plt.sca(ax)
-    ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-    ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-    if print_legend:
-        ax.legend(markerscale=5, edgecolor=colour.black)
-    plt.savefig(outfile)
 
 parser = argparse.ArgumentParser(
     prog="Integration of sc-RNAseq data",
@@ -324,7 +256,7 @@ sc.tl.leiden(
 
 if args.verbose:
     print("\tPlot of embedding components...")
-scatterplot(
+adt.scatterplot(
     concat_adata,
     obs="condition",
     obsm="X_pca",
@@ -332,7 +264,7 @@ scatterplot(
     ylabel=r"$\mathrm{PC_{2}}$",
     outfile=Path(f"{fig_outpath}/ingest_pca"),
 )
-scatterplot(
+adt.scatterplot(
     concat_adata,
     obs="condition",
     obsm="X_umap",
@@ -340,7 +272,7 @@ scatterplot(
     ylabel=r"$\mathrm{UMAP_{2}}$",
     outfile=Path(f"{fig_outpath}/ingest_umap"),
 )
-scatterplot(
+adt.scatterplot(
     concat_adata,
     obs="cluster",
     obsm="X_umap",
@@ -409,7 +341,7 @@ sc.tl.leiden(
 
 if args.verbose:
     print("\tPlot of embedding components...")
-scatterplot(
+adt.scatterplot(
     concat_adata,
     obs="condition",
     obsm="X_pca",
@@ -417,7 +349,7 @@ scatterplot(
     ylabel=r"$\mathrm{PC_{2}}$",
     outfile=Path(f"{fig_outpath}/bbknn_pca"),
 )
-scatterplot(
+adt.scatterplot(
     concat_adata,
     obs="condition",
     obsm="X_umap",
@@ -425,7 +357,7 @@ scatterplot(
     ylabel=r"$\mathrm{UMAP_{2}}$",
     outfile=Path(f"{fig_outpath}/bbknn_umap"),
 )
-scatterplot(
+adt.scatterplot(
     concat_adata,
     obs="cluster",
     obsm="X_umap",
@@ -487,7 +419,7 @@ sc.tl.umap(
 
 if args.verbose:
     print("\tPlot of embedding components...")
-scatterplot(
+adt.scatterplot(
     concat_adata,
     obs="condition",
     obsm="X_scanorama",
@@ -495,7 +427,7 @@ scatterplot(
     ylabel=r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
     outfile=Path(f"{fig_outpath}/scanorama_components"),
 )
-scatterplot(
+adt.scatterplot(
     concat_adata,
     obs="condition",
     obsm="X_umap",
@@ -503,7 +435,7 @@ scatterplot(
     ylabel=r"$\mathrm{UMAP_{2}}$",
     outfile=Path(f"{fig_outpath}/scanorama_umap"),
 )
-scatterplot(
+adt.scatterplot(
     concat_adata,
     obs="cluster",
     obsm="X_umap",

@@ -1,10 +1,18 @@
-from typing import Optional, Sequence, Literal, Union
+from typing import Optional, Sequence, Union
+
+from pathlib import Path
 
 import numpy as np
 from math import ceil
 from scipy.stats import hypergeom
 from scipy.sparse import csr_matrix, issparse, diags
 from sklearn.metrics import pairwise_distances
+
+import matplotlib.pyplot as plt, plot_settings
+import color_settings as colour
+from matplotlib.ticker import FormatStrFormatter
+from itertools import cycle
+from color_settings import color_cycle
 
 import anndata as ad
 import pandas as pd
@@ -359,3 +367,53 @@ def shared_neighbors(
     }
 
     return adata if copy else None
+
+def scatterplot(
+    adata: ad.AnnData,
+    obs: str,
+    obsm: str,
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
+    colors: Optional[Union[Sequence[Sequence[str]], cycle]] = None,
+    outfile: Optional[Path] = None,
+):
+
+    if obs not in adata.obs:
+        raise ValueError(f"adata.obs[{obs}] does not exist, aborting")
+    if obsm not in adata.obsm:
+        raise ValueError(f"adata.obsm[{obsm}] does not exist, aborting")
+
+    if len(adata.obs[obs].unique()) < 2:
+        raise ValueError(f"adata.obs[{obs}] specifies only one category, aborting")
+    elif len(adata.obs[obs].unique()) == 2:
+        print_legend = True
+    else:
+        print_legend = False
+
+    if xlabel is None:
+        xlabel = ""
+    if ylabel is None:
+        ylabel = ""
+    
+    if colors is None:
+        colors = color_cycle
+
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    fig.set_figheight(5)
+    fig.set_figwidth(5)
+    for _cluster, _color in zip(sorted(adata.obs[obs].unique()), colors):
+        idx = np.where(adata.obs[obs] == _cluster)[0]
+        if print_legend:
+            ax.scatter(adata.obsm[obsm][idx,0], adata.obsm[obsm][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
+        else:
+            ax.scatter(adata.obsm[obsm][idx,0], adata.obsm[obsm][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    plt.sca(ax)
+    ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+    ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+    if print_legend:
+        ax.legend(markerscale=5, edgecolor=colour.black)
+    if outfile:
+        plt.savefig(outfile)
+    return None

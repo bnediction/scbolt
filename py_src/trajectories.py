@@ -6,12 +6,13 @@ warnings.filterwarnings("ignore")
 import os, sys, contextlib
 from pathlib import Path
 
-import anndata as ad, stream as st
+import anndata as ad, anndatatools as adt, stream as st
 
 import numpy as np
 from scipy.sparse import issparse
 
 import matplotlib.pyplot as plt, color_settings as colour, plot_settings as ps
+from matplotlib.ticker import FormatStrFormatter
 
 @contextlib.contextmanager
 def disable_print():
@@ -102,7 +103,7 @@ fig, ax = (plt.gcf(), plt.gca())
 ps.set_default(ax)
 ax.tick_params(axis='x', which='major', pad=2)
 ax.images[-1].colorbar.remove()
-plt.savefig(f"{fig_outpath}/pseudotime")
+plt.savefig(f"{fig_outpath}/pseudotime_trajectories")
 
 st.plot_stream(
     adata,
@@ -129,7 +130,7 @@ ax.legend(
     borderaxespad=0.2,
     handletextpad=0.3
 )
-plt.savefig(f"{fig_outpath}/kmeans")
+plt.savefig(f"{fig_outpath}/kmeans_trajectories")
 
 adata.obs["cluster"] = adata.obs["cluster"].astype(object)
 st.plot_stream(
@@ -157,7 +158,44 @@ ax.legend(
     borderaxespad=0.2,
     handletextpad=0.3
 )
-plt.savefig(f"{fig_outpath}/cluster")
+plt.savefig(f"{fig_outpath}/cluster_trajectories")
+
+adt.scatterplot(
+    adata,
+    obs="kmeans",
+    obsm="X_umap",
+    colors=colour.COLORS,
+    xlabel=r"$\mathrm{UMAP_{1}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$",
+    outfile=Path(f"{fig_outpath}/kmeans_umap")
+)
+
+adt.scatterplot(
+    adata,
+    obs="cluster",
+    obsm="X_umap",
+    colors=colour.COLORS,
+    xlabel=r"$\mathrm{UMAP_{1}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$",
+    outfile=Path(f"{fig_outpath}/cluster_umap")
+)
+
+fig, ax = plt.subplots(nrows=1, ncols=1)
+fig.set_figheight(5)
+fig.set_figwidth(6.5)
+sc = ax.scatter(
+    adata.obsm["X_umap"][:,0],
+    adata.obsm["X_umap"][:,1],
+    s=2,
+    c=adata.obs["S1_pseudotime"],
+    cmap="autumn",
+    edgecolors="none",
+    alpha=1
+)
+ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+fig.colorbar(sc)
+plt.savefig(Path(f"{fig_outpath}/pseudotime_umap"))
 
 # print("Saving data...")
 # 
