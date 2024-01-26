@@ -58,7 +58,7 @@ args = arguments()
 
 data_outpath = Path(f"{args.outpath}/tables")
 fig_outpath = Path(f"{args.outpath}/figures")
-prefix = "" if args.prefix is None else args.prefix
+args.prefix = "" if args.prefix is None else args.prefix
 
 if not data_outpath.exists():
     os.makedirs(data_outpath)
@@ -191,9 +191,9 @@ adt.scatterplot(
     obs="kmeans",
     obsm=dr,
     colors=colour.COLORS,
-    xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "UMAP" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
-    ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "UMAP" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
-    outfile=Path(f"{fig_outpath}/kmeans_{dr.split('_')[-1].lower()}")
+    xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
+    outfile=Path(f"{fig_outpath}/{args.prefix}kmeans_{dr.split('_')[-1].lower()}")
 )
 
 adt.scatterplot(
@@ -201,27 +201,20 @@ adt.scatterplot(
     obs="cluster",
     obsm=dr,
     colors=colour.COLORS,
-    xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "UMAP" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
-    ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "UMAP" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
-    outfile=Path(f"{fig_outpath}/cluster_{dr.split('_')[-1].lower()}")
+    xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
+    outfile=Path(f"{fig_outpath}/{args.prefix}cluster_{dr.split('_')[-1].lower()}")
 )
 
-fig, ax = plt.subplots(nrows=1, ncols=1)
-fig.set_figheight(5)
-fig.set_figwidth(6.5)
-sc = ax.scatter(
-    adata.obsm[dr][:,0],
-    adata.obsm[dr][:,1],
-    s=3,
-    c=adata.obs["S1_pseudotime"],
-    cmap="autumn",
-    edgecolors="none",
-    alpha=1
+adt.scatterplot(
+    adata,
+    obs="S1_pseudotime",
+    obsm=dr,
+    colors=plt.get_cmap("autumn"),
+    xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
+    outfile=Path(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}")
 )
-ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-fig.colorbar(sc)
-plt.savefig(Path(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}"))
 
 print("Saving data...")
 
@@ -230,7 +223,7 @@ for key in list(adata.obs.keys()):
         del adata.obs[key]
 
 for key in list(adata.uns.keys()):
-    if isinstance(adata.uns[key], (networkx.classes.graph.Graph, rpy2.rinterface.ListSexpVector, Path)):
+    if isinstance(adata.uns[key], (tuple, Path, networkx.classes.graph.Graph, rpy2.rinterface.ListSexpVector)):
         del adata.uns[key]
     if key.startswith("stream_S"):
         del adata.uns[key]

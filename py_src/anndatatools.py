@@ -1,3 +1,4 @@
+import types
 from typing import Optional, Sequence, Union
 
 from pathlib import Path
@@ -11,6 +12,7 @@ from sklearn.metrics import pairwise_distances
 import matplotlib.pyplot as plt, plot_settings
 import color_settings as colour
 from matplotlib.ticker import FormatStrFormatter
+from matplotlib.colors import Colormap
 from itertools import cycle
 from color_settings import color_cycle
 
@@ -368,26 +370,143 @@ def shared_neighbors(
 
     return adata if copy else None
 
-def scatterplot(
+def __default_plot(
+    plot: types.FunctionType
+):
+
+    def wrapper(
+        adata: ad.AnnData,
+        obs: str,
+        obsm: str,
+        xlabel: Optional[str] = None,
+        ylabel: Optional[str] = None,
+        colors: Optional[Union[Sequence[Sequence[str]], cycle, Colormap]] = None,
+        **kwargs
+    ):
+
+        if obs not in adata.obs:
+            raise ValueError(f"adata.obs[{obs}] does not exist, aborting")
+        if obsm not in adata.obsm:
+            raise ValueError(f"adata.obsm[{obsm}] does not exist, aborting")
+
+        if xlabel is None:
+            xlabel = ""
+        if ylabel is None:
+            ylabel = ""
+
+        if colors is None:
+            colors = color_cycle
+
+        fig, ax = plot(
+            adata,
+            obs,
+            obsm,
+            xlabel,
+            ylabel,
+            colors,
+            **kwargs
+        )
+        if xlabel:
+            ax.set_xlabel(xlabel)
+        if ylabel:
+            ax.set_ylabel(ylabel)
+        plt.sca(ax)
+        ax.xaxis.set_major_formatter(kwargs["formatter"]) if "formatter" in kwargs else ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+        ax.yaxis.set_major_formatter(kwargs["formatter"]) if "formatter" in kwargs else ax.yaxis.set_major_formatter(FormatStrFormatter("%g")) 
+        
+        return fig, ax
+    
+    return wrapper
+
+@__default_plot
+def __scatterplot_discrete(
     adata: ad.AnnData,
     obs: str,
     obsm: str,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
     colors: Optional[Union[Sequence[Sequence[str]], cycle]] = None,
-    outfile: Optional[Path] = None,
+    **kwargs
 ):
-    """Compute a scatterplot between the two first columns of .obsm[obsm]
-    by using a classification/clusterization with respect to .obs[obs].
+
+    if len(adata.obs[obs].unique()) < 2:
+        raise ValueError(f"adata.obs[{obs}] specifies only one category, aborting")
+    elif "print_legend" in kwargs:
+        print_legend = kwargs["print_legend"]
+    elif len(adata.obs[obs].unique()) == 2:
+        print_legend = True
+    else:
+        print_legend = False
+    
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    fig.set_figheight(kwargs["figheight"] if "figheight" in kwargs else 5)
+    fig.set_figwidth(kwargs["figwidth"] if "figwidth" in kwargs else 5)
+        
+    for _cluster, _color in zip(sorted(adata.obs[obs].unique()), colors):
+        idx = np.where(adata.obs[obs] == _cluster)[0]
+        if print_legend:
+            ax.scatter(adata.obsm[obsm][idx,0], adata.obsm[obsm][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
+        else:
+            ax.scatter(adata.obsm[obsm][idx,0], adata.obsm[obsm][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1)
+
+    if print_legend:
+        ax.legend(markerscale=5, edgecolor=colour.black)
+    
+    return fig, ax
+
+@__default_plot
+def __scatterplot_continuous(
+    adata: ad.AnnData,
+    obs: str,
+    obsm: str,
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
+    colors: Optional[Colormap] = None,
+    **kwargs
+):
+    if colors:
+        _cmap = colors.name
+    else:
+        _cmap="autumn"
+
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    fig.set_figheight(kwargs["figheight"] if "figheight" in kwargs else 5)
+    fig.set_figwidth(kwargs["figwidth"] if "figwidth" in kwargs else 6.5)
+
+    sc = ax.scatter(
+        adata.obsm[obsm][:,0],
+        adata.obsm[obsm][:,1],
+        s=3,
+        c=adata.obs[obs],
+        cmap=_cmap,
+        edgecolors="none",
+        alpha=1
+    )
+    fig.colorbar(sc)
+
+    return fig, ax
+
+def scatterplot(
+    adata: ad.AnnData,
+    obs: str,
+    obsm: str,
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
+    colors: Optional[Colormap] = None,
+    outfile: Optional[Path] = None,
+    **kwargs
+):
+    """Compute a scatterplot between the two first columns of .obsm[`obsm`]
+    by using a classification/clusterization with respect to .obs[`obs`].
 
     Parameters
     ----------
     adata
         Annotated data matrix.
     obs
-        The classification is retrieved by .obs[obs], which must be categorical/qualitative values.
+        The classification is retrieved by .obs[`obs`], which must be categorical/qualitative values.
     obsm
-        The data points are retrieved by the first and second columns in .obsm[obsm].
+        The data points are retrieved by the first and second columns in .obsm[`obsm`].
     xlabel
         Set the label for the x-axis.
     ylabel
@@ -395,49 +514,46 @@ def scatterplot(
     colors
         Visualization of the mapping from a list of color values.
     outfile
-        If specified, save the current figure.
+        If specified, save the figure.
+    **kwargs
+        Supplemental features for figure plotting:
+        - figheight[float]: specify the figure height
+        - figwidth[float]: specify the figure width
+        - formatter[matplotlib.ticker.FormatStrFormatter]: specify the format on x- and y-axis.
+        - print_legend[bool]: when .obs[`obs`] are discrete values, specify whether to draw legend
     
     Returns
     -------
-    Depending on `outfile`, save figure or update the current figure.
+    Depending on `outfile`, save figure or create a current figure.
     """
 
-    if obs not in adata.obs:
-        raise ValueError(f"adata.obs[{obs}] does not exist, aborting")
-    if obsm not in adata.obsm:
-        raise ValueError(f"adata.obsm[{obsm}] does not exist, aborting")
-
-    if len(adata.obs[obs].unique()) < 2:
-        raise ValueError(f"adata.obs[{obs}] specifies only one category, aborting")
-    elif len(adata.obs[obs].unique()) == 2:
-        print_legend = True
-    else:
-        print_legend = False
-
-    if xlabel is None:
-        xlabel = ""
-    if ylabel is None:
-        ylabel = ""
+    if pd.api.types.is_float_dtype(adata.obs[obs]):
+        fig, ax = __scatterplot_continuous(
+            adata,
+            obs,
+            obsm,
+            xlabel,
+            ylabel,
+            colors,
+            **kwargs
+        )
+    elif pd.api.types.is_integer_dtype(adata.obs[obs]) or \
+         pd.api.types.is_bool_dtype(adata.obs[obs]) or \
+         pd.api.types.is_string_dtype(adata.obs[obs]) or \
+         pd.api.types.is_categorical_dtype(adata.obs[obs]):
+        fig, ax = __scatterplot_discrete(
+            adata,
+            obs,
+            obsm,
+            xlabel,
+            ylabel,
+            colors,
+            **kwargs
+        )
     
-    if colors is None:
-        colors = color_cycle
-
-    fig, ax = plt.subplots(nrows=1, ncols=1)
-    fig.set_figheight(5)
-    fig.set_figwidth(5)
-    for _cluster, _color in zip(sorted(adata.obs[obs].unique()), colors):
-        idx = np.where(adata.obs[obs] == _cluster)[0]
-        if print_legend:
-            ax.scatter(adata.obsm[obsm][idx,0], adata.obsm[obsm][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
-        else:
-            ax.scatter(adata.obsm[obsm][idx,0], adata.obsm[obsm][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    plt.sca(ax)
-    ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-    ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-    if print_legend:
-        ax.legend(markerscale=5, edgecolor=colour.black)
     if outfile:
         plt.savefig(outfile)
-    return None
+        plt.close()
+        return None
+    else:
+        return fig, ax
