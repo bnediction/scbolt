@@ -377,6 +377,30 @@ def scatterplot(
     colors: Optional[Union[Sequence[Sequence[str]], cycle]] = None,
     outfile: Optional[Path] = None,
 ):
+    """Compute a scatterplot between the two first columns of .obsm[obsm]
+    by using a classification/clusterization with respect to .obs[obs].
+
+    Parameters
+    ----------
+    adata
+        Annotated data matrix.
+    obs
+        The classification is retrieved by .obs[obs], which must be categorical/qualitative values.
+    obsm
+        The data points are retrieved by the first and second columns in .obsm[obsm].
+    xlabel
+        Set the label for the x-axis.
+    ylabel
+        Set the label for the y-axis.
+    colors
+        Visualization of the mapping from a list of color values.
+    outfile
+        If specified, save the current figure.
+    
+    Returns
+    -------
+    Depending on `outfile`, save figure or update the current figure.
+    """
 
     if obs not in adata.obs:
         raise ValueError(f"adata.obs[{obs}] does not exist, aborting")
