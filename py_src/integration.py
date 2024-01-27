@@ -24,6 +24,21 @@ def str2bool(v: str):
     else:
         raise argparse.ArgumentTypeError("Boolean value expected.")
 
+def section(
+    v: str,
+    reset: bool = False
+):
+    if "_i" not in globals():
+        global _i
+        _i = 1
+    elif reset:
+        _i = 1
+    
+    print(f"{_i}) {v}")
+    _i+=1
+
+    return None
+
 def clean_adata(
     adata: ad.AnnData,
     obs: Sequence[str] = None,
@@ -223,10 +238,10 @@ del valid_genes
 
 if "mnn" in methods or "ingest" in methods:
 
-    print("Integration using mnn...")
+    print("Integration using ingest:")
 
     if args.verbose:
-        print("\tComputation of reference sample embedding components...")
+        section("Computation of reference sample embedding components...", reset=True)
     sc.tl.pca(
         adata_d["reference"],
         zero_center=False,
@@ -247,7 +262,7 @@ if "mnn" in methods or "ingest" in methods:
     )
 
     if args.verbose:
-        print("\tIntegration of interest sample...")
+        section("Integration of interest sample...")
     sc.tl.ingest(
         adata=adata_d["interest"],
         adata_ref=adata_d["reference"],
@@ -279,7 +294,7 @@ if "mnn" in methods or "ingest" in methods:
     )
 
     if args.verbose:
-        print("\tPlot of embedding components...")
+        section("Plot of embedding components...")
     adt.scatterplot(
         concat_adata,
         obs="condition",
@@ -306,12 +321,12 @@ if "mnn" in methods or "ingest" in methods:
     )
 
     if args.verbose:
-        print("\tSaving data...")
+        section("Saving data...")
     concat_adata.write_h5ad(filename=f"{data_outpath}/ingest.h5ad", compression="gzip")
 
 if "bbknn" in methods:
 
-    print("Integration using bbknn...")
+    print("Integration using bbknn:")
 
     clean_adata(
         concat_adata,
@@ -319,7 +334,7 @@ if "bbknn" in methods:
     )
 
     if args.verbose:
-        print("\tComputation of embedding components...")
+        section("Computation of embedding components...", reset=True)
     sc.pp.highly_variable_genes(
         concat_adata,
         layer="raw",
@@ -338,7 +353,7 @@ if "bbknn" in methods:
     )
 
     if args.verbose:
-        print("\tIntegration of embedding components...")
+        section("Integration of embedding components...")
     sc.external.pp.bbknn(
         concat_adata,
         batch_key=args.label,
@@ -366,7 +381,7 @@ if "bbknn" in methods:
     )
 
     if args.verbose:
-        print("\tPlot of embedding components...")
+        section("Plot of embedding components...")
     adt.scatterplot(
         concat_adata,
         obs="condition",
@@ -393,7 +408,7 @@ if "bbknn" in methods:
     )
 
     if args.verbose:
-        print("\tSaving data...")
+        section("Saving data...")
     concat_adata.write_h5ad(filename=f"{data_outpath}/bbknn.h5ad", compression="gzip")
 
     del concat_adata
@@ -409,7 +424,7 @@ if "scanorama" in methods:
     del adata_d
 
     if args.verbose:
-        print("\tComputation of integrated embedding components...")
+        section("Computation of integrated embedding components...", reset=True)
     adata_l = scanorama.correct_scanpy(
         adata_l,
         dimred=max(args.dim_clustering, args.dim_integration, args.dim_embedding),
@@ -446,7 +461,7 @@ if "scanorama" in methods:
     )
 
     if args.verbose:
-        print("\tPlot of embedding components...")
+        section("Plot of embedding components...")
     adt.scatterplot(
         concat_adata,
         obs="condition",
@@ -473,5 +488,5 @@ if "scanorama" in methods:
     )
 
     if args.verbose:
-        print("\tSaving data...")
+        section("Saving data...")
     concat_adata.write_h5ad(filename=f"{data_outpath}/scanorama.h5ad", compression="gzip")

@@ -9,7 +9,7 @@ install_env() {
         if [[ "$choice" == "y" || -z "$choice" ]];
         then
             conda remove --name $1 --all --yes
-            conda env create --force -f ${config_dir}$1.yml
+            conda env create -f ${config_dir}$1.yml --force
         else
             echo "$1 environment not reinstalled."
         fi

@@ -1,15 +1,22 @@
 #!/usr/bin/bash
 
-RED='\033[0;31m'
-LIGHT_RED='\033[91m'
-NC='\033[0m'
+NC="\033[0m"
+RED="\033[0;31m"
+LIGHT_RED="\033[91m"
+SIZE=30
+
+title() {
+  side_size=$(((${1}-${#2})/2))
+  side_str=$(printf "%-${side_size}s" "-")
+  echo -e "${RED}${side_str// /-}$2${side_str// /-}${NC}"
+}
 
 source ${HOME}/anaconda3/etc/profile.d/conda.sh
 conda activate preprocess
 
 ### Load 10X data ###
 
-echo -e "${RED}10X data loading...${NC}"
+title $SIZE "10X data loading"
 
 echo -e "${LIGHT_RED}> control sample (download)...${NC}"
 mkdir -p data/scRNA/raw/ct
@@ -41,7 +48,7 @@ python py_src/load_10X.py -i data/scRNA/raw/ra \
 
 ### Cell filtering ###
 
-echo -e "${RED}Cell filtering...${NC}"
+title $SIZE "Cell filtering"
 
 echo -e "${LIGHT_RED}> cycle phase markers (download)...${NC}"
 mkdir -p data/public/cycle-phases
@@ -69,7 +76,7 @@ python py_src/cell_filtering.py \
 
 ### Cell type signatures ###
 
-echo -e "${RED}Cell type signatures loading...${NC}"
+title $SIZE "Cell type signatures loading"
 
 echo -e "${LIGHT_RED}> signatures (download)...${NC}"
 mkdir -p data/public/signatures
@@ -84,7 +91,7 @@ python py_src/load_signatures.py \
 
 ### Gene filtering and normalization ###
 
-echo -e "${RED}Gene filtering and normalization...${NC}"
+title $SIZE "Gene filtering and normalization"
 
 echo -e "${LIGHT_RED}> control sample (normalization)...${NC}"
 python py_src/normalization.py \
@@ -106,7 +113,7 @@ python py_src/normalization.py \
 
 ### Clustering cells and marker analysis ###
 
-echo -e "${RED}Cell clustering and marker analysis...${NC}"
+title $SIZE "Cell clustering and marker analysis"
 
 echo -e "${LIGHT_RED}> control sample (clusterization)...${NC}"
 python py_src/cluster.py \
@@ -136,7 +143,7 @@ python py_src/cluster.py \
 
 ### Clustering cells and marker analysis ###
 
-echo -e "${RED}Integration...${NC}"
+title $SIZE "Integration"
 
 echo -e "${LIGHT_RED}> control + treated samples (integration)...${NC}"
 python py_src/integration.py \

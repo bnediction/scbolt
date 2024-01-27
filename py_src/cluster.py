@@ -249,13 +249,13 @@ fig.set_figwidth(8)
 for i, resolution in enumerate(resolutions):
     for _cluster, _color in zip(np.unique(adata.obs[f"leiden_{resolution}"]), color_cycle):
         idx = np.where(adata.obs[f"leiden_{resolution}"] == _cluster)[0]
-        ax = [math.floor(i/2), i%2]
-        axes[*ax].scatter(tsne1[idx], tsne2[idx], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
-        axes[*ax].title.set_text(f"resolution: {resolution}")
+        axv, axh = [math.floor(i/2), i%2]
+        axes[axv, axh].scatter(tsne1[idx], tsne2[idx], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
+        axes[axv, axh].title.set_text(f"resolution: {resolution}")
         if ax[0] == 1:
-            axes[*ax].set_xlabel(r"$t$-$\mathrm{SNE_{1}}$")
+            axes[axv, axh].set_xlabel(r"$t$-$\mathrm{SNE_{1}}$")
         if ax[1] == 0:
-            axes[*ax].set_ylabel(r"$t$-$\mathrm{SNE_{2}}$")
+            axes[axv, axh].set_ylabel(r"$t$-$\mathrm{SNE_{2}}$")
 plt.savefig(f"{fig_outpath}/{args.prefix}tsne_clusters")
 
 print(f"Running uniform manifold approximation and projection (UMAP)...")
@@ -271,13 +271,13 @@ fig.set_figwidth(8)
 for i, resolution in enumerate(resolutions):
     for _cluster, _color in zip(np.unique(adata.obs[f"leiden_{resolution}"]), color_cycle):
         idx = np.where(adata.obs[f"leiden_{resolution}"] == _cluster)[0]
-        ax = [math.floor(i/2), i%2]
-        axes[*ax].scatter(umap1[idx], umap2[idx], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
-        axes[*ax].title.set_text(f"resolution: {resolution}")
+        axv, axh = [math.floor(i/2), i%2]
+        axes[axv, axh].scatter(umap1[idx], umap2[idx], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
+        axes[axv, axh].title.set_text(f"resolution: {resolution}")
         if ax[0] == 1:
-            axes[*ax].set_xlabel(r"$\mathrm{UMAP_{1}}$")
+            axes[axv, axh].set_xlabel(r"$\mathrm{UMAP_{1}}$")
         if ax[1] == 0:
-            axes[*ax].set_ylabel(r"$\mathrm{UMAP_{2}}$")
+            axes[axv, axh].set_ylabel(r"$\mathrm{UMAP_{2}}$")
 plt.savefig(f"{fig_outpath}/{args.prefix}umap_clusters")
 
 fig, ax = plt.subplots(nrows=1, ncols=1)
