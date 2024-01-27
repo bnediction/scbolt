@@ -1,12 +1,17 @@
 #!/usr/bin/bash
 
 RED='\033[0;31m'
+LIGHT_RED='\033[91m'
 NC='\033[0m'
+
+source ${HOME}/anaconda3/etc/profile.d/conda.sh
+conda activate preprocess
 
 ### Load 10X data ###
 
 echo -e "${RED}10X data loading...${NC}"
 
+echo -e "${LIGHT_RED}> control sample (download)...${NC}"
 mkdir -p data/scRNA/raw/ct
 wget --quiet --recursive --no-parent -nd --reject "index.html" \
   --directory-prefix=data/scRNA/raw/ct \
@@ -15,6 +20,7 @@ mv data/scRNA/raw/ct/*matrix.mtx.gz data/scRNA/raw/ct/matrix.mtx.gz
 mv data/scRNA/raw/ct/*genes.tsv.gz data/scRNA/raw/ct/features.tsv.gz
 mv data/scRNA/raw/ct/*barcodes.tsv.gz data/scRNA/raw/ct/barcodes.tsv.gz
 
+echo -e "${LIGHT_RED}> treated sample (download)...${NC}"
 mkdir -p data/scRNA/raw/ra
 wget --quiet --recursive --no-parent -nd --reject "index.html" \
   --directory-prefix=data/scRNA/raw/ra \
@@ -23,10 +29,12 @@ mv data/scRNA/raw/ra/*matrix.mtx.gz data/scRNA/raw/ra/matrix.mtx.gz
 mv data/scRNA/raw/ra/*genes.tsv.gz data/scRNA/raw/ra/features.tsv.gz
 mv data/scRNA/raw/ra/*barcodes.tsv.gz data/scRNA/raw/ra/barcodes.tsv.gz
 
+echo -e "${LIGHT_RED}> control sample (conversion)...${NC}"
 python py_src/load_10X.py -i data/scRNA/raw/ct \
   -o data/scRNA/raw/ct/ct.h5ad \
   -s age=adult,date=29-09-2020,sample_name=ctrl,condition=control
 
+echo -e "${LIGHT_RED}> treated sample (conversion)...${NC}"
 python py_src/load_10X.py -i data/scRNA/raw/ra \
   -o data/scRNA/raw/ra/ra.h5ad \
   -s age=adult,date=29-09-2020,sample_name=ra,condition=treated
@@ -35,9 +43,11 @@ python py_src/load_10X.py -i data/scRNA/raw/ra \
 
 echo -e "${RED}Cell filtering...${NC}"
 
+echo -e "${LIGHT_RED}> cycle phase markers (download)...${NC}"
 mkdir -p data/public/cycle-phases
 wget --quiet -cO data/public/cycle-phases/mouse_cycle_markers.rds https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
 
+echo -e "${LIGHT_RED}> control sample (filtering)...${NC}"
 python py_src/cell_filtering.py \
   --infile data/scRNA/raw/ct/ct.h5ad \
   --marker data/public/cycle-phases/mouse_cycle_markers.rds \
@@ -47,6 +57,7 @@ python py_src/cell_filtering.py \
   --lower-mad 3 \
   --consistency-mad 1
 
+echo -e "${LIGHT_RED}> treated sample (filtering)...${NC}"
 python py_src/cell_filtering.py \
   --infile data/scRNA/raw/ra/ra.h5ad \
   --marker data/public/cycle-phases/mouse_cycle_markers.rds \
@@ -60,10 +71,12 @@ python py_src/cell_filtering.py \
 
 echo -e "${RED}Cell type signatures loading...${NC}"
 
+echo -e "${LIGHT_RED}> signatures (download)...${NC}"
 mkdir -p data/public/signatures
 wget --quiet -cO data/public/signatures/geiger.xls https://doi.org/10.1371/journal.pbio.2003389.s025 
 wget --quiet -cO data/public/signatures/chambers.xls https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
 
+echo -e "${LIGHT_RED}> signatures (conversion)...${NC}"
 python py_src/load_signatures.py \
   --table-infile data/public/signatures/chambers.xls \
   --list-infile data/public/signatures/geiger.xls \
@@ -73,6 +86,7 @@ python py_src/load_signatures.py \
 
 echo -e "${RED}Gene filtering and normalization...${NC}"
 
+echo -e "${LIGHT_RED}> control sample (normalization)...${NC}"
 python py_src/normalization.py \
   --infile data/scRNA/cell_filtering/ct/tables/counts.h5ad \
   --outpath data/scRNA/normalizing/ct \
@@ -81,6 +95,7 @@ python py_src/normalization.py \
   --hvg-filtering 0 \
   --jobs 6
 
+echo -e "${LIGHT_RED}> treated sample (normalization)...${NC}"
 python py_src/normalization.py \
   --infile data/scRNA/cell_filtering/ra/tables/counts.h5ad \
   --outpath data/scRNA/normalizing/ra \
@@ -93,6 +108,7 @@ python py_src/normalization.py \
 
 echo -e "${RED}Cell clustering and marker analysis...${NC}"
 
+echo -e "${LIGHT_RED}> control sample (clusterization)...${NC}"
 python py_src/cluster.py \
   --infile data/scRNA/normalizing/ra/tables/corrected.h5ad \
   --signatures data/public/signatures/signatures.json \
@@ -105,6 +121,7 @@ python py_src/cluster.py \
   --logfc-threshold 0.25 \
   --verbose 1
 
+echo -e "${LIGHT_RED}> treated sample (clusterization)...${NC}"
 python py_src/cluster.py \
   --infile data/scRNA/normalizing/ct/tables/corrected.h5ad \
   --signatures data/public/signatures/signatures.json \
@@ -121,8 +138,7 @@ python py_src/cluster.py \
 
 echo -e "${RED}Integration...${NC}"
 
-conda activate stream
-
+echo -e "${LIGHT_RED}> control + treated samples (integration)...${NC}"
 python py_src/integration.py \
   --infile-ref data/scRNA/normalizing/ct/tables/corrected.h5ad \
   --infile-interest data/scRNA/normalizing/ra/tables/corrected.h5ad \
@@ -136,3 +152,7 @@ python py_src/integration.py \
   --resolution 0.6 \
   --jobs 6 \
   --verbose 1
+
+### End workflow
+
+conda deactivate

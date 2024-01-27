@@ -158,6 +158,7 @@ plt.sca(ax)
 ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
 ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
 plt.savefig(f"{fig_outpath}/cell-cycle-phases-assignment")
+plt.close()
 
 adata.var_names_make_unique()
 

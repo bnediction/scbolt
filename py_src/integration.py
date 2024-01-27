@@ -10,8 +10,6 @@ from typing import Sequence
 
 from collections import OrderedDict as odict
 
-import numpy as np
-
 import anndata as ad, anndatatools as adt
 import scanpy as sc
 import scanorama
@@ -202,8 +200,7 @@ if not fig_outpath.exists():
 if args.methods == "all":
     methods = ["mnn", "bbknn", "scanorama"]
 else:
-    methods = args.method.split("+")
-
+    methods = args.methods.split("+")
 
 print(f"Loading data...")
 

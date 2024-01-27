@@ -18,6 +18,11 @@ install_env() {
     fi
 }
 
+if conda env list | grep -q "^base";
+then
+    conda activate base
+fi
+
 for environment in preprocess stream
 do
     install_env $environment
