@@ -14,7 +14,7 @@ import color_settings as colour
 from matplotlib.ticker import FormatStrFormatter
 from matplotlib.colors import Colormap
 from itertools import cycle
-from color_settings import color_cycle
+from color_settings import COLORS
 
 import anndata as ad
 import pandas as pd
@@ -378,9 +378,9 @@ def __default_plot(
         adata: ad.AnnData,
         obs: str,
         obsm: str,
+        colors: Union[Sequence[Sequence[str]], cycle, Colormap] = None,
         xlabel: Optional[str] = None,
         ylabel: Optional[str] = None,
-        colors: Optional[Union[Sequence[Sequence[str]], cycle, Colormap]] = None,
         **kwargs
     ):
 
@@ -394,16 +394,13 @@ def __default_plot(
         if ylabel is None:
             ylabel = ""
 
-        if colors is None:
-            colors = color_cycle
-
         fig, ax = plot(
             adata,
             obs,
             obsm,
+            colors,
             xlabel,
             ylabel,
-            colors,
             **kwargs
         )
         if xlabel:
@@ -423,9 +420,9 @@ def __scatterplot_discrete(
     adata: ad.AnnData,
     obs: str,
     obsm: str,
+    colors: Optional[Union[Sequence[Sequence[str]], cycle]] = None,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
-    colors: Optional[Union[Sequence[Sequence[str]], cycle]] = None,
     **kwargs
 ):
 
@@ -437,6 +434,9 @@ def __scatterplot_discrete(
         print_legend = True
     else:
         print_legend = False
+    
+    if not colors:
+        colors = cycle(COLORS)
     
     fig, ax = plt.subplots(nrows=1, ncols=1)
     fig.set_figheight(kwargs["figheight"] if "figheight" in kwargs else 5)
@@ -459,11 +459,12 @@ def __scatterplot_continuous(
     adata: ad.AnnData,
     obs: str,
     obsm: str,
+    colors: Optional[Colormap] = None,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
-    colors: Optional[Colormap] = None,
     **kwargs
 ):
+
     if colors:
         _cmap = colors.name
     else:
@@ -490,9 +491,9 @@ def scatterplot(
     adata: ad.AnnData,
     obs: str,
     obsm: str,
+    colors: Optional[Colormap] = None,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
-    colors: Optional[Colormap] = None,
     outfile: Optional[Path] = None,
     **kwargs
 ):
@@ -532,9 +533,9 @@ def scatterplot(
             adata,
             obs,
             obsm,
+            colors,
             xlabel,
             ylabel,
-            colors,
             **kwargs
         )
     elif pd.api.types.is_integer_dtype(adata.obs[obs]) or \
@@ -545,9 +546,9 @@ def scatterplot(
             adata,
             obs,
             obsm,
+            colors,
             xlabel,
             ylabel,
-            colors,
             **kwargs
         )
     

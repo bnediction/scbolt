@@ -131,90 +131,45 @@ ps.set_default(ax)
 ax.tick_params(axis='x', which='major', pad=2)
 plt.savefig(f"{fig_outpath}/{args.prefix}sc_pseudotime_trajectories")
 
-st.plot_stream(
-    adata,
-    root="S1",
-    color=["kmeans"],
-    log_scale=False,
-    factor_zoomin=100,
-    save_fig=False,
-)
-fig, ax = (plt.gcf(), plt.gca())
-ax.tick_params(axis='x', which='major', pad=2)
-ps.set_default(ax)
-for idx, patch in enumerate(ax.patches):
-    patch.set_color(colour.COLORS[idx])
-    patch.set_alpha(1)
-ax.legend(
-    [string.replace("cluster ","") for string in np.sort(adata.obs["kmeans"].unique())],
-    bbox_to_anchor=(1.03, 0.5),
-    loc='center left',
-    title="cluster",
-    ncol=1,
-    frameon=False,
-    columnspacing=0.4,
-    borderaxespad=0.2,
-    handletextpad=0.3
-)
-plt.savefig(f"{fig_outpath}/{args.prefix}kmeans_trajectories")
-
 adata.obs["cluster"] = adata.obs["cluster"].astype(object)
-st.plot_stream(
-    adata,
-    root="S1",
-    color=["cluster"],
-    log_scale=False,
-    factor_zoomin=100,
-    save_fig=False,
-)
-fig, ax = (plt.gcf(), plt.gca())
-ax.tick_params(axis='x', which='major', pad=2)
-ps.set_default(ax)
-for idx, patch in enumerate(ax.patches):
-    patch.set_color(colour.COLORS[idx])
-    patch.set_alpha(1)
-ax.legend(
-    [string.replace("cluster ","") for string in np.sort(adata.obs["cluster"].unique())],
-    bbox_to_anchor=(1.03, 0.5),
-    loc='center left',
-    title="cluster",
-    ncol=1,
-    frameon=False,
-    columnspacing=0.4,
-    borderaxespad=0.2,
-    handletextpad=0.3
-)
-plt.savefig(f"{fig_outpath}/{args.prefix}cluster_trajectories")
+for cluster in ["kmeans", "cluster"]:
+    st.plot_stream(
+        adata,
+        root="S1",
+        color=[cluster],
+        log_scale=False,
+        factor_zoomin=100,
+        save_fig=False,
+    )
+    fig, ax = (plt.gcf(), plt.gca())
+    ax.tick_params(axis='x', which='major', pad=2)
+    ps.set_default(ax)
+    for idx, patch in enumerate(ax.patches):
+        patch.set_color(colour.COLORS[idx])
+        patch.set_alpha(1)
+    ax.legend(
+        [string.replace("cluster ","") for string in np.sort(adata.obs[cluster].unique())],
+        bbox_to_anchor=(1.03, 0.5),
+        loc='center left',
+        title="cluster",
+        ncol=1,
+        frameon=False,
+        columnspacing=0.4,
+        borderaxespad=0.2,
+        handletextpad=0.3
+    )
+    plt.savefig(f"{fig_outpath}/{args.prefix}{cluster}_trajectories")
 
-adt.scatterplot(
-    adata,
-    obs="kmeans",
-    obsm=dr,
-    colors=colour.COLORS,
-    xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
-    ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
-    outfile=Path(f"{fig_outpath}/{args.prefix}kmeans_{dr.split('_')[-1].lower()}")
-)
-
-adt.scatterplot(
-    adata,
-    obs="cluster",
-    obsm=dr,
-    colors=colour.COLORS,
-    xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
-    ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
-    outfile=Path(f"{fig_outpath}/{args.prefix}cluster_{dr.split('_')[-1].lower()}")
-)
-
-adt.scatterplot(
-    adata,
-    obs="S1_pseudotime",
-    obsm=dr,
-    colors=plt.get_cmap("autumn"),
-    xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
-    ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
-    outfile=Path(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}")
-)
+for obs in ["kmeans", "cluster", "S1_pseudotime"]:
+    adt.scatterplot(
+        adata,
+        obs=obs,
+        obsm=dr,
+        colors=None,
+        xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
+        ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
+        outfile=Path(f"{fig_outpath}/{args.prefix}{obs}_{dr.split('_')[-1].lower()}")
+    )
 
 print("Saving data...")
 
