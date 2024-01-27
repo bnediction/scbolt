@@ -8,8 +8,8 @@ install_env() {
         read -p "$1 conda environment already exists. do you want to reinstall $1 environment? ([y]/n): " choice
         if [[ "$choice" == "y" || -z "$choice" ]];
         then
-            conda remove --name $1
-            conda env create -f ${config_dir}$1.yml
+            conda remove --name $1 --all --yes
+            conda env create --force -f ${config_dir}$1.yml
         else
             echo "$1 environment not reinstalled."
         fi
@@ -17,6 +17,8 @@ install_env() {
         conda env create -f ${config_dir}$1.yml
     fi
 }
+
+source ${HOME}/anaconda3/etc/profile.d/conda.sh
 
 if conda env list | grep -q "^base";
 then
