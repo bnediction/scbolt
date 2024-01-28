@@ -33,7 +33,8 @@ conda config --add channels conda-forge
 
 Download and configure project:
 ```sh
-git clone https://gitub.u-bordeaux.fr/bnediction/mpbn.git
+git clone https://gitub.u-bordeaux.fr/troncalli/retinoic-acid-resistance-leukemias.git leukemia
+cd leukemia
 bash config/env_installation.sh
 ```
 Run the pipeline:
