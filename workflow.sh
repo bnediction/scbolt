@@ -3,7 +3,7 @@
 NC="\033[0m"
 RED="\033[0;31m"
 LIGHT_RED="\033[91m"
-SIZE=30
+SIZE=50
 
 title() {
   side_size=$(((${1}-${#2})/2))

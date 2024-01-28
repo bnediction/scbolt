@@ -14,7 +14,7 @@ Setup prerequisites must be verified:
 apt-get install texlive dvipng texlive-latex-extra texlive-fonts-recommended
 ```
 2. verify that *Anaconda* package manager is already installed. If not, please install and download it [here](https://www.anaconda.com/download/). Then please use:
-```bash
+```sh
 conda config --add channels bioconda
 conda config --add channels conda-forge
 ```
@@ -26,13 +26,9 @@ cd leukemia
 bash config/env_installation.sh
 ```
 Run the pipeline:
-```bash
+```sh
 bash workflow.sh
 ```
-
-# Authors and acknowledgment
-
-Show your appreciation to those who have contributed to the project.
 
 # License
 
@@ -40,4 +36,4 @@ For open source projects, say how it is licensed.
 
 # Project status
 
-Ongoing project
+Ongoing

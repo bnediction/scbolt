@@ -168,9 +168,8 @@ def log_fold_changes(
             log_fold_changes_df = add_one_cluster_log_fold_changes(log_fold_changes_df, _mean_in, _mean_out, cluster)
     else:
         for cluster in sorted(pd.unique(adata.obs[groupby])):
-            counts_df = _expression_with_cluster(adata, groupby=groupby, layer=layer, is_log=is_log)
-            _mean_in = counts_df.loc[counts_df[groupby] == cluster, counts_df.columns != groupby].mean()
-            _mean_out = counts_df.loc[counts_df[groupby] != cluster, counts_df.columns != groupby].mean()
+            _mean_in = counts_df.loc[counts_df["cluster"] == cluster, counts_df.columns != "cluster"].mean()
+            _mean_out = counts_df.loc[counts_df["cluster"] != cluster, counts_df.columns != "cluster"].mean()
             log_fold_changes_df = add_one_cluster_log_fold_changes(log_fold_changes_df, _mean_in, _mean_out, cluster)
 
     return log_fold_changes_df.reset_index(drop=True)

@@ -194,6 +194,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "-s", "--seed",
+    dest="seed",
+    type=float,
+    required=False,
+    default=None,
+    help="random number generator"
+)
+
+parser.add_argument(
     "-v", "--verbose",
     dest="verbose",
     type=str2bool,
@@ -216,6 +225,8 @@ if args.methods == "all":
     methods = ["mnn", "bbknn", "scanorama"]
 else:
     methods = args.methods.split("+")
+
+default_seed = args.seed if args.seed else 10 
 
 print(f"Loading data...")
 
@@ -258,7 +269,7 @@ if "mnn" in methods or "ingest" in methods:
     sc.tl.umap(
         adata_d["reference"],
         n_components=args.dim_embedding,
-        random_state=0
+        random_state=default_seed
     )
 
     if args.verbose:
@@ -290,7 +301,7 @@ if "mnn" in methods or "ingest" in methods:
     sc.tl.leiden(
         concat_adata,
         resolution=args.resolution,
-        key_added=f"cluster"
+        key_added=f"leiden"
     )
 
     if args.verbose:
@@ -313,7 +324,7 @@ if "mnn" in methods or "ingest" in methods:
     )
     adt.scatterplot(
         concat_adata,
-        obs="cluster",
+        obs="leiden",
         obsm="X_umap",
         xlabel=r"$\mathrm{UMAP_{1}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$",
@@ -330,7 +341,7 @@ if "bbknn" in methods:
 
     clean_adata(
         concat_adata,
-        obs="cluster"
+        obs="leiden"
     )
 
     if args.verbose:
@@ -366,7 +377,7 @@ if "bbknn" in methods:
     sc.tl.umap(
         concat_adata,
         n_components=args.dim_embedding,
-        random_state=0
+        random_state=1
     )
     sc.pp.neighbors(
         concat_adata,
@@ -377,7 +388,7 @@ if "bbknn" in methods:
     sc.tl.leiden(
         concat_adata,
         resolution=args.resolution,
-        key_added=f"cluster"
+        key_added=f"leiden"
     )
 
     if args.verbose:
@@ -400,7 +411,7 @@ if "bbknn" in methods:
     )
     adt.scatterplot(
         concat_adata,
-        obs="cluster",
+        obs="leiden",
         obsm="X_umap",
         xlabel=r"$\mathrm{UMAP_{1}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$",
@@ -452,12 +463,12 @@ if "scanorama" in methods:
     sc.tl.leiden(
         concat_adata,
         resolution=args.resolution,
-        key_added=f"cluster"
+        key_added=f"leiden"
     )
     sc.tl.umap(
         concat_adata,
         n_components=args.dim_embedding,
-        random_state=0
+        random_state=default_seed
     )
 
     if args.verbose:
@@ -480,7 +491,7 @@ if "scanorama" in methods:
     )
     adt.scatterplot(
         concat_adata,
-        obs="cluster",
+        obs="leiden",
         obsm="X_umap",
         xlabel=r"$\mathrm{UMAP_{1}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$",

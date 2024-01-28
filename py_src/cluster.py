@@ -64,7 +64,7 @@ def get_one_cluster_info(
     cluster_info_d["median_expressed_genes"] = cluster_ad.obs["n_genes_by_counts"].median()
     cluster_info_d["median_total_counts"] = cluster_ad.obs["total_counts"].median()
     cluster_info_d["median_proportion_mito"] = f"{cluster_ad.obs['pct_counts_mitochondrion'].median():.4f}%"
-    cluster_pvalues_d = multiple_hypergeometric_test(cluster_ad, signatures, markers, cluster, colname=colname)
+    cluster_pvalues_d = multiple_hypergeometric_test(cluster_ad, signatures, markers, cluster, colname="cluster")
     cluster_info_d.update({cell_type: round(pvalue, ndigits=6) for cell_type, pvalue in cluster_pvalues_d.items()})
 
     return cluster_info_d
@@ -229,12 +229,12 @@ for resolution in resolutions:
     sc.tl.leiden(adata, resolution=resolution, neighbors_key=knn_key, key_added=f"leiden_{resolution}")
 
 if args.resolution in resolutions and args.neighborhood_graph == "knn":
-    adata.obs["cluster"] = adata.obs[f"leiden_{args.resolution}"]
+    adata.obs["leiden"] = adata.obs[f"leiden_{args.resolution}"]
 elif args.neighborhood_graph == "knn":
-    sc.tl.leiden(adata, resolution=args.resolution, neighbors_key=knn_key, key_added=f"cluster")
+    sc.tl.leiden(adata, resolution=args.resolution, neighbors_key=knn_key, key_added=f"leiden")
 else:
     obsp = adata.uns[snn_key]["similarities_key"]
-    sc.tl.leiden(adata, resolution=resolution, adjacency=adata.obsp[obsp].copy(), key_added=f"cluster")
+    sc.tl.leiden(adata, resolution=resolution, adjacency=adata.obsp[obsp].copy(), key_added=f"leiden")
 
 print(f"Running t-SNE...")
 
@@ -252,9 +252,9 @@ for i, resolution in enumerate(resolutions):
         axv, axh = [math.floor(i/2), i%2]
         axes[axv, axh].scatter(tsne1[idx], tsne2[idx], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
         axes[axv, axh].title.set_text(f"resolution: {resolution}")
-        if ax[0] == 1:
+        if axv == 1:
             axes[axv, axh].set_xlabel(r"$t$-$\mathrm{SNE_{1}}$")
-        if ax[1] == 0:
+        if axh == 0:
             axes[axv, axh].set_ylabel(r"$t$-$\mathrm{SNE_{2}}$")
 plt.savefig(f"{fig_outpath}/{args.prefix}tsne_clusters")
 
@@ -274,9 +274,9 @@ for i, resolution in enumerate(resolutions):
         axv, axh = [math.floor(i/2), i%2]
         axes[axv, axh].scatter(umap1[idx], umap2[idx], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
         axes[axv, axh].title.set_text(f"resolution: {resolution}")
-        if ax[0] == 1:
+        if axv == 1:
             axes[axv, axh].set_xlabel(r"$\mathrm{UMAP_{1}}$")
-        if ax[1] == 0:
+        if axh == 0:
             axes[axv, axh].set_ylabel(r"$\mathrm{UMAP_{2}}$")
 plt.savefig(f"{fig_outpath}/{args.prefix}umap_clusters")
 
@@ -313,11 +313,12 @@ for metric in ["total_counts", "pct_counts_mitochondrion"]:
 print(f"Marker analysis...")
 
 layer = "log-normalize"
-groupby = "cluster" 
+groupby = "leiden"
 
 sc.tl.rank_genes_groups(
     adata,
     layer=layer,
+    use_raw=False,
     groupby=groupby,
     reference="rest",
     method="wilcoxon",
@@ -333,8 +334,8 @@ log_fold_changes_df = log_fold_changes_df.loc[log_fold_changes_df["log2foldchang
 markers_df = pd.merge(
     markers_df,
     log_fold_changes_df,
-    left_on=["gene", groupby],
-    right_on=["gene", groupby],
+    left_on=["gene", "cluster"],
+    right_on=["gene", "cluster"],
     how="inner"
 )
 

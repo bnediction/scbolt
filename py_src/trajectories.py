@@ -131,8 +131,8 @@ ps.set_default(ax)
 ax.tick_params(axis='x', which='major', pad=2)
 plt.savefig(f"{fig_outpath}/{args.prefix}sc_pseudotime_trajectories")
 
-adata.obs["cluster"] = adata.obs["cluster"].astype(object)
-for cluster in ["kmeans", "cluster"]:
+adata.obs["leiden"] = adata.obs["leiden"].astype(object)
+for cluster in ["kmeans", "leiden"]:
     st.plot_stream(
         adata,
         root="S1",
@@ -160,7 +160,7 @@ for cluster in ["kmeans", "cluster"]:
     )
     plt.savefig(f"{fig_outpath}/{args.prefix}{cluster}_trajectories")
 
-for obs in ["kmeans", "cluster", "S1_pseudotime"]:
+for obs in ["kmeans", "leiden", "S1_pseudotime"]:
     adt.scatterplot(
         adata,
         obs=obs,
