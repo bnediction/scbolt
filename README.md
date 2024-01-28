@@ -47,7 +47,7 @@ Let people know what your project can do specifically. Provide context and add a
 
 Some requirements must be satisfied before running the pipeline:
 
-1. $\latex$ must be installed on your host, in order to use $\latex$-based typography when plotting figure with *matplotlib* python module. If not, you can installed it with the following command:
+1. *latex* must be installed on your host, in order to use latex-based typography when plotting figure with *matplotlib* python module. If not, you can installed it with the following command:
 ```sh
 apt-get install texlive dvipng texlive-latex-extra texlive-fonts-recommended
 ```
