@@ -325,18 +325,17 @@ sc.tl.rank_genes_groups(
     tie_correct=True,
     corr_method="bonferroni"
 )
-markers_df = adt.extract_markers(adata, keep_logfoldchanges=False)
-markers_df = markers_df.loc[markers_df["adj_p_value"] < 0.05]
-
-log_fold_changes_df = adt.log_fold_changes(adata, groupby=groupby, layer=layer, is_log=True, cluster_rebalancing=False)
-log_fold_changes_df = log_fold_changes_df.loc[log_fold_changes_df["log2foldchange"] > args.logfc_threshold]
-
-markers_df = pd.merge(
+markers_df = adt.extract_rank_genes_groups(
+    adata,
+    logfc_keeping=False
+)
+markers_df = markers_df.loc[markers_df["adj_pvals"] < 0.05]
+markers_df = adt.update_logfoldchanges(
     markers_df,
-    log_fold_changes_df,
-    left_on=["gene", "cluster"],
-    right_on=["gene", "cluster"],
-    how="inner"
+    adata,
+    groupby,
+    layer,
+    threshold=args.logfc_threshold
 )
 
 print(f"Signature analysis...")

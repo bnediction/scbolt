@@ -19,20 +19,21 @@ from color_settings import COLORS
 import anndata as ad
 import pandas as pd
 
-def _expression_with_cluster(
+def anndata_to_dataframe(
     adata: ad.AnnData,
-    groupby: str,
+    obs: Optional[Union[str, Sequence[str]]] = None,
     layer: Optional[str] = None,
     is_log: Optional[bool] = False
     ) -> pd.DataFrame:
-    """Creates a counting dataframe with one last column corresponding to cluster associated to a cell.
+    """Convert Anndata instance into Dataframe instance.
     
     Parameters
     ----------
     adata
         Annotated data matrix.
-    groupby
-        Any key in anndata.obs corresponding to defined clusters or groups.
+    var
+        Any key or key set in anndata.obs corresponding to defined clusters or groups.
+        If specified, add adata.var.loc[var] to dataframe.
     layer
         Any key in adata.layers.
         If provided, use adata.layers[layer] for expression values instead of adata.X.
@@ -41,6 +42,10 @@ def _expression_with_cluster(
         If value parameter is `True`, perform an exponential transformation.
         If counts are still logarithmized but user want to keep logarithmized counts,
         please specify `False` to the value parameter.
+    
+    Returns
+    -------
+    Dataframe providing information about counts and optionnaly other additionnal chosen information.
     """
 
     if not isinstance(adata, ad.AnnData):
@@ -61,13 +66,16 @@ def _expression_with_cluster(
         else:
             counts_df = np.expm1(counts_df)
     
-    return counts_df.assign(cluster=adata.obs[groupby])
+    if obs is not None:
+        counts_df.loc[:,obs] = adata.obs[[obs]] if isinstance (obs, str) else adata.obs[obs]
+    
+    return counts_df
 
-def extract_markers(
+def extract_rank_genes_groups(
     adata: ad.AnnData,
-    keep_logfoldchanges: bool = False
+    logfc_keeping: Optional[bool] = None
     ) -> pd.DataFrame:
-    """Extracts markers in adata.uns['rank_genes_groups'] and convert it into a marker-defined dataframe.
+    """Extracts information in adata.uns['rank_genes_groups'] in a comprehensible way.
     
     Parameters
     ----------
@@ -77,6 +85,11 @@ def extract_markers(
         Specify if dataframe columns contain log2_fold_changes computed with Scanpy.
         Since these values are inconsistent (<https://www.biostars.org/p/453129/>),
         one does prefer recompute consistent log2_fold_changes.
+    
+    Returns
+    -------
+    Dataframe with information related to gene rankings. Need to use `scanpy.tl.rank_genes_groups` function
+    on anndata object before.
     """
 
     if not isinstance(adata, ad.AnnData):
@@ -89,28 +102,20 @@ def extract_markers(
     
     groupby = markers_uns["params"]["groupby"]
 
-    markers_d = {
-        "gene":list(),
-        "cluster":list(),
-        "p_value":list(),
-        "adj_p_value":list(),
-        "score":list()
-    }
-    if keep_logfoldchanges:
-        markers_d["log2foldchange"] = list()
+    markers_d = {key: list() for key in ["genes", "clusters", "pvals", "adj_pvals", "scores", "log_fc"]}
 
     for cluster in sorted(adata.obs[groupby].unique()):
-        markers_d["gene"].extend(markers_uns["names"][cluster])
-        markers_d["cluster"].extend([cluster] * adata.n_vars)
-        markers_d["p_value"].extend(markers_uns["pvals"][cluster])
-        markers_d["adj_p_value"].extend(markers_uns["pvals_adj"][cluster])
-        markers_d["score"].extend(markers_uns["scores"][cluster])
-        if keep_logfoldchanges:
-            markers_d["log2foldchange"].extend(markers_uns["logfoldchanges"][cluster])
+        markers_d["genes"].extend(markers_uns["names"][cluster])
+        markers_d["clusters"].extend([cluster] * adata.n_vars)
+        markers_d["pvals"].extend(markers_uns["pvals"][cluster])
+        markers_d["adj_pvals"].extend(markers_uns["pvals_adj"][cluster])
+        markers_d["scores"].extend(markers_uns["scores"][cluster])
+        if logfc_keeping is True:
+            markers_d["log_fc"].extend(markers_uns["logfoldchanges"][cluster])
+        else:
+            markers_d["log_fc"].extend([float("nan")] * adata.n_vars)
 
-    markers_df = pd.DataFrame.from_dict(markers_d, orient="columns")
-
-    return markers_df
+    return pd.DataFrame.from_dict(markers_d, orient="columns")
 
 def log_fold_changes(
     adata: ad.AnnData,
@@ -124,8 +129,8 @@ def log_fold_changes(
     on a logarithmic scale to base 2 with respect to the fold change ratios.
     According to <https://www.biostars.org/p/453129/>, computed log2 fold changes
     are different between FindAllMarkers (package Seurat) and rank_gene_groups
-    (module Scanpy). As mentionned, results derived from Scanpy are inconsistent.
-    Furthermore, anndatatools computes this metric in the right way, with identical
+    (module Scanpy) functions. As mentionned, results derived from Scanpy are inconsistent.
+    This current function `log_fold_changes` computes it in the right way, with identical
     results to Seurat by keeping default options.
 
     Parameters
@@ -143,36 +148,67 @@ def log_fold_changes(
         If no cluster rebalancing, cells are equally-weighted.
         Otherwise, cells are weighted with cluster size such as clusters are equally-weighted.
         It means that cells in small cluster have a greater weight than other cells in order
-        to correct cluster size effects.
+        to correct cluster size effects.    
     """
 
-    def add_one_cluster_log_fold_changes(log_fold_changes_df, _mean_in, _mean_out, cluster):
+    def compute_logfc(mean_in, mean_out, cluster):
 
-        log_fold_changes_one_cluster_df = pd.DataFrame(np.log2(_mean_in) - np.log2(_mean_out), columns=["log2foldchange"])
-        log_fold_changes_one_cluster_df.reset_index(names="gene", inplace=True)
-        log_fold_changes_one_cluster_df.insert(0, "cluster", cluster)
-        log_fold_changes_df = pd.concat([log_fold_changes_df, log_fold_changes_one_cluster_df.copy()])
-        return log_fold_changes_df
+        __df = pd.DataFrame(np.log2(mean_in) - np.log2(mean_out), columns=["log_fc"])
+        __df.reset_index(names="genes", inplace=True)
+        __df.insert(0, "clusters", cluster)
+        return __df
     
     if not isinstance(adata, ad.AnnData):
         raise TypeError(f"Argument `adata` must be of type {type(ad.AnnData)}, not {type(adata)}")
     
-    log_fold_changes_df = pd.DataFrame(columns=["cluster","gene","log2foldchange"])
-    counts_df = _expression_with_cluster(adata, groupby=groupby, layer=layer, is_log=is_log)
+    logfc_df = pd.DataFrame(columns=["clusters","genes","log_fc"])
+    counts_df = anndata_to_dataframe(adata, obs=groupby, layer=layer, is_log=is_log)
 
     if cluster_rebalancing:
         mean_counts_df = counts_df.groupby(by=groupby, sort=True).mean()
         for cluster in sorted(pd.unique(adata.obs[groupby])):
             _mean_in = mean_counts_df.loc[cluster]
             _mean_out = mean_counts_df.drop(index=cluster, inplace=False).mean()
-            log_fold_changes_df = add_one_cluster_log_fold_changes(log_fold_changes_df, _mean_in, _mean_out, cluster)
+            _logfc_df = compute_logfc(_mean_in, _mean_out, cluster)
+            logfc_df = pd.concat([logfc_df, _logfc_df.copy()])
     else:
         for cluster in sorted(pd.unique(adata.obs[groupby])):
-            _mean_in = counts_df.loc[counts_df["cluster"] == cluster, counts_df.columns != "cluster"].mean()
-            _mean_out = counts_df.loc[counts_df["cluster"] != cluster, counts_df.columns != "cluster"].mean()
-            log_fold_changes_df = add_one_cluster_log_fold_changes(log_fold_changes_df, _mean_in, _mean_out, cluster)
+            _mean_in = counts_df.loc[counts_df[groupby] == cluster, counts_df.columns != groupby].mean()
+            _mean_out = counts_df.loc[counts_df[groupby] != cluster, counts_df.columns != groupby].mean()
+            _logfc_df = compute_logfc(_mean_in, _mean_out, cluster)
+            logfc_df = pd.concat([logfc_df, _logfc_df.copy()])
+            del _logfc_df
 
-    return log_fold_changes_df.reset_index(drop=True)
+    return logfc_df.reset_index(drop=True)
+
+def update_logfoldchanges(
+    df: pd.DataFrame,
+    adata: ad.AnnData,
+    groupby: str,
+    layer: str,
+    is_log: Optional[bool] = True,
+    cluster_rebalancing: Optional[bool] = False,
+    threshold: Optional[float] = None
+    ) -> pd.DataFrame:
+
+    logfc_df = log_fold_changes(
+        adata,
+        groupby=groupby,
+        layer=layer,
+        is_log=is_log,
+        cluster_rebalancing=cluster_rebalancing
+    )
+    df = df.loc[:, df.columns != "log_fc"]
+    if threshold:
+        logfc_df = logfc_df.loc[logfc_df["log_fc"] > threshold]
+    df = pd.merge(
+        df,
+        logfc_df,
+        left_on=["genes", "clusters"],
+        right_on=["genes", "clusters"],
+        how="inner"
+    )
+    return df
 
 def hypergeometric_test(
     adata: ad.AnnData,
