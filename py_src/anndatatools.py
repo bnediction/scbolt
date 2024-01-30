@@ -1,5 +1,5 @@
 import types
-from typing import Optional, Sequence, Union
+from typing import Optional, Sequence, Union, Any
 
 from pathlib import Path
 
@@ -213,7 +213,7 @@ def update_logfoldchanges(
 def hypergeometric_test(
     adata: ad.AnnData,
     signature: Sequence[str],
-    markers: Sequence[str]
+    markers: Sequence[str],
     ) -> float:
     """Computes the p-value (or survival function) of an hypergeometric
     distribution using scRNA-seq data in order to test whether marker genes
@@ -255,9 +255,47 @@ def hypergeometric_test(
     n = len(markers)            # number of draws
     k = len(marked_genes)       # number of observed successes (matching genes)
     
-    pvalue = hypergeom.sf(k = k, M = N, n = K, N = n, loc = 1)
-    
-    return pvalue
+    return hypergeom.sf(k = k, M = N, n = K, N = n, loc = 1)
+
+def multiple_hypergeometric_test(
+    adata: ad.AnnData,
+    signatures: dict,
+    markers: pd.DataFrame,
+    cluster: str,
+    ) -> dict:
+
+    _markers = markers[markers["clusters"] == cluster]["genes"]
+    return {cell_type: hypergeometric_test(adata, signature, _markers) for cell_type, signature in signatures.items()}
+
+def get_info(
+    adata: ad.AnnData,
+    signatures: dict,
+    markers: pd.DataFrame,
+    groupby: str = "cluster",
+    by: Optional[Any] = None,
+    ) -> dict:
+
+    columns = ["genes", "clusters", "pvals", "adj_pvals", "scores", "log_fc"]
+    for idx, column in enumerate(columns):
+        if not column == markers.columns[idx]:
+            raise ValueError("`markers` dataframe must contain specific rows with the specific order\
+                `genes`, `clusters`, `pvals`, `adj_pvals`, `scores`, `log_fc`")
+
+    if by:
+        group_ad = adata[adata.obs[groupby] == by]
+        group_info_d = dict()
+        group_info_d["n_cells"] = group_ad.n_obs
+        group_info_d["proportion_cells"] = round(group_ad.n_obs / adata.n_obs, ndigits=6)
+        proportion_phases = group_ad.obs["pypairs_max_class"].value_counts() / group_ad.n_obs
+        group_info_d.update({phase: round(proportion_phases[phase], ndigits=6) for phase in sorted(proportion_phases.index)})
+        group_info_d["median_expressed_genes"] = group_ad.obs["n_genes_by_counts"].median()
+        group_info_d["median_total_counts"] = group_ad.obs["total_counts"].median()
+        group_info_d["median_proportion_mito"] = f"{group_ad.obs['pct_counts_mitochondrion'].median():.4f}%"
+        pvalues_d = multiple_hypergeometric_test(group_ad, signatures, markers, cluster=by)
+        group_info_d.update({cell_type: round(pvalue, ndigits=6) for cell_type, pvalue in pvalues_d.items()})
+        return group_info_d
+    else:
+        return {group: get_info(adata, signatures, markers, groupby=groupby, by=group) for group in sorted(adata.obs[groupby].unique())}
 
 def _shared_nearest_neighbors_graph(
     adata: ad.AnnData,

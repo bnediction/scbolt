@@ -117,10 +117,10 @@ title $SIZE "Cell clustering and marker analysis"
 
 echo -e "${LIGHT_RED}> control sample (clusterization)...${NC}"
 python py_src/cluster.py \
-  --infile data/scRNA/normalizing/ra/tables/corrected.h5ad \
+  --infile data/scRNA/normalizing/ct/tables/corrected.h5ad \
   --signatures data/public/signatures/signatures.json \
-  --outpath data/scRNA/cluster/ra \
-  --prefix ra \
+  --outpath data/scRNA/cluster/ct \
+  --prefix ct \
   --k-neighbors 20 \
   --neighborhood-graph knn \
   --dimensions 15 \
@@ -130,10 +130,10 @@ python py_src/cluster.py \
 
 echo -e "${LIGHT_RED}> treated sample (clusterization)...${NC}"
 python py_src/cluster.py \
-  --infile data/scRNA/normalizing/ct/tables/corrected.h5ad \
+  --infile data/scRNA/normalizing/ra/tables/corrected.h5ad \
   --signatures data/public/signatures/signatures.json \
-  --outpath data/scRNA/cluster/ct \
-  --prefix ct \
+  --outpath data/scRNA/cluster/ra \
+  --prefix ra \
   --k-neighbors 20 \
   --neighborhood-graph knn \
   --dimensions 15 \

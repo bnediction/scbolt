@@ -27,7 +27,7 @@ bash config/env_installation.sh
 ```
 Run the pipeline:
 ```sh
-bash workflow.sh
+bash pipeline.sh
 ```
 
 # License

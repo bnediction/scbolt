@@ -33,42 +33,6 @@ def str2bool(v: str):
     else:
         raise argparse.ArgumentTypeError("Boolean value expected.")
 
-def multiple_hypergeometric_test(
-    adata: ad.AnnData,
-    signatures_d: dict,
-    markers_df: pd.DataFrame,
-    cluster: str,
-    colname: str = "cluster"
-    ) -> dict:
-
-    markers = markers_df[markers_df[colname] == cluster]["gene"]
-    pvalues_d = {cell_type: adt.hypergeometric_test(adata, signature, markers) for cell_type, signature in signatures_d.items()}
-    
-    return pvalues_d
-
-def get_one_cluster_info(
-    adata: ad.AnnData,
-    signatures: dict,
-    markers: pd.DataFrame,
-    cluster: str,
-    colname: str = "cluster",
-    ) -> dict:
-
-    cluster_ad = adata[adata.obs[colname] == cluster]
-
-    cluster_info_d = dict()
-    cluster_info_d["n_cells"] = cluster_ad.n_obs
-    cluster_info_d["proportion_cells"] = round(cluster_ad.n_obs / adata.n_obs, ndigits=6)
-    cluster_proportion_phases = cluster_ad.obs["pypairs_max_class"].value_counts() / cluster_ad.n_obs
-    cluster_info_d.update({phase: round(cluster_proportion_phases[phase], ndigits=6) for phase in sorted(cluster_proportion_phases.index)})
-    cluster_info_d["median_expressed_genes"] = cluster_ad.obs["n_genes_by_counts"].median()
-    cluster_info_d["median_total_counts"] = cluster_ad.obs["total_counts"].median()
-    cluster_info_d["median_proportion_mito"] = f"{cluster_ad.obs['pct_counts_mitochondrion'].median():.4f}%"
-    cluster_pvalues_d = multiple_hypergeometric_test(cluster_ad, signatures, markers, cluster, colname="cluster")
-    cluster_info_d.update({cell_type: round(pvalue, ndigits=6) for cell_type, pvalue in cluster_pvalues_d.items()})
-
-    return cluster_info_d
-
 parser = argparse.ArgumentParser(
     prog="Clusterization of sc-RNAseq data",
     description="""From one-condition sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
@@ -366,14 +330,14 @@ for cell_type, signature in signatures_d.items():
 
 print("Summarizing clusters...")
 
-cluster_info_d = {cluster: get_one_cluster_info(adata, signatures_d, markers_df, cluster, groupby) for cluster in sorted(adata.obs[groupby].unique())}
-cluster_info_df = pd.DataFrame.from_dict(cluster_info_d, orient="index")
+clust_info_d = adt.get_info(adata, signatures_d, markers_df, groupby=groupby)
+clust_info_df = pd.DataFrame.from_dict(clust_info_d, orient="index")
 
 print("Saving data...")
 
 adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}counts.h5ad", compression="gzip")
 markers_df.to_csv(f"{data_outpath}/{args.prefix}markers.csv", sep=",", index=False)
-cluster_info_df.to_csv(f"{data_outpath}/{args.prefix}cluster_info.csv", sep=",", index=True)
+clust_info_df.to_csv(f"{data_outpath}/{args.prefix}cluster_info.csv", sep=",", index=True)
 
 if args.verbose:
-    print(cluster_info_df.transpose())
+    print(clust_info_df.transpose())
