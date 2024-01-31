@@ -115,7 +115,7 @@ python py_src/normalization.py \
 
 title $SIZE "Cell clustering and marker analysis"
 
-echo -e "${LIGHT_RED}> control sample (clusterization)...${NC}"
+echo -e "${LIGHT_RED}> control sample (clustering)...${NC}"
 python py_src/cluster.py \
   --infile data/scRNA/normalizing/ct/tables/corrected.h5ad \
   --signatures data/public/signatures/signatures.json \
@@ -128,7 +128,7 @@ python py_src/cluster.py \
   --logfc-threshold 0.25 \
   --verbose 1
 
-echo -e "${LIGHT_RED}> treated sample (clusterization)...${NC}"
+echo -e "${LIGHT_RED}> treated sample (clustering)...${NC}"
 python py_src/cluster.py \
   --infile data/scRNA/normalizing/ra/tables/corrected.h5ad \
   --signatures data/public/signatures/signatures.json \
@@ -141,7 +141,7 @@ python py_src/cluster.py \
   --logfc-threshold 0.25 \
   --verbose 1
 
-### Clustering cells and marker analysis ###
+### Integration and marker analysis ###
 
 title $SIZE "Integration"
 

@@ -19,6 +19,18 @@ from color_settings import COLORS
 import anndata as ad
 import pandas as pd
 
+def __adata_arg_checking(
+    function: types.FunctionType
+):
+
+    def wrapper(adata, *args, **kwargs):
+        if not isinstance(adata, ad.AnnData):
+            raise TypeError(f"Argument `adata` must be of type {type(ad.AnnData)}, not {type(adata)}")
+        return function(adata, *args, **kwargs)
+    
+    return wrapper
+
+@__adata_arg_checking
 def anndata_to_dataframe(
     adata: ad.AnnData,
     obs: Optional[Union[str, Sequence[str]]] = None,
@@ -48,9 +60,6 @@ def anndata_to_dataframe(
     Dataframe providing information about counts and optionnaly other additionnal chosen information.
     """
 
-    if not isinstance(adata, ad.AnnData):
-        raise TypeError(f"Argument `adata` must be of type {type(ad.AnnData)}, not {type(adata)}")
-
     if layer and issparse(adata.layers[layer]):
         counts_df = pd.DataFrame.sparse.from_spmatrix(adata.layers[layer], index=adata.obs.index, columns = adata.var.index)
     elif layer:
@@ -71,6 +80,7 @@ def anndata_to_dataframe(
     
     return counts_df
 
+@__adata_arg_checking
 def extract_rank_genes_groups(
     adata: ad.AnnData,
     logfc_keeping: Optional[bool] = None
@@ -92,8 +102,6 @@ def extract_rank_genes_groups(
     on anndata object before.
     """
 
-    if not isinstance(adata, ad.AnnData):
-        raise TypeError(f"Argument `adata` must be of type {type(ad.AnnData)}, not {type(adata)}")
     if "rank_genes_groups" in adata.uns.keys():
         markers_uns = adata.uns["rank_genes_groups"]
     else:
@@ -102,21 +110,22 @@ def extract_rank_genes_groups(
     
     groupby = markers_uns["params"]["groupby"]
 
-    markers_d = {key: list() for key in ["genes", "clusters", "pvals", "adj_pvals", "scores", "log_fc"]}
+    __markers_d = {key: list() for key in ["genes", "clusters", "pvals", "adj_pvals", "scores", "log_fc"]}
 
     for cluster in sorted(adata.obs[groupby].unique()):
-        markers_d["genes"].extend(markers_uns["names"][cluster])
-        markers_d["clusters"].extend([cluster] * adata.n_vars)
-        markers_d["pvals"].extend(markers_uns["pvals"][cluster])
-        markers_d["adj_pvals"].extend(markers_uns["pvals_adj"][cluster])
-        markers_d["scores"].extend(markers_uns["scores"][cluster])
+        __markers_d["genes"].extend(markers_uns["names"][cluster])
+        __markers_d["clusters"].extend([cluster] * adata.n_vars)
+        __markers_d["pvals"].extend(markers_uns["pvals"][cluster])
+        __markers_d["adj_pvals"].extend(markers_uns["pvals_adj"][cluster])
+        __markers_d["scores"].extend(markers_uns["scores"][cluster])
         if logfc_keeping is True:
-            markers_d["log_fc"].extend(markers_uns["logfoldchanges"][cluster])
+            __markers_d["log_fc"].extend(markers_uns["logfoldchanges"][cluster])
         else:
-            markers_d["log_fc"].extend([float("nan")] * adata.n_vars)
+            __markers_d["log_fc"].extend([float("nan")] * adata.n_vars)
 
-    return pd.DataFrame.from_dict(markers_d, orient="columns")
+    return pd.DataFrame.from_dict(__markers_d, orient="columns")
 
+@__adata_arg_checking
 def log_fold_changes(
     adata: ad.AnnData,
     groupby: str,
@@ -157,9 +166,6 @@ def log_fold_changes(
         __df.reset_index(names="genes", inplace=True)
         __df.insert(0, "clusters", cluster)
         return __df
-    
-    if not isinstance(adata, ad.AnnData):
-        raise TypeError(f"Argument `adata` must be of type {type(ad.AnnData)}, not {type(adata)}")
     
     logfc_df = pd.DataFrame(columns=["clusters","genes","log_fc"])
     counts_df = anndata_to_dataframe(adata, obs=groupby, layer=layer, is_log=is_log)
@@ -257,6 +263,7 @@ def hypergeometric_test(
     
     return hypergeom.sf(k = k, M = N, n = K, N = n, loc = 1)
 
+@__adata_arg_checking
 def multiple_hypergeometric_test(
     adata: ad.AnnData,
     signatures: dict,
@@ -267,6 +274,7 @@ def multiple_hypergeometric_test(
     _markers = markers[markers["clusters"] == cluster]["genes"]
     return {cell_type: hypergeometric_test(adata, signature, _markers) for cell_type, signature in signatures.items()}
 
+@__adata_arg_checking
 def get_info(
     adata: ad.AnnData,
     signatures: dict,
@@ -297,16 +305,14 @@ def get_info(
     else:
         return {group: get_info(adata, signatures, markers, groupby=groupby, by=group) for group in sorted(adata.obs[groupby].unique())}
 
+@__adata_arg_checking
 def _shared_nearest_neighbors_graph(
     adata: ad.AnnData,
     cluster_key: str,
     prune_snn: float
 ) -> csr_matrix:
 
-    if not isinstance(adata, ad.AnnData):
-        raise TypeError(f"Argument `adata` must be of type {type(ad.AnnData)}, not {type(adata)}")
-    else:
-        k_neighbors = adata.uns[cluster_key]["params"]["n_neighbors"] - 1
+    k_neighbors = adata.uns[cluster_key]["params"]["n_neighbors"] - 1
     if prune_snn < 0:
         raise ValueError("`prune_snn` parameter must be positive, aborting")
     elif prune_snn < 1:
@@ -334,6 +340,7 @@ def _shared_nearest_neighbors_graph(
 
     return neighborhood_graph
 
+@__adata_arg_checking
 def shared_neighbors(
     adata: ad.AnnData,
     knn_key: str = "neighbors",
@@ -393,8 +400,6 @@ def shared_neighbors(
         neighbors.
     """
 
-    if not isinstance(adata, ad.AnnData):
-        raise TypeError(f"Argument `adata` must be of type {type(ad.AnnData)}, not {type(adata)}")
     if knn_key not in adata.uns:
         raise ValueError((
             "Neighborhood graph not already computed or not finding. "
@@ -560,6 +565,7 @@ def __scatterplot_continuous(
 
     return fig, ax
 
+@__adata_arg_checking
 def scatterplot(
     adata: ad.AnnData,
     obs: str,
