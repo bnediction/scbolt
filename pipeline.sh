@@ -126,7 +126,7 @@ python py_src/cluster.py \
   --dimensions 15 \
   --resolution 0.6 \
   --logfc-threshold 0.25 \
-  --verbose 1
+  --verbose 0
 
 echo -e "${LIGHT_RED}> treated sample (clustering)...${NC}"
 python py_src/cluster.py \
@@ -139,7 +139,7 @@ python py_src/cluster.py \
   --dimensions 15 \
   --resolution 0.6 \
   --logfc-threshold 0.25 \
-  --verbose 1
+  --verbose 0
 
 ### Integration and marker analysis ###
 
@@ -156,8 +156,19 @@ python py_src/integration.py \
   --dim-integration 50 \
   --dim-clustering 15 \
   --dim-embedding 2 \
-  --resolution 0.6 \
+  --resolution 0.4 \
   --jobs 6 \
+  --verbose 1
+
+echo -e "${LIGHT_RED}> control + treated samples (cell type analysis)...${NC}"
+python py_src/markers.py \
+  --infile data/scRNA/integration/tables/bbknn.h5ad \
+  --signatures data/public/signatures/signatures.json \
+  --outpath data/scRNA/markers \
+  --condition condition \
+  --group leiden \
+  --logfc-threshold 0.25 \
+  --prefix bbknn \
   --verbose 1
 
 ### End workflow

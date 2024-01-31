@@ -1,28 +1,44 @@
 # folders to ignore
 
-**/data/*
+### Data ###
 
-# generic files to ignore
+data/
+.*
+*.log
+*.png
+*.txt
+*.csv
+*.tsv
+*.h5ad
 
-**/.*
-**/*.log
-**/*.png
-**/*.txt
-**/*.csv
-**/*.tsv
+### Duplicates ###
 
-**/*copy.*
-**/*_[0-9]
-**/*_[0-9][0-9]
-**/*.[0-9]
-**/*.[0-9][0-9]
+*copy.*
+*_[0-9]
+*_[0-9][0-9]
+*.[0-9]
+*.[0-9][0-9]
 
-**/.vscode
-**/__pycache__
-**/__pycache__/*
+### Python ###
+__pycache__
+__pycache__/
+*.py[cod]
+*$py.class
+
+### Environments ###
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+### Vscode ###
+
+**/.vscode/
+**/launch.json
+
+### Others ###
 
 !.gitignore
-
-# specific files to ignore
-
-**/*.h5ad

@@ -19,8 +19,13 @@ from matplotlib.ticker import FormatStrFormatter
 from color_settings import color_cycle
 
 def str2prefix(v: str):
-    if v:
-        v = v if v[-1] in ["-","_"] else v + "_"
+    if v is None:
+        v = ""
+    elif isinstance(v, str):
+        if v:
+            v = v if v[-1] in ["-","_"] else v + "_"
+    else:
+        raise argparse.ArgumentTypeError("String value expected.")
     return v
 
 def str2bool(v: str):
@@ -129,7 +134,7 @@ parser.add_argument(
     type=str2bool,
     required=False,
     default=False,
-    help="get summarizing information about cluster in stdin"
+    help="get summarizing information about cluster in stdout"
 )
 
 args = parser.parse_args()

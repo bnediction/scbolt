@@ -3,48 +3,109 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import random
-random.seed(100)
-
-import os, argparse
+import argparse
 from pathlib import Path
 
-import numpy as np, math
-
-import pandas as pd, anndata as ad, scanpy as sc, json
+import pandas as pd, scanpy as sc, json
 import anndatatools as adt
 
-import matplotlib.pyplot as plt, color_settings as colour, plot_settings
-from matplotlib.ticker import FormatStrFormatter
-from color_settings import color_cycle
+def str2prefix(v: str):
+    if v is None:
+        return ""
+    elif isinstance(v, str):
+        if v:
+            v = v if v[-1] in ["-","_"] else v + "_"
+        return v
+    else:
+        raise argparse.ArgumentTypeError("String value expected.")
 
-class arguments:
-    def __init__(
-        self,
-        infile=Path("data/scRNA/integration/tables/bbknn.h5ad"),
-        signatures=Path("data/public/signatures/signatures.json"),
-        outpath=Path("data/scRNA/markers"),
-        group="leiden",
-        condition="condition",
-        logfc_threshold = 0.25,
-        prefix=None,
-        verbose=True,
-    ):
-        self.infile = infile
-        self.signatures = signatures
-        self.outpath = outpath
-        self.condition = condition
-        self.logfc_threshold = logfc_threshold
-        self.prefix = prefix
-        self.verbose = verbose
-        self.group=group
+def str2bool(v: str):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
 
-args = arguments()
+parser = argparse.ArgumentParser(
+    prog="Cell type analysis of sc-RNAseq data",
+    description="""From sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
+    search for gene markers and compare markers and signatures in order to provide
+    useful information about potential cell-types on each condition and each group.""",
+    usage="python markers.py [<args>]"
+)
 
-data_outpath = Path(f"{args.outpath}/tables")
+parser.add_argument(
+    "-i", "--infile",
+    dest="infile",
+    type=lambda x: Path(x).resolve(),
+    required=True,
+    help="path to .h5ad file (including file)"
+)
 
-if not data_outpath.exists():
-    os.makedirs(data_outpath)
+parser.add_argument(
+    "-s", "--signatures",
+    dest="signatures",
+    type=lambda x: Path(x).resolve(),
+    required=True,
+    help="path to .json signatures file (including file)"
+)
+
+parser.add_argument(
+    "-o", "--outpath",
+    dest="outpath",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=Path("./").resolve(),
+    help="output path"
+)
+
+parser.add_argument(
+    "-c", "--condition",
+    dest="condition",
+    type=str,
+    required=True,
+    help="column name in adata.obs distinguishing samples"
+)
+
+parser.add_argument(
+    "-g", "--group", "--cluster",
+    dest="group",
+    type=str,
+    required=True,
+    help="column name in adata.obs distinguishing cluster"
+)
+
+parser.add_argument(
+    "-p", "--prefix",
+    dest="prefix",
+    type=str2prefix,
+    required=False,
+    default="",
+    help="prefix for each saving file"
+)
+
+parser.add_argument(
+    "-l", "--logfc-threshold",
+    dest="logfc_threshold",
+    type=float,
+    required=False,
+    default=0.25,
+    help="threshold describing the minimum log2 fold-changes for being a gene marker"
+)
+
+parser.add_argument(
+    "-v", "--verbose",
+    dest="verbose",
+    type=str2bool,
+    required=False,
+    default=False,
+    help="get summarizing information about cluster in stdout"
+)
+
+args = parser.parse_args()
 
 print(f"Loading data...")
 
@@ -114,7 +175,6 @@ for adata in adata_d.values():
 print("Summarizing clusters...")
 
 info_d = dict()
-
 for _condition in sorted(adata_d.keys()):
     info_d[_condition] = pd.DataFrame.from_dict(
         adt.get_info(
@@ -123,7 +183,7 @@ for _condition in sorted(adata_d.keys()):
             markers_d[_condition],
             groupby=args.group
         ),
-        orient="columns"
+        orient="index"
     )
 
 info_df = pd.concat(list(info_d.values()), keys=list(info_d.keys()))
@@ -131,8 +191,8 @@ info_df = pd.concat(list(info_d.values()), keys=list(info_d.keys()))
 print("Saving data...")
 
 for _condition in markers_d.keys():
-    markers_d[_condition].to_csv(f"{data_outpath}/{args.prefix}{_condition}_markers.csv", sep=",", index=False)
-info_df.to_csv(f"{data_outpath}/{args.prefix}cluster_cell_types.csv", sep=",", index=True)
+    markers_d[_condition].to_csv(f"{args.outpath}/{args.prefix}{_condition}_markers.csv", sep=",", index=False)
+info_df.to_csv(f"{args.outpath}/{args.prefix}cluster_cell_types.csv", sep=",", index=True)
 
 if args.verbose:
-    print(info_df.transpose())
+    print(info_df)
