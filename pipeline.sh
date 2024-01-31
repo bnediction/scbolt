@@ -156,7 +156,7 @@ python py_src/integration.py \
   --dim-integration 50 \
   --dim-clustering 15 \
   --dim-embedding 2 \
-  --resolution 0.4 \
+  --resolution 0.35 \
   --jobs 6 \
   --verbose 1
 

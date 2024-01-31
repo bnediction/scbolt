@@ -19,7 +19,7 @@ from color_settings import COLORS
 import anndata as ad
 import pandas as pd
 
-def __adata_arg_checking(
+def adata_arg_checking(
     function: types.FunctionType
 ):
 
@@ -30,7 +30,7 @@ def __adata_arg_checking(
     
     return wrapper
 
-@__adata_arg_checking
+@adata_arg_checking
 def anndata_to_dataframe(
     adata: ad.AnnData,
     obs: Optional[Union[str, Sequence[str]]] = None,
@@ -80,7 +80,7 @@ def anndata_to_dataframe(
     
     return counts_df
 
-@__adata_arg_checking
+@adata_arg_checking
 def extract_rank_genes_groups(
     adata: ad.AnnData,
     logfc_keeping: Optional[bool] = None
@@ -110,22 +110,22 @@ def extract_rank_genes_groups(
     
     groupby = markers_uns["params"]["groupby"]
 
-    __markers_d = {key: list() for key in ["genes", "clusters", "pvals", "adj_pvals", "scores", "log_fc"]}
+    markers_d = {key: list() for key in ["genes", "clusters", "pvals", "adj_pvals", "scores", "log_fc"]}
 
     for cluster in sorted(adata.obs[groupby].unique()):
-        __markers_d["genes"].extend(markers_uns["names"][cluster])
-        __markers_d["clusters"].extend([cluster] * adata.n_vars)
-        __markers_d["pvals"].extend(markers_uns["pvals"][cluster])
-        __markers_d["adj_pvals"].extend(markers_uns["pvals_adj"][cluster])
-        __markers_d["scores"].extend(markers_uns["scores"][cluster])
+        markers_d["genes"].extend(markers_uns["names"][cluster])
+        markers_d["clusters"].extend([cluster] * adata.n_vars)
+        markers_d["pvals"].extend(markers_uns["pvals"][cluster])
+        markers_d["adj_pvals"].extend(markers_uns["pvals_adj"][cluster])
+        markers_d["scores"].extend(markers_uns["scores"][cluster])
         if logfc_keeping is True:
-            __markers_d["log_fc"].extend(markers_uns["logfoldchanges"][cluster])
+            markers_d["log_fc"].extend(markers_uns["logfoldchanges"][cluster])
         else:
-            __markers_d["log_fc"].extend([float("nan")] * adata.n_vars)
+            markers_d["log_fc"].extend([float("nan")] * adata.n_vars)
 
-    return pd.DataFrame.from_dict(__markers_d, orient="columns")
+    return pd.DataFrame.from_dict(markers_d, orient="columns")
 
-@__adata_arg_checking
+@adata_arg_checking
 def log_fold_changes(
     adata: ad.AnnData,
     groupby: str,
@@ -263,7 +263,7 @@ def hypergeometric_test(
     
     return hypergeom.sf(k = k, M = N, n = K, N = n, loc = 1)
 
-@__adata_arg_checking
+@adata_arg_checking
 def multiple_hypergeometric_test(
     adata: ad.AnnData,
     signatures: dict,
@@ -274,7 +274,7 @@ def multiple_hypergeometric_test(
     _markers = markers[markers["clusters"] == cluster]["genes"]
     return {cell_type: hypergeometric_test(adata, signature, _markers) for cell_type, signature in signatures.items()}
 
-@__adata_arg_checking
+@adata_arg_checking
 def get_info(
     adata: ad.AnnData,
     signatures: dict,
@@ -305,7 +305,7 @@ def get_info(
     else:
         return {group: get_info(adata, signatures, markers, groupby=groupby, by=group) for group in sorted(adata.obs[groupby].unique())}
 
-@__adata_arg_checking
+@adata_arg_checking
 def _shared_nearest_neighbors_graph(
     adata: ad.AnnData,
     cluster_key: str,
@@ -340,7 +340,7 @@ def _shared_nearest_neighbors_graph(
 
     return neighborhood_graph
 
-@__adata_arg_checking
+@adata_arg_checking
 def shared_neighbors(
     adata: ad.AnnData,
     knn_key: str = "neighbors",
@@ -565,7 +565,7 @@ def __scatterplot_continuous(
 
     return fig, ax
 
-@__adata_arg_checking
+@adata_arg_checking
 def scatterplot(
     adata: ad.AnnData,
     obs: str,

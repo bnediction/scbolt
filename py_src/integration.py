@@ -174,7 +174,6 @@ parser.add_argument(
     help="number of embedding dimensions computed"
 )
 
-
 parser.add_argument(
     "-r", "--resolution",
     dest="resolution",
@@ -222,7 +221,7 @@ if not fig_outpath.exists():
     os.makedirs(fig_outpath)
 
 if args.methods == "all":
-    methods = ["mnn", "bbknn", "scanorama"]
+    methods = ["ingest", "bbknn", "scanorama"]
 else:
     methods = args.methods.split("+")
 
@@ -247,7 +246,7 @@ for key in adata_d.keys():
 
 del valid_genes
 
-if "mnn" in methods or "ingest" in methods:
+if "ingest" in methods:
 
     print("Integration using ingest:")
 
@@ -338,6 +337,19 @@ if "mnn" in methods or "ingest" in methods:
 if "bbknn" in methods:
 
     print("Integration using bbknn:")
+
+    if "concat_adata" not in globals():
+        try:
+            concat_adata = ad.concat(
+                list(adata_d.values()),
+                join="inner",
+                label=args.label,
+                keys=label,
+                merge="same",
+                uns_merge="same"
+            )
+        except:
+            raise RuntimeError("Anndatas concatenation did not work, aborting")
 
     clean_adata(
         concat_adata,

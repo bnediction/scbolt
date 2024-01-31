@@ -3,7 +3,6 @@
 ### Data ###
 
 data/
-.*
 *.png
 *.txt
 *.csv
@@ -41,5 +40,6 @@ launch.json
 ### Others ###
 
 !.gitignore
+.*
 *.log
 logs/
