@@ -4,7 +4,6 @@
 
 data/
 .*
-*.log
 *.png
 *.txt
 *.csv
@@ -36,9 +35,11 @@ venv.bak/
 
 ### Vscode ###
 
-**/.vscode/
-**/launch.json
+.vscode/
+launch.json
 
 ### Others ###
 
 !.gitignore
+*.log
+logs/
