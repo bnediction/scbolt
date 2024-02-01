@@ -254,7 +254,7 @@ if "ingest" in methods:
         section("Computation of reference sample embedding components...", reset=True)
     sc.tl.pca(
         adata_d["reference"],
-        zero_center=False,
+        zero_center=True,
         n_comps=max(args.dim_clustering, args.dim_integration, args.dim_embedding),
         use_highly_variable=True,
         copy=False
@@ -327,6 +327,7 @@ if "ingest" in methods:
         obsm="X_umap",
         xlabel=r"$\mathrm{UMAP_{1}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$",
+        print_legend=True,
         outfile=Path(f"{fig_outpath}/ingest_umap_clusters"),
     )
 
@@ -369,7 +370,7 @@ if "bbknn" in methods:
     )
     sc.tl.pca(
         concat_adata,
-        zero_center=False,
+        zero_center=True,
         n_comps=max(args.dim_clustering, args.dim_integration, args.dim_embedding),
         use_highly_variable=True,
         copy=False
@@ -427,6 +428,7 @@ if "bbknn" in methods:
         obsm="X_umap",
         xlabel=r"$\mathrm{UMAP_{1}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$",
+        print_legend=True,
         outfile=Path(f"{fig_outpath}/bbknn_umap_clusters"),
     )
 
@@ -507,6 +509,7 @@ if "scanorama" in methods:
         obsm="X_umap",
         xlabel=r"$\mathrm{UMAP_{1}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$",
+        print_legend=True,
         outfile=Path(f"{fig_outpath}/scanorama_umap_clusters"),
     )
 

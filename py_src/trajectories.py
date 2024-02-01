@@ -33,8 +33,11 @@ class arguments:
         infile=Path("data/scRNA/integration/tables/bbknn.h5ad"),
         outpath=Path("data/scRNA/stream"),
         prefix=None,
-        hvg=False,
+        use_stream_embedding=False,
         layer="correct",
+        hvg=True,
+        n_embedding_dimensions=15,
+        n_reduction_dimensions=4,
         n_clusters=6,
         epg_alpha=0.01,
         epg_mu=0.05,
@@ -45,8 +48,11 @@ class arguments:
         self.infile = infile
         self.outpath = outpath
         self.prefix = prefix
+        self.use_stream_embedding = use_stream_embedding
         self.hvg = hvg
         self.layer = layer
+        self.n_embedding_dimensions = n_embedding_dimensions
+        self.n_reduction_dimensions = n_reduction_dimensions
         self.n_clusters=n_clusters
         self.epg_alpha = epg_alpha
         self.epg_mu = epg_mu
@@ -74,14 +80,46 @@ adata.uns["workdir"] = args.outpath
 #adata.X = adata.layers[args.layer] if not issparse(adata.layers[args.layer]) else adata.layers[args.layer].toarray()
 #adata.X = adata.X.astype(np.float64)
 
-if "X_umap" in adata.obsm.keys():
-    dr = "X_umap"
-elif "X_scanorama" in adata.obsm.keys():
-    dr = "X_scanorama"
-else:
-    raise ValueError("Integrated counting (`X_umap` or `X_scanorama`) in adata.obsm not found, aborting")
+# if "X_umap" in adata.obsm.keys():
+#     dr = "X_umap"
+# elif "X_scanorama" in adata.obsm.keys():
+#     dr = "X_scanorama"
+# else:
+#     raise ValueError("Integrated counting (`X_umap` or `X_scanorama`) in adata.obsm not found, aborting")
 
-adata.obsm["X_dr"] = adata.obsm[dr].copy()
+# adata.obsm["X_dr"] = adata.obsm[dr].copy()
+
+if args.use_stream_embedding:
+    with disable_print():
+        adata.X = adata.layers[args.layer].toarray() if issparse(adata.layers[args.layer]) else adata.layers[args.layer]
+        if args.hvg:
+            st.select_variable_genes(
+                adata,
+                loess_frac=0.02
+            )
+        st.select_top_principal_components(
+            adata,
+            first_pc=True,
+            n_pc=15,
+            feature="var_genes" if args.hvg else None,
+            random_state=10
+        )
+        st.dimension_reduction(
+            adata,
+            method="mlle",
+            feature="top_pcs",
+            n_components=args.n_reduction_dimensions,
+            n_neighbors=50,
+            n_jobs=args.jobs
+        )
+else:
+    if "X_umap" in adata.obsm.keys():
+        dr = "X_umap"
+    elif "X_scanorama" in adata.obsm.keys():
+        dr = "X_scanorama"
+    else:
+        raise ValueError("Integrated components (`X_umap` or `X_scanorama`) in adata.obsm not found, aborting")
+    adata.obsm["X_dr"] = adata.obsm[dr].copy()
 
 print("Computing elastic principal graph...")
 
@@ -116,7 +154,7 @@ fig, ax = (plt.gcf(), plt.gca())
 ps.set_default(ax)
 ax.tick_params(axis='x', which='major', pad=2)
 ax.images[-1].colorbar.remove()
-plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_trajectories")
+plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_stream_plot")
 
 st.plot_stream_sc(
     adata,
@@ -129,7 +167,7 @@ st.plot_stream_sc(
 fig, ax = (plt.gcf(), plt.gca())
 ps.set_default(ax)
 ax.tick_params(axis='x', which='major', pad=2)
-plt.savefig(f"{fig_outpath}/{args.prefix}sc_pseudotime_trajectories")
+plt.savefig(f"{fig_outpath}/{args.prefix}sc_pseudotime_stream_plot")
 
 adata.obs["leiden"] = adata.obs["leiden"].astype(object)
 for cluster in ["kmeans", "leiden"]:
