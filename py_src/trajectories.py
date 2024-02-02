@@ -77,18 +77,6 @@ adata = ad.read_h5ad(args.infile)
 adata.obs_names_make_unique()
 adata.uns["workdir"] = args.outpath
 
-#adata.X = adata.layers[args.layer] if not issparse(adata.layers[args.layer]) else adata.layers[args.layer].toarray()
-#adata.X = adata.X.astype(np.float64)
-
-# if "X_umap" in adata.obsm.keys():
-#     dr = "X_umap"
-# elif "X_scanorama" in adata.obsm.keys():
-#     dr = "X_scanorama"
-# else:
-#     raise ValueError("Integrated counting (`X_umap` or `X_scanorama`) in adata.obsm not found, aborting")
-
-# adata.obsm["X_dr"] = adata.obsm[dr].copy()
-
 if args.use_stream_embedding:
     with disable_print():
         adata.X = adata.layers[args.layer].toarray() if issparse(adata.layers[args.layer]) else adata.layers[args.layer]
@@ -101,8 +89,7 @@ if args.use_stream_embedding:
             adata,
             first_pc=True,
             n_pc=15,
-            feature="var_genes" if args.hvg else None,
-            random_state=10
+            feature="var_genes" if args.hvg else None
         )
         st.dimension_reduction(
             adata,
@@ -126,6 +113,7 @@ print("Computing elastic principal graph...")
 with disable_print():
     st.seed_elastic_principal_graph(
         adata,
+        clustering="kmeans",
         n_clusters=args.n_clusters
     )
     st.elastic_principal_graph(
@@ -140,7 +128,84 @@ with disable_print():
         epg_ext_par=0.8
     )
 
+adata.obs["subclusters"] = np.nan
+adata.obs["subclusters"] = adata.obs["subclusters"].astype(str)
+
+nodes_mapping = dict()
+for key, value in adata.uns["flat_tree"]._node.items():
+    nodes_mapping[key] = value["label"]
+
+subclusters = dict()
+for node in nodes_mapping.keys():
+    _true = adata.obs["node"] == node
+    adata.obs["subclusters"][_true] = str(nodes_mapping[node])
+
 print("Plotting trajectories...")
+
+adt.scatterplot(
+    adata,
+    obs="subclusters",
+    obsm=dr,
+    colors= colour.COLORS[0:len(nodes_mapping)] + [colour.lightgray],
+    xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
+)
+plt.savefig(f"{fig_outpath}/{args.prefix}subclusters_dimension_reduction_plot")
+
+st.plot_dimension_reduction(
+    adata,
+    color=["subclusters"],
+    n_components=2,
+    show_graph=True,
+    show_text=True
+)
+fig, ax = (plt.gcf(), plt.gca())
+ax.tick_params(axis="x", which="major", pad=2)
+ax.tick_params(axis="y", which="major", pad=2)
+ps.set_default(ax)
+ax.legend(
+    [string.replace("cluster ","") for string in np.sort(adata.obs["kmeans"].unique())],
+    bbox_to_anchor=(1.03, 0.5),
+    loc='center left',
+    title="clusters",
+    ncol=1,
+    frameon=False,
+    columnspacing=0.4,
+    borderaxespad=0.2,
+    handletextpad=0.3
+)
+ax.set_xlabel("")
+ax.set_ylabel("")
+plt.tick_params(left = False, bottom = False)
+plt.savefig(f"{fig_outpath}/{args.prefix}subclusters_dimension_reduction_plot")
+
+
+st.plot_dimension_reduction(
+    adata,
+    color=["kmeans"],
+    n_components=2,
+    show_graph=True,
+    show_text=True
+)
+fig, ax = (plt.gcf(), plt.gca())
+ax.tick_params(axis="x", which="major", pad=2)
+ax.tick_params(axis="y", which="major", pad=2)
+ps.set_default(ax)
+ax.legend(
+    [string.replace("cluster ","") for string in np.sort(adata.obs["kmeans"].unique())],
+    bbox_to_anchor=(1.03, 0.5),
+    loc='center left',
+    title="clusters",
+    ncol=1,
+    frameon=False,
+    columnspacing=0.4,
+    borderaxespad=0.2,
+    handletextpad=0.3
+)
+ax.set_xlabel("")
+ax.set_ylabel("")
+plt.tick_params(left = False, bottom = False)
+plt.savefig(f"{fig_outpath}/{args.prefix}dimension_reduction_plot")
 
 st.plot_stream(
     adata,
