@@ -6,6 +6,7 @@ warnings.filterwarnings("ignore")
 import os, sys, contextlib
 from pathlib import Path
 
+import pandas as pd
 import anndata as ad, anndatatools as adt, stream as st
 
 import numpy as np
@@ -48,6 +49,7 @@ class arguments:
         epg_alpha=0.01,
         epg_mu=0.05,
         epg_lambda=0.05,
+        legend=True,
         jobs=6,
         verbose=True
     ):
@@ -64,6 +66,7 @@ class arguments:
         self.epg_alpha = epg_alpha
         self.epg_mu = epg_mu
         self.epg_lambda = epg_lambda
+        self.legend = legend
         self.jobs = jobs
         self.verbose = verbose
 
@@ -115,6 +118,8 @@ else:
         raise ValueError("Integrated components (`X_umap` or `X_scanorama`) in adata.obsm not found, aborting")
     adata.obsm["X_dr"] = adata.obsm[dr].copy()
 
+adata.obs["leiden"] = adata.obs["leiden"].astype(object)
+
 print("Computing elastic principal graph...")
 
 with disable_print():
@@ -147,68 +152,39 @@ for node in nodes_mapping.keys():
     _true = adata.obs["node"] == node
     adata.obs["subclusters"][_true] = str(nodes_mapping[node])
 
-#edgelines = list()
-#_nodes = adata.uns["flat_tree"]._node
-#for edges in list(adata.uns["flat_tree"].edges):
-#    _first = np.array(([_nodes[edges[0]]["pos"]]))
-#    _second = np.array(([_nodes[edges[1]]["pos"]]))
-#    edgelines.append(np.concatenate((_first, _second)))
-
 print("Plotting trajectories...")
 
-adt.scatterplot(
-    adata,
-    obs="subclusters",
-    obsm=dr,
-    colors= colour.COLORS[0:len(nodes_mapping)] + [colour.lightgray],
-    xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
-    ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
-    add_graph=True,
-    s=2
-)
-ax = plt.gca()
-ps.set_default(ax)
-ax.legend(
-    [string.replace("cluster ","") for string in np.sort(adata.obs["kmeans"].unique())],
-    bbox_to_anchor=(0, 0),
-    loc="lower left",
-    title="clusters",
-    ncol=1,
-    frameon=False,
-    markerscale=2.5,
-    columnspacing=0.4,
-    borderaxespad=0.2,
-    handletextpad=0.3,
-    shadow=True
-)
-plt.savefig(f"{fig_outpath}/{args.prefix}subclusters_dimension_reduction_plot")
-
-st.plot_dimension_reduction(
-    adata,
-    color=["kmeans"],
-    n_components=2,
-    show_graph=True,
-    show_text=True
-)
-fig, ax = (plt.gcf(), plt.gca())
-ax.tick_params(axis="x", which="major", pad=2)
-ax.tick_params(axis="y", which="major", pad=2)
-ps.set_default(ax)
-ax.legend(
-    [string.replace("cluster ","") for string in np.sort(adata.obs["kmeans"].unique())],
-    bbox_to_anchor=(1.03, 0.5),
-    loc='center left',
-    title="clusters",
-    ncol=1,
-    frameon=False,
-    columnspacing=0.4,
-    borderaxespad=0.2,
-    handletextpad=0.3
-)
-ax.set_xlabel("")
-ax.set_ylabel("")
-plt.tick_params(left = False, bottom = False)
-plt.savefig(f"{fig_outpath}/{args.prefix}dimension_reduction_plot")
+for obs in ["subclusters", "kmeans", "leiden", f"{args.root}_pseudotime"]:
+    adt.scatterplot(
+        adata,
+        obs=obs,
+        obsm=dr,
+        colors= colour.COLORS[0:len(nodes_mapping)] + [colour.lightgray] if obs == "subclusters" else None,
+        xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
+        ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
+        add_graph=True,
+        s=2
+    )
+    ax = plt.gca()
+    ps.set_default(ax)
+    if args.legend == True and not pd.api.types.is_float_dtype(adata.obs[obs]):
+        ax.legend(
+            [string.replace("cluster ","") for string in np.sort(adata.obs["kmeans"].unique())],
+            bbox_to_anchor=(0, 0),
+            loc="lower left",
+            title="clusters",
+            ncol=1,
+            frameon=False,
+            markerscale=2.5,
+            columnspacing=0.4,
+            borderaxespad=0.2,
+            handletextpad=0.3,
+            shadow=True
+        )
+    if "pseudotime" not in obs:
+        plt.savefig(f"{fig_outpath}/{args.prefix}{obs}_{dr.split('_')[-1].lower()}")
+    else:
+        plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}")
 
 st.plot_stream(
     adata,
@@ -224,20 +200,6 @@ ax.tick_params(axis='x', which='major', pad=2)
 ax.images[-1].colorbar.remove()
 plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_stream_plot")
 
-st.plot_stream_sc(
-    adata,
-    root=args.root,
-    color=[f"{args.root}_pseudotime"],
-    dist_scale=0.1,
-    show_text=False,
-    save_fig=False,
-)
-fig, ax = (plt.gcf(), plt.gca())
-ps.set_default(ax)
-ax.tick_params(axis='x', which='major', pad=2)
-plt.savefig(f"{fig_outpath}/{args.prefix}sc_pseudotime_stream_plot")
-
-adata.obs["leiden"] = adata.obs["leiden"].astype(object)
 for cluster in ["kmeans", "leiden"]:
     st.plot_stream(
         adata,
@@ -265,17 +227,6 @@ for cluster in ["kmeans", "leiden"]:
         handletextpad=0.3
     )
     plt.savefig(f"{fig_outpath}/{args.prefix}{cluster}_trajectories")
-
-for obs in ["kmeans", "leiden", f"{args.root}_pseudotime"]:
-    adt.scatterplot(
-        adata,
-        obs=obs,
-        obsm=dr,
-        colors=None,
-        xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
-        ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
-        outfile=Path(f"{fig_outpath}/{args.prefix}{obs}_{dr.split('_')[-1].lower()}")
-    )
 
 print("Saving data...")
 
