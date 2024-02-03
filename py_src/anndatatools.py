@@ -1,6 +1,7 @@
 import types
 from typing import Optional, Sequence, Union, Any
 
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -8,6 +9,8 @@ from math import ceil
 from scipy.stats import hypergeom
 from scipy.sparse import csr_matrix, issparse, diags
 from sklearn.metrics import pairwise_distances
+
+import networkx as nx
 
 import matplotlib.pyplot as plt, plot_settings
 import color_settings as colour
@@ -522,10 +525,14 @@ def __scatterplot_discrete(
         
     for _cluster, _color in zip(sorted(adata.obs[obs].unique()), colors):
         idx = np.where(adata.obs[obs] == _cluster)[0]
-        if print_legend:
-            ax.scatter(adata.obsm[obsm][idx,0], adata.obsm[obsm][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
-        else:
-            ax.scatter(adata.obsm[obsm][idx,0], adata.obsm[obsm][idx,1], s=2, facecolors=_color, edgecolors="none", alpha=1)
+        ax.scatter(
+            adata.obsm[obsm][idx,0],
+            adata.obsm[obsm][idx,1],
+            s=kwargs["s"] if "s" in kwargs else 3,
+            facecolors=_color,
+            edgecolors="none",
+            alpha=1,
+            label=_cluster)
 
     if print_legend:
         ax.legend(markerscale=5, edgecolor=colour.black)
@@ -555,7 +562,7 @@ def __scatterplot_continuous(
     sc = ax.scatter(
         adata.obsm[obsm][:,0],
         adata.obsm[obsm][:,1],
-        s=3,
+        s=kwargs["s"] if "s" in kwargs else 3,
         c=adata.obs[obs],
         cmap=_cmap,
         edgecolors="none",
@@ -566,6 +573,30 @@ def __scatterplot_continuous(
     return fig, ax
 
 @adata_arg_checking
+def graph_to_plot(adata, ax):
+
+    epg = adata.uns["epg"]
+    flat_tree = adata.uns["flat_tree"]
+    epg_node_pos = nx.get_node_attributes(epg,"pos")
+
+    traces = set()
+    for node in flat_tree:
+        for trace in flat_tree.adj[node].values():
+            traces.add(tuple(trace["nodes"]))
+
+    edge_curves = list()
+    for trace in traces:
+        _edge_curve = list()
+        for node in trace:
+            _edge_curve.append(np.array([epg_node_pos[node]]))
+        edge_curves.append(np.concatenate(_edge_curve))
+
+    for edge_curve in edge_curves:
+        x, y = edge_curve[:,0], edge_curve[:, 1]
+        line = plt.Line2D(x, y, color=colour.black)
+        ax.add_line(line)
+
+@adata_arg_checking
 def scatterplot(
     adata: ad.AnnData,
     obs: str,
@@ -574,6 +605,7 @@ def scatterplot(
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
     outfile: Optional[Path] = None,
+    add_graph: Optional[bool] = None,
     **kwargs
 ):
     """Compute a scatterplot between the two first columns of .obsm[`obsm`]
@@ -631,9 +663,16 @@ def scatterplot(
             **kwargs
         )
     
+    if add_graph:
+        ax = plt.gca()
+        graph_to_plot(adata, ax)
+    
     if outfile:
         plt.savefig(outfile)
         plt.close()
         return None
     else:
         return fig, ax
+
+if __name__ == "__main__":
+    sys.exit()

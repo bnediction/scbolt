@@ -27,6 +27,11 @@ def str2prefix(v: str):
         v = v if v[-1] in ["-","_"] else v + "_"
     return v
 
+def edges_plot(ax, edgelines):
+    for edgeline in edgelines:
+        line = plt.Line2D(edgeline[:,0], edgeline[:, 1], color=colour.black)
+        ax.add_line(line)
+
 class arguments:
     def __init__(
         self,
@@ -36,6 +41,7 @@ class arguments:
         use_stream_embedding=False,
         layer="correct",
         hvg=True,
+        root=1,
         n_embedding_dimensions=15,
         n_reduction_dimensions=4,
         n_clusters=6,
@@ -50,6 +56,7 @@ class arguments:
         self.prefix = prefix
         self.use_stream_embedding = use_stream_embedding
         self.hvg = hvg
+        self.root = f"S{root}"
         self.layer = layer
         self.n_embedding_dimensions = n_embedding_dimensions
         self.n_reduction_dimensions = n_reduction_dimensions
@@ -140,6 +147,13 @@ for node in nodes_mapping.keys():
     _true = adata.obs["node"] == node
     adata.obs["subclusters"][_true] = str(nodes_mapping[node])
 
+#edgelines = list()
+#_nodes = adata.uns["flat_tree"]._node
+#for edges in list(adata.uns["flat_tree"].edges):
+#    _first = np.array(([_nodes[edges[0]]["pos"]]))
+#    _second = np.array(([_nodes[edges[1]]["pos"]]))
+#    edgelines.append(np.concatenate((_first, _second)))
+
 print("Plotting trajectories...")
 
 adt.scatterplot(
@@ -149,36 +163,25 @@ adt.scatterplot(
     colors= colour.COLORS[0:len(nodes_mapping)] + [colour.lightgray],
     xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
     ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
+    add_graph=True,
+    s=2
 )
-plt.savefig(f"{fig_outpath}/{args.prefix}subclusters_dimension_reduction_plot")
-
-st.plot_dimension_reduction(
-    adata,
-    color=["subclusters"],
-    n_components=2,
-    show_graph=True,
-    show_text=True
-)
-fig, ax = (plt.gcf(), plt.gca())
-ax.tick_params(axis="x", which="major", pad=2)
-ax.tick_params(axis="y", which="major", pad=2)
+ax = plt.gca()
 ps.set_default(ax)
 ax.legend(
     [string.replace("cluster ","") for string in np.sort(adata.obs["kmeans"].unique())],
-    bbox_to_anchor=(1.03, 0.5),
-    loc='center left',
+    bbox_to_anchor=(0, 0),
+    loc="lower left",
     title="clusters",
     ncol=1,
     frameon=False,
+    markerscale=2.5,
     columnspacing=0.4,
     borderaxespad=0.2,
-    handletextpad=0.3
+    handletextpad=0.3,
+    shadow=True
 )
-ax.set_xlabel("")
-ax.set_ylabel("")
-plt.tick_params(left = False, bottom = False)
 plt.savefig(f"{fig_outpath}/{args.prefix}subclusters_dimension_reduction_plot")
-
 
 st.plot_dimension_reduction(
     adata,
@@ -209,8 +212,8 @@ plt.savefig(f"{fig_outpath}/{args.prefix}dimension_reduction_plot")
 
 st.plot_stream(
     adata,
-    root="S1",
-    color=["S1_pseudotime"],
+    root=args.root,
+    color=[f"{args.root}_pseudotime"],
     log_scale=False,
     factor_zoomin=100,
     save_fig=False,
@@ -223,8 +226,8 @@ plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_stream_plot")
 
 st.plot_stream_sc(
     adata,
-    root="S1",
-    color=["S1_pseudotime"],
+    root=args.root,
+    color=[f"{args.root}_pseudotime"],
     dist_scale=0.1,
     show_text=False,
     save_fig=False,
@@ -238,7 +241,7 @@ adata.obs["leiden"] = adata.obs["leiden"].astype(object)
 for cluster in ["kmeans", "leiden"]:
     st.plot_stream(
         adata,
-        root="S1",
+        root=args.root,
         color=[cluster],
         log_scale=False,
         factor_zoomin=100,
@@ -263,7 +266,7 @@ for cluster in ["kmeans", "leiden"]:
     )
     plt.savefig(f"{fig_outpath}/{args.prefix}{cluster}_trajectories")
 
-for obs in ["kmeans", "leiden", "S1_pseudotime"]:
+for obs in ["kmeans", "leiden", f"{args.root}_pseudotime"]:
     adt.scatterplot(
         adata,
         obs=obs,
