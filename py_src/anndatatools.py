@@ -40,7 +40,7 @@ def anndata_to_dataframe(
     obs: Optional[Union[str, Sequence[str]]] = None,
     layer: Optional[str] = None,
     is_log: Optional[bool] = False
-    ) -> pd.DataFrame:
+) -> pd.DataFrame:
     """Convert Anndata instance into Dataframe instance.
     
     Parameters
@@ -88,7 +88,7 @@ def anndata_to_dataframe(
 def extract_rank_genes_groups(
     adata: ad.AnnData,
     logfc_keeping: Optional[bool] = None
-    ) -> pd.DataFrame:
+) -> pd.DataFrame:
     """Extracts information in adata.uns['rank_genes_groups'] in a comprehensible way.
     
     Parameters
@@ -136,7 +136,7 @@ def log_fold_changes(
     layer: Optional[str] = None,
     is_log: Optional[bool] =False,
     cluster_rebalancing: Optional[bool] = False
-    ) -> pd.DataFrame:
+) -> pd.DataFrame:
     """Log2 fold change is a metric translating how much the transcript's expression
     has changed between cells in and out of a cluster. The reported values are based
     on a logarithmic scale to base 2 with respect to the fold change ratios.
@@ -199,7 +199,7 @@ def update_logfoldchanges(
     is_log: Optional[bool] = True,
     cluster_rebalancing: Optional[bool] = False,
     threshold: Optional[float] = None
-    ) -> pd.DataFrame:
+) -> pd.DataFrame:
 
     logfc_df = log_fold_changes(
         adata,
@@ -224,7 +224,7 @@ def hypergeometric_test(
     adata: ad.AnnData,
     signature: Sequence[str],
     markers: Sequence[str],
-    ) -> float:
+) -> float:
     """Computes the p-value (or survival function) of an hypergeometric
     distribution using scRNA-seq data in order to test whether marker genes
     significantly match signature genes.
@@ -273,7 +273,7 @@ def multiple_hypergeometric_test(
     signatures: dict,
     markers: pd.DataFrame,
     cluster: str,
-    ) -> dict:
+) -> dict:
 
     _markers = markers[markers["clusters"] == cluster]["genes"]
     return {cell_type: hypergeometric_test(adata, signature, _markers) for cell_type, signature in signatures.items()}
@@ -285,7 +285,7 @@ def get_info(
     markers: pd.DataFrame,
     groupby: str = "cluster",
     by: Optional[Any] = None,
-    ) -> dict:
+) -> dict:
 
     columns = ["genes", "clusters", "pvals", "adj_pvals", "scores", "log_fc"]
     for idx, column in enumerate(columns):
@@ -485,13 +485,23 @@ def __default_plot(
             ylabel,
             **kwargs
         )
+        
         if xlabel:
             ax.set_xlabel(xlabel)
         if ylabel:
             ax.set_ylabel(ylabel)
+        
+        if "tick_params" in kwargs:
+            ax.tick_params(**kwargs["tick_params"])
+        else:
+            if "xtick_params" in kwargs:
+                ax.tick_params(axis="x", **kwargs["xtick_params"])
+            if "ytick_params" in kwargs:
+                ax.tick_params(axis="y", **kwargs["ytick_params"])
+        
         plt.sca(ax)
         ax.xaxis.set_major_formatter(kwargs["formatter"]) if "formatter" in kwargs else ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-        ax.yaxis.set_major_formatter(kwargs["formatter"]) if "formatter" in kwargs else ax.yaxis.set_major_formatter(FormatStrFormatter("%g")) 
+        ax.yaxis.set_major_formatter(kwargs["formatter"]) if "formatter" in kwargs else ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
         
         return fig, ax
     
@@ -693,14 +703,6 @@ def scatterplot(
             **kwargs
         )
     
-    if "tick_params" in kwargs:
-        ax.tick_params(**kwargs["tick_params"])
-    else:
-        if "xtick_params" in kwargs:
-            ax.tick_params(axis="x", **kwargs["xtick_params"])
-        if "ytick_params" in kwargs:
-            ax.tick_params(axis="y", **kwargs["ytick_params"])
-
     if add_graph:
         ax = plt.gca()
         __graph_to_plot(adata, ax)

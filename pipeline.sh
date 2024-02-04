@@ -183,17 +183,17 @@ echo -e "${LIGHT_RED}> control + treated samples (trajectories)...${NC}"
 python py_src/trajectories.py \
   --infile data/scRNA/integration/tables/bbknn.h5ad \
   --outpath data/scRNA/stream \
-  --use-stream-embedding no \
   --root 1 \
   --clusters 6 \
   --lambda 0.05 \
   --mu 0.05 \
   --alpha 0.01 \
-  --legend yes \
-  --extend-leaf-nodes yes \
+  --legend \
+  --extend-leaf-nodes \
   --extend-mode WeigthedCentroid \
   --extend-parameter 0.8 \
-  --save-tables no
+  --save-tables no \
+  --jobs 6
 
 ### End workflow
 

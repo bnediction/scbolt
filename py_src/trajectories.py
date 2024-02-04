@@ -108,8 +108,8 @@ parser.add_argument(
 parser.add_argument(
     "-s", "--use-stream-embedding",
     dest="use_stream_embedding",
-    type=str2prefix,
     required=False,
+    action="store_true",
     help="""compute embedding component using classic stream data preprocessing.
     If not, use existing pre-computed embedding components"""
 )
@@ -120,7 +120,7 @@ parser.add_argument(
     type=str,
     required=False,
     choices=["se", "mlle", "umap", "pca"],
-    help="method used for dimension reduction (used only if --use-stream-embedding is True)."
+    help="method used for dimension reduction (used only if --use-stream-embedding)."
 )
 
 parser.add_argument(
@@ -128,16 +128,15 @@ parser.add_argument(
     dest="layer",
     type=str,
     required=False,
-    help="layer used for dimension reduction (used only if --use-stream-embedding is True)."
+    help="layer used for dimension reduction (used only if --use-stream-embedding)."
 )
 
 parser.add_argument(
     "--hvg",
     dest="hvg",
-    type=str2bool,
     required=False,
-    default=None,
-    help="select the most variable genes for dimension reduction (used only if --use-stream-embedding is True)."
+    action="store_true",
+    help="select the most variable genes for dimension reduction (used only if --use-stream-embedding)."
 )
 
 parser.add_argument(
@@ -146,7 +145,7 @@ parser.add_argument(
     type=int,
     required=False,
     default=3,
-    help="number of components to keep (used only if --use-stream-embedding is True)."
+    help="number of components to keep (used only if --use-stream-embedding)."
 )
 
 parser.add_argument(
@@ -155,7 +154,7 @@ parser.add_argument(
     type=int,
     required=False,
     default=1,
-    help="number of parallel jobs to run when dimension reduction is performed (used only if --use-stream-embedding is True)."
+    help="number of parallel jobs to run."
 )
 
 parser.add_argument(
@@ -204,26 +203,25 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-e", "--extend-leaf-nodes",
+    "--extend-leaf-nodes",
     dest="extend_leaf_nodes",
-    type=str2bool,
     required=False,
-    default=True,
+    action="store_true",
     help="attach new node to each leaf node in order to connect the border of data point cloud to nodes"
 )
 
 parser.add_argument(
-    "--mode", "--extend-mode",
+    "--extend-mode",
     dest="extend_mode",
     type=str,
     required=False,
     choices=["QuantDists","QuantCentroid","WeigthedCentroid"],
     default="QuantDists",
-    help="mode used to extend the leaves (used only if --extend-leaf-nodes is True)."
+    help="mode used to extend the leaves (used only if --extend-leaf-nodes)."
 )
 
 parser.add_argument(
-    "--parameter", "--extend-parameter",
+    "--extend-parameter",
     dest="extend_parameter",
     type=float,
     required=False,
@@ -231,15 +229,41 @@ parser.add_argument(
     max=1,
     action=Range,
     default=0.5,
-    help="parameter value used to extend the leaves (used only if --extend-leaf-nodes is True)."
+    help="parameter value used to extend the leaves (used only if --extend-leaf-nodes)."
+)
+
+parser.add_argument(
+    "--prune-graph",
+    dest="prune_graph",
+    required=False,
+    action="store_true",
+    help="Prune the learnt elastic principal graph by filtering out trivial branches."
+)
+
+parser.add_argument(
+    "--collapse-mode",
+    dest="collapse_mode",
+    type=str,
+    required=False,
+    choices=["PointNumber", "PointNumber_Extrema", "PointNumber_Leaves", "EdgesNumber", "EdgesLength"],
+    default="PointNumber",
+    help="mode used to prune the graph (used only if --prune-graph)."
+)
+
+parser.add_argument(
+    "--collapse-parameter",
+    dest="collapse_parameter",
+    type=float,
+    required=False,
+    default=5,
+    help="parameter value used to prune the graph (used only if --prune-graph)."
 )
 
 parser.add_argument(
     "--legend",
     dest="legend",
-    type=str2bool,
     required=False,
-    default=False,
+    action="store_true",
     help="add legend to plot."
 )
 
@@ -314,6 +338,13 @@ with disable_print():
             adata,
             epg_ext_mode=args.extend_mode,
             epg_ext_par=args.extend_parameter
+        )
+    if args.prune_graph is True:
+        st.prune_elastic_principal_graph(
+            adata,
+            epg_collapse_mode = args.collapse_mode,
+            epg_collapse_par = args.collapse_parameter,
+            epg_n_processes=args.n_jobs
         )
 
 adata.obs["node_clusters"] = np.nan
