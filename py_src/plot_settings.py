@@ -1,8 +1,15 @@
 #!/usr/bin/python3
 
-import matplotlib as mpl
-import cycler, color_settings as color
+from typing import Optional
+
+import cycler
+
+import matplotlib as mpl, matplotlib.pyplot as plt
+from matplotlib.axes._axes import Axes
 from matplotlib.ticker import FormatStrFormatter
+from matplotlib.colors import ListedColormap
+
+import color_settings as colour
 
 mpl.rcParams.update(mpl.rcParamsDefault)
 
@@ -28,26 +35,28 @@ mpl.rcParams["axes.zmargin"] = margin
 mpl.rcParams["axes.labelsize"] = 14
 
 mpl.rcParams["axes.prop_cycle"] = cycler.cycler(color=[
-    color.blue,
-    color.red,
-    color.green,
-    color.orange,
-    color.purple,
-    color.skyblue,
-    color.teal,
-    color.pink,
-    color.violet,
-    color.darkblue
+    colour.blue,
+    colour.red,
+    colour.green,
+    colour.orange,
+    colour.purple,
+    colour.skyblue,
+    colour.teal,
+    colour.pink,
+    colour.violet,
+    colour.darkblue
 ])
 
-def set_default(ax):
-    ax.set_title("")
-    ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-    ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-    return None
-
-from matplotlib.colors import ListedColormap
-import color_settings as colour
+def set_default(
+    ax: Optional[Axes] = None
+    ):
+        if ax is None:
+            ax = plt.gca()
+        
+        ax.set_title("")
+        ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+        ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+        return None
 
 cmap = ListedColormap(
     colors  = colour.COLORS,

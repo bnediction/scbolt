@@ -510,12 +510,12 @@ def __scatterplot_discrete(
 
     if len(adata.obs[obs].unique()) < 2:
         raise ValueError(f"adata.obs[{obs}] specifies only one category, aborting")
-    elif "print_legend" in kwargs:
-        print_legend = kwargs["print_legend"]
+    elif "add_legend" in kwargs:
+        add_legend = kwargs["add_legend"]
     elif len(adata.obs[obs].unique()) == 2:
-        print_legend = True
+        add_legend = True
     else:
-        print_legend = False
+        add_legend = False
     
     if not colors:
         colors = cycle(COLORS)
@@ -535,11 +535,26 @@ def __scatterplot_discrete(
             alpha=1,
             label=_cluster)
 
-    if print_legend:
-        ax.legend(
-            markerscale=kwargs["markerscale"] if "markerscale" in kwargs else None,
-            edgecolor=colour.black
-        )
+    if add_legend:
+        fig.set_figwidth(kwargs["figwidth"]*1.25 if "figwidth" in kwargs else 6.25)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width*0.8, box.height])
+        if "legend_params" in kwargs:
+            kwargs["lgd_params"] = kwargs["legend_params"]
+        if "lgd_params" in kwargs:
+            if "loc" not in kwargs["lgd_params"] and "bbox_to_anchor" not in kwargs["lgd_params"]:
+                ax.legend(
+                    loc="center left",
+                    bbox_to_anchor=(1.04, 0.5),
+                    **kwargs["lgd_params"]
+                )
+            else:
+                ax.legend(**kwargs["lgd_params"])
+        else:
+            ax.legend(
+                loc="center left",
+                bbox_to_anchor=(1.04, 0.5),
+            )
     
     return fig, ax
 
@@ -579,8 +594,11 @@ def __scatterplot_continuous(
 @adata_arg_checking
 def __graph_to_plot(
     adata: ad.AnnData,
-    ax: Axes
+    ax: Optional[Axes] = None
     ):
+
+    if ax is None:
+        ax = plt.gca()
 
     epg = adata.uns["epg"]
     flat_tree = adata.uns["flat_tree"]
@@ -613,6 +631,7 @@ def scatterplot(
     ylabel: Optional[str] = None,
     outfile: Optional[Path] = None,
     add_graph: Optional[bool] = None,
+    default_parameters: Optional[types.FunctionType] = None,
     **kwargs
 ):
     """Compute a scatterplot between the two first columns of .obsm[`obsm`]
@@ -639,8 +658,12 @@ def scatterplot(
         - figheight[float]: specify the figure height
         - figwidth[float]: specify the figure width
         - formatter[matplotlib.ticker.FormatStrFormatter]: specify the format on x- and y-axis.
-        - print_legend[bool]: when .obs[`obs`] are discrete values, specify whether to draw legend
-    
+        - add_legend[bool]: when .obs[`obs`] are discrete values, specify whether to draw legend
+        - lgd_params[dict]: when add_legend is True, modify legend following the syntax of matplotlib.pyplot.legend
+        - tick_params[dict]: change the appearance of ticks, tick labels, and gridlines following the syntax of matplotlib.axes.Axes.tick_params
+        - xtick_params[dict]: change the appearance of ticks, tick labels, and gridlines on x-axis following the syntax of matplotlib.axes.Axes.tick_params
+        - ytick_params[dict]: change the appearance of ticks, tick labels, and gridlines on y-axis following the syntax of matplotlib.axes.Axes.tick_params
+
     Returns
     -------
     Depending on `outfile`, save figure or create a current figure.
@@ -670,12 +693,23 @@ def scatterplot(
             **kwargs
         )
     
+    if "tick_params" in kwargs:
+        ax.tick_params(**kwargs["tick_params"])
+    else:
+        if "xtick_params" in kwargs:
+            ax.tick_params(axis="x", **kwargs["xtick_params"])
+        if "ytick_params" in kwargs:
+            ax.tick_params(axis="y", **kwargs["ytick_params"])
+
     if add_graph:
         ax = plt.gca()
         __graph_to_plot(adata, ax)
     
+    if default_parameters:
+        default_parameters()
+    
     if outfile:
-        plt.savefig(outfile)
+        plt.savefig(outfile, bbox_inches="tight")
         plt.close()
         return None
     else:

@@ -72,6 +72,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--st", "--save-tables",
+    dest="save_tables",
+    type=str2bool,
+    required=False,
+    default=True,
+    help="save the anndata in the h5ad format"
+)
+
+parser.add_argument(
     "-s", "--use-stream-embedding",
     dest="use_stream_embedding",
     type=str2prefix,
@@ -269,28 +278,22 @@ for cluster in ["node_clusters", "condition", "kmeans", "leiden", f"{root}_pseud
         adata,
         obs=cluster,
         obsm=dr,
-        colors= colour.COLORS[0:len(nodes_mapping)] + [colour.lightgray] if cluster == "node_clusters" else None,
+        colors=colour.COLORS[0:len(nodes_mapping)] + [colour.lightgray] if cluster == "node_clusters" else None,
         xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
         add_graph=True,
-        s=2
+        s=2,
+        add_legend=True,
+        lgd_params={
+            "title":"clusters" if cluster != "condition" else "conditions",
+            "labels":[string.replace("cluster ","") for string in np.sort(adata.obs[cluster].unique())],
+            "ncol":1,
+            "markerscale":2.5,
+            "frameon":True,
+            "shadow":False
+        } if not pd.api.types.is_float_dtype(adata.obs[cluster]) else None,
     )
-    ax = plt.gca()
-    ps.set_default(ax)
-    if args.legend is True and not pd.api.types.is_float_dtype(adata.obs[cluster]):
-        ax.legend(
-            [string.replace("cluster ","") for string in np.sort(adata.obs[cluster].unique())],
-            bbox_to_anchor=(0, 0),
-            loc="lower left",
-            title="clusters",
-            ncol=1,
-            frameon=False,
-            markerscale=2.5,
-            columnspacing=0.4,
-            borderaxespad=0.2,
-            handletextpad=0.3,
-            shadow=True
-        )
+    ps.set_default(plt.gca())
     if "pseudotime" not in cluster:
         plt.savefig(f"{fig_outpath}/{args.prefix}{cluster}_{dr.split('_')[-1].lower()}")
     else:
@@ -306,7 +309,7 @@ st.plot_stream(
 )
 fig, ax = (plt.gcf(), plt.gca())
 ps.set_default(ax)
-ax.tick_params(axis='x', which='major', pad=2)
+ax.tick_params(axis="x", which="major", pad=2)
 ax.images[-1].colorbar.remove()
 plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_stream_plot")
 
@@ -320,7 +323,7 @@ for cluster in ["condition", "kmeans", "leiden"]:
         save_fig=False,
     )
     fig, ax = (plt.gcf(), plt.gca())
-    ax.tick_params(axis='x', which='major', pad=2)
+    ax.tick_params(axis="x", which="major", pad=2)
     ps.set_default(ax)
     for idx, patch in enumerate(ax.patches):
         patch.set_color(colour.COLORS[idx])
@@ -329,25 +332,27 @@ for cluster in ["condition", "kmeans", "leiden"]:
         [string.replace("cluster ","") for string in np.sort(adata.obs[cluster].unique())],
         bbox_to_anchor=(1.03, 0.5),
         loc='center left',
-        title="cluster",
+        title="clusters" if cluster != "condition" else "conditions",
         ncol=1,
         frameon=False,
         columnspacing=0.4,
         borderaxespad=0.2,
         handletextpad=0.3
     )
-    plt.savefig(f"{fig_outpath}/{args.prefix}{cluster}_trajectories")
+    plt.savefig(f"{fig_outpath}/{args.prefix}{cluster}_stream_plot")
 
-print("Saving data...")
+if args.save_tables:
 
-for key in list(adata.obs.keys()):
-    if isinstance (adata.obs[key][0], tuple):
-        del adata.obs[key]
+    print("Saving data...")
 
-for key in list(adata.uns.keys()):
-    if isinstance(adata.uns[key], (tuple, Path, networkx.classes.graph.Graph, rpy2.rinterface.ListSexpVector)):
-        del adata.uns[key]
-    if key.startswith("stream_S"):
-        del adata.uns[key]
+    for key in list(adata.obs.keys()):
+        if isinstance (adata.obs[key][0], tuple):
+            del adata.obs[key]
 
-adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}stream.h5ad", compression="gzip")
+    for key in list(adata.uns.keys()):
+        if isinstance(adata.uns[key], (tuple, Path, networkx.classes.graph.Graph, rpy2.rinterface.ListSexpVector)):
+            del adata.uns[key]
+        if key.startswith("stream_S"):
+            del adata.uns[key]
+
+    adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}stream.h5ad", compression="gzip")
