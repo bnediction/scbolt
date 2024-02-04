@@ -227,6 +227,7 @@ else:
         raise ValueError("Integrated components (`X_umap` or `X_scanorama`) in adata.obsm not found, aborting")
     adata.obsm["X_dr"] = adata.obsm[dr].copy()
 
+adata.obs["condition"] = adata.obs["condition"].astype(object)
 adata.obs["leiden"] = adata.obs["leiden"].astype(object)
 
 print("Computing elastic principal graph...")
@@ -263,12 +264,12 @@ for node in nodes_mapping.keys():
 
 print("Plotting trajectories...")
 
-for obs in ["node_clusters", "kmeans", "leiden", f"{root}_pseudotime"]:
+for cluster in ["node_clusters", "condition", "kmeans", "leiden", f"{root}_pseudotime"]:
     adt.scatterplot(
         adata,
-        obs=obs,
+        obs=cluster,
         obsm=dr,
-        colors= colour.COLORS[0:len(nodes_mapping)] + [colour.lightgray] if obs == "node_clusters" else None,
+        colors= colour.COLORS[0:len(nodes_mapping)] + [colour.lightgray] if cluster == "node_clusters" else None,
         xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
         add_graph=True,
@@ -276,9 +277,9 @@ for obs in ["node_clusters", "kmeans", "leiden", f"{root}_pseudotime"]:
     )
     ax = plt.gca()
     ps.set_default(ax)
-    if args.legend is True and not pd.api.types.is_float_dtype(adata.obs[obs]):
+    if args.legend is True and not pd.api.types.is_float_dtype(adata.obs[cluster]):
         ax.legend(
-            [string.replace("cluster ","") for string in np.sort(adata.obs["kmeans"].unique())],
+            [string.replace("cluster ","") for string in np.sort(adata.obs[cluster].unique())],
             bbox_to_anchor=(0, 0),
             loc="lower left",
             title="clusters",
@@ -290,8 +291,8 @@ for obs in ["node_clusters", "kmeans", "leiden", f"{root}_pseudotime"]:
             handletextpad=0.3,
             shadow=True
         )
-    if "pseudotime" not in obs:
-        plt.savefig(f"{fig_outpath}/{args.prefix}{obs}_{dr.split('_')[-1].lower()}")
+    if "pseudotime" not in cluster:
+        plt.savefig(f"{fig_outpath}/{args.prefix}{cluster}_{dr.split('_')[-1].lower()}")
     else:
         plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}")
 
@@ -309,7 +310,7 @@ ax.tick_params(axis='x', which='major', pad=2)
 ax.images[-1].colorbar.remove()
 plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_stream_plot")
 
-for cluster in ["kmeans", "leiden"]:
+for cluster in ["condition", "kmeans", "leiden"]:
     st.plot_stream(
         adata,
         root=root,
