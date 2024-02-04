@@ -185,11 +185,15 @@ python py_src/trajectories.py \
   --outpath data/scRNA/stream \
   --use-stream-embedding no \
   --root 1 \
-  --clusters 5 \
+  --clusters 6 \
   --lambda 0.05 \
   --mu 0.05 \
   --alpha 0.01 \
-  --legend yes
+  --legend yes \
+  --extend-leaf-nodes yes \
+  --extend-mode WeigthedCentroid \
+  --extend-parameter 0.8 \
+  --save-tables no
 
 ### End workflow
 

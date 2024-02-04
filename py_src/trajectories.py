@@ -22,6 +22,31 @@ def disable_print():
     with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
         yield
 
+class Range(argparse.Action):
+    
+    def __init__(
+        self,
+        min=None,
+        max=None,
+        *args,
+        **kwargs
+    ):
+        self.min = min
+        self.max = max
+        kwargs["metavar"] = f"[{self.min}-{self.max}]"
+        super(Range, self).__init__(*args, **kwargs)
+
+    def __call__(
+        self,
+        parser,
+        namespace,
+        value,
+        option_string=None
+    ):
+        if not (self.min <= value <= self.max):
+            raise argparse.ArgumentError(self, f"value {value} not in range [{self.min}-{self.max}], aborting.")
+        setattr(namespace, self.dest, value)
+
 def str2prefix(v: str):
     if v:
         v = v if v[-1] in ["-","_"] else v + "_"
@@ -95,7 +120,7 @@ parser.add_argument(
     type=str,
     required=False,
     choices=["se", "mlle", "umap", "pca"],
-    help="method used for dimension reduction (only if --use-stream-embedding True is specified)."
+    help="method used for dimension reduction (used only if --use-stream-embedding is True)."
 )
 
 parser.add_argument(
@@ -103,7 +128,7 @@ parser.add_argument(
     dest="layer",
     type=str,
     required=False,
-    help="layer used for dimension reduction (only if --use-stream-embedding True is specified)."
+    help="layer used for dimension reduction (used only if --use-stream-embedding is True)."
 )
 
 parser.add_argument(
@@ -112,7 +137,7 @@ parser.add_argument(
     type=str2bool,
     required=False,
     default=None,
-    help="select the most variable genes for dimension reduction (only if --use-stream-embedding True is specified)."
+    help="select the most variable genes for dimension reduction (used only if --use-stream-embedding is True)."
 )
 
 parser.add_argument(
@@ -121,7 +146,7 @@ parser.add_argument(
     type=int,
     required=False,
     default=3,
-    help="number of components to keep (only if --use-stream-embedding True is specified)."
+    help="number of components to keep (used only if --use-stream-embedding is True)."
 )
 
 parser.add_argument(
@@ -130,7 +155,7 @@ parser.add_argument(
     type=int,
     required=False,
     default=1,
-    help="number of parallel jobs to run when dimension reduction is performed (only if --use-stream-embedding True is specified)."
+    help="number of parallel jobs to run when dimension reduction is performed (used only if --use-stream-embedding is True)."
 )
 
 parser.add_argument(
@@ -176,6 +201,37 @@ parser.add_argument(
     required=False,
     default=0.01,
     help="alpha parameter of the penalized elastic energy."
+)
+
+parser.add_argument(
+    "-e", "--extend-leaf-nodes",
+    dest="extend_leaf_nodes",
+    type=str2bool,
+    required=False,
+    default=True,
+    help="attach new node to each leaf node in order to connect the border of data point cloud to nodes"
+)
+
+parser.add_argument(
+    "--mode", "--extend-mode",
+    dest="extend_mode",
+    type=str,
+    required=False,
+    choices=["QuantDists","QuantCentroid","WeigthedCentroid"],
+    default="QuantDists",
+    help="mode used to extend the leaves (used only if --extend-leaf-nodes is True)."
+)
+
+parser.add_argument(
+    "--parameter", "--extend-parameter",
+    dest="extend_parameter",
+    type=float,
+    required=False,
+    min=0,
+    max=1,
+    action=Range,
+    default=0.5,
+    help="parameter value used to extend the leaves (used only if --extend-leaf-nodes is True)."
 )
 
 parser.add_argument(
@@ -253,11 +309,12 @@ with disable_print():
         epg_mu=args.epg_mu,
         epg_lambda=args.epg_lambda
     )
-    st.extend_elastic_principal_graph(
-        adata,
-        epg_ext_mode='WeigthedCentroid',
-        epg_ext_par=0.8
-    )
+    if args.extend_leaf_nodes is True:
+        st.extend_elastic_principal_graph(
+            adata,
+            epg_ext_mode=args.extend_mode,
+            epg_ext_par=args.extend_parameter
+        )
 
 adata.obs["node_clusters"] = np.nan
 adata.obs["node_clusters"] = adata.obs["node_clusters"].astype(str)
