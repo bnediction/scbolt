@@ -14,6 +14,7 @@ import networkx as nx
 
 import matplotlib.pyplot as plt, plot_settings
 import color_settings as colour
+from matplotlib.axes._axes import Axes
 from matplotlib.ticker import FormatStrFormatter
 from matplotlib.colors import Colormap
 from itertools import cycle
@@ -535,7 +536,10 @@ def __scatterplot_discrete(
             label=_cluster)
 
     if print_legend:
-        ax.legend(markerscale=5, edgecolor=colour.black)
+        ax.legend(
+            markerscale=kwargs["markerscale"] if "markerscale" in kwargs else None,
+            edgecolor=colour.black
+        )
     
     return fig, ax
 
@@ -573,7 +577,10 @@ def __scatterplot_continuous(
     return fig, ax
 
 @adata_arg_checking
-def graph_to_plot(adata, ax):
+def __graph_to_plot(
+    adata: ad.AnnData,
+    ax: Axes
+    ):
 
     epg = adata.uns["epg"]
     flat_tree = adata.uns["flat_tree"]
@@ -665,7 +672,7 @@ def scatterplot(
     
     if add_graph:
         ax = plt.gca()
-        graph_to_plot(adata, ax)
+        __graph_to_plot(adata, ax)
     
     if outfile:
         plt.savefig(outfile)

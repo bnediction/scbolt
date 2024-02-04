@@ -12,7 +12,6 @@ title() {
 }
 
 source ${HOME}/anaconda3/etc/profile.d/conda.sh
-conda activate preprocess
 
 ### Load 10X data ###
 
@@ -35,6 +34,8 @@ wget --quiet --recursive --no-parent -nd --reject "index.html" \
 mv data/scRNA/raw/ra/*matrix.mtx.gz data/scRNA/raw/ra/matrix.mtx.gz
 mv data/scRNA/raw/ra/*genes.tsv.gz data/scRNA/raw/ra/features.tsv.gz
 mv data/scRNA/raw/ra/*barcodes.tsv.gz data/scRNA/raw/ra/barcodes.tsv.gz
+
+conda activate preprocess
 
 echo -e "${LIGHT_RED}> control sample (conversion)...${NC}"
 python py_src/load_10X.py -i data/scRNA/raw/ct \
@@ -62,7 +63,7 @@ python py_src/cell_filtering.py \
   --mitochondrial_threshold 5 \
   --upper-mad 2 \
   --lower-mad 3 \
-  --consistency-mad 1
+  --consistency-mad yes
 
 echo -e "${LIGHT_RED}> treated sample (filtering)...${NC}"
 python py_src/cell_filtering.py \
@@ -72,7 +73,7 @@ python py_src/cell_filtering.py \
   --mitochondrial_threshold 5 \
   --upper-mad 2 \
   --lower-mad 3 \
-  --consistency-mad 1
+  --consistency-mad yes
 
 ### Cell type signatures ###
 
@@ -99,7 +100,7 @@ python py_src/normalization.py \
   --outpath data/scRNA/normalizing/ct \
   --correction G2M_score+S_score+G1_score \
   --min-cell-expression-proportion 0.001 \
-  --hvg-filtering 0 \
+  --hvg-filtering no \
   --jobs 6
 
 echo -e "${LIGHT_RED}> treated sample (normalization)...${NC}"
@@ -108,7 +109,7 @@ python py_src/normalization.py \
   --outpath data/scRNA/normalizing/ra \
   --correction G2M_score+S_score+G1_score \
   --min-cell-expression-proportion 0.001 \
-  --hvg-filtering 0 \
+  --hvg-filtering no \
   --jobs 6
 
 ### Clustering cells and marker analysis ###
@@ -126,7 +127,7 @@ python py_src/cluster.py \
   --dimensions 15 \
   --resolution 0.6 \
   --logfc-threshold 0.25 \
-  --verbose 0
+  --verbose yes
 
 echo -e "${LIGHT_RED}> treated sample (clustering)...${NC}"
 python py_src/cluster.py \
@@ -139,7 +140,7 @@ python py_src/cluster.py \
   --dimensions 15 \
   --resolution 0.6 \
   --logfc-threshold 0.25 \
-  --verbose 0
+  --verbose yes
 
 ### Integration and marker analysis ###
 
@@ -158,7 +159,7 @@ python py_src/integration.py \
   --dim-embedding 2 \
   --resolution 0.35 \
   --jobs 6 \
-  --verbose 1
+  --verbose yes
 
 echo -e "${LIGHT_RED}> control + treated samples (cell type analysis)...${NC}"
 python py_src/markers.py \
@@ -169,7 +170,26 @@ python py_src/markers.py \
   --group leiden \
   --logfc-threshold 0.25 \
   --prefix bbknn \
-  --verbose 1
+  --verbose yes
+
+### STREAM analysis ###
+
+title $SIZE "Stream analysis"
+
+conda deactivate
+conda activate stream
+
+echo -e "${LIGHT_RED}> control + treated samples (trajectories)...${NC}"
+python py_src/trajectories.py \
+  --infile data/scRNA/integration/tables/bbknn.h5ad \
+  --outpath data/scRNA/stream \
+  --use-stream-embedding no \
+  --root 1 \
+  --clusters 5 \
+  --lambda 0.05 \
+  --mu 0.05 \
+  --alpha 0.01 \
+  --legend yes
 
 ### End workflow
 

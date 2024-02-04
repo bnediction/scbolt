@@ -83,7 +83,7 @@ parser = argparse.ArgumentParser(
     description="""From two samples of sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
     perform integration on embedding dimensions, create clusters using leiden algorithm,
     and run UMAP algorithm. This programm allows to search cell evolutions between two experiments""",
-    usage="python cluster.py [<args>]"
+    usage="""python cluster.py [-h] --i1 <path> --i2 <path> [<args>]"""
 )
 
 parser.add_argument(

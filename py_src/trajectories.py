@@ -3,7 +3,7 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os, sys, contextlib
+import os, contextlib, argparse
 from pathlib import Path
 
 import pandas as pd
@@ -16,7 +16,6 @@ import networkx
 import rpy2
 
 import matplotlib.pyplot as plt, color_settings as colour, plot_settings as ps
-from matplotlib.ticker import FormatStrFormatter
 
 @contextlib.contextmanager
 def disable_print():
@@ -28,53 +27,162 @@ def str2prefix(v: str):
         v = v if v[-1] in ["-","_"] else v + "_"
     return v
 
-def edges_plot(ax, edgelines):
-    for edgeline in edgelines:
-        line = plt.Line2D(edgeline[:,0], edgeline[:, 1], color=colour.black)
-        ax.add_line(line)
+def str2bool(v: str):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
 
-class arguments:
-    def __init__(
-        self,
-        infile=Path("data/scRNA/integration/tables/bbknn.h5ad"),
-        outpath=Path("data/scRNA/stream"),
-        prefix=None,
-        use_stream_embedding=False,
-        layer="correct",
-        hvg=True,
-        root=1,
-        n_embedding_dimensions=15,
-        n_reduction_dimensions=4,
-        n_clusters=6,
-        epg_alpha=0.01,
-        epg_mu=0.05,
-        epg_lambda=0.05,
-        legend=True,
-        jobs=6,
-        verbose=True
-    ):
-        self.infile = infile
-        self.outpath = outpath
-        self.prefix = prefix
-        self.use_stream_embedding = use_stream_embedding
-        self.hvg = hvg
-        self.root = f"S{root}"
-        self.layer = layer
-        self.n_embedding_dimensions = n_embedding_dimensions
-        self.n_reduction_dimensions = n_reduction_dimensions
-        self.n_clusters=n_clusters
-        self.epg_alpha = epg_alpha
-        self.epg_mu = epg_mu
-        self.epg_lambda = epg_lambda
-        self.legend = legend
-        self.jobs = jobs
-        self.verbose = verbose
+parser = argparse.ArgumentParser(
+    prog="trajectory inference of sc-RNAseq data",
+    description="""From concatenated (sometimes integrated) sc-rnaSeq data recorded in the \
+        hdf5 format (<filename>.h5ad), compute cell phenotype trajectory based on the STREAM \
+        method (see Chen et al. (2019): <https://www.nature.com/articles/s41467-019-09670-4>).""",
+    usage=""""python trajectories.py [-h] -i <path> [<args>]"""
+)
 
-args = arguments()
+parser.add_argument(
+    "-i", "--infile",
+    dest="infile",
+    type=lambda x: Path(x).resolve(),
+    required=True,
+    help="path to .h5ad file (including file)"
+)
+
+parser.add_argument(
+    "-o", "--outpath",
+    dest="outpath",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=Path("./").resolve(),
+    help="output path"
+)
+
+parser.add_argument(
+    "-p", "--prefix",
+    dest="prefix",
+    type=str2prefix,
+    required=False,
+    default="",
+    help="prefix for each saving file"
+)
+
+parser.add_argument(
+    "-s", "--use-stream-embedding",
+    dest="use_stream_embedding",
+    type=str2prefix,
+    required=False,
+    help="""compute embedding component using classic stream data preprocessing.
+    If not, use existing pre-computed embedding components"""
+)
+
+parser.add_argument(
+    "-m", "--method",
+    dest="method",
+    type=str,
+    required=False,
+    choices=["se", "mlle", "umap", "pca"],
+    help="method used for dimension reduction (only if --use-stream-embedding True is specified)."
+)
+
+parser.add_argument(
+    "-l", "--layer",
+    dest="layer",
+    type=str,
+    required=False,
+    help="layer used for dimension reduction (only if --use-stream-embedding True is specified)."
+)
+
+parser.add_argument(
+    "--hvg",
+    dest="hvg",
+    type=str2bool,
+    required=False,
+    default=None,
+    help="select the most variable genes for dimension reduction (only if --use-stream-embedding True is specified)."
+)
+
+parser.add_argument(
+    "-d", "--dimensions",
+    dest="n_dimensions",
+    type=int,
+    required=False,
+    default=3,
+    help="number of components to keep (only if --use-stream-embedding True is specified)."
+)
+
+parser.add_argument(
+    "-j", "--jobs",
+    dest="n_jobs",
+    type=int,
+    required=False,
+    default=1,
+    help="number of parallel jobs to run when dimension reduction is performed (only if --use-stream-embedding True is specified)."
+)
+
+parser.add_argument(
+    "-r", "--root",
+    dest="root",
+    type=int,
+    required=False,
+    default=0,
+    help="root of the elastic principal graph."
+)
+
+parser.add_argument(
+    "-c", "--clusters",
+    dest="n_clusters",
+    type=int,
+    required=False,
+    default=5,
+    help="number of clusters to compute for elastic principal graph."
+)
+
+parser.add_argument(
+    "--lambda", "--epg-lambda",
+    dest="epg_lambda",
+    type=float,
+    required=False,
+    default=0.05,
+    help="lambda parameter used to compute the elastic energy."
+)
+
+parser.add_argument(
+    "--mu", "--epg-mu",
+    dest="epg_mu",
+    type=float,
+    required=False,
+    default=0.05,
+    help="mu parameter used to compute the elastic energy."
+)
+
+parser.add_argument(
+    "--alpha", "--epg-alpha",
+    dest="epg_alpha",
+    type=float,
+    required=False,
+    default=0.01,
+    help="alpha parameter of the penalized elastic energy."
+)
+
+parser.add_argument(
+    "--legend",
+    dest="legend",
+    type=str2bool,
+    required=False,
+    default=False,
+    help="add legend to plot."
+)
+
+args = parser.parse_args()
 
 data_outpath = Path(f"{args.outpath}/tables")
 fig_outpath = Path(f"{args.outpath}/figures")
-args.prefix = "" if args.prefix is None else args.prefix
+root=f"S{args.root}"
 
 if not data_outpath.exists():
     os.makedirs(data_outpath)
@@ -87,7 +195,7 @@ adata = ad.read_h5ad(args.infile)
 adata.obs_names_make_unique()
 adata.uns["workdir"] = args.outpath
 
-if args.use_stream_embedding:
+if args.use_stream_embedding is True:
     with disable_print():
         adata.X = adata.layers[args.layer].toarray() if issparse(adata.layers[args.layer]) else adata.layers[args.layer]
         if args.hvg:
@@ -103,12 +211,13 @@ if args.use_stream_embedding:
         )
         st.dimension_reduction(
             adata,
-            method="mlle",
+            method=args.method,
             feature="top_pcs",
-            n_components=args.n_reduction_dimensions,
+            n_components=args.n_dimensions,
             n_neighbors=50,
             n_jobs=args.jobs
         )
+        dr = f"{args.method}"
 else:
     if "X_umap" in adata.obsm.keys():
         dr = "X_umap"
@@ -140,26 +249,26 @@ with disable_print():
         epg_ext_par=0.8
     )
 
-adata.obs["subclusters"] = np.nan
-adata.obs["subclusters"] = adata.obs["subclusters"].astype(str)
+adata.obs["node_clusters"] = np.nan
+adata.obs["node_clusters"] = adata.obs["node_clusters"].astype(str)
 
 nodes_mapping = dict()
 for key, value in adata.uns["flat_tree"]._node.items():
     nodes_mapping[key] = value["label"]
 
-subclusters = dict()
+node_clusters = dict()
 for node in nodes_mapping.keys():
     _true = adata.obs["node"] == node
-    adata.obs["subclusters"][_true] = str(nodes_mapping[node])
+    adata.obs["node_clusters"][_true] = str(nodes_mapping[node])
 
 print("Plotting trajectories...")
 
-for obs in ["subclusters", "kmeans", "leiden", f"{args.root}_pseudotime"]:
+for obs in ["node_clusters", "kmeans", "leiden", f"{root}_pseudotime"]:
     adt.scatterplot(
         adata,
         obs=obs,
         obsm=dr,
-        colors= colour.COLORS[0:len(nodes_mapping)] + [colour.lightgray] if obs == "subclusters" else None,
+        colors= colour.COLORS[0:len(nodes_mapping)] + [colour.lightgray] if obs == "node_clusters" else None,
         xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
         add_graph=True,
@@ -167,7 +276,7 @@ for obs in ["subclusters", "kmeans", "leiden", f"{args.root}_pseudotime"]:
     )
     ax = plt.gca()
     ps.set_default(ax)
-    if args.legend == True and not pd.api.types.is_float_dtype(adata.obs[obs]):
+    if args.legend is True and not pd.api.types.is_float_dtype(adata.obs[obs]):
         ax.legend(
             [string.replace("cluster ","") for string in np.sort(adata.obs["kmeans"].unique())],
             bbox_to_anchor=(0, 0),
@@ -188,8 +297,8 @@ for obs in ["subclusters", "kmeans", "leiden", f"{args.root}_pseudotime"]:
 
 st.plot_stream(
     adata,
-    root=args.root,
-    color=[f"{args.root}_pseudotime"],
+    root=root,
+    color=[f"{root}_pseudotime"],
     log_scale=False,
     factor_zoomin=100,
     save_fig=False,
@@ -203,7 +312,7 @@ plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_stream_plot")
 for cluster in ["kmeans", "leiden"]:
     st.plot_stream(
         adata,
-        root=args.root,
+        root=root,
         color=[cluster],
         log_scale=False,
         factor_zoomin=100,
