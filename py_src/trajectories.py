@@ -260,11 +260,27 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--legend",
+    "--add-legend",
     dest="legend",
     required=False,
     action="store_true",
-    help="add legend to plot."
+    help="add legend to figures."
+)
+
+parser.add_argument(
+    "--add-graph",
+    dest="graph",
+    required=False,
+    action="store_true",
+    help="add elastic principal graph to figures."
+)
+
+parser.add_argument(
+    "--add-text",
+    dest="text",
+    required=False,
+    action="store_true",
+    help="add node labels to figures."
 )
 
 args = parser.parse_args()
@@ -369,9 +385,10 @@ for cluster in ["node_clusters", "condition", "kmeans", "leiden", f"{root}_pseud
         colors=colour.COLORS[0:len(nodes_mapping)] + [colour.lightgray] if cluster == "node_clusters" else None,
         xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
-        add_graph=True,
+        add_graph=args.graph,
+        add_text=args.text,
+        add_legend=args.legend,
         s=2,
-        add_legend=True,
         lgd_params={
             "title":"clusters" if cluster != "condition" else "conditions",
             "labels":[string.replace("cluster ","") for string in np.sort(adata.obs[cluster].unique())],

@@ -188,11 +188,13 @@ python py_src/trajectories.py \
   --lambda 0.05 \
   --mu 0.05 \
   --alpha 0.01 \
-  --legend \
   --extend-leaf-nodes \
   --extend-mode WeigthedCentroid \
   --extend-parameter 0.8 \
   --save-tables no \
+  --add-legend \
+  --add-graph \
+  --add-text \
   --jobs 6
 
 ### End workflow

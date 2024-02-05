@@ -632,6 +632,30 @@ def __graph_to_plot(
         ax.add_line(line)
 
 @adata_arg_checking
+def __text_to_plot(
+    adata: ad.AnnData,
+    ax: Optional[Axes] = None,
+    verticalalignment: Optional[str] = None
+    ):
+
+    if ax is None:
+        ax = plt.gca()
+
+    flat_tree = adata.uns["flat_tree"]
+    flat_tree_node_label = nx.get_node_attributes(flat_tree, "label")
+    flat_tree_node_pos = nx.get_node_attributes(flat_tree, "pos")
+
+    for node in flat_tree.nodes:
+        plt.text(
+            x=flat_tree_node_pos[node][0],
+            y=flat_tree_node_pos[node][1],
+            s=flat_tree_node_label[node],
+            verticalalignment=verticalalignment,
+            fontsize=12,
+            fontweight="bold"
+        )
+
+@adata_arg_checking
 def scatterplot(
     adata: ad.AnnData,
     obs: str,
@@ -641,6 +665,7 @@ def scatterplot(
     ylabel: Optional[str] = None,
     outfile: Optional[Path] = None,
     add_graph: Optional[bool] = None,
+    add_text: Optional[bool] = None,
     default_parameters: Optional[types.FunctionType] = None,
     **kwargs
 ):
@@ -706,6 +731,10 @@ def scatterplot(
     if add_graph:
         ax = plt.gca()
         __graph_to_plot(adata, ax)
+    
+    if add_text:
+        ax = plt.gca()
+        __text_to_plot(adata, ax, verticalalignment="bottom" if add_graph else "center")
     
     if default_parameters:
         default_parameters()
