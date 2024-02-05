@@ -635,7 +635,7 @@ def __graph_to_plot(
 def __text_to_plot(
     adata: ad.AnnData,
     ax: Optional[Axes] = None,
-    verticalalignment: Optional[str] = None
+    **kwargs
     ):
 
     if ax is None:
@@ -650,9 +650,7 @@ def __text_to_plot(
             x=flat_tree_node_pos[node][0],
             y=flat_tree_node_pos[node][1],
             s=flat_tree_node_label[node],
-            verticalalignment=verticalalignment,
-            fontsize=12,
-            fontweight="bold"
+            **kwargs
         )
 
 @adata_arg_checking
@@ -698,6 +696,7 @@ def scatterplot(
         - tick_params[dict]: change the appearance of ticks, tick labels, and gridlines following the syntax of matplotlib.axes.Axes.tick_params
         - xtick_params[dict]: change the appearance of ticks, tick labels, and gridlines on x-axis following the syntax of matplotlib.axes.Axes.tick_params
         - ytick_params[dict]: change the appearance of ticks, tick labels, and gridlines on y-axis following the syntax of matplotlib.axes.Axes.tick_params
+        - text[dict]: change the appearance of text in figure following the syntax of matplotlib.text
 
     Returns
     -------
@@ -734,7 +733,18 @@ def scatterplot(
     
     if add_text:
         ax = plt.gca()
-        __text_to_plot(adata, ax, verticalalignment="bottom" if add_graph else "center")
+        if "text" not in kwargs:
+            kwargs["text"] = dict()
+            kwargs["text"]["verticalalignment"] = "bottom" if add_graph else "center"
+        elif "verticalalignment" not in kwargs["text"]:
+            kwargs["text"]["verticalalignment"] = "bottom" if add_graph else "center"
+        else:
+            pass
+        __text_to_plot(
+            adata,
+            ax,
+            **kwargs["text"]
+        )
     
     if default_parameters:
         default_parameters()

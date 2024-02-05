@@ -397,6 +397,10 @@ for cluster in ["node_clusters", "condition", "kmeans", "leiden", f"{root}_pseud
             "frameon":True,
             "shadow":False
         } if not pd.api.types.is_float_dtype(adata.obs[cluster]) else None,
+        text={
+            "fontsize":12,
+            "fontweight":"extra bold"
+        } if args.text is True else None
     )
     ps.set_default(plt.gca())
     if "pseudotime" not in cluster:
