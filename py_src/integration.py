@@ -141,6 +141,7 @@ parser.add_argument(
     type=str2prefix,
     required=False,
     default="",
+    metavar="LITERAL",
     help="prefix for each saving file"
 )
 
@@ -422,7 +423,8 @@ if args.method=="ingest" or args.method=="all":
             background_visible=False
         )
         plt.savefig(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}"))
-        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
+        if args.dim_integration > 2 and args.plot_3d:
+            pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
 
     section("Saving data...")
     adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}ingest.h5ad", compression="gzip")
@@ -537,7 +539,8 @@ if args.method=="bbknn" or args.method=="all":
             background_visible=False
         )
         plt.savefig(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}"))
-        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
+        if args.dim_integration > 2 and args.plot_3d:
+            pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
 
     section("Saving data...")
     adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}bbknn.h5ad", compression="gzip")
@@ -631,7 +634,8 @@ if args.method=="scanorama" or args.method=="all":
             background_visible=False
         )
         plt.savefig(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}"))
-        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
+        if args.dim_integration > 2 and args.plot_3d:
+            pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
 
     section("Saving data...")
     adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}scanorama.h5ad", compression="gzip")

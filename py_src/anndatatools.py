@@ -462,9 +462,6 @@ def __default_plot(
         obs: str,
         obsm: str,
         colors: Union[Sequence[Sequence[str]], cycle, Colormap] = None,
-        xlabel: Optional[str] = None,
-        ylabel: Optional[str] = None,
-        zlabel: Optional[str] = None,
         n_components: Optional[int] = 2,
         **kwargs
     ):
@@ -474,31 +471,21 @@ def __default_plot(
         if obsm not in adata.obsm:
             raise ValueError(f"adata.obsm[{obsm}] does not exist, aborting")
 
-        if xlabel is None:
-            xlabel = ""
-        if ylabel is None:
-            ylabel = ""
-        if zlabel is None and n_components > 2:
-            zlabel = ""
-
         fig, ax = plot(
             adata,
             obs,
             obsm,
             colors,
-            xlabel,
-            ylabel,
-            zlabel,
             n_components,
             **kwargs
         )
 
-        if xlabel:
-            ax.set_xlabel(xlabel)
-        if ylabel:
-            ax.set_ylabel(ylabel)
-        if zlabel and n_components > 2:
-            ax.set_zlabel(zlabel)
+        if "xlabel" in kwargs:
+            ax.set_xlabel("" if kwargs["xlabel"] is None else kwargs["xlabel"])
+        if "ylabel" in kwargs:
+            ax.set_ylabel("" if kwargs["ylabel"] is None else kwargs["ylabel"])
+        if "zlabel" in kwargs and n_components > 2:
+            ax.set_ylabel("" if kwargs["zlabel"] is None else kwargs["zlabel"])
         
         if "tick_params" in kwargs:
             ax.tick_params(**kwargs["tick_params"])
@@ -535,9 +522,6 @@ def __scatterplot_discrete(
     obs: str,
     obsm: str,
     colors: Optional[Union[Sequence[Sequence[str]], cycle]] = None,
-    xlabel: Optional[str] = None,
-    ylabel: Optional[str] = None,
-    zlabel: Optional[str] = None,
     n_components: Optional[int] = 2,
     **kwargs
 ):
@@ -615,9 +599,6 @@ def __scatterplot_continuous(
     obs: str,
     obsm: str,
     colors: Optional[Colormap] = None,
-    xlabel: Optional[str] = None,
-    ylabel: Optional[str] = None,
-    zlabel: Optional[str] = None,
     n_components: Optional[int] = 2,
     **kwargs
 ):
@@ -715,9 +696,6 @@ def scatterplot(
     obs: str,
     obsm: str,
     colors: Optional[Colormap] = None,
-    xlabel: Optional[str] = None,
-    ylabel: Optional[str] = None,
-    zlabel: Optional[str] = None,
     n_components: Optional[int] = 2,
     outfile: Optional[Path] = None,
     add_graph: Optional[bool] = None,
@@ -735,31 +713,45 @@ def scatterplot(
     obs
         The classification is retrieved by .obs[`obs`], which must be categorical/qualitative values.
     obsm
-        The data points are retrieved by the first and second columns in .obsm[`obsm`].
-    xlabel
-        Set the label for the x-axis.
-    ylabel
-        Set the label for the y-axis.
+        The data points are retrieved by the first columns in .obsm[`obsm`].
     colors
         Visualization of the mapping from a list of color values.
+    n_components
+        Number of plotted dimensions (default: 2)
     outfile
         If specified, save the figure.
+    add_graph
+        plot elastic principal graph.
+    add_text
+        add node labels of elastic principal graph.
+    default_parameters
+        function specifying default figure parameters.
     **kwargs
         Supplemental features for figure plotting:
-        - figheight[float]: specify the figure height
-        - figwidth[float]: specify the figure width
-        - formatter[matplotlib.ticker.FormatStrFormatter]: specify the format on x- and y-axis.
-        - add_legend[bool]: when .obs[`obs`] are discrete values, specify whether to draw legend
-        - lgd_params[dict]: when add_legend is True, modify legend following the syntax of matplotlib.pyplot.legend
-        - tick_params[dict]: change the appearance of ticks, tick labels, and gridlines following the syntax of matplotlib.axes.Axes.tick_params
-        - xtick_params[dict]: change the appearance of ticks, tick labels, and gridlines on x-axis following the syntax of matplotlib.axes.Axes.tick_params
-        - ytick_params[dict]: change the appearance of ticks, tick labels, and gridlines on y-axis following the syntax of matplotlib.axes.Axes.tick_params
-        - text[dict]: change the appearance of text in figure following the syntax of matplotlib.text
+        - figheight[float]: specify the figure height.
+        - figwidth[float]: specify the figure width.
+        - xlabel[str]: set the label for the x-axis.
+        - ylabel[str]: set the label for the y-axis.
+        - zlabel[str]: set the label for the z-axis.
+        - formatter[matplotlib.ticker.FormatStrFormatter]: specify the major formatter on x-, y- and z-axis.
+        - add_legend[bool]: when .obs[`obs`] are discrete values, specify whether to draw legend.
+        - lgd_params[dict]: when add_legend is True, modify legend following the syntax of matplotlib.pyplot.legend.
+        - tick_params[dict]: change the appearance of ticks, tick labels, and gridlines following the syntax of matplotlib.axes.Axes.tick_params.
+        - xtick_params[dict]: change the appearance of ticks, tick labels, and gridlines on x-axis following the syntax of matplotlib.axes.Axes.tick_params.
+        - ytick_params[dict]: change the appearance of ticks, tick labels, and gridlines on y-axis following the syntax of matplotlib.axes.Axes.tick_params.
+        - ztick_params[dict]: change the appearance of ticks, tick labels, and gridlines on z-axis following the syntax of matplotlib.axes.Axes.tick_params.
+        - text[dict]: change the appearance of text in figure following the syntax of matplotlib.text.
+        - background_visible[bool]: specify if background color is visible or not in case of 3D plotting.
 
     Returns
     -------
     Depending on `outfile`, save figure or create a current figure.
     """
+
+    if n_components not in [2,3]:
+        raise ValueError(f"`n_components` parameter value is {n_components}, please set it to 2 or 3, aborting.")
+    elif n_components == 3 and adata.obsm[obsm].shape[1] < 3:
+        raise ValueError(f"incoherence value: `n_components` parameter value is {n_components} while number of dimension in .obsm[{obsm}] is {adata.obsm[obsm].shape[1]}, aborting.")
 
     if pd.api.types.is_float_dtype(adata.obs[obs]):
         fig, ax = __scatterplot_continuous(
@@ -767,9 +759,6 @@ def scatterplot(
             obs,
             obsm,
             colors,
-            xlabel,
-            ylabel,
-            zlabel,
             n_components,
             **kwargs
         )
@@ -782,9 +771,6 @@ def scatterplot(
             obs,
             obsm,
             colors,
-            xlabel,
-            ylabel,
-            zlabel,
             n_components,
             **kwargs
         )
