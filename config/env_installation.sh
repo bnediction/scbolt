@@ -27,7 +27,7 @@ then
     conda activate base
 fi
 
-for environment in preprocess stream
+for environment in preprocess stream binarization
 do
     install_env $environment
 done

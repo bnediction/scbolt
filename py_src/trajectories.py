@@ -4,6 +4,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import os, contextlib, argparse
+import pickle
 from pathlib import Path
 
 import pandas as pd
@@ -99,10 +100,9 @@ parser.add_argument(
 parser.add_argument(
     "--st", "--save-tables",
     dest="save_tables",
-    type=str2bool,
     required=False,
-    default=True,
-    help="save the anndata in the h5ad format"
+    action="store_true",
+    help="save the anndata in the pkl format"
 )
 
 parser.add_argument(
@@ -283,6 +283,14 @@ parser.add_argument(
     help="add node labels to figures."
 )
 
+parser.add_argument(
+    "--plot-3d",
+    dest="plot_3d",
+    required=False,
+    action="store_true",
+    help="plot figures in three dimensions"
+)
+
 args = parser.parse_args()
 
 data_outpath = Path(f"{args.outpath}/tables")
@@ -378,7 +386,7 @@ for node in nodes_mapping.keys():
 print("Plotting trajectories...")
 
 for cluster in ["node_clusters", "condition", "kmeans", "leiden", f"{root}_pseudotime"]:
-    adt.scatterplot(
+    fig, ax = adt.scatterplot(
         adata,
         obs=cluster,
         obsm=dr,
@@ -400,13 +408,21 @@ for cluster in ["node_clusters", "condition", "kmeans", "leiden", f"{root}_pseud
         text={
             "fontsize":12,
             "fontweight":"extra bold"
-        } if args.text is True else None
+        } if args.text is True else None,
+        n_components = 3 if args.plot_3d is True else 2,
+        background_visible=False
     )
-    ps.set_default(plt.gca())
+    ps.set_default(ax)
     if "pseudotime" not in cluster:
         plt.savefig(f"{fig_outpath}/{args.prefix}{cluster}_{dr.split('_')[-1].lower()}")
     else:
         plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}")
+    if args.plot_3d is True and "pseudotime" not in cluster:
+        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}{cluster}_{dr.split('_')[-1].lower()}.fig.pickle"), "wb"))
+    elif args.plot_3d is True:
+        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}.fig.pickle"), "wb"))
+    else:
+        pass
 
 st.plot_stream(
     adata,
@@ -454,14 +470,4 @@ if args.save_tables:
 
     print("Saving data...")
 
-    for key in list(adata.obs.keys()):
-        if isinstance (adata.obs[key][0], tuple):
-            del adata.obs[key]
-
-    for key in list(adata.uns.keys()):
-        if isinstance(adata.uns[key], (tuple, Path, networkx.classes.graph.Graph, rpy2.rinterface.ListSexpVector)):
-            del adata.uns[key]
-        if key.startswith("stream_S"):
-            del adata.uns[key]
-
-    adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}stream.h5ad", compression="gzip")
+    st.write(adata, file_name=f"{data_outpath}/{args.prefix}stream.pkl")

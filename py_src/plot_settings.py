@@ -54,8 +54,10 @@ def set_default(
             ax = plt.gca()
         
         ax.set_title("")
-        ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+        ax.xaxis.set_minor_formatter(FormatStrFormatter("%g"))
+        ax.yaxis.set_minor_formatter(FormatStrFormatter("%g"))
         ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+        ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
         return None
 
 cmap = ListedColormap(

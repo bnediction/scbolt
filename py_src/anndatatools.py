@@ -18,6 +18,7 @@ from matplotlib.axes._axes import Axes
 from matplotlib.ticker import FormatStrFormatter
 from matplotlib.colors import Colormap
 from mpl_toolkits import mplot3d
+from mpl_toolkits.mplot3d import Axes3D
 from itertools import cycle
 from color_settings import COLORS
 
@@ -641,7 +642,9 @@ def __scatterplot_continuous(
 @adata_arg_checking
 def __graph_to_plot(
     adata: ad.AnnData,
-    ax: Optional[Axes] = None
+    ax: Optional[Axes] = None,
+    dim: Optional[int] = 2,
+    **kwargs
     ):
 
     if ax is None:
@@ -664,14 +667,19 @@ def __graph_to_plot(
         edge_curves.append(np.concatenate(_edge_curve))
 
     for edge_curve in edge_curves:
-        x, y = edge_curve[:,0], edge_curve[:, 1]
-        line = plt.Line2D(x, y, color=colour.black)
+        if dim == 2:
+            x, y = edge_curve[:,0], edge_curve[:, 1]
+            line = plt.Line2D(xdata=x, ydata=y, color=colour.black, **kwargs)
+        elif dim == 3:
+            x, y, z = edge_curve[:,0], edge_curve[:, 1], edge_curve[:, 2]
+            line = mplot3d.art3d.Line3D(xs=x, ys=y, zs=z, color=colour.black, **kwargs)
         ax.add_line(line)
 
 @adata_arg_checking
 def __text_to_plot(
     adata: ad.AnnData,
     ax: Optional[Axes] = None,
+    dim: Optional[int] = 2,
     **kwargs
     ):
 
@@ -682,13 +690,23 @@ def __text_to_plot(
     flat_tree_node_label = nx.get_node_attributes(flat_tree, "label")
     flat_tree_node_pos = nx.get_node_attributes(flat_tree, "pos")
 
-    for node in flat_tree.nodes:
-        plt.text(
-            x=flat_tree_node_pos[node][0],
-            y=flat_tree_node_pos[node][1],
-            s=flat_tree_node_label[node],
-            **kwargs
-        )
+    if dim == 2:
+        for node in flat_tree.nodes:
+            plt.text(
+                x=flat_tree_node_pos[node][0],
+                y=flat_tree_node_pos[node][1],
+                s=flat_tree_node_label[node],
+                **kwargs
+            )
+    elif dim == 3:
+        for node in flat_tree.nodes:
+            ax.text(
+                x=flat_tree_node_pos[node][0],
+                y=flat_tree_node_pos[node][1],
+                z=flat_tree_node_pos[node][2],
+                s=flat_tree_node_label[node],
+                **kwargs
+            )
 
 @adata_arg_checking
 def scatterplot(
@@ -777,7 +795,7 @@ def scatterplot(
     
     if add_graph:
         ax = plt.gca()
-        __graph_to_plot(adata, ax)
+        __graph_to_plot(adata, ax=ax, dim=n_components)
     
     if add_text:
         ax = plt.gca()
@@ -791,6 +809,7 @@ def scatterplot(
         __text_to_plot(
             adata,
             ax,
+            dim=n_components,
             **kwargs["text"]
         )
     

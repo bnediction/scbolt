@@ -219,7 +219,7 @@ parser.add_argument(
     required=False,
     default="euclidean",
     metavar="METRIC",
-    help="metric used for bbknn-based integration algorithm (default: euclidean)"
+    help="metric used for knn and bbknn-based integration algorithms (default: euclidean)"
 )
 
 parser.add_argument(
@@ -283,7 +283,7 @@ parser.add_argument(
     dest="plot_3d",
     required=False,
     action="store_true",
-    help="plot figures in 3 dimensions"
+    help="plot figures in three dimensions"
 )
 
 args = parser.parse_args()
