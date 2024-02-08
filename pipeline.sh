@@ -148,18 +148,20 @@ title $SIZE "Integration"
 
 echo -e "${LIGHT_RED}> control + treated samples (integration)...${NC}"
 python py_src/integration.py \
-  --infile-ref data/scRNA/normalizing/ct/tables/corrected.h5ad \
-  --infile-interest data/scRNA/normalizing/ra/tables/corrected.h5ad \
+  --i1 data/scRNA/normalizing/ct/tables/corrected.h5ad \
+  --i2 data/scRNA/normalizing/ra/tables/corrected.h5ad \
   --outpath data/scRNA/integration \
   --label condition \
+  --method bbknn \
+  --dim-pca 50 \
+  --dim-clustering 15 \
+  --dim-integration 2 \
+  --hvg \
   --metric euclidean \
   --k-neighbors 20 \
-  --dim-integration 50 \
-  --dim-clustering 15 \
-  --dim-embedding 2 \
   --resolution 0.35 \
   --jobs 6 \
-  --verbose yes
+  --verbose
 
 echo -e "${LIGHT_RED}> control + treated samples (cell type analysis)...${NC}"
 python py_src/markers.py \

@@ -4,6 +4,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import os, argparse
+import pickle
 from pathlib import Path
 
 from typing import Sequence
@@ -14,31 +15,52 @@ import anndata as ad, anndatatools as adt
 import scanpy as sc
 import scanorama
 
-def str2bool(v: str):
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ("yes", "true", "t", "y", "1"):
-        return True
-    elif v.lower() in ("no", "false", "f", "n", "0"):
-        return False
-    else:
-        raise argparse.ArgumentTypeError("Boolean value expected.")
+import matplotlib.pyplot as plt
+import color_settings as colour
 
-def section(
-    v: str,
-    reset: bool = False
-):
-    if "_i" not in globals():
-        global _i
-        _i = 1
-    elif reset:
-        _i = 1
+class Section(object):
+
+    def __init__(
+        self,
+        init: int = 1,
+        verbose: bool = True
+    ):
+        self.init = init
+        self._i = init
+        self._verbose = verbose
     
-    print(f"{_i}) {v}")
-    _i+=1
+    def __call__(
+        self,
+        v: str,
+        reset: bool = False
+    ):
+        self._i = self.init if reset else self._i
+        if self._verbose is True:
+            print(f"{self._i}) {v}")
+        self._i+=1
+        return None
+    
+    def reset(self):
+        self._i = self.init
+        return None
+    
+    def quiet(self):
+        self._verbose = False
+    
+    def verbose(self):
+        self._verbose = True
 
-    return None
+def str2prefix(v: str):
+    if v is None:
+        v = ""
+    elif isinstance(v, str):
+        if v:
+            v = v if v[-1] in ["-","_"] else v + "_"
+    else:
+        raise argparse.ArgumentTypeError("String value expected.")
+    return v
 
+@adt.adata_arg_checking
 def clean_adata(
     adata: ad.AnnData,
     obs: Sequence[str] = None,
@@ -75,11 +97,10 @@ def clean_adata(
                 pass
         del adata.obsm, adata.obsp, adata.varm, adata.varp
 
-        if copy:
-            return adata
+        return adata if copy else None
 
 parser = argparse.ArgumentParser(
-    prog="Integration of sc-RNAseq data",
+    prog="Integration and clustering on sc-RNAseq data",
     description="""From two samples of sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
     perform integration on embedding dimensions, create clusters using leiden algorithm,
     and run UMAP algorithm. This programm allows to search cell evolutions between two experiments""",
@@ -91,6 +112,7 @@ parser.add_argument(
     dest="infile_ref",
     type=lambda x: Path(x).resolve(),
     required=True,
+    metavar="PATH",
     help="path to .h5ad file (including file) considering as reference sample"
 )
 
@@ -99,6 +121,7 @@ parser.add_argument(
     dest="infile_interest",
     type=lambda x: Path(x).resolve(),
     required=True,
+    metavar="PATH",
     help="path to .h5ad file (including file) considering as sample to integrate"
 )
 
@@ -108,7 +131,17 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     default=Path("./").resolve(),
-    help="output path"
+    metavar="PATH",
+    help="output path (default: ./)"
+)
+
+parser.add_argument(
+    "--prefix",
+    dest="prefix",
+    type=str2prefix,
+    required=False,
+    default="",
+    help="prefix for each saving file"
 )
 
 parser.add_argument(
@@ -117,43 +150,29 @@ parser.add_argument(
     type=str,
     required=False,
     default=None,
+    metavar="LITERAL",
     help="label used in `adata.obs` for characterizing sample, useful for plotting"
 )
 
 parser.add_argument(
-    "-m", "--metric",
-    dest="metric",
-    type=str,
-    required=False,
-    default="euclidean",
-    help="metric used for bbknn-based integration algorithm"
-)
-
-parser.add_argument(
-    "-k", "--k-neighbors",
-    dest="k_neighbors",
-    type=int,
-    required=False,
-    default=20,
-    help="number of closest neighbors computed when computing KNN graph"
-)
-
-parser.add_argument(
-    "--methods", "--integration-methods",
-    dest="methods",
+    "--method",
+    dest="method",
     type=str,
     required=False,
     default="all",
-    help="integration methods to use (values: all, mnn or ingest, bbknn, scanorama)"
+    choices=["all", "ingest", "bbknn", "scanorama"],
+    metavar="[all, ingest, bbknn, scanorama]",
+    help="integration method to use (default: all)"
 )
 
 parser.add_argument(
-    "-i", "--dim-integration",
-    dest="dim_integration",
+    "-p", "--dim-pca",
+    dest="dim_pca",
     type=int,
     required=False,
     default=50,
-    help="minimum number of dimensions to integrate"
+    metavar="INT",
+    help="number of principal components (default: 50)"
 )
 
 parser.add_argument(
@@ -162,16 +181,54 @@ parser.add_argument(
     type=int,
     required=False,
     default=15,
-    help="number of principal components taken into account for clustering cells and running UMAP"
+    metavar="INT",
+    help="number of principal components taken into account for clustering cells (default: 15)"
 )
 
 parser.add_argument(
-    "-e", "--dim-embedding",
-    dest="dim_embedding",
+    "-e", "--dim-integration",
+    dest="dim_integration",
     type=int,
     required=False,
     default=2,
-    help="number of embedding dimensions computed"
+    metavar="INT",
+    help="number of embedding dimensions (default: 2)"
+)
+
+parser.add_argument(
+    "-z", "--zero-center",
+    dest="zero_center",
+    required=False,
+    action="store_true",
+    help="compute standard PCA from covariance matrix if `True`, otherwise omit zero-centering variables"
+)
+
+parser.add_argument(
+    "--hvg",
+    dest="hvg",
+    required=False,
+    action="store_true",
+    help="select the most variable genes for dimension reduction with pca"
+)
+
+parser.add_argument(
+    "-m", "--metric",
+    dest="metric",
+    type=str,
+    required=False,
+    default="euclidean",
+    metavar="METRIC",
+    help="metric used for bbknn-based integration algorithm (default: euclidean)"
+)
+
+parser.add_argument(
+    "-k", "--k-neighbors",
+    dest="k_neighbors",
+    type=int,
+    required=False,
+    default=20,
+    metavar="INT",
+    help="number of closest neighbors computed when performing KNN graph (default: 20)"
 )
 
 parser.add_argument(
@@ -180,7 +237,8 @@ parser.add_argument(
     type=float,
     required=False,
     default=0.6,
-    help="parameter value controlling the coarseness of the clustering when using Leiden algorithm"
+    metavar="FLOAT",
+    help="parameter value controlling the coarseness of the clustering when using Leiden algorithm (default: 0.6)"
 )
 
 parser.add_argument(
@@ -189,7 +247,8 @@ parser.add_argument(
     type=int,
     required=False,
     default=1,
-    help="number of process to use"
+    metavar="INT",
+    help="number of process to use (default: 1)"
 )
 
 parser.add_argument(
@@ -198,19 +257,40 @@ parser.add_argument(
     type=float,
     required=False,
     default=None,
+    metavar="FLOAT",
     help="random number generator"
 )
 
 parser.add_argument(
     "-v", "--verbose",
     dest="verbose",
-    type=str2bool,
     required=False,
-    default=False,
-    help="get information about running programm"
+    action="store_true",
+    help="display information about running programm"
+)
+
+parser.add_argument(
+    "--add-legend",
+    dest="legend",
+    required=False,
+    action="store_true",
+    help="add legend to figures"
+)
+
+parser.add_argument(
+    "--plot-3d",
+    dest="plot_3d",
+    required=False,
+    action="store_true",
+    help="plot figures in 3 dimensions"
 )
 
 args = parser.parse_args()
+
+if args.dim_pca < max(args.dim_clustering, args.dim_integration):
+    raise argparse.ArgumentError(
+        f"dim_pca ({args.dim_pca}) must be superior to dim_clustering ({args.dim_clustering}) and dim_integration ({args.dim_integration}), aborting."
+    )
 
 data_outpath = Path(f"{args.outpath}/tables")
 fig_outpath = Path(f"{args.outpath}/figures")
@@ -220,12 +300,8 @@ if not data_outpath.exists():
 if not fig_outpath.exists():
     os.makedirs(fig_outpath)
 
-if args.methods == "all":
-    methods = ["ingest", "bbknn", "scanorama"]
-else:
-    methods = args.methods.split("+")
-
-default_seed = args.seed if args.seed else 10 
+default_seed = args.seed if args.seed else 10
+section = Section(verbose = args.verbose)
 
 print(f"Loading data...")
 
@@ -246,17 +322,16 @@ for key in adata_d.keys():
 
 del valid_genes
 
-if "ingest" in methods:
+if args.method=="ingest" or args.method=="all":
 
     print("Integration using ingest:")
 
-    if args.verbose:
-        section("Computation of reference sample embedding components...", reset=True)
+    section("Computation of reference sample embedding components...", reset=True)
     sc.tl.pca(
         adata_d["reference"],
-        zero_center=True,
-        n_comps=max(args.dim_clustering, args.dim_integration, args.dim_embedding),
-        use_highly_variable=True,
+        zero_center=args.zero_center,
+        n_comps=args.dim_pca,
+        use_highly_variable=args.hvg,
         copy=False
     )
     sc.pp.neighbors(
@@ -267,12 +342,11 @@ if "ingest" in methods:
     )
     sc.tl.umap(
         adata_d["reference"],
-        n_components=args.dim_embedding,
+        n_components=args.dim_integration,
         random_state=default_seed
     )
 
-    if args.verbose:
-        section("Integration of interest sample...")
+    section("Integration of interest sample...")
     sc.tl.ingest(
         adata=adata_d["interest"],
         adata_ref=adata_d["reference"],
@@ -281,7 +355,7 @@ if "ingest" in methods:
         n_jobs=args.n_jobs
     )
     try:
-        concat_adata = ad.concat(
+        adata = ad.concat(
             list(adata_d.values()),
             join="inner",
             label=args.label,
@@ -291,57 +365,76 @@ if "ingest" in methods:
         )
     except:
         raise RuntimeError("Anndatas concatenation did not work, aborting")
+    clean_adata(adata)
     sc.pp.neighbors(
-        concat_adata,
+        adata,
         n_neighbors=args.k_neighbors,
+        use_rep="X_pca",
         n_pcs=args.dim_clustering,
+        metric=args.metric,
         copy=False
     )
     sc.tl.leiden(
-        concat_adata,
+        adata,
         resolution=args.resolution,
         key_added=f"leiden"
     )
 
-    if args.verbose:
-        section("Plot of embedding components...")
+    section("Plot of embedding components...")
     adt.scatterplot(
-        concat_adata,
+        adata,
         obs="condition",
         obsm="X_pca",
         xlabel=r"$\mathrm{PC_{1}}$",
         ylabel=r"$\mathrm{PC_{2}}$",
         outfile=Path(f"{fig_outpath}/ingest_pca"),
+        add_legend=args.legend,
+        s=2,
+        lgd_params={
+            "title":"conditions",
+            "ncol":1,
+            "markerscale":5,
+            "frameon":True,
+            "edgecolor":colour.black,
+            "shadow":False,
+            "loc":"best"
+        }
     )
-    adt.scatterplot(
-        concat_adata,
-        obs="condition",
-        obsm="X_umap",
-        xlabel=r"$\mathrm{UMAP_{1}}$",
-        ylabel=r"$\mathrm{UMAP_{2}}$",
-        outfile=Path(f"{fig_outpath}/ingest_umap"),
-    )
-    adt.scatterplot(
-        concat_adata,
-        obs="leiden",
-        obsm="X_umap",
-        xlabel=r"$\mathrm{UMAP_{1}}$",
-        ylabel=r"$\mathrm{UMAP_{2}}$",
-        print_legend=True,
-        outfile=Path(f"{fig_outpath}/ingest_umap_clusters"),
-    )
+    for cluster in ["condition", "leiden"]:
+        fig, _ = adt.scatterplot(
+            adata,
+            obs=cluster,
+            obsm="X_umap",
+            xlabel=r"$\mathrm{UMAP_{1}}$",
+            ylabel=r"$\mathrm{UMAP_{2}}$",
+            zlabel=r"$\mathrm{UMAP_{3}}$",
+            add_legend=args.legend,
+            s=2,
+            lgd_params={
+                "title":"clusters" if cluster != "condition" else "conditions",
+                "ncol":1,
+                "markerscale":5,
+                "frameon":True,
+                "edgecolor":colour.black,
+                "shadow":False
+            },
+            n_components = 3 if args.dim_integration > 2 and args.plot_3d is True else 2,
+            background_visible=False
+        )
+        plt.savefig(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}"))
+        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
 
-    if args.verbose:
-        section("Saving data...")
-    concat_adata.write_h5ad(filename=f"{data_outpath}/ingest.h5ad", compression="gzip")
+    section("Saving data...")
+    adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}ingest.h5ad", compression="gzip")
+    del adata
 
-if "bbknn" in methods:
+if args.method=="bbknn" or args.method=="all":
 
     print("Integration using bbknn:")
 
-    if "concat_adata" not in globals():
+    if "adata" not in globals():
         try:
-            concat_adata = ad.concat(
+            adata = ad.concat(
                 list(adata_d.values()),
                 join="inner",
                 label=args.label,
@@ -351,16 +444,14 @@ if "bbknn" in methods:
             )
         except:
             raise RuntimeError("Anndatas concatenation did not work, aborting")
-
     clean_adata(
-        concat_adata,
+        adata,
         obs="leiden"
     )
 
-    if args.verbose:
-        section("Computation of embedding components...", reset=True)
+    section("Computation of embedding components...", reset=True)
     sc.pp.highly_variable_genes(
-        concat_adata,
+        adata,
         layer="raw",
         flavor="seurat_v3",
         span=0.3,
@@ -369,17 +460,16 @@ if "bbknn" in methods:
         inplace=True
     )
     sc.tl.pca(
-        concat_adata,
-        zero_center=True,
-        n_comps=max(args.dim_clustering, args.dim_integration, args.dim_embedding),
-        use_highly_variable=True,
+        adata,
+        zero_center=args.zero_center,
+        n_comps=args.dim_pca,
+        use_highly_variable=args.hvg,
         copy=False
     )
 
-    if args.verbose:
-        section("Integration of embedding components...")
+    section("Integration of embedding components...")
     sc.external.pp.bbknn(
-        concat_adata,
+        adata,
         batch_key=args.label,
         use_rep="X_pca",
         metric=args.metric,
@@ -388,57 +478,72 @@ if "bbknn" in methods:
         n_pcs=args.dim_clustering,
     )
     sc.tl.umap(
-        concat_adata,
-        n_components=args.dim_embedding,
-        random_state=1
+        adata,
+        n_components=args.dim_integration,
+        random_state=default_seed
     )
     sc.pp.neighbors(
-        concat_adata,
+        adata,
         n_neighbors=args.k_neighbors,
+        use_rep="X_pca",
         n_pcs=args.dim_clustering,
+        metric=args.metric,
         copy=False
     )
     sc.tl.leiden(
-        concat_adata,
+        adata,
         resolution=args.resolution,
         key_added=f"leiden"
     )
 
-    if args.verbose:
-        section("Plot of embedding components...")
+    section("Plot of embedding components...")
     adt.scatterplot(
-        concat_adata,
+        adata,
         obs="condition",
         obsm="X_pca",
         xlabel=r"$\mathrm{PC_{1}}$",
         ylabel=r"$\mathrm{PC_{2}}$",
         outfile=Path(f"{fig_outpath}/bbknn_pca"),
+        add_legend=args.legend,
+        s=2,
+        lgd_params={
+            "title":"conditions",
+            "ncol":1,
+            "markerscale":5,
+            "frameon":True,
+            "edgecolor":colour.black,
+            "shadow":False,
+        },
     )
-    adt.scatterplot(
-        concat_adata,
-        obs="condition",
-        obsm="X_umap",
-        xlabel=r"$\mathrm{UMAP_{1}}$",
-        ylabel=r"$\mathrm{UMAP_{2}}$",
-        outfile=Path(f"{fig_outpath}/bbknn_umap"),
-    )
-    adt.scatterplot(
-        concat_adata,
-        obs="leiden",
-        obsm="X_umap",
-        xlabel=r"$\mathrm{UMAP_{1}}$",
-        ylabel=r"$\mathrm{UMAP_{2}}$",
-        print_legend=True,
-        outfile=Path(f"{fig_outpath}/bbknn_umap_clusters"),
-    )
+    for cluster in ["condition", "leiden"]:
+        fig, _ = adt.scatterplot(
+            adata,
+            obs=cluster,
+            obsm="X_umap",
+            xlabel=r"$\mathrm{UMAP_{1}}$",
+            ylabel=r"$\mathrm{UMAP_{2}}$",
+            zlabel=r"$\mathrm{UMAP_{3}}$",
+            add_legend=args.legend,
+            s=2,
+            lgd_params={
+                "title":"clusters" if cluster != "condition" else "conditions",
+                "ncol":1,
+                "markerscale":5,
+                "frameon":True,
+                "edgecolor":colour.black,
+                "shadow":False
+            },
+            n_components = 3 if args.dim_integration > 2 and args.plot_3d is True else 2,
+            background_visible=False
+        )
+        plt.savefig(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}"))
+        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
 
-    if args.verbose:
-        section("Saving data...")
-    concat_adata.write_h5ad(filename=f"{data_outpath}/bbknn.h5ad", compression="gzip")
+    section("Saving data...")
+    adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}bbknn.h5ad", compression="gzip")
+    del adata
 
-    del concat_adata
-
-if "scanorama" in methods:
+if args.method=="scanorama" or args.method=="all":
 
     print("Integration using scanorama...")
 
@@ -448,15 +553,14 @@ if "scanorama" in methods:
     adata_l = list(adata_d.values())
     del adata_d
 
-    if args.verbose:
-        section("Computation of integrated embedding components...", reset=True)
+    section("Computation of integrated embedding components...", reset=True)
     adata_l = scanorama.correct_scanpy(
         adata_l,
-        dimred=max(args.dim_clustering, args.dim_integration, args.dim_embedding),
+        dimred=args.dim_pca,
         return_dimred=True
     )
     try:
-        concat_adata = ad.concat(
+        adata = ad.concat(
             adata_l,
             join="inner",
             label=args.label,
@@ -468,51 +572,66 @@ if "scanorama" in methods:
     except:
         raise RuntimeError("Anndatas concatenation did not work, aborting")
     sc.pp.neighbors(
-        concat_adata,
+        adata,
         n_neighbors=args.k_neighbors,
         use_rep="X_scanorama",
         n_pcs=args.dim_clustering,
         copy=False
     )
     sc.tl.leiden(
-        concat_adata,
+        adata,
         resolution=args.resolution,
         key_added=f"leiden"
     )
     sc.tl.umap(
-        concat_adata,
-        n_components=args.dim_embedding,
+        adata,
+        n_components=args.dim_integration,
         random_state=default_seed
     )
 
-    if args.verbose:
-        section("Plot of embedding components...")
+    section("Plot of embedding components...")
     adt.scatterplot(
-        concat_adata,
+        adata,
         obs="condition",
-        obsm="X_scanorama",
-        xlabel=r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
-        ylabel=r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
-        outfile=Path(f"{fig_outpath}/scanorama_components"),
+        obsm="X_pca",
+        xlabel=r"$\mathrm{PC_{1}}$",
+        ylabel=r"$\mathrm{PC_{2}}$",
+        outfile=Path(f"{fig_outpath}/bbknn_pca"),
+        add_legend=args.legend,
+        s=2,
+        lgd_params={
+            "title":"conditions",
+            "ncol":1,
+            "markerscale":5,
+            "frameon":True,
+            "edgecolor":colour.black,
+            "shadow":False,
+            "loc":"best"
+        }
     )
-    adt.scatterplot(
-        concat_adata,
-        obs="condition",
-        obsm="X_umap",
-        xlabel=r"$\mathrm{UMAP_{1}}$",
-        ylabel=r"$\mathrm{UMAP_{2}}$",
-        outfile=Path(f"{fig_outpath}/scanorama_umap"),
-    )
-    adt.scatterplot(
-        concat_adata,
-        obs="leiden",
-        obsm="X_umap",
-        xlabel=r"$\mathrm{UMAP_{1}}$",
-        ylabel=r"$\mathrm{UMAP_{2}}$",
-        print_legend=True,
-        outfile=Path(f"{fig_outpath}/scanorama_umap_clusters"),
-    )
+    for cluster in ["condition", "leiden"]:
+        fig, _ = adt.scatterplot(
+            adata,
+            obs=cluster,
+            obsm="X_umap",
+            xlabel=r"$\mathrm{UMAP_{1}}$",
+            ylabel=r"$\mathrm{UMAP_{2}}$",
+            zlabel=r"$\mathrm{UMAP_{3}}$",
+            add_legend=args.legend,
+            s=2,
+            lgd_params={
+                "title":"clusters" if cluster != "condition" else "conditions",
+                "ncol":1,
+                "markerscale":5,
+                "frameon":True,
+                "edgecolor":colour.black,
+                "shadow":False
+            },
+            n_components = 3 if args.dim_integration > 2 and args.plot_3d is True else 2,
+            background_visible=False
+        )
+        plt.savefig(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}"))
+        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
 
-    if args.verbose:
-        section("Saving data...")
-    concat_adata.write_h5ad(filename=f"{data_outpath}/scanorama.h5ad", compression="gzip")
+    section("Saving data...")
+    adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}scanorama.h5ad", compression="gzip")

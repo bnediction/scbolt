@@ -17,6 +17,7 @@ import color_settings as colour
 from matplotlib.axes._axes import Axes
 from matplotlib.ticker import FormatStrFormatter
 from matplotlib.colors import Colormap
+from mpl_toolkits import mplot3d
 from itertools import cycle
 from color_settings import COLORS
 
@@ -463,6 +464,8 @@ def __default_plot(
         colors: Union[Sequence[Sequence[str]], cycle, Colormap] = None,
         xlabel: Optional[str] = None,
         ylabel: Optional[str] = None,
+        zlabel: Optional[str] = None,
+        n_components: Optional[int] = 2,
         **kwargs
     ):
 
@@ -475,6 +478,8 @@ def __default_plot(
             xlabel = ""
         if ylabel is None:
             ylabel = ""
+        if zlabel is None and n_components > 2:
+            zlabel = ""
 
         fig, ax = plot(
             adata,
@@ -483,13 +488,17 @@ def __default_plot(
             colors,
             xlabel,
             ylabel,
+            zlabel,
+            n_components,
             **kwargs
         )
-        
+
         if xlabel:
             ax.set_xlabel(xlabel)
         if ylabel:
             ax.set_ylabel(ylabel)
+        if zlabel and n_components > 2:
+            ax.set_zlabel(zlabel)
         
         if "tick_params" in kwargs:
             ax.tick_params(**kwargs["tick_params"])
@@ -498,11 +507,24 @@ def __default_plot(
                 ax.tick_params(axis="x", **kwargs["xtick_params"])
             if "ytick_params" in kwargs:
                 ax.tick_params(axis="y", **kwargs["ytick_params"])
-        
+            if n_components ==3 and "ztick_params" in kwargs:
+                ax.tick_params(axis="z", **kwargs["ztick_params"])
+
         plt.sca(ax)
         ax.xaxis.set_major_formatter(kwargs["formatter"]) if "formatter" in kwargs else ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
         ax.yaxis.set_major_formatter(kwargs["formatter"]) if "formatter" in kwargs else ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-        
+        if n_components == 3:
+            ax.zaxis.set_major_formatter(kwargs["formatter"]) if "formatter" in kwargs else ax.zaxis.set_major_formatter(FormatStrFormatter("%g"))
+
+        if n_components == 3 and "background_visible" in kwargs:
+            if kwargs["background_visible"] is False:
+                ax.xaxis.pane.fill = False
+                ax.yaxis.pane.fill = False
+                ax.zaxis.pane.fill = False
+                ax.xaxis.pane.set_edgecolor("w")
+                ax.yaxis.pane.set_edgecolor("w")
+                ax.zaxis.pane.set_edgecolor("w")
+
         return fig, ax
     
     return wrapper
@@ -515,6 +537,8 @@ def __scatterplot_discrete(
     colors: Optional[Union[Sequence[Sequence[str]], cycle]] = None,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
+    zlabel: Optional[str] = None,
+    n_components: Optional[int] = 2,
     **kwargs
 ):
 
@@ -530,20 +554,34 @@ def __scatterplot_discrete(
     if not colors:
         colors = cycle(COLORS)
     
-    fig, ax = plt.subplots(nrows=1, ncols=1)
+    fig = plt.figure()
+    ax = plt.axes(projection = "rectilinear" if n_components == 2 else "3d")
     fig.set_figheight(kwargs["figheight"] if "figheight" in kwargs else 5)
-    fig.set_figwidth(kwargs["figwidth"] if "figwidth" in kwargs else 5)
+    fig.set_figwidth(kwargs["figwidth"] if "figwidth" in kwargs else 5 if n_components == 2 else 6)
         
     for _cluster, _color in zip(sorted(adata.obs[obs].unique()), colors):
         idx = np.where(adata.obs[obs] == _cluster)[0]
-        ax.scatter(
-            adata.obsm[obsm][idx,0],
-            adata.obsm[obsm][idx,1],
-            s=kwargs["s"] if "s" in kwargs else 3,
-            facecolors=_color,
-            edgecolors="none",
-            alpha=1,
-            label=_cluster)
+        if n_components==2:
+            ax.scatter(
+                adata.obsm[obsm][idx,0],
+                adata.obsm[obsm][idx,1],
+                s=kwargs["s"] if "s" in kwargs else 3,
+                facecolors=_color,
+                edgecolors="none",
+                alpha=1,
+                label=_cluster
+            )
+        elif n_components==3:
+            ax.scatter3D(
+                adata.obsm[obsm][idx,0],
+                adata.obsm[obsm][idx,1],
+                adata.obsm[obsm][idx,2],
+                s=kwargs["s"] if "s" in kwargs else 3,
+                facecolors=_color,
+                edgecolors="none",
+                alpha=1,
+                label=_cluster
+            )
 
     if add_legend:
         fig.set_figwidth(kwargs["figwidth"]*1.25 if "figwidth" in kwargs else 6.25)
@@ -553,9 +591,12 @@ def __scatterplot_discrete(
             kwargs["lgd_params"] = kwargs["legend_params"]
         if "lgd_params" in kwargs:
             if "loc" not in kwargs["lgd_params"] and "bbox_to_anchor" not in kwargs["lgd_params"]:
+                if n_components == 3:
+                    fig.tight_layout()
+                    fig.subplots_adjust(right=0.8)
                 ax.legend(
                     loc="center left",
-                    bbox_to_anchor=(1.04, 0.5),
+                    bbox_to_anchor=(1.04, 0.5) if n_components == 2 else (1.09, 0.5),
                     **kwargs["lgd_params"]
                 )
             else:
@@ -576,6 +617,8 @@ def __scatterplot_continuous(
     colors: Optional[Colormap] = None,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
+    zlabel: Optional[str] = None,
+    n_components: Optional[int] = 2,
     **kwargs
 ):
 
@@ -584,20 +627,33 @@ def __scatterplot_continuous(
     else:
         _cmap="autumn"
 
-    fig, ax = plt.subplots(nrows=1, ncols=1)
+    fig = plt.figure()
+    ax = plt.axes(projection = "rectilinear" if n_components == 2 else "3d")
     fig.set_figheight(kwargs["figheight"] if "figheight" in kwargs else 5)
-    fig.set_figwidth(kwargs["figwidth"] if "figwidth" in kwargs else 6.5)
-
-    sc = ax.scatter(
-        adata.obsm[obsm][:,0],
-        adata.obsm[obsm][:,1],
-        s=kwargs["s"] if "s" in kwargs else 3,
-        c=adata.obs[obs],
-        cmap=_cmap,
-        edgecolors="none",
-        alpha=1
-    )
-    fig.colorbar(sc)
+    fig.set_figwidth(kwargs["figwidth"] if "figwidth" in kwargs else 5 if n_components == 2 else 6)
+    
+    if n_components == 2:
+        sc = ax.scatter(
+            adata.obsm[obsm][:,0],
+            adata.obsm[obsm][:,1],
+            s=kwargs["s"] if "s" in kwargs else 3,
+            c=adata.obs[obs],
+            cmap=_cmap,
+            edgecolors="none",
+            alpha=1
+        )
+        fig.colorbar(sc)
+    elif n_components==3:
+        ax.scatter3D(
+            adata.obsm[obsm][:,0],
+            adata.obsm[obsm][:,1],
+            adata.obsm[obsm][:,2],
+            s=kwargs["s"] if "s" in kwargs else 3,
+            c=adata.obs[obs],
+            cmap=_cmap,
+            edgecolors="none",
+            alpha=1,
+        )
 
     return fig, ax
 
@@ -661,6 +717,8 @@ def scatterplot(
     colors: Optional[Colormap] = None,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
+    zlabel: Optional[str] = None,
+    n_components: Optional[int] = 2,
     outfile: Optional[Path] = None,
     add_graph: Optional[bool] = None,
     add_text: Optional[bool] = None,
@@ -711,6 +769,8 @@ def scatterplot(
             colors,
             xlabel,
             ylabel,
+            zlabel,
+            n_components,
             **kwargs
         )
     elif pd.api.types.is_integer_dtype(adata.obs[obs]) or \
@@ -724,6 +784,8 @@ def scatterplot(
             colors,
             xlabel,
             ylabel,
+            zlabel,
+            n_components,
             **kwargs
         )
     
