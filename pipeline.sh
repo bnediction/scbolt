@@ -193,11 +193,12 @@ python py_src/trajectories.py \
   --extend-leaf-nodes \
   --extend-mode WeigthedCentroid \
   --extend-parameter 0.8 \
-  --save-tables no \
   --add-legend \
   --add-graph \
   --add-text \
-  --jobs 6
+  --jobs 6 \
+  --save-tables \
+  --plot-3d
 
 ### End workflow
 

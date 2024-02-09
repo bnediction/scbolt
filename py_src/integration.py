@@ -113,7 +113,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="PATH",
-    help="path to .h5ad file (including file) considering as reference sample"
+    help="path to .h5ad file (including file) considered as reference sample"
 )
 
 parser.add_argument(
@@ -122,7 +122,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="PATH",
-    help="path to .h5ad file (including file) considering as sample to integrate"
+    help="path to .h5ad file (including file) considered as sample to integrate"
 )
 
 parser.add_argument(

@@ -102,7 +102,18 @@ parser.add_argument(
     dest="save_tables",
     required=False,
     action="store_true",
-    help="save the anndata in the pkl format"
+    help="save the anndata object"
+)
+
+parser.add_argument(
+    "-e", "--extension",
+    dest="extension",
+    type=str,
+    required=False,
+    choices=["h5ad", "pkl"],
+    default="h5ad",
+    metavar="[h5ad, pkl]",
+    help="file extension of anndata object (only if --save-tables)"
 )
 
 parser.add_argument(
@@ -470,4 +481,15 @@ if args.save_tables:
 
     print("Saving data...")
 
-    st.write(adata, file_name=f"{data_outpath}/{args.prefix}stream.pkl")
+    if args.extension == "h5ad":
+        for key in list(adata.obs.keys()):
+            if isinstance (adata.obs[key][0], tuple):
+                del adata.obs[key]
+        for key in list(adata.uns.keys()):
+            if isinstance(adata.uns[key], (tuple, Path, networkx.classes.graph.Graph, rpy2.rinterface.ListSexpVector)):
+                del adata.uns[key]
+            if key.startswith("stream_S"):
+                del adata.uns[key]
+        adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}stream.h5ad", compression="gzip")
+    elif args.extension == "pkl":
+        st.write(adata, file_name=f"{data_outpath}/{args.prefix}stream.pkl")
