@@ -67,11 +67,11 @@ def anndata_to_dataframe(
     """
 
     if layer and issparse(adata.layers[layer]):
-        counts_df = pd.DataFrame.sparse.from_spmatrix(adata.layers[layer], index=adata.obs.index, columns = adata.var.index)
+        counts_df = pd.DataFrame(adata.layers[layer].toarray(), index=adata.obs.index, columns = adata.var.index)
     elif layer:
          counts_df = pd.DataFrame(adata.layers[layer], index=adata.obs.index, columns = adata.var.index)
     elif issparse(adata.layers[layer]):
-        counts_df = pd.DataFrame.sparse.from_spmatrix(adata.X, index=adata.obs.index, columns = adata.var.index)
+        counts_df = pd.DataFrame(adata.X.toarray(), index=adata.obs.index, columns = adata.var.index)
     else:
         counts_df = pd.DataFrame(adata.X, index=adata.obs.index, columns = adata.var.index)
     
@@ -486,7 +486,7 @@ def __default_plot(
         if "ylabel" in kwargs:
             ax.set_ylabel("" if kwargs["ylabel"] is None else kwargs["ylabel"])
         if "zlabel" in kwargs and n_components > 2:
-            ax.set_ylabel("" if kwargs["zlabel"] is None else kwargs["zlabel"])
+            ax.set_zlabel("" if kwargs["zlabel"] is None else kwargs["zlabel"])
         
         if "tick_params" in kwargs:
             ax.tick_params(**kwargs["tick_params"])

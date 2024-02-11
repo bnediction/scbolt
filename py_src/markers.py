@@ -3,7 +3,7 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import argparse
+import os, argparse
 from pathlib import Path
 
 import pandas as pd, scanpy as sc, json
@@ -34,7 +34,7 @@ parser = argparse.ArgumentParser(
     description="""From sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
     search for gene markers and compare markers and signatures in order to provide
     useful information about potential cell-types on each condition and each group.""",
-    usage="python markers.py [<args>]"
+    usage="python markers.py [-h] -i <path> -s <path> -c <literal> -g <literal> [<args>]"
 )
 
 parser.add_argument(
@@ -42,6 +42,7 @@ parser.add_argument(
     dest="infile",
     type=lambda x: Path(x).resolve(),
     required=True,
+    metavar="PATH",
     help="path to .h5ad file (including file)"
 )
 
@@ -50,6 +51,7 @@ parser.add_argument(
     dest="signatures",
     type=lambda x: Path(x).resolve(),
     required=True,
+    metavar="PATH",
     help="path to .json signatures file (including file)"
 )
 
@@ -59,23 +61,8 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     default=Path("./").resolve(),
-    help="output path"
-)
-
-parser.add_argument(
-    "-c", "--condition",
-    dest="condition",
-    type=str,
-    required=True,
-    help="column name in adata.obs distinguishing samples"
-)
-
-parser.add_argument(
-    "-g", "--group", "--cluster",
-    dest="group",
-    type=str,
-    required=True,
-    help="column name in adata.obs distinguishing cluster"
+    metavar="PATH",
+    help="output path (default: ./)"
 )
 
 parser.add_argument(
@@ -84,7 +71,26 @@ parser.add_argument(
     type=str2prefix,
     required=False,
     default="",
+    metavar="LITERAL",
     help="prefix for each saving file"
+)
+
+parser.add_argument(
+    "-c", "--condition",
+    dest="condition",
+    type=str,
+    required=True,
+    metavar="LITERAL",
+    help="column name such as adata.obs[`LITERAL`] distinguishes samples"
+)
+
+parser.add_argument(
+    "-g", "--group", "--cluster",
+    dest="group",
+    type=str,
+    required=True,
+    metavar="LITERAL",
+    help="column name such as adata.obs[`LITERAL`] distinguishes cluster"
 )
 
 parser.add_argument(
@@ -93,19 +99,22 @@ parser.add_argument(
     type=float,
     required=False,
     default=0.25,
-    help="threshold describing the minimum log2 fold-changes for being a gene marker"
+    metavar="FLOAT",
+    help="threshold denoting the minimum log2 fold-changes for being considered as a gene marker (default: 0.25)"
 )
 
 parser.add_argument(
     "-v", "--verbose",
     dest="verbose",
-    type=str2bool,
     required=False,
-    default=False,
-    help="get summarizing information about cluster in stdout"
+    action="store_true",
+    help="display information about running programm"
 )
 
 args = parser.parse_args()
+
+if not args.outpath.exists():
+    os.makedirs(args.outpath)
 
 print(f"Loading data...")
 
@@ -193,6 +202,7 @@ print("Saving data...")
 for _condition in markers_d.keys():
     markers_d[_condition].to_csv(f"{args.outpath}/{args.prefix}{_condition}_markers.csv", sep=",", index=False)
 info_df.to_csv(f"{args.outpath}/{args.prefix}cluster_cell_types.csv", sep=",", index=True)
+info_df.transpose().to_csv(f"{args.outpath}/{args.prefix}cluster_cell_types.transpose.csv", sep=",", index=True)
 
 if args.verbose:
     print(info_df)

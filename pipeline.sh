@@ -155,12 +155,15 @@ python py_src/integration.py \
   --method bbknn \
   --dim-pca 50 \
   --dim-clustering 15 \
-  --dim-integration 2 \
+  --dim-integration 3 \
   --hvg \
   --metric euclidean \
   --k-neighbors 20 \
-  --resolution 0.35 \
+  --resolution 0.4 \
+  --add-legend \
+  --plot-3d \
   --jobs 6 \
+  --seed 10 \
   --verbose
 
 echo -e "${LIGHT_RED}> control + treated samples (cell type analysis)...${NC}"
@@ -172,7 +175,7 @@ python py_src/markers.py \
   --group leiden \
   --logfc-threshold 0.25 \
   --prefix bbknn \
-  --verbose yes
+  --verbose
 
 ### STREAM analysis ###
 
@@ -189,7 +192,7 @@ python py_src/trajectories.py \
   --clusters 6 \
   --lambda 0.05 \
   --mu 0.05 \
-  --alpha 0.01 \
+  --alpha 0.03 \
   --extend-leaf-nodes \
   --extend-mode WeigthedCentroid \
   --extend-parameter 0.8 \

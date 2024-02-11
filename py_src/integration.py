@@ -162,7 +162,7 @@ parser.add_argument(
     required=False,
     default="all",
     choices=["all", "ingest", "bbknn", "scanorama"],
-    metavar="[all, ingest, bbknn, scanorama]",
+    metavar="[all | ingest | bbknn | scanorama]",
     help="integration method to use (default: all)"
 )
 
@@ -243,34 +243,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-j", "--jobs",
-    dest="n_jobs",
-    type=int,
-    required=False,
-    default=1,
-    metavar="INT",
-    help="number of process to use (default: 1)"
-)
-
-parser.add_argument(
-    "-s", "--seed",
-    dest="seed",
-    type=float,
-    required=False,
-    default=None,
-    metavar="FLOAT",
-    help="random number generator"
-)
-
-parser.add_argument(
-    "-v", "--verbose",
-    dest="verbose",
-    required=False,
-    action="store_true",
-    help="display information about running programm"
-)
-
-parser.add_argument(
     "--add-legend",
     dest="legend",
     required=False,
@@ -284,6 +256,34 @@ parser.add_argument(
     required=False,
     action="store_true",
     help="plot figures in three dimensions"
+)
+
+parser.add_argument(
+    "-j", "--jobs",
+    dest="n_jobs",
+    type=int,
+    required=False,
+    default=1,
+    metavar="INT",
+    help="number of process to use (default: 1)"
+)
+
+parser.add_argument(
+    "-s", "--seed",
+    dest="seed",
+    type=int,
+    required=False,
+    default=None,
+    metavar="FLOAT",
+    help="random number generator"
+)
+
+parser.add_argument(
+    "-v", "--verbose",
+    dest="verbose",
+    required=False,
+    action="store_true",
+    help="display information about running programm"
 )
 
 args = parser.parse_args()
