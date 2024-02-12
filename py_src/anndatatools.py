@@ -66,11 +66,12 @@ def anndata_to_dataframe(
     Dataframe providing information about counts and optionnaly other additionnal chosen information.
     """
 
-    if layer and issparse(adata.layers[layer]):
-        counts_df = pd.DataFrame(adata.layers[layer].toarray(), index=adata.obs.index, columns = adata.var.index)
-    elif layer:
-         counts_df = pd.DataFrame(adata.layers[layer], index=adata.obs.index, columns = adata.var.index)
-    elif issparse(adata.layers[layer]):
+    if layer:
+        if issparse(adata.layers[layer]):
+            counts_df = pd.DataFrame(adata.layers[layer].toarray(), index=adata.obs.index, columns = adata.var.index)
+        else:
+            counts_df = pd.DataFrame(adata.layers[layer], index=adata.obs.index, columns = adata.var.index)
+    elif issparse(adata.X):
         counts_df = pd.DataFrame(adata.X.toarray(), index=adata.obs.index, columns = adata.var.index)
     else:
         counts_df = pd.DataFrame(adata.X, index=adata.obs.index, columns = adata.var.index)
@@ -82,7 +83,7 @@ def anndata_to_dataframe(
             counts_df = np.expm1(counts_df)
     
     if obs is not None:
-        counts_df.loc[:,obs] = adata.obs[[obs]] if isinstance (obs, str) else adata.obs[obs]
+        counts_df.loc[:,obs] = adata.obs.loc[:,[obs]] if isinstance (obs, str) else adata.obs.loc[:,obs]
     
     return counts_df
 

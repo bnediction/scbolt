@@ -470,9 +470,9 @@ for cluster in ["node_clusters", "condition", "kmeans", "leiden", f"{root}_pseud
     else:
         plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}")
     if args.plot_3d is True and "pseudotime" not in cluster:
-        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}{cluster}_{dr.split('_')[-1].lower()}.fig.pickle"), "wb"))
+        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}{cluster}_{dr.split('_')[-1].lower()}.pkl"), "wb"))
     elif args.plot_3d is True:
-        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}.fig.pickle"), "wb"))
+        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}.pkl"), "wb"))
     else:
         pass
 
