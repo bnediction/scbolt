@@ -18,8 +18,6 @@ install_env() {
     fi
 }
 
-apt-get install texlive dvipng texlive-latex-extra texlive-fonts-recommended
-
 source ${HOME}/anaconda3/etc/profile.d/conda.sh
 
 if conda env list | grep -q "^base";
