@@ -138,25 +138,25 @@ class Predict(object):
                 if nans/total > self.__THRESHOLD.nans:
                     return float("nan")
                 elif zeros/denominator > self.__THRESHOLD.bimodal:
-                    return 0
+                    return int(0)
                 elif ones/denominator > self.__THRESHOLD.bimodal:
-                    return 1
+                    return int(1)
                 else:
                     return float("nan")
             elif category=="ZeroInf":
                 if nans/total > self.__THRESHOLD.nans:
                     return float("nan")
                 elif ones/denominator > self.__THRESHOLD.zeroinf:
-                    return 1
+                    return int(1)
                 else:
-                    return 0
+                    return int(0)
             elif category=="Unimodal":
                 if nans/total > self.__THRESHOLD.nans:
                     return float("nan")
                 elif zeros/denominator > self.__THRESHOLD.unimodal:
-                    return 0
+                    return int(0)
                 elif ones/denominator > self.__THRESHOLD.unimodal:
-                    return 1
+                    return int(1)
             else:
                 raise ValueError(f"Category argument must be `Bimodal`, `ZeroInf` or `Unimodal`, not `{category}`.")
 

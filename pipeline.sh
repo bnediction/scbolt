@@ -159,7 +159,7 @@ python py_src/integration.py \
   --hvg \
   --metric euclidean \
   --k-neighbors 20 \
-  --resolution 0.4 \
+  --resolution 0.37 \
   --add-legend \
   --plot-3d \
   --jobs 6 \
@@ -176,6 +176,15 @@ python py_src/markers.py \
   --logfc-threshold 0.25 \
   --prefix bbknn \
   --verbose
+
+echo -e "${LIGHT_RED}> control + treated samples (rename labels)...${NC}"
+python py_src/cluster_labeling.py \
+  --infile data/scRNA/integration/tables/bbknn.h5ad \
+  --outpath data/scRNA/integration \
+  --column leiden \
+  --name 0=Unknown 1=Rep 2=Prom1 3=Prom2 4=Gran 5=Prom3 \
+  --obsm X_umap \
+  --plot-3d
 
 ### STREAM analysis ###
 

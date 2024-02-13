@@ -408,7 +408,7 @@ def shared_neighbors(
     """
 
     if knn_key not in adata.uns:
-        raise ValueError((
+        raise KeyError((
             "Neighborhood graph not already computed or not finding. "
             "Please use `scanpy.pp.neighbors` function before or "
             "specify `key_added` parameter when scanpy.pp.neighbors has been called, aborting"
@@ -469,9 +469,9 @@ def __default_plot(
     ):
 
         if obs not in adata.obs:
-            raise ValueError(f"adata.obs[{obs}] does not exist, aborting")
+            raise KeyError(f"adata.obs[`{obs}`] does not exist.")
         if obsm not in adata.obsm:
-            raise ValueError(f"adata.obsm[{obsm}] does not exist, aborting")
+            raise KeyError(f"adata.obsm[`{obsm}`] does not exist.")
 
         fig, ax = plot(
             adata,
@@ -554,7 +554,7 @@ def __scatterplot_discrete(
                 s=kwargs["s"] if "s" in kwargs else 3,
                 facecolors=_color,
                 edgecolors="none",
-                alpha=1,
+                alpha=kwargs["alpha"] if "alpha" in kwargs else 1,
                 label=_cluster
             )
         elif n_components==3:
@@ -565,8 +565,8 @@ def __scatterplot_discrete(
                 s=kwargs["s"] if "s" in kwargs else 3,
                 facecolors=_color,
                 edgecolors="none",
-                alpha=1,
-                label=_cluster
+                alpha=kwargs["alpha"] if "alpha" in kwargs else 1,
+                label=_cluster,
             )
 
     if add_legend:
@@ -623,7 +623,7 @@ def __scatterplot_continuous(
             c=adata.obs[obs],
             cmap=_cmap,
             edgecolors="none",
-            alpha=1
+            alpha=kwargs["alpha"] if "alpha" in kwargs else 1
         )
         fig.colorbar(sc)
     elif n_components==3:
@@ -635,7 +635,7 @@ def __scatterplot_continuous(
             c=adata.obs[obs],
             cmap=_cmap,
             edgecolors="none",
-            alpha=1,
+            alpha=kwargs["alpha"] if "alpha" in kwargs else 1
         )
 
     return fig, ax

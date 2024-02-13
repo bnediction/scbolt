@@ -142,8 +142,6 @@ parser.add_argument(
     help="method used for dimension reduction (used only if --use-stream-embedding)"
 )
 
-metavar="LITERAL",
-
 parser.add_argument(
     "--obsm",
     dest="obsm",
@@ -449,6 +447,7 @@ for cluster in ["node_clusters", "condition", "kmeans", "leiden", f"{root}_pseud
         add_text=args.text,
         add_legend=args.legend,
         s=2,
+        alpha=0.3,
         lgd_params={
             "title":"clusters" if cluster != "condition" else "conditions",
             "labels":[string.replace("cluster ","") for string in np.sort(adata.obs[cluster].unique())],
