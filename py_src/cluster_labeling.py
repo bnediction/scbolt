@@ -33,7 +33,7 @@ class Store_dict(argparse.Action):
         namespace,
         values,
         option_string=None
-    ): 
+    ):
         setattr(namespace, self.dest, dict())
         for value in values:
             key, value = value.split("=")
@@ -62,7 +62,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="PATH",
-    help="path to .h5ad file (including file) considered as reference sample"
+    help="path to .h5ad file (including file)"
 )
 
 parser.add_argument(
@@ -133,39 +133,13 @@ if not fig_outpath.exists():
 print(f"Loading data...")
 adata = ad.read_h5ad(args.infile)
 
-print(f"Rename categories")
+print(f"Rename categories...")
 if args.column not in adata.obs:
     raise KeyError(f"adata.obsm[`{args.column}`] does not exist.")
 elif not hasattr(adata.obs[args.column], "cat"):
     raise ValueError("values in adata.obs[`{args.column}`] are not derived from a Categorical type.")
 else:
     adata.obs[args.column] = adata.obs[args.column].cat.rename_categories(args.labels)
-
-if args.obsm:
-    print("Plotting figure...")
-    fig, _ = adt.scatterplot(
-        adata,
-        obs=args.column,
-        obsm=args.obsm,
-        xlabel=r"$\mathrm{UMAP_{1}}$" if args.obsm=="X_umap" else r"$\mathrm{PCA_{1}}$" if args.obsm=="X_pca" else r"$\mathrm{X_{1}}$",
-        ylabel=r"$\mathrm{UMAP_{2}}$" if args.obsm=="X_umap" else r"$\mathrm{PCA_{2}}$" if args.obsm=="X_pca" else r"$\mathrm{X_{2}}$",
-        zlabel=r"$\mathrm{UMAP_{3}}$" if args.obsm=="X_umap" else r"$\mathrm{PCA_{3}}$" if args.obsm=="X_pca" else r"$\mathrm{X_{3}}$",
-        add_legend=True,
-        s=2,
-        lgd_params={
-            "title":"clusters",
-            "ncol":1,
-            "markerscale":5,
-            "frameon":True,
-            "edgecolor":colour.black,
-            "shadow":False
-        },
-        n_components = 3 if adata.obsm[args.obsm].shape[1] > 2 and args.plot_3d is True else 2,
-        background_visible=False
-    )
-    plt.savefig(Path(f"{fig_outpath}/{args.prefix}cluster_labels"))
-    if adata.obsm[args.obsm].shape[1] > 2 and args.plot_3d is True:
-        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}cluster_labels.fig.pickle"), "wb"))
 
 print("Saving data...")
 adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}cluster_labels.h5ad", compression="gzip")

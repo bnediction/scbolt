@@ -186,6 +186,9 @@ python py_src/cluster_labeling.py \
   --obsm X_umap \
   --plot-3d
 
+echo -e "${LIGHT_RED}> control + treated samples (plot figure)...${NC}"
+python py_src/plot_figure.py --json fig/umap_labels.json
+
 ### STREAM analysis ###
 
 title $SIZE "Stream analysis"

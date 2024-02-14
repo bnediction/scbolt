@@ -1,0 +1,47 @@
+{
+    "infile": "data/scRNA/integration/tables/cluster_labels.h5ad",
+    "outfile": "data/scRNA/integration/figures/umap_labels",
+    "modules": [
+        "anndatatools",
+        {"numpy": "np"},
+        {"color_settings": "colour"}
+    ],
+    "eval": [
+        "colors",
+        "xlabel",
+        "ylabel",
+        "zlabel",
+        ["lgd_params", "labels"],
+        ["lgd_params", "edgecolor"]
+    ],
+    "figure": {
+        "obs": "leiden",
+        "obsm": "X_umap",
+        "figheight": 5,
+        "figwidth": 6,
+        "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
+        "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
+        "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
+        "colors": "colour.COLORS",
+        "add_graph": false,
+        "add_text": false,
+        "add_legend": true,
+        "s": 2,
+        "alpha": 1,
+        "lgd_params": {
+            "title": "cluster",
+            "labels": "[string.replace('cluster ','') for string in np.sort(adata.obs['leiden'].unique())]",
+            "ncol": 1,
+            "markerscale": 5,
+            "frameon": true,
+            "edgecolor": "colour.black",
+            "shadow": false
+        },
+        "text": {
+            "fontsize": 12,
+            "fontweight": "extra bold"
+        },
+        "n_components": 3,
+        "background_visible": false
+    }
+}
