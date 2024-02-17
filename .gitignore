@@ -41,6 +41,9 @@ __pycache__/
 *$py.class
 ipython_config.py
 
+### R ###
+.Rhistory
+
 ### C extensions ###
 *.so
 
@@ -59,6 +62,14 @@ launch.json
 settings.json
 jsconfig.json
 tsconfig.json
+
+### TeX ###
+q.log
+*.aux
+*.nav
+*.snm
+*.toc
+*.out
 
 ### Others ###
 !.gitignore

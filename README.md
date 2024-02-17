@@ -1,8 +1,13 @@
-# retinoic acid resistance leukemias
+# Boolean Networks Inference for Explaining Treatment-Resistant Leukemia
 
 # Description
 
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+This project proposes a general methodology for inferring executable models reproducing *in silico*
+the observed cellular dynamics from two conditions/experiences. The result is a semi-automatic software
+pipeline using scRNA-seq and scATAC-seq sequencing data. Here, the project is based on a acute promyelocytic
+leukemia (granulocyte lineage hematopoietic cells remain immature promyelocytic cells and proliferate)
+niche for which the current usual treatment is inefficient: the PLZF-RARA variant which does not
+answer to the retinoic acid treatment.
 
 # Installation
 
@@ -13,11 +18,7 @@ Setup prerequisites must be verified:
 ```sh
 apt-get install texlive dvipng texlive-latex-extra texlive-fonts-recommended
 ```
-2. verify that *Anaconda* package manager is already installed. If not, please install and download it [here](https://www.anaconda.com/download/). Then please use:
-```sh
-conda config --add channels bioconda
-conda config --add channels conda-forge
-```
+2. verify that *Anaconda* package manager is already installed. If not, please install and download it [here](https://www.anaconda.com/download/).
 
 Download and configure project:
 ```sh
@@ -29,6 +30,10 @@ Run the pipeline:
 ```sh
 bash pipeline.sh
 ```
+
+# Pipeline
+
+![boolean network inference pipeline image](.pipeline.png "boolean network inference pipeline")
 
 # License
 
