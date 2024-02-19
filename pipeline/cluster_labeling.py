@@ -4,13 +4,9 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import os, argparse
-import pickle
 from pathlib import Path
 
-import anndata as ad, anndatatools as adt
-
-import matplotlib.pyplot as plt
-import color_settings as colour
+import anndata as ad
 
 class Store_dict(argparse.Action):
 
@@ -53,7 +49,7 @@ parser = argparse.ArgumentParser(
     prog="labeling of clusters",
     description="""From sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
     rename labels using user-defined names.""",
-    usage="""python cluster_labeling.py [-h] -i <PATH> -c <LITERAL> -n <LITERAL=LITERAL [LITERAL=LITERAL ...]> [<args>]"""
+    usage="""python cluster_labeling.py [-h] -i <PATH> -o <PATH> -c <LITERAL> -n <LITERAL=LITERAL [LITERAL=LITERAL ...]> [<args>]"""
 )
 
 parser.add_argument(
@@ -62,27 +58,16 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="PATH",
-    help="path to .h5ad file (including file)"
+    help="path to .h5ad infile (including file)"
 )
 
 parser.add_argument(
-    "-o", "--outpath",
-    dest="outpath",
+    "-o", "--outfile",
+    dest="outfile",
     type=lambda x: Path(x).resolve(),
-    required=False,
-    default=Path("./").resolve(),
+    required=True,
     metavar="PATH",
-    help="output path (default: ./)"
-)
-
-parser.add_argument(
-    "-p", "--prefix",
-    dest="prefix",
-    type=str2prefix,
-    required=False,
-    default="",
-    metavar="LITERAL",
-    help="prefix for each saving file"
+    help="path to .h5ad outfile (including file)"
 )
 
 parser.add_argument(
@@ -112,23 +97,10 @@ parser.add_argument(
     help="""ndarray name stored in .obsm[`obsm`] used for plotting figure."""
 )
 
-parser.add_argument(
-    "--plot-3d",
-    dest="plot_3d",
-    required=False,
-    action="store_true",
-    help="plot figures in three dimensions"
-)
-
 args = parser.parse_args()
 
-data_outpath = Path(f"{args.outpath}/tables")
-fig_outpath = Path(f"{args.outpath}/figures")
-
-if not data_outpath.exists():
-    os.makedirs(data_outpath)
-if not fig_outpath.exists():
-    os.makedirs(fig_outpath)
+if not Path(os.path.dirname(args.outfile)).exists():
+    os.makedirs(Path(os.path.dirname(args.outfile)))
 
 print(f"Loading data...")
 adata = ad.read_h5ad(args.infile)
@@ -142,4 +114,4 @@ else:
     adata.obs[args.column] = adata.obs[args.column].cat.rename_categories(args.labels)
 
 print("Saving data...")
-adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}cluster_labels.h5ad", compression="gzip")
+adata.write_h5ad(filename=args.outfile, compression="gzip")

@@ -38,12 +38,12 @@ mv data/scRNA/raw/ra/*barcodes.tsv.gz data/scRNA/raw/ra/barcodes.tsv.gz
 conda activate preprocess
 
 echo -e "${LIGHT_RED}> control sample (conversion)...${NC}"
-python py_src/load_10X.py -i data/scRNA/raw/ct \
+python pipeline/load_10X.py -i data/scRNA/raw/ct \
   -o data/scRNA/raw/ct/ct.h5ad \
   -s age=adult,date=29-09-2020,sample_name=ctrl,condition=control
 
 echo -e "${LIGHT_RED}> treated sample (conversion)...${NC}"
-python py_src/load_10X.py -i data/scRNA/raw/ra \
+python pipeline/load_10X.py -i data/scRNA/raw/ra \
   -o data/scRNA/raw/ra/ra.h5ad \
   -s age=adult,date=29-09-2020,sample_name=ra,condition=treated
 
@@ -56,24 +56,24 @@ mkdir -p data/public/cycle-phases
 wget --quiet -cO data/public/cycle-phases/mouse_cycle_markers.rds https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
 
 echo -e "${LIGHT_RED}> control sample (filtering)...${NC}"
-python py_src/cell_filtering.py \
+python pipeline/cell_filtering.py \
   --infile data/scRNA/raw/ct/ct.h5ad \
   --marker data/public/cycle-phases/mouse_cycle_markers.rds \
   --outpath data/scRNA/cell_filtering/ct \
   --mitochondrial_threshold 5 \
   --upper-mad 2 \
   --lower-mad 3 \
-  --consistency-mad yes
+  --consistency-mad
 
 echo -e "${LIGHT_RED}> treated sample (filtering)...${NC}"
-python py_src/cell_filtering.py \
+python pipeline/cell_filtering.py \
   --infile data/scRNA/raw/ra/ra.h5ad \
   --marker data/public/cycle-phases/mouse_cycle_markers.rds \
   --outpath data/scRNA/cell_filtering/ra \
   --mitochondrial_threshold 5 \
   --upper-mad 2 \
   --lower-mad 3 \
-  --consistency-mad yes
+  --consistency-mad
 
 ### Cell type signatures ###
 
@@ -85,7 +85,7 @@ wget --quiet -cO data/public/signatures/geiger.xls https://doi.org/10.1371/journ
 wget --quiet -cO data/public/signatures/chambers.xls https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
 
 echo -e "${LIGHT_RED}> signatures (conversion)...${NC}"
-python py_src/load_signatures.py \
+python pipeline/load_signatures.py \
   --table-infile data/public/signatures/chambers.xls \
   --list-infile data/public/signatures/geiger.xls \
   --outfile data/public/signatures/signatures.json
@@ -95,7 +95,7 @@ python py_src/load_signatures.py \
 title $SIZE "Gene filtering and normalization"
 
 echo -e "${LIGHT_RED}> control sample (normalization)...${NC}"
-python py_src/normalization.py \
+python pipeline/normalization.py \
   --infile data/scRNA/cell_filtering/ct/tables/counts.h5ad \
   --outpath data/scRNA/normalizing/ct \
   --correction G2M_score+S_score+G1_score \
@@ -104,7 +104,7 @@ python py_src/normalization.py \
   --jobs 6
 
 echo -e "${LIGHT_RED}> treated sample (normalization)...${NC}"
-python py_src/normalization.py \
+python pipeline/normalization.py \
   --infile data/scRNA/cell_filtering/ra/tables/counts.h5ad \
   --outpath data/scRNA/normalizing/ra \
   --correction G2M_score+S_score+G1_score \
@@ -117,7 +117,7 @@ python py_src/normalization.py \
 title $SIZE "Cell clustering and marker analysis"
 
 echo -e "${LIGHT_RED}> control sample (clustering)...${NC}"
-python py_src/cluster.py \
+python pipeline/cluster.py \
   --infile data/scRNA/normalizing/ct/tables/corrected.h5ad \
   --signatures data/public/signatures/signatures.json \
   --outpath data/scRNA/cluster/ct \
@@ -130,7 +130,7 @@ python py_src/cluster.py \
   --verbose yes
 
 echo -e "${LIGHT_RED}> treated sample (clustering)...${NC}"
-python py_src/cluster.py \
+python pipeline/cluster.py \
   --infile data/scRNA/normalizing/ra/tables/corrected.h5ad \
   --signatures data/public/signatures/signatures.json \
   --outpath data/scRNA/cluster/ra \
@@ -147,7 +147,7 @@ python py_src/cluster.py \
 title $SIZE "Integration"
 
 echo -e "${LIGHT_RED}> control + treated samples (integration)...${NC}"
-python py_src/integration.py \
+python pipeline/integration.py \
   --i1 data/scRNA/normalizing/ct/tables/corrected.h5ad \
   --i2 data/scRNA/normalizing/ra/tables/corrected.h5ad \
   --outpath data/scRNA/integration \
@@ -167,7 +167,7 @@ python py_src/integration.py \
   --verbose
 
 echo -e "${LIGHT_RED}> control + treated samples (cell type analysis)...${NC}"
-python py_src/markers.py \
+python pipeline/markers.py \
   --infile data/scRNA/integration/tables/bbknn.h5ad \
   --signatures data/public/signatures/signatures.json \
   --outpath data/scRNA/markers \
@@ -178,16 +178,15 @@ python py_src/markers.py \
   --verbose
 
 echo -e "${LIGHT_RED}> control + treated samples (rename labels)...${NC}"
-python py_src/cluster_labeling.py \
+python pipeline/cluster_labeling.py \
   --infile data/scRNA/integration/tables/bbknn.h5ad \
-  --outpath data/scRNA/integration \
+  --outfile data/scRNA/integration/tables/bbknn_labels_tmp.h5ad \
   --column leiden \
   --name 0=Unknown 1=Rep 2=Prom1 3=Prom2 4=Gran 5=Prom3 \
-  --obsm X_umap \
-  --plot-3d
+  --obsm X_umap
 
 echo -e "${LIGHT_RED}> control + treated samples (plot figure)...${NC}"
-python py_src/plot_figure.py --json fig/umap_labels.json
+python pipeline/plot_figure.py --json fig/umap_labels.json
 
 ### STREAM analysis ###
 
@@ -197,10 +196,10 @@ conda deactivate
 conda activate stream
 
 echo -e "${LIGHT_RED}> control + treated samples (trajectories)...${NC}"
-python py_src/trajectories.py \
-  --infile data/scRNA/integration/tables/bbknn.h5ad \
+python pipeline/trajectories.py \
+  --infile data/scRNA/integration/tables/bbknn_labels.h5ad \
   --outpath data/scRNA/stream \
-  --root 1 \
+  --root 4 \
   --clusters 6 \
   --lambda 0.05 \
   --mu 0.05 \
@@ -210,7 +209,6 @@ python py_src/trajectories.py \
   --extend-parameter 0.8 \
   --add-legend \
   --add-graph \
-  --add-text \
   --jobs 6 \
   --save-tables \
   --plot-3d

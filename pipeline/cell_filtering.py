@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -11,22 +11,13 @@ import numpy as np, random, math
 import pandas as pd, scanpy as sc, rdata
 from pypairs import pairs
 
-import matplotlib.pyplot as plt, color_settings as color, plot_settings
+import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
+from anndatatools.plotting import color
 
 random.seed(1000)
 
 pd.DataFrame.iteritems = pd.DataFrame.items
-
-def str2bool(v):
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ("yes", "true", "t", "y", "1"):
-        return True
-    elif v.lower() in ("no", "false", "f", "n", "0"):
-        return False
-    else:
-        raise argparse.ArgumentTypeError("Boolean value expected.")
 
 def median_absolute_deviation(x, consistency=False):
     """Compute the mean absolute deviation (MAD),
@@ -55,7 +46,7 @@ parser = argparse.ArgumentParser(
     description="""From sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
     filter low-quality cells and assign cell cycle phases using marker pairs.
     Some quality metrics are computed before and after filtering.""",
-    usage="python cell_filtering.py [<args>]"
+    usage="python cluster.py [-h] --i <path> [<args>]"
 )
 
 parser.add_argument(
@@ -63,6 +54,7 @@ parser.add_argument(
     dest="count_infile",
     type=lambda x: Path(x).resolve(),
     required=True,
+    metavar="PATH",
     help="path to .h5ad file (including file)"
 )
 
@@ -71,6 +63,7 @@ parser.add_argument(
     dest="marker_infile",
     type=lambda x: Path(x).resolve(),
     required=True,
+    metavar="PATH",
     help="path to .rds cell cycle phase markers file (including file)"
 )
 
@@ -80,6 +73,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     default=Path("./").resolve(),
+    metavar="PATH",
     help="output path"
 )
 
@@ -89,6 +83,7 @@ parser.add_argument(
     type=float,
     required=False,
     default=100,
+    metavar="FLOAT",
     help="maximum mitochondria threshold in a cell (value between 0 and 100)"
 )
 
@@ -98,6 +93,7 @@ parser.add_argument(
     type=float,
     required=False,
     default=2,
+    metavar="FLOAT",
     help="factor removing cells for which their count are higher than this factor*MAD with respect to the median count"
 )
 
@@ -107,16 +103,16 @@ parser.add_argument(
     type=float,
     required=False,
     default=2,
+    metavar="FLOAT",
     help="factor removing cells for which their count are lower than this factor*MAD with respect to the median count"
 )
 
 parser.add_argument(
     "-m", "--consistency-mad",
     dest="consistency_mad",
-    type=str2bool,
     required=False,
-    default=False,
-    help="if true, median absolute deviation (MAD) is refactorised for asymptotically normal consistency"
+    action="store_true",
+    help="median absolute deviation (MAD) is refactorised for asymptotically normal consistency"
 )
 
 args = parser.parse_args()

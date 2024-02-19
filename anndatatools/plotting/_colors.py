@@ -1,11 +1,13 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
+
+from typing import Sequence
 
 from itertools import cycle
 
 def rgb(color: list):
     return list(map(lambda x: x/255, color))
 
-def rgb2hex(rgb):
+def rgb2hex(rgb: Sequence):
     r, g, b = rgb
     if isinstance(r, float) and isinstance(g, float) and isinstance(b, float):
         r = round(r*255) if 0<r<1 else int(r)

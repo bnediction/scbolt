@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
 
 from pathlib import Path
 
@@ -14,13 +14,14 @@ parser = argparse.ArgumentParser(
     -- also named coordinate list format -- which corresponds to compressed reordered sparse counting data)\n
     - barcodes.tsv.gz (information about each cell)\n
     - features.tsv.gz (information about each gene)\n""",
-    usage="python load_10X.py -i <inpath>  [<args>]")
+    usage="python load_10X.py -i <path> [<args>]")
 
 parser.add_argument(
     "-i", "--inpath",
     dest="inpath",
     type=lambda x: Path(x).resolve(),
     required=True,
+    metavar="PATH",
     help="directory to the 10X sparse matrix data"
 )
 
@@ -30,6 +31,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     default=Path("./out.h5ad").resolve(),
+    metavar="PATH",
     help="hdf5 output filename"
 )
 

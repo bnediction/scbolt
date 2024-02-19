@@ -139,12 +139,12 @@ for _condition in sorted(adata_d.keys()):
         tie_correct=True,
         corr_method="bonferroni"
     )
-    markers_d[_condition] = adt.extract_rank_genes_groups(
+    markers_d[_condition] = adt.genemarkers.extract_rank_genes_groups(
         adata_d[_condition],
         logfc_keeping=False
     )
     markers_d[_condition] = markers_d[_condition].loc[markers_d[_condition]["adj_pvals"] < 0.05]
-    markers_d[_condition] = adt.update_logfoldchanges(
+    markers_d[_condition] = adt.genemarkers.update_logfoldchanges(
         df=markers_d[_condition],
         adata=adata_d[_condition],
         layer=layer,
@@ -186,7 +186,7 @@ print("Summarizing clusters...")
 info_d = dict()
 for _condition in sorted(adata_d.keys()):
     info_d[_condition] = pd.DataFrame.from_dict(
-        adt.get_info(
+        adt.genemarkers.get_info(
             adata_d[_condition],
             signatures_d,
             markers_d[_condition],

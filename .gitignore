@@ -73,8 +73,12 @@ q.log
 
 ### Others ###
 !.gitignore
+!.placeholder
 .*
 *.log
 logs/
 *test*/
 *debug*/
+
+### Related-repository ###
+!.pipeline.png

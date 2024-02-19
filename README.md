@@ -33,7 +33,7 @@ bash pipeline.sh
 
 # Pipeline
 
-![boolean network inference pipeline image](.pipeline.png "boolean network inference pipeline")
+<img src=".pipeline.png" alt="boolean network inference pipeline image" width="600"/>
 
 # License
 

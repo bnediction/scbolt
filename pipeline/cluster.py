@@ -14,9 +14,10 @@ import numpy as np, math
 import pandas as pd, anndata as ad, scanpy as sc, json
 import anndatatools as adt
 
-import matplotlib.pyplot as plt, color_settings as colour, plot_settings
+import matplotlib.pyplot as plt
+from anndatatools import color_settings as colour, plot_settings
 from matplotlib.ticker import FormatStrFormatter
-from color_settings import color_cycle
+from anndatatools.color_settings import color_cycle
 
 def str2prefix(v: str):
     if v is None:
@@ -192,7 +193,7 @@ print(f"Clustering...")
 knn_key = "knn"
 snn_key = "snn"
 sc.pp.neighbors(adata, n_neighbors=args.k_neighbors, n_pcs=args.n_dimensions, key_added=knn_key, copy=False)
-adt.shared_neighbors(adata, knn_key=knn_key, snn_key=snn_key, prune_snn = 1/15, copy=False)
+adt.neighborgraph.shared_neighbors(adata, knn_key=knn_key, snn_key=snn_key, prune_snn = 1/15, copy=False)
 
 for resolution in resolutions:
     sc.tl.leiden(adata, resolution=resolution, neighbors_key=knn_key, key_added=f"leiden_{resolution}")
@@ -294,12 +295,12 @@ sc.tl.rank_genes_groups(
     tie_correct=True,
     corr_method="bonferroni"
 )
-markers_df = adt.extract_rank_genes_groups(
+markers_df = adt.genemarkers.extract_rank_genes_groups(
     adata,
     logfc_keeping=False
 )
 markers_df = markers_df.loc[markers_df["adj_pvals"] < 0.05]
-markers_df = adt.update_logfoldchanges(
+markers_df = adt.genemarkers.update_logfoldchanges(
     markers_df,
     adata,
     groupby,
@@ -335,7 +336,7 @@ for cell_type, signature in signatures_d.items():
 
 print("Summarizing clusters...")
 
-clust_info_d = adt.get_info(adata, signatures_d, markers_df, groupby=groupby)
+clust_info_d = adt.genemarkers.get_info(adata, signatures_d, markers_df, groupby=groupby)
 clust_info_df = pd.DataFrame.from_dict(clust_info_d, orient="index")
 
 print("Saving data...")

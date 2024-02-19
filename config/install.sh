@@ -1,6 +1,7 @@
 #!/bin/bash
 
 [ -d "config" ] && config_dir="config/" || config_dir=""
+[ -d "anndatatools" ] && dev_dir="." || dev_dir=".."
 
 install_env() {
     if conda env list | grep -q "^$1 ";
@@ -10,11 +11,13 @@ install_env() {
         then
             conda remove --name $1 --all --yes
             conda env create -f ${config_dir}$1.yml --force
+            if [[ "$1" =~ ^(preprocess|stream|binarization)$ ]]; then conda develop --name $1 $dev_dir; fi
         else
             echo "$1 environment not reinstalled."
         fi
     else
         conda env create -f ${config_dir}$1.yml
+        if [[ "$1" =~ ^(preprocess|stream|binarization)$ ]]; then conda develop --name $1 $adt_dir; fi
     fi
 }
 

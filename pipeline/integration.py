@@ -16,7 +16,7 @@ import scanpy as sc
 import scanorama
 
 import matplotlib.pyplot as plt
-import color_settings as colour
+from anndatatools import color_settings as colour
 
 class Section(object):
 
@@ -382,7 +382,7 @@ if args.method=="ingest" or args.method=="all":
     )
 
     section("Plot of embedding components...")
-    adt.scatterplot(
+    adt.visualization.dimplot(
         adata,
         obs="condition",
         obsm="X_pca",
@@ -402,7 +402,7 @@ if args.method=="ingest" or args.method=="all":
         }
     )
     for cluster in ["condition", "leiden"]:
-        fig, _ = adt.scatterplot(
+        fig, _ = adt.visualization.dimplot(
             adata,
             obs=cluster,
             obsm="X_umap",
@@ -499,7 +499,7 @@ if args.method=="bbknn" or args.method=="all":
     )
 
     section("Plot of embedding components...")
-    adt.scatterplot(
+    adt.visualization.dimplot(
         adata,
         obs="condition",
         obsm="X_pca",
@@ -518,7 +518,7 @@ if args.method=="bbknn" or args.method=="all":
         },
     )
     for cluster in ["condition", "leiden"]:
-        fig, _ = adt.scatterplot(
+        fig, _ = adt.visualization.dimplot(
             adata,
             obs=cluster,
             obsm="X_umap",
@@ -526,6 +526,7 @@ if args.method=="bbknn" or args.method=="all":
             ylabel=r"$\mathrm{UMAP_{2}}$",
             zlabel=r"$\mathrm{UMAP_{3}}$",
             add_legend=args.legend,
+            figwidth=6,
             s=2,
             lgd_params={
                 "title":"clusters" if cluster != "condition" else "conditions",
@@ -593,7 +594,7 @@ if args.method=="scanorama" or args.method=="all":
     )
 
     section("Plot of embedding components...")
-    adt.scatterplot(
+    adt.visualization.dimplot(
         adata,
         obs="condition",
         obsm="X_pca",
@@ -613,7 +614,7 @@ if args.method=="scanorama" or args.method=="all":
         }
     )
     for cluster in ["condition", "leiden"]:
-        fig, _ = adt.scatterplot(
+        fig, _ = adt.visualization.dimplot(
             adata,
             obs=cluster,
             obsm="X_umap",

@@ -16,7 +16,8 @@ from scipy.sparse import issparse
 import networkx
 import rpy2
 
-import matplotlib.pyplot as plt, color_settings as colour, plot_settings as ps
+import matplotlib.pyplot as plt
+from anndatatools import color_settings as colour, plot_settings as ps
 
 @contextlib.contextmanager
 def disable_print():
@@ -436,18 +437,20 @@ for node in nodes_mapping.keys():
 print("Plotting trajectories...")
 
 for cluster in ["node_clusters", "condition", "kmeans", "leiden", f"{root}_pseudotime"]:
-    fig, ax = adt.scatterplot(
+    fig, ax = adt.visualization.dimplot(
         adata,
         obs=cluster,
         obsm=dr,
-        colors=colour.COLORS[0:len(nodes_mapping)] + [colour.lightgray] if cluster == "node_clusters" else None,
+        colors=[colour.blue]*(len(nodes_mapping)) + [colour.lightgray] if cluster == "node_clusters" else None,
         xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
+        zlabel=r"$\mathrm{UMAP_{3}}$" if dr == "X_umap" else r"$\mathrm{x_{3}^{\mathrm{scanorama}}}$",
         add_graph=args.graph,
         add_text=args.text,
         add_legend=args.legend,
+        figwidth=6 if args.legend else 5,
         s=2,
-        alpha=0.3,
+        alpha=0.8,
         lgd_params={
             "title":"clusters" if cluster != "condition" else "conditions",
             "labels":[string.replace("cluster ","") for string in np.sort(adata.obs[cluster].unique())],
@@ -465,13 +468,13 @@ for cluster in ["node_clusters", "condition", "kmeans", "leiden", f"{root}_pseud
     )
     ps.set_default(ax)
     if "pseudotime" not in cluster:
-        plt.savefig(f"{fig_outpath}/{args.prefix}{cluster}_{dr.split('_')[-1].lower()}")
+        plt.savefig(f"{fig_outpath}/{args.prefix}{cluster}_{dr.split('_')[-1].lower()}_trajectory_plot")
     else:
-        plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}")
+        plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}_trajectory_plot")
     if args.plot_3d is True and "pseudotime" not in cluster:
-        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}{cluster}_{dr.split('_')[-1].lower()}.pkl"), "wb"))
+        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}{cluster}_{dr.split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))
     elif args.plot_3d is True:
-        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}.pkl"), "wb"))
+        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))
     else:
         pass
 

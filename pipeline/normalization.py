@@ -13,22 +13,41 @@ import scanpy as sc
 import numpy as np
 from sklearn.linear_model import LinearRegression
 
-import matplotlib.pyplot as plt, color_settings as colour, plot_settings
+import matplotlib.pyplot as plt
+from anndatatools.plotting import (
+    fig,
+    color
+)
+
+class Range(argparse.Action):
+    
+    def __init__(
+        self,
+        min=None,
+        max=None,
+        *args,
+        **kwargs
+    ):
+        self.min = min
+        self.max = max
+        kwargs["metavar"] = f"[{self.min}-{self.max}]"
+        super(Range, self).__init__(*args, **kwargs)
+
+    def __call__(
+        self,
+        parser,
+        namespace,
+        value,
+        option_string=None
+    ):
+        if not (self.min <= value <= self.max):
+            raise argparse.ArgumentError(self, f"value {value} not in range [{self.min}-{self.max}].")
+        setattr(namespace, self.dest, value)
 
 def str2prefix(v: str):
     if v:
         v = v if v[-1] in ["-","_"] else v + "_"
     return v
-
-def str2bool(v: str):
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ("yes", "true", "t", "y", "1"):
-        return True
-    elif v.lower() in ("no", "false", "f", "n", "0"):
-        return False
-    else:
-        raise argparse.ArgumentTypeError("Boolean value expected.")
 
 def regress_out_feature(interest, regressors, intercept=False, n_jobs=1):
 
@@ -70,7 +89,7 @@ parser = argparse.ArgumentParser(
     filter low-quality genes (gene poorly expressed and no HVG),
     normalize data with respect to the depth library, scale data
     and correct batch effects.""",
-    usage="python normalization.py [<args>]"
+    usage="python normalization.py -i <path> [<args>]"
 )
 
 parser.add_argument(
@@ -78,6 +97,7 @@ parser.add_argument(
     dest="infile",
     type=lambda x: Path(x).resolve(),
     required=True,
+    metavar="PATH",
     help="path to .h5ad file (including file)"
 )
 
@@ -87,6 +107,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     default=Path("./").resolve(),
+    metavar="PATH",
     help="output path"
 )
 
@@ -96,15 +117,18 @@ parser.add_argument(
     type=str2prefix,
     required=False,
     default="",
+    metavar="LITERAL",
     help="prefix for each saving file"
 )
 
 parser.add_argument(
     "-c", "--correction",
     dest="correction",
-    type=lambda x: x.split("+"),
+    type=str,
     required=False,
+    nargs="+",
     default=["G2M_score", "S_score", "G1_score"],
+    metavar="LITERAL",
     help="batch effect to correct (ex: 'G2M_score+S_score+G1_score')"
 )
 
@@ -113,17 +137,20 @@ parser.add_argument(
     dest="min_cell_expression_proportion",
     type=float,
     required=False,
+    min=0,
+    max=1,
+    action=Range,
     default=0.001,
+    metavar="[0-1]",
     help="remove gene for which the proportion of expressed cells is inferior to the given value (between 0 and 1, default=0.001)"
 )
 
 parser.add_argument(
     "-f", "--hvg-filtering",
     dest="hvg_filtering",
-    type=str2bool,
     required=False,
-    default=False,
-    help="remove gene for which the proportion of expressed cells is inferior to the given value (between 0 and 1, default=0.001)"
+    action="store_true",
+    help="remove highly variables genes (HVG)"
 )
 
 parser.add_argument(
@@ -132,6 +159,7 @@ parser.add_argument(
     type=int,
     required=False,
     default=1,
+    metavar="INT",
     help="number of process to use"
 )
 
@@ -165,8 +193,8 @@ if args.min_cell_expression_proportion:
         ["before filtering", "after filtering"], _k,
         width=0.8,
         linewidth=2,
-        color=colour.pink,
-        edgecolor=colour.red
+        color=color.pink,
+        edgecolor=color.red
     )
     ax.update({"xmargin": 0.1})
     plt.savefig(f"{fig_outpath}/gene-number.png")

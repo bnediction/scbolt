@@ -11,8 +11,9 @@ from pathlib import Path
 
 import anndata as ad, anndatatools as adt
 
-import matplotlib.pyplot as plt, plot_settings as ps
-import color_settings as colour
+from anndatatools import plot_settings as ps
+from anndatatools import color_settings as colour
+import matplotlib.pyplot as plt
 
 def import_module_as(module, alias):
     module = importlib.import_module(module)
@@ -101,11 +102,13 @@ if "modules" in params:
 if "eval" in params:
     do_eval(params["eval"], params["figure"])
 
-fig, ax = adt.scatterplot(
+fig, ax = adt.visualization.dimplot(
     adata,
     **params["figure"]
 )
 ps.set_default(ax)
+#plt.grid(False)
+#plt.axis('off')
 plt.savefig(outfile)
 if "n_components" in params["figure"]:
     if params["figure"]["n_components"] == 3:
