@@ -1,10 +1,9 @@
 {
-    "infile": "data/scRNA/integration/tables/cluster_labels.h5ad",
-    "outfile": "data/scRNA/integration/figures/umap_labels",
+    "infile": "data/scRNA/integration/tables/bbknn_labels.h5ad",
+    "outfile": "data/scRNA/integration/figures/bbknn_umap_labels",
     "modules": [
-        "anndatatools",
         {"numpy": "np"},
-        {"color_settings": "colour"}
+        {"anndatatools": "adt"}
     ],
     "eval": [
         "colors",
@@ -22,19 +21,19 @@
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "colors": "colour.COLORS",
+        "colors": "adt.pl.color.COLORS",
         "add_graph": false,
         "add_text": false,
         "add_legend": true,
         "s": 2,
         "alpha": 1,
         "lgd_params": {
-            "title": "cluster",
+            "title": "clusters",
             "labels": "[string.replace('cluster ','') for string in np.sort(adata.obs['leiden'].unique())]",
             "ncol": 1,
             "markerscale": 5,
             "frameon": true,
-            "edgecolor": "colour.black",
+            "edgecolor": "adt.pl.color.black",
             "shadow": false
         },
         "text": {

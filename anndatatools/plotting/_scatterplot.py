@@ -102,7 +102,7 @@ def __scatterplot_discrete(
         add_legend = False
     
     if not colors:
-        colors = _colors.color_cycle
+        colors = _colors.COLORS
     
     fig = plt.figure()
     ax = plt.axes(projection = "rectilinear" if n_components == 2 else "3d")
@@ -212,7 +212,7 @@ def __graph_to_plot(
     **kwargs
     ):
 
-    if nx not in globals():
+    if "nx" not in locals():
         import networkx as nx
 
     if ax is None:
@@ -251,7 +251,7 @@ def __text_to_plot(
     **kwargs
     ):
 
-    if nx not in globals():
+    if "nx" not in locals():
         import networkx as nx
 
     if ax is None:

@@ -3,9 +3,11 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os, contextlib, argparse
+import os, argparse
 import pickle
 from pathlib import Path
+from utils.argtype import Store_prefix, Range
+from utils.stdout import disable_print
 
 import pandas as pd
 import anndata as ad, anndatatools as adt, stream as st
@@ -17,52 +19,7 @@ import networkx
 import rpy2
 
 import matplotlib.pyplot as plt
-from anndatatools import color_settings as colour, plot_settings as ps
-
-@contextlib.contextmanager
-def disable_print():
-    with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
-        yield
-
-class Range(argparse.Action):
-    
-    def __init__(
-        self,
-        min=None,
-        max=None,
-        *args,
-        **kwargs
-    ):
-        self.min = min
-        self.max = max
-        kwargs["metavar"] = f"[{self.min}-{self.max}]"
-        super(Range, self).__init__(*args, **kwargs)
-
-    def __call__(
-        self,
-        parser,
-        namespace,
-        value,
-        option_string=None
-    ):
-        if not (self.min <= value <= self.max):
-            raise argparse.ArgumentError(self, f"value {value} not in range [{self.min}-{self.max}].")
-        setattr(namespace, self.dest, value)
-
-def str2prefix(v: str):
-    if v:
-        v = v if v[-1] in ["-","_"] else v + "_"
-    return v
-
-def str2bool(v: str):
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ("yes", "true", "t", "y", "1"):
-        return True
-    elif v.lower() in ("no", "false", "f", "n", "0"):
-        return False
-    else:
-        raise argparse.ArgumentTypeError("Boolean value expected.")
+from anndatatools.plotting import color
 
 parser = argparse.ArgumentParser(
     prog="trajectory inference of sc-RNAseq data",
@@ -94,7 +51,7 @@ parser.add_argument(
 parser.add_argument(
     "-p", "--prefix",
     dest="prefix",
-    type=str2prefix,
+    action=Store_prefix,
     required=False,
     default="",
     metavar="LITERAL",
@@ -116,7 +73,7 @@ parser.add_argument(
     required=False,
     choices=["h5ad", "pkl"],
     default="h5ad",
-    metavar="h5ad | pkl",
+    metavar="[h5ad | pkl]",
     help="file extension of saved anndata object (default: h5ad)"
 )
 
@@ -267,12 +224,11 @@ parser.add_argument(
     "--extend-parameter",
     dest="extend_parameter",
     type=float,
-    required=False,
+    action=Range,
     min=0,
     max=1,
-    action=Range,
+    required=False,
     default=0.5,
-    metavar="[0-1]",
     help="parameter value used to extend the leaves (used only if --extend-leaf-nodes, default: 0.5)"
 )
 
@@ -437,11 +393,11 @@ for node in nodes_mapping.keys():
 print("Plotting trajectories...")
 
 for cluster in ["node_clusters", "condition", "kmeans", "leiden", f"{root}_pseudotime"]:
-    fig, ax = adt.visualization.dimplot(
+    fig, ax = adt.pl.embedding_plot(
         adata,
         obs=cluster,
         obsm=dr,
-        colors=[colour.blue]*(len(nodes_mapping)) + [colour.lightgray] if cluster == "node_clusters" else None,
+        colors=[color.blue]*(len(nodes_mapping)) + [color.lightgray] if cluster == "node_clusters" else None,
         xlabel=r"$\mathrm{UMAP_{1}}$" if dr == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$" if dr == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
         zlabel=r"$\mathrm{UMAP_{3}}$" if dr == "X_umap" else r"$\mathrm{x_{3}^{\mathrm{scanorama}}}$",
@@ -450,12 +406,12 @@ for cluster in ["node_clusters", "condition", "kmeans", "leiden", f"{root}_pseud
         add_legend=args.legend,
         figwidth=6 if args.legend else 5,
         s=2,
-        alpha=0.8,
+        alpha=0.7,
         lgd_params={
             "title":"clusters" if cluster != "condition" else "conditions",
             "labels":[string.replace("cluster ","") for string in np.sort(adata.obs[cluster].unique())],
             "ncol":1,
-            "markerscale":2.5,
+            "markerscale":5,
             "frameon":True,
             "shadow":False
         } if not pd.api.types.is_float_dtype(adata.obs[cluster]) else None,
@@ -466,7 +422,7 @@ for cluster in ["node_clusters", "condition", "kmeans", "leiden", f"{root}_pseud
         n_components = 3 if args.plot_3d is True else 2,
         background_visible=False
     )
-    ps.set_default(ax)
+    adt.pl.set_default(ax)
     if "pseudotime" not in cluster:
         plt.savefig(f"{fig_outpath}/{args.prefix}{cluster}_{dr.split('_')[-1].lower()}_trajectory_plot")
     else:
@@ -487,7 +443,7 @@ st.plot_stream(
     save_fig=False,
 )
 fig, ax = (plt.gcf(), plt.gca())
-ps.set_default(ax)
+adt.pl.set_default(ax)
 ax.tick_params(axis="x", which="major", pad=2)
 ax.images[-1].colorbar.remove()
 plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_stream_plot")
@@ -503,9 +459,9 @@ for cluster in ["condition", "kmeans", "leiden"]:
     )
     fig, ax = (plt.gcf(), plt.gca())
     ax.tick_params(axis="x", which="major", pad=2)
-    ps.set_default(ax)
+    adt.pl.set_default(ax)
     for idx, patch in enumerate(ax.patches):
-        patch.set_color(colour.COLORS[idx])
+        patch.set_color(color.COLORS[idx])
         patch.set_alpha(1)
     ax.legend(
         [string.replace("cluster ","") for string in np.sort(adata.obs[cluster].unique())],
@@ -535,4 +491,4 @@ if args.save_tables:
                 del adata.uns[key]
         adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}stream.h5ad", compression="gzip")
     elif args.extension == "pkl":
-        st.write(adata, file_name=f"{data_outpath}/{args.prefix}stream.pkl")
+        st.write(adata, file_name=f"{data_outpath}/{args.prefix}stream.h5ad.pkl")

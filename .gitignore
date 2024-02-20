@@ -79,6 +79,9 @@ q.log
 logs/
 *test*/
 *debug*/
+*tmp*
+*tmp/
 
 ### Related-repository ###
 !.pipeline.png
+supplemental

@@ -1,33 +1,14 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
 
 import warnings
 warnings.filterwarnings("ignore")
 
 import os, argparse
 from pathlib import Path
+from utils.argtype import Store_prefix
 
 import pandas as pd, scanpy as sc, json
 import anndatatools as adt
-
-def str2prefix(v: str):
-    if v is None:
-        return ""
-    elif isinstance(v, str):
-        if v:
-            v = v if v[-1] in ["-","_"] else v + "_"
-        return v
-    else:
-        raise argparse.ArgumentTypeError("String value expected.")
-
-def str2bool(v: str):
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ("yes", "true", "t", "y", "1"):
-        return True
-    elif v.lower() in ("no", "false", "f", "n", "0"):
-        return False
-    else:
-        raise argparse.ArgumentTypeError("Boolean value expected.")
 
 parser = argparse.ArgumentParser(
     prog="Cell type analysis of sc-RNAseq data",
@@ -68,7 +49,7 @@ parser.add_argument(
 parser.add_argument(
     "-p", "--prefix",
     dest="prefix",
-    type=str2prefix,
+    action=Store_prefix,
     required=False,
     default="",
     metavar="LITERAL",
@@ -139,12 +120,12 @@ for _condition in sorted(adata_d.keys()):
         tie_correct=True,
         corr_method="bonferroni"
     )
-    markers_d[_condition] = adt.genemarkers.extract_rank_genes_groups(
+    markers_d[_condition] = adt.tl.extract_rank_genes_groups(
         adata_d[_condition],
         logfc_keeping=False
     )
     markers_d[_condition] = markers_d[_condition].loc[markers_d[_condition]["adj_pvals"] < 0.05]
-    markers_d[_condition] = adt.genemarkers.update_logfoldchanges(
+    markers_d[_condition] = adt.tl.update_logfoldchanges(
         df=markers_d[_condition],
         adata=adata_d[_condition],
         layer=layer,
@@ -186,7 +167,7 @@ print("Summarizing clusters...")
 info_d = dict()
 for _condition in sorted(adata_d.keys()):
     info_d[_condition] = pd.DataFrame.from_dict(
-        adt.genemarkers.get_info(
+        adt.tl.get_info(
             adata_d[_condition],
             signatures_d,
             markers_d[_condition],

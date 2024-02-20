@@ -11,9 +11,8 @@ from pathlib import Path
 
 import anndata as ad, anndatatools as adt
 
-from anndatatools import plot_settings as ps
-from anndatatools import color_settings as colour
 import matplotlib.pyplot as plt
+from anndatatools.plotting import fig
 
 def import_module_as(module, alias):
     module = importlib.import_module(module)
@@ -102,14 +101,15 @@ if "modules" in params:
 if "eval" in params:
     do_eval(params["eval"], params["figure"])
 
-fig, ax = adt.visualization.dimplot(
+fig, ax = adt.pl.embedding_plot(
     adata,
     **params["figure"]
 )
-ps.set_default(ax)
+adt.pl.set_default(ax)
 #plt.grid(False)
 #plt.axis('off')
 plt.savefig(outfile)
 if "n_components" in params["figure"]:
     if params["figure"]["n_components"] == 3:
         pickle.dump(fig, open(Path(f"{outfile}.fig.pickle"), "wb"))
+plt.close()

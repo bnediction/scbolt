@@ -8,7 +8,7 @@ random.seed(100)
 
 import os, argparse
 from pathlib import Path
-from argtype import Str2prefix
+from utils.argtype import Store_prefix
 
 import numpy as np, math
 
@@ -23,16 +23,6 @@ from anndatatools.plotting import (
     color_cycle
 )
 
-def str2bool(v: str):
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ("yes", "true", "t", "y", "1"):
-        return True
-    elif v.lower() in ("no", "false", "f", "n", "0"):
-        return False
-    else:
-        raise argparse.ArgumentTypeError("Boolean value expected.")
-
 parser = argparse.ArgumentParser(
     prog="Clusterization of sc-RNAseq data",
     description="""From one-condition sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
@@ -40,7 +30,7 @@ parser = argparse.ArgumentParser(
     run t-SNE and UMAP algorithm, search for gene markers and compare markers and
     signatures in order to provide useful information about potential cell-types
     of each cluster.""",
-    usage="python cluster.py [<args>]"
+    usage="python cluster.py -i <path> -s <path> [<args>]"
 )
 
 parser.add_argument(
@@ -74,7 +64,7 @@ parser.add_argument(
 parser.add_argument(
     "-p", "--prefix",
     dest="prefix",
-    action=Str2prefix,
+    action=Store_prefix,
     required=False,
     default="",
     help="prefix for each saving file"

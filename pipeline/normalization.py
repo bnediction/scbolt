@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -8,6 +8,7 @@ random.seed(100)
 
 import os, argparse
 from pathlib import Path
+from utils.argtype import Range, Store_prefix
 
 import scanpy as sc
 import numpy as np
@@ -19,35 +20,6 @@ from anndatatools.plotting import (
     color
 )
 
-class Range(argparse.Action):
-    
-    def __init__(
-        self,
-        min=None,
-        max=None,
-        *args,
-        **kwargs
-    ):
-        self.min = min
-        self.max = max
-        kwargs["metavar"] = f"[{self.min}-{self.max}]"
-        super(Range, self).__init__(*args, **kwargs)
-
-    def __call__(
-        self,
-        parser,
-        namespace,
-        value,
-        option_string=None
-    ):
-        if not (self.min <= value <= self.max):
-            raise argparse.ArgumentError(self, f"value {value} not in range [{self.min}-{self.max}].")
-        setattr(namespace, self.dest, value)
-
-def str2prefix(v: str):
-    if v:
-        v = v if v[-1] in ["-","_"] else v + "_"
-    return v
 
 def regress_out_feature(interest, regressors, intercept=False, n_jobs=1):
 
@@ -88,7 +60,7 @@ parser = argparse.ArgumentParser(
     description="""From one-condition sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
     filter low-quality genes (gene poorly expressed and no HVG),
     normalize data with respect to the depth library, scale data
-    and correct batch effects.""",
+    and correct unwanted effects.""",
     usage="python normalization.py -i <path> [<args>]"
 )
 
@@ -114,10 +86,8 @@ parser.add_argument(
 parser.add_argument(
     "-p", "--prefix",
     dest="prefix",
-    type=str2prefix,
     required=False,
-    default="",
-    metavar="LITERAL",
+    action=Store_prefix,
     help="prefix for each saving file"
 )
 
@@ -129,20 +99,19 @@ parser.add_argument(
     nargs="+",
     default=["G2M_score", "S_score", "G1_score"],
     metavar="LITERAL",
-    help="batch effect to correct (ex: 'G2M_score+S_score+G1_score')"
+    help="unwanted effects to correct (default = [`G2M_score`, `S_score`, `G1_score`])"
 )
 
 parser.add_argument(
     "-m", "--min-cell-expression-proportion",
     dest="min_cell_expression_proportion",
     type=float,
-    required=False,
+    action=Range,
     min=0,
     max=1,
-    action=Range,
+    required=False,
     default=0.001,
-    metavar="[0-1]",
-    help="remove gene for which the proportion of expressed cells is inferior to the given value (between 0 and 1, default=0.001)"
+    help="remove gene for which the proportion of expressed cells is inferior to the given value (default = 0.001)"
 )
 
 parser.add_argument(
@@ -150,7 +119,7 @@ parser.add_argument(
     dest="hvg_filtering",
     required=False,
     action="store_true",
-    help="remove highly variables genes (HVG)"
+    help="remove highly variable genes (HVG)"
 )
 
 parser.add_argument(
@@ -160,7 +129,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of process to use"
+    help="number of used process"
 )
 
 args = parser.parse_args()
@@ -218,7 +187,7 @@ print(f"Scaling data...")
 adata.layers["scale"] = adata.layers["log-normalize"].copy()
 sc.pp.scale(adata, layer="scale", copy=False)
 
-print(f"Correcting batch (unwanted) effects and scaling data...")
+print(f"Correcting unwanted effects and scaling data...")
 
 adata.layers["correct"] = regress_out(adata, args.correction, layer="log-normalize", intercept=False, n_jobs=args.n_jobs)
 sc.pp.scale(adata, layer="correct")

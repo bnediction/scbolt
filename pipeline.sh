@@ -38,12 +38,12 @@ mv data/scRNA/raw/ra/*barcodes.tsv.gz data/scRNA/raw/ra/barcodes.tsv.gz
 conda activate preprocess
 
 echo -e "${LIGHT_RED}> control sample (conversion)...${NC}"
-python pipeline/load_10X.py -i data/scRNA/raw/ct \
+python pipeline/utils/cli/load_10X.py -i data/scRNA/raw/ct \
   -o data/scRNA/raw/ct/ct.h5ad \
   -s age=adult,date=29-09-2020,sample_name=ctrl,condition=control
 
 echo -e "${LIGHT_RED}> treated sample (conversion)...${NC}"
-python pipeline/load_10X.py -i data/scRNA/raw/ra \
+python pipeline/utils/cli/load_10X.py -i data/scRNA/raw/ra \
   -o data/scRNA/raw/ra/ra.h5ad \
   -s age=adult,date=29-09-2020,sample_name=ra,condition=treated
 
@@ -85,7 +85,7 @@ wget --quiet -cO data/public/signatures/geiger.xls https://doi.org/10.1371/journ
 wget --quiet -cO data/public/signatures/chambers.xls https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
 
 echo -e "${LIGHT_RED}> signatures (conversion)...${NC}"
-python pipeline/load_signatures.py \
+python pipeline/utils/cli/load_signatures.py \
   --table-infile data/public/signatures/chambers.xls \
   --list-infile data/public/signatures/geiger.xls \
   --outfile data/public/signatures/signatures.json
@@ -146,8 +146,8 @@ title $SIZE "Integration"
 
 echo -e "${LIGHT_RED}> control + treated samples (integration)...${NC}"
 python pipeline/integration.py \
-  --i1 data/scRNA/normalizing/ct/tables/corrected.h5ad \
-  --i2 data/scRNA/normalizing/ra/tables/corrected.h5ad \
+  --i1 data/scRNA/normalization/ct/tables/corrected.h5ad \
+  --i2 data/scRNA/normalization/ra/tables/corrected.h5ad \
   --outpath data/scRNA/integration \
   --label condition \
   --method bbknn \
@@ -157,7 +157,7 @@ python pipeline/integration.py \
   --hvg \
   --metric euclidean \
   --k-neighbors 20 \
-  --resolution 0.37 \
+  --resolution 0.38 \
   --add-legend \
   --plot-3d \
   --jobs 6 \
@@ -184,7 +184,7 @@ python pipeline/cluster_labeling.py \
   --obsm X_umap
 
 echo -e "${LIGHT_RED}> control + treated samples (plot figure)...${NC}"
-python pipeline/plot_figure.py --json fig/umap_labels.json
+python fig/plot_embedding.py --json fig/umap_labels.json
 
 ### STREAM analysis ###
 

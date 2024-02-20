@@ -1,53 +1,17 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
 
 import warnings
 warnings.filterwarnings("ignore")
 
 import os, argparse
 from pathlib import Path
+from utils.argtype import Store_dict
 
 import anndata as ad
 
-class Store_dict(argparse.Action):
-
-    def __init__(
-        self,
-        typevar: type = str,
-        *args,
-        **kwargs
-    ):
-        if typevar == str:
-            strvar = "LITERAL"
-        else:
-            strvar = typevar.__name__.upper()
-        kwargs["metavar"] = f"{strvar}={strvar}"
-        super(Store_dict, self).__init__(*args, **kwargs)
-
-    def __call__(
-        self,
-        parser,
-        namespace,
-        values,
-        option_string=None
-    ):
-        setattr(namespace, self.dest, dict())
-        for value in values:
-            key, value = value.split("=")
-            getattr(namespace, self.dest)[key] = value
-
-def str2prefix(v: str):
-    if v is None:
-        v = ""
-    elif isinstance(v, str):
-        if v:
-            v = v if v[-1] in ["-","_"] else v + "_"
-    else:
-        raise argparse.ArgumentTypeError("String value expected.")
-    return v
-
 parser = argparse.ArgumentParser(
     prog="labeling of clusters",
-    description="""From sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
+    description="""From sc-rnaSeq data recorded in the hdf5 format,
     rename labels using user-defined names.""",
     usage="""python cluster_labeling.py [-h] -i <PATH> -o <PATH> -c <LITERAL> -n <LITERAL=LITERAL [LITERAL=LITERAL ...]> [<args>]"""
 )
@@ -76,15 +40,15 @@ parser.add_argument(
     type=str,
     required=True,
     metavar="LITERAL",
-    help="name of the column in adata.obs from which user want to redifine category names."
+    help="name of the column in adata.obs from which user want to redefine category names"
 )
 
 parser.add_argument(
     "-n", "--name",
     dest="labels",
+    action=Store_dict,
     required=True,
     nargs="+",
-    action=Store_dict,
     help="mapping between old and new names for labels"
 )
 
@@ -94,7 +58,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="""ndarray name stored in .obsm[`obsm`] used for plotting figure."""
+    help="""ndarray name stored in .obsm[`obsm`] used for plotting figure"""
 )
 
 args = parser.parse_args()

@@ -6,8 +6,9 @@ warnings.filterwarnings("ignore")
 from typing import Optional, Union
 from collections import namedtuple
 
-import os, contextlib, argparse
+import os, argparse
 from pathlib import Path
+from utils.stdout import disable_print, Section
 
 import pandas as pd
 import anndata as ad, anndatatools as adt
@@ -15,43 +16,6 @@ import anndata as ad, anndatatools as adt
 import numpy as np
 
 from scboolseq import scBoolSeq
-
-class Section(object):
-
-    def __init__(
-        self,
-        init: int = 1,
-        verbose: bool = True
-    ):
-        self.init = init
-        self._i = init
-        self._verbose = verbose
-    
-    def __call__(
-        self,
-        v: str,
-        reset: bool = False
-    ):
-        self._i = self.init if reset else self._i
-        if self._verbose is True:
-            print(f"{self._i}) {v}")
-        self._i+=1
-        return None
-    
-    def reset(self):
-        self._i = self.init
-        return None
-    
-    def quiet(self):
-        self._verbose = False
-    
-    def verbose(self):
-        self._verbose = True
-
-@contextlib.contextmanager
-def disable_print():
-    with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
-        yield
 
 class Predict(object):
 
@@ -253,7 +217,7 @@ if args.hvg is True:
     adata = adata[:,adata.var["highly_variable"]]
 
 gene_list = list(adata.var.index)
-counts_df = adt.anndata_to_dataframe(adata, layer=args.layer)
+counts_df = adt.tl.anndata_to_dataframe(adata, layer=args.layer)
 
 print("Data binarization...")
 

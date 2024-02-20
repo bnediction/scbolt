@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -6,6 +6,8 @@ warnings.filterwarnings("ignore")
 import os, argparse
 import pickle
 from pathlib import Path
+from utils.stdout import Section
+from utils.argtype import Store_prefix
 
 from typing import Sequence
 
@@ -16,51 +18,9 @@ import scanpy as sc
 import scanorama
 
 import matplotlib.pyplot as plt
-from anndatatools import color_settings as colour
+from anndatatools.plotting import color
 
-class Section(object):
-
-    def __init__(
-        self,
-        init: int = 1,
-        verbose: bool = True
-    ):
-        self.init = init
-        self._i = init
-        self._verbose = verbose
-    
-    def __call__(
-        self,
-        v: str,
-        reset: bool = False
-    ):
-        self._i = self.init if reset else self._i
-        if self._verbose is True:
-            print(f"{self._i}) {v}")
-        self._i+=1
-        return None
-    
-    def reset(self):
-        self._i = self.init
-        return None
-    
-    def quiet(self):
-        self._verbose = False
-    
-    def verbose(self):
-        self._verbose = True
-
-def str2prefix(v: str):
-    if v is None:
-        v = ""
-    elif isinstance(v, str):
-        if v:
-            v = v if v[-1] in ["-","_"] else v + "_"
-    else:
-        raise argparse.ArgumentTypeError("String value expected.")
-    return v
-
-@adt.adata_arg_checking
+@adt._adata_arg_checking
 def clean_adata(
     adata: ad.AnnData,
     obs: Sequence[str] = None,
@@ -138,10 +98,9 @@ parser.add_argument(
 parser.add_argument(
     "--prefix",
     dest="prefix",
-    type=str2prefix,
+    action=Store_prefix,
     required=False,
     default="",
-    metavar="LITERAL",
     help="prefix for each saving file"
 )
 
@@ -382,7 +341,7 @@ if args.method=="ingest" or args.method=="all":
     )
 
     section("Plot of embedding components...")
-    adt.visualization.dimplot(
+    adt.pl.embedding_plot(
         adata,
         obs="condition",
         obsm="X_pca",
@@ -391,18 +350,19 @@ if args.method=="ingest" or args.method=="all":
         outfile=Path(f"{fig_outpath}/ingest_pca"),
         add_legend=args.legend,
         s=2,
+        alpha=1,
         lgd_params={
             "title":"conditions",
             "ncol":1,
             "markerscale":5,
             "frameon":True,
-            "edgecolor":colour.black,
+            "edgecolor":color.black,
             "shadow":False,
             "loc":"best"
         }
     )
     for cluster in ["condition", "leiden"]:
-        fig, _ = adt.visualization.dimplot(
+        fig, _ = adt.pl.embedding_plot(
             adata,
             obs=cluster,
             obsm="X_umap",
@@ -411,12 +371,13 @@ if args.method=="ingest" or args.method=="all":
             zlabel=r"$\mathrm{UMAP_{3}}$",
             add_legend=args.legend,
             s=2,
+            alpha=1,
             lgd_params={
                 "title":"clusters" if cluster != "condition" else "conditions",
                 "ncol":1,
                 "markerscale":5,
                 "frameon":True,
-                "edgecolor":colour.black,
+                "edgecolor":color.black,
                 "shadow":False
             },
             n_components = 3 if args.dim_integration > 2 and args.plot_3d is True else 2,
@@ -499,7 +460,7 @@ if args.method=="bbknn" or args.method=="all":
     )
 
     section("Plot of embedding components...")
-    adt.visualization.dimplot(
+    adt.pl.embedding_plot(
         adata,
         obs="condition",
         obsm="X_pca",
@@ -508,17 +469,18 @@ if args.method=="bbknn" or args.method=="all":
         outfile=Path(f"{fig_outpath}/bbknn_pca"),
         add_legend=args.legend,
         s=2,
+        alpha=1,
         lgd_params={
             "title":"conditions",
             "ncol":1,
             "markerscale":5,
             "frameon":True,
-            "edgecolor":colour.black,
+            "edgecolor":color.black,
             "shadow":False,
         },
     )
     for cluster in ["condition", "leiden"]:
-        fig, _ = adt.visualization.dimplot(
+        fig, _ = adt.pl.embedding_plot(
             adata,
             obs=cluster,
             obsm="X_umap",
@@ -528,12 +490,13 @@ if args.method=="bbknn" or args.method=="all":
             add_legend=args.legend,
             figwidth=6,
             s=2,
+            alpha=1,
             lgd_params={
                 "title":"clusters" if cluster != "condition" else "conditions",
                 "ncol":1,
                 "markerscale":5,
                 "frameon":True,
-                "edgecolor":colour.black,
+                "edgecolor":color.black,
                 "shadow":False
             },
             n_components = 3 if args.dim_integration > 2 and args.plot_3d is True else 2,
@@ -594,7 +557,7 @@ if args.method=="scanorama" or args.method=="all":
     )
 
     section("Plot of embedding components...")
-    adt.visualization.dimplot(
+    adt.pl.embedding_plot(
         adata,
         obs="condition",
         obsm="X_pca",
@@ -603,18 +566,19 @@ if args.method=="scanorama" or args.method=="all":
         outfile=Path(f"{fig_outpath}/bbknn_pca"),
         add_legend=args.legend,
         s=2,
+        alpha=1,
         lgd_params={
             "title":"conditions",
             "ncol":1,
             "markerscale":5,
             "frameon":True,
-            "edgecolor":colour.black,
+            "edgecolor":color.black,
             "shadow":False,
             "loc":"best"
         }
     )
     for cluster in ["condition", "leiden"]:
-        fig, _ = adt.visualization.dimplot(
+        fig, _ = adt.pl.embedding_plot(
             adata,
             obs=cluster,
             obsm="X_umap",
@@ -623,12 +587,13 @@ if args.method=="scanorama" or args.method=="all":
             zlabel=r"$\mathrm{UMAP_{3}}$",
             add_legend=args.legend,
             s=2,
+            alpha=1,
             lgd_params={
                 "title":"clusters" if cluster != "condition" else "conditions",
                 "ncol":1,
                 "markerscale":5,
                 "frameon":True,
-                "edgecolor":colour.black,
+                "edgecolor":color.black,
                 "shadow":False
             },
             n_components = 3 if args.dim_integration > 2 and args.plot_3d is True else 2,
