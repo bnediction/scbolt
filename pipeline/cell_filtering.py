@@ -13,7 +13,10 @@ from pypairs import pairs
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
-from anndatatools.plotting import color
+from anndatatools.plotting import (
+    fig,
+    color
+)
 
 random.seed(1000)
 

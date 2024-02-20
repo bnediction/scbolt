@@ -8,6 +8,7 @@ random.seed(100)
 
 import os, argparse
 from pathlib import Path
+from argtype import Str2prefix
 
 import numpy as np, math
 
@@ -15,19 +16,12 @@ import pandas as pd, anndata as ad, scanpy as sc, json
 import anndatatools as adt
 
 import matplotlib.pyplot as plt
-from anndatatools import color_settings as colour, plot_settings
 from matplotlib.ticker import FormatStrFormatter
-from anndatatools.color_settings import color_cycle
-
-def str2prefix(v: str):
-    if v is None:
-        v = ""
-    elif isinstance(v, str):
-        if v:
-            v = v if v[-1] in ["-","_"] else v + "_"
-    else:
-        raise argparse.ArgumentTypeError("String value expected.")
-    return v
+from anndatatools.plotting import (
+    fig,
+    color,
+    color_cycle
+)
 
 def str2bool(v: str):
     if isinstance(v, bool):
@@ -54,6 +48,7 @@ parser.add_argument(
     dest="infile",
     type=lambda x: Path(x).resolve(),
     required=True,
+    metavar="PATH",
     help="path to .h5ad file (including file)"
 )
 
@@ -62,6 +57,7 @@ parser.add_argument(
     dest="signatures",
     type=lambda x: Path(x).resolve(),
     required=True,
+    metavar="PATH",
     help="path to .json signatures file (including file)"
 )
 
@@ -71,13 +67,14 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     default=Path("./").resolve(),
+    metavar="PATH",
     help="output path"
 )
 
 parser.add_argument(
     "-p", "--prefix",
     dest="prefix",
-    type=str2prefix,
+    action=Str2prefix,
     required=False,
     default="",
     help="prefix for each saving file"
@@ -89,7 +86,8 @@ parser.add_argument(
     type=int,
     required=False,
     default=20,
-    help="number of closest neighbors computed when computing KNN graph"
+    metavar="PATH",
+    help="number of closest neighbors computed when computing KNN graph (default: 20)"
 )
 
 parser.add_argument(
@@ -99,7 +97,8 @@ parser.add_argument(
     required=False,
     default="knn",
     choices=["knn","snn"],
-    help="neighborhood graph used by Leiden clustering algorithm"
+    metavar="[knn | snn]",
+    help="neighborhood graph used by Leiden clustering algorithm (default: knn)"
 )
 
 parser.add_argument(
@@ -108,7 +107,8 @@ parser.add_argument(
     type=int,
     required=False,
     default=15,
-    help="number of principal components taken into account for clustering cells and running t-SNE/UMAP"
+    metavar="INT",
+    help="number of principal components taken into account for clustering cells and running t-SNE/UMAP (default: 15)"
 )
 
 parser.add_argument(
@@ -117,7 +117,8 @@ parser.add_argument(
     type=float,
     required=False,
     default=0.6,
-    help="parameter value controlling the coarseness of the clustering when using Leiden algorithm"
+    metavar="FLOAT",
+    help="parameter value controlling the coarseness of the clustering when using Leiden algorithm (default: 0.6)"
 )
 
 parser.add_argument(
@@ -126,15 +127,16 @@ parser.add_argument(
     type=float,
     required=False,
     default=0.25,
-    help="threshold describing the minimum log2 fold-changes for being a gene marker"
+    metavar="FLOAT",
+    help="threshold describing the minimum log2 fold-changes for being a gene marker (default: 0.25)"
 )
 
 parser.add_argument(
     "-v", "--verbose",
     dest="verbose",
-    type=str2bool,
     required=False,
     default=False,
+    action="store_true",
     help="get summarizing information about cluster in stdout"
 )
 
@@ -156,10 +158,10 @@ n_comps = 50 if args.n_dimensions <= 15 else args.n_dimensions
 
 resolutions = [0.6,0.8,1,1.2]
 
-colour_d = {
-    "G1": colour.blue,
-    "G2M": colour.red,
-    "S": colour.green
+color_d = {
+    "G1": color.blue,
+    "G2M": color.red,
+    "S": color.green
 }
 phase = adata.obs["pypairs_cc_prediction"]
 
@@ -179,10 +181,10 @@ pc2 = adata.obsm["X_pca"][:,1]
 fig, ax = plt.subplots(nrows=1, ncols=1)
 for p in np.unique(phase):
     idx = np.where(phase == p)[0]
-    ax.scatter(pc1[idx], pc2[idx], s=5, facecolors=colour_d[p], edgecolors="none", alpha=1, label=p)
+    ax.scatter(pc1[idx], pc2[idx], s=5, facecolors=color_d[p], edgecolors="none", alpha=1, label=p)
 ax.set_xlabel(r"$\mathrm{PC_{1}}$")
 ax.set_ylabel(r"$\mathrm{PC_{2}}$")
-ax.legend(markerscale=2, edgecolor=colour.black)
+ax.legend(markerscale=2, edgecolor=color.black)
 plt.sca(ax)
 ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
 ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
@@ -193,7 +195,7 @@ print(f"Clustering...")
 knn_key = "knn"
 snn_key = "snn"
 sc.pp.neighbors(adata, n_neighbors=args.k_neighbors, n_pcs=args.n_dimensions, key_added=knn_key, copy=False)
-adt.neighborgraph.shared_neighbors(adata, knn_key=knn_key, snn_key=snn_key, prune_snn = 1/15, copy=False)
+adt.tl.shared_neighbors(adata, knn_key=knn_key, snn_key=snn_key, prune_snn = 1/15, copy=False)
 
 for resolution in resolutions:
     sc.tl.leiden(adata, resolution=resolution, neighbors_key=knn_key, key_added=f"leiden_{resolution}")
@@ -253,10 +255,10 @@ plt.savefig(f"{fig_outpath}/{args.prefix}umap_clusters")
 fig, ax = plt.subplots(nrows=1, ncols=1)
 for p in np.unique(phase):
     idx = np.where(phase == p)[0]
-    ax.scatter(umap1[idx], umap2[idx], s=2, facecolors=colour_d[p], edgecolors="none", alpha=1, label=p)
+    ax.scatter(umap1[idx], umap2[idx], s=2, facecolors=color_d[p], edgecolors="none", alpha=1, label=p)
 ax.set_xlabel(r"$\mathrm{UMAP_{1}}$")
 ax.set_ylabel(r"$\mathrm{UMAP_{2}}$")
-ax.legend(markerscale=5, edgecolor=colour.black)
+ax.legend(markerscale=5, edgecolor=color.black)
 plt.sca(ax)
 ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
 ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
@@ -295,12 +297,12 @@ sc.tl.rank_genes_groups(
     tie_correct=True,
     corr_method="bonferroni"
 )
-markers_df = adt.genemarkers.extract_rank_genes_groups(
+markers_df = adt.tl.extract_rank_genes_groups(
     adata,
     logfc_keeping=False
 )
 markers_df = markers_df.loc[markers_df["adj_pvals"] < 0.05]
-markers_df = adt.genemarkers.update_logfoldchanges(
+markers_df = adt.tl.update_logfoldchanges(
     markers_df,
     adata,
     groupby,
@@ -336,7 +338,7 @@ for cell_type, signature in signatures_d.items():
 
 print("Summarizing clusters...")
 
-clust_info_d = adt.genemarkers.get_info(adata, signatures_d, markers_df, groupby=groupby)
+clust_info_d = adt.tl.get_info(adata, signatures_d, markers_df, groupby=groupby)
 clust_info_df = pd.DataFrame.from_dict(clust_info_d, orient="index")
 
 print("Saving data...")

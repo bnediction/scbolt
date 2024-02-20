@@ -97,19 +97,17 @@ title $SIZE "Gene filtering and normalization"
 echo -e "${LIGHT_RED}> control sample (normalization)...${NC}"
 python pipeline/normalization.py \
   --infile data/scRNA/cell_filtering/ct/tables/counts.h5ad \
-  --outpath data/scRNA/normalizing/ct \
-  --correction G2M_score+S_score+G1_score \
+  --outpath data/scRNA/normalization/ct \
+  --correction G2M_score S_score G1_score \
   --min-cell-expression-proportion 0.001 \
-  --hvg-filtering no \
   --jobs 6
 
 echo -e "${LIGHT_RED}> treated sample (normalization)...${NC}"
 python pipeline/normalization.py \
   --infile data/scRNA/cell_filtering/ra/tables/counts.h5ad \
-  --outpath data/scRNA/normalizing/ra \
-  --correction G2M_score+S_score+G1_score \
+  --outpath data/scRNA/normalization/ra \
+  --correction G2M_score S_score G1_score \
   --min-cell-expression-proportion 0.001 \
-  --hvg-filtering no \
   --jobs 6
 
 ### Clustering cells and marker analysis ###
@@ -118,7 +116,7 @@ title $SIZE "Cell clustering and marker analysis"
 
 echo -e "${LIGHT_RED}> control sample (clustering)...${NC}"
 python pipeline/cluster.py \
-  --infile data/scRNA/normalizing/ct/tables/corrected.h5ad \
+  --infile data/scRNA/normalization/ct/tables/corrected.h5ad \
   --signatures data/public/signatures/signatures.json \
   --outpath data/scRNA/cluster/ct \
   --prefix ct \
@@ -127,11 +125,11 @@ python pipeline/cluster.py \
   --dimensions 15 \
   --resolution 0.6 \
   --logfc-threshold 0.25 \
-  --verbose yes
+  --verbose
 
 echo -e "${LIGHT_RED}> treated sample (clustering)...${NC}"
 python pipeline/cluster.py \
-  --infile data/scRNA/normalizing/ra/tables/corrected.h5ad \
+  --infile data/scRNA/normalization/ra/tables/corrected.h5ad \
   --signatures data/public/signatures/signatures.json \
   --outpath data/scRNA/cluster/ra \
   --prefix ra \
@@ -140,7 +138,7 @@ python pipeline/cluster.py \
   --dimensions 15 \
   --resolution 0.6 \
   --logfc-threshold 0.25 \
-  --verbose yes
+  --verbose
 
 ### Integration and marker analysis ###
 
