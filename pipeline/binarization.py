@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -8,9 +8,15 @@ from collections import namedtuple
 
 import os, argparse
 from pathlib import Path
+from utils.argtype import Range
 from utils.stdout import disable_print, Section
 
-import pandas as pd
+from pandas import (
+    DataFrame,
+    Series,
+    MultiIndex,
+    merge
+)
 import anndata as ad, anndatatools as adt
 
 import numpy as np
@@ -91,9 +97,9 @@ class Predict(object):
     
     def __call__(
         self,
-        data: Union[pd.Series, pd.DataFrame],
+        data: Union[Series, DataFrame],
         category: Optional[str] = None,
-    ) -> Union[pd.Series, pd.DataFrame]:
+    ) -> Union[Series, DataFrame]:
 
         def boolean_prediction(self, zeros, ones, nans, category):
             denominator = zeros + ones
@@ -102,30 +108,30 @@ class Predict(object):
                 if nans/total > self.__THRESHOLD.nans:
                     return float("nan")
                 elif zeros/denominator > self.__THRESHOLD.bimodal:
-                    return int(0)
+                    return 0
                 elif ones/denominator > self.__THRESHOLD.bimodal:
-                    return int(1)
+                    return 1
                 else:
                     return float("nan")
             elif category=="ZeroInf":
                 if nans/total > self.__THRESHOLD.nans:
                     return float("nan")
                 elif ones/denominator > self.__THRESHOLD.zeroinf:
-                    return int(1)
+                    return 1
                 else:
-                    return int(0)
+                    return 0
             elif category=="Unimodal":
                 if nans/total > self.__THRESHOLD.nans:
                     return float("nan")
                 elif zeros/denominator > self.__THRESHOLD.unimodal:
-                    return int(0)
+                    return 0
                 elif ones/denominator > self.__THRESHOLD.unimodal:
-                    return int(1)
+                    return 1
             else:
                 raise ValueError(f"Category argument must be `Bimodal`, `ZeroInf` or `Unimodal`, not `{category}`.")
 
-        if isinstance(data, pd.Series) and category is not None:
-            predict_series = pd.Series(index=data.index.get_level_values(0).unique(), name=data._name)
+        if isinstance(data, Series) and category is not None:
+            predict_series = Series(index=data.index.get_level_values(0).unique(), name=data._name)
             if category == "Discarded":
                 return predict_series
             else:
@@ -134,8 +140,8 @@ class Predict(object):
                     _value = boolean_prediction(self, zeros=_zeros, ones=_ones, nans=_nans, category=category)
                     predict_series[cluster] = _value
                 return predict_series
-        elif isinstance(data, pd.DataFrame) and category is None:
-            predict_df = pd.DataFrame(index=data.index.get_level_values(0).unique())
+        elif isinstance(data, DataFrame) and category is None:
+            predict_df = DataFrame(index=data.index.get_level_values(0).unique())
             for gene in cluster_df:
                 predict_series = self.__call__(
                     data=cluster_df.loc[:,gene],
@@ -144,15 +150,15 @@ class Predict(object):
                 predict_df = predict_df.join(predict_series)
             return predict_df
         else:
-            raise ValueError(f"""`data` and `category` arguments must be either of types respectively {pd.Series} and {str}
-            or of types respectively {pd.DataFrame} and {type(None)}, not {type(data)} and {type(category)}.""")
+            raise ValueError(f"""`data` and `category` arguments must be either of types respectively {Series} and {str}
+            or of types respectively {DataFrame} and {type(None)}, not {type(data)} and {type(category)}.""")
 
-def obs_to_group(
-    obs_df: pd.DataFrame,
+def cell_to_cluster_binarization(
+    obs_df: DataFrame,
     columns: list,
     group: str,
     dropna: bool = False
-) -> pd.DataFrame:
+) -> DataFrame:
 
     def counts(
         column_series,
@@ -167,44 +173,150 @@ def obs_to_group(
         sorted(obs_df.loc[:,group].unique()),
         [float(0), float(1), np.nan]
     )
-    group_df = pd.DataFrame(index=pd.MultiIndex.from_product(iterables, names=[group, "value"]))
+    group_df = DataFrame(index=MultiIndex.from_product(iterables, names=[group, "value"]))
 
     for column in columns:
         series = counts(obs_df.groupby(by=group)[column], dropna=dropna)
         group_df = group_df.join(series)
     
-    return group_df
+    return group_df.fillna(0).astype(int)
 
-class arguments:
-    def __init__(
-        self,
-        infile=Path("data/scRNA/stream/tables/stream.h5ad"),
-        extension="h5ad",
-        outpath=Path("data/scRNA/bool"),
-        layer="log-normalize",
-        hvg=True,
-        verbose=True,
-        groupby=["leiden"],
-        nans_threshold=0.3,
-        bimodal_threshold=0.6,
-        zeroinf_threshold=0.3,
-        unimodal_threshold=0.6
-    ):
-        self.infile = infile
-        self.extension=extension
-        self.outpath = outpath
-        self.layer = layer
-        self.hvg = hvg
-        self.verbose=verbose
-        self.groupby=groupby
-        self.nans_threshold=nans_threshold
-        self.bimodal_threshold=bimodal_threshold
-        self.zeroinf_threshold=zeroinf_threshold
-        self.unimodal_threshold=unimodal_threshold
+parser = argparse.ArgumentParser(
+    prog="binarization of sc-RNAseq data",
+    description="""From concatenated (sometimes integrated) sc-rnaSeq data recorded in the \
+        hdf5 format (<filename>.h5ad), compute cluster-related binarization based on scBoolSeq \
+        method (see Magaña López et al. (2023): <https://hal.science/hal-04294917/>).""",
+    usage=""""python binarization.py [-h] -i <path> -c <literal> [<args>]"""
+)
 
-args = arguments()
+parser.add_argument(
+    "-i", "--infile",
+    dest="infile",
+    type=lambda x: Path(x).resolve(),
+    required=True,
+    metavar="PATH",
+    help="path to .h5ad file (including file)"
+)
+
+parser.add_argument(
+    "-o", "--outpath",
+    dest="outpath",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=Path("./").resolve(),
+    metavar="PATH",
+    help="output path (default: ./)"
+)
+
+parser.add_argument(
+    "-l", "--layer",
+    dest="layer",
+    type=str,
+    required=False,
+    default="log-normalize",
+    metavar="LITERAL",
+    help="layer used for binarization (default: `log-normalize`)"
+)
+
+parser.add_argument(
+    "--hvg",
+    dest="hvg",
+    required=False,
+    action="store_true",
+    help="select the most variable genes for binarization"
+)
+
+parser.add_argument(
+    "-c", "--cluster",
+    dest="groupby",
+    type=str,
+    required=True,
+    metavar="LITERAL",
+    help="clusters retrieving from adata.obs[`cluster`] used for cluster-related binarization"
+)
+
+parser.add_argument(
+    "-n", "--nans-threshold",
+    dest="nans_threshold",
+    type=float,
+    action=Range,
+    min=0.,
+    max=1.,
+    required=False,
+    default=0.3,
+    help="""set binarized gene value of a cluster to nan if the proportion of nan values
+    in the cluster is above `nans_threshold` (default: 0.3)"""
+)
+
+parser.add_argument(
+    "-b", "--bimodal-threshold",
+    dest="bimodal_threshold",
+    type=float,
+    action=Range,
+    min=0.5,
+    max=1.,
+    required=False,
+    default=2/3,
+    help="""for a bimodal gene, set binarized gene value of a cluster to 0 (resp. 1)
+    if the proportion of zero-values (resp. one-values) in the cluster is above `bimodal_threshold`
+    with respect to binarized values (default: 2/3)"""
+)
+
+parser.add_argument(
+    "-z", "--zeroinf-threshold",
+    dest="zeroinf_threshold",
+    type=float,
+    action=Range,
+    min=0.,
+    max=0.5,
+    required=False,
+    default=0.3,
+    help="""for a zero-inflated gene, set binarized gene value of a cluster to 1
+    if the proportion of one-values in the cluster is above `zeroinf_threshold`,
+    otherwise 0 (default: 0.3)"""
+)
+
+parser.add_argument(
+    "-u", "--unimodal-threshold",
+    dest="unimodal_threshold",
+    type=float,
+    action=Range,
+    min=0.5,
+    max=1.,
+    required=False,
+    default=2/3,
+    help="""for a unimodal gene, set binarized gene value of a cluster to 0 (resp. 1)
+    if the proportion of zero-values (resp. one-values) in the cluster is above `unimodal_threshold`
+    with respect to binarized values (default: 2/3)"""
+)
+
+parser.add_argument(
+    "-v", "--verbose",
+    dest="verbose",
+    required=False,
+    action="store_true",
+    help="display information about running programm"
+)
+
+args = parser.parse_args()
 
 section = Section(verbose = args.verbose)
+
+scbool = scBoolSeq(
+    margin_quantile=0.10,
+    zeroinf_binarizer="zero_or_not",
+    zeroes_are=0
+)
+
+predict = Predict(
+    args.nans_threshold,
+    args.bimodal_threshold,
+    args.zeroinf_threshold,
+    args.unimodal_threshold
+)
+
+if not args.outpath.exists():
+    os.makedirs(args.outpath)
 
 print(f"Loading data...")
 
@@ -221,8 +333,6 @@ counts_df = adt.tl.anndata_to_dataframe(adata, layer=args.layer)
 
 print("Data binarization...")
 
-scbool = scBoolSeq()
-
 section("Compute estimators")
 with disable_print():
     scbool.fit(counts_df)
@@ -232,7 +342,7 @@ with disable_print():
     bool_df = scbool.binarize(counts_df)
 
 section("Count boolean values by cluster")
-bool_df = pd.merge(
+bool_df = merge(
     bool_df,
     adata.obs.loc[:,args.groupby],
     left_index=True,
@@ -241,17 +351,11 @@ bool_df = pd.merge(
 )
 
 section("Estimate boolean values by cluster")
-cluster_df = obs_to_group(
+cluster_df = cell_to_cluster_binarization(
     obs_df=bool_df,
     columns=gene_list,
-    group="leiden",
+    group=args.groupby,
     dropna=False
-).fillna(0).astype(int)
-predict = Predict(
-    args.nans_threshold,
-    args.bimodal_threshold,
-    args.zeroinf_threshold,
-    args.unimodal_threshold
 )
 predict_df = predict(cluster_df)
 

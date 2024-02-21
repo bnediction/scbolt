@@ -24,7 +24,7 @@ from anndatatools.plotting import color
 parser = argparse.ArgumentParser(
     prog="trajectory inference of sc-RNAseq data",
     description="""From concatenated (sometimes integrated) sc-rnaSeq data recorded in the \
-        hdf5 format (<filename>.h5ad), compute cell phenotype trajectory based on the STREAM \
+        hdf5 format (<filename>.h5ad), compute cell phenotype trajectory based on STREAM \
         method (see Chen et al. (2019): <https://www.nature.com/articles/s41467-019-09670-4>).""",
     usage=""""python trajectories.py [-h] -i <path> [<args>]"""
 )

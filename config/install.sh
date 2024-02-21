@@ -11,13 +11,21 @@ install_env() {
         then
             conda remove --name $1 --all --yes
             conda env create -f ${config_dir}$1.yml --force
-            if [[ "$1" =~ ^(preprocess|stream|binarization)$ ]]; then conda develop --name $1 $dev_dir; fi
+            if [[ "$1" =~ ^(preprocess|stream|binarization)$ ]];
+            then
+                conda develop --name $1 $dev_dir
+                conda develop --name $1 ${dev_dir}/pipeline;
+            fi
         else
             echo "$1 environment not reinstalled."
         fi
     else
         conda env create -f ${config_dir}$1.yml
-        if [[ "$1" =~ ^(preprocess|stream|binarization)$ ]]; then conda develop --name $1 $adt_dir; fi
+        if [[ "$1" =~ ^(preprocess|stream|binarization)$ ]];
+        then
+            conda develop --name $1 $dev_dir
+            conda develop --name $1 ${dev_dir}/pipeline;
+        fi
     fi
 }
 

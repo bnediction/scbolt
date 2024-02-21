@@ -20,7 +20,6 @@ from anndatatools.plotting import (
     color
 )
 
-
 def regress_out_feature(interest, regressors, intercept=False, n_jobs=1):
 
     regression_model = LinearRegression(fit_intercept=False, n_jobs=n_jobs)
@@ -42,7 +41,7 @@ def regress_out(adata, correction, layer=None, intercept=False, n_jobs=1):
     else:
         counts = adata.layers[layer].copy()
 
-    if sc.preprocessing._simple.issparse(counts):
+    if sc.pp._simple.issparse(counts):
         counts = counts.toarray()
     regressors = adata.obs[correction]
     regressors.insert(0, 'ones', 1.0)
