@@ -203,9 +203,18 @@ parser.add_argument(
     dest="outpath",
     type=lambda x: Path(x).resolve(),
     required=False,
-    default=Path("./").resolve(),
+    default=Path("./binarization").resolve(),
     metavar="PATH",
-    help="output path (default: ./)"
+    help="output path (default: ./binarization)"
+)
+
+parser.add_argument(
+    "-c", "--cluster",
+    dest="groupby",
+    type=str,
+    required=True,
+    metavar="LITERAL",
+    help="clusters retrieving from adata.obs[`cluster`] used for cluster-related binarization"
 )
 
 parser.add_argument(
@@ -224,15 +233,6 @@ parser.add_argument(
     required=False,
     action="store_true",
     help="select the most variable genes for binarization"
-)
-
-parser.add_argument(
-    "-c", "--cluster",
-    dest="groupby",
-    type=str,
-    required=True,
-    metavar="LITERAL",
-    help="clusters retrieving from adata.obs[`cluster`] used for cluster-related binarization"
 )
 
 parser.add_argument(
@@ -359,4 +359,8 @@ cluster_df = cell_to_cluster_binarization(
 )
 predict_df = predict(cluster_df)
 
-print(predict_df)
+print("Saving data...")
+
+bool_df.to_csv(f"{args.outpath}/cell_bin.csv", sep=",", index=True)
+cluster_df.to_csv(f"{args.outpath}/cluster_bin_counts.csv", sep=",", index=True)
+predict_df.to_csv(f"{args.outpath}/cluster_bin.csv", sep=",", index=True)

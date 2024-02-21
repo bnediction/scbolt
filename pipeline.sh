@@ -186,14 +186,14 @@ python pipeline/cluster_labeling.py \
 echo -e "${LIGHT_RED}> control + treated samples (plot figure)...${NC}"
 python fig/plot_embedding.py --json fig/umap_labels.json
 
-### STREAM analysis ###
+### Trajectory analysis ###
 
-title $SIZE "Stream analysis"
+title $SIZE "Trajectory analysis"
 
 conda deactivate
 conda activate stream
 
-echo -e "${LIGHT_RED}> control + treated samples (trajectories)...${NC}"
+echo -e "${LIGHT_RED}> control + treated samples (stream)...${NC}"
 python pipeline/trajectories.py \
   --infile data/scRNA/integration/tables/bbknn_labels.h5ad \
   --outpath data/scRNA/stream \
@@ -210,6 +210,22 @@ python pipeline/trajectories.py \
   --jobs 6 \
   --save-tables \
   --plot-3d
+
+### binarization ###
+
+title $SIZE "Binarization"
+
+conda deactivate
+conda activate binarization
+
+echo -e "${LIGHT_RED}> control + treated samples (scBoolSeq)...${NC}"
+python pipeline/binarization.py \
+  --infile data/scRNA/stream/tables/stream.h5ad \
+  --outpath data/scRNA/binarization \
+  --cluster leiden \
+  --layer "log-normalize" \
+  --hvg \
+  --verbose
 
 ### End workflow
 
