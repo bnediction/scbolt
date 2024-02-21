@@ -222,8 +222,8 @@ echo -e "${LIGHT_RED}> control + treated samples (scBoolSeq)...${NC}"
 python pipeline/binarization.py \
   --infile data/scRNA/stream/tables/stream.h5ad \
   --outpath data/scRNA/binarization \
-  --cluster leiden \
-  --layer "log-normalize" \
+  --cluster leiden node_clusters \
+  --layer log-normalize \
   --hvg \
   --verbose
 

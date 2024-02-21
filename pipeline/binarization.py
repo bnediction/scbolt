@@ -9,7 +9,7 @@ from collections import namedtuple
 import os, argparse
 from pathlib import Path
 from utils.argtype import Range
-from utils.stdout import disable_print, Section
+from utils.stdout import Section, disable_print
 
 from pandas import (
     DataFrame,
@@ -142,9 +142,9 @@ class Predict(object):
                 return predict_series
         elif isinstance(data, DataFrame) and category is None:
             predict_df = DataFrame(index=data.index.get_level_values(0).unique())
-            for gene in cluster_df:
+            for gene in data:
                 predict_series = self.__call__(
-                    data=cluster_df.loc[:,gene],
+                    data=data.loc[:,gene],
                     category=scbool.criteria_.loc[gene,"Category"]
                 )
                 predict_df = predict_df.join(predict_series)
@@ -213,6 +213,7 @@ parser.add_argument(
     dest="groupby",
     type=str,
     required=True,
+    nargs="+",
     metavar="LITERAL",
     help="clusters retrieving from adata.obs[`cluster`] used for cluster-related binarization"
 )
@@ -339,28 +340,32 @@ with disable_print():
 
 section("Estimate boolean values by observation")
 with disable_print():
-    bool_df = scbool.binarize(counts_df)
+    cell_df = scbool.binarize(counts_df)
 
-section("Count boolean values by cluster")
-bool_df = merge(
-    bool_df,
-    adata.obs.loc[:,args.groupby],
-    left_index=True,
-    right_index=True,
-    how="inner"
-)
-
-section("Estimate boolean values by cluster")
-cluster_df = cell_to_cluster_binarization(
-    obs_df=bool_df,
-    columns=gene_list,
-    group=args.groupby,
-    dropna=False
-)
-predict_df = predict(cluster_df)
+section("Count and estimate boolean values by cluster")
+cluster_d = dict()
+predict_d = dict()
+for _group in args.groupby:
+    if len(args.groupby) > 1:
+        print(f"> computation for {_group}")
+    _cell_df = merge(
+        cell_df,
+        adata.obs.loc[:,_group],
+        left_index=True,
+        right_index=True,
+        how="inner"
+    )
+    cluster_d[_group] = cell_to_cluster_binarization(
+        obs_df=_cell_df,
+        columns=gene_list,
+        group=_group,
+        dropna=False
+    )
+    predict_d[_group] = predict(cluster_d[_group])
 
 print("Saving data...")
 
-bool_df.to_csv(f"{args.outpath}/cell_bin.csv", sep=",", index=True)
-cluster_df.to_csv(f"{args.outpath}/cluster_bin_counts.csv", sep=",", index=True)
-predict_df.to_csv(f"{args.outpath}/cluster_bin.csv", sep=",", index=True)
+cell_df.to_csv(f"{args.outpath}/cell_bin.csv", sep=",", index=True)
+for _group in args.groupby:
+    cluster_d[_group].to_csv(f"{args.outpath}/cluster_bin_counts_{_group}.csv", sep=",", index=True)
+    predict_d[_group].to_csv(f"{args.outpath}/cluster_bin_{_group}.csv", sep=",", index=True)
