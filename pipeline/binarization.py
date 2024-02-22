@@ -178,7 +178,7 @@ def cell_to_cluster_binarization(
     for column in columns:
         series = counts(obs_df.groupby(by=group)[column], dropna=dropna)
         group_df = group_df.join(series)
-    
+
     return group_df.fillna(0).astype(int)
 
 parser = argparse.ArgumentParser(
@@ -216,6 +216,16 @@ parser.add_argument(
     nargs="+",
     metavar="LITERAL",
     help="clusters retrieving from adata.obs[`cluster`] used for cluster-related binarization"
+)
+
+parser.add_argument(
+    "-e", "--exclude",
+    dest="exclude",
+    type=str,
+    required=False,
+    nargs="+",
+    metavar="LITERAL",
+    help="cluster names to remove for cluster-related binarization"
 )
 
 parser.add_argument(
@@ -342,7 +352,7 @@ section("Estimate boolean values by observation")
 with disable_print():
     cell_df = scbool.binarize(counts_df)
 
-section("Count and estimate boolean values by cluster")
+section("Estimate boolean values by cluster")
 cluster_d = dict()
 predict_d = dict()
 for _group in args.groupby:
@@ -361,6 +371,14 @@ for _group in args.groupby:
         group=_group,
         dropna=False
     )
+    if args.exclude:
+        _index_label_to_drop = list()
+        for _index_label in args.exclude:
+            if _index_label in cluster_d[_group].index.get_level_values(0).unique():
+                _index_label_to_drop.append(_index_label)
+        if _index_label_to_drop:
+            cluster_d[_group] = cluster_d[_group].drop(_index_label_to_drop)
+        del _index_label_to_drop, _index_label
     predict_d[_group] = predict(cluster_d[_group])
 
 print("Saving data...")
