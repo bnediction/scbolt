@@ -212,6 +212,16 @@ python pipeline/pseudotime.py \
   --plot-3d \
   --jobs 6
 
+echo -e "${LIGHT_RED}> control + treated samples (stream trajectories)...${NC}"
+python pipeline/trajectories.py \
+  --infile data/rna/stream/pseudotime/tables/pseudotime.h5ad.pkl \
+  --outpath data/rna/stream/trajectories \
+  --root 4 \
+  --groups condition leiden kmeans node_clusters \
+  --add-legend \
+  --add-graph \
+  --plot-3d
+
 ### binarization ###
 
 title $SIZE "Binarization"

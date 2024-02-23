@@ -9,11 +9,11 @@ from pathlib import Path
 from utils.argtype import Store_prefix, Range
 from utils.stdout import disable_print
 
-import pandas as pd
 import anndata as ad, anndatatools as adt, stream as st
 
-from scipy.sparse import issparse
 from numpy import nan
+from scipy.sparse import issparse
+from pandas.api.types import is_float_dtype
 from networkx.classes.graph import Graph
 from rpy2.rinterface import ListSexpVector
 
@@ -398,11 +398,11 @@ for _group in groups:
         ylabel=r"$\mathrm{UMAP_{2}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
         zlabel=r"$\mathrm{UMAP_{3}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{3}^{\mathrm{scanorama}}}$",
         add_graph=args.graph,
-        add_text=True if not pd.api.types.is_float_dtype(adata.obs[_group]) else False,
+        add_text=True if not is_float_dtype(adata.obs[_group]) else False,
         add_legend=args.legend if _group != "node_clusters" else False,
         figwidth=6 if args.legend else 5,
         s=2,
-        alpha=0.4 if not pd.api.types.is_float_dtype(adata.obs[_group]) else 0.7,
+        alpha=0.4 if not is_float_dtype(adata.obs[_group]) else 0.7,
         lgd_params={
             "title":"clusters" if _group != "condition" else "conditions",
             "labels":[string.replace("cluster ","") for string in sorted(adata.obs[_group].unique())],
@@ -410,7 +410,7 @@ for _group in groups:
             "markerscale":5,
             "frameon":True,
             "shadow":False
-        } if not pd.api.types.is_float_dtype(adata.obs[_group]) else None,
+        } if not is_float_dtype(adata.obs[_group]) else None,
         text={
             "fontsize":14,
             "fontweight":"extra bold"

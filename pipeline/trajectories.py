@@ -8,14 +8,18 @@ import pickle
 from pathlib import Path
 from utils.argtype import Store_prefix
 from utils.stdout import disable_print, Section
+import re
 
 import pandas as pd
-import anndata as ad, anndatatools as adt, stream as st
+import anndatatools as adt, stream as st
 
 import networkx as nx
 
 import matplotlib.pyplot as plt
 from anndatatools.plotting import color
+
+def node_to_value(branch, attribute):
+    return [attribute[_node] for _node in branch]
 
 parser = argparse.ArgumentParser(
     prog="trajectory inference of sc-RNAseq data",
@@ -115,12 +119,7 @@ parser.add_argument(
     help="plot figures in three dimensions"
 )
 
-
-s = """--infile data/rna/stream/pseudotime/tables/pseudotime.h5ad.pkl --outpath data/rna/stream/trajectories --root 4
---group condition leiden kmeans node_clusters --add-legend --add-graph --plot-3d"""
-args = parser.parse_args(s.split())
-
-# args = parser.parse_args()
+args = parser.parse_args()
 
 section = Section()
 
@@ -247,13 +246,18 @@ print("Trajectories inference...")
 epg = adata.uns["epg"]
 flat_tree = adata.uns["flat_tree"]
 
-edges = flat_tree.edges
-labels = nx.get_node_attributes(flat_tree,"label")
+labels = nx.get_node_attributes(flat_tree, "label")
+for _node, _label in labels.items():
+    if _label == args.root:
+        root = _node
+        break
+leafs = [_node for _node in flat_tree.nodes if flat_tree.degree(_node) == 1 and _node != root]
+branches = list()
+for _leaf in leafs:
+    branches.extend(list(nx.algorithms.all_simple_paths(G= flat_tree, source=root, target=_leaf)))
+branch_labels = [node_to_value(_branch, labels) for _branch in branches]
 
-edges = list()
-for _edge in flat_tree.edges:
-    _out = labels[_edge[0]]
-    _in = labels[_edge[1]]
-    edges.append((_out, _in))
-
-### Be careful, we do not have the right order between out and in
+with open(f"{data_outpath}/branches.txt", "w") as file:
+    for _branch in branch_labels:
+        line = re.sub("[\[\]\']", "", re.sub(",", " ->", str(_branch)))
+        file.write(line + "\n")
