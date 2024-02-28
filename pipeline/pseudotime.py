@@ -69,10 +69,11 @@ parser.add_argument(
     dest="extension",
     type=str,
     required=False,
-    choices=["h5ad", "pkl"],
+    choices=["h5ad", "pkl", "both"],
     default="h5ad",
-    metavar="[h5ad | pkl]",
-    help="file extension of saved anndata object (default: h5ad)"
+    metavar="[h5ad | pkl | both]",
+    help="""file extension of saved anndata object (default: h5ad).
+    if `both` is specified, save both anndata object in h5ad and pkl format."""
 )
 
 parser.add_argument(
@@ -429,7 +430,7 @@ if args.save_tables:
 
     print("Saving data...")
 
-    if args.extension == "h5ad":
+    if args.extension == "h5ad" or args.extension == "both":
         for key in list(adata.obs.keys()):
             if isinstance (adata.obs[key][0], tuple):
                 del adata.obs[key]
@@ -438,6 +439,6 @@ if args.save_tables:
                 del adata.uns[key]
             if key.startswith("stream_S"):
                 del adata.uns[key]
-        adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}pseudotime.h5ad", compression="gzip")
-    elif args.extension == "pkl":
-        st.write(adata, file_name=f"{data_outpath}/{args.prefix}pseudotime.h5ad.pkl")
+        adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}stream.h5ad", compression="gzip")
+    elif args.extension == "pkl" or args.extension == "both":
+        st.write(adata, file_name=f"{data_outpath}/{args.prefix}stream.h5ad.pkl")

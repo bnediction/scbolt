@@ -198,7 +198,7 @@ python pipeline/pseudotime.py \
   --infile data/rna/integration/tables/bbknn_labels.h5ad \
   --outpath data/rna/stream/pseudotime \
   --save-tables \
-  --extension pkl \
+  --extension both \
   --cluster-number 6 \
   --groups condition leiden \
   --lambda 0.05 \
@@ -214,7 +214,7 @@ python pipeline/pseudotime.py \
 
 echo -e "${LIGHT_RED}> control + treated samples (stream trajectories)...${NC}"
 python pipeline/trajectories.py \
-  --infile data/rna/stream/pseudotime/tables/pseudotime.h5ad.pkl \
+  --infile data/rna/stream/pseudotime/tables/stream.h5ad.pkl \
   --outpath data/rna/stream/trajectories \
   --root 4 \
   --groups condition leiden kmeans node_clusters \
@@ -222,7 +222,7 @@ python pipeline/trajectories.py \
   --add-graph \
   --plot-3d
 
-### binarization ###
+### Binarization ###
 
 title $SIZE "Binarization"
 
@@ -231,13 +231,22 @@ conda activate binarization
 
 echo -e "${LIGHT_RED}> control + treated samples (scBoolSeq)...${NC}"
 python pipeline/binarization.py \
-  --infile data/rna/stream/tables/stream.h5ad \
+  --infile data/rna/stream/pseudotime/tables/stream.h5ad \
   --outpath data/rna/binarization \
   --cluster leiden node_clusters \
   --exclude nan \
   --layer log-normalize \
   --hvg \
   --verbose
+
+### Inference ####
+
+mkdir data/rna/bonesis
+
+echo -e "${LIGHT_RED}> trajectories conversion...${NC}"
+python pipeline/utils/cli/design_bo.py \
+  --infile data/rna/stream/trajectories/tables/branches.txt \
+  > data/rna/bonesis/trajectories.txt
 
 ### End workflow
 

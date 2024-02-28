@@ -81,6 +81,7 @@ logs/
 *debug*/
 *tmp*
 *tmp/
+todo.*
 
 ### Related-repository ###
 !.pipeline.png
