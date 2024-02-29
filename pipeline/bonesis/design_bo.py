@@ -8,22 +8,23 @@ from itertools import combinations
 
 parser = argparse.ArgumentParser(
     prog="Convert a text file describing trajectories into comprehensible text for bonesis package",
-    description="""conversion of a text file describing the trajectories where each line is in the form: `node1 -> ... -> node_k`. \
+    description="""conversion of a text file describing the trajectories where each line is in the form: `node_1 -> ... -> node_k`. \
     The output stream provides specifications comprehensible for bonesis.""",
-    usage="python design_bo.py <path>")
+    usage="python design_bo.py <path>"
+)
 
 parser.add_argument(
-    "-i", "--infile",
     dest="infile",
     type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
+    metavar="<path>",
     help="path to text infile"
 )
 
 args = parser.parse_args()
 
-def read_trajectories(file: Path) -> list:
+def read_trajectories(
+    file: Path
+) -> list:
     trajectories = list()
     with open(file, "r") as file:
         for line in file:
@@ -31,7 +32,9 @@ def read_trajectories(file: Path) -> list:
             trajectories.append(trajectory)
     return trajectories
 
-def write_bonesis_model(trajectories: list) -> None:
+def write_bonesis_model(
+    trajectories: list
+) -> None:
     stable_states = list()
     for trajectory in trajectories:
         if len(trajectory) == 1:

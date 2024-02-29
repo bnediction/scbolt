@@ -245,10 +245,9 @@ python pipeline/binarization/bin_clusters.py \
 
 mkdir data/rna/bonesis
 
-echo -e "${LIGHT_RED}> trajectories conversion...${NC}"
-python pipeline/bonesis/design_bo.py \
-  --infile data/rna/stream/trajectories/branches.txt \
-  > data/rna/bonesis/bo_model.txt
+echo -e "${LIGHT_RED}> trajectory specification...${NC}"
+python pipeline/bonesis/design_bo.py data/rna/stream/trajectories/branches.txt > data/rna/bonesis/plzf_rara_model.txt
+ln data/rna/bonesis/plzf_rara_model.txt pipeline/bonesis/plzf_rara_model.txt
 
 ### End workflow
 
