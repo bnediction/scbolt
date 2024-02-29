@@ -167,7 +167,7 @@ python pipeline/preprocess/integration.py \
   --verbose
 
 echo -e "${LIGHT_RED}> control + treated samples (cell type analysis)...${NC}"
-python pipeline/preprocess/markers.py \
+python pipeline/preprocess/analyse_markers.py \
   --infile data/rna/integration/tables/bbknn.h5ad \
   --signatures data/public/signatures/signatures.json \
   --outpath data/rna/markers \
@@ -178,7 +178,7 @@ python pipeline/preprocess/markers.py \
   --verbose
 
 echo -e "${LIGHT_RED}> control + treated samples (rename labels)...${NC}"
-python pipeline/preprocess/cluster_labeling.py \
+python pipeline/preprocess/label_clusters.py \
   --infile data/rna/integration/tables/bbknn.h5ad \
   --outfile data/rna/integration/tables/bbknn_labels_tmp.h5ad \
   --column leiden \
