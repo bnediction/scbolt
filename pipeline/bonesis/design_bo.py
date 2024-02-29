@@ -10,7 +10,7 @@ parser = argparse.ArgumentParser(
     prog="Convert a text file describing trajectories into comprehensible text for bonesis package",
     description="""conversion of a text file describing the trajectories where each line is in the form: `node_1 -> ... -> node_k`. \
     The output stream provides specifications comprehensible for bonesis.""",
-    usage="python design_bo.py <path>"
+    usage="python design_bo.py [-h] <path>"
 )
 
 parser.add_argument(
@@ -49,7 +49,7 @@ def write_bonesis_model(
                 stable_states.append(fp)
         print(bo_trajectory)
     for a, b in combinations(stable_states, 2):
-        print(f"~bo.obs({a}) != ~bo.obs({b})")
+        print(f"~bo.obs('{a}') != ~bo.obs('{b}')")
     return None
 
 trajectories = read_trajectories(args.infile)

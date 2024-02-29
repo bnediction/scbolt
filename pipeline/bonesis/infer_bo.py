@@ -3,8 +3,9 @@
 import sys
 import json
 from pathlib import Path
+from argparse import ArgumentParser
 
-import argparse
+from tqdm import tqdm
 
 import pandas as pd
 
@@ -16,20 +17,44 @@ from bonesis.asp_encoding import clingo_encode
 
 from plzf_rara_model import (
     important_nodes,
-    bomodel
+    bomodel,
+    load_bin,
+    collectri_to_grn
 )
 
 bonesis.settings["quiet"] = True
 
-class Arguments:
-    def __init__(self):
-        self.bin_file=Path("data/rna/binarization/cluster_bin_node_clusters.csv")
-        self.bomodel_file=Path("data/rna/bonesis/bomodel.txt")
-        self.action="filter_stage1"
+parser = ArgumentParser(
+    prog="Boolean network inference",
+    description="""From binarized meta-observations and specified trajectories,
+    infer a Most Permissive Boolean Network""",
+    usage="""python infer_bo.py [-h] <action> --bin-metastate <path> [<args>]"""
+)
 
-args = Arguments()
+parser.add_argument(
+    "action",
+    metavar="[filter_stage1 | filter_stage2 | one | one-min | one-sub]",
+    choices=["filter_stage1", "filter_stage2", "one", "one-min", "one-sub"]
+)
 
-parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--bin-metastates",
+    dest="bin_metastates",
+    type=lambda x: Path(x).resolve(),
+    required=True,
+    metavar="PATH",
+    help="file with binarized clusters"
+)
+
+parser.add_argument(
+    "--model-specification",
+    dest="model_specification",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default="plzf_rara_model.txt",
+    metavar="PATH",
+    help="file with binarized clusters (default: bomodel.txt)"
+)
 
 parser.add_argument(
     "--filter-grn",
@@ -69,34 +94,7 @@ parser.add_argument(
     type=str
 )
 
-parser.add_argument(
-    "action", required=True,
-    metavar="[filter_stage1 | filter_stage2 | one | one-min | one-sub]",
-    choices=["filter_stage1", "filter_stage2", "one", "one-min", "one-sub"]
-)
-
 args = parser.parse_args()
-
-def load_bin(file: Path) -> dict:
-    meta_bin = pd.read_csv(file, index_col=0)
-    return {config: genes.dropna().to_dict() for config, genes in meta_bin.iterrows()}
-
-def collectri_to_grn(
-    collectri: pd.DataFrame,
-    sign_label: str = "weight",
-    remove_pmid: bool = False
-    ) -> nx.MultiDiGraph:
-    if sign_label is not None:
-        collectri = collectri.rename(columns = {sign_label:"sign"})
-    if remove_pmid is True:
-        remove_pmid = "PMID" in collectri.columns
-    return nx.from_pandas_edgelist(
-        df = collectri.drop("PMID", axis=1) if remove_pmid else collectri,
-        source="source",
-        target="target",
-        edge_attr=True,
-        create_using=nx.MultiDiGraph
-    )
 
 collectri_db = dc.get_collectri(organism="mouse", split_complexes=True)
 grn = collectri_to_grn(collectri_db, sign_label="weight", remove_pmid=True)
@@ -116,11 +114,11 @@ if args.action.startswith("filter"):
 if args.action == "filter_stage1":
     pkn_options["allow_skipping_nodes"] = True
 
-meta_bin = load_bin(args.bin_file)
+meta_bin = load_bin(args.bin_metastates)
 
 pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
 bo = bonesis.BoNesis(pkn, meta_bin)
-bomodel(args.bomodel_file)
+bomodel(bo, args.model_specification)
 
 if args.action == "filter_stage1":
     bo.maximize_nodes()

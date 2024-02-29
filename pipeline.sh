@@ -17,7 +17,7 @@ source ${HOME}/anaconda3/etc/profile.d/conda.sh
 
 title $SIZE "10X data loading"
 
-echo -e "${LIGHT_RED}> control sample (download)...${NC}"
+echo -e "${LIGHT_RED}> download 10X genomics data (control sample)...${NC}"
 mkdir -p data/rna/raw/ct
 wget --quiet --recursive --no-parent -nd --reject "index.html" \
   --directory-prefix=data/rna/raw/ct \
@@ -26,7 +26,7 @@ mv data/rna/raw/ct/*matrix.mtx.gz data/rna/raw/ct/matrix.mtx.gz
 mv data/rna/raw/ct/*genes.tsv.gz data/rna/raw/ct/features.tsv.gz
 mv data/rna/raw/ct/*barcodes.tsv.gz data/rna/raw/ct/barcodes.tsv.gz
 
-echo -e "${LIGHT_RED}> treated sample (download)...${NC}"
+echo -e "${LIGHT_RED}> download 10X genomics data (treated sample)...${NC}"
 mkdir -p data/rna/raw/ra
 wget --quiet --recursive --no-parent -nd --reject "index.html" \
   --directory-prefix=data/rna/raw/ra \
@@ -37,13 +37,13 @@ mv data/rna/raw/ra/*barcodes.tsv.gz data/rna/raw/ra/barcodes.tsv.gz
 
 conda activate preprocess
 
-echo -e "${LIGHT_RED}> control sample (conversion)...${NC}"
+echo -e "${LIGHT_RED}> conversion (control sample)...${NC}"
 python pipeline/preprocess/load_10X.py \
   -i data/rna/raw/ct \
   -o data/rna/raw/ct/ct.h5ad \
   -s age=adult,date=29-09-2020,sample_name=ctrl,condition=control
 
-echo -e "${LIGHT_RED}> treated sample (conversion)...${NC}"
+echo -e "${LIGHT_RED}> conversion (treated sample)...${NC}"
 python pipeline/preprocess/load_10X.py \
   -i data/rna/raw/ra \
   -o data/rna/raw/ra/ra.h5ad \
@@ -53,11 +53,11 @@ python pipeline/preprocess/load_10X.py \
 
 title $SIZE "Cell filtering"
 
-echo -e "${LIGHT_RED}> cycle phase markers (download)...${NC}"
+echo -e "${LIGHT_RED}> download cycle phase markers...${NC}"
 mkdir -p data/public/cycle-phases
 wget --quiet -cO data/public/cycle-phases/mouse_cycle_markers.rds https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
 
-echo -e "${LIGHT_RED}> control sample (filtering)...${NC}"
+echo -e "${LIGHT_RED}> filtering (control sample)...${NC}"
 python pipeline/preprocess/filter_cells.py \
   --infile data/rna/raw/ct/ct.h5ad \
   --marker data/public/cycle-phases/mouse_cycle_markers.rds \
@@ -67,7 +67,7 @@ python pipeline/preprocess/filter_cells.py \
   --lower-mad 3 \
   --consistency-mad
 
-echo -e "${LIGHT_RED}> treated sample (filtering)...${NC}"
+echo -e "${LIGHT_RED}> filtering (treated sample)...${NC}"
 python pipeline/preprocess/filter_cells.py \
   --infile data/rna/raw/ra/ra.h5ad \
   --marker data/public/cycle-phases/mouse_cycle_markers.rds \
@@ -81,12 +81,12 @@ python pipeline/preprocess/filter_cells.py \
 
 title $SIZE "Cell type signatures loading"
 
-echo -e "${LIGHT_RED}> signatures (download)...${NC}"
+echo -e "${LIGHT_RED}> download signatures...${NC}"
 mkdir -p data/public/signatures
 wget --quiet -cO data/public/signatures/geiger.xls https://doi.org/10.1371/journal.pbio.2003389.s025 
 wget --quiet -cO data/public/signatures/chambers.xls https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
 
-echo -e "${LIGHT_RED}> signatures (conversion)...${NC}"
+echo -e "${LIGHT_RED}> convert signatures...${NC}"
 python pipeline/preprocess/load_signatures.py \
   --table-infile data/public/signatures/chambers.xls \
   --list-infile data/public/signatures/geiger.xls \
@@ -96,7 +96,7 @@ python pipeline/preprocess/load_signatures.py \
 
 title $SIZE "Gene filtering and normalization"
 
-echo -e "${LIGHT_RED}> control sample (normalization)...${NC}"
+echo -e "${LIGHT_RED}> normalization (control sample)...${NC}"
 python pipeline/preprocess/normalization.py \
   --infile data/rna/cell_filtering/ct/tables/counts.h5ad \
   --outpath data/rna/normalization/ct \
@@ -104,7 +104,7 @@ python pipeline/preprocess/normalization.py \
   --min-cell-expression-proportion 0.001 \
   --jobs 6
 
-echo -e "${LIGHT_RED}> treated sample (normalization)...${NC}"
+echo -e "${LIGHT_RED}> normalization (treated sample)...${NC}"
 python pipeline/preprocess/normalization.py \
   --infile data/rna/cell_filtering/ra/tables/counts.h5ad \
   --outpath data/rna/normalization/ra \
@@ -116,7 +116,7 @@ python pipeline/preprocess/normalization.py \
 
 title $SIZE "Cell clustering and marker analysis"
 
-echo -e "${LIGHT_RED}> control sample (clustering)...${NC}"
+echo -e "${LIGHT_RED}> clustering (control sample)...${NC}"
 python pipeline/preprocess/cluster.py \
   --infile data/rna/normalization/ct/tables/corrected.h5ad \
   --signatures data/public/signatures/signatures.json \
@@ -129,7 +129,7 @@ python pipeline/preprocess/cluster.py \
   --logfc-threshold 0.25 \
   --verbose
 
-echo -e "${LIGHT_RED}> treated sample (clustering)...${NC}"
+echo -e "${LIGHT_RED}> clustering (treated sample)...${NC}"
 python pipeline/preprocess/cluster.py \
   --infile data/rna/normalization/ra/tables/corrected.h5ad \
   --signatures data/public/signatures/signatures.json \
@@ -146,7 +146,7 @@ python pipeline/preprocess/cluster.py \
 
 title $SIZE "Integration"
 
-echo -e "${LIGHT_RED}> control + treated samples (integration)...${NC}"
+echo -e "${LIGHT_RED}> integration (control + treated samples)...${NC}"
 python pipeline/preprocess/integration.py \
   --i1 data/rna/normalization/ct/tables/corrected.h5ad \
   --i2 data/rna/normalization/ra/tables/corrected.h5ad \
@@ -166,7 +166,7 @@ python pipeline/preprocess/integration.py \
   --seed 10 \
   --verbose
 
-echo -e "${LIGHT_RED}> control + treated samples (cell type analysis)...${NC}"
+echo -e "${LIGHT_RED}> analyse cell types (control + treated samples)...${NC}"
 python pipeline/preprocess/analyse_markers.py \
   --infile data/rna/integration/tables/bbknn.h5ad \
   --signatures data/public/signatures/signatures.json \
@@ -177,7 +177,7 @@ python pipeline/preprocess/analyse_markers.py \
   --prefix bbknn \
   --verbose
 
-echo -e "${LIGHT_RED}> control + treated samples (rename labels)...${NC}"
+echo -e "${LIGHT_RED}> rename labels (control + treated samples)...${NC}"
 python pipeline/preprocess/label_clusters.py \
   --infile data/rna/integration/tables/bbknn.h5ad \
   --outfile data/rna/integration/tables/bbknn_labels_tmp.h5ad \
@@ -185,7 +185,7 @@ python pipeline/preprocess/label_clusters.py \
   --name 0=Unknown 1=Rep 2=Prom1 3=Prom2 4=Gran 5=Prom3 \
   --obsm X_umap
 
-echo -e "${LIGHT_RED}> control + treated samples (plot figure)...${NC}"
+echo -e "${LIGHT_RED}> plot figure (control + treated samples)...${NC}"
 python fig/plot_embedding.py --json fig/umap_labels.json
 
 ### Trajectory analysis ###
@@ -195,7 +195,7 @@ title $SIZE "Trajectory analysis"
 conda deactivate
 conda activate stream
 
-echo -e "${LIGHT_RED}> control + treated samples (stream pseudotime)...${NC}"
+echo -e "${LIGHT_RED}> stream pseudotime...${NC}"
 python pipeline/stream/pseudotime.py \
   --infile data/rna/integration/tables/bbknn_labels.h5ad \
   --outpath data/rna/stream/pseudotime \
@@ -214,7 +214,7 @@ python pipeline/stream/pseudotime.py \
   --plot-3d \
   --jobs 6
 
-echo -e "${LIGHT_RED}> control + treated samples (stream trajectories)...${NC}"
+echo -e "${LIGHT_RED}> stream trajectories...${NC}"
 python pipeline/stream/trajectories.py \
   --infile data/rna/stream/pseudotime/tables/stream.h5ad.pkl \
   --outpath data/rna/stream/trajectories \
@@ -231,7 +231,7 @@ title $SIZE "Binarization"
 conda deactivate
 conda activate binarization
 
-echo -e "${LIGHT_RED}> control + treated samples (scBoolSeq)...${NC}"
+echo -e "${LIGHT_RED}> scBoolSeq binarization...${NC}"
 python pipeline/binarization/bin_clusters.py \
   --infile data/rna/stream/pseudotime/tables/stream.h5ad \
   --outpath data/rna/binarization \
@@ -242,6 +242,8 @@ python pipeline/binarization/bin_clusters.py \
   --verbose
 
 ### Inference ####
+
+title $SIZE "Bonesis inference"
 
 mkdir data/rna/bonesis
 
