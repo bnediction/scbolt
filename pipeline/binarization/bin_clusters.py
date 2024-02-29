@@ -315,8 +315,7 @@ section = Section(verbose = args.verbose)
 
 scbool = scBoolSeq(
     margin_quantile=0.10,
-    zeroinf_binarizer="zero_or_not",
-    zeroes_are=0
+    zeroinf_binarizer="zero_or_not"
 )
 
 predict = Predict(

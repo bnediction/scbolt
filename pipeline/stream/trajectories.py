@@ -18,8 +18,20 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from anndatatools.plotting import color
 
-def node_to_value(branch, attribute):
+def node_to_value(branch, attribute) -> list:
     return [attribute[_node] for _node in branch]
+
+def tree_to_trajectories(flat_tree) -> list:
+    labels = nx.get_node_attributes(flat_tree, "label")
+    for _node, _label in labels.items():
+        if _label == args.root:
+            root = _node
+            break
+    leafs = [_node for _node in flat_tree.nodes if flat_tree.degree(_node) == 1 and _node != root]
+    branches = list()
+    for _leaf in leafs:
+        branches.extend(list(nx.algorithms.all_simple_paths(G= flat_tree, source=root, target=_leaf)))
+    return [node_to_value(_branch, labels) for _branch in branches]
 
 parser = argparse.ArgumentParser(
     prog="trajectory inference of sc-RNAseq data",
@@ -123,14 +135,10 @@ args = parser.parse_args()
 
 section = Section()
 
-data_outpath = Path(f"{args.outpath}/tables")
-fig_outpath = Path(f"{args.outpath}/figures")
 args.root=f"S{args.root}"
 
-if not data_outpath.exists():
-    os.makedirs(data_outpath)
-if not fig_outpath.exists():
-    os.makedirs(fig_outpath)
+if not args.outpath.exists():
+    os.makedirs(args.outpath)
 
 groups = set(args.groups).union([f"{args.root}_pseudotime"])
 
@@ -183,13 +191,13 @@ for _group in groups:
     )
     adt.pl.set_default(ax)
     if "pseudotime" not in _group:
-        plt.savefig(f"{fig_outpath}/{args.prefix}{_group}_{dr.split('_')[-1].lower()}_trajectory_plot")
+        plt.savefig(f"{args.outpath}/{args.prefix}{_group}_{dr.split('_')[-1].lower()}_trajectory_plot")
     else:
-        plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}_trajectory_plot")
+        plt.savefig(f"{args.outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}_trajectory_plot")
     if args.plot_3d is True and "pseudotime" not in _group:
-        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}{_group}_{dr.split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))
+        pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}{_group}_{dr.split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))
     elif args.plot_3d is True:
-        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))
+        pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))
     else:
         pass
 
@@ -207,7 +215,7 @@ fig, ax = (plt.gcf(), plt.gca())
 adt.pl.set_default(ax)
 ax.tick_params(axis="x", which="major", pad=2)
 ax.images[-1].colorbar.remove()
-plt.savefig(f"{fig_outpath}/{args.prefix}pseudotime_stream_plot")
+plt.savefig(f"{args.outpath}/{args.prefix}pseudotime_stream_plot")
 
 for _group in groups.difference([f"{args.root}_pseudotime"]):
     colors=color.COLORS[0:len(adata.obs["node_clusters"].unique())-1] + [color.lightgray] if _group == "node_clusters" else color.COLORS
@@ -239,25 +247,14 @@ for _group in groups.difference([f"{args.root}_pseudotime"]):
         borderaxespad=0.2,
         handletextpad=0.3
     )
-    plt.savefig(f"{fig_outpath}/{args.prefix}{_group}_stream_plot")
+    plt.savefig(f"{args.outpath}/{args.prefix}{_group}_stream_plot")
 
 print("Trajectories inference...")
 
-epg = adata.uns["epg"]
 flat_tree = adata.uns["flat_tree"]
+branch_labels = tree_to_trajectories(flat_tree)
 
-labels = nx.get_node_attributes(flat_tree, "label")
-for _node, _label in labels.items():
-    if _label == args.root:
-        root = _node
-        break
-leafs = [_node for _node in flat_tree.nodes if flat_tree.degree(_node) == 1 and _node != root]
-branches = list()
-for _leaf in leafs:
-    branches.extend(list(nx.algorithms.all_simple_paths(G= flat_tree, source=root, target=_leaf)))
-branch_labels = [node_to_value(_branch, labels) for _branch in branches]
-
-with open(f"{data_outpath}/branches.txt", "w") as file:
+with open(f"{args.outpath}/branches.txt", "w") as file:
     for _branch in branch_labels:
         line = re.sub("[\[\]\']", "", re.sub(",", " ->", str(_branch)))
         file.write(line + "\n")

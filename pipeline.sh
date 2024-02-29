@@ -247,8 +247,8 @@ mkdir data/rna/bonesis
 
 echo -e "${LIGHT_RED}> trajectories conversion...${NC}"
 python pipeline/bonesis/design_bo.py \
-  --infile data/rna/stream/trajectories/tables/branches.txt \
-  > data/rna/bonesis/trajectories.txt
+  --infile data/rna/stream/trajectories/branches.txt \
+  > data/rna/bonesis/bo_model.txt
 
 ### End workflow
 
