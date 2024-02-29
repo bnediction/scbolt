@@ -183,8 +183,8 @@ def cell_to_cluster_binarization(
 
 parser = argparse.ArgumentParser(
     prog="binarization of sc-RNAseq data",
-    description="""From concatenated (sometimes integrated) sc-rnaSeq data recorded in the \
-        hdf5 format (<filename>.h5ad), compute cluster-related binarization based on scBoolSeq \
+    description="""From concatenated sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad), \
+        compute cluster-related binarization based on scBoolSeq \
         method (see Magaña López et al. (2023): <https://hal.science/hal-04294917/>).""",
     usage=""""python binarization.py [-h] -i <path> -c <literal> [<args>]"""
 )
