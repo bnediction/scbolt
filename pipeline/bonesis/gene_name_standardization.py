@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+import ctypes
+
+import warnings
+
 import os
 from pathlib import Path
 
@@ -8,22 +12,28 @@ from typing import Union, Any, Sequence, Dict, Set, List, Tuple
 import pandas as pd
 from pandas._typing import Axis
 
-class GeneName(object):
+import networkx as nx
+
+class GeneSynonyms(object):
 
     def __init__(self, gi_file: Path) -> None:
         self.gi_file = gi_file
         self.gene_synonyms = self.__synonyms_from_NCBI(self.gi_file)
+        self.__upper_gene_synonyms = {gene.upper(): self.gene_synonyms[gene] for gene in self.gene_synonyms.keys()}
         return None
     
     def __get__(self, attribute: str = None) -> Any:
-        if attribute is None:
-            return self.gene_synonyms
+        if attribute is None or attribute == "gene_synonyms":
+            return {gene: ncbi_reference_name.value.decode() for gene, ncbi_reference_name in self.gene_synonyms.items()}
+        elif attribute == "__upper_gene_synonyms":
+            raise AttributeError("`__upper_gene_synonyms` attribute is private.")
         else:
             return getattr(self, attribute)
     
     def __set__(self, gi_file: Path) -> None:
         self.gi_file = gi_file
         self.gene_synonyms = self.__synonyms_from_NCBI(self.gi_file)
+        self.__upper_gene_synonyms = {gene.upper(): self.gene_synonyms[gene] for gene in self.gene_synonyms.keys()}
         return None
    
     def __synonyms_from_NCBI(self, gi_file: Path) -> dict:
@@ -34,7 +44,7 @@ class GeneName(object):
         Parameters
         ----------
         gi_file
-            Path to the NCBI gene info data
+            path to the NCBI gene info data
 
         Returns
         -------
@@ -52,19 +62,18 @@ class GeneName(object):
 
         with open (gi_file_cut, "r") as file_synonyms:
             for gene in file_synonyms:
-                gene = gene.strip().upper()
+                gene = gene.strip()
                 gene_synonyms_list = gene.split("\t")
                 ncbi_reference_name = gene_synonyms_list.pop(0)
                 res = [_synonym for _synonym in gene_synonyms_list if (_synonym != "-" and _synonym != ncbi_reference_name)]
 
-                # Create the dictionnary matching each gene name to its reference gene name
-                gene_synonyms_dict[ncbi_reference_name] = ncbi_reference_name
+                gene_synonyms_dict[ncbi_reference_name] = ctypes.create_string_buffer(ncbi_reference_name.encode())
                 reference_names.add(ncbi_reference_name)
 
                 for gene in res:
                     if gene not in reference_names and gene not in gene_synonyms_dict:
                         # Warning with NCBI list of synonyms: a noun can be the synonym of several reference names. Arbitrary, the choosen one is the first.
-                        gene_synonyms_dict[gene] = ncbi_reference_name
+                        gene_synonyms_dict[gene] = ctypes.create_string_buffer(ncbi_reference_name.encode())
 
         os.system(f"rm {str(gi_file_cut)}")
         return gene_synonyms_dict
@@ -76,19 +85,21 @@ class GeneName(object):
         Parameters
         ----------
         gene_name
-            Name of a gene
+            name of a gene
         gene_synonyms_dict
-            Dictionary where keys correspond to gene name and values correspond to reference gene name
+            dictionary where keys correspond to gene name and values correspond to reference gene name
 
         Returns
         -------
         Given a gene name, return its reference name.
         """
 
-        gene_name = gene_name.upper()
-        if gene_name in self.gene_synonyms:
-            return self.gene_synonyms[gene_name]
-        return gene_name
+        _gene_name = gene_name.upper()
+        if _gene_name in self.__upper_gene_synonyms:
+            return self.__upper_gene_synonyms[_gene_name].value.decode()
+        else:
+            warnings.warn(f"NCBI does not find a correspondance for {gene_name}.")
+            return gene_name
 
     def interaction_list_standardization(self, interactions_list: Sequence[Tuple[str, str, Dict[str, int]]]) -> List[Tuple[str, str, Dict[str, int]]]:
         """
@@ -117,11 +128,10 @@ class GeneName(object):
         self,
         df: pd.DataFrame,
         axis: Axis = 0,
-        genes_to_standardize: Sequence[str] = None,
-        inplace: bool = False
-    ) -> Path:
+        copy: bool = True
+    ) -> Union[pd.DataFrame, None]:
         """
-        Replace gene name with its reference gene name into data
+        Replace gene name with its reference gene name into `df`.
 
         Parameters
         ----------
@@ -129,9 +139,7 @@ class GeneName(object):
             dataframe where names must be standardized
         axis
             whether to rename labels from the index (0 or `index`) or columns (1 or `columns`)
-        genes_to_standardize
-            sequence containing gene names to standardize (default: all genes)
-        inplace
+        copy
             return a copy instead of updating `df`
         
         Returns
@@ -139,15 +147,52 @@ class GeneName(object):
         Depending on `inplace`, update or return dataframe with standardized gene name.
         """
 
-        df = df.copy() if not inplace else df
+        df = df.copy() if copy is True else df
 
-        if genes_to_standardize is None:
-            genes_to_standardize = set(self.gene_synonyms.keys())
+        synonyms = list()
+
+        if axis == 0 or axis == "index":
+            gene_iterator = iter(df.index)
+        elif axis == 1 or axis == "columns":
+            gene_iterator = iter(df.columns)
         else:
-            genes_to_standardize = set(genes_to_standardize)
-        _gene_synonyms = {gene:self.get_reference_gene_name(gene) for gene in genes_to_standardize if gene in self.gene_synonyms}
-        df.rename(mapper=str.upper, axis=axis, inplace=True)
-        df.rename(mapper=_gene_synonyms, axis=axis, inplace=True)
+            raise ValueError(f"No axis named {axis} for object type DataFrame")
+        for gene in gene_iterator:
+            ncbi_reference_name = self.get_reference_gene_name(gene)
+            synonyms.append(ncbi_reference_name)
+        if axis == 0 or axis == "index":
+            df.index = synonyms
+        elif axis == 1 or axis == "columns":
+            df.columns = synonyms
 
-        if not inplace:
+        if copy is True:
             return df
+    
+    def graph_standardization(
+        self,
+        graph: nx.Graph,
+        copy: bool = True
+    ) -> Union[nx.Graph, None]:
+        """
+        Replace gene name with its reference gene name into `graph`.
+
+        Parameters
+        ----------
+        graph
+            graph where nodes must be standardized
+        copy
+            return a copy instead of updating `graph`
+        
+        Returns
+        -------
+        Depending on `inplace`, update or return graph with standardized gene name.
+        """
+
+        synonym_mapping = dict()
+        for gene in graph.nodes:
+            synonym_mapping[gene] = self.get_reference_gene_name(gene)
+        if copy is True:
+            return nx.relabel_nodes(graph, mapping=synonym_mapping, copy=True)
+        else:
+            nx.relabel_nodes(graph, mapping=synonym_mapping, copy=False)
+            return None
