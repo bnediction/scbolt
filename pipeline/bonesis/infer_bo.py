@@ -22,7 +22,7 @@ from plzf_rara_model import (
     collectri_to_grn
 )
 
-bonesis.settings["quiet"] = True
+from gene_name_standardization import GeneSynonyms
 
 parser = ArgumentParser(
     prog="Boolean network inference",
@@ -53,7 +53,17 @@ parser.add_argument(
     required=False,
     default="plzf_rara_model.txt",
     metavar="PATH",
-    help="file with binarized clusters (default: bomodel.txt)"
+    help="file with binarized clusters (default: plzf_rara_model.txt)"
+)
+
+parser.add_argument(
+    "--gene-synonyms",
+    dest="gene_synonyms",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=None,
+    metavar="PATH",
+    help="NCBI file with gene synonym correspondances"
 )
 
 parser.add_argument(
@@ -90,14 +100,28 @@ parser.add_argument(
 
 parser.add_argument(
     "--clingo-opt-strategy",
-    dest="clingo-opt-strategy",
+    dest="clingo_opt_strategy",
     type=str
+)
+
+parser.add_argument(
+    "--quiet",
+    dest="quiet",
+    required=False,
+    action="store_true"
 )
 
 args = parser.parse_args()
 
+bonesis.settings["quiet"] = args.quiet
+
+if args.gene_synonyms:
+    genename = GeneSynonyms(args.gene_synonyms)
+
 collectri_db = dc.get_collectri(organism="mouse", split_complexes=True)
 grn = collectri_to_grn(collectri_db, sign_label="weight", remove_pmid=True)
+if args.gene_synonyms:
+    genename.graph_standardization(grn, copy=False)
 if args.filter_grn:
     with open(args.filter_grn) as fp:
         nodes = [line.strip() for line in fp.readlines()]
@@ -114,7 +138,7 @@ if args.action.startswith("filter"):
 if args.action == "filter_stage1":
     pkn_options["allow_skipping_nodes"] = True
 
-meta_bin = load_bin(args.bin_metastates)
+meta_bin = load_bin(args.bin_metastates, gene_synonyms = genename if args.gene_synonyms is not None else None)
 
 pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
 bo = bonesis.BoNesis(pkn, meta_bin)

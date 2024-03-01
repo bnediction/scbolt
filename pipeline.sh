@@ -250,6 +250,7 @@ wget --quiet --directory-prefix=data/public/gene_info \
   ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Mus_musculus.gene_info.gz
 gunzip --quiet data/public/gene_info/Mus_musculus.gene_info.gz
 mv data/public/gene_info/Mus_musculus.gene_info data/public/gene_info/mus_musculus_gene_info.tsv
+ln data/public/gene_info/mus_musculus_gene_info.tsv pipeline/bonesis/mus_musculus_gene_info.tsv
 
 echo -e "${LIGHT_RED}> trajectory specification...${NC}"
 python pipeline/bonesis/design_bo.py data/rna/stream/trajectories/branches.txt > data/rna/bonesis/plzf_rara_model.txt
