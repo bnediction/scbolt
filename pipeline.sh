@@ -256,6 +256,9 @@ echo -e "${LIGHT_RED}> trajectory specification...${NC}"
 python pipeline/bonesis/design_bo.py data/rna/stream/trajectories/branches.txt > data/rna/bonesis/plzf_rara_model.txt
 ln data/rna/bonesis/plzf_rara_model.txt pipeline/bonesis/plzf_rara_model.txt
 
+echo -e "${LIGHT_RED}> bonesis running (filter stage1)...${NC}"
+make -f pipeline/bonesis/Makefile all
+
 ### End workflow
 
 conda deactivate
