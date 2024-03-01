@@ -292,45 +292,46 @@ def embedding_plot(
     default_parameters: typing.Optional[types.FunctionType] = None,
     **kwargs
 ):
-    """Compute a scatterplot between the two first columns of .obsm[`obsm`]
+    """
+    Compute a scatterplot between the two first columns of .obsm[`obsm`]
     by using a classification/clusterization with respect to .obs[`obs`].
 
     Parameters
     ----------
     adata
-        Annotated data matrix.
+        Annotated data matrix
     obs
-        The classification is retrieved by .obs[`obs`], which must be categorical/qualitative values.
+        The classification is retrieved by .obs[`obs`], which must be categorical/qualitative values
     obsm
-        The data points are retrieved by the first columns in .obsm[`obsm`].
+        The data points are retrieved by the first columns in .obsm[`obsm`]
     colors
-        Visualization of the mapping from a list of color values.
+        Visualization of the mapping from a list of color values
     n_components
         Number of plotted dimensions (default: 2)
     outfile
-        If specified, save the figure.
+        If specified, save the figure
     add_graph
-        plot elastic principal graph.
+        plot elastic principal graph
     add_text
-        add node labels of elastic principal graph.
+        add node labels of elastic principal graph
     default_parameters
-        function specifying default figure parameters.
+        function specifying default figure parameters
     **kwargs
         Supplemental features for figure plotting:
-        - figheight[float]: specify the figure height.
-        - figwidth[float]: specify the figure width.
-        - xlabel[str]: set the label for the x-axis.
-        - ylabel[str]: set the label for the y-axis.
-        - zlabel[str]: set the label for the z-axis.
-        - formatter[matplotlib.ticker.FormatStrFormatter]: specify the major formatter on x-, y- and z-axis.
-        - add_legend[bool]: when .obs[`obs`] are discrete values, specify whether to draw legend.
-        - lgd_params[dict]: when add_legend is True, modify legend following the syntax of matplotlib.pyplot.legend.
-        - tick_params[dict]: change the appearance of ticks, tick labels, and gridlines following the syntax of matplotlib.axes.Axes.tick_params.
-        - xtick_params[dict]: change the appearance of ticks, tick labels, and gridlines on x-axis following the syntax of matplotlib.axes.Axes.tick_params.
-        - ytick_params[dict]: change the appearance of ticks, tick labels, and gridlines on y-axis following the syntax of matplotlib.axes.Axes.tick_params.
-        - ztick_params[dict]: change the appearance of ticks, tick labels, and gridlines on z-axis following the syntax of matplotlib.axes.Axes.tick_params.
-        - text[dict]: change the appearance of text in figure following the syntax of matplotlib.text.
-        - background_visible[bool]: specify if background color is visible or not in case of 3D plotting.
+        - figheight[float]: specify the figure height
+        - figwidth[float]: specify the figure width
+        - xlabel[str]: set the label for the x-axis
+        - ylabel[str]: set the label for the y-axis
+        - zlabel[str]: set the label for the z-axis
+        - formatter[matplotlib.ticker.FormatStrFormatter]: specify the major formatter on x-, y- and z-axis
+        - add_legend[bool]: when .obs[`obs`] are discrete values, specify whether to draw legend
+        - lgd_params[dict]: when add_legend is True, modify legend following the syntax of matplotlib.pyplot.legend
+        - tick_params[dict]: change the appearance of ticks, tick labels, and gridlines following the syntax of matplotlib.axes.Axes.tick_params
+        - xtick_params[dict]: change the appearance of ticks, tick labels, and gridlines on x-axis following the syntax of matplotlib.axes.Axes.tick_params
+        - ytick_params[dict]: change the appearance of ticks, tick labels, and gridlines on y-axis following the syntax of matplotlib.axes.Axes.tick_params
+        - ztick_params[dict]: change the appearance of ticks, tick labels, and gridlines on z-axis following the syntax of matplotlib.axes.Axes.tick_params
+        - text[dict]: change the appearance of text in figure following the syntax of matplotlib.text
+        - background_visible[bool]: specify if background color is visible or not in case of 3D plotting
 
     Returns
     -------
@@ -338,9 +339,9 @@ def embedding_plot(
     """
 
     if n_components not in [2,3]:
-        raise ValueError(f"`n_components` parameter value is {n_components}, please set it to 2 or 3, aborting.")
+        raise ValueError(f"`n_components` parameter value is {n_components}, please set it to 2 or 3.")
     elif n_components == 3 and adata.obsm[obsm].shape[1] < 3:
-        raise ValueError(f"incoherence value: `n_components` parameter value is {n_components} while number of dimension in .obsm[{obsm}] is {adata.obsm[obsm].shape[1]}, aborting.")
+        raise ValueError(f"incoherent value: `n_components` parameter value is {n_components} while number of dimension in .obsm[{obsm}] is {adata.obsm[obsm].shape[1]}.")
 
     if pd.api.types.is_float_dtype(adata.obs[obs]):
         fig, ax = __scatterplot_continuous(

@@ -54,13 +54,13 @@ python pipeline/preprocess/load_10X.py \
 title $SIZE "Cell filtering"
 
 echo -e "${LIGHT_RED}> download cycle phase markers...${NC}"
-mkdir -p data/public/cycle-phases
-wget --quiet -cO data/public/cycle-phases/mouse_cycle_markers.rds https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
+mkdir -p data/public/cycle_phases
+wget --quiet -cO data/public/cycle_phases/mouse_cycle_markers.rds https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
 
 echo -e "${LIGHT_RED}> filtering (control sample)...${NC}"
 python pipeline/preprocess/filter_cells.py \
   --infile data/rna/raw/ct/ct.h5ad \
-  --marker data/public/cycle-phases/mouse_cycle_markers.rds \
+  --marker data/public/cycle_phases/mouse_cycle_markers.rds \
   --outpath data/rna/cell_filtering/ct \
   --mitochondrial_threshold 5 \
   --upper-mad 2 \
@@ -70,7 +70,7 @@ python pipeline/preprocess/filter_cells.py \
 echo -e "${LIGHT_RED}> filtering (treated sample)...${NC}"
 python pipeline/preprocess/filter_cells.py \
   --infile data/rna/raw/ra/ra.h5ad \
-  --marker data/public/cycle-phases/mouse_cycle_markers.rds \
+  --marker data/public/cycle_phases/mouse_cycle_markers.rds \
   --outpath data/rna/cell_filtering/ra \
   --mitochondrial_threshold 5 \
   --upper-mad 2 \
@@ -246,6 +246,10 @@ python pipeline/binarization/bin_clusters.py \
 title $SIZE "Bonesis inference"
 
 mkdir data/rna/bonesis
+wget --quiet --directory-prefix=data/public/gene_info \
+  ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Mus_musculus.gene_info.gz
+gunzip --quiet data/public/gene_info/Mus_musculus.gene_info.gz
+mv data/public/gene_info/Mus_musculus.gene_info data/public/gene_info/mus_musculus_gene_info.tsv
 
 echo -e "${LIGHT_RED}> trajectory specification...${NC}"
 python pipeline/bonesis/design_bo.py data/rna/stream/trajectories/branches.txt > data/rna/bonesis/plzf_rara_model.txt
