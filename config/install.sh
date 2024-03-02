@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/bash
 
 [ -d "config" ] && config_dir="config/" || config_dir=""
 [ -d "anndatatools" ] && dev_dir="." || dev_dir=".."
@@ -27,6 +27,15 @@ install_env() {
     fi
 }
 
+download_ncbi_gi() {
+    if [ ! -f "$1/.mus_musculus_gene_info.tsv" ];
+    then
+        wget --quiet --directory-prefix=$1 ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Mus_musculus.gene_info.gz
+        gunzip --quiet $1/Mus_musculus.gene_info.gz
+        mv $1/Mus_musculus.gene_info $1/.mus_musculus_gene_info.tsv
+    fi
+}
+
 source ${HOME}/anaconda3/etc/profile.d/conda.sh
 
 if conda env list | grep -q "^base";
@@ -38,3 +47,5 @@ for environment in preprocess stream binarization
 do
     install_env $environment
 done
+
+download_ncbi_gi ${dev_dir}/utils

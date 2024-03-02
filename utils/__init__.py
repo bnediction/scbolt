@@ -2,5 +2,6 @@
 
 from . import (
     stdout,
-    argtype
+    argtype,
+    genesyn
 )
