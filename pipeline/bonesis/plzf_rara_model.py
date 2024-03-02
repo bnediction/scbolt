@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from pathlib import Path
-from gene_name_standardization import GeneSynonyms
+from utils.genesyn import GeneSynonyms
 
 import pandas as pd
 
@@ -10,10 +10,7 @@ from bonesis import BoNesis
 
 important_nodes = []
 
-def bomodel(
-    bo: BoNesis,
-    file: Path = Path("plzf_rara_model.txt")
-) -> None:
+def bomodel(bo: BoNesis, file: Path = Path("plzf_rara_model.txt")) -> None:
     with open(file, "r") as file:
         for line in file:
             eval(line)

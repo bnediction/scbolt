@@ -28,7 +28,6 @@ class GeneSynonyms(object):
             self.ncbi_file = Path(f"{str(os.path.abspath(os.path.dirname(__file__)))}/.mus_musculus_gene_info.tsv")
         else:
             raise TypeError(f"`ncbi_file` is specified but not a Path")
-        print(self.ncbi_file)
         self.gene_synonyms = self.__synonyms_from_NCBI(self.ncbi_file)
         self.__upper_gene_synonyms = {gene.upper(): self.gene_synonyms[gene] for gene in self.gene_synonyms.keys()}
         return None
@@ -51,7 +50,7 @@ class GeneSynonyms(object):
         return None
     
     def __call__(self, data: Union[Sequence[Tuple[str, str, Dict[str, int]]], DataFrame, Graph], *args, **kwargs):
-        if isinstance(data, SequenceInstance):
+        if isinstance(data, SequenceInstance) and not isinstance(data, str):
             return self.interaction_list_standardization(data, *args, **kwargs)
         elif isinstance(data, DataFrame):
             return self.df_standardization(data, *args, **kwargs)
@@ -120,7 +119,7 @@ class GeneSynonyms(object):
         if _gene_name in self.__upper_gene_synonyms:
             return self.__upper_gene_synonyms[_gene_name].value.decode()
         else:
-            warnings.warn(f"NCBI does not find a correspondance for {gene_name}.")
+            warnings.warn(f"NCBI does not find a correspondance for {gene_name}.", stacklevel=10)
             return gene_name
 
     def interaction_list_standardization(self, interactions_list: Sequence[Tuple[str, str, Dict[str, int]]]) -> List[Tuple[str, str, Dict[str, int]]]:
