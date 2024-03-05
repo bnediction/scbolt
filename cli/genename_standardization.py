@@ -49,11 +49,9 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-if not os.path.dirname(args.outfile).exists:
+if not Path(os.path.dirname(args.outfile)).exists:
     os.makedirs(os.path.dirname(args.outfile))
 
-genename = GeneSynonyms()
-
 df = pd.read_csv(args.infile, index_col=0, sep=args.sep)
-genename.df_standardization(df, axis=args.axis, copy=False)
+GeneSynonyms()(df, axis=args.axis, copy=False)
 df.to_csv(args.outfile, sep=args.sep)

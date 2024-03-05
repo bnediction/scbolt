@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import typing
+from typing import Optional, Union
 
 import numpy as np
 import math
@@ -51,13 +51,13 @@ def shared_neighbors(
     adata: ad.AnnData,
     knn_key: str = "neighbors",
     snn_key: str = "shared_neighbors",
-    prune_snn: typing.Optional[float] = 1/15,
-    metric: typing.Optional[str] = "euclidean",
+    prune_snn: Optional[float] = 1/15,
+    metric: Optional[str] = "euclidean",
     normalize_similarities: bool = True,
-    distances_key: typing.Optional[str] = None,
-    similarities_key: typing.Optional[str] = None,
+    distances_key: Optional[str] = None,
+    similarities_key: Optional[str] = None,
     copy: bool = False
-) -> ad.AnnData:
+) -> Union[ad.AnnData, None]:
     """Compute a shared neighborhood (SNN) graph of observations.
 
     The neighbor search relies on a previously computed neighborhood graph

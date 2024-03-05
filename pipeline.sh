@@ -38,16 +38,12 @@ mv data/rna/raw/ra/*barcodes.tsv.gz data/rna/raw/ra/barcodes.tsv.gz
 conda activate preprocess
 
 echo -e "${LIGHT_RED}> conversion (control sample)...${NC}"
-python pipeline/preprocess/load_10X.py \
-  -i data/rna/raw/ct \
-  -o data/rna/raw/ct/ct.h5ad \
-  -s age=adult,date=29-09-2020,sample_name=ctrl,condition=control
+python pipeline/preprocess/load_10X.py data/rna/raw/ct data/rna/raw/ct/ct.h5ad \
+  --sample-info age=adult date=29-09-2020 sample_name=ctrl condition=control
 
 echo -e "${LIGHT_RED}> conversion (treated sample)...${NC}"
-python pipeline/preprocess/load_10X.py \
-  -i data/rna/raw/ra \
-  -o data/rna/raw/ra/ra.h5ad \
-  -s age=adult,date=29-09-2020,sample_name=ra,condition=treated
+python pipeline/preprocess/load_10X.py data/rna/raw/ra data/rna/raw/ra/ra.h5ad \
+  --sample-info age=adult date=29-09-2020 sample_name=ra condition=treated
 
 ### Cell filtering ###
 

@@ -116,4 +116,21 @@ dependencies:
   - xorg-libxdmcp=1.1.3=h7f98852_0
   - xz=5.2.6=h166bdaf_0
   - zstd=1.5.5=hfc55251_0
-prefix: ${HOME}/anaconda3/envs/binarization
+  - pip:
+    - annotated-types==0.6.0
+    - attrs==23.2.0
+    - charset-normalizer==3.3.2
+    - decoupler==1.6.0
+    - docrep==0.3.2
+    - idna==3.6
+    - inflect==7.0.0
+    - llvmlite==0.42.0
+    - numba==0.59.0
+    - omnipath==1.0.8
+    - pydantic==2.6.3
+    - pydantic-core==2.16.3
+    - requests==2.31.0
+    - tqdm==4.66.2
+    - urllib3==2.2.1
+    - wrapt==1.16.0
+prefix: {HOME}/anaconda3/envs/binarization

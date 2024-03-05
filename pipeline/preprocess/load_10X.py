@@ -6,42 +6,41 @@ import os
 import argparse
 import scanpy as sc
 
+import anndatatools as adt
+
 parser = argparse.ArgumentParser(
-    prog="Loading 10X sparse matrix format sc-RNAseq data",
-    description="""converter of sc-rnaSeq data in the 10X sparse matrix format into the hdf5 format.\n
-    The structure of 10X sparse matrix format is a directory containing three files:\n
-    - matrix.mtx.gz (sparse matrix in the Market Exchange MEX format\n
-    -- also named coordinate list format -- which corresponds to compressed reordered sparse counting data)\n
-    - barcodes.tsv.gz (information about each cell)\n
-    - features.tsv.gz (information about each gene)\n""",
-    usage="python load_10X.py -i <path> [<args>]")
-
-parser.add_argument(
-    "-i", "--inpath",
-    dest="inpath",
-    type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
-    help="directory to the 10X sparse matrix data"
+    prog="Loading 10X sparse matrix sc-RNAseq data",
+    description="""Convert sc-RNAseq data from 10X sparse matrix format into hdf5 format. The structure of 10X sparse matrix format is a directory containing three files:
+    - matrix.mtx.gz (sparse matrix in the Market Exchange MEX format) -- also named coordinate list format, which corresponds to compressed reordered sparse counting data)
+    - barcodes.tsv.gz (information about each cell)
+    - features.tsv.gz (information about each gene)""",
+    usage="python load_10X.py [-h] <PATH> <FILE> [--sample-info <KEY=VALUE ...>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter
 )
 
 parser.add_argument(
-    "-o", "--outfile",
-    dest="outfile",
+    "inpath",
     type=lambda x: Path(x).resolve(),
-    required=False,
-    default=Path("./out.h5ad").resolve(),
     metavar="PATH",
-    help="hdf5 output filename"
+    help="directory to 10X sparse matrix data"
 )
 
 parser.add_argument(
-    "-s", "--sample_info",
+    "outfile",
+    type=lambda x: Path(x).resolve(),
+    metavar="FILE",
+    help="outfile in csv format"
+)
+
+parser.add_argument(
+    "--sample-info",
     dest="sample_info",
     type=str,
+    nargs="*",
     required=False,
     default=None,
-    help="sample metadata (format: key_1=value_1,...,key_n=value_n"
+    metavar="KEY=VALUE",
+    help="sample metadata"
 )
 
 args = parser.parse_args()
@@ -55,8 +54,10 @@ adata = sc.read_10x_mtx(path=args.inpath)
 adata.raw = adata
 adata.var["symbol"] = list(adata.var.index)
 
-for metadatum in args.sample_info.split(","):
+for metadatum in args.sample_info:
     key, value = metadatum.split("=")
     adata.uns[key] = value
+
+adt.pp.set_ncbi_reference_name(adata, annotations="var", copy=False)
 
 adata.write_h5ad(filename=args.outfile, compression="gzip")
