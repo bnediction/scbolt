@@ -5,16 +5,18 @@ warnings.filterwarnings("ignore")
 
 from typing import Optional, Union, Any, Sequence, NamedTuple
 from numbers import Number
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 
 import sys
-import os, argparse
+import argparse
+import json
 from pathlib import Path
 
 import pandas as pd
 import decoupler as dc
 import numpy as np
 
+import math
 import itertools
 import networkx as nx
 
@@ -134,7 +136,9 @@ def all_interaction_scoring(
     weights: Sequence[Number],
     radius: int = 3,
     gene_set: Optional[Sequence[str]] = None,
-    base: float = 0.75
+    min_path_number: Optional[int] = 1,
+    base: float = 0.75,
+    enable_loop: bool = False
 ) -> dict:
 
     interaction_signs = dict()
@@ -142,6 +146,10 @@ def all_interaction_scoring(
         gene_set = set(graph.nodes)
     else:
         gene_set = set(gene_set).intersection(set(graph.nodes))
+    if isinstance(min_path_number, int) or min_path_number is None:
+        min_path_number = min_path_number if min_path_number > 1 else 1
+    else:
+        raise TypeError("`min_path_number` is not an integer")
     
     if not (0 < base < 1):
         raise ValueError("`base` is not between 0 and 1")
@@ -151,32 +159,92 @@ def all_interaction_scoring(
     for u, v in itertools.combinations(gene_set, 2):
         from_u = interaction_scoring(graph=graph, source=u, target=v, weights=weights, radius=radius)
         from_v = interaction_scoring(graph=graph, source=v, target=u, weights=weights, radius=radius)
-        _u_is_source = False
-        _v_is_source = False
-        _sign = 0
-        if from_u.score != float("nan"):
+        _is_source = [False, False]
+        _sign = [0, 0]
+        if from_u.min_path_number >= min_path_number:
             if abs(from_u.score) / from_u.maxscore >= from_u.maxscore * base:
-                _u_is_source = True
-                _sign = 1 if from_u.score / from_u.maxscore > 0 else -1
-        if from_v.score != float("nan"):
+                _is_source[0] = True
+                _sign[0] = 1 if from_u.score / from_u.maxscore > 0 else -1
+        if from_u.min_path_number >= min_path_number:
             if abs(from_v.score) / from_v.maxscore >= from_v.maxscore * base:
-                _v_is_source = True
-                _sign = 1 if from_u.score / from_u.maxscore > 0 else -1
-        if _u_is_source ^ _v_is_source:
-            source = u if _u_is_source is True else v
-            target = v if _u_is_source is True else u
-            interaction_signs[source][target] = _sign
+                _is_source[1] = True
+                _sign[1] = 1 if from_v.score / from_v.maxscore > 0 else -1
+        if enable_loop is True:
+            if _is_source[0] is True:
+                interaction_signs[u][v] = _sign[0]
+            if _is_source is True:
+                interaction_signs[v][u] = _sign[1]
+        else:
+            if _is_source[0] ^ _is_source[1]:
+                if _is_source[0] is True:
+                    interaction_signs[u][v] = _sign[0]
+                elif _is_source[1] is True:
+                    interaction_signs[v][u] = _sign[1]
     
     return interaction_signs
-
 
 radius=3
 nexponential_weight = lambda base, radius: 1 / base**np.arange(0, radius)
 weights = nexponential_weight(base=2, radius=radius)
+enable_loop = True
 
 interaction_dict = all_interaction_scoring(
     graph=grn,
     weights=weights,
     radius=radius,
-    gene_set=set(meta_bin.columns)
+    gene_set=set(meta_bin.columns),
+    enable_loop=enable_loop
 )
+
+with open("data/rna/binarization/interaction_dict.json", "w") as outfile:
+    json.dump(interaction_dict, outfile)
+
+### Compute a score for predecessor and successor
+
+def get_derivative(v1, v2):
+    if v1 not in [0, 1] and not math.isnan(v1):
+        raise ValueError(f"`v1` is equal to {v1} while it must take value in [0, 1, nan]")
+    elif v2 not in [0, 1] and not math.isnan(v2):
+        raise ValueError(f"`v2` is equal to {v2} while it must take value in [0, 1, nan]")
+    v1 = 0.5 if math.isnan(v1) else v1
+    v2 = 0.5 if math.isnan(v2) else v2
+    if v1 == v2:
+        return 0
+    elif v1 < v2:
+        return 1
+    elif v1 > v2:
+        return -1
+
+def successor_test_from_gene_pair(source_c1, source_c2, target_c1, target_c2, sign) -> Union[-1, 0, 1]:
+    source_derivative = get_derivative(source_c1, source_c2)
+    target_derivative = get_derivative(target_c1, target_c2)
+    if sign not in [-1, 1]:
+        raise ValueError(f"`sign` is equal to {sign} while it must take value in [-1, 1]")
+    if target_derivative == 0 or source_derivative != 0:
+        return 0
+    elif source_derivative == 0 and source_c1 == source_c2 == 1:
+        return 1 if sign == target_derivative else -1
+    elif source_derivative == 0 and source_c1 == source_c2 == 0:
+        return -1 if sign == target_derivative else 1
+    elif source_derivative == 0 and math.isnan(source_c1) and math.isnan(source_c2):
+        return 0
+    else:
+        raise AssertionError("incoherence when assessing which condition is successor")
+
+score_matrix = OrderedDict({condition: {} for condition in meta_bin.index})
+for c1, c2 in itertools.product(meta_bin.index, repeat=2):
+    score_matrix[c1][c2] = 0
+
+for source, targets in interaction_dict.items():
+    for target, sign in targets.items():
+        pair_df = meta_bin.loc[:, [source, target]]
+        for c1, c2 in itertools.product(meta_bin.index, repeat=2):
+            score_matrix[c1][c2] += successor_test_from_gene_pair(
+                source_c1 = pair_df.loc[c1, source],
+                source_c2 = pair_df.loc[c2, source],
+                target_c1 = pair_df.loc[c1, target],
+                target_c2 = pair_df.loc[c2, target],
+                sign=sign
+            )
+
+score_df = pd.DataFrame.from_dict(score_matrix, orient="index")
