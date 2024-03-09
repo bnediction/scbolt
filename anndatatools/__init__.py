@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-anndatatools is a Python package for handling and performing operations on annotated data (anndata).
+anndatatools is a python package for handling and performing operations on annotated data (anndata).
 It offers a range of efficient features not available in Scanpy package, proposes some corrections
 on Scanpy-based functions when inconsistencies have been highlighted, and matplotlib-based visualizations.
 
