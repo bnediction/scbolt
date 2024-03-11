@@ -19,4 +19,4 @@ from . import plotting as pl
 
 import sys
 
-sys.modules.update({f"{__name__}.{m}": globals()[m] for m in ["tl", "pp", "pl"]})
+sys.modules.update({f"{__name__}.{alias}": globals()[alias] for alias in ["tl", "pp", "pl"]})

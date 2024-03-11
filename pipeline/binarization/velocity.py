@@ -5,12 +5,14 @@ warnings.filterwarnings("ignore")
 
 from typing import Optional, Union, Any, Sequence, NamedTuple
 from numbers import Number
-from collections import namedtuple, OrderedDict
+from collections import OrderedDict
 
 import sys
 import argparse
 import json
 from pathlib import Path
+from utils.argtype import Range
+from utils.stdout import Section
 
 import pandas as pd
 import decoupler as dc
@@ -19,6 +21,7 @@ import numpy as np
 import math
 import itertools
 import networkx as nx
+import graphtools as gtl
 
 from utils.genesyn import GeneSynonyms
 
@@ -49,126 +52,39 @@ def gene_removal(df: pd.DataFrame, graph: nx.Graph, copy: bool=True) -> Union[pd
     df.drop(labels=genes_to_remove, axis="columns", inplace=True)
     return df if copy is True else None
 
-parser = argparse.ArgumentParser(
-    prog="computation of inter-cluster velocities",
-    description="""compute velocity between cluster with respect to binarized meta-observations""",
-    usage=""""python velocity.py [-h] -i <path> [<args>]"""
-)
-
-parser.add_argument(
-    "infile",
-    type=lambda x: Path(x).resolve(),
-    metavar="PATH",
-    help="infile in csv format"
-)
-
-# args = parser.parse_args()
-
-args = parser.parse_args("""data/rna/binarization/cluster_bin_node_clusters.csv""".split())
-
-meta_bin = pd.read_csv(args.infile, index_col=0)
-GeneSynonyms()(data=meta_bin, axis=1, copy=False)
-
-collectri_db = dc.get_collectri(organism="mouse", split_complexes=True)
-grn = collectri_to_grn(collectri_db, sign_label="weight", remove_pmid=True)
-GeneSynonyms()(data=grn, copy=False)
-
-print(f"GRN has {len(grn.nodes)} nodes and {len(grn.edges)} edges", file=sys.stderr)
-
-gene_removal(meta_bin, grn, copy=False)
-
-##########################
-
-### Given a node and a radius, compute the subgraph
-
-def get_edge_sign(graph: nx.Graph, root: Any, target: Any):
-    edge_data = graph.get_edge_data(root, target)
-    signs = {value["sign"] for value in edge_data.values()}
-    for sign in signs:
-        if sign not in [-1, 1]:
-            raise ValueError("edge attribute `sign` is not equal to -1 or 1")
-    if len(signs) == 1:
-        return list(signs)[0]
-    else:
-        return 0
-
-def get_path_sign(graph: nx.Graph, path: list):
-    signs = iter(get_edge_sign(graph, path[dist], path[dist+1]) for dist in range(len(path) -1))
-    effect = 1
-    for sign in signs:
-        if sign == -1:
-            effect = - effect
-        elif sign == 0:
-            return 0
-        elif sign == 1:
-            pass
-        else:
-            raise ValueError("value of `sign` is not equal to -1, 0 or 1")
-    return effect
-
-def interaction_scoring(
-    graph: nx.Graph,
-    source: Any,
-    target: Any,
-    weights: Sequence[Number],
-    radius: int=3
-) -> NamedTuple:
-
-    if len(weights) != radius:
-        raise ValueError("length of `weight` is not equal to `radius`-1")
-
-    paths = list(nx.algorithms.all_simple_paths(G=graph, source=source, target=target, cutoff=radius))
-    if not paths:
-        return namedtuple("InteractionPaths", ["score", "path_number", "maxscore"])(float("nan"), 0, float("nan"))
-    else:
-        _score, _maxscore = (0, 0)
-        for n, path in enumerate(paths):
-            _score += get_path_sign(graph, path) * weights[len(path) - 2]
-            _maxscore += weights[len(path) - 2]
-        return namedtuple("InteractionPaths", ["score", "path_number", "maxscore"])(_score, n, _maxscore)
-    
-### Create a dict such that [target][root] : score
-
-gene_set = list(meta_bin.columns)
-
-def all_interaction_scoring(
-    graph: nx.Graph,
-    weights: Sequence[Number],
-    radius: int = 3,
+def sign_likelihood(
+    interaction_scores: dict,
     gene_set: Optional[Sequence[str]] = None,
-    min_path_number: Optional[int] = 1,
-    base: float = 0.75,
+    minimum_path_number: int = 3,
+    relative_threshold: float = 0.75,
     enable_loop: bool = False
-) -> dict:
+):
 
-    interaction_signs = dict()
+    if not (0 < relative_threshold < 1):
+        raise ValueError("`relative_threshold` must be between 0 and 1: `relative_threshold` = {relative_threshold}")
     if gene_set is None:
-        gene_set = set(graph.nodes)
+        gene_set = set(interaction_scores.keys())
     else:
-        gene_set = set(gene_set).intersection(set(graph.nodes))
-    if isinstance(min_path_number, int) or min_path_number is None:
-        min_path_number = min_path_number if min_path_number > 1 else 1
-    else:
-        raise TypeError("`min_path_number` is not an integer")
-    
-    if not (0 < base < 1):
-        raise ValueError("`base` is not between 0 and 1")
-    
+        gene_set = set(gene_set).intersection(set(interaction_scores.keys()))
+
     interaction_signs = {gene: dict() for gene in gene_set}
 
     for u, v in itertools.combinations(gene_set, 2):
-        from_u = interaction_scoring(graph=graph, source=u, target=v, weights=weights, radius=radius)
-        from_v = interaction_scoring(graph=graph, source=v, target=u, weights=weights, radius=radius)
+        
+        from_u = interaction_scores[u][v]
+        from_v = interaction_scores[v][u]
         _is_source = [False, False]
         _sign = [0, 0]
-        if from_u.min_path_number >= min_path_number:
-            if abs(from_u.score) / from_u.maxscore >= from_u.maxscore * base:
+        
+        if from_u.path_number >= minimum_path_number:
+            if abs(from_u.score) / from_u.maxscore >= from_u.maxscore * relative_threshold:
                 _is_source[0] = True
                 _sign[0] = 1 if from_u.score / from_u.maxscore > 0 else -1
-        if from_u.min_path_number >= min_path_number:
-            if abs(from_v.score) / from_v.maxscore >= from_v.maxscore * base:
+        if from_v.path_number >= minimum_path_number:
+            if abs(from_v.score) / from_v.maxscore >= from_v.maxscore * relative_threshold:
                 _is_source[1] = True
                 _sign[1] = 1 if from_v.score / from_v.maxscore > 0 else -1
+        
         if enable_loop is True:
             if _is_source[0] is True:
                 interaction_signs[u][v] = _sign[0]
@@ -183,21 +99,136 @@ def all_interaction_scoring(
     
     return interaction_signs
 
-radius=3
-nexponential_weight = lambda base, radius: 1 / base**np.arange(0, radius)
-weights = nexponential_weight(base=2, radius=radius)
-enable_loop = True
-
-interaction_dict = all_interaction_scoring(
-    graph=grn,
-    weights=weights,
-    radius=radius,
-    gene_set=set(meta_bin.columns),
-    enable_loop=enable_loop
+parser = argparse.ArgumentParser(
+    prog="computation of inter-cluster velocities",
+    description="""compute velocity between cluster with respect to binarized meta-observations""",
+    usage=""""python velocity.py [-h] -i <path> [<args>]"""
 )
 
-with open("data/rna/binarization/interaction_dict.json", "w") as outfile:
-    json.dump(interaction_dict, outfile)
+parser.add_argument(
+    "infile",
+    type=lambda x: Path(x).resolve(),
+    metavar="PATH",
+    help="infile in csv format"
+)
+
+parser.add_argument(
+    "-o", "--outpath",
+    dest="outpath",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=Path("./binarization").resolve(),
+    metavar="PATH",
+    help="output path (default: ./binarization)"
+)
+
+parser.add_argument(
+    "--depth", "--radius",
+    dest="radius",
+    type=int,
+    required=False,
+    default=3,
+    metavar="INT",
+    help="maximum path length between a source and a target (default: 3)"
+)
+
+parser.add_argument(
+    "--min-path-number",
+    dest="min_path_number",
+    type=int,
+    required=False,
+    default=3,
+    metavar="INT",
+    help="minimum number of paths for gene pairwise required for considering a gene as being a source (default: 3)"
+)
+
+parser.add_argument(
+    "--base",
+    dest="base",
+    type=int,
+    required=False,
+    default=2,
+    metavar="INT",
+    help="base in the non-exponential weighting function (default: 2)"
+)
+
+parser.add_argument(
+    "--relative-threshold",
+    dest="relative-threshold",
+    type=float,
+    action=Range,
+    min=0.,
+    max=1.,
+    required=False,
+    default=0.75,
+    help="percentage of the maximum path score above which the path score must be for being consider as source-target gene pairwise (default: 0.75)"
+)
+
+parser.add_argument(
+    "--enable-loop",
+    dest="enable_loop",
+    required=False,
+    action="store_true",
+    help="allow a gene pairwise to be mutually influenced by the other one"
+)
+
+parser.add_argument(
+    "-v", "--verbose",
+    dest="verbose",
+    required=False,
+    action="store_true",
+    help="display information about running programm"
+)
+
+# args = parser.parse_args()
+args = parser.parse_args("""data/rna/binarization/cluster_bin_node_clusters.csv --verbose""".split())
+if args.base <= 0:
+    raise ValueError("`base` is inferior or equal to zero")
+
+section = Section(verbose = args.verbose)
+nexponential_fun = lambda base, radius: 1 / base**np.arange(0, radius)
+
+print(f"Loading data...")
+
+meta_bin = pd.read_csv(args.infile, index_col=0)
+
+collectri_db = dc.get_collectri(organism="mouse", split_complexes=True)
+grn = collectri_to_grn(collectri_db, sign_label="weight", remove_pmid=True)
+
+GeneSynonyms()(data=meta_bin, axis=1, copy=False)
+GeneSynonyms()(data=grn, copy=False)
+gene_removal(meta_bin, grn, copy=False)
+gene_set = set(meta_bin.columns)
+
+if args.verbose:
+    print(f"GRN has {len(grn.nodes)} nodes and {len(grn.edges)} edges", file=sys.stderr)
+
+print("Successors checking...")
+
+section("Path sampling using depth-first search algorithm")
+interaction_scores = gtl.grn.scoring(
+    graph=grn,
+    weights=nexponential_fun(base=args.base, radius=args.radius),
+    radius=args.radius,
+    gene_set=gene_set
+)
+
+section("Sign likelihood between gene pairwise")
+interaction_signs = sign_likelihood(
+    interaction_scores=interaction_scores,
+    gene_set=gene_set,
+    minimum_path_number=args.min_path_number,
+    relative_threshold=args.threshold,
+    enable_loop=args.enable_loop
+)
+
+with open("{args.outpath}/sign_likelihood.json", "w") as outfile:
+    json.dump(interaction_signs, outfile)
+
+# source = "Tcf4"
+# one_target = "Birc5"
+# paths = list(nx.algorithms.all_simple_paths(G=grn, source=source, target=one_target, cutoff=3))
+
 
 ### Compute a score for predecessor and successor
 

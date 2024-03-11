@@ -5,7 +5,7 @@ from collections import deque
 
 import networkx as nx
 
-def dfs_path_sampling(graph: nx.Graph, source: Any, limit_depth: int=3):
+def dfs_path_sampling(graph: nx.Graph, source: Any, limit_depth: int=3) -> list:
     """
     Search for all existing paths from a node within a distance
     by a recursive implementation of depth-first search (DFS) algorithm.

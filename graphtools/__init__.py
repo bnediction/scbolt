@@ -10,3 +10,4 @@ __version__ = "1.0.0"
 __credits__ = "BNeDiction; PEPR Santé Numérique 2030"
 
 from . import algorithms
+from . import grn
