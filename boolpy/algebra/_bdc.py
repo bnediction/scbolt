@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-from typing import Any, Union
-from .. import PartialBoolean
+from typing import Union
+from .._boolean import PartialBoolean
 
 import math
 
@@ -13,6 +13,11 @@ class BooleanDifferentialCalculus(object):
     def __conversion__(self, value):
         if isinstance(value, bool):
             return PartialBoolean(value)
+        if isinstance(value, float):
+            if value in [0., 1.] or math.isnan(value):
+                return PartialBoolean(value)
+            else:
+                raise TypeError(f"incorrect conversion for {value}")
         elif isinstance(value, PartialBoolean):
             return value
         else:
@@ -40,11 +45,11 @@ class BooleanDifferentialCalculus(object):
         if target_differential == 0:
             return 0
         elif source_differential == 0:
-            if _source_v1 == source_v2 == PartialBoolean(1):
+            if _source_v1 == _source_v2 == PartialBoolean(1):
                 return 1 if sign == target_differential else -1
-            if source_v1 == source_v2 == PartialBoolean(0):
+            if _source_v1 == _source_v2 == PartialBoolean(0):
                 return -1 if sign == target_differential else 1
-            if source_v1 == source_v2 == PartialBoolean(float("nan")):
+            if _source_v1 == _source_v2 == PartialBoolean(float("nan")):
                 return 0
         elif source_differential != 0:
             return 0

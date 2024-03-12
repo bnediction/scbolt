@@ -3,9 +3,9 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-from typing import Optional, Union, Any, Sequence, NamedTuple
-from numbers import Number
+from typing import Optional, Union, Sequence
 from collections import OrderedDict
+import boolpy as bp
 
 import sys
 import argparse
@@ -18,7 +18,6 @@ import pandas as pd
 import decoupler as dc
 import numpy as np
 
-import math
 import itertools
 import networkx as nx
 import graphtools as gtl
@@ -102,7 +101,7 @@ def sign_likelihood(
 parser = argparse.ArgumentParser(
     prog="computation of inter-cluster velocities",
     description="""compute velocity between cluster with respect to binarized meta-observations""",
-    usage=""""python velocity.py [-h] -i <path> [<args>]"""
+    usage=""""python velocity.py [-h] -i <path> <path> [<args>]"""
 )
 
 parser.add_argument(
@@ -113,13 +112,10 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-o", "--outpath",
     dest="outpath",
     type=lambda x: Path(x).resolve(),
-    required=False,
-    default=Path("./binarization").resolve(),
     metavar="PATH",
-    help="output path (default: ./binarization)"
+    help="output path"
 )
 
 parser.add_argument(
@@ -154,7 +150,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--relative-threshold",
-    dest="relative-threshold",
+    dest="threshold",
     type=float,
     action=Range,
     min=0.,
@@ -181,12 +177,13 @@ parser.add_argument(
 )
 
 # args = parser.parse_args()
-args = parser.parse_args("""data/rna/binarization/cluster_bin_node_clusters.csv --verbose""".split())
+args = parser.parse_args("""data/rna/binarization/cluster_bin_node_clusters.csv data/rna/binarization --verbose""".split())
 if args.base <= 0:
     raise ValueError("`base` is inferior or equal to zero")
 
 section = Section(verbose = args.verbose)
 nexponential_fun = lambda base, radius: 1 / base**np.arange(0, radius)
+bdc = bp.algebra.BooleanDifferentialCalculus()
 
 print(f"Loading data...")
 
@@ -222,60 +219,33 @@ interaction_signs = sign_likelihood(
     enable_loop=args.enable_loop
 )
 
-with open("{args.outpath}/sign_likelihood.json", "w") as outfile:
+with open(f"{args.outpath}/sign_likelihood.json", "w") as outfile:
     json.dump(interaction_signs, outfile)
 
 # source = "Tcf4"
 # one_target = "Birc5"
 # paths = list(nx.algorithms.all_simple_paths(G=grn, source=source, target=one_target, cutoff=3))
 
-
-### Compute a score for predecessor and successor
-
-def get_derivative(v1, v2):
-    if v1 not in [0, 1] and not math.isnan(v1):
-        raise ValueError(f"`v1` is equal to {v1} while it must take value in [0, 1, nan]")
-    elif v2 not in [0, 1] and not math.isnan(v2):
-        raise ValueError(f"`v2` is equal to {v2} while it must take value in [0, 1, nan]")
-    v1 = 0.5 if math.isnan(v1) else v1
-    v2 = 0.5 if math.isnan(v2) else v2
-    if v1 == v2:
-        return 0
-    elif v1 < v2:
-        return 1
-    elif v1 > v2:
-        return -1
-
-def successor_test_from_gene_pair(source_c1, source_c2, target_c1, target_c2, sign) -> Union[-1, 0, 1]:
-    source_derivative = get_derivative(source_c1, source_c2)
-    target_derivative = get_derivative(target_c1, target_c2)
-    if sign not in [-1, 1]:
-        raise ValueError(f"`sign` is equal to {sign} while it must take value in [-1, 1]")
-    if target_derivative == 0 or source_derivative != 0:
-        return 0
-    elif source_derivative == 0 and source_c1 == source_c2 == 1:
-        return 1 if sign == target_derivative else -1
-    elif source_derivative == 0 and source_c1 == source_c2 == 0:
-        return -1 if sign == target_derivative else 1
-    elif source_derivative == 0 and math.isnan(source_c1) and math.isnan(source_c2):
-        return 0
-    else:
-        raise AssertionError("incoherence when assessing which condition is successor")
+section("Successor test using differential boolean calculus")
 
 score_matrix = OrderedDict({condition: {} for condition in meta_bin.index})
 for c1, c2 in itertools.product(meta_bin.index, repeat=2):
     score_matrix[c1][c2] = 0
 
-for source, targets in interaction_dict.items():
+for source, targets in interaction_signs.items():
     for target, sign in targets.items():
         pair_df = meta_bin.loc[:, [source, target]]
         for c1, c2 in itertools.product(meta_bin.index, repeat=2):
-            score_matrix[c1][c2] += successor_test_from_gene_pair(
-                source_c1 = pair_df.loc[c1, source],
-                source_c2 = pair_df.loc[c2, source],
-                target_c1 = pair_df.loc[c1, target],
-                target_c2 = pair_df.loc[c2, target],
+            score_matrix[c1][c2] += bdc.successor_test_from_pair(
+                source_v1 = pair_df.loc[c1, source],
+                source_v2 = pair_df.loc[c2, source],
+                target_v1 = pair_df.loc[c1, target],
+                target_v2 = pair_df.loc[c2, target],
                 sign=sign
             )
 
 score_df = pd.DataFrame.from_dict(score_matrix, orient="index")
+
+print("Saving data...")
+
+score_df.to_csv(f"{args.outpath}/pairwise_predecessor_scores.csv", sep=",", index=True)
