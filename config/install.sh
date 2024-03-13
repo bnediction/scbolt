@@ -20,10 +20,17 @@ install_env() {
             echo -e "$1 environment not reinstalled.\n"
         fi
     else
+        echo "Install ${1} conda environment."
         conda env create -f ${config_dir}$1.yml
-        if [[ "$1" =~ ^(preprocess|stream|binarization)$ ]];
+        if [[ "$1" =~ ^(preprocess|stream|binarization|bonesis)$ ]];
         then
             conda develop --name $1 $dev_dir;
+        fi
+        if [[ "$1" == bonesis ]];
+        then
+            conda activate $1
+            pip install git+https://github.com/bnediction/bonesis.git@6fb47aad96bd2d07ba3c137842d632bc2c783712
+            conda deactivate;
         fi
     fi
 }

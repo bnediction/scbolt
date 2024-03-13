@@ -10,7 +10,6 @@ dependencies:
   - _openmp_mutex=4.5=2_gnu
   - asttokens=2.4.1=pyhd8ed1ab_0
   - beautifulsoup4=4.12.3=pyha770c72_0
-  - bonesis=0.6.1=py_0
   - boolean.py=4.0=py_0
   - bzip2=1.0.8=hd590300_5
   - ca-certificates=2024.2.2=hbcca054_0
