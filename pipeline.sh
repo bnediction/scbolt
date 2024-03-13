@@ -237,6 +237,12 @@ python pipeline/binarization/bin_clusters.py \
   --hvg \
   --verbose
 
+echo -e "${LIGHT_RED}> boolean differential analysis...${NC}"
+python pipeline/binarization/differential_analysis.py \
+  data/rna/binarization/cluster_bin_node_clusters.csv \
+  data/rna/binarization \
+  --verbose
+
 ### Inference ####
 
 title $SIZE "Bonesis inference"

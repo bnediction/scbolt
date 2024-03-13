@@ -1,3 +1,3 @@
 #!/usr/bin/env python
 
-from ._dfs import dfs_path_sampling
+from ._depth_first import dfe

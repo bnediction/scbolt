@@ -47,7 +47,6 @@ def gene_removal(df: pd.DataFrame, graph: nx.Graph, copy: bool=True) -> Union[pd
     for gene in df.columns:
         if gene not in graph.nodes:
             genes_to_remove.append(gene)
-    print(f"{len(genes_to_remove)} genes in dataframe are not found in graph", file=sys.stderr)
     df.drop(labels=genes_to_remove, axis="columns", inplace=True)
     return df if copy is True else None
 
@@ -78,11 +77,11 @@ def sign_likelihood(
         if from_u.path_number >= minimum_path_number:
             if abs(from_u.score) / from_u.maxscore >= from_u.maxscore * relative_threshold:
                 _is_source[0] = True
-                _sign[0] = 1 if from_u.score / from_u.maxscore > 0 else -1
+                _sign[0] = 1 if from_u.score > 0 else -1
         if from_v.path_number >= minimum_path_number:
             if abs(from_v.score) / from_v.maxscore >= from_v.maxscore * relative_threshold:
                 _is_source[1] = True
-                _sign[1] = 1 if from_v.score / from_v.maxscore > 0 else -1
+                _sign[1] = 1 if from_v.score > 0 else -1
         
         if enable_loop is True:
             if _is_source[0] is True:
@@ -133,7 +132,7 @@ parser.add_argument(
     dest="min_path_number",
     type=int,
     required=False,
-    default=3,
+    default=1,
     metavar="INT",
     help="minimum number of paths for gene pairwise required for considering a gene as being a source (default: 3)"
 )
@@ -176,10 +175,9 @@ parser.add_argument(
     help="display information about running programm"
 )
 
-# args = parser.parse_args()
-args = parser.parse_args("""data/rna/binarization/cluster_bin_node_clusters.csv data/rna/binarization --verbose""".split())
-if args.base <= 0:
-    raise ValueError("`base` is inferior or equal to zero")
+args = parser.parse_args()
+if args.base <= 1:
+    raise argparse.ArgumentError("incorrect value for `base` argument : {args.base}")
 
 section = Section(verbose = args.verbose)
 nexponential_fun = lambda base, radius: 1 / base**np.arange(0, radius)
@@ -192,17 +190,22 @@ meta_bin = pd.read_csv(args.infile, index_col=0)
 collectri_db = dc.get_collectri(organism="mouse", split_complexes=True)
 grn = collectri_to_grn(collectri_db, sign_label="weight", remove_pmid=True)
 
-GeneSynonyms()(data=meta_bin, axis=1, copy=False)
-GeneSynonyms()(data=grn, copy=False)
+if args.verbose:
+    print(f"\tgrn: {len(grn.nodes)} genes; {len(grn.edges)} interactions", file=sys.stderr)
+
+gene_synonyms = GeneSynonyms()
+gene_synonyms(data=meta_bin, axis=1, copy=False)
+gene_synonyms(data=grn, copy=False)
+gene_set_before_cleaning = set(meta_bin.columns)
 gene_removal(meta_bin, grn, copy=False)
 gene_set = set(meta_bin.columns)
 
 if args.verbose:
-    print(f"GRN has {len(grn.nodes)} nodes and {len(grn.edges)} edges", file=sys.stderr)
+    print(f"\tdataframe: {len(gene_set_before_cleaning)} genes; {len(gene_set_before_cleaning)- len(gene_set)}/{len(gene_set_before_cleaning)} genes removed (no matching with grn genes)", file=sys.stderr)
 
 print("Successors checking...")
 
-section("Path sampling using depth-first search algorithm")
+section("Path extraction using depth-first extraction algorithm")
 interaction_scores = gtl.grn.scoring(
     graph=grn,
     weights=nexponential_fun(base=args.base, radius=args.radius),
@@ -222,11 +225,7 @@ interaction_signs = sign_likelihood(
 with open(f"{args.outpath}/sign_likelihood.json", "w") as outfile:
     json.dump(interaction_signs, outfile)
 
-# source = "Tcf4"
-# one_target = "Birc5"
-# paths = list(nx.algorithms.all_simple_paths(G=grn, source=source, target=one_target, cutoff=3))
-
-section("Successor test using differential boolean calculus")
+section("Predecessor test using differential boolean calculus")
 
 score_matrix = OrderedDict({condition: {} for condition in meta_bin.index})
 for c1, c2 in itertools.product(meta_bin.index, repeat=2):
@@ -236,16 +235,25 @@ for source, targets in interaction_signs.items():
     for target, sign in targets.items():
         pair_df = meta_bin.loc[:, [source, target]]
         for c1, c2 in itertools.product(meta_bin.index, repeat=2):
-            score_matrix[c1][c2] += bdc.successor_test_from_pair(
+            _predecessor = bdc.pairwise_predecessor_test(
                 source_v1 = pair_df.loc[c1, source],
                 source_v2 = pair_df.loc[c2, source],
                 target_v1 = pair_df.loc[c1, target],
                 target_v2 = pair_df.loc[c2, target],
                 sign=sign
             )
+            if _predecessor is True:
+                score_matrix[c1][c2] += 1
+            elif _predecessor is False:
+                score_matrix[c1][c2] -= 1
+            else:
+                pass
 
 score_df = pd.DataFrame.from_dict(score_matrix, orient="index")
 
 print("Saving data...")
 
 score_df.to_csv(f"{args.outpath}/pairwise_predecessor_scores.csv", sep=",", index=True)
+
+if args.verbose:
+    print(f"\n{score_df}\n")

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from typing import Union
+from numbers import Number
 from .._boolean import PartialBoolean
 
 import math
@@ -13,15 +14,15 @@ class BooleanDifferentialCalculus(object):
     def __conversion__(self, value):
         if isinstance(value, bool):
             return PartialBoolean(value)
-        if isinstance(value, float):
-            if value in [0., 1.] or math.isnan(value):
+        elif isinstance(value, Number):
+            if value in [0, 1] or math.isnan(value):
                 return PartialBoolean(value)
             else:
-                raise TypeError(f"incorrect conversion for {value}")
+                raise TypeError(f"incorrect conversion for `value`: {value}")
         elif isinstance(value, PartialBoolean):
             return value
         else:
-            raise TypeError(f"incorrect conversion for {value}")
+            raise TypeError(f"incorrect conversion for `value`: {value}")
 
     def differential(self, v1, v2) -> Union[-1, 0, 1]:
         _v1 = self.__conversion__(v1)
@@ -32,26 +33,39 @@ class BooleanDifferentialCalculus(object):
             return 1
         elif _v1 > _v2:
             return -1
-    
-    def successor_test_from_pair(self, source_v1, source_v2, target_v1, target_v2, sign) -> Union[-1, 0, 1]:
-        _source_v1 = self.__conversion__(source_v1)
-        _source_v2 = self.__conversion__(source_v2)
-        _target_v1 = self.__conversion__(target_v1)
-        _target_v2 = self.__conversion__(target_v2)
-        source_differential = self.differential(_source_v1, _source_v2)
-        target_differential = self.differential(_target_v1, _target_v2)
+        
+    def pairwise_predecessor_test(self, source_v1, source_v2, target_v1, target_v2, sign) -> Union[None, bool]:
+        """
+        By assuming there is two conditions 1 and 2, estimate which one preceeds the other one with respect to two nodes.
+
+        Parameters
+        ----------
+        source_v1, source_v2, target_v1, target_v2
+            bool or PartialBoolean
+        sign
+            specify the sign effect of source upon target.
+
+        Returns
+        -------
+        Return True if first condition preceeds the second one, False in the contrary case and None if no conclusion is possible.
+        """
+
+        source_v1 = self.__conversion__(source_v1)
+        source_v2 = self.__conversion__(source_v2)
+        target_v1 = self.__conversion__(target_v1)
+        target_v2 = self.__conversion__(target_v2)
+        source_differential = self.differential(source_v1, source_v2)
+        target_differential = self.differential(target_v1, target_v2)
         if sign not in [-1, 1]:
-            raise ValueError(f"`sign` does not take value in [-1, 1]: {sign}")
-        if target_differential == 0:
-            return 0
+            raise ValueError(f"incorrect value for `sign`: {sign}")
+        if source_differential != 0 or target_differential == 0:
+            return None
         elif source_differential == 0:
-            if _source_v1 == _source_v2 == PartialBoolean(1):
-                return 1 if sign == target_differential else -1
-            if _source_v1 == _source_v2 == PartialBoolean(0):
-                return -1 if sign == target_differential else 1
-            if _source_v1 == _source_v2 == PartialBoolean(float("nan")):
-                return 0
-        elif source_differential != 0:
-            return 0
+            if source_v1 == source_v2 == PartialBoolean(1):
+                return True if sign == target_differential else False
+            if source_v1 == source_v2 == PartialBoolean(0):
+                return False if sign == target_differential else True
+            if source_v1 == source_v2 == PartialBoolean(float("nan")):
+                return None
         else:
-            raise AssertionError("incoherence when assessing which condition is successor")
+            raise AssertionError("incoherence")

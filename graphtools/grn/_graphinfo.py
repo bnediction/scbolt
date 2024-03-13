@@ -73,7 +73,8 @@ def scoring(
     graph: nx.Graph,
     weights: Sequence[Number],
     radius: int = 3,
-    gene_set: Optional[Sequence[str]] = None
+    gene_set: Optional[Sequence[str]] = None,
+    allow_null_path_sign: Optional[bool] = None
 ) -> dict:
     """
     Compute statistics (score, path number and maximum score) upon all existing paths within a radius for all gene pairwise in a gene set.
@@ -85,7 +86,7 @@ def scoring(
     weights
         specify path length weighting in the computation of scores.
     radius
-        specify the maximum search depth when sampling paths
+        specify the maximum search depth when sampling paths.
     gene_set
         set of genes
 
@@ -101,17 +102,19 @@ def scoring(
     gene_set = gene_set if gene_set is not None else set(graph.nodes)
     for source in gene_set:
         targets = gene_set.difference([source])
-        paths_from_source = algorithms.dfs_path_sampling(graph=graph, source=source, limit_depth=radius)
+        paths_from_source = algorithms.dfe(graph=graph, source=source, limit_depth=radius)
         _interactions_from_source = {target: [0, 0, 0] for target in targets}
         for _path in paths_from_source:
             _target = _path[-1]
             if _target in targets:
-                _score, _maxscore, _path_number = _interactions_from_source[_target]
-                _weight = weights[len(_path)-2]
-                _score += get_path_sign(graph, *_path) * _weight
-                _maxscore += _weight
-                _path_number += 1
-                _interactions_from_source[_target] = [_score, _maxscore, _path_number]
+                _path_sign = get_path_sign(graph, *_path)
+                if allow_null_path_sign is True or _path_sign != 0:
+                    _score, _maxscore, _path_number = _interactions_from_source[_target]
+                    _weight = weights[len(_path)-2]
+                    _score += _path_sign * _weight
+                    _maxscore += _weight
+                    _path_number += 1
+                    _interactions_from_source[_target] = [_score, _maxscore, _path_number]
         for gene, value in _interactions_from_source.items():
             _score, _maxscore, _path_number = value
             _interactions_from_source[gene] = namedtuple("Tuple", ["score", "maxscore", "path_number"])(_score, _maxscore, _path_number)
