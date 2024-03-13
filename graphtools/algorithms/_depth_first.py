@@ -9,8 +9,8 @@ def dfe(graph: nx.Graph, source: Any, limit_depth: int=3) -> list:
     """
     Extract all existing paths from a node within a distance
     by a recursive implementation of depth-first extraction (DFE) algorithm.
-    Contrary to NetworkX python module, do not verify if nodes have been
-    visited previously, hence allowing to sample every possible paths.
+    Contrary to NetworkX python module, do not consider only simple paths and
+    avoid duplicate paths when edge sign take multiple values.
 
     Parameters
     ----------

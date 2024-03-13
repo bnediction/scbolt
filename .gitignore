@@ -28,7 +28,9 @@ share/python-wheels/
 .installed.cfg
 
 ### Duplicates ###
+*copy/
 *copy.*
+*[0-9]/
 *_[0-9]
 *_[0-9][0-9]
 *.[0-9]
@@ -85,4 +87,4 @@ todo.*
 
 ### Related-repository ###
 !.pipeline.png
-supplemental
+supplemental/

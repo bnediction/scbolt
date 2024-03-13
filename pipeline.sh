@@ -254,7 +254,7 @@ python pipeline/bonesis/design_bo.py data/rna/stream/trajectories/branches.txt >
 ln data/rna/bonesis/plzf_rara_model.txt pipeline/bonesis/plzf_rara_model.txt
 
 echo -e "${LIGHT_RED}> bonesis running...${NC}"
-make -f pipeline/bonesis/Makefile all
+make -f Makefile all
 
 ### End workflow
 
