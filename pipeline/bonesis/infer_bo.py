@@ -27,13 +27,20 @@ parser = ArgumentParser(
     prog="Boolean network inference",
     description="""From binarized meta-observations and specified trajectories,
     infer a Most Permissive Boolean Network""",
-    usage="""python infer_bo.py [-h] <action> --bin-metastate <path> [<args>]"""
+    usage="""python infer_bo.py [-h] <action> <path> --bin-metastate <path> [<args>]"""
 )
 
 parser.add_argument(
     "action",
     metavar="[filter_stage1 | filter_stage2 | one | one-min | one-sub]",
     choices=["filter_stage1", "filter_stage2", "one", "one-min", "one-sub"]
+)
+
+parser.add_argument(
+    dest="outpath",
+    type=lambda x: Path(x).resolve(),
+    metavar="PATH",
+    help="output path"
 )
 
 parser.add_argument(
@@ -147,14 +154,14 @@ if args.action == "filter_stage1":
         bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
 
     def interm_solution(nodes):
-        with open("filter_stage1-last-model.json", "w") as fp:
+        with open(f"{args.outpath}/filter_stage1-last-model.json", "w") as fp:
             json.dump(list(sorted(nodes)), fp, indent=2)
 
     clingo_opt_strategy = args.clingo_opt_strategy or "bb,dec"
     view = bonesis.NodesView(bo, mode="optN", progress=tqdm,
                                 intermediate_model_cb=interm_solution,
                                 clingo_opt_strategy=clingo_opt_strategy)
-    view.standalone(output_filename="filter_stage1.sh")
+    view.standalone(output_filename=f"{args.outpath}/filter_stage1.sh")
     solution = next(iter(view))
     for node in solution:
         print(node)
@@ -164,7 +171,7 @@ if args.action == "filter_stage2":
     view = bonesis.NonStrongConstantNodesView(bo, mode="optN",
                                   clingo_opt_strategy="usc",
                                   clingo_options=["--opt-usc-shrink=inv"])
-    view.standalone(output_filename="filter_stage2.sh")
+    view.standalone(output_filename=f"{args.outpath}/filter_stage2.sh")
     solution = next(iter(view))
     for node in solution:
         print(node)
@@ -183,7 +190,7 @@ def write_solution(solution, name):
 if args.action == "one":
     view = bonesis.InfluenceGraphView(bo, extra=("boolean-network", "configurations"))
     solution = next(iter(view))
-    write_solution(solution, "bn-1")
+    write_solution(solution, f"{args.outpath}/bn-1")
 
 if args.action == "one-min":
     bo.custom("edge(A,B) :- clause(B,_,A,_). #minimize { 1@1,A,B: edge(A,B) }.")
@@ -192,12 +199,12 @@ if args.action == "one-min":
                                       extra=("boolean-network",
                                              "configurations"),
                                       progress=tqdm)
-    view.standalone(output_filename="one-min.sh")
+    view.standalone(output_filename=f"{args.outpath}/one-min.sh")
     solution = next(iter(view))
     write_solution(solution, "min-1")
 
 if args.action == "one-sub":
     view = bonesis.InfluenceGraphView(bo, solutions="subset-minimal", extra=("boolean-network", "configurations"))
-    view.standalone(output_filename="one-sub.sh")
+    view.standalone(output_filename=f"{args.outpath}/one-sub.sh")
     solution = next(iter(view))
-    write_solution(solution, "sub-1")
+    write_solution(solution, f"{args.outpath}/sub-1")

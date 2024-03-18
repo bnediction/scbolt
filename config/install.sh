@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
 [ -d "config" ] && config_dir="config/" || config_dir=""
-[ -d "anndatatools" ] && dev_dir="." || dev_dir=".."
+[ -d "anndatatools" ] && develop_dir="." || develop_dir=".."
 
 install_env() {
     if conda env list | grep -q "^$1 ";
@@ -12,9 +12,12 @@ install_env() {
         then
             conda remove --name $1 --all --yes
             conda env create -f ${config_dir}$1.yml --force
-            if [[ "$1" =~ ^(preprocess|stream|binarization)$ ]];
+            conda develop --name $1 $develop_dir;
+            if [[ "$1" == bonesis ]];
             then
-                conda develop --name $1 $dev_dir;
+                conda activate $1
+                pip install git+https://github.com/bnediction/bonesis.git@6fb47aad96bd2d07ba3c137842d632bc2c783712
+                conda deactivate;
             fi
         else
             echo -e "$1 environment not reinstalled.\n"
@@ -22,10 +25,7 @@ install_env() {
     else
         echo "Install ${1} conda environment."
         conda env create -f ${config_dir}$1.yml
-        if [[ "$1" =~ ^(preprocess|stream|binarization|bonesis)$ ]];
-        then
-            conda develop --name $1 $dev_dir;
-        fi
+        conda develop --name $1 $develop_dir;
         if [[ "$1" == bonesis ]];
         then
             conda activate $1
@@ -59,4 +59,4 @@ do
     install_env $environment
 done
 
-download_ncbi_gi ${dev_dir}/utils
+download_ncbi_gi ${develop_dir}/utils

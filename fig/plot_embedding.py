@@ -34,7 +34,14 @@ parser = argparse.ArgumentParser(
     prog="figure plotting",
     description="""From sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
     plot figure using a json file.""",
-    usage="""python [-i <PATH> -o <PATH>] -j <PATH>"""
+    usage="""python <PATH> [-i <PATH> -o <PATH>]"""
+)
+
+parser.add_argument(
+    dest="jsonfile",
+    type=lambda x: Path(x).resolve(),
+    metavar="PATH",
+    help="figure parameters based on syntax of anndata.scatterplot"
 )
 
 parser.add_argument(
@@ -57,15 +64,6 @@ parser.add_argument(
     help="path to figure file (including file)"
 )
 
-parser.add_argument(
-    "-j", "--json",
-    dest="jsonfile",
-    type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
-    help="figure parameters based on syntax of anndata.scatterplot"
-)
-
 args = parser.parse_args()
 
 with open(args.jsonfile) as file:
@@ -85,8 +83,8 @@ elif "outfile" in params:
 else:
     raise argparse.ArgumentError("outfile must be must called with --outfile or specified in json file")
 
-if not outfile.exists():
-    os.makedirs(outfile)
+if not Path(os.path.dirname(outfile)).exists():
+    os.makedirs(os.path.dirname(outfile))
 
 adata = ad.read_h5ad(infile)
 

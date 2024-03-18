@@ -11,7 +11,7 @@ title() {
   echo -e "${RED}${side_str// /-}$2${side_str// /-}${NC}"
 }
 
-source ${HOME}/anaconda3/etc/profile.d/conda.sh
+source "`conda info --base`/etc/profile.d/conda.sh"
 
 ### Load 10X data ###
 
