@@ -104,10 +104,13 @@ fig, ax = adt.pl.embedding_plot(
     **params["figure"]
 )
 adt.pl.set_default(ax)
-#plt.grid(False)
-#plt.axis('off')
-plt.savefig(outfile)
+# plt.grid(False); plt.axis('off')
+plt.savefig(f"{outfile}.pdf", bbox_inches="tight", pad_inches=0.3)
+try:
+    os.system(f"pdfcrop --margins '0 0 0 0' {outfile}.pdf {outfile}.pdf")
+except OSError:
+    print("unable to use `pdfcrop` command")
 if "n_components" in params["figure"]:
     if params["figure"]["n_components"] == 3:
-        pickle.dump(fig, open(Path(f"{outfile}.fig.pickle"), "wb"))
+        pickle.dump(fig, open(Path(f"{outfile}.fig.pkl"), "wb"))
 plt.close()

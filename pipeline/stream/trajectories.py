@@ -157,6 +157,10 @@ if dr not in adata.obsm:
 
 print("Plotting trajectories...")
 
+if "node_clusters" in groups:
+    node_colors = [color.blue] * (len(adata.obs["node_clusters"].unique()) - 1) + [color.lightgray]
+    node_colors[sorted(adata.obs["node_clusters"].unique()).index(args.root)] = color.red
+
 section("trajectory plot")
 
 for _group in groups:
@@ -164,7 +168,7 @@ for _group in groups:
         adata,
         obs=_group,
         obsm=adata.uns["dr"],
-        colors=[color.blue] * (len(adata.obs["node_clusters"].unique()) - 1) + [color.lightgray] if _group == "node_clusters" else None,
+        colors=node_colors if _group == "node_clusters" else None,
         xlabel=r"$\mathrm{UMAP_{1}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
         zlabel=r"$\mathrm{UMAP_{3}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{3}^{\mathrm{scanorama}}}$",
@@ -191,9 +195,9 @@ for _group in groups:
     )
     adt.pl.set_default(ax)
     if "pseudotime" not in _group:
-        plt.savefig(f"{args.outpath}/{args.prefix}{_group}_{dr.split('_')[-1].lower()}_trajectory_plot")
+        plt.savefig(f"{args.outpath}/{args.prefix}{_group}_{dr.split('_')[-1].lower()}_trajectory_plot.pdf")
     else:
-        plt.savefig(f"{args.outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}_trajectory_plot")
+        plt.savefig(f"{args.outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}_trajectory_plot.pdf")
     if args.plot_3d is True and "pseudotime" not in _group:
         pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}{_group}_{dr.split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))
     elif args.plot_3d is True:
@@ -215,7 +219,7 @@ fig, ax = (plt.gcf(), plt.gca())
 adt.pl.set_default(ax)
 ax.tick_params(axis="x", which="major", pad=2)
 ax.images[-1].colorbar.remove()
-plt.savefig(f"{args.outpath}/{args.prefix}pseudotime_stream_plot")
+plt.savefig(f"{args.outpath}/{args.prefix}pseudotime_stream_plot.pdf")
 
 for _group in groups.difference([f"{args.root}_pseudotime"]):
     colors=color.COLORS[0:len(adata.obs["node_clusters"].unique())-1] + [color.lightgray] if _group == "node_clusters" else color.COLORS
@@ -247,7 +251,7 @@ for _group in groups.difference([f"{args.root}_pseudotime"]):
         borderaxespad=0.2,
         handletextpad=0.3
     )
-    plt.savefig(f"{args.outpath}/{args.prefix}{_group}_stream_plot")
+    plt.savefig(f"{args.outpath}/{args.prefix}{_group}_stream_plot.pdf")
 
 print("Trajectories inference...")
 

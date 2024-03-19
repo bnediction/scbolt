@@ -1,6 +1,6 @@
 {
-    "infile": "data/rna/integration/tables/bbknn.h5ad",
-    "outfile": "data/rna/integration/figures/umap_conditions_wo_lgd",
+    "infile": "data/rna/integration/tables/bbknn_labels.h5ad",
+    "outfile": "figures/results/umap_labels_wo_lgd",
     "modules": [
         {"numpy": "np"},
         {"anndatatools": "adt"}
@@ -12,7 +12,7 @@
         "zlabel"
     ],
     "figure": {
-        "obs": "condition",
+        "obs": "leiden",
         "obsm": "X_umap",
         "figheight": 5,
         "figwidth": 6,
