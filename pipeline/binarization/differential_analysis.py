@@ -28,7 +28,7 @@ def collectri_to_grn(
     collectri: pd.DataFrame,
     sign_label: str = "weight",
     remove_pmid: bool = False
-    ) -> nx.MultiDiGraph:
+) -> nx.MultiDiGraph:
     if sign_label is not None:
         collectri = collectri.rename(columns = {sign_label:"sign"})
     if remove_pmid is True:

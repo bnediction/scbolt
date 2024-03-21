@@ -109,7 +109,7 @@ plt.savefig(f"{outfile}.pdf", bbox_inches="tight", pad_inches=0.3)
 try:
     os.system(f"pdfcrop --margins '0 0 0 0' {outfile}.pdf {outfile}.pdf")
 except OSError:
-    print("unable to use `pdfcrop` command")
+    print("Unix command `pdfcrop` not available: no figure trimming")
 if "n_components" in params["figure"]:
     if params["figure"]["n_components"] == 3:
         pickle.dump(fig, open(Path(f"{outfile}.fig.pkl"), "wb"))

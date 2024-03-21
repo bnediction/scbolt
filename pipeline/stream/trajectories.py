@@ -222,7 +222,7 @@ ax.images[-1].colorbar.remove()
 plt.savefig(f"{args.outpath}/{args.prefix}pseudotime_stream_plot.pdf")
 
 for _group in groups.difference([f"{args.root}_pseudotime"]):
-    colors=color.COLORS[0:len(adata.obs["node_clusters"].unique())-1] + [color.lightgray] if _group == "node_clusters" else color.COLORS
+    colors = node_colors if _group == "node_clusters" else color.COLORS
     st.plot_stream(
         adata,
         root=args.root,
@@ -240,18 +240,21 @@ for _group in groups.difference([f"{args.root}_pseudotime"]):
         else:
             patch.set_color(colors[idx])
             patch.set_alpha(1)
-    ax.legend(
-        [string.replace("cluster ","") for string in sorted(adata.obs[_group].unique())],
-        bbox_to_anchor=(1.03, 0.5),
-        loc='center left',
-        title="clusters" if _group != "condition" else "conditions",
-        ncol=1,
-        frameon=False,
-        columnspacing=0.4,
-        borderaxespad=0.2,
-        handletextpad=0.3
-    )
-    plt.savefig(f"{args.outpath}/{args.prefix}{_group}_stream_plot.pdf")
+    if args.legend:
+        ax.legend(
+            [string.replace("cluster ","") for string in sorted(adata.obs[_group].unique())],
+            bbox_to_anchor=(1.03, 0.5),
+            loc='center left',
+            title="clusters" if _group != "condition" else "conditions",
+            ncol=1,
+            frameon=False,
+            columnspacing=0.4,
+            borderaxespad=0.2,
+            handletextpad=0.3
+        )
+    else:
+        ax.get_legend().remove()
+    plt.savefig(f"{args.outpath}/{args.prefix}{_group}_stream_plot.pdf", bbox_inches="tight")
 
 print("Trajectories inference...")
 

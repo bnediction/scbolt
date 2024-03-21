@@ -1,6 +1,6 @@
 {
     "infile": "data/scRNA/integration/tables/bbknn_labels.h5ad",
-    "outfile": "data/scRNA/integration/figures/bbknn_umap_labels",
+    "outfile": "figures/results/umap_labels",
     "modules": [
         {"numpy": "np"},
         {"anndatatools": "adt"}
@@ -21,7 +21,7 @@
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "colors": "adt.pl.color.COLORS",
+        "colors": "adt.pl.color.LIGHT_COLORS",
         "add_graph": false,
         "add_text": false,
         "add_legend": true,

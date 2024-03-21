@@ -74,4 +74,22 @@ COLORS = [
     salmon
 ]
 
+LIGHT_COLORS = [
+    skyblue,
+    red,
+    green,
+    orange,
+    orchid,
+    gray,
+    teal,
+    magenta,
+    violet,
+    olive,
+    beet,
+    indigo,
+    gold,
+    navy,
+    salmon
+]
+
 color_cycle = cycle(COLORS)
