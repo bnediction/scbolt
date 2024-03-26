@@ -59,5 +59,6 @@ for metadatum in args.sample_info:
     adata.uns[key] = value
 
 adt.pp.set_ncbi_reference_name(adata, annotations="var", copy=False)
+adata = adt.pp.var_names_merge_duplicates(adata, var_names_column="symbol")
 
 adata.write_h5ad(filename=args.outfile, compression="gzip")
