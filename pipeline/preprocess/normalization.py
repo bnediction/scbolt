@@ -60,24 +60,19 @@ parser = argparse.ArgumentParser(
     filter low-quality genes (gene poorly expressed and no HVG),
     normalize data with respect to the depth library, scale data
     and correct unwanted effects.""",
-    usage="python normalization.py -i <path> [<args>]"
+    usage="python normalization.py <FILE> <PATH> [<args>]"
 )
 
 parser.add_argument(
-    "-i", "--infile",
-    dest="infile",
+    "infile",
     type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
-    help="path to .h5ad file (including file)"
+    metavar="FILE",
+    help="path to .h5ad file"
 )
 
 parser.add_argument(
-    "-o", "--outpath",
-    dest="outpath",
+    "outpath",
     type=lambda x: Path(x).resolve(),
-    required=False,
-    default=Path("./").resolve(),
     metavar="PATH",
     help="output path"
 )

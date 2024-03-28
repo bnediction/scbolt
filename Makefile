@@ -12,50 +12,58 @@ LIGHT_RED = \033[91m
 CONDA_ACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
 CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda deactivate ; conda deactivate
 
-DATA = data/rna
+RNA = data/rna
+PUBLIC = data/public
 
-10XGENOMICS_CT = $(DATA)/raw/ct/matrix.mtx.gz $(DATA)/raw/ct/features.tsv.gz $(DATA)/raw/ct/barcodes.tsv.gz
-10XGENOMICS_RA = $(DATA)/raw/ra/matrix.mtx.gz $(DATA)/raw/ra/features.tsv.gz $(DATA)/raw/ra/barcodes.tsv.gz
-H5AD_CT = $(DATA)/raw/ct/ct.h5ad
-H5AD_RA = $(DATA)/raw/ra/ra.h5ad
+10XGENOMICS_CT = $(RNA)/raw/ct/matrix.mtx.gz $(RNA)/raw/ct/features.tsv.gz $(RNA)/raw/ct/barcodes.tsv.gz
+10XGENOMICS_RA = $(RNA)/raw/ra/matrix.mtx.gz $(RNA)/raw/ra/features.tsv.gz $(RNA)/raw/ra/barcodes.tsv.gz
+H5AD_CT = $(RNA)/raw/ct/ct.h5ad
+H5AD_RA = $(RNA)/raw/ra/ra.h5ad
+CYCLE_MARKERS = $(PUBLIC)/cycle_phases/mouse_cycle_markers.rds
+FILTER_CT = $(RNA)/cell_filtering/ct
+FILTER_RA = $(RNA)/cell_filtering/ra
+SIGNATURES = $(PUBLIC)/signatures
+NORMALISATION_CT = $(RNA)/normalization/ct
+NORMALISATION_RA = $(RNA)/normalization/ra
 
 define section
 	echo -e '$(RED)===== $(1) =====$(NC)'
 endef
 
-all: $(H5AD_CT) $(H5AD_RA)
+all: $(NORMALISATION_CT) $(NORMALISATION_RA)
 
 clean:
-	rm -rf $(DATA)
+	rm -rf $(RNA)
 
 mrproper:
-	rm -rf data
+	rm -rf data/*
+	touch data/.placeholder
 
 loadctrl: $(10XGENOMICS_CT)
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control sample))
-	$(eval FOLDER := $(DATA)/raw/ct)
-	mkdir -p $(FOLDER)
+	mkdir -p $(@D)
 	wget --quiet --recursive --no-parent -nd --reject "index.html" \
-  		--directory-prefix=$(FOLDER) \
+  		--directory-prefix=$(@D) \
   		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
-	mv $(FOLDER)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CT))
-	mv $(FOLDER)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CT))
-	mv $(FOLDER)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CT))
+	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CT))
+	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CT))
+	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CT))
 
 loadtreated: $(10XGENOMICS_RA)
 
 $(10XGENOMICS_RA):
 	$(call section,download 10X genomics data (treated sample))
-	$(eval FOLDER := $(DATA)/raw/ra)
-	mkdir -p $(FOLDER)
+	mkdir -p $(@D)
 	wget --quiet --recursive --no-parent -nd --reject "index.html" \
-		--directory-prefix=$(FOLDER) \
+		--directory-prefix=$(@D) \
 		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
-	mv $(FOLDER)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_RA))
-	mv $(FOLDER)/*genes.tsv.gz $(word 2,$(10XGENOMICS_RA))
-	mv $(FOLDER)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_RA))
+	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_RA))
+	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_RA))
+	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_RA))
+
+conversionctrl: $(H5AD_CT)
 
 $(H5AD_CT): $(10XGENOMICS_CT)
 	$(call section,conversion (control sample))
@@ -64,9 +72,76 @@ $(H5AD_CT): $(10XGENOMICS_CT)
 		--sample-info age=adult date=29-09-2020 sample_name=ctrl condition=control
 	$(CONDA_DEACTIVATE)
 
+conversiontreated: $(H5AD_RA)
+
 $(H5AD_RA): $(10XGENOMICS_RA)
 	$(call section,conversion (treated sample))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/load_10X.py $(<D) $@ \
 		--sample-info age=adult date=29-09-2020 sample_name=ra condition=treated
 	$(CONDA_DEACTIVATE)
+
+loadmarkers: $(PUBLIC)/cycle_phases/mouse_cycle_markers.rds
+
+$(CYCLE_MARKERS):
+	$(call section,download cycle phase markers)
+	mkdir -p $(@D)
+	wget --quiet -cO $@ \
+		https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
+
+filterctrl: $(FILTER_CT)
+
+$(FILTER_CT)/tables/counts.h5ad: $(H5AD_CT) $(CYCLE_MARKERS)
+	$(call section,filtering (control sample))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/filter_cells.py \
+		--infile $(word 1,$^) \
+		--marker $(word 2,$^) \
+		--outpath $(FILTER_CT) \
+		--mitochondrial_threshold 5 \
+		--upper-mad 2 \
+		--lower-mad 3 \
+		--consistency-mad
+	$(CONDA_DEACTIVATE)
+
+$(FILTER_RA)/tables/counts.h5ad: $(H5AD_RA) $(CYCLE_MARKERS)
+	$(call section,filtering (treated sample))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/filter_cells.py \
+		--infile $(word 1,$^) \
+		--marker $(word 2,$^) \
+		--outpath $(FILTER_RA) \
+		--mitochondrial_threshold 5 \
+		--upper-mad 2 \
+		--lower-mad 3 \
+		--consistency-mad
+	$(CONDA_DEACTIVATE)
+
+$(SIGNATURES)/geiger.xls $(SIGNATURES)/chambers.xls:
+	$(call section,download signatures)
+	mkdir -p $(SIGNATURES)
+	wget --quiet -cO $(SIGNATURES)/geiger.xls https://doi.org/10.1371/journal.pbio.2003389.s025 
+	wget --quiet -cO $(SIGNATURES)/chambers.xls https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
+
+$(SIGNATURES)/signatures.json: $(SIGNATURES)/geiger.xls $(SIGNATURES)/chambers.xls
+	$(call section,convert signatures)
+	python pipeline/preprocess/load_signatures.py \
+  		--list-infile $(word 1,$^) \
+  		--table-infile $(word 2,$^) \
+  		--outfile $@
+
+$(NORMALISATION_CT): $(FILTER_CT)/tables/counts.h5ad
+	$(call section,normalization (control sample))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/normalization.py $< $@ \
+		--correction G2M_score S_score G1_score \
+		--min-cell-expression-proportion 0.001 \
+		--jobs 6
+
+$(NORMALISATION_RA): $(FILTER_RA)/tables/counts.h5ad
+	$(call section,normalization (treated sample))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/normalization.py $< $@ \
+		--correction G2M_score S_score G1_score \
+		--min-cell-expression-proportion 0.001 \
+		--jobs 6
