@@ -1,45 +1,72 @@
+#!/usr/bin/make
+
+.ONESHELL:
+
 MAKEFLAGS += --silent
-BONESIS_PATH = data/rna/bonesis
+SHELL = /bin/bash
 
 NC = \033[0m
+RED = \033[0;31m
 LIGHT_RED = \033[91m
 
-all: $(BONESIS_PATH)/min_1.bn
+CONDA_ACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
+CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda deactivate ; conda deactivate
 
-filter1: $(BONESIS_PATH)/bootstrap_filter_grn_stage1.txt
-$(BONESIS_PATH)/bootstrap_filter_grn_stage1.txt:
-	echo "$(LIGHT_RED)> stage-1 filtering...$(NC)"
-	python pipeline/bonesis/infer_bo.py filter_stage1 $(BONESIS_PATH) \
-		--bin-metastates data/rna/binarization/cluster_bin_node_clusters.csv \
-  		--model-specification pipeline/bonesis/plzf_rara_model.txt \
-  		--quiet > $(BONESIS_PATH)/bootstrap_filter_grn_stage1.txt
+DATA = data/rna
 
-filter2: $(BONESIS_PATH)/bootstrap_filter_grn_stage2.txt 
-$(BONESIS_PATH)/bootstrap_filter_grn_stage2.txt: $(BONESIS_PATH)/bootstrap_filter_grn_stage1.txt
-	echo "$(LIGHT_RED)> stage-2 filtering...$(NC)"
-	python pipeline/bonesis/infer_bo.py filter_stage2 data/rna/bonesis \
-		--bin-metastates data/rna/binarization/cluster_bin_node_clusters.csv \
-  		--model-specification pipeline/bonesis/plzf_rara_model.txt \
-  		--filter-grn $(BONESIS_PATH)/bootstrap_filter_grn_stage1.txt \
-		--quiet > $(BONESIS_PATH)/bootstrap_filter_grn_stage2.txt
+10XGENOMICS_CT = $(DATA)/raw/ct/matrix.mtx.gz $(DATA)/raw/ct/features.tsv.gz $(DATA)/raw/ct/barcodes.tsv.gz
+10XGENOMICS_RA = $(DATA)/raw/ra/matrix.mtx.gz $(DATA)/raw/ra/features.tsv.gz $(DATA)/raw/ra/barcodes.tsv.gz
+H5AD_CT = $(DATA)/raw/ct/ct.h5ad
+H5AD_RA = $(DATA)/raw/ra/ra.h5ad
 
-sub1: $(BONESIS_PATH)/sub_1.bn
-$(BONESIS_PATH)/sub_1.bn: $(BONESIS_PATH)/bootstrap_filter_grn_stage2.txt
-	echo "$(LIGHT_RED)> one-sub inference...$(NC)"
-	python pipeline/bonesis/infer_bo.py one-sub data/rna/bonesis \
-		--bin-metastates data/rna/binarization/cluster_bin_node_clusters.csv \
-		--model-specification pipeline/bonesis/plzf_rara_model.txt \
-		--filter-grn $(BONESIS_PATH)/bootstrap_filter_grn_stage2.txt \
-		--quiet
+define section
+	echo -e '$(RED)===== $(1) =====$(NC)'
+endef
 
-min1: $(BONESIS_PATH)/min_1.bn 
-$(BONESIS_PATH)/min_1.bn: $(BONESIS_PATH)/bootstrap_filter_grn_stage2.txt
-	echo "$(LIGHT_RED)> one-min inference...$(NC)"
-	python pipeline/bonesis/infer_bo.py one-min data/rna/bonesis \
-		--bin-metastates data/rna/binarization/cluster_bin_node_clusters.csv \
-		--model-specification pipeline/bonesis/plzf_rara_model.txt \
-		--filter-grn $(BONESIS_PATH)/bootstrap_filter_grn_stage2.txt \
-		--quiet
+all: $(H5AD_CT) $(H5AD_RA)
 
 clean:
-	rm -rf $(BONESIS_PATH)/*
+	rm -rf $(DATA)
+
+mrproper:
+	rm -rf data
+
+loadctrl: $(10XGENOMICS_CT)
+
+$(10XGENOMICS_CT):
+	$(call section,download 10X genomics data (control sample))
+	$(eval FOLDER := $(DATA)/raw/ct)
+	mkdir -p $(FOLDER)
+	wget --quiet --recursive --no-parent -nd --reject "index.html" \
+  		--directory-prefix=$(FOLDER) \
+  		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
+	mv $(FOLDER)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CT))
+	mv $(FOLDER)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CT))
+	mv $(FOLDER)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CT))
+
+loadtreated: $(10XGENOMICS_RA)
+
+$(10XGENOMICS_RA):
+	$(call section,download 10X genomics data (treated sample))
+	$(eval FOLDER := $(DATA)/raw/ra)
+	mkdir -p $(FOLDER)
+	wget --quiet --recursive --no-parent -nd --reject "index.html" \
+		--directory-prefix=$(FOLDER) \
+		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
+	mv $(FOLDER)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_RA))
+	mv $(FOLDER)/*genes.tsv.gz $(word 2,$(10XGENOMICS_RA))
+	mv $(FOLDER)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_RA))
+
+$(H5AD_CT): $(10XGENOMICS_CT)
+	$(call section,conversion (control sample))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/load_10X.py $(<D) $@ \
+		--sample-info age=adult date=29-09-2020 sample_name=ctrl condition=control
+	$(CONDA_DEACTIVATE)
+
+$(H5AD_RA): $(10XGENOMICS_RA)
+	$(call section,conversion (treated sample))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/load_10X.py $(<D) $@ \
+		--sample-info age=adult date=29-09-2020 sample_name=ra condition=treated
+	$(CONDA_DEACTIVATE)
