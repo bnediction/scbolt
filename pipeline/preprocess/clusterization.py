@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -12,7 +12,7 @@ from utils.argtype import Store_prefix
 
 import numpy as np, math
 
-import pandas as pd, anndata as ad, scanpy as sc, json
+import pandas as pd, scanpy as sc, json
 import anndatatools as adt
 
 import matplotlib.pyplot as plt
@@ -30,33 +30,26 @@ parser = argparse.ArgumentParser(
     run t-SNE and UMAP algorithm, search for gene markers and compare markers and
     signatures in order to provide useful information about potential cell-types
     of each cluster.""",
-    usage="python cluster.py -i <path> -s <path> [<args>]"
+    usage="python clusterization.py <FILE> <FILE> <PATH> [<args>]"
 )
 
 parser.add_argument(
-    "-i", "--infile",
-    dest="infile",
+    "infile",
     type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
-    help="path to .h5ad file (including file)"
+    metavar="FILE",
+    help="path to .h5ad file"
 )
 
 parser.add_argument(
-    "-s", "--signatures",
-    dest="signatures",
+    "signatures",
     type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
-    help="path to .json signatures file (including file)"
+    metavar="FILE",
+    help="path to .json signatures file"
 )
 
 parser.add_argument(
-    "-o", "--outpath",
-    dest="outpath",
+    "outpath",
     type=lambda x: Path(x).resolve(),
-    required=False,
-    default=Path("./").resolve(),
     metavar="PATH",
     help="output path"
 )

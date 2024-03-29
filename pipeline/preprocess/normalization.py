@@ -82,6 +82,7 @@ parser.add_argument(
     dest="prefix",
     required=False,
     action=Store_prefix,
+    default="",
     help="prefix for each saving file"
 )
 

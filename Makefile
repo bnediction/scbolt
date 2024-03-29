@@ -15,22 +15,24 @@ CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda d
 RNA = data/rna
 PUBLIC = data/public
 
-10XGENOMICS_CT = $(RNA)/raw/ct/matrix.mtx.gz $(RNA)/raw/ct/features.tsv.gz $(RNA)/raw/ct/barcodes.tsv.gz
-10XGENOMICS_RA = $(RNA)/raw/ra/matrix.mtx.gz $(RNA)/raw/ra/features.tsv.gz $(RNA)/raw/ra/barcodes.tsv.gz
-H5AD_CT = $(RNA)/raw/ct/ct.h5ad
-H5AD_RA = $(RNA)/raw/ra/ra.h5ad
-CYCLE_MARKERS = $(PUBLIC)/cycle_phases/mouse_cycle_markers.rds
-FILTER_CT = $(RNA)/cell_filtering/ct
-FILTER_RA = $(RNA)/cell_filtering/ra
-SIGNATURES = $(PUBLIC)/signatures
-NORMALISATION_CT = $(RNA)/normalization/ct
-NORMALISATION_RA = $(RNA)/normalization/ra
+FILES_10XGENOMICS_CT = $(RNA)/raw/ct/matrix.mtx.gz $(RNA)/raw/ct/features.tsv.gz $(RNA)/raw/ct/barcodes.tsv.gz
+FILES_10XGENOMICS_RA = $(RNA)/raw/ra/matrix.mtx.gz $(RNA)/raw/ra/features.tsv.gz $(RNA)/raw/ra/barcodes.tsv.gz
+FILE_H5AD_CT = $(RNA)/raw/ct/ct.h5ad
+FILE_H5AD_RA = $(RNA)/raw/ra/ra.h5ad
+FILE_CYCLE_MARKERS = $(PUBLIC)/cycle_phases/mouse_cycle_markers.rds
+PATH_FILTER_CT = $(RNA)/cell_filtering/ct
+PATH_FILTER_RA = $(RNA)/cell_filtering/ra
+PATH_SIGNATURES = $(PUBLIC)/signatures
+PATH_NORMALISATION_CT = $(RNA)/normalization/ct
+PATH_NORMALISATION_RA = $(RNA)/normalization/ra
+PATH_CLUSTER_CT = $(RNA)/cluster/ct
+PATH_CLUSTER_RA = $(RNA)/cluster/ra
 
 define section
 	echo -e '$(RED)===== $(1) =====$(NC)'
 endef
 
-all: $(NORMALISATION_CT) $(NORMALISATION_RA)
+all: $(PATH_CLUSTER_CT) $(PATH_CLUSTER_RA)
 
 clean:
 	rm -rf $(RNA)
@@ -39,109 +41,136 @@ mrproper:
 	rm -rf data/*
 	touch data/.placeholder
 
-loadctrl: $(10XGENOMICS_CT)
+load-ctrl: $(FILES_10XGENOMICS_CT)
+load-treated: $(FILES_10XGENOMICS_RA)
+convert-ctrl: $(FILE_H5AD_CT)
+convert-treated: $(FILE_H5AD_RA)
+load-markers: $(PUBLIC)/cycle_phases/mouse_cycle_markers.rds
+filter-ctrl: $(PATH_FILTER_CT)
+filter-treated: $(PATH_FILTER_RA)
+load-signatures: $(PATH_SIGNATURES)/geiger.xls $(PATH_SIGNATURES)/chambers.xls
+convert-signatures: $(PATH_SIGNATURES)/signatures.json
+normalize-ctrl: $(PATH_NORMALISATION_CT)
+normalize-treated: $(PATH_NORMALISATION_RA)
 
-$(10XGENOMICS_CT):
+$(FILES_10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control sample))
 	mkdir -p $(@D)
 	wget --quiet --recursive --no-parent -nd --reject "index.html" \
   		--directory-prefix=$(@D) \
   		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
-	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CT))
-	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CT))
-	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CT))
+	mv $(@D)/*matrix.mtx.gz $(word 1,$(FILES_10XGENOMICS_CT))
+	mv $(@D)/*genes.tsv.gz $(word 2,$(FILES_10XGENOMICS_CT))
+	mv $(@D)/*barcodes.tsv.gz $(word 3,$(FILES_10XGENOMICS_CT))
 
-loadtreated: $(10XGENOMICS_RA)
-
-$(10XGENOMICS_RA):
+$(FILES_10XGENOMICS_RA):
 	$(call section,download 10X genomics data (treated sample))
 	mkdir -p $(@D)
 	wget --quiet --recursive --no-parent -nd --reject "index.html" \
 		--directory-prefix=$(@D) \
 		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
-	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_RA))
-	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_RA))
-	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_RA))
+	mv $(@D)/*matrix.mtx.gz $(word 1,$(FILES_10XGENOMICS_RA))
+	mv $(@D)/*genes.tsv.gz $(word 2,$(FILES_10XGENOMICS_RA))
+	mv $(@D)/*barcodes.tsv.gz $(word 3,$(FILES_10XGENOMICS_RA))
 
-conversionctrl: $(H5AD_CT)
-
-$(H5AD_CT): $(10XGENOMICS_CT)
+$(FILE_H5AD_CT): $(FILES_10XGENOMICS_CT)
 	$(call section,conversion (control sample))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/load_10X.py $(<D) $@ \
 		--sample-info age=adult date=29-09-2020 sample_name=ctrl condition=control
 	$(CONDA_DEACTIVATE)
 
-conversiontreated: $(H5AD_RA)
-
-$(H5AD_RA): $(10XGENOMICS_RA)
+$(FILE_H5AD_RA): $(FILES_10XGENOMICS_RA)
 	$(call section,conversion (treated sample))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/load_10X.py $(<D) $@ \
 		--sample-info age=adult date=29-09-2020 sample_name=ra condition=treated
 	$(CONDA_DEACTIVATE)
 
-loadmarkers: $(PUBLIC)/cycle_phases/mouse_cycle_markers.rds
-
-$(CYCLE_MARKERS):
+$(FILE_CYCLE_MARKERS):
 	$(call section,download cycle phase markers)
 	mkdir -p $(@D)
 	wget --quiet -cO $@ \
 		https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
 
-filterctrl: $(FILTER_CT)
-
-$(FILTER_CT)/tables/counts.h5ad: $(H5AD_CT) $(CYCLE_MARKERS)
+$(PATH_FILTER_CT)/tables/counts.h5ad: $(FILE_H5AD_CT) $(FILE_CYCLE_MARKERS)
 	$(call section,filtering (control sample))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/filter_cells.py \
 		--infile $(word 1,$^) \
 		--marker $(word 2,$^) \
-		--outpath $(FILTER_CT) \
+		--outpath $(PATH_FILTER_CT) \
 		--mitochondrial_threshold 5 \
 		--upper-mad 2 \
 		--lower-mad 3 \
 		--consistency-mad
 	$(CONDA_DEACTIVATE)
 
-$(FILTER_RA)/tables/counts.h5ad: $(H5AD_RA) $(CYCLE_MARKERS)
+$(PATH_FILTER_RA)/tables/counts.h5ad: $(FILE_H5AD_RA) $(FILE_CYCLE_MARKERS)
 	$(call section,filtering (treated sample))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/filter_cells.py \
 		--infile $(word 1,$^) \
 		--marker $(word 2,$^) \
-		--outpath $(FILTER_RA) \
+		--outpath $(PATH_FILTER_RA) \
 		--mitochondrial_threshold 5 \
 		--upper-mad 2 \
 		--lower-mad 3 \
 		--consistency-mad
 	$(CONDA_DEACTIVATE)
 
-$(SIGNATURES)/geiger.xls $(SIGNATURES)/chambers.xls:
+$(PATH_SIGNATURES)/geiger.xls $(PATH_SIGNATURES)/chambers.xls:
 	$(call section,download signatures)
-	mkdir -p $(SIGNATURES)
-	wget --quiet -cO $(SIGNATURES)/geiger.xls https://doi.org/10.1371/journal.pbio.2003389.s025 
-	wget --quiet -cO $(SIGNATURES)/chambers.xls https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
+	mkdir -p $(PATH_SIGNATURES)
+	wget --quiet -cO $(PATH_SIGNATURES)/geiger.xls https://doi.org/10.1371/journal.pbio.2003389.s025 
+	wget --quiet -cO $(PATH_SIGNATURES)/chambers.xls https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
 
-$(SIGNATURES)/signatures.json: $(SIGNATURES)/geiger.xls $(SIGNATURES)/chambers.xls
+$(PATH_SIGNATURES)/signatures.json: $(PATH_SIGNATURES)/geiger.xls $(PATH_SIGNATURES)/chambers.xls
 	$(call section,convert signatures)
 	python pipeline/preprocess/load_signatures.py \
   		--list-infile $(word 1,$^) \
   		--table-infile $(word 2,$^) \
   		--outfile $@
 
-$(NORMALISATION_CT): $(FILTER_CT)/tables/counts.h5ad
+$(PATH_NORMALISATION_CT)/tables/corrected.h5ad: $(PATH_FILTER_CT)/tables/counts.h5ad
 	$(call section,normalization (control sample))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/normalization.py $< $@ \
+	python pipeline/preprocess/normalization.py $< $(PATH_NORMALISATION_CT) \
 		--correction G2M_score S_score G1_score \
 		--min-cell-expression-proportion 0.001 \
 		--jobs 6
+	$(CONDA_DEACTIVATE)
 
-$(NORMALISATION_RA): $(FILTER_RA)/tables/counts.h5ad
+$(PATH_NORMALISATION_RA)/tables/corrected.h5ad: $(PATH_FILTER_RA)/tables/counts.h5ad
 	$(call section,normalization (treated sample))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/normalization.py $< $@ \
+	python pipeline/preprocess/normalization.py $< $(PATH_NORMALISATION_RA) \
 		--correction G2M_score S_score G1_score \
 		--min-cell-expression-proportion 0.001 \
 		--jobs 6
+	$(CONDA_DEACTIVATE)
+
+$(PATH_CLUSTER_CT): $(PATH_NORMALISATION_CT)/tables/corrected.h5ad $(PATH_SIGNATURES)/signatures.json
+	$(call section,clustering (control sample))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/clusterization.py $(word 1,$^) $(word 2,$^) $@ \
+		--k-neighbors 20 \
+		--neighborhood-graph knn \
+		--dimensions 15 \
+		--resolution 0.6 \
+		--logfc-threshold 0.25 \
+		--verbose
+	$(CONDA_DEACTIVATE)
+
+$(PATH_CLUSTER_RA): $(PATH_NORMALISATION_RA)/tables/corrected.h5ad $(PATH_SIGNATURES)/signatures.json
+	$(call section,clustering (treated sample))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/clusterization.py $(word 1,$^) $(word 2,$^) $@ \
+		--k-neighbors 20 \
+		--neighborhood-graph knn \
+		--dimensions 15 \
+		--resolution 0.6 \
+		--logfc-threshold 0.25 \
+		--verbose
+	$(CONDA_DEACTIVATE)
+
