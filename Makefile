@@ -41,7 +41,7 @@ endef
 
 all: $(PATH_MARKERS_CT) $(PATH_MARKERS_RA)
 
-integration: $(PATH_MARKERS_ALL)/bbknn.h5ad
+integration: $(PATH_MARKERS_ALL)/bbknn_labels.h5ad
 
 clean:
 	rm -rf $(RNA)
@@ -215,19 +215,19 @@ $(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD).h5ad: $(PATH_NORMALISATION_CT)/
 	$(CONDA_DEACTIVATE)
 
 $(PATH_MARKERS_ALL)/bbknn.h5ad: $(PATH_INTEGRATION)/tables/bbknn.h5ad $(PATH_SIGNATURES)/signatures.json
-	$(call section,analyse cell types (integrated))
+	$(call section,analyse cell types (integrated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/analyse_markers.py $^ $@ \
-		--condition condition \
-		--group leiden \
+		--condition condition --group leiden \
 		--logfc-threshold 0.25 \
 		--verbose
 	$(CONDA_DEACTIVATE)
 
 $(PATH_MARKERS_ALL)/bbknn_labels.h5ad: $(PATH_MARKERS_ALL)/bbknn.h5ad
-	$(call section,assign cell types (integrated))
+	$(call section,assign cell types (integrated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/label_clusters.py $< $@ \
 		--column leiden \
 		--name 0=Unknown 1=Rep 2=Prom1 3=Prom2 4=Gran 5=Prom3
+	python figures/plot_embedding.py figures/umap_labels.json
 	$(CONDA_DEACTIVATE)

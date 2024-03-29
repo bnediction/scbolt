@@ -1,5 +1,5 @@
 {
-    "infile": "data/scRNA/integration/tables/bbknn_labels.h5ad",
+    "infile": "data/rna/integration/tables/bbknn_labels.h5ad",
     "outfile": "figures/results/umap_labels",
     "modules": [
         {"numpy": "np"},
