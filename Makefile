@@ -27,12 +27,14 @@ PATH_NORMALISATION_CT = $(RNA)/normalization/ct
 PATH_NORMALISATION_RA = $(RNA)/normalization/ra
 PATH_CLUSTER_CT = $(RNA)/cluster/ct
 PATH_CLUSTER_RA = $(RNA)/cluster/ra
+PATH_INTEGRATION = $(RNA)/integration
+FILES_INTEGRATION = $(wildcard $(PATH_INTEGRATION)/tables/*.h5ad)
 
 define section
 	echo -e '$(RED)===== $(1) =====$(NC)'
 endef
 
-all: $(PATH_CLUSTER_CT) $(PATH_CLUSTER_RA)
+all: $(PATH_CLUSTER_RA) $(PATH_INTEGRATION)/tables/%.h5ad
 
 clean:
 	rm -rf $(RNA)
@@ -134,26 +136,28 @@ $(PATH_SIGNATURES)/signatures.json: $(PATH_SIGNATURES)/geiger.xls $(PATH_SIGNATU
 
 $(PATH_NORMALISATION_CT)/tables/corrected.h5ad: $(PATH_FILTER_CT)/tables/counts.h5ad
 	$(call section,normalization (control sample))
+	$(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/normalization.py $< $(PATH_NORMALISATION_CT) \
 		--correction G2M_score S_score G1_score \
 		--min-cell-expression-proportion 0.001 \
-		--jobs 6
+		--jobs $(JOBS)
 	$(CONDA_DEACTIVATE)
 
 $(PATH_NORMALISATION_RA)/tables/corrected.h5ad: $(PATH_FILTER_RA)/tables/counts.h5ad
 	$(call section,normalization (treated sample))
+	$(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/normalization.py $< $(PATH_NORMALISATION_RA) \
 		--correction G2M_score S_score G1_score \
 		--min-cell-expression-proportion 0.001 \
-		--jobs 6
+		--jobs $(JOBS)
 	$(CONDA_DEACTIVATE)
 
 $(PATH_CLUSTER_CT): $(PATH_NORMALISATION_CT)/tables/corrected.h5ad $(PATH_SIGNATURES)/signatures.json
 	$(call section,clustering (control sample))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/clusterization.py $(word 1,$^) $(word 2,$^) $@ \
+	python pipeline/preprocess/clusterization.py $^ $@ \
 		--k-neighbors 20 \
 		--neighborhood-graph knn \
 		--dimensions 15 \
@@ -165,7 +169,7 @@ $(PATH_CLUSTER_CT): $(PATH_NORMALISATION_CT)/tables/corrected.h5ad $(PATH_SIGNAT
 $(PATH_CLUSTER_RA): $(PATH_NORMALISATION_RA)/tables/corrected.h5ad $(PATH_SIGNATURES)/signatures.json
 	$(call section,clustering (treated sample))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/clusterization.py $(word 1,$^) $(word 2,$^) $@ \
+	python pipeline/preprocess/clusterization.py $^ $@ \
 		--k-neighbors 20 \
 		--neighborhood-graph knn \
 		--dimensions 15 \
@@ -174,3 +178,15 @@ $(PATH_CLUSTER_RA): $(PATH_NORMALISATION_RA)/tables/corrected.h5ad $(PATH_SIGNAT
 		--verbose
 	$(CONDA_DEACTIVATE)
 
+$(PATH_INTEGRATION)/tables/%.h5ad: $(PATH_NORMALISATION_CT)/tables/corrected.h5ad $(PATH_NORMALISATION_RA)/tables/corrected.h5ad
+	$(call section,integration)
+	$(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/integration.py $^ $(PATH_INTEGRATION) \
+		--label condition --method bbknn \
+		--dim-pca 50 --dim-clustering 15 --dim-integration 3 \
+		--hvg --metric euclidean --k-neighbors 20 --resolution 0.38 \
+		--add-legend --plot-3d \
+		--jobs $(JOBS) --seed 10 \
+		--verbose
+	$(CONDA_DEACTIVATE)

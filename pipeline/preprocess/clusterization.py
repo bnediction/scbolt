@@ -37,14 +37,14 @@ parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="path to .h5ad file"
+    help="file in h5ad format"
 )
 
 parser.add_argument(
     "signatures",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="path to .json signatures file"
+    help="file in json format"
 )
 
 parser.add_argument(

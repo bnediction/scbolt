@@ -58,7 +58,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="PATH",
-    help="path to .h5ad file (including file)"
+    help="file in h5ad format"
 )
 
 parser.add_argument(

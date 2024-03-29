@@ -64,35 +64,28 @@ parser = argparse.ArgumentParser(
     description="""From two samples of sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
     perform integration on embedding dimensions, create clusters using leiden algorithm,
     and run UMAP algorithm. This programm allows to search cell evolutions between two experiments""",
-    usage="""python cluster.py [-h] --i1 <path> --i2 <path> [<args>]"""
+    usage="""python cluster.py [-h] <FILE> <FILE> <PATH> [<args>]"""
 )
 
 parser.add_argument(
-    "--i1", "--infile1", "--infile-ref",
-    dest="infile_ref",
+    "infile_reference",
     type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
-    help="path to .h5ad file (including file) considered as reference sample"
+    metavar="FILE",
+    help="file in h5ad format, being considered as control dataset"
 )
 
 parser.add_argument(
-    "--i2", "--infile2", "--infile-interest",
-    dest="infile_interest",
+    "infile_interest",
     type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
-    help="path to .h5ad file (including file) considered as sample to integrate"
+    metavar="FILE",
+    help="file in h5ad format, being considered as dataset to integrate"
 )
 
 parser.add_argument(
-    "-o", "--outpath",
-    dest="outpath",
+    "outpath",
     type=lambda x: Path(x).resolve(),
-    required=False,
-    default=Path("./").resolve(),
     metavar="PATH",
-    help="output path (default: ./)"
+    help="output path"
 )
 
 parser.add_argument(
@@ -266,7 +259,7 @@ section = Section(verbose = args.verbose)
 print(f"Loading data...")
 
 adata_d = odict()
-adata_d["reference"] = sc.read_h5ad(args.infile_ref)
+adata_d["reference"] = sc.read_h5ad(args.infile_reference)
 adata_d["interest"] = sc.read_h5ad(args.infile_interest)
 if args.label:
     label = [adata.uns[args.label] for adata in adata_d.values()]
