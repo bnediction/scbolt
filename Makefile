@@ -15,6 +15,8 @@ CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda d
 RNA = data/rna
 PUBLIC = data/public
 
+INTEGRATION_METHOD = bbknn
+
 FILES_10XGENOMICS_CT = $(RNA)/raw/ct/matrix.mtx.gz $(RNA)/raw/ct/features.tsv.gz $(RNA)/raw/ct/barcodes.tsv.gz
 FILES_10XGENOMICS_RA = $(RNA)/raw/ra/matrix.mtx.gz $(RNA)/raw/ra/features.tsv.gz $(RNA)/raw/ra/barcodes.tsv.gz
 FILE_H5AD_CT = $(RNA)/raw/ct/ct.h5ad
@@ -31,6 +33,7 @@ PATH_MARKERS_CT = $(RNA)/markers/ct
 PATH_MARKERS_RA = $(RNA)/markers/ra
 PATH_INTEGRATION = $(RNA)/integration
 FILES_INTEGRATION = $(wildcard $(PATH_INTEGRATION)/tables/*.h5ad)
+PATH_MARKERS_ALL = $(RNA)/markers/all
 
 define section
 	echo -e '$(RED)===== $(1) =====$(NC)'
@@ -38,7 +41,7 @@ endef
 
 all: $(PATH_MARKERS_CT) $(PATH_MARKERS_RA)
 
-integration: $(PATH_INTEGRATION)/tables/%.h5ad
+integration: $(PATH_MARKERS_ALL)/bbknn.h5ad
 
 clean:
 	rm -rf $(RNA)
@@ -60,7 +63,7 @@ normalize-ctrl: $(PATH_NORMALISATION_CT)
 normalize-treated: $(PATH_NORMALISATION_RA)
 
 $(FILES_10XGENOMICS_CT):
-	$(call section,download 10X genomics data (control sample))
+	$(call section,download 10X genomics data (control data))
 	mkdir -p $(@D)
 	wget --quiet --recursive --no-parent -nd --reject "index.html" \
   		--directory-prefix=$(@D) \
@@ -70,7 +73,7 @@ $(FILES_10XGENOMICS_CT):
 	mv $(@D)/*barcodes.tsv.gz $(word 3,$(FILES_10XGENOMICS_CT))
 
 $(FILES_10XGENOMICS_RA):
-	$(call section,download 10X genomics data (treated sample))
+	$(call section,download 10X genomics data (treated data))
 	mkdir -p $(@D)
 	wget --quiet --recursive --no-parent -nd --reject "index.html" \
 		--directory-prefix=$(@D) \
@@ -80,14 +83,14 @@ $(FILES_10XGENOMICS_RA):
 	mv $(@D)/*barcodes.tsv.gz $(word 3,$(FILES_10XGENOMICS_RA))
 
 $(FILE_H5AD_CT): $(FILES_10XGENOMICS_CT)
-	$(call section,conversion (control sample))
+	$(call section,conversion (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/load_10X.py $(<D) $@ \
 		--sample-info age=adult date=29-09-2020 sample_name=ctrl condition=control
 	$(CONDA_DEACTIVATE)
 
 $(FILE_H5AD_RA): $(FILES_10XGENOMICS_RA)
-	$(call section,conversion (treated sample))
+	$(call section,conversion (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/load_10X.py $(<D) $@ \
 		--sample-info age=adult date=29-09-2020 sample_name=ra condition=treated
@@ -100,7 +103,7 @@ $(FILE_CYCLE_MARKERS):
 		https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
 
 $(PATH_FILTER_CT)/tables/counts.h5ad: $(FILE_H5AD_CT) $(FILE_CYCLE_MARKERS)
-	$(call section,filtering (control sample))
+	$(call section,filtering (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/filter_cells.py \
 		--infile $(word 1,$^) \
@@ -113,7 +116,7 @@ $(PATH_FILTER_CT)/tables/counts.h5ad: $(FILE_H5AD_CT) $(FILE_CYCLE_MARKERS)
 	$(CONDA_DEACTIVATE)
 
 $(PATH_FILTER_RA)/tables/counts.h5ad: $(FILE_H5AD_RA) $(FILE_CYCLE_MARKERS)
-	$(call section,filtering (treated sample))
+	$(call section,filtering (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/filter_cells.py \
 		--infile $(word 1,$^) \
@@ -139,7 +142,7 @@ $(PATH_SIGNATURES)/signatures.json: $(PATH_SIGNATURES)/geiger.xls $(PATH_SIGNATU
   		--outfile $@
 
 $(PATH_NORMALISATION_CT)/tables/corrected.h5ad: $(PATH_FILTER_CT)/tables/counts.h5ad
-	$(call section,normalization (control sample))
+	$(call section,normalization (control data))
 	$(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/normalization.py $< $(PATH_NORMALISATION_CT) \
@@ -149,7 +152,7 @@ $(PATH_NORMALISATION_CT)/tables/corrected.h5ad: $(PATH_FILTER_CT)/tables/counts.
 	$(CONDA_DEACTIVATE)
 
 $(PATH_NORMALISATION_RA)/tables/corrected.h5ad: $(PATH_FILTER_RA)/tables/counts.h5ad
-	$(call section,normalization (treated sample))
+	$(call section,normalization (treated data))
 	$(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/normalization.py $< $(PATH_NORMALISATION_RA) \
@@ -159,7 +162,7 @@ $(PATH_NORMALISATION_RA)/tables/corrected.h5ad: $(PATH_FILTER_RA)/tables/counts.
 	$(CONDA_DEACTIVATE)
 
 $(PATH_CLUSTER_CT)/tables/counts.h5ad: $(PATH_NORMALISATION_CT)/tables/corrected.h5ad $(PATH_SIGNATURES)/signatures.json
-	$(call section,clustering (control sample))
+	$(call section,clustering (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/clusters.py $< $(PATH_CLUSTER_CT) \
 		--k-neighbors 20 \
@@ -170,7 +173,7 @@ $(PATH_CLUSTER_CT)/tables/counts.h5ad: $(PATH_NORMALISATION_CT)/tables/corrected
 	$(CONDA_DEACTIVATE)
 
 $(PATH_CLUSTER_RA)/tables/counts.h5ad: $(PATH_NORMALISATION_RA)/tables/corrected.h5ad
-	$(call section,clustering (treated sample))
+	$(call section,clustering (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/clusters.py $< $(PATH_CLUSTER_RA) \
 		--k-neighbors 20 \
@@ -181,7 +184,7 @@ $(PATH_CLUSTER_RA)/tables/counts.h5ad: $(PATH_NORMALISATION_RA)/tables/corrected
 	$(CONDA_DEACTIVATE)
 
 $(PATH_MARKERS_CT): $(PATH_CLUSTER_CT)/tables/counts.h5ad $(PATH_SIGNATURES)/signatures.json
-	$(call section,analyse cell types (control sample))
+	$(call section,analyse cell types (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/analyse_markers.py $^ $@ \
   		--group leiden \
@@ -190,7 +193,7 @@ $(PATH_MARKERS_CT): $(PATH_CLUSTER_CT)/tables/counts.h5ad $(PATH_SIGNATURES)/sig
 	$(CONDA_DEACTIVATE)
 
 $(PATH_MARKERS_RA): $(PATH_CLUSTER_RA)/tables/counts.h5ad $(PATH_SIGNATURES)/signatures.json
-	$(call section,analyse cell types (treated sample))
+	$(call section,analyse cell types (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/analyse_markers.py $^ $@ \
   		--group leiden \
@@ -198,15 +201,33 @@ $(PATH_MARKERS_RA): $(PATH_CLUSTER_RA)/tables/counts.h5ad $(PATH_SIGNATURES)/sig
   		--verbose
 	$(CONDA_DEACTIVATE)
 
-$(PATH_INTEGRATION)/tables/%.h5ad: $(PATH_NORMALISATION_CT)/tables/corrected.h5ad $(PATH_NORMALISATION_RA)/tables/corrected.h5ad
+$(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD).h5ad: $(PATH_NORMALISATION_CT)/tables/corrected.h5ad $(PATH_NORMALISATION_RA)/tables/corrected.h5ad
 	$(call section,integration)
 	$(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/integration.py $^ $(PATH_INTEGRATION) \
-		--label condition --method bbknn \
+		--label condition --method $(INTEGRATION_METHOD) \
 		--dim-pca 50 --dim-clustering 15 --dim-integration 3 \
 		--hvg --metric euclidean --k-neighbors 20 --resolution 0.38 \
 		--add-legend --plot-3d \
 		--jobs $(JOBS) --seed 10 \
 		--verbose
+	$(CONDA_DEACTIVATE)
+
+$(PATH_MARKERS_ALL)/bbknn.h5ad: $(PATH_INTEGRATION)/tables/bbknn.h5ad $(PATH_SIGNATURES)/signatures.json
+	$(call section,analyse cell types (integrated))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/analyse_markers.py $^ $@ \
+		--condition condition \
+		--group leiden \
+		--logfc-threshold 0.25 \
+		--verbose
+	$(CONDA_DEACTIVATE)
+
+$(PATH_MARKERS_ALL)/bbknn_labels.h5ad: $(PATH_MARKERS_ALL)/bbknn.h5ad
+	$(call section,assign cell types (integrated))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/label_clusters.py $< $@ \
+		--column leiden \
+		--name 0=Unknown 1=Rep 2=Prom1 3=Prom2 4=Gran 5=Prom3
 	$(CONDA_DEACTIVATE)

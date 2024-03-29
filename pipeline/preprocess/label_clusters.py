@@ -13,25 +13,21 @@ parser = argparse.ArgumentParser(
     prog="labeling of clusters",
     description="""From sc-rnaSeq data recorded in the hdf5 format,
     rename labels using user-defined names.""",
-    usage="""python cluster_labeling.py [-h] -i <PATH> -o <PATH> -c <LITERAL> -n <LITERAL=LITERAL [LITERAL=LITERAL ...]> [<args>]"""
+    usage="""python cluster_labeling.py [-h] <FILE> <PATH> -c <LITERAL> -n <LITERAL=LITERAL [LITERAL=LITERAL ...]>"""
 )
 
 parser.add_argument(
-    "-i", "--infile",
-    dest="infile",
+    "infile",
     type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
-    help="path to .h5ad infile (including file)"
+    metavar="FILE",
+    help="file in h5ad format"
 )
 
 parser.add_argument(
-    "-o", "--outfile",
-    dest="outfile",
+    "outpath",
     type=lambda x: Path(x).resolve(),
-    required=True,
     metavar="PATH",
-    help="path to .h5ad outfile (including file)"
+    help="output path"
 )
 
 parser.add_argument(
@@ -50,15 +46,6 @@ parser.add_argument(
     required=True,
     nargs="+",
     help="mapping between old and new names for labels"
-)
-
-parser.add_argument(
-    "--obsm",
-    dest="obsm",
-    required=False,
-    default=None,
-    metavar="LITERAL",
-    help="""ndarray name stored in .obsm[`obsm`] used for plotting figure"""
 )
 
 args = parser.parse_args()
