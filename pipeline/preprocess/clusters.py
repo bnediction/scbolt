@@ -30,7 +30,7 @@ parser = argparse.ArgumentParser(
     run t-SNE and UMAP algorithm, search for gene markers and compare markers and
     signatures in order to provide useful information about potential cell-types
     of each cluster.""",
-    usage="python clusterization.py <FILE> <FILE> <PATH> [<args>]"
+    usage="python clusterization.py <FILE> <PATH> [<args>]"
 )
 
 parser.add_argument(
@@ -38,13 +38,6 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
     help="file in h5ad format"
-)
-
-parser.add_argument(
-    "signatures",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="file in json format"
 )
 
 parser.add_argument(
@@ -102,16 +95,6 @@ parser.add_argument(
     default=0.6,
     metavar="FLOAT",
     help="parameter value controlling the coarseness of the clustering when using Leiden algorithm (default: 0.6)"
-)
-
-parser.add_argument(
-    "-l", "--logfc-threshold",
-    dest="logfc_threshold",
-    type=float,
-    required=False,
-    default=0.25,
-    metavar="FLOAT",
-    help="threshold describing the minimum log2 fold-changes for being a gene marker (default: 0.25)"
 )
 
 parser.add_argument(
@@ -265,70 +248,6 @@ for metric in ["total_counts", "pct_counts_mitochondrion"]:
     ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
     plt.savefig(f"{fig_outpath}/{args.prefix}umap_{metric}")
 
-print(f"Marker analysis...")
-
-layer = "log-normalize"
-groupby = "leiden"
-
-sc.tl.rank_genes_groups(
-    adata,
-    layer=layer,
-    use_raw=False,
-    groupby=groupby,
-    reference="rest",
-    method="wilcoxon",
-    tie_correct=True,
-    corr_method="bonferroni"
-)
-markers_df = adt.tl.extract_rank_genes_groups(
-    adata,
-    logfc_keeping=False
-)
-markers_df = markers_df.loc[markers_df["adj_pvals"] < 0.05]
-markers_df = adt.tl.update_logfoldchanges(
-    markers_df,
-    adata,
-    groupby,
-    layer,
-    threshold=args.logfc_threshold
-)
-
-print(f"Signature analysis...")
-
-with open(args.signatures, "r") as signatures_f:
-    signatures_d = json.load(signatures_f)
-
-valid_gene_names = set(adata.var_names)
-for cell_type, signature in signatures_d.items():
-    signatures_d[cell_type] = {gene for gene in signature if gene in valid_gene_names}
-signatures_d = {cell_type: signature for cell_type, signature in signatures_d.items() if signature}
-del valid_gene_names
-
-layer="log-normalize"
-adata.X = adata.layers[layer]
-for cell_type, signature in signatures_d.items():
-    sc.tl.score_genes(
-        adata,
-        gene_list=signature,
-        gene_pool=None,
-        n_bins=25,
-        ctrl_size=100,
-        score_name=cell_type,
-        random_state=0,
-        copy=False,
-        use_raw=False
-    )
-
-print("Summarizing clusters...")
-
-clust_info_d = adt.tl.get_info(adata, signatures_d, markers_df, groupby=groupby)
-clust_info_df = pd.DataFrame.from_dict(clust_info_d, orient="index")
-
 print("Saving data...")
 
 adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}counts.h5ad", compression="gzip")
-markers_df.to_csv(f"{data_outpath}/{args.prefix}markers.csv", sep=",", index=False)
-clust_info_df.to_csv(f"{data_outpath}/{args.prefix}cluster_info.csv", sep=",", index=True)
-
-if args.verbose:
-    print(clust_info_df.transpose())

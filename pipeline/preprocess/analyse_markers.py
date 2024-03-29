@@ -15,35 +15,28 @@ parser = argparse.ArgumentParser(
     description="""From sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
     search for gene markers and compare markers and signatures in order to provide
     useful information about potential cell-types on each condition and each group.""",
-    usage="python markers.py [-h] -i <path> -s <path> -c <literal> -g <literal> [<args>]"
+    usage="python markers.py [-h] <FILE> <FILE> <PATH> -g <LITERAL> [-c <LITERAL> <args>]"
 )
 
 parser.add_argument(
-    "-i", "--infile",
-    dest="infile",
+    "infile",
     type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
-    help="path to .h5ad file (including file)"
+    metavar="FILE",
+    help="file in h5ad format"
 )
 
 parser.add_argument(
-    "-s", "--signatures",
-    dest="signatures",
+    "signatures",
     type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
-    help="path to .json signatures file (including file)"
+    metavar="FILE",
+    help="file in json format"
 )
 
 parser.add_argument(
-    "-o", "--outpath",
-    dest="outpath",
+    "outpath",
     type=lambda x: Path(x).resolve(),
-    required=False,
-    default=Path("./").resolve(),
     metavar="PATH",
-    help="output path (default: ./)"
+    help="output path"
 )
 
 parser.add_argument(
@@ -60,7 +53,8 @@ parser.add_argument(
     "-c", "--condition",
     dest="condition",
     type=str,
-    required=True,
+    required=False,
+    default=None,
     metavar="LITERAL",
     help="column name such as adata.obs[`LITERAL`] distinguishes samples"
 )
@@ -81,7 +75,7 @@ parser.add_argument(
     required=False,
     default=0.25,
     metavar="FLOAT",
-    help="threshold denoting the minimum log2 fold-changes for being considered as a gene marker (default: 0.25)"
+    help="threshold denoting the minimum log2 fold-changes being considered as a gene marker (default: 0.25)"
 )
 
 parser.add_argument(
@@ -104,7 +98,10 @@ adata = sc.read_h5ad(args.infile)
 print(f"Marker analysis...")
 
 layer = "log-normalize"
-adata_d = {_condition: adata[adata.obs[args.condition] == _condition].copy() for _condition in sorted(adata.obs[args.condition].unique())}
+if args.condition is None:
+    adata_d = {"all": adata.copy()}
+else:
+    adata_d = {_condition: adata[adata.obs[args.condition] == _condition].copy() for _condition in sorted(adata.obs[args.condition].unique())}
 markers_d = dict()
 del adata
 
@@ -176,14 +173,20 @@ for _condition in sorted(adata_d.keys()):
         orient="index"
     )
 
-info_df = pd.concat(list(info_d.values()), keys=list(info_d.keys()))
+if args.condition is None:
+    info_df = info_d["all"]
+else:
+    info_df = pd.concat(list(info_d.values()), keys=list(info_d.keys()))
 
 print("Saving data...")
 
-for _condition in markers_d.keys():
-    markers_d[_condition].to_csv(f"{args.outpath}/{args.prefix}{_condition}_markers.csv", sep=",", index=False)
+if args.condition is None:
+    markers_d["all"].to_csv(f"{args.outpath}/{args.prefix}markers.csv", sep=",", index=False)
+else:
+    for _condition in markers_d.keys():
+        markers_d[_condition].to_csv(f"{args.outpath}/{args.prefix}{_condition}_markers.csv", sep=",", index=False)
 info_df.to_csv(f"{args.outpath}/{args.prefix}cluster_cell_types.csv", sep=",", index=True)
 info_df.transpose().to_csv(f"{args.outpath}/{args.prefix}cluster_cell_types.transpose.csv", sep=",", index=True)
 
 if args.verbose:
-    print(info_df)
+    print(info_df.transpose())

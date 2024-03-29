@@ -27,6 +27,8 @@ PATH_NORMALISATION_CT = $(RNA)/normalization/ct
 PATH_NORMALISATION_RA = $(RNA)/normalization/ra
 PATH_CLUSTER_CT = $(RNA)/cluster/ct
 PATH_CLUSTER_RA = $(RNA)/cluster/ra
+PATH_MARKERS_CT = $(RNA)/markers/ct
+PATH_MARKERS_RA = $(RNA)/markers/ra
 PATH_INTEGRATION = $(RNA)/integration
 FILES_INTEGRATION = $(wildcard $(PATH_INTEGRATION)/tables/*.h5ad)
 
@@ -34,7 +36,9 @@ define section
 	echo -e '$(RED)===== $(1) =====$(NC)'
 endef
 
-all: $(PATH_CLUSTER_RA) $(PATH_INTEGRATION)/tables/%.h5ad
+all: $(PATH_MARKERS_CT) $(PATH_MARKERS_RA)
+
+integration: $(PATH_INTEGRATION)/tables/%.h5ad
 
 clean:
 	rm -rf $(RNA)
@@ -154,28 +158,44 @@ $(PATH_NORMALISATION_RA)/tables/corrected.h5ad: $(PATH_FILTER_RA)/tables/counts.
 		--jobs $(JOBS)
 	$(CONDA_DEACTIVATE)
 
-$(PATH_CLUSTER_CT): $(PATH_NORMALISATION_CT)/tables/corrected.h5ad $(PATH_SIGNATURES)/signatures.json
+$(PATH_CLUSTER_CT)/tables/counts.h5ad: $(PATH_NORMALISATION_CT)/tables/corrected.h5ad $(PATH_SIGNATURES)/signatures.json
 	$(call section,clustering (control sample))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/clusterization.py $^ $@ \
+	python pipeline/preprocess/clusters.py $< $(PATH_CLUSTER_CT) \
 		--k-neighbors 20 \
 		--neighborhood-graph knn \
 		--dimensions 15 \
 		--resolution 0.6 \
-		--logfc-threshold 0.25 \
 		--verbose
 	$(CONDA_DEACTIVATE)
 
-$(PATH_CLUSTER_RA): $(PATH_NORMALISATION_RA)/tables/corrected.h5ad $(PATH_SIGNATURES)/signatures.json
+$(PATH_CLUSTER_RA)/tables/counts.h5ad: $(PATH_NORMALISATION_RA)/tables/corrected.h5ad
 	$(call section,clustering (treated sample))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/clusterization.py $^ $@ \
+	python pipeline/preprocess/clusters.py $< $(PATH_CLUSTER_RA) \
 		--k-neighbors 20 \
 		--neighborhood-graph knn \
 		--dimensions 15 \
 		--resolution 0.6 \
-		--logfc-threshold 0.25 \
 		--verbose
+	$(CONDA_DEACTIVATE)
+
+$(PATH_MARKERS_CT): $(PATH_CLUSTER_CT)/tables/counts.h5ad $(PATH_SIGNATURES)/signatures.json
+	$(call section,analyse cell types (control sample))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/analyse_markers.py $^ $@ \
+  		--group leiden \
+  		--logfc-threshold 0.25 \
+  		--verbose
+	$(CONDA_DEACTIVATE)
+
+$(PATH_MARKERS_RA): $(PATH_CLUSTER_RA)/tables/counts.h5ad $(PATH_SIGNATURES)/signatures.json
+	$(call section,analyse cell types (treated sample))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/analyse_markers.py $^ $@ \
+  		--group leiden \
+  		--logfc-threshold 0.25 \
+  		--verbose
 	$(CONDA_DEACTIVATE)
 
 $(PATH_INTEGRATION)/tables/%.h5ad: $(PATH_NORMALISATION_CT)/tables/corrected.h5ad $(PATH_NORMALISATION_RA)/tables/corrected.h5ad
