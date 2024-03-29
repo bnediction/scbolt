@@ -41,7 +41,7 @@ endef
 
 all: $(PATH_MARKERS_CT) $(PATH_MARKERS_RA)
 
-integration: $(PATH_MARKERS_ALL)/bbknn_labels.h5ad
+integration: $(PATH_MARKERS_ALL) $(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD)_labels.h5ad
 
 clean:
 	rm -rf $(RNA)
@@ -214,7 +214,7 @@ $(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD).h5ad: $(PATH_NORMALISATION_CT)/
 		--verbose
 	$(CONDA_DEACTIVATE)
 
-$(PATH_MARKERS_ALL)/bbknn.h5ad: $(PATH_INTEGRATION)/tables/bbknn.h5ad $(PATH_SIGNATURES)/signatures.json
+$(PATH_MARKERS_ALL): $(PATH_INTEGRATION)/tables/bbknn.h5ad $(PATH_SIGNATURES)/signatures.json
 	$(call section,analyse cell types (integrated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/analyse_markers.py $^ $@ \
@@ -223,7 +223,7 @@ $(PATH_MARKERS_ALL)/bbknn.h5ad: $(PATH_INTEGRATION)/tables/bbknn.h5ad $(PATH_SIG
 		--verbose
 	$(CONDA_DEACTIVATE)
 
-$(PATH_MARKERS_ALL)/bbknn_labels.h5ad: $(PATH_MARKERS_ALL)/bbknn.h5ad
+$(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD)_labels.h5ad: $(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD).h5ad
 	$(call section,assign cell types (integrated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/label_clusters.py $< $@ \

@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser(
     prog="labeling of clusters",
     description="""From sc-rnaSeq data recorded in the hdf5 format,
     rename labels using user-defined names.""",
-    usage="""python cluster_labeling.py [-h] <FILE> <PATH> -c <LITERAL> -n <LITERAL=LITERAL [LITERAL=LITERAL ...]>"""
+    usage="""python cluster_labeling.py [-h] <FILE> <FILE> -c <LITERAL> -n <LITERAL=LITERAL [LITERAL=LITERAL ...]>"""
 )
 
 parser.add_argument(
@@ -24,10 +24,10 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "outpath",
+    "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="PATH",
-    help="output path"
+    help="file in h5ad format with labels"
 )
 
 parser.add_argument(
