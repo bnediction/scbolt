@@ -240,9 +240,9 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-if args.dim_pca < max(args.dim_clustering, args.dim_integration):
+if args.dim_pca < max(args.dim_clustering, args.dim_umap) or args.dim_clustering < args.dim_umap:
     raise argparse.ArgumentError(
-        f"dim_pca ({args.dim_pca}) must be superior to dim_clustering ({args.dim_clustering}) and dim_integration ({args.dim_integration}), aborting."
+        f"dimension incoherence: dim_pca > dim_clustering > dim_umap not satisfied"
     )
 
 data_outpath = Path(f"{args.outpath}/tables")

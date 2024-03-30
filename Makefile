@@ -167,8 +167,8 @@ $(PATH_CLUSTER_CT)/tables/counts.h5ad: $(PATH_NORMALISATION_CT)/tables/corrected
 	python pipeline/preprocess/clusters.py $< $(PATH_CLUSTER_CT) \
 		--k-neighbors 20 \
 		--neighborhood-graph knn \
-		--dimensions 15 \
 		--resolution 0.6 \
+		--hvg \
 		--verbose
 	$(CONDA_DEACTIVATE)
 
@@ -178,8 +178,8 @@ $(PATH_CLUSTER_RA)/tables/counts.h5ad: $(PATH_NORMALISATION_RA)/tables/corrected
 	python pipeline/preprocess/clusters.py $< $(PATH_CLUSTER_RA) \
 		--k-neighbors 20 \
 		--neighborhood-graph knn \
-		--dimensions 15 \
 		--resolution 0.6 \
+		--hvg \
 		--verbose
 	$(CONDA_DEACTIVATE)
 

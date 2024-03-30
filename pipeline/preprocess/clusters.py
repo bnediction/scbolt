@@ -10,17 +10,15 @@ import os, argparse
 from pathlib import Path
 from utils.argtype import Store_prefix
 
-import numpy as np, math
-
-import pandas as pd, scanpy as sc, json
+import pickle
+import scanpy as sc
 import anndatatools as adt
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
 from anndatatools.plotting import (
     fig,
-    color,
-    color_cycle
+    color
 )
 
 parser = argparse.ArgumentParser(
@@ -48,7 +46,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-p", "--prefix",
+    "--prefix",
     dest="prefix",
     action=Store_prefix,
     required=False,
@@ -78,13 +76,59 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-n", "--dimensions",
-    dest="n_dimensions",
+    "-z", "--zero-center",
+    dest="zero_center",
+    required=False,
+    action="store_true",
+    help="compute standard PCA from covariance matrix if `True`, otherwise omit zero-centering variables"
+)
+
+parser.add_argument(
+    "--hvg",
+    dest="hvg",
+    required=False,
+    action="store_true",
+    help="select the most variable genes for PCA projection"
+)
+
+parser.add_argument(
+    "-m", "--metric",
+    dest="metric",
+    type=str,
+    required=False,
+    default="euclidean",
+    metavar="METRIC",
+    help="metric used for knn and bbknn-based integration algorithms (default: euclidean)"
+)
+
+parser.add_argument(
+    "-p", "--dim-pca",
+    dest="dim_pca",
+    type=int,
+    required=False,
+    default=50,
+    metavar="INT",
+    help="number of principal components (default: 50)"
+)
+
+parser.add_argument(
+    "-c", "--dim-clustering",
+    dest="dim_clustering",
     type=int,
     required=False,
     default=15,
     metavar="INT",
-    help="number of principal components taken into account for clustering cells and running t-SNE/UMAP (default: 15)"
+    help="number of principal components taken into account for clustering cells (default: 15)"
+)
+
+parser.add_argument(
+    "-u", "--dim-umap",
+    dest="dim_umap",
+    type=int,
+    required=False,
+    default=2,
+    metavar="INT",
+    help="number of embedding dimensions (default: 2)"
 )
 
 parser.add_argument(
@@ -95,6 +139,32 @@ parser.add_argument(
     default=0.6,
     metavar="FLOAT",
     help="parameter value controlling the coarseness of the clustering when using Leiden algorithm (default: 0.6)"
+)
+
+parser.add_argument(
+    "--add-legend",
+    dest="legend",
+    required=False,
+    action="store_true",
+    help="add legend to figures"
+)
+
+parser.add_argument(
+    "--plot-3d",
+    dest="plot_3d",
+    required=False,
+    action="store_true",
+    help="plot figures in three dimensions"
+)
+
+parser.add_argument(
+    "-s", "--seed",
+    dest="seed",
+    type=int,
+    required=False,
+    default=None,
+    metavar="FLOAT",
+    help="random number generator"
 )
 
 parser.add_argument(
@@ -120,9 +190,12 @@ print(f"Loading data...")
 
 adata = sc.read_h5ad(args.infile)
 
-n_comps = 50 if args.n_dimensions <= 15 else args.n_dimensions
+if args.dim_pca < max(args.dim_clustering, args.dim_umap) or args.dim_clustering < args.dim_umap:
+    raise argparse.ArgumentError(
+        f"dimension incoherence: dim_pca > dim_clustering > dim_umap not satisfied"
+    )
 
-resolutions = [0.6,0.8,1,1.2]
+default_seed = args.seed if args.seed else 10
 
 color_d = {
     "G1": color.blue,
@@ -131,104 +204,88 @@ color_d = {
 }
 phase = adata.obs["pypairs_cc_prediction"]
 
-print(f"Running principal component analysis (PCA)...")
+print("Computation of principal components (pca)...")
 
 adata.X = adata.layers["correct"]
 sc.tl.pca(
     adata,
-    zero_center=False,
-    n_comps=n_comps,
-    use_highly_variable=True,
+    zero_center=args.zero_center,
+    n_comps=args.dim_pca,
+    use_highly_variable=args.hvg,
     copy=False
 )
 
-pc1 = adata.obsm["X_pca"][:,0]
-pc2 = adata.obsm["X_pca"][:,1]
-fig, ax = plt.subplots(nrows=1, ncols=1)
-for p in np.unique(phase):
-    idx = np.where(phase == p)[0]
-    ax.scatter(pc1[idx], pc2[idx], s=5, facecolors=color_d[p], edgecolors="none", alpha=1, label=p)
-ax.set_xlabel(r"$\mathrm{PC_{1}}$")
-ax.set_ylabel(r"$\mathrm{PC_{2}}$")
-ax.legend(markerscale=2, edgecolor=color.black)
-plt.sca(ax)
-ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-plt.savefig(f"{fig_outpath}/{args.prefix}principal-component-analysis")
+print(f"Computation of clusters (leiden)")
 
-print(f"Clustering...")
+sc.pp.neighbors(
+    adata,
+    n_neighbors=args.k_neighbors,
+    use_rep="X_pca",
+    n_pcs=args.dim_clustering,
+    metric=args.metric,
+    key_added="knn",
+    copy=False
+)
+adt.tl.shared_neighbors(
+    adata,
+    knn_key="knn",
+    snn_key="snn",
+    prune_snn = 1/15,
+    copy=False
+)
+if args.neighborhood_graph == "knn":
+    sc.tl.leiden(
+        adata,
+        neighbors_key="knn",
+        resolution=args.resolution,
+        key_added=f"leiden"
+    )
+elif args.neighborhood_graph == "snn":
+    obsp = adata.uns["snn"]["similarities_key"]
+    sc.tl.leiden(
+        adata,
+        resolution=args.resolution,
+        adjacency=adata.obsp[obsp].copy(),
+        key_added=f"leiden"
+    )
 
-knn_key = "knn"
-snn_key = "snn"
-sc.pp.neighbors(adata, n_neighbors=args.k_neighbors, n_pcs=args.n_dimensions, key_added=knn_key, copy=False)
-adt.tl.shared_neighbors(adata, knn_key=knn_key, snn_key=snn_key, prune_snn = 1/15, copy=False)
+print("Computation of embedding components (umap)...")
 
-for resolution in resolutions:
-    sc.tl.leiden(adata, resolution=resolution, neighbors_key=knn_key, key_added=f"leiden_{resolution}")
+sc.tl.umap(
+    adata,
+    neighbors_key="knn",
+    n_components=args.dim_umap,
+    random_state=default_seed
+)
 
-if args.resolution in resolutions and args.neighborhood_graph == "knn":
-    adata.obs["leiden"] = adata.obs[f"leiden_{args.resolution}"]
-elif args.neighborhood_graph == "knn":
-    sc.tl.leiden(adata, resolution=args.resolution, neighbors_key=knn_key, key_added=f"leiden")
-else:
-    obsp = adata.uns[snn_key]["similarities_key"]
-    sc.tl.leiden(adata, resolution=resolution, adjacency=adata.obsp[obsp].copy(), key_added=f"leiden")
+print("Plot of embedding components...")
 
-print(f"Running t-SNE...")
+fig, _ = adt.pl.embedding_plot(
+    adata,
+    obs="leiden",
+    obsm="X_umap",
+    xlabel=r"$\mathrm{UMAP_{1}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$",
+    zlabel=r"$\mathrm{UMAP_{3}}$",
+    add_legend=args.legend,
+    figwidth=6,
+    s=2,
+    alpha=1,
+    lgd_params={
+        "title":"clusters",
+        "ncol":1,
+        "markerscale":5,
+        "frameon":True,
+        "edgecolor":color.black,
+        "shadow":False
+    },
+    n_components = 3 if args.dim_umap > 2 and args.plot_3d is True else 2,
+    background_visible=False
+)
+plt.savefig(Path(f"{fig_outpath}/{args.prefix}umap_leiden"))
+if args.dim_umap > 2 and args.plot_3d:
+    pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}umap_leiden.fig.pickle"), "wb"))
 
-sc.tl.tsne(adata, n_pcs=args.n_dimensions, learning_rate=1000)
-
-tsne1 = adata.obsm["X_tsne"][:,0]
-tsne2 = adata.obsm["X_tsne"][:,1]
-
-fig, axes = plt.subplots(nrows=2, ncols=2)
-fig.set_figheight(8)
-fig.set_figwidth(8)
-for i, resolution in enumerate(resolutions):
-    for _cluster, _color in zip(np.unique(adata.obs[f"leiden_{resolution}"]), color_cycle):
-        idx = np.where(adata.obs[f"leiden_{resolution}"] == _cluster)[0]
-        axv, axh = [math.floor(i/2), i%2]
-        axes[axv, axh].scatter(tsne1[idx], tsne2[idx], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
-        axes[axv, axh].title.set_text(f"resolution: {resolution}")
-        if axv == 1:
-            axes[axv, axh].set_xlabel(r"$t$-$\mathrm{SNE_{1}}$")
-        if axh == 0:
-            axes[axv, axh].set_ylabel(r"$t$-$\mathrm{SNE_{2}}$")
-plt.savefig(f"{fig_outpath}/{args.prefix}tsne_clusters")
-
-print(f"Running uniform manifold approximation and projection (UMAP)...")
-
-sc.tl.umap(adata, neighbors_key=knn_key, n_components=2)
-
-umap1 = adata.obsm["X_umap"][:,0]
-umap2 = adata.obsm["X_umap"][:,1]
-
-fig, axes = plt.subplots(nrows=2, ncols=2)
-fig.set_figheight(8)
-fig.set_figwidth(8)
-for i, resolution in enumerate(resolutions):
-    for _cluster, _color in zip(np.unique(adata.obs[f"leiden_{resolution}"]), color_cycle):
-        idx = np.where(adata.obs[f"leiden_{resolution}"] == _cluster)[0]
-        axv, axh = [math.floor(i/2), i%2]
-        axes[axv, axh].scatter(umap1[idx], umap2[idx], s=2, facecolors=_color, edgecolors="none", alpha=1, label=_cluster)
-        axes[axv, axh].title.set_text(f"resolution: {resolution}")
-        if axv == 1:
-            axes[axv, axh].set_xlabel(r"$\mathrm{UMAP_{1}}$")
-        if axh == 0:
-            axes[axv, axh].set_ylabel(r"$\mathrm{UMAP_{2}}$")
-plt.savefig(f"{fig_outpath}/{args.prefix}umap_clusters")
-
-fig, ax = plt.subplots(nrows=1, ncols=1)
-for p in np.unique(phase):
-    idx = np.where(phase == p)[0]
-    ax.scatter(umap1[idx], umap2[idx], s=2, facecolors=color_d[p], edgecolors="none", alpha=1, label=p)
-ax.set_xlabel(r"$\mathrm{UMAP_{1}}$")
-ax.set_ylabel(r"$\mathrm{UMAP_{2}}$")
-ax.legend(markerscale=5, edgecolor=color.black)
-plt.sca(ax)
-ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-plt.savefig(f"{fig_outpath}/{args.prefix}umap_phases")
 
 for metric in ["total_counts", "pct_counts_mitochondrion"]:
     fig, ax = plt.subplots(nrows=1, ncols=1)
@@ -238,7 +295,7 @@ for metric in ["total_counts", "pct_counts_mitochondrion"]:
     elif metric == "pct_counts_mitochondrion":
         cmap = "Blues"
         label = r"$\frac{\# \mathrm{mitochondrion\ counts}}{\# \mathrm{read\ counts}}$"
-    mapping = ax.scatter(umap1, umap2, s=2, c=adata.obs[metric], cmap=cmap, alpha=1)
+    mapping = ax.scatter(adata.obsm["X_umap"][:,0], adata.obsm["X_umap"][:,1], s=2, c=adata.obs[metric], cmap=cmap, alpha=1)
     cbar = fig.colorbar(mapping)
     cbar.set_label(label, loc="center", labelpad=5)
     ax.set_xlabel(r"$\mathrm{UMAP_{1}}$")
