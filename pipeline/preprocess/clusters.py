@@ -3,9 +3,6 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import random
-random.seed(100)
-
 import os, argparse
 from pathlib import Path
 from utils.argtype import Store_prefix
@@ -195,7 +192,7 @@ if args.dim_pca < max(args.dim_clustering, args.dim_umap) or args.dim_clustering
         f"dimension incoherence: dim_pca > dim_clustering > dim_umap not satisfied"
     )
 
-default_seed = args.seed if args.seed else 10
+default_seed = args.seed if args.seed else 100
 
 color_d = {
     "G1": color.blue,
@@ -286,6 +283,32 @@ plt.savefig(Path(f"{fig_outpath}/{args.prefix}umap_leiden"))
 if args.dim_umap > 2 and args.plot_3d:
     pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}umap_leiden.fig.pickle"), "wb"))
 
+fig, _ = adt.pl.embedding_plot(
+    adata,
+    obs="pypairs_cc_prediction",
+    obsm="X_umap",
+    xlabel=r"$\mathrm{UMAP_{1}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$",
+    zlabel=r"$\mathrm{UMAP_{3}}$",
+    add_legend=args.legend,
+    figwidth=6,
+    s=2,
+    alpha=1,
+    colors=[color.blue, color.red, color.green],
+    lgd_params={
+        "title":"phases",
+        "ncol":1,
+        "markerscale":5,
+        "frameon":True,
+        "edgecolor":color.black,
+        "shadow":False
+    },
+    n_components = 3 if args.dim_umap > 2 and args.plot_3d is True else 2,
+    background_visible=False
+)
+plt.savefig(Path(f"{fig_outpath}/{args.prefix}umap_phases"))
+if args.dim_umap > 2 and args.plot_3d:
+    pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}umap_phases.fig.pkl"), "wb"))
 
 for metric in ["total_counts", "pct_counts_mitochondrion"]:
     fig, ax = plt.subplots(nrows=1, ncols=1)

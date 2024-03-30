@@ -222,7 +222,7 @@ ax.images[-1].colorbar.remove()
 plt.savefig(f"{args.outpath}/{args.prefix}pseudotime_stream_plot.pdf")
 
 for _group in groups.difference([f"{args.root}_pseudotime"]):
-    colors = node_colors if _group == "node_clusters" else color.COLORS
+    colors = node_colors if _group == "node_clusters" else color.LIGHT_COLORS
     st.plot_stream(
         adata,
         root=args.root,

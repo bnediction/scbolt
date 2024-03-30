@@ -165,22 +165,20 @@ $(PATH_CLUSTER_CT)/tables/counts.h5ad: $(PATH_NORMALISATION_CT)/tables/corrected
 	$(call section,clustering (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/clusters.py $< $(PATH_CLUSTER_CT) \
-		--k-neighbors 20 \
-		--neighborhood-graph knn \
-		--resolution 0.6 \
-		--hvg \
-		--verbose
+		--hvg --metric euclidean --k-neighbors 20 --resolution 0.5 \
+		--dim-pca 50 --dim-clustering 15 --dim-umap 2 \
+		--add-legend \
+		--seed 0 --verbose
 	$(CONDA_DEACTIVATE)
 
 $(PATH_CLUSTER_RA)/tables/counts.h5ad: $(PATH_NORMALISATION_RA)/tables/corrected.h5ad
 	$(call section,clustering (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/clusters.py $< $(PATH_CLUSTER_RA) \
-		--k-neighbors 20 \
-		--neighborhood-graph knn \
-		--resolution 0.6 \
-		--hvg \
-		--verbose
+		--hvg --metric euclidean --k-neighbors 20 --resolution 0.5 \
+		--dim-pca 50 --dim-clustering 15 --dim-umap 2 \
+		--add-legend \
+		--seed 10 --verbose
 	$(CONDA_DEACTIVATE)
 
 $(PATH_MARKERS_CT): $(PATH_CLUSTER_CT)/tables/counts.h5ad $(PATH_SIGNATURES)/signatures.json
