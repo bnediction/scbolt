@@ -14,43 +14,35 @@ CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda d
 
 RNA = data/rna
 PUBLIC = data/public
-SIGNATURES = $(PUBLIC)/signatures
 
 INTEGRATION_METHOD = bbknn
 
-FILES_10XGENOMICS_CT = $(RNA)/raw/ct/matrix.mtx.gz $(RNA)/raw/ct/features.tsv.gz $(RNA)/raw/ct/barcodes.tsv.gz
-FILES_10XGENOMICS_RA = $(RNA)/raw/ra/matrix.mtx.gz $(RNA)/raw/ra/features.tsv.gz $(RNA)/raw/ra/barcodes.tsv.gz
-FILE_H5AD_CT = $(RNA)/raw/ct/ct.h5ad
-FILE_H5AD_RA = $(RNA)/raw/ra/ra.h5ad
-FILE_CYCLE_MARKERS = $(PUBLIC)/cycle_phases/mouse_cycle_markers.rds
-FILE_FILTER_CT = $(RNA)/cell_filtering/ct/tables/counts.h5ad
-FILE_FILTER_RA = $(RNA)/cell_filtering/ra/tables/counts.h5ad
-FILE_SIGNATURES = $(SIGNATURES)/geiger.xls $(PATH_SIGNATURES)/chambers.xls $(SIGNATURES)/signatures.json
-FILE_NORMALISATION_CT = $(RNA)/normalization/ct/tables/corrected.h5ad
-FILE_NORMALISATION_RA = $(RNA)/normalization/ra/tables/corrected.h5ad
-FILE_CLUSTER_CT = $(RNA)/cluster/ct/tables/counts.h5ad
-FILE_CLUSTER_RA = $(RNA)/cluster/ra/tables/counts.h5ad
-FILE_MARKERS_CT = $(RNA)/markers/ct/markers.csv
-FILE_MARKERS_RA = $(RNA)/markers/ra/markers.csv
-FILE_MARKERS_ALL = $(RNA)/markers/all/markers.csv
+10XGENOMICS_CT = $(RNA)/raw/ct/matrix.mtx.gz $(RNA)/raw/ct/features.tsv.gz $(RNA)/raw/ct/barcodes.tsv.gz
+10XGENOMICS_RA = $(RNA)/raw/ra/matrix.mtx.gz $(RNA)/raw/ra/features.tsv.gz $(RNA)/raw/ra/barcodes.tsv.gz
+H5AD_CT = $(RNA)/raw/ct/ct.h5ad
+H5AD_RA = $(RNA)/raw/ra/ra.h5ad
+CYCLE_MARKERS = $(PUBLIC)/cycle_phases/mouse_cycle_markers.rds
+FILTER_CT = $(RNA)/cell_filtering/ct/tables/counts.h5ad
+FILTER_RA = $(RNA)/cell_filtering/ra/tables/counts.h5ad
+SIGNATURES = $(PUBLIC)/signatures/geiger.xls $(PUBLIC)/signatures/chambers.xls $(PUBLIC)/signatures/signatures.json
+NORMALISATION_CT = $(RNA)/normalization/ct/tables/corrected.h5ad
+NORMALISATION_RA = $(RNA)/normalization/ra/tables/corrected.h5ad
+CLUSTER_CT = $(RNA)/cluster/ct/tables/counts.h5ad
+CLUSTER_RA = $(RNA)/cluster/ra/tables/counts.h5ad
+MARKERS_CT = $(RNA)/markers/ct/markers.csv
+MARKERS_RA = $(RNA)/markers/ra/markers.csv
+MARKERS_ALL = $(RNA)/markers/all/markers.csv
 
 PATH_INTEGRATION = $(RNA)/integration
-FILES_INTEGRATION = $(wildcard $(PATH_INTEGRATION)/tables/*.h5ad)
+INTEGRATION = $(wildcard $(PATH_INTEGRATION)/tables/*.h5ad)
 
 define section
 	echo -e '$(RED)===== $(1) =====$(NC)'
 endef
 
-test:
-#	$(eval directory := $(dir $(FILE_H5AD_CT)))
-#	$(eval directory := $(shell echo $(directory) | sed "s/ct\///"))
-	$(eval directory := $(shell echo $(dir $(FILE_FILTER_CT)) | sed "s/tables\///"))
-	echo $(directory)
-	echo $(shell echo $(dir $(FILE_FILTER_CT)) | sed "s/tables\///")
+all: $(MARKERS_CT) $(MARKERS_RA)
 
-all: $(FILE_MARKERS_CT) $(FILE_MARKERS_RA)
-
-integration: $(FILE_MARKERS_ALL) $(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD)_labels.h5ad
+integration: $(MARKERS_ALL) $(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD)_labels.h5ad
 
 clean:
 	rm -rf $(RNA)
@@ -59,66 +51,66 @@ mrproper:
 	rm -rf data/*
 	touch data/.placeholder
 
-load-ctrl: $(FILES_10XGENOMICS_CT)
-load-treated: $(FILES_10XGENOMICS_RA)
+load-ctrl: $(10XGENOMICS_CT)
+load-treated: $(10XGENOMICS_RA)
 load: load-ctrl load-treated
-convert-ctrl: $(FILE_H5AD_CT)
-convert-treated: $(FILE_H5AD_RA)
+convert-ctrl: $(H5AD_CT)
+convert-treated: $(H5AD_RA)
 convert: convert-ctrl convert-treated
-load-markers: $(FILE_CYCLE_MARKERS)
-filter-ctrl: $(FILE_FILTER_CT)
-filter-treated: $(FILE_FILTER_RA)
+load-markers: $(CYCLE_MARKERS)
+filter-ctrl: $(FILTER_CT)
+filter-treated: $(FILTER_RA)
 filter: filter-ctrl filter-treated
-load-signatures: $(word 1,$(FILE_SIGNATURES)) $(word 2,$(FILE_SIGNATURES))
-convert-signatures: $(lastword $(FILE_SIGNATURES))
-normalize-ctrl: $(FILE_NORMALISATION_CT)
-normalize-treated: $(FILE_NORMALISATION_RA)
+load-signatures: $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
+convert-signatures: $(lastword $(SIGNATURES))
+normalize-ctrl: $(NORMALISATION_CT)
+normalize-treated: $(NORMALISATION_RA)
 normalize: normalize-ctrl normalize-treated
-cluster-ctrl: $(FILE_CLUSTER_CT)
-cluster-treated: $(FILE_CLUSTER_RA)
+cluster-ctrl: $(CLUSTER_CT)
+cluster-treated: $(CLUSTER_RA)
 cluster: cluster-ctrl cluster-treated
 
-$(FILES_10XGENOMICS_CT):
+$(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
 	mkdir -p $(@D)
 	wget --quiet --recursive --no-parent -nd --reject "index.html" \
   		--directory-prefix=$(@D) \
   		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
-	mv $(@D)/*matrix.mtx.gz $(word 1,$(FILES_10XGENOMICS_CT))
-	mv $(@D)/*genes.tsv.gz $(word 2,$(FILES_10XGENOMICS_CT))
-	mv $(@D)/*barcodes.tsv.gz $(word 3,$(FILES_10XGENOMICS_CT))
+	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CT))
+	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CT))
+	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CT))
 
-$(FILES_10XGENOMICS_RA):
+$(10XGENOMICS_RA):
 	$(call section,download 10X genomics data (treated data))
 	mkdir -p $(@D)
 	wget --quiet --recursive --no-parent -nd --reject "index.html" \
 		--directory-prefix=$(@D) \
 		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
-	mv $(@D)/*matrix.mtx.gz $(word 1,$(FILES_10XGENOMICS_RA))
-	mv $(@D)/*genes.tsv.gz $(word 2,$(FILES_10XGENOMICS_RA))
-	mv $(@D)/*barcodes.tsv.gz $(word 3,$(FILES_10XGENOMICS_RA))
+	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_RA))
+	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_RA))
+	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_RA))
 
-$(FILE_H5AD_CT): $(FILES_10XGENOMICS_CT)
+$(H5AD_CT): $(10XGENOMICS_CT)
 	$(call section,conversion (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/load_10X.py $(<D) $@ \
 		--sample-info age=adult date=29-09-2020 sample_name=ctrl condition=control
 	$(CONDA_DEACTIVATE)
 
-$(FILE_H5AD_RA): $(FILES_10XGENOMICS_RA)
+$(H5AD_RA): $(10XGENOMICS_RA)
 	$(call section,conversion (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/load_10X.py $(<D) $@ \
 		--sample-info age=adult date=29-09-2020 sample_name=ra condition=treated
 	$(CONDA_DEACTIVATE)
 
-$(FILE_CYCLE_MARKERS):
+$(CYCLE_MARKERS):
 	$(call section,download cycle phase markers)
 	mkdir -p $(@D)
-	wget -cO $@ \
+	wget --quiet -cO $@ \
 		https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
 
-$(FILE_FILTER_CT): $(FILE_H5AD_CT) $(FILE_CYCLE_MARKERS)
+$(FILTER_CT): $(H5AD_CT) $(CYCLE_MARKERS)
 	$(call section,filtering (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/filter_cells.py \
@@ -131,7 +123,7 @@ $(FILE_FILTER_CT): $(FILE_H5AD_CT) $(FILE_CYCLE_MARKERS)
 		--consistency-mad
 	$(CONDA_DEACTIVATE)
 
-$(FILE_FILTER_RA): $(FILE_H5AD_RA) $(FILE_CYCLE_MARKERS)
+$(FILTER_RA): $(H5AD_RA) $(CYCLE_MARKERS)
 	$(call section,filtering (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/filter_cells.py \
@@ -144,20 +136,26 @@ $(FILE_FILTER_RA): $(FILE_H5AD_RA) $(FILE_CYCLE_MARKERS)
 		--consistency-mad
 	$(CONDA_DEACTIVATE)
 
-$(word 1,$(FILE_SIGNATURES)) $(word 2,$(FILE_SIGNATURES)):
-	$(call section,download signatures)
-	mkdir -p $(SIGNATURES)
-	wget --quiet -cO $(firstword $@) https://doi.org/10.1371/journal.pbio.2003389.s025 
-	wget --quiet -cO $(lastword $@) https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
+$(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES)):
+	$(eval FILENAME := $(basename $(notdir $@)))
+	if [ $(FILENAME) = "geiger" ]; then \
+		URL=https://doi.org/10.1371/journal.pbio.2003389.s025; \
+	else \
+		URL=https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls; \
+	fi
+	$(call section,download $(FILENAME) signatures)
+	mkdir -p $(@D)
+	wget --quiet -cO $@ $$URL
+	unset URL
 
-$(lastword $(FILE_SIGNATURES)): $(word 1,$(FILE_SIGNATURES)) $(word 2,$(FILE_SIGNATURES))
+$(lastword $(SIGNATURES)): $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
 	$(call section,convert signatures)
 	python pipeline/preprocess/load_signatures.py \
 		--list-infile $(firstword $^) \
 		--table-infile $(lastword $^) \
   		--outfile $@
 
-$(FILE_NORMALISATION_CT): $(FILE_FILTER_CT)
+$(NORMALISATION_CT): $(FILTER_CT)
 	$(call section,normalization (control data))
 	$(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 	$(CONDA_ACTIVATE) preprocess
@@ -167,7 +165,7 @@ $(FILE_NORMALISATION_CT): $(FILE_FILTER_CT)
 		--jobs $(JOBS)
 	$(CONDA_DEACTIVATE)
 
-$(FILE_NORMALISATION_RA): $(FILE_FILTER_RA)
+$(NORMALISATION_RA): $(FILTER_RA)
 	$(call section,normalization (treated data))
 	$(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 	$(CONDA_ACTIVATE) preprocess
@@ -177,7 +175,7 @@ $(FILE_NORMALISATION_RA): $(FILE_FILTER_RA)
 		--jobs $(JOBS)
 	$(CONDA_DEACTIVATE)
 
-$(FILE_CLUSTER_CT): $(FILE_NORMALISATION_CT) $(lastword $(FILE_SIGNATURES))
+$(CLUSTER_CT): $(NORMALISATION_CT) $(lastword $(SIGNATURES))
 	$(call section,clustering (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/clusters.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
@@ -187,7 +185,7 @@ $(FILE_CLUSTER_CT): $(FILE_NORMALISATION_CT) $(lastword $(FILE_SIGNATURES))
 		--seed 0 --verbose
 	$(CONDA_DEACTIVATE)
 
-$(FILE_CLUSTER_RA): $(FILE_NORMALISATION_RA)
+$(CLUSTER_RA): $(NORMALISATION_RA)
 	$(call section,clustering (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/clusters.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
@@ -197,7 +195,7 @@ $(FILE_CLUSTER_RA): $(FILE_NORMALISATION_RA)
 		--seed 10 --verbose
 	$(CONDA_DEACTIVATE)
 
-$(FILE_MARKERS_CT): $(FILE_CLUSTER_CT) $(lastword $(FILE_SIGNATURES))
+$(MARKERS_CT): $(CLUSTER_CT) $(lastword $(SIGNATURES))
 	$(call section,analyse cell types (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/analyse_markers.py $^ $(@D) \
@@ -206,7 +204,7 @@ $(FILE_MARKERS_CT): $(FILE_CLUSTER_CT) $(lastword $(FILE_SIGNATURES))
   		--verbose
 	$(CONDA_DEACTIVATE)
 
-$(FILE_MARKERS_RA): $(FILE_CLUSTER_RA)/tables/counts.h5ad $(lastword $(FILE_SIGNATURES))
+$(MARKERS_RA): $(CLUSTER_RA)/tables/counts.h5ad $(lastword $(SIGNATURES))
 	$(call section,analyse cell types (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/analyse_markers.py $^ $(@D) \
@@ -215,7 +213,7 @@ $(FILE_MARKERS_RA): $(FILE_CLUSTER_RA)/tables/counts.h5ad $(lastword $(FILE_SIGN
   		--verbose
 	$(CONDA_DEACTIVATE)
 
-$(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD).h5ad: $(FILE_NORMALISATION_CT) $(FILE_NORMALISATION_RA)
+$(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD).h5ad: $(NORMALISATION_CT) $(NORMALISATION_RA)
 	$(call section,integration)
 	$(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 	$(CONDA_ACTIVATE) preprocess
@@ -228,7 +226,7 @@ $(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD).h5ad: $(FILE_NORMALISATION_CT) 
 		--verbose
 	$(CONDA_DEACTIVATE)
 
-$(FILE_MARKERS_ALL): $(PATH_INTEGRATION)/tables/bbknn.h5ad $(lastword $(FILE_SIGNATURES))
+$(MARKERS_ALL): $(PATH_INTEGRATION)/tables/bbknn.h5ad $(lastword $(SIGNATURES))
 	$(call section,analyse cell types (integrated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/analyse_markers.py $^ $(@D) \
