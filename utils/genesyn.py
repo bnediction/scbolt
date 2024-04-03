@@ -50,14 +50,14 @@ class GeneSynonyms(object):
         return None
     
     def __call__(self, data: Union[Sequence[Tuple[str, str, Dict[str, int]]], DataFrame, Graph], *args, **kwargs):
-        if isinstance(data, SequenceInstance) and not isinstance(data, str):
-            return self.interaction_list_standardization(data, *args, **kwargs)
+        if (isinstance(data, SequenceInstance) and not isinstance(data, str)) or isinstance(data, set):
+            return self.sequence_standardization(data, *args, **kwargs)
         elif isinstance(data, DataFrame):
             return self.df_standardization(data, *args, **kwargs)
         elif isinstance(data, Graph):
             return self.graph_standardization(data, *args, **kwargs)
         else:
-            raise TypeError(f"`data` has incorrect type")
+            raise TypeError(f"fail to convert gene name: `data` has incorrect type")
    
     def __synonyms_from_NCBI(self, gi_file: Path) -> dict:
         """
@@ -121,6 +121,28 @@ class GeneSynonyms(object):
         else:
             warnings.warn(f"NCBI does not find a correspondance for {gene_name}.", stacklevel=10)
             return gene_name
+    
+    def sequence_standardization(self, gene_sequence: Sequence[str]) -> Sequence[str]:
+        """
+        Create a copy of the input Sequence, with each gene name replaced by its reference name.
+
+        Parameters
+        ----------
+        interaction_list
+            list of tuples containing string (source) + string (target) + dict (sign = -1 or 1)
+        
+        Returns
+        -------
+        return an interaction list where each gene name is converted into its reference value.
+        """
+        
+        standardized_gene_sequence = list()
+        for gene in gene_sequence:
+            standardized_gene_sequence.append(self.get_reference_gene_name(gene))
+        
+        standardized_gene_sequence = type(gene_sequence)(standardized_gene_sequence)
+        
+        return standardized_gene_sequence
 
     def interaction_list_standardization(self, interactions_list: Sequence[Tuple[str, str, Dict[str, int]]]) -> List[Tuple[str, str, Dict[str, int]]]:
         """

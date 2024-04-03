@@ -11,7 +11,7 @@ import pandas as pd, scanpy as sc, json
 import anndatatools as adt
 
 parser = argparse.ArgumentParser(
-    prog="Cell type analysis of sc-RNAseq data",
+    prog="Cell type analysis",
     description="""From sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
     search for gene markers and compare markers and signatures in order to provide
     useful information about potential cell-types on each condition and each group.""",

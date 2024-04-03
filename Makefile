@@ -1,4 +1,4 @@
-#!/usr/bin/make
+#!/usr/bin/env make
 
 .ONESHELL:
 
@@ -7,7 +7,6 @@ SHELL = /bin/bash
 
 NC = \033[0m
 RED = \033[0;31m
-LIGHT_RED = \033[91m
 
 CONDA_ACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
 CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda deactivate ; conda deactivate
@@ -31,10 +30,13 @@ CLUSTER_CT = $(RNA)/cluster/ct/tables/counts.h5ad
 CLUSTER_RA = $(RNA)/cluster/ra/tables/counts.h5ad
 MARKERS_CT = $(RNA)/markers/ct/markers.csv
 MARKERS_RA = $(RNA)/markers/ra/markers.csv
-MARKERS_ALL = $(RNA)/markers/all/markers.csv
+ENRICHMENT_CT = $(RNA)/enrichment/ct/goat.txt
+GO = $(PUBLIC)/enrichment/go-basic.obo
+GENE2GO = $(PUBLIC)/enrichment/gene2go
 
-PATH_INTEGRATION = $(RNA)/integration
-INTEGRATION = $(wildcard $(PATH_INTEGRATION)/tables/*.h5ad)
+
+INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
+MARKERS_ALL = $(RNA)/markers/all/markers.csv
 
 define section
 	echo -e '$(RED)===== $(1) =====$(NC)'
@@ -42,7 +44,7 @@ endef
 
 all: $(MARKERS_CT) $(MARKERS_RA)
 
-integration: $(MARKERS_ALL) $(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD)_labels.h5ad
+integration: $(MARKERS_ALL) $(INTEGRATION)
 
 clean:
 	rm -rf $(RNA)
@@ -69,11 +71,12 @@ normalize: normalize-ctrl normalize-treated
 cluster-ctrl: $(CLUSTER_CT)
 cluster-treated: $(CLUSTER_RA)
 cluster: cluster-ctrl cluster-treated
+load-go: $(GO) $(GENE2GO)
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
 	mkdir -p $(@D)
-	wget --quiet --recursive --no-parent -nd --reject "index.html" \
+	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
   		--directory-prefix=$(@D) \
   		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
 	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CT))
@@ -83,7 +86,7 @@ $(10XGENOMICS_CT):
 $(10XGENOMICS_RA):
 	$(call section,download 10X genomics data (treated data))
 	mkdir -p $(@D)
-	wget --quiet --recursive --no-parent -nd --reject "index.html" \
+	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
 		--directory-prefix=$(@D) \
 		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
 	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_RA))
@@ -107,7 +110,7 @@ $(H5AD_RA): $(10XGENOMICS_RA)
 $(CYCLE_MARKERS):
 	$(call section,download cycle phase markers)
 	mkdir -p $(@D)
-	wget --quiet -cO $@ \
+	wget --quiet --show-progress -cO $@ \
 		https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
 
 $(FILTER_CT): $(H5AD_CT) $(CYCLE_MARKERS)
@@ -145,7 +148,7 @@ $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES)):
 	fi
 	$(call section,download $(FILENAME) signatures)
 	mkdir -p $(@D)
-	wget --quiet -cO $@ $$URL
+	wget --quiet --show-progress -cO $@ $$URL
 	unset URL
 
 $(lastword $(SIGNATURES)): $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
@@ -198,48 +201,72 @@ $(CLUSTER_RA): $(NORMALISATION_RA)
 $(MARKERS_CT): $(CLUSTER_CT) $(lastword $(SIGNATURES))
 	$(call section,analyse cell types (control data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/analyse_markers.py $^ $(@D) \
+	python pipeline/preprocess/markers.py $^ $(@D) \
   		--group leiden \
   		--logfc-threshold 0.25 \
   		--verbose
 	$(CONDA_DEACTIVATE)
 
-$(MARKERS_RA): $(CLUSTER_RA)/tables/counts.h5ad $(lastword $(SIGNATURES))
+$(MARKERS_RA): $(CLUSTER_RA) $(lastword $(SIGNATURES))
 	$(call section,analyse cell types (treated data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/analyse_markers.py $^ $(@D) \
+	python pipeline/preprocess/markers.py $^ $(@D) \
   		--group leiden \
   		--logfc-threshold 0.25 \
   		--verbose
 	$(CONDA_DEACTIVATE)
 
-$(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD).h5ad: $(NORMALISATION_CT) $(NORMALISATION_RA)
+$(INTEGRATION): $(NORMALISATION_CT) $(NORMALISATION_RA)
 	$(call section,integration)
 	$(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/integration.py $^ $(PATH_INTEGRATION) \
+	python pipeline/preprocess/integration.py $^ $(shell echo $(dir $@) | sed "s/tables\///") \
 		--label condition --method $(INTEGRATION_METHOD) \
-		--dim-pca 50 --dim-clustering 15 --dim-integration 3 \
+		--dim-pca 50 --dim-clustering 15 --dim-umap 3 \
 		--hvg --metric euclidean --k-neighbors 20 --resolution 0.38 \
 		--add-legend --plot-3d \
 		--jobs $(JOBS) --seed 10 \
 		--verbose
 	$(CONDA_DEACTIVATE)
 
-$(MARKERS_ALL): $(PATH_INTEGRATION)/tables/bbknn.h5ad $(lastword $(SIGNATURES))
+$(MARKERS_ALL): $(INTEGRATION) $(lastword $(SIGNATURES))
 	$(call section,analyse cell types (integrated data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/analyse_markers.py $^ $(@D) \
+	python pipeline/preprocess/markers.py $^ $(@D) \
 		--condition condition --group leiden \
 		--logfc-threshold 0.25 \
 		--verbose
 	$(CONDA_DEACTIVATE)
 
-$(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD)_labels.h5ad: $(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD).h5ad
+$(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD)_labels.h5ad: $(INTEGRATION)
 	$(call section,assign cell types (integrated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/label_clusters.py $< $@ \
 		--column leiden \
 		--name 0=Unknown 1=Rep 2=Prom1 3=Prom2 4=Gran 5=Prom3
 	python figures/plot_embedding.py figures/umap_labels.json
+	$(CONDA_DEACTIVATE)
+
+
+$(GO):
+	$(call section,download GO's go-basic.obo file)
+	mkdir -p $(@D)
+	wget --quiet --show-progress -cO $@ https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
+
+$(GENE2GO):
+	$(call section,download NCBI's gene2go file)
+	mkdir -p $(@D)
+	wget --quiet --directory-prefix=$(@D) ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
+	gunzip $@.gz
+
+$(ENRICHMENT_CT): $(MARKERS_CT)
+	$(call section,gene ontology enrichment analysis (control data))
+	$(CONDA_ACTIVATE) preprocess
+	python cli/genename.py data/rna/cluster/ct/tables/counts.h5ad data/rna/enrichment/ct/background.txt --standardization
+	$(eval CLUSTER := `column -s, -t < $< | awk 'NR>1 {print $2}' | sort -u`)
+	for cluster in $(CLUSTER)
+	do
+		column -s, -t < data/rna/markers/ct/markers.csv | awk -v c=${cluster} '$2==c {print $1}' > data/rna/enrichment/ct/cluster${cluster}.txt
+		python cli/genename_standardization.py $(dir $@)/${cluster}.txt $(dir $@)/${cluster}.txt --quiet
+	done
 	$(CONDA_DEACTIVATE)

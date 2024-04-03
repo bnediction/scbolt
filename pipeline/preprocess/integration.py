@@ -139,8 +139,8 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-e", "--dim-integration",
-    dest="dim_integration",
+    "-u", "--dim-umap",
+    dest="dim_umap",
     type=int,
     required=False,
     default=2,
@@ -240,9 +240,9 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-if args.dim_pca < max(args.dim_clustering, args.dim_umap) or args.dim_clustering < args.dim_umap:
-    raise argparse.ArgumentError(
-        f"dimension incoherence: dim_pca > dim_clustering > dim_umap not satisfied"
+if not (args.dim_pca >= args.dim_clustering > args.dim_umap):
+    raise ValueError(
+        f"dimension incoherence: pca dimension >= clustering dimension > umap dimension not satisfied"
     )
 
 data_outpath = Path(f"{args.outpath}/tables")
@@ -295,7 +295,7 @@ if args.method=="ingest" or args.method=="all":
     )
     sc.tl.umap(
         adata_d["reference"],
-        n_components=args.dim_integration,
+        n_components=args.dim_umap,
         random_state=default_seed
     )
 
@@ -373,11 +373,11 @@ if args.method=="ingest" or args.method=="all":
                 "edgecolor":color.black,
                 "shadow":False
             },
-            n_components = 3 if args.dim_integration > 2 and args.plot_3d is True else 2,
+            n_components = 3 if args.dim_umap > 2 and args.plot_3d is True else 2,
             background_visible=False
         )
-        plt.savefig(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}"))
-        if args.dim_integration > 2 and args.plot_3d:
+        plt.savefig(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.pdf"))
+        if args.dim_umap > 2 and args.plot_3d:
             pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
 
     section("Saving data...")
@@ -435,7 +435,7 @@ if args.method=="bbknn" or args.method=="all":
     )
     sc.tl.umap(
         adata,
-        n_components=args.dim_integration,
+        n_components=args.dim_umap,
         random_state=default_seed
     )
     sc.pp.neighbors(
@@ -492,11 +492,11 @@ if args.method=="bbknn" or args.method=="all":
                 "edgecolor":color.black,
                 "shadow":False
             },
-            n_components = 3 if args.dim_integration > 2 and args.plot_3d is True else 2,
+            n_components = 3 if args.dim_umap > 2 and args.plot_3d is True else 2,
             background_visible=False
         )
-        plt.savefig(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}"))
-        if args.dim_integration > 2 and args.plot_3d:
+        plt.savefig(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.pdf"))
+        if args.dim_umap > 2 and args.plot_3d:
             pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
 
     section("Saving data...")
@@ -545,7 +545,7 @@ if args.method=="scanorama" or args.method=="all":
     )
     sc.tl.umap(
         adata,
-        n_components=args.dim_integration,
+        n_components=args.dim_umap,
         random_state=default_seed
     )
 
@@ -589,11 +589,11 @@ if args.method=="scanorama" or args.method=="all":
                 "edgecolor":color.black,
                 "shadow":False
             },
-            n_components = 3 if args.dim_integration > 2 and args.plot_3d is True else 2,
+            n_components = 3 if args.dim_umap > 2 and args.plot_3d is True else 2,
             background_visible=False
         )
-        plt.savefig(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}"))
-        if args.dim_integration > 2 and args.plot_3d:
+        plt.savefig(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.pdf"))
+        if args.dim_umap > 2 and args.plot_3d:
             pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
 
     section("Saving data...")
