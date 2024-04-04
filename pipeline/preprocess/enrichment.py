@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore")
 import argparse
 from pathlib import Path
 
-from utils.genesyn import GeneSynonyms
+from databases.genesyn import GeneSynonyms
 
 from goatools.utils import read_geneset
 from goatools.obo_parser import GODag

@@ -72,6 +72,7 @@ cluster-ctrl: $(CLUSTER_CT)
 cluster-treated: $(CLUSTER_RA)
 cluster: cluster-ctrl cluster-treated
 load-go: $(GO) $(GENE2GO)
+go-enrichment: $(ENRICHMENT_CT)
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
@@ -249,24 +250,24 @@ $(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD)_labels.h5ad: $(INTEGRATION)
 
 
 $(GO):
-	$(call section,download GO's go-basic.obo file)
+	$(call section,download GO go-basic.obo file)
 	mkdir -p $(@D)
 	wget --quiet --show-progress -cO $@ https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
 
 $(GENE2GO):
-	$(call section,download NCBI's gene2go file)
+	$(call section,download NCBI gene2go file)
 	mkdir -p $(@D)
-	wget --quiet --directory-prefix=$(@D) ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
+	wget --quiet --show-progress --directory-prefix=$(@D) ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
 	gunzip $@.gz
 
-$(ENRICHMENT_CT): $(MARKERS_CT)
+$(ENRICHMENT_CT): $(MARKERS_CT) $(GO) $(GENE2GO)
 	$(call section,gene ontology enrichment analysis (control data))
 	$(CONDA_ACTIVATE) preprocess
-	python cli/genename.py data/rna/cluster/ct/tables/counts.h5ad data/rna/enrichment/ct/background.txt --standardization
-	$(eval CLUSTER := `column -s, -t < $< | awk 'NR>1 {print $2}' | sort -u`)
+	python bonesis-tools/clitools/genename.py data/rna/cluster/ct/tables/counts.h5ad data/rna/enrichment/ct/background.txt
+	$(eval CLUSTER := $(shell column -s, -t < $< | awk 'NR>1 {print $$2}' | sort -u))
 	for cluster in $(CLUSTER)
 	do
-		column -s, -t < data/rna/markers/ct/markers.csv | awk -v c=${cluster} '$2==c {print $1}' > data/rna/enrichment/ct/cluster${cluster}.txt
-		python cli/genename_standardization.py $(dir $@)/${cluster}.txt $(dir $@)/${cluster}.txt --quiet
+		`column -s, -t < $< | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
+		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
 	done
 	$(CONDA_DEACTIVATE)

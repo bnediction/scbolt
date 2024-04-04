@@ -156,7 +156,7 @@ ax.set_ylabel(r"score $\mathrm{G_{2}/M}$")
 plt.sca(ax)
 ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
 ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-plt.savefig(f"{fig_outpath}/cell-cycle-phases-assignment")
+plt.savefig(f"{fig_outpath}/cell-cycle-phases-assignment.pdf")
 plt.close()
 
 adata.var_names_make_unique()
@@ -180,7 +180,7 @@ ax.axes[0,0].set_title(r"gene number")
 ax.axes[0,1].set_title(r"gene counts")
 ax.axes[0,2].set_title(r"mitochondrion proportion")
 ax.axes[0,3].set_title(r"ribosome proportion")
-plt.savefig(f"{fig_outpath}/violin-plot-on-UMI-before-filtering.png")
+plt.savefig(f"{fig_outpath}/violin-plot-on-UMI-before-filtering.pdf")
 
 print(f"Filtering low-quality cells...")
 
@@ -224,12 +224,12 @@ ax[1].axhline(min_counts_threshold, linewidth=1.5, linestyle='--', color=color.r
 ax[1].axhline(max_counts_threshold, linewidth=1.5, linestyle='--', color=color.red)
 ax[1].set_ylim(_ylim)
 ax[1].set(title="after cell filtering")
-plt.savefig(f"{fig_outpath}/violin-plot-on-barcode-counts.png")
+plt.savefig(f"{fig_outpath}/violin-plot-on-barcode-counts.pdf")
 
 fig, ax = plt.subplots(nrows=1, ncols=1)
 ax = adata.obs.pypairs_cc_prediction.value_counts().plot.bar(rot=0)
 ax.set(xlabel="cell cycle phases")
-plt.savefig(f"{fig_outpath}/assigned-cell-cycle-phases-counting")
+plt.savefig(f"{fig_outpath}/assigned-cell-cycle-phases-counting.pdf")
 
 print("Computing Violin plot after cell filtering...")
 
@@ -246,7 +246,7 @@ ax.axes[0,0].set_title(r"gene number")
 ax.axes[0,1].set_title(r"gene counts")
 ax.axes[0,2].set_title(r"mitochondrion proportion")
 ax.axes[0,3].set_title(r"ribosome proportion")
-plt.savefig(f"{fig_outpath}/violin-plot-on-UMI-after-filtering2.png")
+plt.savefig(f"{fig_outpath}/violin-plot-on-UMI-after-filtering2.pdf")
 
 print("Saving data...")
 

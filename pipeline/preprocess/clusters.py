@@ -279,7 +279,7 @@ fig, _ = adt.pl.embedding_plot(
     n_components = 3 if args.dim_umap > 2 and args.plot_3d is True else 2,
     background_visible=False
 )
-plt.savefig(Path(f"{fig_outpath}/{args.prefix}umap_leiden"))
+plt.savefig(Path(f"{fig_outpath}/{args.prefix}umap_leiden.pdf"))
 if args.dim_umap > 2 and args.plot_3d:
     pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}umap_leiden.fig.pickle"), "wb"))
 
@@ -306,7 +306,7 @@ fig, _ = adt.pl.embedding_plot(
     n_components = 3 if args.dim_umap > 2 and args.plot_3d is True else 2,
     background_visible=False
 )
-plt.savefig(Path(f"{fig_outpath}/{args.prefix}umap_phases"))
+plt.savefig(Path(f"{fig_outpath}/{args.prefix}umap_phases.pdf"))
 if args.dim_umap > 2 and args.plot_3d:
     pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}umap_phases.fig.pkl"), "wb"))
 
@@ -326,7 +326,7 @@ for metric in ["total_counts", "pct_counts_mitochondrion"]:
     plt.sca(ax)
     ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
     ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-    plt.savefig(f"{fig_outpath}/{args.prefix}umap_{metric}")
+    plt.savefig(f"{fig_outpath}/{args.prefix}umap_{metric}.pdf")
 
 print("Saving data...")
 

@@ -161,7 +161,7 @@ if args.min_cell_expression_proportion:
         edgecolor=color.red
     )
     ax.update({"xmargin": 0.1})
-    plt.savefig(f"{fig_outpath}/gene-number.png")
+    plt.savefig(f"{fig_outpath}/gene-number.pdf")
 
 adata.layers["raw"] = adata.X.copy()
 
