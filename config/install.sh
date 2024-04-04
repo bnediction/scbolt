@@ -39,7 +39,7 @@ download_ncbi_gi() {
     if [ ! -f "$1/.mus_musculus_gene_info.tsv" ];
     then
         echo -e "Download NCBI mus musculus gene info file."
-        wget --quiet --directory-prefix=$1 ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Mus_musculus.gene_info.gz
+        wget --quiet --show-progress --directory-prefix=$1 ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Mus_musculus.gene_info.gz
         gunzip --quiet $1/Mus_musculus.gene_info.gz
         mv $1/Mus_musculus.gene_info $1/.mus_musculus_gene_info.tsv;
     else

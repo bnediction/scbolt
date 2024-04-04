@@ -16,7 +16,7 @@ answer to the retinoic acid treatment.
 Setup prerequisites must be verified:
 1. verify that *latex* markup language is already installed. If not, please use:
 ```sh
-apt-get install texlive dvipng texlive-latex-extra texlive-fonts-recommended
+apt-get install texlive dvipng texlive-latex-extra texlive-fonts-recommended cm-super
 ```
 2. verify that *Anaconda* package manager is already installed. If not, please install and download it [here](https://www.anaconda.com/download/).
 
