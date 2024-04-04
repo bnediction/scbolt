@@ -1,18 +1,18 @@
 #!/usr/bin/bash
 
 [ -d "config" ] && config_dir="config/" || config_dir=""
-[ -d "anndatatools" ] && develop_dir="." || develop_dir=".."
+[ -d "figures" ] && develop_dir="." || develop_dir=".."
 
 install_env() {
     if conda env list | grep -q "^$1 ";
     then
-        echo "${1} conda environment already exists."
+        echo "$1 conda environment already exists."
         read -p $"Do you want to reinstall ${1} environment? ([y]/n): " choice
         if [[ "$choice" == "y" || -z "$choice" ]];
         then
             conda remove --name $1 --all --yes
             conda env create -f ${config_dir}$1.yml --force
-            conda develop --name $1 $develop_dir;
+            conda develop --name $1 ${develop_dir} ${develop_dir}/bonesis-tools;
             if [[ "$1" == bonesis ]];
             then
                 conda activate $1
@@ -23,9 +23,9 @@ install_env() {
             echo -e "$1 environment not reinstalled.\n"
         fi
     else
-        echo "Install ${1} conda environment."
+        echo "Install $1 conda environment."
         conda env create -f ${config_dir}$1.yml
-        conda develop --name $1 $develop_dir;
+        conda develop --name $1 ${develop_dir} ${develop_dir}/bonesis-tools;
         if [[ "$1" == bonesis ]];
         then
             conda activate $1
@@ -48,6 +48,8 @@ download_ncbi_gi() {
 }
 
 source ${HOME}/anaconda3/etc/profile.d/conda.sh
+
+git clone git@gitub.u-bordeaux.fr:bnediction/bonesis-tools.git ${develop_dir}/bonesis-tools
 
 if conda env list | grep -q "^base";
 then
