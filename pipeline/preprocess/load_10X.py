@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+import warnings
+warnings.filterwarnings("ignore")
+
 from pathlib import Path
 
 import os
