@@ -9,6 +9,7 @@ warnings.filterwarnings("ignore")
 
 import argparse
 from pathlib import Path
+from utils.stdout import Section
 
 from databases.genesyn import GeneSynonyms
 
@@ -68,56 +69,62 @@ parser.add_argument(
     help="display additional information"
 )
 
-arguments = """data/rna/enrichment/ct/cluster0.txt data/rna/enrichment/ct/background.txt data/public/enrichment/go-basic.obo data/public/enrichment/mgi.gaf data/public/enrichment/gene2go"""
+arguments = """data/rna/enrichment/ct/cluster0.txt data/rna/enrichment/ct/background.txt data/public/enrichment/go-basic.obo data/public/enrichment/mgi.gaf data/public/enrichment/gene2go --verbose"""
 
 args = parser.parse_args(arguments.split())
 
-gene_syn = GeneSynonyms()
+section = Section(verbose = args.verbose)
+genesynonyms = GeneSynonyms()
+
+print(f"Loading data...")
+
+section("Loading background gene set...", reset=True)
 
 study_ids = read_geneset(args.study)
+study_ids = genesynonyms.sequence_standardization(
+    gene_sequence=study_ids,
+    in_alias_type="genename",
+    out_alias_type="geneid"
+)
+if None in study_ids:
+    study_ids.remove(None)
+study_ids = set(map(int, study_ids))
+
 population_ids = read_geneset(args.population)
+population_ids = genesynonyms.sequence_standardization(
+    gene_sequence=population_ids,
+    in_alias_type="genename",
+    out_alias_type="geneid"
+)
+if None in population_ids:
+    population_ids.remove(None)
+population_ids = set(map(int, population_ids))
 
-godag = GODag(args.go)
+section("Loading gene ontologies...")
 
-gaf = GafReader(args.annotations)
-associations = dict()
-for association in gaf.associations:
-    gene_symbol = association.DB_Symbol
-    ncbi_gene_symbol = gene_syn.get_reference_gene_name(gene_symbol)
-    if ncbi_gene_symbol in associations:
-        associations[ncbi_gene_symbol].append(association.GO_ID)
-    else:
-        associations[ncbi_gene_symbol] = [association.GO_ID]
+go_dag = GODag(args.go)
 
-########
-
-
-gad = gaf.get_ns2assc()
-
-gaf.associations
-
-for namespace, associations in gad.items():
-    for protein_id, go_ids in sorted(associations.items())[:3]:
-        print("{NS} {PROT:7} : {GOs}".format(
-            NS=namespace,
-            PROT=protein_id,
-            GOs=' '.join(sorted(go_ids))))
-
-
-# anno = IdToGosReader(args.annotations, godag=godag)
+section("Loading geneid-to-go associations...")
 
 annotations = Gene2GoReader(args.gene2go, taxids=[10090])
 associations = annotations.get_ns2assc()
 
 if args.verbose:
-    for namespace, gene2go in associations.items():
-        print(f"{namespace}: {len(gene2go):,} annotated mouse genes")
+    for namespace, geneid2go in associations.items():
+        print(f"{namespace} {len(geneid2go):,} annotated mouse genes")
 
-goeaobj = GOEnrichmentStudyNS(
-        GeneID2nt_mus.keys(), # List of mouse protein-coding genes
-        associations, # geneid/GO associations
-        godag,
-        propagate_counts = False,
-        alpha = 0.05,
-        methods = ['fdr_bh'])
+# The following give a little more results:
+# annotations = GafReader(args.annotations)
+# geneid2go = annotations.get_ns2assc()
+
+print(f"Gene Ontology Enrichment Analysis...")
+
+goea = GOEnrichmentStudyNS(
+    pop=population_ids,
+    ns2assoc=associations,
+    godag=go_dag,
+    propagate_counts=False,
+    alpha=0.05,
+    methods=['fdr_bh']
+)
 
