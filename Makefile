@@ -33,7 +33,7 @@ MARKERS_RA = $(RNA)/markers/ra/markers.csv
 ENRICHMENT_CT = $(RNA)/enrichment/ct/goat.txt
 GO = $(PUBLIC)/enrichment/go-basic.obo
 GENE2GO = $(PUBLIC)/enrichment/gene2go
-
+MGI_GAF = $(PUBLIC)/enrichment/mgi.gaf
 
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
@@ -71,7 +71,7 @@ normalize: normalize-ctrl normalize-treated
 cluster-ctrl: $(CLUSTER_CT)
 cluster-treated: $(CLUSTER_RA)
 cluster: cluster-ctrl cluster-treated
-load-go: $(GO) $(GENE2GO)
+load-go: $(GO) $(GENE2GO) $(MGI_GAF)
 go-enrichment: $(ENRICHMENT_CT)
 
 $(10XGENOMICS_CT):
@@ -258,6 +258,12 @@ $(GENE2GO):
 	$(call section,download NCBI gene2go file)
 	mkdir -p $(@D)
 	wget --quiet --show-progress --directory-prefix=$(@D) ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
+	gunzip $@.gz
+
+$(MGI_GAF):
+	$(call section,download mgi.gaf file)
+	mkdir -p $(@D)
+	wget --quiet --show-progress --directory-prefix=$(@D) https://current.geneontology.org/annotations/mgi.gaf.gz
 	gunzip $@.gz
 
 $(ENRICHMENT_CT): $(MARKERS_CT) $(GO) $(GENE2GO)
