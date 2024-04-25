@@ -30,7 +30,7 @@ CLUSTER_CT = $(RNA)/cluster/ct/tables/counts.h5ad
 CLUSTER_RA = $(RNA)/cluster/ra/tables/counts.h5ad
 MARKERS_CT = $(RNA)/markers/ct/markers.csv
 MARKERS_RA = $(RNA)/markers/ra/markers.csv
-ENRICHMENT_CT = $(RNA)/enrichment/ct/goat.txt
+ENRICHMENT_CT = $(RNA)/enrichment/ct/goea.xlsx
 GO = $(PUBLIC)/enrichment/go-basic.obo
 GENE2GO = $(PUBLIC)/enrichment/gene2go
 MGI_GAF = $(PUBLIC)/enrichment/mgi.gaf
@@ -266,14 +266,21 @@ $(MGI_GAF):
 	wget --quiet --show-progress --directory-prefix=$(@D) https://current.geneontology.org/annotations/mgi.gaf.gz
 	gunzip $@.gz
 
-$(ENRICHMENT_CT): $(MARKERS_CT) $(GO) $(GENE2GO)
+$(ENRICHMENT_CT): $(CLUSTER_CT) $(MARKERS_CT) $(GO) $(GENE2GO)
 	$(call section,gene ontology enrichment analysis (control data))
 	$(CONDA_ACTIVATE) preprocess
-	python bonesis-tools/clitools/genename.py data/rna/cluster/ct/tables/counts.h5ad data/rna/enrichment/ct/background.txt
-	$(eval CLUSTER := $(shell column -s, -t < $< | awk 'NR>1 {print $$2}' | sort -u))
+	python bonesis-tools/clitools/genename.py $< $(@D)/background.txt
+	$(eval CLUSTER := $(shell column -s, -t < $(word 2,$^) | awk 'NR>1 {print $$2}' | sort -u))
 	for cluster in $(CLUSTER)
 	do
-		`column -s, -t < $< | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
+		`column -s, -t < $(word 2,$^) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
 		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
 	done
+	python pipeline/preprocess/enrichment.py $@ \
+    	--population $(@D)/background.txt \
+    	--study $(@D)/cluster*.txt \
+    	--go $(word 3,$^) \
+    	--gene2go $(word 4,$^) \
+    	--verbose
+	rm $(@D)/background.txt $(@D)/cluster*.txt
 	$(CONDA_DEACTIVATE)

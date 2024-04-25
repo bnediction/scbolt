@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 
-# wget --quiet --show-progress --directory-prefix=data/public/enrichment https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
-# wget --quiet --show-progress --directory-prefix=data/public/enrichment https://current.geneontology.org/annotations/mgi.gaf.gz
-# https://geneontology.org/docs/download-go-annotations/
-
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -93,16 +89,7 @@ parser.add_argument(
     help="display additional information"
 )
 
-arguments = """data/rna/enrichment/ct/goea.xlsx \
-    --population data/rna/enrichment/ct/background.txt \
-    --study data/rna/enrichment/ct/cluster0.txt data/rna/enrichment/ct/cluster2.txt data/rna/enrichment/ct/cluster4.txt data/rna/enrichment/ct/cluster6.txt data/rna/enrichment/ct/cluster1.txt  data/rna/enrichment/ct/cluster3.txt  data/rna/enrichment/ct/cluster5.txt \
-    --go data/public/enrichment/go-basic.obo \
-    --gene2go data/public/enrichment/gene2go \
-    --verbose"""
-
-# arguments = """data/rna/enrichment/ct/cluster0.txt data/rna/enrichment/ct/background.txt data/public/enrichment/go-basic.obo data/public/enrichment/mgi.gaf data/public/enrichment/gene2go --verbose"""
-# args = parser.parse_args()
-args = parser.parse_args(arguments.split())
+args = parser.parse_args()
 
 if args.go is None and args.annotations is None:
     raise argparse.ArgumentError("one of the following arguments is required: --go or --annotations")
@@ -175,8 +162,11 @@ for cluster, genes in study_ids.items():
     _goea_significant_results = [result for result in _goea_all_results if result.p_fdr_bh < 0.05]
     goea.wr_xlsx(f"{os.path.dirname(args.outfile)}/{cluster}", _goea_significant_results)
 
+print(f"Saving results...")
+
 with ExcelWriter(args.outfile) as xlsx_writer:
     for cluster in study_ids.keys():
         xlsx_infile = f"{os.path.dirname(args.outfile)}/{cluster}"
         goea_results = read_excel(xlsx_infile, sheet_name=0)
         goea_results.to_excel(xlsx_writer, sheet_name=cluster)
+        os.system(f"rm {xlsx_infile}")
