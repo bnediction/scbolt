@@ -9,7 +9,7 @@ warnings.filterwarnings("ignore")
 
 import argparse
 from pathlib import Path
-from utils.stdout import Section
+from utils.stdout import Section, disable_print
 
 from databases.genesyn import GeneSynonyms
 
@@ -80,34 +80,37 @@ print(f"Loading data...")
 
 section("Loading background gene set...", reset=True)
 
-study_ids = read_geneset(args.study)
-study_ids = genesynonyms.sequence_standardization(
-    gene_sequence=study_ids,
-    in_alias_type="genename",
-    out_alias_type="geneid"
-)
-if None in study_ids:
-    study_ids.remove(None)
-study_ids = set(map(int, study_ids))
+with disable_print():
+    study_ids = read_geneset(args.study)
+    study_ids = genesynonyms.sequence_standardization(
+        gene_sequence=study_ids,
+        in_alias_type="genename",
+        out_alias_type="geneid"
+    )
+    if None in study_ids:
+        study_ids.remove(None)
+    study_ids = set(map(int, study_ids))
 
-population_ids = read_geneset(args.population)
-population_ids = genesynonyms.sequence_standardization(
-    gene_sequence=population_ids,
-    in_alias_type="genename",
-    out_alias_type="geneid"
-)
-if None in population_ids:
-    population_ids.remove(None)
-population_ids = set(map(int, population_ids))
+    population_ids = read_geneset(args.population)
+    population_ids = genesynonyms.sequence_standardization(
+        gene_sequence=population_ids,
+        in_alias_type="genename",
+        out_alias_type="geneid"
+    )
+    if None in population_ids:
+        population_ids.remove(None)
+    population_ids = set(map(int, population_ids))
 
 section("Loading gene ontologies...")
 
-go_dag = GODag(args.go)
+with disable_print():
+    go_dag = GODag(args.go)
 
 section("Loading geneid-to-go associations...")
 
-annotations = Gene2GoReader(args.gene2go, taxids=[10090])
-associations = annotations.get_ns2assc()
+with disable_print():
+    annotations = Gene2GoReader(args.gene2go, taxids=[10090])
+    associations = annotations.get_ns2assc()
 
 if args.verbose:
     for namespace, geneid2go in associations.items():
@@ -119,12 +122,15 @@ if args.verbose:
 
 print(f"Gene Ontology Enrichment Analysis...")
 
-goea = GOEnrichmentStudyNS(
-    pop=population_ids,
-    ns2assoc=associations,
-    godag=go_dag,
-    propagate_counts=False,
-    alpha=0.05,
-    methods=['fdr_bh']
-)
+with disable_print():
+    goea = GOEnrichmentStudyNS(
+        pop=population_ids,
+        ns2assoc=associations,
+        godag=go_dag,
+        propagate_counts=False,
+        alpha=0.05,
+        methods=['fdr_bh']
+    )
 
+goea_results = goea.run_study(study_ids)
+goea.wr_xlsx("nbt3102_geneids.xlsx", goea_results)
