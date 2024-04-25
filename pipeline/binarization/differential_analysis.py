@@ -20,9 +20,9 @@ import numpy as np
 
 import itertools
 import networkx as nx
-import graphtools as gtl
+import grntools as gtl
 
-from utils.genesyn import GeneSynonyms
+from databases.genesyn import GeneSynonyms
 
 def collectri_to_grn(
     collectri: pd.DataFrame,
