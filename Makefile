@@ -252,7 +252,8 @@ $(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD)_labels.h5ad: $(INTEGRATION)
 $(GO):
 	$(call section,download GO go-basic.obo file)
 	mkdir -p $(@D)
-	wget --quiet --show-progress -cO $@ https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
+	wget --quiet --show-progress -cO $@ http://purl.obolibrary.org/obo/go/go-basic.obo
+#	wget --quiet --show-progress -cO $@ https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
 
 $(GENE2GO):
 	$(call section,download NCBI gene2go file)
@@ -280,7 +281,7 @@ $(ENRICHMENT_CT): $(CLUSTER_CT) $(MARKERS_CT) $(GO) $(GENE2GO)
     	--population $(@D)/background.txt \
     	--study $(@D)/cluster*.txt \
     	--go $(word 3,$^) \
-    	--gene2go $(word 4,$^) \
+    	--gene2go $(lastword $^) \
     	--verbose
 	rm $(@D)/background.txt $(@D)/cluster*.txt
 	$(CONDA_DEACTIVATE)

@@ -87,5 +87,6 @@ todo.*
 
 ### Related-repository ###
 !.pipeline.png
+*.obo
 supplemental/
 bonesis-tools/

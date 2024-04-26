@@ -8,6 +8,8 @@ import argparse
 from pathlib import Path
 from utils.stdout import Section
 
+import re
+
 from pandas import (
     ExcelWriter,
     read_excel
@@ -24,7 +26,7 @@ from goatools.goea.go_enrichment_ns import GOEnrichmentStudyNS
 parser = argparse.ArgumentParser(
     prog="Gene enrichment analysis",
     description="""Perform gene ontology enrichment analysis.""",
-    usage="python enrichment.py [-h] <FILE> --population <FILE> --study <FILE> [<FILE> ...] --go|--annotations <FILE> --gene2go <FILE> [-v]"
+    usage="python enrichment.py [-h] <FILE> --population <FILE> --study <FILE> [<FILE> ...] --go <FILE> --gene2go|--annotations <FILE> [-v]"
 )
 
 parser.add_argument(
@@ -134,6 +136,27 @@ section("Loading gene ontologies...")
 
 go_dag = GODag(args.go)
 
+with open(args.go, "r") as go_reader:
+    go_definitions = dict()
+    for line in go_reader:
+        if re.search("^id: GO:[0-9]{7}", line):
+            _id = re.findall("GO:[0-9]{7}|$", line)[0]
+        elif re.search("^def: \".+\.\"", line):
+            _definition = re.findall("^def: \".+\.\"|$", line)[0]
+            _definition = re.sub("^def: \"", "", _definition)
+            _definition = re.sub("\"$", "", _definition)
+        elif line == "\n":
+            if "_id" in locals() and "_definition" in locals():
+                if _id != "" and _definition != "":
+                    go_definitions[_id] = _definition
+                del _id, _definition
+            elif "_id" in locals():
+                del _id
+            elif "_definition" in locals():
+                del _definition
+            else:
+                continue
+
 section("Loading gene-to-go associations...")
 
 if args.gene2go:
@@ -168,5 +191,14 @@ with ExcelWriter(args.outfile) as xlsx_writer:
     for cluster in study_ids.keys():
         xlsx_infile = f"{os.path.dirname(args.outfile)}/{cluster}"
         goea_results = read_excel(xlsx_infile, sheet_name=0)
+        for index, row in goea_results.iterrows():
+            _go = row["GO"]
+            if _go in go_definitions:
+                goea_results.at[index, "definition"] = go_definitions[_go]
+        column_names = list(goea_results.columns)
+        idx_study_items, idx_definition = column_names.index("study_items"), column_names.index("definition")
+        column_names[idx_definition], column_names[idx_study_items] = column_names[idx_study_items], column_names[idx_definition]
+        goea_results = goea_results[column_names]
+        goea_results.sort_values(by="p_fdr_bh", axis=0, ascending=True)
         goea_results.to_excel(xlsx_writer, sheet_name=cluster)
         os.system(f"rm {xlsx_infile}")
