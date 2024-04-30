@@ -30,10 +30,11 @@ CLUSTER_CT = $(RNA)/cluster/ct/tables/counts.h5ad
 CLUSTER_RA = $(RNA)/cluster/ra/tables/counts.h5ad
 MARKERS_CT = $(RNA)/markers/ct/markers.csv
 MARKERS_RA = $(RNA)/markers/ra/markers.csv
-ENRICHMENT_CT = $(RNA)/enrichment/ct/goea.xlsx
 GO = $(PUBLIC)/enrichment/go-basic.obo
 GENE2GO = $(PUBLIC)/enrichment/gene2go
 MGI_GAF = $(PUBLIC)/enrichment/mgi.gaf
+OVER_REPRESENTATION_CT = $(RNA)/enrichment/ct/background.txt
+ENRICHMENT_CT = $(RNA)/enrichment/ct/goea.xlsx
 
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
@@ -267,21 +268,27 @@ $(MGI_GAF):
 	wget --quiet --show-progress --directory-prefix=$(@D) https://current.geneontology.org/annotations/mgi.gaf.gz
 	gunzip $@.gz
 
-$(ENRICHMENT_CT): $(CLUSTER_CT) $(MARKERS_CT) $(GO) $(GENE2GO)
-	$(call section,gene ontology enrichment analysis (control data))
+$(OVER_REPRESENTATION_CT): $(CLUSTER_CT) $(MARKERS_CT)
+	$(call section,over-representation gene set (control data))
 	$(CONDA_ACTIVATE) preprocess
-	python bonesis-tools/clitools/genename.py $< $(@D)/background.txt
-	$(eval CLUSTER := $(shell column -s, -t < $(word 2,$^) | awk 'NR>1 {print $$2}' | sort -u))
+	@echo -e 'compute background genes'
+	python bonesis-tools/clitools/genename.py $< $@
+	$(eval CLUSTER := $(shell column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u))
+	@echo -e 'compute over-representated cluster-related genes'
 	for cluster in $(CLUSTER)
 	do
-		`column -s, -t < $(word 2,$^) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
+		`column -s, -t < $(lastword $^) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
 		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
 	done
+	$(CONDA_DEACTIVATE)
+
+$(ENRICHMENT_CT): $(OVER_REPRESENTATION_CT) $(GO) $(GENE2GO)
+	$(call section,gene ontology enrichment analysis (control data))
+	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
-    	--population $(@D)/background.txt \
-    	--study $(@D)/cluster*.txt \
-    	--go $(word 3,$^) \
+    	--population $< \
+    	--study $(<D)/cluster*.txt \
+    	--go $(word 2,$^) \
     	--gene2go $(lastword $^) \
     	--verbose
-	rm $(@D)/background.txt $(@D)/cluster*.txt
 	$(CONDA_DEACTIVATE)
