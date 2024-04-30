@@ -30,11 +30,13 @@ CLUSTER_CT = $(RNA)/cluster/ct/tables/counts.h5ad
 CLUSTER_RA = $(RNA)/cluster/ra/tables/counts.h5ad
 MARKERS_CT = $(RNA)/markers/ct/markers.csv
 MARKERS_RA = $(RNA)/markers/ra/markers.csv
-GO = $(PUBLIC)/enrichment/go-basic.obo
+GO_BASIC = $(PUBLIC)/enrichment/go-basic.obo
+GO_MOUSE = $(PUBLIC)/enrichment/goslim_mouse.obo
 GENE2GO = $(PUBLIC)/enrichment/gene2go
 MGI_GAF = $(PUBLIC)/enrichment/mgi.gaf
 OVER_REPRESENTATION_CT = $(RNA)/enrichment/ct/background.txt
-ENRICHMENT_CT = $(RNA)/enrichment/ct/goea.xlsx
+ENRICHMENT_BASIC_CT = $(RNA)/enrichment/ct/goea_basic.xlsx
+ENRICHMENT_MOUSE_CT = $(RNA)/enrichment/ct/goea_mouse.xlsx
 
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
@@ -73,7 +75,7 @@ cluster-ctrl: $(CLUSTER_CT)
 cluster-treated: $(CLUSTER_RA)
 cluster: cluster-ctrl cluster-treated
 load-go: $(GO) $(GENE2GO) $(MGI_GAF)
-go-enrichment: $(ENRICHMENT_CT)
+go-enrichment: $(ENRICHMENT_BASIC_CT) $(ENRICHMENT_MOUSE_CT)
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
@@ -250,11 +252,15 @@ $(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD)_labels.h5ad: $(INTEGRATION)
 	$(CONDA_DEACTIVATE)
 
 
-$(GO):
+$(GO_BASIC):
 	$(call section,download GO go-basic.obo file)
 	mkdir -p $(@D)
 	wget --quiet --show-progress -cO $@ http://purl.obolibrary.org/obo/go/go-basic.obo
-#	wget --quiet --show-progress -cO $@ https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
+
+$(GO_MOUSE):
+	$(call section,download GO goslim_mouse.obo)
+	mkdir -p $(@D)
+	wget --quiet --show-progress -cO $@ https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
 
 $(GENE2GO):
 	$(call section,download NCBI gene2go file)
@@ -282,8 +288,19 @@ $(OVER_REPRESENTATION_CT): $(CLUSTER_CT) $(MARKERS_CT)
 	done
 	$(CONDA_DEACTIVATE)
 
-$(ENRICHMENT_CT): $(OVER_REPRESENTATION_CT) $(GO) $(GENE2GO)
-	$(call section,gene ontology enrichment analysis (control data))
+$(ENRICHMENT_BASIC_CT): $(OVER_REPRESENTATION_CT) $(GO_BASIC) $(GENE2GO)
+	$(call section,gene ontology enrichment analysis (control data, with go-basic.obo))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/enrichment.py $@ \
+    	--population $< \
+    	--study $(<D)/cluster*.txt \
+    	--go $(word 2,$^) \
+    	--gene2go $(lastword $^) \
+    	--verbose
+	$(CONDA_DEACTIVATE)
+
+$(ENRICHMENT_MOUSE_CT): $(OVER_REPRESENTATION_CT) $(GO_MOUSE) $(GENE2GO)
+	$(call section,gene ontology enrichment analysis (control data, with goslim_mouse.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
     	--population $< \
