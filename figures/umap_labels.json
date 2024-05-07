@@ -1,17 +1,15 @@
 {
-    "infile": "data/rna/integration/tables/bbknn_labels.h5ad",
-    "outfile": "figures/results/umap_labels",
     "modules": [
         {"numpy": "np"},
         {"anndatatools": "adt"}
     ],
     "eval": [
-        "colors",
         "xlabel",
         "ylabel",
         "zlabel",
         ["lgd_params", "labels"],
-        ["lgd_params", "edgecolor"]
+        ["lgd_params", "edgecolor"],
+        "n_components"
     ],
     "figure": {
         "obs": "leiden",
@@ -21,7 +19,6 @@
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "colors": "adt.pl.color.LIGHT_COLORS",
         "add_graph": false,
         "add_text": false,
         "add_legend": true,
@@ -40,7 +37,7 @@
             "fontsize": 12,
             "fontweight": "extra bold"
         },
-        "n_components": 3,
+        "n_components": "3 if adata.obsm['X_umap'].shape[1] > 2 and args.plot_3d is True else 2",
         "background_visible": false
     }
 }

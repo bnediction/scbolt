@@ -37,6 +37,9 @@ MGI_GAF = $(PUBLIC)/enrichment/mgi.gaf
 OVER_REPRESENTATION_CT = $(RNA)/enrichment/ct/background.txt
 ENRICHMENT_BASIC_CT = $(RNA)/enrichment/ct/goea_basic.xlsx
 ENRICHMENT_MOUSE_CT = $(RNA)/enrichment/ct/goea_mouse.xlsx
+ENRICHMENT_BASIC_RA = $(RNA)/enrichment/ra/goea_basic.xlsx
+ENRICHMENT_MOUSE_RA = $(RNA)/enrichment/ra/goea_mouse.xlsx
+LABELS_CT = $(dir $(CLUSTER_CT))/counts_labels.h5ad
 
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
@@ -76,6 +79,7 @@ cluster-treated: $(CLUSTER_RA)
 cluster: cluster-ctrl cluster-treated
 load-go: $(GO) $(GENE2GO) $(MGI_GAF)
 go-enrichment: $(ENRICHMENT_BASIC_CT) $(ENRICHMENT_MOUSE_CT)
+label-ctrl: $(LABELS_CT)
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
@@ -157,10 +161,12 @@ $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES)):
 
 $(lastword $(SIGNATURES)): $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
 	$(call section,convert signatures)
+	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/load_signatures.py \
 		--list-infile $(firstword $^) \
 		--table-infile $(lastword $^) \
   		--outfile $@
+	$(CONDA_DEACTIVATE)
 
 $(NORMALISATION_CT): $(FILTER_CT)
 	$(call section,normalization (control data))
@@ -186,20 +192,20 @@ $(CLUSTER_CT): $(NORMALISATION_CT) $(lastword $(SIGNATURES))
 	$(call section,clustering (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/clusters.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
-		--hvg --metric euclidean --k-neighbors 20 --resolution 0.5 \
+		--hvg --metric euclidean --k-neighbors 20 --resolution 0.45 \
 		--dim-pca 50 --dim-clustering 15 --dim-umap 2 \
 		--add-legend \
-		--seed 0 --verbose
+		--seed 6 --verbose
 	$(CONDA_DEACTIVATE)
 
 $(CLUSTER_RA): $(NORMALISATION_RA)
 	$(call section,clustering (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/clusters.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
-		--hvg --metric euclidean --k-neighbors 20 --resolution 0.5 \
+		--hvg --metric euclidean --k-neighbors 20 --resolution 0.4 \
 		--dim-pca 50 --dim-clustering 15 --dim-umap 2 \
 		--add-legend \
-		--seed 10 --verbose
+		--seed 1 --verbose
 	$(CONDA_DEACTIVATE)
 
 $(MARKERS_CT): $(CLUSTER_CT) $(lastword $(SIGNATURES))
@@ -219,6 +225,91 @@ $(MARKERS_RA): $(CLUSTER_RA) $(lastword $(SIGNATURES))
   		--logfc-threshold 0.25 \
   		--verbose
 	$(CONDA_DEACTIVATE)
+
+$(OVER_REPRESENTATION_CT): $(CLUSTER_CT) $(MARKERS_CT)
+	$(call section,over-representation gene set (control data))
+	$(CONDA_ACTIVATE) preprocess
+	@echo -e 'compute background genes'
+	python bonesis-tools/clitools/genename.py $< $@
+	$(eval CLUSTER := $(shell column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u))
+	@echo -e 'compute over-representated cluster-related genes'
+	for cluster in $(CLUSTER)
+	do
+		`column -s, -t < $(lastword $^) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
+		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
+	done
+	$(CONDA_DEACTIVATE)
+
+$(ENRICHMENT_BASIC_CT): $(OVER_REPRESENTATION_CT) $(GO_BASIC) $(GENE2GO)
+	$(call section,gene ontology enrichment analysis (control data, with go-basic.obo))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/enrichment.py $@ \
+    	--population $< \
+    	--study $(<D)/cluster*.txt \
+    	--go $(word 2,$^) \
+    	--gene2go $(lastword $^) \
+    	--verbose
+	$(CONDA_DEACTIVATE)
+
+$(ENRICHMENT_MOUSE_CT): $(OVER_REPRESENTATION_CT) $(GO_MOUSE) $(GENE2GO)
+	$(call section,gene ontology enrichment analysis (control data, with goslim_mouse.obo))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/enrichment.py $@ \
+    	--population $< \
+    	--study $(<D)/cluster*.txt \
+    	--go $(word 2,$^) \
+    	--gene2go $(lastword $^) \
+    	--verbose
+	$(CONDA_DEACTIVATE)
+
+$(OVER_REPRESENTATION_RA): $(CLUSTER_RA) $(MARKERS_RA)
+	$(call section,over-representation gene set (treated data))
+	$(CONDA_ACTIVATE) preprocess
+	@echo -e 'compute background genes'
+	python bonesis-tools/clitools/genename.py $< $@
+	$(eval CLUSTER := $(shell column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u))
+	@echo -e 'compute over-representated cluster-related genes'
+	for cluster in $(CLUSTER)
+	do
+		`column -s, -t < $(lastword $^) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
+		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
+	done
+	$(CONDA_DEACTIVATE)
+
+$(ENRICHMENT_BASIC_RA): $(OVER_REPRESENTATION_RA) $(GO_BASIC) $(GENE2GO)
+	$(call section,gene ontology enrichment analysis (treated data, with go-basic.obo))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/enrichment.py $@ \
+    	--population $< \
+    	--study $(<D)/cluster*.txt \
+    	--go $(word 2,$^) \
+    	--gene2go $(lastword $^) \
+    	--verbose
+	$(CONDA_DEACTIVATE)
+
+$(ENRICHMENT_MOUSE_RA): $(OVER_REPRESENTATION_RA) $(GO_MOUSE) $(GENE2GO)
+	$(call section,gene ontology enrichment analysis (treated data, with goslim_mouse.obo))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/enrichment.py $@ \
+    	--population $< \
+    	--study $(<D)/cluster*.txt \
+    	--go $(word 2,$^) \
+    	--gene2go $(lastword $^) \
+    	--verbose
+	$(CONDA_DEACTIVATE)
+
+$(LABELS_CT): $(CLUSTER_CT)
+	$(call section,assign cell types (control data))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/label_clusters.py $< $@ \
+		--column leiden \
+		--name 0=Trans 1=Prom2 2=Rep 3=Gran 4=Prom3 5=Prom1
+	python figures/plot_embedding.py figures/umap_labels_2D.json \
+		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
+	$(CONDA_DEACTIVATE)
+
+
+
 
 $(INTEGRATION): $(NORMALISATION_CT) $(NORMALISATION_RA)
 	$(call section,integration)
@@ -274,38 +365,3 @@ $(MGI_GAF):
 	wget --quiet --show-progress --directory-prefix=$(@D) https://current.geneontology.org/annotations/mgi.gaf.gz
 	gunzip $@.gz
 
-$(OVER_REPRESENTATION_CT): $(CLUSTER_CT) $(MARKERS_CT)
-	$(call section,over-representation gene set (control data))
-	$(CONDA_ACTIVATE) preprocess
-	@echo -e 'compute background genes'
-	python bonesis-tools/clitools/genename.py $< $@
-	$(eval CLUSTER := $(shell column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u))
-	@echo -e 'compute over-representated cluster-related genes'
-	for cluster in $(CLUSTER)
-	do
-		`column -s, -t < $(lastword $^) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
-		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
-	done
-	$(CONDA_DEACTIVATE)
-
-$(ENRICHMENT_BASIC_CT): $(OVER_REPRESENTATION_CT) $(GO_BASIC) $(GENE2GO)
-	$(call section,gene ontology enrichment analysis (control data, with go-basic.obo))
-	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/enrichment.py $@ \
-    	--population $< \
-    	--study $(<D)/cluster*.txt \
-    	--go $(word 2,$^) \
-    	--gene2go $(lastword $^) \
-    	--verbose
-	$(CONDA_DEACTIVATE)
-
-$(ENRICHMENT_MOUSE_CT): $(OVER_REPRESENTATION_CT) $(GO_MOUSE) $(GENE2GO)
-	$(call section,gene ontology enrichment analysis (control data, with goslim_mouse.obo))
-	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/enrichment.py $@ \
-    	--population $< \
-    	--study $(<D)/cluster*.txt \
-    	--go $(word 2,$^) \
-    	--gene2go $(lastword $^) \
-    	--verbose
-	$(CONDA_DEACTIVATE)
