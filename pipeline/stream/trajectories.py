@@ -34,30 +34,25 @@ def tree_to_trajectories(flat_tree) -> list:
     return [node_to_value(_branch, labels) for _branch in branches]
 
 parser = argparse.ArgumentParser(
-    prog="trajectory inference of sc-RNAseq data",
-    description="""From sc-RNAseq data recorded in hdf5 pickle format with pre-computed stream pseudotime,
+    prog="trajectory inference",
+    description="""Using sc-RNAseq data recorded in hdf5 pickle format with pre-computed stream pseudotime,
     compute cell phenotype trajectories based on STREAM method \
     (see Chen et al. (2019): <https://www.nature.com/articles/s41467-019-09670-4>).""",
-    usage=""""python trajectories.py [-h] -i <path> -r <int> [<args>]"""
+    usage=""""python trajectories.py [-h] <FILE> <PATH> [--root <INT> <args>]"""
 )
 
 parser.add_argument(
-    "-i", "--infile",
-    dest="infile",
+    "infile",
     type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
-    help="path to .h5ad file (including file)"
+    metavar="FILE",
+    help="file in h5ad format"
 )
 
 parser.add_argument(
-    "-o", "--outpath",
-    dest="outpath",
+    "outpath",
     type=lambda x: Path(x).resolve(),
-    required=False,
-    default=Path("./trajectories").resolve(),
     metavar="PATH",
-    help="output path (default: ./trajectories)"
+    help="output path"
 )
 
 parser.add_argument(
@@ -74,7 +69,8 @@ parser.add_argument(
     "-r", "--root",
     dest="root",
     type=int,
-    required=True,
+    required=False,
+    default=0,
     metavar="INT",
     help="root of the elastic principal graph"
 )

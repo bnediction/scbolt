@@ -42,13 +42,14 @@ ENRICHMENT_MOUSE_CT = $(RNA)/enrichment/ct/goea_mouse.xlsx
 ENRICHMENT_BASIC_RA = $(RNA)/enrichment/ra/goea_basic.xlsx
 ENRICHMENT_MOUSE_RA = $(RNA)/enrichment/ra/goea_mouse.xlsx
 LABELS_CT = $(dir $(CLUSTER_CT))/counts_labels.h5ad
-PSEUDOTIME_CT = data/rna/pseudotime/tables/stream.h5ad.pkl
+PSEUDOTIME_CT = $(RNA)/stream/pseudotime/tables/stream.h5ad.pkl
+TRAJECTORIES_CT = $(RNA)/stream/trajectories/tables/stream.h5ad.pkl
 
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
 
 define section
-	echo -e '$(RED)===== $(1) =====$(NC)'
+	@echo -e '$(RED)===== $(1) =====$(NC)'
 endef
 
 all: $(MARKERS_CT) $(MARKERS_RA)
@@ -84,6 +85,8 @@ load-go: $(GO) $(GENE2GO) $(MGI_GAF)
 go-enrichment: $(ENRICHMENT_BASIC_CT) $(ENRICHMENT_MOUSE_CT)
 label-ctrl: $(LABELS_CT)
 pseudotime-ctrl: $(PSEUDOTIME_CT)
+trajectories-ctrl: $(TRAJECTORIES_CT)
+stream-ctrl: trajectories-ctrl
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
@@ -174,7 +177,6 @@ $(lastword $(SIGNATURES)): $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
 
 $(NORMALISATION_CT): $(FILTER_CT)
 	$(call section,normalization (control data))
-	$(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/normalization.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
 		--correction G2M_score S_score G1_score \
@@ -184,7 +186,6 @@ $(NORMALISATION_CT): $(FILTER_CT)
 
 $(NORMALISATION_RA): $(FILTER_RA)
 	$(call section,normalization (treated data))
-	$(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/normalization.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
 		--correction G2M_score S_score G1_score \
@@ -315,23 +316,27 @@ $(LABELS_CT): $(CLUSTER_CT)
 $(PSEUDOTIME_CT): $(LABELS_CT)
 	$(call section,trajectory analysis (stream pseudotime, control data))
 	$(CONDA_ACTIVATE) stream
-	python pipeline/stream/pseudotime.py \
-		$< $(shell echo $(dir $@) | sed "s/tables\///") \
-		--extension both \
-		--cluster-number 6 \
-		--groups leiden \
+	python pipeline/stream/pseudotime.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+		--extension both --cluster-number 6 --groups leiden \
 		--lambda 0.05 --mu 0.05 --alpha 0.03 \
 		--extend-leaf-nodes --extend-mode WeigthedCentroid --extend-parameter 0.8 \
 		--add-legend --add-graph \
 		--jobs $(JOBS)
 	$(CONDA_DEACTIVATE)
 
+$(TRAJECTORIES_CT): $(PSEUDOTIME_CT)
+	$(call section,trajectory analysis (stream trajectories, control data))
+	$(CONDA_ACTIVATE) stream
+	python pipeline/stream/trajectories.py $< $(shell echo $(dir $@) | sed "s/tables\///") --root 0 \
+		--groups leiden kmeans node_clusters \
+		--add-legend --add-graph
+	$(CONDA DEACTIVATE)
 
 
+### INTEGRATION ###
 
 $(INTEGRATION): $(NORMALISATION_CT) $(NORMALISATION_RA)
 	$(call section,integration)
-	$(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/integration.py $^ $(shell echo $(dir $@) | sed "s/tables\///") \
 		--label condition --method $(INTEGRATION_METHOD) \
