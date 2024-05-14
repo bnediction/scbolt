@@ -6,7 +6,7 @@ warnings.filterwarnings("ignore")
 import os, argparse
 import pickle
 from pathlib import Path
-from utils.argtype import Store_prefix, Range
+from utils.argtype import Store_boolean, Store_prefix, Range
 from utils.stdout import disable_print
 
 import anndata as ad, anndatatools as adt, stream as st
@@ -22,28 +22,23 @@ from anndatatools.plotting import color
 
 parser = argparse.ArgumentParser(
     prog="pseudotime computation of sc-RNAseq data",
-    description="""From sc-RNAseq data recorded in hdf5 format, compute pseudotime based on STREAM method \
+    description="""compute pseudotime based on STREAM method \
     (see Chen et al. (2019): <https://www.nature.com/articles/s41467-019-09670-4>).""",
-    usage=""""python pseudotime.py [-h] -i <path> [<args>]"""
+    usage=""""python pseudotime.py [-h] <FILE> <PATH> [<args>]"""
 )
 
 parser.add_argument(
-    "-i", "--infile",
-    dest="infile",
+    "infile",
     type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
-    help="path to .h5ad file (including file)"
+    metavar="FILE",
+    help="file in h5ad format"
 )
 
 parser.add_argument(
-    "-o", "--outpath",
-    dest="outpath",
+    "outpath",
     type=lambda x: Path(x).resolve(),
-    required=False,
-    default=Path("./pseudotime").resolve(),
     metavar="PATH",
-    help="output path (default: ./pseudotime)"
+    help="output path"
 )
 
 parser.add_argument(
@@ -59,9 +54,10 @@ parser.add_argument(
 parser.add_argument(
     "--st", "--save-tables",
     dest="save_tables",
+    action=Store_boolean,
     required=False,
-    action="store_true",
-    help="save the anndata object"
+    default=True,
+    help="save the anndata object (default: yes)"
 )
 
 parser.add_argument(
@@ -300,7 +296,7 @@ print("Loading data...")
 
 adata = ad.read_h5ad(args.infile)
 adata.obs_names_make_unique()
-adata.uns["workdir"] = args.outpath
+adata.uns["workdir"] = str(args.outpath)
 
 if args.use_stream_embedding is True and args.obsm is not None:
     raise argparse.ArgumentError("--use-stream-embedding and --obsm arguments cannot be used simultaneously.")
@@ -403,7 +399,7 @@ for _group in groups:
         add_legend=args.legend if _group != "node_clusters" else False,
         figwidth=6 if args.legend else 5,
         s=2,
-        alpha=0.4 if not is_float_dtype(adata.obs[_group]) else 0.7,
+        alpha=0.4 if (args.plot_3d and not is_float_dtype(adata.obs[_group])) else 0.7,
         lgd_params={
             "title":"clusters" if _group != "condition" else "conditions",
             "labels":[string.replace("cluster ","") for string in sorted(adata.obs[_group].unique())],
@@ -430,7 +426,10 @@ if args.save_tables:
 
     print("Saving data...")
 
+    if args.extension == "pkl" or args.extension == "both":
+        st.write(adata, file_name=f"{data_outpath}/{args.prefix}stream.h5ad.pkl")
     if args.extension == "h5ad" or args.extension == "both":
+        del adata.uns["workdir"]
         for key in list(adata.obs.keys()):
             if isinstance (adata.obs[key][0], tuple):
                 del adata.obs[key]
@@ -440,5 +439,3 @@ if args.save_tables:
             if key.startswith("stream_S"):
                 del adata.uns[key]
         adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}stream.h5ad", compression="gzip")
-    elif args.extension == "pkl" or args.extension == "both":
-        st.write(adata, file_name=f"{data_outpath}/{args.prefix}stream.h5ad.pkl")

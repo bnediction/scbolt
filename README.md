@@ -1,6 +1,6 @@
 # Boolean Networks Inference for Explaining Treatment-Resistant Leukemia
 
-# Description
+## Description
 
 This project proposes a general methodology for inferring executable models reproducing *in silico*
 the observed cellular dynamics from two conditions/experiences. The result is a semi-automatic software
@@ -9,9 +9,9 @@ leukemia (granulocyte lineage hematopoietic cells remain immature promyelocytic 
 niche for which the current usual treatment is inefficient: the PLZF-RARA variant which does not
 answer to the retinoic acid treatment.
 
-# Installation
+## Installation
 
-## Using *Bash*
+### Using *Bash*
 
 Setup prerequisites must be verified:
 1. verify that *latex* markup language is already installed. If not, please use:
@@ -31,14 +31,14 @@ Run the pipeline:
 bash pipeline.sh
 ```
 
-# Pipeline
+## Pipeline
 
 <img src=".pipeline.png" alt="boolean network inference pipeline image" width="600"/>
 
-# License
+## License
 
-For open source projects, say how it is licensed.
+No license for the moment. Its purpose is only for intern usage.
 
-# Project status
+## Project status
 
 Ongoing

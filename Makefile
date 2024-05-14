@@ -8,6 +8,8 @@ SHELL = /bin/bash
 NC = \033[0m
 RED = \033[0;31m
 
+$(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
+
 CONDA_ACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
 CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda deactivate ; conda deactivate
 
@@ -40,6 +42,7 @@ ENRICHMENT_MOUSE_CT = $(RNA)/enrichment/ct/goea_mouse.xlsx
 ENRICHMENT_BASIC_RA = $(RNA)/enrichment/ra/goea_basic.xlsx
 ENRICHMENT_MOUSE_RA = $(RNA)/enrichment/ra/goea_mouse.xlsx
 LABELS_CT = $(dir $(CLUSTER_CT))/counts_labels.h5ad
+PSEUDOTIME_CT = data/rna/pseudotime/tables/stream.h5ad.pkl
 
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
@@ -80,6 +83,7 @@ cluster: cluster-ctrl cluster-treated
 load-go: $(GO) $(GENE2GO) $(MGI_GAF)
 go-enrichment: $(ENRICHMENT_BASIC_CT) $(ENRICHMENT_MOUSE_CT)
 label-ctrl: $(LABELS_CT)
+pseudotime-ctrl: $(PSEUDOTIME_CT)
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
@@ -304,8 +308,22 @@ $(LABELS_CT): $(CLUSTER_CT)
 	python pipeline/preprocess/label_clusters.py $< $@ \
 		--column leiden \
 		--name 0=Trans 1=Prom2 2=Rep 3=Gran 4=Prom3 5=Prom1
-	python figures/plot_embedding.py figures/umap_labels_2D.json \
+	python figures/plot_embedding.py figures/umap_labels.json \
 		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
+	$(CONDA_DEACTIVATE)
+
+$(PSEUDOTIME_CT): $(LABELS_CT)
+	$(call section,trajectory analysis (stream pseudotime, control data))
+	$(CONDA_ACTIVATE) stream
+	python pipeline/stream/pseudotime.py \
+		$< $(shell echo $(dir $@) | sed "s/tables\///") \
+		--extension both \
+		--cluster-number 6 \
+		--groups leiden \
+		--lambda 0.05 --mu 0.05 --alpha 0.03 \
+		--extend-leaf-nodes --extend-mode WeigthedCentroid --extend-parameter 0.8 \
+		--add-legend --add-graph \
+		--jobs $(JOBS)
 	$(CONDA_DEACTIVATE)
 
 
