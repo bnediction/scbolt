@@ -186,26 +186,21 @@ parser = argparse.ArgumentParser(
     description="""From concatenated sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad), \
         compute cluster-related binarization based on scBoolSeq \
         method (see Magaña López et al. (2023): <https://hal.science/hal-04294917/>).""",
-    usage=""""python bin_clusters.py [-h] -i <path> -c <literal> [<args>]"""
+    usage=""""python bin_clusters.py [-h] <FILE> <PATH> -c <LITERAL> [<args>]"""
 )
 
 parser.add_argument(
-    "-i", "--infile",
-    dest="infile",
+    "infile",
     type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
-    help="path to .h5ad file (including file)"
+    metavar="FILE",
+    help="file in h5ad format"
 )
 
 parser.add_argument(
-    "-o", "--outpath",
-    dest="outpath",
+    "outpath",
     type=lambda x: Path(x).resolve(),
-    required=False,
-    default=Path("./binarization").resolve(),
     metavar="PATH",
-    help="output path (default: ./binarization)"
+    help="output path"
 )
 
 parser.add_argument(
@@ -356,7 +351,7 @@ cluster_d = dict()
 predict_d = dict()
 for _group in args.groupby:
     if len(args.groupby) > 1:
-        print(f"\tcomputation for `{_group}` cluster")
+        print(f"\tcomputation for cluster `{_group}`")
     _cell_df = merge(
         cell_df,
         adata.obs.loc[:,_group],

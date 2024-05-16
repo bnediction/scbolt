@@ -60,5 +60,3 @@ for environment in preprocess stream binarization bonesis
 do
     install_env $environment
 done
-
-download_ncbi_gi ${develop_dir}/utils

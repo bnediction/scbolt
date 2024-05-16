@@ -42,8 +42,9 @@ ENRICHMENT_MOUSE_CT = $(RNA)/enrichment/ct/goea_mouse.xlsx
 ENRICHMENT_BASIC_RA = $(RNA)/enrichment/ra/goea_basic.xlsx
 ENRICHMENT_MOUSE_RA = $(RNA)/enrichment/ra/goea_mouse.xlsx
 LABELS_CT = $(dir $(CLUSTER_CT))/counts_labels.h5ad
-PSEUDOTIME_CT = $(RNA)/stream/pseudotime/tables/stream.h5ad.pkl
-TRAJECTORIES_CT = $(RNA)/stream/trajectories/tables/stream.h5ad.pkl
+PSEUDOTIME_CT = $(RNA)/stream/pseudotime/ct/tables/stream.h5ad.pkl
+TRAJECTORIES_CT = $(RNA)/stream/trajectories/ct/branches.txt
+SCBOOLSEQ_CT = $(RNA)/binarization/ct
 
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
@@ -87,6 +88,7 @@ label-ctrl: $(LABELS_CT)
 pseudotime-ctrl: $(PSEUDOTIME_CT)
 trajectories-ctrl: $(TRAJECTORIES_CT)
 stream-ctrl: trajectories-ctrl
+scboolseq-ctrl: $(SCBOOLSEQ_CT)
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
@@ -318,7 +320,7 @@ $(PSEUDOTIME_CT): $(LABELS_CT)
 	$(CONDA_ACTIVATE) stream
 	python pipeline/stream/pseudotime.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
 		--extension both --cluster-number 6 --groups leiden \
-		--lambda 0.05 --mu 0.05 --alpha 0.03 \
+		--lambda 0.05 --mu 0.03 --alpha 0.03 \
 		--extend-leaf-nodes --extend-mode WeigthedCentroid --extend-parameter 0.8 \
 		--add-legend --add-graph \
 		--jobs $(JOBS)
@@ -327,9 +329,18 @@ $(PSEUDOTIME_CT): $(LABELS_CT)
 $(TRAJECTORIES_CT): $(PSEUDOTIME_CT)
 	$(call section,trajectory analysis (stream trajectories, control data))
 	$(CONDA_ACTIVATE) stream
-	python pipeline/stream/trajectories.py $< $(shell echo $(dir $@) | sed "s/tables\///") --root 0 \
+	python pipeline/stream/trajectories.py $< $(@D) --root 2 \
 		--groups leiden kmeans node_clusters \
 		--add-legend --add-graph
+	$(CONDA DEACTIVATE)
+
+$(SCBOOLSEQ_CT): $(PSEUDOTIME_CT)
+	$(call section,scBoolSeq binarization (control data))
+	$(CONDA_ACTIVATE) scboolseq
+	python pipeline/binarization/bin_clusters.py $(shell echo $< | sed "s/.pkl//") $@ \
+		--cluster leiden node_clusters --exclude nan \
+		--layer log-normalize --hvg \
+		--verbose
 	$(CONDA DEACTIVATE)
 
 
