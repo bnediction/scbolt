@@ -100,7 +100,7 @@ def sign_likelihood(
 parser = argparse.ArgumentParser(
     prog="computation of inter-cluster velocities",
     description="""compute velocity between cluster with respect to binarized meta-observations""",
-    usage=""""python velocity.py [-h] -i <path> <path> [<args>]"""
+    usage=""""python velocity.py [-h] -i <PATH> <PATH> [<args>]"""
 )
 
 parser.add_argument(

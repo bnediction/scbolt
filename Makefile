@@ -44,7 +44,8 @@ ENRICHMENT_MOUSE_RA = $(RNA)/enrichment/ra/goea_mouse.xlsx
 LABELS_CT = $(dir $(CLUSTER_CT))/counts_labels.h5ad
 PSEUDOTIME_CT = $(RNA)/stream/pseudotime/ct/tables/stream.h5ad.pkl
 TRAJECTORIES_CT = $(RNA)/stream/trajectories/ct/branches.txt
-SCBOOLSEQ_CT = $(RNA)/binarization/ct
+SCBOOLSEQ_CT = $(RNA)/binarization/ct/cluster_bin_node_clusters.csv
+BDC_CT = $(RNA)/binarization/ct/pairwise_predecessor_scores.csv
 
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
@@ -89,6 +90,7 @@ pseudotime-ctrl: $(PSEUDOTIME_CT)
 trajectories-ctrl: $(TRAJECTORIES_CT)
 stream-ctrl: trajectories-ctrl
 scboolseq-ctrl: $(SCBOOLSEQ_CT)
+bdc-ctrl: $(BDC_CT)
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
@@ -342,6 +344,13 @@ $(SCBOOLSEQ_CT): $(PSEUDOTIME_CT)
 		--layer log-normalize --hvg \
 		--verbose
 	$(CONDA DEACTIVATE)
+
+$(BDC_CT): $(SCBOOLSEQ_CT)
+	$(call section,boolean differential calculus (control data))
+	$(CONDA_ACTIVATE) scboolseq
+	python pipeline/binarization/differential_analysis.py $< $(@D) --verbose
+	$(CONDA DEACTIVATE)
+
 
 
 ### INTEGRATION ###
