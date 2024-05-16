@@ -56,7 +56,7 @@ then
     conda activate base
 fi
 
-for environment in preprocess stream binarization bonesis
+for environment in preprocess stream scboolseq bonesis
 do
     install_env $environment
 done
