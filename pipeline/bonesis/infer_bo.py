@@ -8,7 +8,6 @@ from argparse import ArgumentParser
 from tqdm import tqdm
 
 import pandas as pd
-import decoupler as dc
 
 import networkx as nx
 import bonesis
@@ -17,11 +16,11 @@ from bonesis.asp_encoding import clingo_encode
 from plzf_rara_model import (
     important_nodes,
     bomodel,
-    load_bin,
-    collectri_to_grn
+    load_bin
 )
 
-from utils.genesyn import GeneSynonyms
+from databases.collectri import load_grn
+from databases.genesyn import GeneSynonyms
 
 parser = ArgumentParser(
     prog="Boolean network inference",
@@ -113,8 +112,7 @@ bonesis.settings["quiet"] = args.quiet
 
 genename = GeneSynonyms()
 
-collectri_db = dc.get_collectri(organism="mouse", split_complexes=True)
-grn = collectri_to_grn(collectri_db, sign_label="weight", remove_pmid=True)
+grn = load_grn(organism="mouse")
 genename.graph_standardization(grn, copy=False)
 if args.filter_grn:
     with open(args.filter_grn) as fp:

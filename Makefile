@@ -50,6 +50,7 @@ TRAJECTORIES_CT = $(RNA)/stream/trajectories/ct/branches.txt
 SCBOOLSEQ_CT = $(RNA)/binarization/ct/cluster_bin_node_clusters.csv
 BDC_CT = $(RNA)/binarization/ct/pairwise_predecessor_scores.csv
 SPECIFICATION_CT = $(RNA)/bonesis/ct/plzf_rara_model.txt
+FILTER1_CT = $(RNA)/bonesis/ct/bootstrap_filter_grn_stage1.txt
 
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
@@ -96,6 +97,7 @@ stream-ctrl: trajectories-ctrl
 scboolseq-ctrl: $(SCBOOLSEQ_CT)
 bdc-ctrl: $(BDC_CT)
 specification-ctrl: $(SPECIFICATION_CT)
+filter-stage1-ctrl: $(FILTER1_CT)
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
@@ -361,6 +363,16 @@ $(SPECIFICATION_CT): $(TRAJECTORIES_CT)
 	$(call section,Bonesis model specification (control data))
 	mkdir -p $(@D)
 	python pipeline/bonesis/design_bo.py $< > $@
+
+$(FILTER1_CT): $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
+	$(call section,Bonesis filtering (control data, stage 1))
+	$(CONDA_ACTIVATE) bonesis
+	python pipeline/bonesis/infer_bo.py filter_stage1 $(dir $<) \
+		--bin-metastates $(lastword $^) \
+  		--model-specification $(firstword $^) \
+  		--quiet > $@
+	$(CONDA_DEACTIVATE)
+
 
 ### INTEGRATION ###
 
