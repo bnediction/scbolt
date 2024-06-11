@@ -7,6 +7,9 @@ SHELL = /bin/bash
 
 NC = \033[0m
 RED = \033[0;31m
+BOLDGREEN = \033[1;32m
+
+ROOT = 3
 
 $(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 
@@ -46,6 +49,7 @@ PSEUDOTIME_CT = $(RNA)/stream/pseudotime/ct/tables/stream.h5ad.pkl
 TRAJECTORIES_CT = $(RNA)/stream/trajectories/ct/branches.txt
 SCBOOLSEQ_CT = $(RNA)/binarization/ct/cluster_bin_node_clusters.csv
 BDC_CT = $(RNA)/binarization/ct/pairwise_predecessor_scores.csv
+SPECIFICATION_CT = $(RNA)/bonesis/ct/plzf_rara_model.txt
 
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
@@ -54,7 +58,7 @@ define section
 	@echo -e '$(RED)===== $(1) =====$(NC)'
 endef
 
-all: $(MARKERS_CT) $(MARKERS_RA)
+all: $(TRAJECTORIES_CT) $(MARKERS_RA)
 
 integration: $(MARKERS_ALL) $(INTEGRATION)
 
@@ -91,6 +95,7 @@ trajectories-ctrl: $(TRAJECTORIES_CT)
 stream-ctrl: trajectories-ctrl
 scboolseq-ctrl: $(SCBOOLSEQ_CT)
 bdc-ctrl: $(BDC_CT)
+specification-ctrl: $(SPECIFICATION_CT)
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
@@ -328,14 +333,6 @@ $(PSEUDOTIME_CT): $(LABELS_CT)
 		--jobs $(JOBS)
 	$(CONDA_DEACTIVATE)
 
-$(TRAJECTORIES_CT): $(PSEUDOTIME_CT)
-	$(call section,trajectory analysis (stream trajectories, control data))
-	$(CONDA_ACTIVATE) stream
-	python pipeline/stream/trajectories.py $< $(@D) --root 2 \
-		--groups leiden kmeans node_clusters \
-		--add-legend --add-graph
-	$(CONDA DEACTIVATE)
-
 $(SCBOOLSEQ_CT): $(PSEUDOTIME_CT)
 	$(call section,scBoolSeq binarization (control data))
 	$(CONDA_ACTIVATE) scboolseq
@@ -346,12 +343,24 @@ $(SCBOOLSEQ_CT): $(PSEUDOTIME_CT)
 	$(CONDA DEACTIVATE)
 
 $(BDC_CT): $(SCBOOLSEQ_CT)
-	$(call section,boolean differential calculus (control data))
+	$(call section,Boolean differential calculus (control data))
 	$(CONDA_ACTIVATE) scboolseq
 	python pipeline/binarization/differential_analysis.py $< $(@D) --verbose
 	$(CONDA DEACTIVATE)
 
+$(TRAJECTORIES_CT): $(PSEUDOTIME_CT)
+	$(call section,trajectory analysis (stream trajectories, control data))
+	@echo -e '$(BOLDGREEN)Root can be modified depending on previous Boolean differential calculus analysis$(NC)'
+	$(CONDA_ACTIVATE) stream
+	python pipeline/stream/trajectories.py $< $(@D) --root $(ROOT) \
+		--groups leiden kmeans node_clusters \
+		--add-legend --add-graph
+	$(CONDA DEACTIVATE)
 
+$(SPECIFICATION_CT): $(TRAJECTORIES_CT)
+	$(call section,Bonesis model specification (control data))
+	mkdir -p $(@D)
+	python pipeline/bonesis/design_bo.py $< > $@
 
 ### INTEGRATION ###
 
