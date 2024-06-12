@@ -51,8 +51,9 @@ TRAJECTORIES_CT = $(RNA)/stream/trajectories/ct/branches.txt
 SCBOOLSEQ_CT = $(RNA)/binarization/ct/cluster_bin_node_clusters.csv
 BDC_CT = $(RNA)/binarization/ct/pairwise_predecessor_scores.csv
 SPECIFICATION_CT = $(RNA)/bonesis/ct/plzf_rara_model.txt
-FILTER1_CT = $(RNA)/bonesis/ct/bootstrap_filter_grn_stage1.txt
-FILTER2_CT = $(RNA)/bonesis/ct/bootstrap_filter_grn_stage2.txt
+FILTER1_CT = $(RNA)/bonesis/ct/filter/bootstrap_filter_grn_stage1.txt
+FILTER2_CT = $(RNA)/bonesis/ct/filter/bootstrap_filter_grn_stage2.txt
+INFERENCE1_CT = $(RNA)/bonesis/ct/inference/sub_1.bn
 
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
@@ -101,6 +102,7 @@ bdc-ctrl: $(BDC_CT)
 specification-ctrl: $(SPECIFICATION_CT)
 filter-stage1-ctrl: $(FILTER1_CT)
 filter-stage2-ctrl: $(FILTER2_CT)
+inference-stage1-ctrl: $(INFERENCE1_CT)
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
@@ -370,6 +372,7 @@ $(SPECIFICATION_CT): $(TRAJECTORIES_CT)
 $(FILTER1_CT): $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
 	$(call section,Bonesis filtering (control data, stage 1))
 	$(CONDA_ACTIVATE) bonesis
+	mkdir -p $(@D)
 	python pipeline/bonesis/infer_bo.py filter_stage1 $(dir $<) \
 		--organism $(ORGANISM) \
 		--bin-metastates $(lastword $^) \
@@ -379,12 +382,23 @@ $(FILTER1_CT): $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
 $(FILTER2_CT): $(FILTER1_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
 	$(call section,Bonesis filtering (control data, stage 2))
 	$(CONDA_ACTIVATE) bonesis
+	mkdir -p $(@D)
 	python pipeline/bonesis/infer_bo.py filter_stage2 $(dir $<) \
 		--organism $(ORGANISM) \
 		--bin-metastates $(lastword $^) \
   		--model-specification $(word 2, $^) \
   		--filter-grn $(firstword $^) > $@
 	$(CONDA_DEACTIVATE)
+
+$(INFERENCE1_CT): $(FILTER2_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
+	$(call section,Bonesis inference (control data, one-sub))
+	$(CONDA_ACTIVATE) bonesis
+	mkdir -p $(@D)
+	python pipeline/bonesis/infer_bo.py one-sub $(dir $<) \
+		--organism $(ORGANISM) \
+		--bin-metastates $(lastword $^) \
+  		--model-specification $(word 2, $^) \
+		--filter-grn $(firstword $^)
 
 
 ### INTEGRATION ###
