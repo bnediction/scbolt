@@ -4,6 +4,7 @@ import sys
 import json
 from pathlib import Path
 from argparse import ArgumentParser
+from utils.argtype import Store_organism
 
 from tqdm import tqdm
 
@@ -40,6 +41,14 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     metavar="PATH",
     help="output path"
+)
+
+parser.add_argument(
+    "--organism",
+    dest="organism",
+    action=Store_organism,
+    default="mouse",
+    required=False,
 )
 
 parser.add_argument(
@@ -100,26 +109,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--quiet",
-    dest="quiet",
+    "--verbose",
+    dest="verbose",
     required=False,
     action="store_true"
 )
 
 args = parser.parse_args()
 
-bonesis.settings["quiet"] = args.quiet
-
-genename = GeneSynonyms()
-
-grn = load_grn(organism="mouse")
-genename.graph_standardization(grn, copy=False)
-if args.filter_grn:
-    with open(args.filter_grn) as fp:
-        nodes = [line.strip() for line in fp.readlines()]
-    grn = grn.subgraph(nodes)
-
-print(f"GRN has {len(grn.nodes)} nodes and {len(grn.edges)} edges", file=sys.stderr)
+bonesis.settings["quiet"] = not args.verbose
 
 pkn_options = {
     "canonic": True,
@@ -130,7 +128,18 @@ if args.action.startswith("filter"):
 if args.action == "filter_stage1":
     pkn_options["allow_skipping_nodes"] = True
 
-meta_bin = load_bin(args.bin_metastates, gene_synonyms = genename)
+gene_synonyms = GeneSynonyms()
+
+grn = load_grn(organism=args.organism, gene_synonyms=gene_synonyms)
+if args.filter_grn:
+    with open(args.filter_grn) as fp:
+        nodes = [line.strip() for line in fp.readlines()]
+    grn = grn.subgraph(nodes)
+
+if args.verbose:
+    print(f"GRN: {len(grn.nodes)} nodes, {len(grn.edges)} edges", file=sys.stderr)
+
+meta_bin = load_bin(args.bin_metastates, gene_synonyms = gene_synonyms)
 
 pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
 bo = bonesis.BoNesis(pkn, meta_bin)

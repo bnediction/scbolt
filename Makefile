@@ -10,6 +10,7 @@ RED = \033[0;31m
 BOLDGREEN = \033[1;32m
 
 ROOT = 3
+ORGANISM = mouse
 
 $(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 
@@ -51,6 +52,7 @@ SCBOOLSEQ_CT = $(RNA)/binarization/ct/cluster_bin_node_clusters.csv
 BDC_CT = $(RNA)/binarization/ct/pairwise_predecessor_scores.csv
 SPECIFICATION_CT = $(RNA)/bonesis/ct/plzf_rara_model.txt
 FILTER1_CT = $(RNA)/bonesis/ct/bootstrap_filter_grn_stage1.txt
+FILTER2_CT = $(RNA)/bonesis/ct/bootstrap_filter_grn_stage2.txt
 
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
@@ -98,6 +100,7 @@ scboolseq-ctrl: $(SCBOOLSEQ_CT)
 bdc-ctrl: $(BDC_CT)
 specification-ctrl: $(SPECIFICATION_CT)
 filter-stage1-ctrl: $(FILTER1_CT)
+filter-stage2-ctrl: $(FILTER2_CT)
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
@@ -368,9 +371,19 @@ $(FILTER1_CT): $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
 	$(call section,Bonesis filtering (control data, stage 1))
 	$(CONDA_ACTIVATE) bonesis
 	python pipeline/bonesis/infer_bo.py filter_stage1 $(dir $<) \
+		--organism $(ORGANISM) \
 		--bin-metastates $(lastword $^) \
-  		--model-specification $(firstword $^) \
-  		--quiet > $@
+  		--model-specification $(firstword $^) > $@
+	$(CONDA_DEACTIVATE)
+
+$(FILTER2_CT): $(FILTER1_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
+	$(call section,Bonesis filtering (control data, stage 2))
+	$(CONDA_ACTIVATE) bonesis
+	python pipeline/bonesis/infer_bo.py filter_stage2 $(dir $<) \
+		--organism $(ORGANISM) \
+		--bin-metastates $(lastword $^) \
+  		--model-specification $(word 2, $^) \
+  		--filter-grn $(firstword $^) > $@
 	$(CONDA_DEACTIVATE)
 
 
