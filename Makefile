@@ -53,7 +53,8 @@ BDC_CT = $(RNA)/binarization/ct/pairwise_predecessor_scores.csv
 SPECIFICATION_CT = $(RNA)/bonesis/ct/plzf_rara_model.txt
 FILTER1_CT = $(RNA)/bonesis/ct/filter/bootstrap_filter_grn_stage1.txt
 FILTER2_CT = $(RNA)/bonesis/ct/filter/bootstrap_filter_grn_stage2.txt
-INFERENCE1_CT = $(RNA)/bonesis/ct/inference/sub_1.bn
+INFERENCE_SUB_CT = $(RNA)/bonesis/ct/inference/sub.bn
+INFERENCE_MIN_CT = $(RNA)/bonesis/ct/inference/min.bn
 
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
@@ -102,7 +103,8 @@ bdc-ctrl: $(BDC_CT)
 specification-ctrl: $(SPECIFICATION_CT)
 filter-stage1-ctrl: $(FILTER1_CT)
 filter-stage2-ctrl: $(FILTER2_CT)
-inference-stage1-ctrl: $(INFERENCE1_CT)
+inference-sub-ctrl: $(INFERENCE_SUB_CT)
+inference-min-ctrl: $(INFERENCE_MIN_CT)
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
@@ -382,7 +384,6 @@ $(FILTER1_CT): $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
 $(FILTER2_CT): $(FILTER1_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
 	$(call section,Bonesis filtering (control data, stage 2))
 	$(CONDA_ACTIVATE) bonesis
-	mkdir -p $(@D)
 	python pipeline/bonesis/infer_bo.py filter_stage2 $(dir $<) \
 		--organism $(ORGANISM) \
 		--bin-metastates $(lastword $^) \
@@ -390,7 +391,7 @@ $(FILTER2_CT): $(FILTER1_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
   		--filter-grn $(firstword $^) > $@
 	$(CONDA_DEACTIVATE)
 
-$(INFERENCE1_CT): $(FILTER2_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
+$(INFERENCE_SUB_CT): $(FILTER2_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
 	$(call section,Bonesis inference (control data, one-sub))
 	$(CONDA_ACTIVATE) bonesis
 	mkdir -p $(@D)
@@ -399,6 +400,16 @@ $(INFERENCE1_CT): $(FILTER2_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
 		--bin-metastates $(lastword $^) \
   		--model-specification $(word 2, $^) \
 		--filter-grn $(firstword $^)
+	$(CONDA_DEACTIVATE)
+
+$(INFERENCE_MIN_CT): $(FILTER2_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
+	$(call section,Bonesis inference (control data, one-min))
+	$(CONDA_ACTIVATE) bonesis
+	python pipeline/bonesis/infer_bo.py one-min $(dir $<) \
+		--bin-metastates $(lastword $^) \
+		--model-specification $(word 2, $^) \
+		--filter-grn $(firstword $^)
+	$(CONDA_DEACTIVATE)
 
 
 ### INTEGRATION ###
