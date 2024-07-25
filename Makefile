@@ -51,10 +51,10 @@ TRAJECTORIES_CT = $(RNA)/stream/trajectories/ct/branches.txt
 SCBOOLSEQ_CT = $(RNA)/binarization/ct/cluster_bin_node_clusters.csv
 BDC_CT = $(RNA)/binarization/ct/pairwise_predecessor_scores.csv
 SPECIFICATION_CT = $(RNA)/bonesis/ct/plzf_rara_model.txt
-FILTER1_CT = $(RNA)/bonesis/ct/filter/bootstrap_filter_grn_stage1.txt
-FILTER2_CT = $(RNA)/bonesis/ct/filter/bootstrap_filter_grn_stage2.txt
-INFERENCE_SUB_CT = $(RNA)/bonesis/ct/inference/sub.bn
-INFERENCE_MIN_CT = $(RNA)/bonesis/ct/inference/min.bn
+FILTER1_CT = $(RNA)/bonesis/ct/bootstrap_filter_grn_stage1.txt
+FILTER2_CT = $(RNA)/bonesis/ct/bootstrap_filter_grn_stage2.txt
+INFERENCE_SUB_CT = $(RNA)/bonesis/ct/sub.bn
+INFERENCE_MIN_CT = $(RNA)/bonesis/ct/min.bn
 
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
@@ -63,7 +63,7 @@ define section
 	@echo -e '$(RED)===== $(1) =====$(NC)'
 endef
 
-all: $(TRAJECTORIES_CT) $(MARKERS_RA)
+all: $(INFERENCE_SUB_CT) $(INFERENCE_MIN_CT)  $(MARKERS_RA)
 
 integration: $(MARKERS_ALL) $(INTEGRATION)
 
@@ -405,6 +405,7 @@ $(INFERENCE_SUB_CT): $(FILTER2_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
 $(INFERENCE_MIN_CT): $(FILTER2_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
 	$(call section,Bonesis inference (control data, one-min))
 	$(CONDA_ACTIVATE) bonesis
+	mkdir -p $(@D)
 	python pipeline/bonesis/infer_bo.py one-min $(dir $<) \
 		--bin-metastates $(lastword $^) \
 		--model-specification $(word 2, $^) \

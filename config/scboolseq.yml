@@ -148,4 +148,4 @@ dependencies:
       - typeguard==4.2.1
       - urllib3==2.2.1
       - wrapt==1.16.0
-prefix: /home/theo-roncalli/anaconda3/envs/scboolseq
+prefix: ${HOME}/anaconda3/envs/scboolseq
