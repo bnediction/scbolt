@@ -71,8 +71,7 @@ clean:
 	rm -rf $(RNA)
 
 mrproper:
-	rm -rf data/*
-	touch data/.placeholder
+	rm -rf $(ls data/* -A | grep -v public)
 
 load-ctrl: $(10XGENOMICS_CT)
 load-treated: $(10XGENOMICS_RA)
