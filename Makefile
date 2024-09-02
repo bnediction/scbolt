@@ -71,7 +71,7 @@ clean:
 	rm -rf $(RNA)
 
 mrproper:
-	rm -rf $(ls data/* -A | grep -v public)
+	clean
 
 load-ctrl: $(10XGENOMICS_CT)
 load-treated: $(10XGENOMICS_RA)
