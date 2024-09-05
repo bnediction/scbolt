@@ -9,8 +9,10 @@ NC = \033[0m
 RED = \033[0;31m
 BOLDGREEN = \033[1;32m
 
-ROOT = 3
 ORGANISM = mouse
+SEED_CLUSTER_CT = 0
+ROOT = 3
+IGNORED_NODES = 4
 
 $(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 
@@ -217,7 +219,7 @@ $(CLUSTER_CT): $(NORMALISATION_CT) $(lastword $(SIGNATURES))
 		--hvg --metric euclidean --k-neighbors 20 --resolution 0.45 \
 		--dim-pca 50 --dim-clustering 15 --dim-umap 2 \
 		--add-legend \
-		--seed 6 --verbose
+		--seed $(SEED_CLUSTER_CT) --verbose
 	$(CONDA_DEACTIVATE)
 
 $(CLUSTER_RA): $(NORMALISATION_RA)
@@ -325,7 +327,7 @@ $(LABELS_CT): $(CLUSTER_CT)
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/label_clusters.py $< $@ \
 		--column leiden \
-		--name 0=Trans 1=Prom2 2=Rep 3=Gran 4=Prom3 5=Prom1
+		--name 0=Prom2 1=Trans 2=Rep 3=Prom1 4=Prom3 5=Gran
 	python figures/plot_embedding.py figures/umap_labels.json \
 		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
 	$(CONDA_DEACTIVATE)
@@ -344,7 +346,7 @@ $(PSEUDOTIME_CT): $(LABELS_CT)
 $(SCBOOLSEQ_CT): $(PSEUDOTIME_CT)
 	$(call section,scBoolSeq binarization (control data))
 	$(CONDA_ACTIVATE) scboolseq
-	python pipeline/binarization/bin_clusters.py $(shell echo $< | sed "s/.pkl//") $@ \
+	python pipeline/binarization/bin_clusters.py $(shell echo $< | sed "s/.pkl//") $(dir $@) \
 		--cluster leiden node_clusters --exclude nan \
 		--layer log-normalize --hvg \
 		--verbose
@@ -358,17 +360,18 @@ $(BDC_CT): $(SCBOOLSEQ_CT)
 
 $(TRAJECTORIES_CT): $(PSEUDOTIME_CT)
 	$(call section,trajectory analysis (stream trajectories, control data))
-	@echo -e '$(BOLDGREEN)Root can be modified depending on previous Boolean differential calculus analysis$(NC)'
+	@echo -e '$(BOLDGREEN)Warning: root can be modified depending on previous Boolean differential calculus analysis$(NC)'
 	$(CONDA_ACTIVATE) stream
 	python pipeline/stream/trajectories.py $< $(@D) --root $(ROOT) \
 		--groups leiden kmeans node_clusters \
-		--add-legend --add-graph
+		--add-legend --add-graph \
+		--ignore-nodes $(IGNORED_NODES)
 	$(CONDA DEACTIVATE)
 
 $(SPECIFICATION_CT): $(TRAJECTORIES_CT)
 	$(call section,Bonesis model specification (control data))
 	mkdir -p $(@D)
-	python pipeline/bonesis/design_bo.py $< > $@
+	python3 pipeline/bonesis/design_bo.py $< > $@
 
 $(FILTER1_CT): $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
 	$(call section,Bonesis filtering (control data, stage 1))

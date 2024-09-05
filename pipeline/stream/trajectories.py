@@ -127,11 +127,23 @@ parser.add_argument(
     help="plot figures in three dimensions"
 )
 
+parser.add_argument(
+    "--ignore-nodes",
+    dest="ignore_nodes",
+    type=str,
+    required=False,
+    nargs="+",
+    metavar="LITERAL",
+    help="nodes to ignore for the specification of the trajectories in the tree"
+)
+
 args = parser.parse_args()
 
 section = Section()
 
 args.root=f"S{args.root}"
+for i in range(len(args.ignore_nodes)):
+    args.ignore_nodes[i] = "S" + args.ignore_nodes[i]
 
 if not args.outpath.exists():
     os.makedirs(args.outpath)
@@ -256,6 +268,20 @@ print("Trajectories inference...")
 
 flat_tree = adata.uns["flat_tree"]
 branch_labels = tree_to_trajectories(flat_tree)
+branch_labels
+
+def tree_pruning(tree, nodes_to_delete):
+    pruning_tree = list()
+    for branch in tree:
+        branch = list(filter(lambda node: node not in nodes_to_delete, branch))
+        if len(branch) <= 1:
+            pass
+        else:
+            pruning_tree.append(branch)
+    return pruning_tree
+
+if args.ignore_nodes:
+    branch_labels = tree_pruning(branch_labels, args.ignore_nodes)
 
 with open(f"{args.outpath}/branches.txt", "w") as file:
     for _branch in branch_labels:
