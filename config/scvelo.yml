@@ -168,4 +168,4 @@ dependencies:
       - loompy==3.0.7
       - numpy-groupies==0.11.2
       - scvelo==0.3.3.dev7+gbef8f1c
-prefix: {HOME}/anaconda3/envs/scvelo
+prefix: ${HOME}/anaconda3/envs/scvelo
