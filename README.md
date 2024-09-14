@@ -19,6 +19,7 @@ Setup prerequisites must be verified:
 apt-get install texlive dvipng texlive-latex-extra texlive-fonts-recommended cm-super texlive-extra-utils
 ```
 2. verify that *Anaconda* package manager is already installed. If not, please install and download it [here](https://www.anaconda.com/download/).
+3. (optional) verify that *SRA toolkits* is installed. If not, please install and download it [here](https://github.com/ncbi/sra-tools/wiki), except if you want to use parallel-fastq-dump *conda* environment.
 
 Download and configure project:
 ```sh
