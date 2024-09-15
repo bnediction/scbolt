@@ -12,7 +12,10 @@ install_env() {
         then
             conda remove --name $1 --all --yes
             conda env create -f ${config_dir}$1.yml --yes
-            conda develop --name $1 ${develop_dir} ${develop_dir}/bonesis-tools;
+            if [[ "$1" != fastq-dump ]];
+            then
+                conda develop --name $1 ${develop_dir} ${develop_dir}/bonesis-tools;
+            fi
             if [[ "$1" == bonesis ]];
             then
                 conda activate $1
@@ -56,7 +59,7 @@ then
     conda activate base
 fi
 
-for environment in preprocess stream scboolseq bonesis
+for environment in fastq-dump preprocess stream scboolseq bonesis
 do
     install_env $environment
 done

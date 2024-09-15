@@ -9,6 +9,9 @@ NC = \033[0m
 RED = \033[0;31m
 BOLDGREEN = \033[1;32m
 
+SRA_CT = SRR15305311 SRR15305312 SRR15305313 SRR15305314
+SRA_RA = SRR15305315 SRR15305316 SRR15305317 SRR15305318
+
 ORGANISM = mouse
 SEED_CLUSTER_CT = 0
 ROOT = 3
@@ -19,11 +22,13 @@ $(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 CONDA_ACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
 CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda deactivate ; conda deactivate
 
+
 RNA = data/rna
 PUBLIC = data/public
 
 INTEGRATION_METHOD = bbknn
 
+FASTQ_CT = $(RNA)/fastq/ct/ct.fastq.gz
 10XGENOMICS_CT = $(RNA)/raw/ct/matrix.mtx.gz $(RNA)/raw/ct/features.tsv.gz $(RNA)/raw/ct/barcodes.tsv.gz
 10XGENOMICS_RA = $(RNA)/raw/ra/matrix.mtx.gz $(RNA)/raw/ra/features.tsv.gz $(RNA)/raw/ra/barcodes.tsv.gz
 H5AD_CT = $(RNA)/raw/ct/ct.h5ad
@@ -75,6 +80,7 @@ clean:
 mrproper:
 	clean
 
+load-fastq-ctrl: $(FASTQ_CT)
 load-ctrl: $(10XGENOMICS_CT)
 load-treated: $(10XGENOMICS_RA)
 load: load-ctrl load-treated
@@ -106,6 +112,30 @@ filter-stage1-ctrl: $(FILTER1_CT)
 filter-stage2-ctrl: $(FILTER2_CT)
 inference-sub-ctrl: $(INFERENCE_SUB_CT)
 inference-min-ctrl: $(INFERENCE_MIN_CT)
+
+$(FASTQ_CT):
+	$(call section,download fastq file (control data))
+	$(CONDA_ACTIVATE) fastq-dump
+	rm -rf $(@D)
+	mkdir -p $(@D)
+	for id in $(SRA_CT)
+	do
+		parallel-fastq-dump --sra-id $${id} --threads 8 --outdir $(@D) --gzip
+	done
+	cat $(@D)/SRR*.fastq.gz > $@
+	$(CONDA_DEACTIVATE)
+
+$(FASTQ_RA):
+	$(call section,download fastq file (treated data))
+	$(CONDA_ACTIVATE) fastq-dump
+	rm -rf $(@D)
+	mkdir -p $(@D)
+	for id in $(SRA_RA)
+	do
+		parallel-fastq-dump --sra-id $${id} --threads 8 --outdir $(@D) --gzip
+	done
+	cat $(@D)/SRR*.fastq.gz > $@
+	$(CONDA_DEACTIVATE)
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
