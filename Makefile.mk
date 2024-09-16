@@ -17,18 +17,23 @@ SEED_CLUSTER_CT = 0
 ROOT = 3
 IGNORED_NODES = 4
 
+GENOME_URL = ftp://ftp.ensembl.org/pub/release-112/fasta/mus_musculus/dna/Mus_musculus.GRCm38.dna.primary_assembly.fa.gz
+ANNOTATIONS_URL = ftp://ftp.ensembl.org/pub/release-112/gtf/mus_musculus/Mus_musculus.GRCm39.112.chr.gtf.gz
+
 $(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 
 CONDA_ACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
 CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda deactivate ; conda deactivate
-
 
 RNA = data/rna
 PUBLIC = data/public
 
 INTEGRATION_METHOD = bbknn
 
+$(eval GENOME := $(PUBLIC)/genome/$(basename $(notdir $(GENOME_URL))))
+$(eval ANNOTATIONS := $(PUBLIC)/genome/$(basename $(notdir $(ANNOTATIONS_URL))))
 FASTQ_CT = $(RNA)/fastq/ct/ct.fastq.gz
+FASTQ_RA = $(RNA)/fastq/ra/ra.fastq.gz
 10XGENOMICS_CT = $(RNA)/raw/ct/matrix.mtx.gz $(RNA)/raw/ct/features.tsv.gz $(RNA)/raw/ct/barcodes.tsv.gz
 10XGENOMICS_RA = $(RNA)/raw/ra/matrix.mtx.gz $(RNA)/raw/ra/features.tsv.gz $(RNA)/raw/ra/barcodes.tsv.gz
 H5AD_CT = $(RNA)/raw/ct/ct.h5ad
@@ -80,7 +85,10 @@ clean:
 mrproper:
 	clean
 
+load-genome: $(GENOME)
+load-annotations: $(ANNOTATIONS)
 load-fastq-ctrl: $(FASTQ_CT)
+load-fastq-treated: $(FASTQ_RA)
 load-ctrl: $(10XGENOMICS_CT)
 load-treated: $(10XGENOMICS_RA)
 load: load-ctrl load-treated
@@ -112,6 +120,22 @@ filter-stage1-ctrl: $(FILTER1_CT)
 filter-stage2-ctrl: $(FILTER2_CT)
 inference-sub-ctrl: $(INFERENCE_SUB_CT)
 inference-min-ctrl: $(INFERENCE_MIN_CT)
+
+$(GENOME):
+	$(call section, download genome)
+	mkdir -p $(@D)
+	wget --quiet --show-progress --no-parent -nd --reject "index.html" \
+		--directory-prefix=$(@D) \
+		$(GENOME_URL)
+	gunzip $@.gz
+
+$(ANNOTATIONS):
+	$(call section, download annotations)
+	mkdir -p $(@D)
+	wget --quiet --show-progress --no-parent -nd --reject "index.html" \
+		--directory-prefix=$(@D) \
+		$(ANNOTATIONS_URL)
+	gunzip $@.gz
 
 $(FASTQ_CT):
 	$(call section,download fastq file (control data))
