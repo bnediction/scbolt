@@ -17,8 +17,9 @@ SEED_CLUSTER_CT = 0
 ROOT = 3
 IGNORED_NODES = 4
 
-GENOME_URL = ftp://ftp.ensembl.org/pub/release-112/fasta/mus_musculus/dna/Mus_musculus.GRCm38.dna.primary_assembly.fa.gz
+GENOME_URL = ftp://ftp.ensembl.org/pub/release-112/fasta/mus_musculus/dna/Mus_musculus.GRCm39.dna.primary_assembly.fa.gz
 ANNOTATIONS_URL = ftp://ftp.ensembl.org/pub/release-112/gtf/mus_musculus/Mus_musculus.GRCm39.112.chr.gtf.gz
+TRANSCRIPTOME_URL = https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz
 
 $(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
 
@@ -32,6 +33,8 @@ INTEGRATION_METHOD = bbknn
 
 $(eval GENOME := $(PUBLIC)/genome/$(basename $(notdir $(GENOME_URL))))
 $(eval ANNOTATIONS := $(PUBLIC)/genome/$(basename $(notdir $(ANNOTATIONS_URL))))
+$(eval TRANSCRIPTOME := $(PUBLIC)/genome/$(notdir $(TRANSCRIPTOME_URL)))
+TRANSCRIPTOME := $(TRANSCRIPTOME:.tar.gz=)
 FASTQ_CT = $(RNA)/fastq/ct/ct.fastq.gz
 FASTQ_RA = $(RNA)/fastq/ra/ra.fastq.gz
 10XGENOMICS_CT = $(RNA)/raw/ct/matrix.mtx.gz $(RNA)/raw/ct/features.tsv.gz $(RNA)/raw/ct/barcodes.tsv.gz
@@ -75,6 +78,29 @@ define section
 	@echo -e '$(RED)===== $(1) =====$(NC)'
 endef
 
+define fastq_naming
+	N_FASTQ="$$(find $(1) -name "$(2)_[1-4].fastq.gz" -printf '.' | wc -m)"
+	if [ $${N_FASTQ} -eq 0 ]; then \
+		@echo -e '$(RED)ERROR: fastq downloading failed.$(NC)';\
+	elif [ $${N_FASTQ} -eq 1 ]; then \
+		mv $(1)/$(2)_1.fastq.gz $(1)/$(2)_R1.fastq.gz;\
+	elif [ $${N_FASTQ} -eq 2 ]; then \
+		mv $(1)/$(2)_1.fastq.gz $(1)/$(2)_R1.fastq.gz
+		mv $(1)/$(2)_2.fastq.gz $(1)/$(2)_R2.fastq.gz;\
+	elif [ $${N_FASTQ} -eq 3 ]; then \
+		mv $(1)/$(2)_1.fastq.gz $(1)/$(2)_I1.fastq.gz
+		mv $(1)/$(2)_2.fastq.gz $(1)/$(2)_R1.fastq.gz
+		mv $(1)/$(2)_3.fastq.gz $(1)/$(2)_R2.fastq.gz;\
+	elif [ $${N_FASTQ} -eq 4 ]; then \
+		mv $(1)/$(2)_1.fastq.gz $(1)/$(2)_I1.fastq.gz
+		mv $(1)/$(2)_2.fastq.gz $(1)/$(2)_I2.fastq.gz
+		mv $(1)/$(2)_3.fastq.gz $(1)/$(2)_R1.fastq.gz
+		mv $(1)/$(2)_4.fastq.gz $(1)/$(2)_R2.fastq.gz;\
+	else \
+		@echo -e '$(RED)ERROR: number of downloaded fastq exceeds 4.$(NC)';\
+	fi
+endef
+
 all: $(INFERENCE_SUB_CT) $(INFERENCE_MIN_CT)  $(MARKERS_RA)
 
 integration: $(MARKERS_ALL) $(INTEGRATION)
@@ -84,9 +110,11 @@ clean:
 
 mrproper:
 	clean
+	rm -rf $(PUBLIC)/genome
 
 load-genome: $(GENOME)
 load-annotations: $(ANNOTATIONS)
+load-transcriptome: $(TRANSCRIPTOME)
 load-fastq-ctrl: $(FASTQ_CT)
 load-fastq-treated: $(FASTQ_RA)
 load-ctrl: $(10XGENOMICS_CT)
@@ -124,29 +152,32 @@ inference-min-ctrl: $(INFERENCE_MIN_CT)
 $(GENOME):
 	$(call section, download genome)
 	mkdir -p $(@D)
-	wget --quiet --show-progress --no-parent -nd --reject "index.html" \
-		--directory-prefix=$(@D) \
-		$(GENOME_URL)
+	wget --quiet --show-progress --directory-prefix=$(@D) $(GENOME_URL)
 	gunzip $@.gz
 
 $(ANNOTATIONS):
 	$(call section, download annotations)
 	mkdir -p $(@D)
-	wget --quiet --show-progress --no-parent -nd --reject "index.html" \
-		--directory-prefix=$(@D) \
-		$(ANNOTATIONS_URL)
+	wget --quiet --show-progress --directory-prefix=$(@D) $(ANNOTATIONS_URL)
 	gunzip $@.gz
+
+$(TRANSCRIPTOME):
+	$(call section, download transcriptome)
+	mkdir -p $(@D)
+	wget --quiet --show-progress --directory-prefix=$(@D) $(TRANSCRIPTOME_URL)
+	tar -zxvf $@.tar.gz -C $(@D)
 
 $(FASTQ_CT):
 	$(call section,download fastq file (control data))
 	$(CONDA_ACTIVATE) fastq-dump
-	rm -rf $(@D)
 	mkdir -p $(@D)
 	for id in $(SRA_CT)
 	do
-		parallel-fastq-dump --sra-id $${id} --threads 8 --outdir $(@D) --gzip
+		parallel-fastq-dump --sra-id $${id} --split-files --readids --origfmt --threads $(JOBS) --outdir $(@D) --gzip
+
+		$(call fastq_naming,$(@D),$${id})
 	done
-	cat $(@D)/SRR*.fastq.gz > $@
+#	cat $(@D)/SRR*.fastq.gz > $@
 	$(CONDA_DEACTIVATE)
 
 $(FASTQ_RA):
@@ -158,7 +189,7 @@ $(FASTQ_RA):
 	do
 		parallel-fastq-dump --sra-id $${id} --threads 8 --outdir $(@D) --gzip
 	done
-	cat $(@D)/SRR*.fastq.gz > $@
+#	cat $(@D)/SRR*.fastq.gz > $@
 	$(CONDA_DEACTIVATE)
 
 $(10XGENOMICS_CT):
