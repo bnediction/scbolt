@@ -35,8 +35,8 @@ $(eval GENOME := $(PUBLIC)/genome/$(basename $(notdir $(GENOME_URL))))
 $(eval ANNOTATIONS := $(PUBLIC)/genome/$(basename $(notdir $(ANNOTATIONS_URL))))
 $(eval TRANSCRIPTOME := $(PUBLIC)/genome/$(notdir $(TRANSCRIPTOME_URL)))
 TRANSCRIPTOME := $(TRANSCRIPTOME:.tar.gz=)
-FASTQ_CT = $(RNA)/fastq/ct/ct.fastq.gz
-FASTQ_RA = $(RNA)/fastq/ra/ra.fastq.gz
+FASTQ_CT = $(RNA)/fastq/ct
+FASTQ_RA = $(RNA)/fastq/ra
 10XGENOMICS_CT = $(RNA)/raw/ct/matrix.mtx.gz $(RNA)/raw/ct/features.tsv.gz $(RNA)/raw/ct/barcodes.tsv.gz
 10XGENOMICS_RA = $(RNA)/raw/ra/matrix.mtx.gz $(RNA)/raw/ra/features.tsv.gz $(RNA)/raw/ra/barcodes.tsv.gz
 H5AD_CT = $(RNA)/raw/ct/ct.h5ad
@@ -79,23 +79,23 @@ define section
 endef
 
 define fastq_naming
-	N_FASTQ="$$(find $(1) -name "$(2)_[1-4].fastq.gz" -printf '.' | wc -m)"
-	if [ $${N_FASTQ} -eq 0 ]; then \
+	n_fastq="$$(find $(1) -name "$(2)_[1-4].fastq.gz" -printf '.' | wc -m)"
+	if [ $${n_fastq} -eq 0 ]; then \
 		@echo -e '$(RED)ERROR: fastq downloading failed.$(NC)';\
-	elif [ $${N_FASTQ} -eq 1 ]; then \
-		mv $(1)/$(2)_1.fastq.gz $(1)/$(2)_R1.fastq.gz;\
-	elif [ $${N_FASTQ} -eq 2 ]; then \
-		mv $(1)/$(2)_1.fastq.gz $(1)/$(2)_R1.fastq.gz
-		mv $(1)/$(2)_2.fastq.gz $(1)/$(2)_R2.fastq.gz;\
-	elif [ $${N_FASTQ} -eq 3 ]; then \
-		mv $(1)/$(2)_1.fastq.gz $(1)/$(2)_I1.fastq.gz
-		mv $(1)/$(2)_2.fastq.gz $(1)/$(2)_R1.fastq.gz
-		mv $(1)/$(2)_3.fastq.gz $(1)/$(2)_R2.fastq.gz;\
-	elif [ $${N_FASTQ} -eq 4 ]; then \
-		mv $(1)/$(2)_1.fastq.gz $(1)/$(2)_I1.fastq.gz
-		mv $(1)/$(2)_2.fastq.gz $(1)/$(2)_I2.fastq.gz
-		mv $(1)/$(2)_3.fastq.gz $(1)/$(2)_R1.fastq.gz
-		mv $(1)/$(2)_4.fastq.gz $(1)/$(2)_R2.fastq.gz;\
+	elif [ $${n_fastq} -eq 1 ]; then \
+		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_L00$(4)_R1.fastq.gz;\
+	elif [ $${n_fastq} -eq 2 ]; then \
+		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_L00$(4)_R1.fastq.gz
+		mv $(1)/$(2)_2.fastq.gz $(1)/$(3)_L00$(4)_R2.fastq.gz;\
+	elif [ $${n_fastq} -eq 3 ]; then \
+		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_L00$(4)_I1.fastq.gz
+		mv $(1)/$(2)_2.fastq.gz $(1)/$(3)_L00$(4)_R1.fastq.gz
+		mv $(1)/$(2)_3.fastq.gz $(1)/$(3)_L00$(4)_R2.fastq.gz;\
+	elif [ $${n_fastq} -eq 4 ]; then \
+		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_L00$(4)_I1.fastq.gz
+		mv $(1)/$(2)_2.fastq.gz $(1)/$(3)_L00$(4)_I2.fastq.gz
+		mv $(1)/$(2)_3.fastq.gz $(1)/$(3)_L00$(4)_R1.fastq.gz
+		mv $(1)/$(2)_4.fastq.gz $(1)/$(3)_L00$(4)_R2.fastq.gz;\
 	else \
 		@echo -e '$(RED)ERROR: number of downloaded fastq exceeds 4.$(NC)';\
 	fi
@@ -170,26 +170,37 @@ $(TRANSCRIPTOME):
 $(FASTQ_CT):
 	$(call section,download fastq file (control data))
 	$(CONDA_ACTIVATE) fastq-dump
-	mkdir -p $(@D)
+	sample="ctrl"
+	lane=0
+	tmp_directory=/tmp/fastq-ctrl
+	rm -rf $${tmp_directory} && mkdir $${tmp_directory}
 	for id in $(SRA_CT)
 	do
-		parallel-fastq-dump --sra-id $${id} --split-files --readids --origfmt --threads $(JOBS) --outdir $(@D) --gzip
-
-		$(call fastq_naming,$(@D),$${id})
+		let "lane++"
+		parallel-fastq-dump --sra-id $${id} --split-files --readids --origfmt --threads $(JOBS) --outdir $${tmp_directory} --gzip
+		$(call fastq_naming,$${tmp_directory},$${id},$${sample},$${lane})
 	done
-#	cat $(@D)/SRR*.fastq.gz > $@
+	mkdir $@
+	mv $${tmp_directory}/* $@/
+	rm -rf $${tmp_directory}
 	$(CONDA_DEACTIVATE)
 
 $(FASTQ_RA):
 	$(call section,download fastq file (treated data))
 	$(CONDA_ACTIVATE) fastq-dump
-	rm -rf $(@D)
-	mkdir -p $(@D)
+	sample="treated"
+	lane=0
+	tmp_directory=/tmp/fastq-treated
+	rm -rf $${tmp_directory} && mkdir $${tmp_directory}
 	for id in $(SRA_RA)
 	do
-		parallel-fastq-dump --sra-id $${id} --threads 8 --outdir $(@D) --gzip
+		let "lane++"
+		parallel-fastq-dump --sra-id $${id} --split-files --readids --origfmt --threads $(JOBS) --outdir $${tmp_directory} --gzip
+		$(call fastq_naming,$${tmp_directory},$${id},$${sample},$${lane})
 	done
-#	cat $(@D)/SRR*.fastq.gz > $@
+	mkdir $@
+	mv $${tmp_directory}/* $@/
+	rm -rf $${tmp_directory}
 	$(CONDA_DEACTIVATE)
 
 $(10XGENOMICS_CT):
