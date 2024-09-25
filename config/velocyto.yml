@@ -1,5 +1,6 @@
 name: velocyto
 channels:
+  - bioconda
   - conda-forge
   - defaults
 dependencies:
@@ -35,6 +36,7 @@ dependencies:
   - h5py=3.11.0=nompi_py312hb7ab980_102
   - harfbuzz=9.0.0=hda332d3_1
   - hdf5=1.14.3=nompi_hdf9ad27_105
+  - htslib=1.21=h5efdd21_0
   - icu=75.1=he02047a_0
   - joblib=1.4.2=pyhd8ed1ab_0
   - keyutils=1.6.1=h166bdaf_0
@@ -119,6 +121,7 @@ dependencies:
   - qhull=2020.2=h434a139_5
   - qt6-main=6.7.2=hb12f9c5_5
   - readline=8.2=h8228510_1
+  - samtools=1.21=h50ea8bc_0
   - scikit-learn=1.5.2=py312h7a48858_1
   - scipy=1.14.1=py312h7d485d2_0
   - setuptools=73.0.1=pyhd8ed1ab_0
@@ -164,4 +167,4 @@ dependencies:
       - pytz==2024.2
       - tzdata==2024.1
       - velocyto==0.17.17
-prefix: ${HOME}/anaconda3/envs/velocyto
+prefix: /home/roncalli/anaconda3/envs/velocyto
