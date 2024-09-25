@@ -16,6 +16,7 @@ ORGANISM = mouse
 SEED_CLUSTER_CT = 0
 ROOT = 3
 IGNORED_NODES = 4
+MEMORY = 64
 
 GENOME_URL = ftp://ftp.ensembl.org/pub/release-112/fasta/mus_musculus/dna/Mus_musculus.GRCm39.dna.primary_assembly.fa.gz
 ANNOTATIONS_URL = ftp://ftp.ensembl.org/pub/release-112/gtf/mus_musculus/Mus_musculus.GRCm39.112.chr.gtf.gz
@@ -37,6 +38,8 @@ $(eval TRANSCRIPTOME := $(PUBLIC)/genome/$(notdir $(TRANSCRIPTOME_URL)))
 TRANSCRIPTOME := $(TRANSCRIPTOME:.tar.gz=)
 FASTQ_CT = $(RNA)/fastq/ct
 FASTQ_RA = $(RNA)/fastq/ra
+CELLRANGER_CT = $(RNA)/cellranger/ct/ctrl.mri.tgz
+CELLRANGER_RA = $(RNA)/cellranger/ct/treated.mri.tgz
 10XGENOMICS_CT = $(RNA)/raw/ct/matrix.mtx.gz $(RNA)/raw/ct/features.tsv.gz $(RNA)/raw/ct/barcodes.tsv.gz
 10XGENOMICS_RA = $(RNA)/raw/ra/matrix.mtx.gz $(RNA)/raw/ra/features.tsv.gz $(RNA)/raw/ra/barcodes.tsv.gz
 H5AD_CT = $(RNA)/raw/ct/ct.h5ad
@@ -83,19 +86,19 @@ define fastq_naming
 	if [ $${n_fastq} -eq 0 ]; then \
 		@echo -e '$(RED)ERROR: fastq downloading failed.$(NC)';\
 	elif [ $${n_fastq} -eq 1 ]; then \
-		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_L00$(4)_R1.fastq.gz;\
+		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_S1_L00$(4)_R1_001.fastq.gz;\
 	elif [ $${n_fastq} -eq 2 ]; then \
-		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_L00$(4)_R1.fastq.gz
-		mv $(1)/$(2)_2.fastq.gz $(1)/$(3)_L00$(4)_R2.fastq.gz;\
+		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_S1_L00$(4)_R1_001.fastq.gz
+		mv $(1)/$(2)_2.fastq.gz $(1)/$(3)_S1_L00$(4)_R2_001.fastq.gz;\
 	elif [ $${n_fastq} -eq 3 ]; then \
-		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_L00$(4)_I1.fastq.gz
-		mv $(1)/$(2)_2.fastq.gz $(1)/$(3)_L00$(4)_R1.fastq.gz
-		mv $(1)/$(2)_3.fastq.gz $(1)/$(3)_L00$(4)_R2.fastq.gz;\
+		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_S1_L00$(4)_I1_001.fastq.gz
+		mv $(1)/$(2)_2.fastq.gz $(1)/$(3)_S1_L00$(4)_R1_001.fastq.gz
+		mv $(1)/$(2)_3.fastq.gz $(1)/$(3)_S1_L00$(4)_R2_001.fastq.gz;\
 	elif [ $${n_fastq} -eq 4 ]; then \
-		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_L00$(4)_I1.fastq.gz
-		mv $(1)/$(2)_2.fastq.gz $(1)/$(3)_L00$(4)_I2.fastq.gz
-		mv $(1)/$(2)_3.fastq.gz $(1)/$(3)_L00$(4)_R1.fastq.gz
-		mv $(1)/$(2)_4.fastq.gz $(1)/$(3)_L00$(4)_R2.fastq.gz;\
+		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_S1_L00$(4)_I1_001.fastq.gz
+		mv $(1)/$(2)_2.fastq.gz $(1)/$(3)_S1_L00$(4)_I2_001.fastq.gz
+		mv $(1)/$(2)_3.fastq.gz $(1)/$(3)_S1_L00$(4)_R1_001.fastq.gz
+		mv $(1)/$(2)_4.fastq.gz $(1)/$(3)_S1_L00$(4)_R2_001.fastq.gz;\
 	else \
 		@echo -e '$(RED)ERROR: number of downloaded fastq exceeds 4.$(NC)';\
 	fi
@@ -120,6 +123,9 @@ load-fastq-treated: $(FASTQ_RA)
 load-ctrl: $(10XGENOMICS_CT)
 load-treated: $(10XGENOMICS_RA)
 load: load-ctrl load-treated
+cellranger-ctrl: $(CELLRANGER_CT)
+cellranger-treated: $(CELLRANGER_RA)
+cellranger: cellranger-ctrl cellranger-treated
 convert-ctrl: $(H5AD_CT)
 convert-treated: $(H5AD_RA)
 convert: convert-ctrl convert-treated
@@ -202,6 +208,30 @@ $(FASTQ_RA):
 	mv $${tmp_directory}/* $@/
 	rm -rf $${tmp_directory}
 	$(CONDA_DEACTIVATE)
+
+$(CELLRANGER_CT): $(FASTQ_CT) $(TRANSCRIPTOME)
+	$(call section,cellranger (control data))
+	mkdir -p $(@D)
+	cellranger count --id=ctrl \
+   		--fastqs=$(firstword $^) \
+   		--transcriptome=$(lastword $^) \
+   		--create-bam true \
+   		--localcores=$(JOBS) \
+   		--localmem=$(MEMORY)
+	mv ctrl/* $(@D)
+	rm -rf ctrl
+
+$(CELLRANGER_RA): $(FASTQ_RA) $(TRANSCRIPTOME)
+	$(call section,cellranger (treated data))
+	mkdir -p $(@D)
+	cellranger count --id=treated \
+   		--fastqs=$(firstword $^) \
+   		--transcriptome=$(lastword $^) \
+   		--create-bam true \
+   		--localcores=$(JOBS) \
+   		--localmem=$(MEMORY)
+	mv ctrl/* $(@D)
+	rm -rf treated
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
