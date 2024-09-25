@@ -39,7 +39,8 @@ TRANSCRIPTOME := $(TRANSCRIPTOME:.tar.gz=)
 FASTQ_CT = $(RNA)/fastq/ct
 FASTQ_RA = $(RNA)/fastq/ra
 CELLRANGER_CT = $(RNA)/cellranger/ct/ctrl.mri.tgz
-CELLRANGER_RA = $(RNA)/cellranger/ct/treated.mri.tgz
+CELLRANGER_RA = $(RNA)/cellranger/ra/treated.mri.tgz
+VELOCYTO_CT = $(RNA)/cellranger/ct/velocyto/ct.loom
 10XGENOMICS_CT = $(RNA)/raw/ct/matrix.mtx.gz $(RNA)/raw/ct/features.tsv.gz $(RNA)/raw/ct/barcodes.tsv.gz
 10XGENOMICS_RA = $(RNA)/raw/ra/matrix.mtx.gz $(RNA)/raw/ra/features.tsv.gz $(RNA)/raw/ra/barcodes.tsv.gz
 H5AD_CT = $(RNA)/raw/ct/ct.h5ad
@@ -126,6 +127,9 @@ load: load-ctrl load-treated
 cellranger-ctrl: $(CELLRANGER_CT)
 cellranger-treated: $(CELLRANGER_RA)
 cellranger: cellranger-ctrl cellranger-treated
+velocyto-ctrl: $(VELOCYTO_CT)
+velocyto-treated: $(VELOCYTO_RA)
+velocyto: velocyto-ctrl velocyto-treated
 convert-ctrl: $(H5AD_CT)
 convert-treated: $(H5AD_RA)
 convert: convert-ctrl convert-treated
@@ -172,6 +176,7 @@ $(TRANSCRIPTOME):
 	mkdir -p $(@D)
 	wget --quiet --show-progress --directory-prefix=$(@D) $(TRANSCRIPTOME_URL)
 	tar -zxvf $@.tar.gz -C $(@D)
+	gunzip $@/genes/genes.gtf.gz
 
 $(FASTQ_CT):
 	$(call section,download fastq file (control data))
@@ -213,7 +218,7 @@ $(CELLRANGER_CT): $(FASTQ_CT) $(TRANSCRIPTOME)
 	$(call section,cellranger (control data))
 	mkdir -p $(@D)
 	cellranger count --id=ctrl \
-   		--fastqs=$(firstword $^) \
+		--fastqs=$(firstword $^) \
    		--transcriptome=$(lastword $^) \
    		--create-bam true \
    		--localcores=$(JOBS) \
@@ -232,6 +237,22 @@ $(CELLRANGER_RA): $(FASTQ_RA) $(TRANSCRIPTOME)
    		--localmem=$(MEMORY)
 	mv treated/* $(@D)
 	rm -rf treated
+
+$(VELOCYTO_CT): $(CELLRANGER_CT) $(TRANSCRIPTOME)
+	$(call section,velocyto (control data))
+	$(CONDA_ACTIVATE) velocyto
+	velocyto run10x -m data/public/genome/repeat_msk.gtf \
+		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
+		$(dir $(firstword $^)) $(lastword $^)/genes/genes.gtf
+	$(CONDA_DEACTIVATE)
+
+$(VELOCYTO_RA): $(CELLRANGER_RA) $(TRANSCRIPTOME)
+	$(call section,velocyto (treated data))
+	$(CONDA_ACTIVATE) velocyto
+	velocyto run10x -m data/public/genome/repeat_msk.gtf \
+		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
+		$(dir $(firstword $^)) $(lastword $^)/genes/genes.gtf
+	$(CONDA_DEACTIVATE)
 
 $(10XGENOMICS_CT):
 	$(call section,download 10X genomics data (control data))
