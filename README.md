@@ -19,7 +19,8 @@ Setup prerequisites must be verified:
 apt-get install texlive dvipng texlive-latex-extra texlive-fonts-recommended cm-super texlive-extra-utils
 ```
 2. verify that *Anaconda* package manager is already installed. If not, please install and download it [here](https://www.anaconda.com/download/).
-3. (optional) verify that *SRA toolkits* is installed. If not, please install and download it [here](https://github.com/ncbi/sra-tools/wiki), except if you want to use parallel-fastq-dump *conda* environment.
+3. verify that *Cell Ranger* bioinformatics tool is already installed. If not, please install it [here](https://www.10xgenomics.com/support/software/cell-ranger/downloads) and add it to your *PATH* environment variable.
+4. download file containing expressed repetitive elements to mask [here](https://genome.ucsc.edu/cgi-bin/hgTables?hgsid=611454127_NtvlaW6xBSIRYJEBI0iRDEWisITa&clade=mammal&org=&db=mm39&hgta_group=allTracks&hgta_track=rmsk&hgta_table=rmsk&hgta_regionType=genome&position=&hgta_outputType=gff&hgta_outFileName=repeat_msk.gtf) and move it to directory 'data/public/genome/repeat_msk.gtf'.
 
 Download and configure project:
 ```sh
