@@ -230,7 +230,7 @@ $(CELLRANGER_RA): $(FASTQ_RA) $(TRANSCRIPTOME)
    		--create-bam true \
    		--localcores=$(JOBS) \
    		--localmem=$(MEMORY)
-	mv ctrl/* $(@D)
+	mv treated/* $(@D)
 	rm -rf treated
 
 $(10XGENOMICS_CT):
