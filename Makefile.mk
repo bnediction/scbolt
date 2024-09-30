@@ -3,84 +3,14 @@
 .ONESHELL:
 
 MAKEFLAGS += --silent
-SHELL = /bin/bash
 
-NC = \033[0m
-RED = \033[0;31m
-BOLDGREEN = \033[1;32m
-
-SRA_CT = SRR15305311 SRR15305312 SRR15305313 SRR15305314
-SRA_RA = SRR15305315 SRR15305316 SRR15305317 SRR15305318
-
-ORGANISM = mouse
-SEED_CLUSTER_CT = 0
-ROOT = 3
-IGNORED_NODES = 4
-MEMORY = 64
-
-GENOME_URL = ftp://ftp.ensembl.org/pub/release-112/fasta/mus_musculus/dna/Mus_musculus.GRCm39.dna.primary_assembly.fa.gz
-ANNOTATIONS_URL = ftp://ftp.ensembl.org/pub/release-112/gtf/mus_musculus/Mus_musculus.GRCm39.112.chr.gtf.gz
-TRANSCRIPTOME_URL = https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz
-
-$(eval JOBS := $(shell getconf _NPROCESSORS_ONLN))
+include config.mk
 
 CONDA_ACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
 CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda deactivate ; conda deactivate
 
-RNA = data/rna
-PUBLIC = data/public
-
-INTEGRATION_METHOD = bbknn
-
-$(eval GENOME := $(PUBLIC)/genome/$(basename $(notdir $(GENOME_URL))))
-$(eval ANNOTATIONS := $(PUBLIC)/genome/$(basename $(notdir $(ANNOTATIONS_URL))))
-$(eval TRANSCRIPTOME := $(PUBLIC)/genome/$(notdir $(TRANSCRIPTOME_URL)))
-TRANSCRIPTOME := $(TRANSCRIPTOME:.tar.gz=)
-FASTQ_CT = $(RNA)/fastq/ct
-FASTQ_RA = $(RNA)/fastq/ra
-CELLRANGER_CT = $(RNA)/cellranger/ct/ctrl.mri.tgz
-CELLRANGER_RA = $(RNA)/cellranger/ra/treated.mri.tgz
-VELOCYTO_CT = $(RNA)/cellranger/ct/velocyto/ct.loom
-10XGENOMICS_CT = $(RNA)/raw/ct/matrix.mtx.gz $(RNA)/raw/ct/features.tsv.gz $(RNA)/raw/ct/barcodes.tsv.gz
-10XGENOMICS_RA = $(RNA)/raw/ra/matrix.mtx.gz $(RNA)/raw/ra/features.tsv.gz $(RNA)/raw/ra/barcodes.tsv.gz
-H5AD_CT = $(RNA)/raw/ct/ct.h5ad
-H5AD_RA = $(RNA)/raw/ra/ra.h5ad
-CYCLE_MARKERS = $(PUBLIC)/cycle_phases/mouse_cycle_markers.rds
-FILTER_CT = $(RNA)/cell_filtering/ct/tables/counts.h5ad
-FILTER_RA = $(RNA)/cell_filtering/ra/tables/counts.h5ad
-SIGNATURES = $(PUBLIC)/signatures/geiger.xls $(PUBLIC)/signatures/chambers.xls $(PUBLIC)/signatures/signatures.json
-NORMALISATION_CT = $(RNA)/normalization/ct/tables/corrected.h5ad
-NORMALISATION_RA = $(RNA)/normalization/ra/tables/corrected.h5ad
-CLUSTER_CT = $(RNA)/cluster/ct/tables/counts.h5ad
-CLUSTER_RA = $(RNA)/cluster/ra/tables/counts.h5ad
-MARKERS_CT = $(RNA)/markers/ct/markers.csv
-MARKERS_RA = $(RNA)/markers/ra/markers.csv
-GO_BASIC = $(PUBLIC)/enrichment/go-basic.obo
-GO_MOUSE = $(PUBLIC)/enrichment/goslim_mouse.obo
-GENE2GO = $(PUBLIC)/enrichment/gene2go
-MGI_GAF = $(PUBLIC)/enrichment/mgi.gaf
-OVER_REPRESENTATION_CT = $(RNA)/enrichment/ct/background.txt
-ENRICHMENT_BASIC_CT = $(RNA)/enrichment/ct/goea_basic.xlsx
-ENRICHMENT_MOUSE_CT = $(RNA)/enrichment/ct/goea_mouse.xlsx
-ENRICHMENT_BASIC_RA = $(RNA)/enrichment/ra/goea_basic.xlsx
-ENRICHMENT_MOUSE_RA = $(RNA)/enrichment/ra/goea_mouse.xlsx
-LABELS_CT = $(dir $(CLUSTER_CT))/counts_labels.h5ad
-PSEUDOTIME_CT = $(RNA)/stream/pseudotime/ct/tables/stream.h5ad.pkl
-TRAJECTORIES_CT = $(RNA)/stream/trajectories/ct/branches.txt
-SCBOOLSEQ_CT = $(RNA)/binarization/ct/cluster_bin_node_clusters.csv
-BDC_CT = $(RNA)/binarization/ct/pairwise_predecessor_scores.csv
-SPECIFICATION_CT = $(RNA)/bonesis/ct/plzf_rara_model.txt
-FILTER1_CT = $(RNA)/bonesis/ct/bootstrap_filter_grn_stage1.txt
-FILTER2_CT = $(RNA)/bonesis/ct/bootstrap_filter_grn_stage2.txt
-INFERENCE_SUB_CT = $(RNA)/bonesis/ct/sub.bn
-INFERENCE_MIN_CT = $(RNA)/bonesis/ct/min.bn
-
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
-
-define section
-	@echo -e '$(RED)===== $(1) =====$(NC)'
-endef
 
 define fastq_naming
 	n_fastq="$$(find $(1) -name "$(2)_[1-4].fastq.gz" -printf '.' | wc -m)"
@@ -105,59 +35,52 @@ define fastq_naming
 	fi
 endef
 
-all: $(INFERENCE_SUB_CT) $(INFERENCE_MIN_CT)  $(MARKERS_RA)
+all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
 
 integration: $(MARKERS_ALL) $(INTEGRATION)
-
-clean:
-	rm -rf $(RNA)
-
-mrproper:
-	clean
-	rm -rf $(PUBLIC)/genome
 
 load-genome: $(GENOME)
 load-annotations: $(ANNOTATIONS)
 load-transcriptome: $(TRANSCRIPTOME)
-load-fastq-ctrl: $(FASTQ_CT)
-load-fastq-treated: $(FASTQ_RA)
-load-ctrl: $(10XGENOMICS_CT)
-load-treated: $(10XGENOMICS_RA)
+load-fastq-ctrl: $(FASTQ_CTRL)
+load-fastq-treated: $(FASTQ_TREATED)
+load-ctrl: $(10XGENOMICS_CTRL)
+load-treated: $(10XGENOMICS_TREATED)
 load: load-ctrl load-treated
-cellranger-ctrl: $(CELLRANGER_CT)
-cellranger-treated: $(CELLRANGER_RA)
+cellranger-ctrl: $(CELLRANGER_CTRL)
+cellranger-treated: $(CELLRANGER_TREATED)
 cellranger: cellranger-ctrl cellranger-treated
-velocyto-ctrl: $(VELOCYTO_CT)
-velocyto-treated: $(VELOCYTO_RA)
+velocyto-ctrl: $(VELOCYTO_CTRL)
+velocyto-treated: $(VELOCYTO_TREATED)
 velocyto: velocyto-ctrl velocyto-treated
-convert-ctrl: $(H5AD_CT)
-convert-treated: $(H5AD_RA)
+convert-ctrl: $(H5AD_CTRL)
+convert-treated: $(H5AD_TREATED)
 convert: convert-ctrl convert-treated
 load-markers: $(CYCLE_MARKERS)
-filter-ctrl: $(FILTER_CT)
-filter-treated: $(FILTER_RA)
+filter-ctrl: $(FILTER_CTRL)
+filter-treated: $(FILTER_TREATED)
 filter: filter-ctrl filter-treated
 load-signatures: $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
 convert-signatures: $(lastword $(SIGNATURES))
-normalize-ctrl: $(NORMALISATION_CT)
-normalize-treated: $(NORMALISATION_RA)
+normalize-ctrl: $(NORMALISATION_CTRL)
+normalize-treated: $(NORMALISATION_TREATED)
 normalize: normalize-ctrl normalize-treated
-cluster-ctrl: $(CLUSTER_CT)
-cluster-treated: $(CLUSTER_RA)
+cluster-ctrl: $(CLUSTER_CTRL)
+cluster-treated: $(CLUSTER_TREATED)
 cluster: cluster-ctrl cluster-treated
 load-go: $(GO) $(GENE2GO) $(MGI_GAF)
-go-enrichment: $(ENRICHMENT_BASIC_CT) $(ENRICHMENT_MOUSE_CT)
-label-ctrl: $(LABELS_CT)
-pseudotime-ctrl: $(PSEUDOTIME_CT)
-trajectories-ctrl: $(TRAJECTORIES_CT)
+go-enrichment: $(ENRICHMENT_BASIC_CTRL) $(ENRICHMENT_MOUSE_CTRL)
+label-ctrl: $(LABELS_CTRL)
+pseudotime-ctrl: $(PSEUDOTIME_CTRL)
+trajectories-ctrl: $(TRAJECTORIES_CTRL)
 stream-ctrl: trajectories-ctrl
-scboolseq-ctrl: $(SCBOOLSEQ_CT)
-bdc-ctrl: $(BDC_CT)
-specification-ctrl: $(SPECIFICATION_CT)
-filter-stage1-ctrl: $(FILTER1_CT)
-filter-stage2-ctrl: $(FILTER2_CT)
-inference-sub-ctrl: $(INFERENCE_SUB_CT)
-inference-min-ctrl: $(INFERENCE_MIN_CT)
+scboolseq-ctrl: $(SCBOOLSEQ_CTRL)
+bdc-ctrl: $(BDC_CTRL)
+specification-ctrl: $(SPECIFICATION_CTRL)
+filter-stage1-ctrl: $(FILTER1_CTRL)
+filter-stage2-ctrl: $(FILTER2_CTRL)
+inference-sub-ctrl: $(INFERENCE_SUB_CTRL)
+inference-min-ctrl: $(INFERENCE_MIN_CTRL)
 
 $(GENOME):
 	$(call section, download genome)
@@ -178,14 +101,14 @@ $(TRANSCRIPTOME):
 	tar -zxvf $@.tar.gz -C $(@D)
 	gunzip $@/genes/genes.gtf.gz
 
-$(FASTQ_CT):
+$(FASTQ_CTRL):
 	$(call section,download fastq file (control data))
 	$(CONDA_ACTIVATE) fastq-dump
 	sample="ctrl"
 	lane=0
 	tmp_directory=/tmp/fastq-ctrl
 	rm -rf $${tmp_directory} && mkdir $${tmp_directory}
-	for id in $(SRA_CT)
+	for id in $(SRA_CTRL)
 	do
 		let "lane++"
 		parallel-fastq-dump --sra-id $${id} --split-files --readids --origfmt --threads $(JOBS) --outdir $${tmp_directory} --gzip
@@ -196,14 +119,14 @@ $(FASTQ_CT):
 	rm -rf $${tmp_directory}
 	$(CONDA_DEACTIVATE)
 
-$(FASTQ_RA):
+$(FASTQ_TREATED):
 	$(call section,download fastq file (treated data))
 	$(CONDA_ACTIVATE) fastq-dump
 	sample="treated"
 	lane=0
 	tmp_directory=/tmp/fastq-treated
 	rm -rf $${tmp_directory} && mkdir $${tmp_directory}
-	for id in $(SRA_RA)
+	for id in $(SRA_TREATED)
 	do
 		let "lane++"
 		parallel-fastq-dump --sra-id $${id} --split-files --readids --origfmt --threads $(JOBS) --outdir $${tmp_directory} --gzip
@@ -214,7 +137,7 @@ $(FASTQ_RA):
 	rm -rf $${tmp_directory}
 	$(CONDA_DEACTIVATE)
 
-$(CELLRANGER_CT): $(FASTQ_CT) $(TRANSCRIPTOME)
+$(CELLRANGER_CTRL): $(FASTQ_CTRL) $(TRANSCRIPTOME)
 	$(call section,cellranger (control data))
 	mkdir -p $(@D)
 	cellranger count --id=ctrl \
@@ -226,7 +149,7 @@ $(CELLRANGER_CT): $(FASTQ_CT) $(TRANSCRIPTOME)
 	mv ctrl/* $(@D)
 	rm -rf ctrl
 
-$(CELLRANGER_RA): $(FASTQ_RA) $(TRANSCRIPTOME)
+$(CELLRANGER_TREATED): $(FASTQ_TREATED) $(TRANSCRIPTOME)
 	$(call section,cellranger (treated data))
 	mkdir -p $(@D)
 	cellranger count --id=treated \
@@ -238,50 +161,52 @@ $(CELLRANGER_RA): $(FASTQ_RA) $(TRANSCRIPTOME)
 	mv treated/* $(@D)
 	rm -rf treated
 
-$(VELOCYTO_CT): $(CELLRANGER_CT) $(TRANSCRIPTOME)
+$(VELOCYTO_CTRL): $(CELLRANGER_CTRL) $(TRANSCRIPTOME)
 	$(call section,velocyto (control data))
 	$(CONDA_ACTIVATE) velocyto
 	velocyto run10x -m data/public/genome/repeat_msk.gtf \
 		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
 		$(dir $(firstword $^)) $(lastword $^)/genes/genes.gtf
 	$(CONDA_DEACTIVATE)
+	mv $(dir $(firstword $^))/velocyto $(@D)
 
-$(VELOCYTO_RA): $(CELLRANGER_RA) $(TRANSCRIPTOME)
+$(VELOCYTO_TREATED): $(CELLRANGER_TREATED) $(TRANSCRIPTOME)
 	$(call section,velocyto (treated data))
 	$(CONDA_ACTIVATE) velocyto
 	velocyto run10x -m data/public/genome/repeat_msk.gtf \
 		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
 		$(dir $(firstword $^)) $(lastword $^)/genes/genes.gtf
 	$(CONDA_DEACTIVATE)
+	mv $(dir $(firstword $^))/velocyto $(@D)
 
-$(10XGENOMICS_CT):
+$(10XGENOMICS_CTRL):
 	$(call section,download 10X genomics data (control data))
 	mkdir -p $(@D)
 	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
   		--directory-prefix=$(@D) \
   		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
-	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CT))
-	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CT))
-	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CT))
+	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CTRL))
+	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CTRL))
+	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CTRL))
 
-$(10XGENOMICS_RA):
+$(10XGENOMICS_TREATED):
 	$(call section,download 10X genomics data (treated data))
 	mkdir -p $(@D)
 	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
 		--directory-prefix=$(@D) \
 		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
-	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_RA))
-	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_RA))
-	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_RA))
+	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_TREATED))
+	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_TREATED))
+	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_TREATED))
 
-$(H5AD_CT): $(10XGENOMICS_CT)
+$(H5AD_CTRL): $(10XGENOMICS_CTRL)
 	$(call section,conversion (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/load_10X.py $(<D) $@ \
 		--sample-info age=adult date=29-09-2020 sample_name=ctrl condition=control
 	$(CONDA_DEACTIVATE)
 
-$(H5AD_RA): $(10XGENOMICS_RA)
+$(H5AD_TREATED): $(10XGENOMICS_TREATED)
 	$(call section,conversion (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/load_10X.py $(<D) $@ \
@@ -294,7 +219,7 @@ $(CYCLE_MARKERS):
 	wget --quiet --show-progress -cO $@ \
 		https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
 
-$(FILTER_CT): $(H5AD_CT) $(CYCLE_MARKERS)
+$(FILTER_CTRL): $(H5AD_CTRL) $(CYCLE_MARKERS)
 	$(call section,filtering (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/filter_cells.py \
@@ -307,7 +232,7 @@ $(FILTER_CT): $(H5AD_CT) $(CYCLE_MARKERS)
 		--consistency-mad
 	$(CONDA_DEACTIVATE)
 
-$(FILTER_RA): $(H5AD_RA) $(CYCLE_MARKERS)
+$(FILTER_TREATED): $(H5AD_TREATED) $(CYCLE_MARKERS)
 	$(call section,filtering (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/filter_cells.py \
@@ -341,7 +266,7 @@ $(lastword $(SIGNATURES)): $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
   		--outfile $@
 	$(CONDA_DEACTIVATE)
 
-$(NORMALISATION_CT): $(FILTER_CT)
+$(NORMALISATION_CTRL): $(FILTER_CTRL)
 	$(call section,normalization (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/normalization.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
@@ -350,7 +275,7 @@ $(NORMALISATION_CT): $(FILTER_CT)
 		--jobs $(JOBS)
 	$(CONDA_DEACTIVATE)
 
-$(NORMALISATION_RA): $(FILTER_RA)
+$(NORMALISATION_TREATED): $(FILTER_TREATED)
 	$(call section,normalization (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/normalization.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
@@ -359,17 +284,17 @@ $(NORMALISATION_RA): $(FILTER_RA)
 		--jobs $(JOBS)
 	$(CONDA_DEACTIVATE)
 
-$(CLUSTER_CT): $(NORMALISATION_CT) $(lastword $(SIGNATURES))
+$(CLUSTER_CTRL): $(NORMALISATION_CTRL) $(lastword $(SIGNATURES))
 	$(call section,clustering (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/clusters.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
 		--hvg --metric euclidean --k-neighbors 20 --resolution 0.45 \
 		--dim-pca 50 --dim-clustering 15 --dim-umap 2 \
 		--add-legend \
-		--seed $(SEED_CLUSTER_CT) --verbose
+		--seed $(SEED_CLUSTER_CTRL) --verbose
 	$(CONDA_DEACTIVATE)
 
-$(CLUSTER_RA): $(NORMALISATION_RA)
+$(CLUSTER_TREATED): $(NORMALISATION_TREATED)
 	$(call section,clustering (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/clusters.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
@@ -379,7 +304,7 @@ $(CLUSTER_RA): $(NORMALISATION_RA)
 		--seed 1 --verbose
 	$(CONDA_DEACTIVATE)
 
-$(MARKERS_CT): $(CLUSTER_CT) $(lastword $(SIGNATURES))
+$(MARKERS_CTRL): $(CLUSTER_CTRL) $(lastword $(SIGNATURES))
 	$(call section,analyse cell types (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/markers.py $^ $(@D) \
@@ -388,7 +313,7 @@ $(MARKERS_CT): $(CLUSTER_CT) $(lastword $(SIGNATURES))
   		--verbose
 	$(CONDA_DEACTIVATE)
 
-$(MARKERS_RA): $(CLUSTER_RA) $(lastword $(SIGNATURES))
+$(MARKERS_TREATED): $(CLUSTER_TREATED) $(lastword $(SIGNATURES))
 	$(call section,analyse cell types (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/markers.py $^ $(@D) \
@@ -397,7 +322,7 @@ $(MARKERS_RA): $(CLUSTER_RA) $(lastword $(SIGNATURES))
   		--verbose
 	$(CONDA_DEACTIVATE)
 
-$(OVER_REPRESENTATION_CT): $(CLUSTER_CT) $(MARKERS_CT)
+$(OVER_REPRESENTATION_CTRL): $(CLUSTER_CTRL) $(MARKERS_CTRL)
 	$(call section,over-representation gene set (control data))
 	$(CONDA_ACTIVATE) preprocess
 	@echo -e 'compute background genes'
@@ -411,7 +336,7 @@ $(OVER_REPRESENTATION_CT): $(CLUSTER_CT) $(MARKERS_CT)
 	done
 	$(CONDA_DEACTIVATE)
 
-$(ENRICHMENT_BASIC_CT): $(OVER_REPRESENTATION_CT) $(GO_BASIC) $(GENE2GO)
+$(ENRICHMENT_BASIC_CTRL): $(OVER_REPRESENTATION_CTRL) $(GO_BASIC) $(GENE2GO)
 	$(call section,gene ontology enrichment analysis (control data, with go-basic.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
@@ -422,7 +347,7 @@ $(ENRICHMENT_BASIC_CT): $(OVER_REPRESENTATION_CT) $(GO_BASIC) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(ENRICHMENT_MOUSE_CT): $(OVER_REPRESENTATION_CT) $(GO_MOUSE) $(GENE2GO)
+$(ENRICHMENT_MOUSE_CTRL): $(OVER_REPRESENTATION_CTRL) $(GO_MOUSE) $(GENE2GO)
 	$(call section,gene ontology enrichment analysis (control data, with goslim_mouse.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
@@ -433,7 +358,7 @@ $(ENRICHMENT_MOUSE_CT): $(OVER_REPRESENTATION_CT) $(GO_MOUSE) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(OVER_REPRESENTATION_RA): $(CLUSTER_RA) $(MARKERS_RA)
+$(OVER_REPRESENTATION_TREATED): $(CLUSTER_TREATED) $(MARKERS_TREATED)
 	$(call section,over-representation gene set (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	@echo -e 'compute background genes'
@@ -447,7 +372,7 @@ $(OVER_REPRESENTATION_RA): $(CLUSTER_RA) $(MARKERS_RA)
 	done
 	$(CONDA_DEACTIVATE)
 
-$(ENRICHMENT_BASIC_RA): $(OVER_REPRESENTATION_RA) $(GO_BASIC) $(GENE2GO)
+$(ENRICHMENT_BASIC_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_BASIC) $(GENE2GO)
 	$(call section,gene ontology enrichment analysis (treated data, with go-basic.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
@@ -458,7 +383,7 @@ $(ENRICHMENT_BASIC_RA): $(OVER_REPRESENTATION_RA) $(GO_BASIC) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(ENRICHMENT_MOUSE_RA): $(OVER_REPRESENTATION_RA) $(GO_MOUSE) $(GENE2GO)
+$(ENRICHMENT_MOUSE_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_MOUSE) $(GENE2GO)
 	$(call section,gene ontology enrichment analysis (treated data, with goslim_mouse.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
@@ -469,7 +394,7 @@ $(ENRICHMENT_MOUSE_RA): $(OVER_REPRESENTATION_RA) $(GO_MOUSE) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(LABELS_CT): $(CLUSTER_CT)
+$(LABELS_CTRL): $(CLUSTER_CTRL)
 	$(call section,assign cell types (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/label_clusters.py $< $@ \
@@ -479,7 +404,7 @@ $(LABELS_CT): $(CLUSTER_CT)
 		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
 	$(CONDA_DEACTIVATE)
 
-$(PSEUDOTIME_CT): $(LABELS_CT)
+$(PSEUDOTIME_CTRL): $(LABELS_CTRL)
 	$(call section,trajectory analysis (stream pseudotime, control data))
 	$(CONDA_ACTIVATE) stream
 	python pipeline/stream/pseudotime.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
@@ -490,7 +415,7 @@ $(PSEUDOTIME_CT): $(LABELS_CT)
 		--jobs $(JOBS)
 	$(CONDA_DEACTIVATE)
 
-$(SCBOOLSEQ_CT): $(PSEUDOTIME_CT)
+$(SCBOOLSEQ_CTRL): $(PSEUDOTIME_CTRL)
 	$(call section,scBoolSeq binarization (control data))
 	$(CONDA_ACTIVATE) scboolseq
 	python pipeline/binarization/bin_clusters.py $(shell echo $< | sed "s/.pkl//") $(dir $@) \
@@ -499,13 +424,13 @@ $(SCBOOLSEQ_CT): $(PSEUDOTIME_CT)
 		--verbose
 	$(CONDA DEACTIVATE)
 
-$(BDC_CT): $(SCBOOLSEQ_CT)
+$(BDC_CTRL): $(SCBOOLSEQ_CTRL)
 	$(call section,Boolean differential calculus (control data))
 	$(CONDA_ACTIVATE) scboolseq
 	python pipeline/binarization/differential_analysis.py $< $(@D) --verbose
 	$(CONDA DEACTIVATE)
 
-$(TRAJECTORIES_CT): $(PSEUDOTIME_CT)
+$(TRAJECTORIES_CTRL): $(PSEUDOTIME_CTRL)
 	$(call section,trajectory analysis (stream trajectories, control data))
 	@echo -e '$(BOLDGREEN)Warning: root can be modified depending on previous Boolean differential calculus analysis$(NC)'
 	$(CONDA_ACTIVATE) stream
@@ -515,12 +440,12 @@ $(TRAJECTORIES_CT): $(PSEUDOTIME_CT)
 		--ignore-nodes $(IGNORED_NODES)
 	$(CONDA DEACTIVATE)
 
-$(SPECIFICATION_CT): $(TRAJECTORIES_CT)
+$(SPECIFICATION_CTRL): $(TRAJECTORIES_CTRL)
 	$(call section,Bonesis model specification (control data))
 	mkdir -p $(@D)
 	python3 pipeline/bonesis/design_bo.py $< > $@
 
-$(FILTER1_CT): $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
+$(FILTER1_CTRL): $(SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
 	$(call section,Bonesis filtering (control data, stage 1))
 	$(CONDA_ACTIVATE) bonesis
 	mkdir -p $(@D)
@@ -530,7 +455,7 @@ $(FILTER1_CT): $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
   		--model-specification $(firstword $^) > $@
 	$(CONDA_DEACTIVATE)
 
-$(FILTER2_CT): $(FILTER1_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
+$(FILTER2_CTRL): $(FILTER1_CTRL) $(SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
 	$(call section,Bonesis filtering (control data, stage 2))
 	$(CONDA_ACTIVATE) bonesis
 	python pipeline/bonesis/infer_bo.py filter_stage2 $(dir $<) \
@@ -540,7 +465,7 @@ $(FILTER2_CT): $(FILTER1_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
   		--filter-grn $(firstword $^) > $@
 	$(CONDA_DEACTIVATE)
 
-$(INFERENCE_SUB_CT): $(FILTER2_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
+$(INFERENCE_SUB_CTRL): $(FILTER2_CTRL) $(SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
 	$(call section,Bonesis inference (control data, one-sub))
 	$(CONDA_ACTIVATE) bonesis
 	mkdir -p $(@D)
@@ -551,7 +476,7 @@ $(INFERENCE_SUB_CT): $(FILTER2_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
 		--filter-grn $(firstword $^)
 	$(CONDA_DEACTIVATE)
 
-$(INFERENCE_MIN_CT): $(FILTER2_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
+$(INFERENCE_MIN_CTRL): $(FILTER2_CTRL) $(SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
 	$(call section,Bonesis inference (control data, one-min))
 	$(CONDA_ACTIVATE) bonesis
 	mkdir -p $(@D)
@@ -564,7 +489,7 @@ $(INFERENCE_MIN_CT): $(FILTER2_CT) $(SPECIFICATION_CT) $(SCBOOLSEQ_CT)
 
 ### INTEGRATION ###
 
-$(INTEGRATION): $(NORMALISATION_CT) $(NORMALISATION_RA)
+$(INTEGRATION): $(NORMALISATION_CTRL) $(NORMALISATION_TREATED)
 	$(call section,integration)
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/integration.py $^ $(shell echo $(dir $@) | sed "s/tables\///") \
