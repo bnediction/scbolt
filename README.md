@@ -33,9 +33,9 @@ Run the pipeline:
 make
 ```
 For using specific features in the workflow, please refer to the documentation available with:
-``̀ sh
+```sh
 make help
-``̀ 
+```
 
 ## Pipeline
 
