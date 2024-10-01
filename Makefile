@@ -44,12 +44,15 @@ endef
 ifeq ($(sample), control)
  $(eval fastq_target := $(FASTQ_CTRL))
  $(eval cellranger_target := $(CELLRANGER_CTRL))
+ $(eval velocyto_target := $(VELOCYTO_CTRL))
 else ifeq ($(sample), treated)
  $(eval fastq_target := $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_TREATED))
+ $(eval velocyto_target := $(VELOCYTO_TREATED))
 else
  $(eval fastq_target := $(FASTQ_CTRL) $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_CTRL) $(CELLRANGER_TREATED))
+ $(eval velocyto_target := $(VELOCYTO_CTRL) $(VELOCYTO_TREATED))
 endif
 
 ##@ Help
@@ -76,6 +79,7 @@ mrproper: ## clear cache and public/private data
 	find . -type d -name "cache" -exec rm -rf "{}" \;
 	rm -rf $(RNA)
 	rm -rf $(PUBLIC)/genome
+	find $(PUBLIC)/genome ! -name "repeat_msk.gtf" -exec rm -rf "{}" \;
 	mkdir $(RNA_CTRL) $(RNA_TREATED) $(RNA_INTEGRATED)
 
 ##@ Download
@@ -84,18 +88,18 @@ load-genome: $(GENOME) ## download DNA primary assembly genome
 load-annotations: $(TRANSCRIPTOME) ## download genome-related annotations
 load-fastq: $(fastq_target) ## download fastq files
 
-##@ Data analysis
-cellranger: $(cellranger_target) ## perform alignment and counting with Cell Ranger
+##@ Counting
 
+.PHONY: cellranger
+cellranger: $(cellranger_target) ## perform alignment and counting with Cell Ranger
+.PHONY: velocyto
+velocyto: $(velocyto_target) ## perform spliced/unspliced counting with velocyto
 
 #all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
 # integration: $(MARKERS_ALL) $(INTEGRATION)
 # load-ctrl: $(10XGENOMICS_CTRL)
 # load-treated: $(10XGENOMICS_TREATED)
 # load: load-ctrl load-treated
-velocyto-ctrl: $(VELOCYTO_CTRL)
-velocyto-treated: $(VELOCYTO_TREATED)
-velocyto: velocyto-ctrl velocyto-treated
 convert-ctrl: $(H5AD_CTRL)
 convert-treated: $(H5AD_TREATED)
 convert: convert-ctrl convert-treated
@@ -211,7 +215,9 @@ $(VELOCYTO_CTRL): $(CELLRANGER_CTRL) $(TRANSCRIPTOME)
 		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
 		$(dir $(firstword $^)) $(lastword $^)/genes/genes.gtf
 	$(CONDA_DEACTIVATE)
-	mv $(dir $(firstword $^))/velocyto $(@D)
+	mkdir -p $(@D)
+	mv $(<D)/velocyto/cellranger.loom $@
+	rm -rf $(<D)/velocyto
 
 $(VELOCYTO_TREATED): $(CELLRANGER_TREATED) $(TRANSCRIPTOME)
 	$(call section,velocyto (treated data))
@@ -220,7 +226,11 @@ $(VELOCYTO_TREATED): $(CELLRANGER_TREATED) $(TRANSCRIPTOME)
 		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
 		$(dir $(firstword $^)) $(lastword $^)/genes/genes.gtf
 	$(CONDA_DEACTIVATE)
-	mv $(dir $(firstword $^))/velocyto $(@D)
+	mkdir -p $(@D)
+	mv $(<D)/velocyto/cellranger.loom $@
+	rm -rf $(<D)/velocyto
+
+#############
 
 $(10XGENOMICS_CTRL):
 	$(call section,download 10X genomics data (control data))

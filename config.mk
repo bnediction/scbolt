@@ -40,10 +40,13 @@ TRANSCRIPTOME := $(TRANSCRIPTOME:.tar.gz=)
 
 FASTQ_CTRL = $(RNA_CTRL)/fastq
 FASTQ_TREATED = $(RNA_TREATED)/fastq/ra
+
 CELLRANGER_CTRL = $(RNA_CTRL)/cellranger/ctrl.mri.tgz
 CELLRANGER_TREATED = $(RNA_TREATED)/cellranger/ra/treated.mri.tgz
-VELOCYTO_CTRL = $(RNA_CTRL)/cellranger/ct/velocyto/ct.loom
-VELOCYTO_TREATED = $(RNA_TREATED)/cellranger/ra/velocyto/ra.loom
+
+VELOCYTO_CTRL = $(RNA_CTRL)/velocyto/ctrl.loom
+VELOCYTO_TREATED = $(RNA_TREATED)/velocyto/treated.loom
+
 10XGENOMICS_CTRL = $(RNA_CTRL)/raw/matrix.mtx.gz $(RNA_CTRL)/raw/features.tsv.gz $(RNA_CTRL)/raw/barcodes.tsv.gz
 10XGENOMICS_TREATED = $(RNA_TREATED)/raw/ra/matrix.mtx.gz $(RNA_TREATED)/raw/ra/features.tsv.gz $(RNA_TREATED)/raw/ra/barcodes.tsv.gz
 H5AD_CTRL = $(RNA_CTRL)/raw/ct.h5ad
