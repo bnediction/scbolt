@@ -9,8 +9,14 @@ include config.mk
 CONDA_ACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
 CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda deactivate ; conda deactivate
 
-INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
-MARKERS_ALL = $(RNA)/markers/all/markers.csv
+sample = all
+
+# colors
+NC = \033[0m
+RED = \033[0;31m
+GREEN = \033[0;32m
+BOLDGREEN = \033[1;32m
+BOLD=\033[1m
 
 define fastq_naming
 	n_fastq="$$(find $(1) -name "$(2)_[1-4].fastq.gz" -printf '.' | wc -m)"
@@ -35,21 +41,58 @@ define fastq_naming
 	fi
 endef
 
-all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
+ifeq ($(sample), control)
+ $(eval fastq_target := $(FASTQ_CTRL))
+ $(eval cellranger_target := $(CELLRANGER_CTRL))
+else ifeq ($(sample), treated)
+ $(eval fastq_target := $(FASTQ_TREATED))
+ $(eval cellranger_target := $(CELLRANGER_TREATED))
+else
+ $(eval fastq_target := $(FASTQ_CTRL) $(FASTQ_TREATED))
+ $(eval cellranger_target := $(CELLRANGER_CTRL) $(CELLRANGER_TREATED))
+endif
 
-integration: $(MARKERS_ALL) $(INTEGRATION)
+##@ Help
 
-load-genome: $(GENOME)
-load-annotations: $(ANNOTATIONS)
-load-transcriptome: $(TRANSCRIPTOME)
-load-fastq-ctrl: $(FASTQ_CTRL)
-load-fastq-treated: $(FASTQ_TREATED)
-load-ctrl: $(10XGENOMICS_CTRL)
-load-treated: $(10XGENOMICS_TREATED)
-load: load-ctrl load-treated
-cellranger-ctrl: $(CELLRANGER_CTRL)
-cellranger-treated: $(CELLRANGER_TREATED)
-cellranger: cellranger-ctrl cellranger-treated
+.PHONY: help
+help: ## display this help and exit
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [sample=control|treated|all]\n"}/^[a-zA-Z_-]+:.*?##/ \
+	{ printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BOLD)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
+##@ Clean
+
+.PHONY: clean
+clean: ## clear cache and private data
+	find . -name "\*.pyc" -delete
+	find . -name "__pycache__" -delete
+	find . -type d -name "cache" -exec rm -rf "{}" \;
+	rm -rf $(RNA)
+	mkdir $(RNA) $(RNA_CTRL) $(RNA_TREATED) $(RNA_INTEGRATED)
+
+.PHONY: mrproper
+mrproper: ## clear cache and public/private data
+	find . -name "\*.pyc" -delete
+	find . -name "__pycache__" -delete
+	find . -type d -name "cache" -exec rm -rf "{}" \;
+	rm -rf $(RNA)
+	rm -rf $(PUBLIC)/genome
+	mkdir $(RNA_CTRL) $(RNA_TREATED) $(RNA_INTEGRATED)
+
+##@ Download
+
+load-genome: $(GENOME) ## download DNA primary assembly genome
+load-annotations: $(TRANSCRIPTOME) ## download genome-related annotations
+load-fastq: $(fastq_target) ## download fastq files
+
+##@ Data analysis
+cellranger: $(cellranger_target) ## perform alignment and counting with Cell Ranger
+
+
+#all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
+# integration: $(MARKERS_ALL) $(INTEGRATION)
+# load-ctrl: $(10XGENOMICS_CTRL)
+# load-treated: $(10XGENOMICS_TREATED)
+# load: load-ctrl load-treated
 velocyto-ctrl: $(VELOCYTO_CTRL)
 velocyto-treated: $(VELOCYTO_TREATED)
 velocyto: velocyto-ctrl velocyto-treated
@@ -104,7 +147,7 @@ $(TRANSCRIPTOME):
 $(FASTQ_CTRL):
 	$(call section,download fastq file (control data))
 	$(CONDA_ACTIVATE) fastq-dump
-	sample="ctrl"
+	sample_naming="ctrl"
 	lane=0
 	tmp_directory=/tmp/fastq-ctrl
 	rm -rf $${tmp_directory} && mkdir $${tmp_directory}
@@ -112,7 +155,7 @@ $(FASTQ_CTRL):
 	do
 		let "lane++"
 		parallel-fastq-dump --sra-id $${id} --split-files --readids --origfmt --threads $(JOBS) --outdir $${tmp_directory} --gzip
-		$(call fastq_naming,$${tmp_directory},$${id},$${sample},$${lane})
+		$(call fastq_naming,$${tmp_directory},$${id},$${sample_naming},$${lane})
 	done
 	mkdir $@
 	mv $${tmp_directory}/* $@/
@@ -122,7 +165,7 @@ $(FASTQ_CTRL):
 $(FASTQ_TREATED):
 	$(call section,download fastq file (treated data))
 	$(CONDA_ACTIVATE) fastq-dump
-	sample="treated"
+	sample_naming="treated"
 	lane=0
 	tmp_directory=/tmp/fastq-treated
 	rm -rf $${tmp_directory} && mkdir $${tmp_directory}
@@ -130,7 +173,7 @@ $(FASTQ_TREATED):
 	do
 		let "lane++"
 		parallel-fastq-dump --sra-id $${id} --split-files --readids --origfmt --threads $(JOBS) --outdir $${tmp_directory} --gzip
-		$(call fastq_naming,$${tmp_directory},$${id},$${sample},$${lane})
+		$(call fastq_naming,$${tmp_directory},$${id},$${sample_naming},$${lane})
 	done
 	mkdir $@
 	mv $${tmp_directory}/* $@/
