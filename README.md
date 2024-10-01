@@ -30,8 +30,12 @@ bash config/env_installation.sh
 ```
 Run the pipeline:
 ```sh
-bash pipeline.sh
+make
 ```
+For using specific features in the workflow, please refer to the documentation available with:
+``̀ sh
+make help
+``̀ 
 
 ## Pipeline
 
