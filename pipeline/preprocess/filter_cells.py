@@ -33,14 +33,14 @@ def median_absolute_deviation(x, consistency=False):
     constant = 1.4826 if consistency else 1
     return constant*np.median(np.absolute(x - np.median(x)))
 
-def marker_pairs_converter(ensembl_to_symbol: dict, ensembl_marker_pairs):
-    """convert marker pairs from ensembl id into symbol id"""
+def marker_pairs_converter(ensemblid_to_index: dict, ensemblid_marker_pairs):
+    """convert marker pairs from ensembl id into its name"""
     symbol_marker_pairs = dict()
-    for cycle, pairs in ensembl_marker_pairs.items():
+    for cycle, pairs in ensemblid_marker_pairs.items():
         cycle_pairs = list()
         for _, (first, second) in pairs.iterrows():
-            if first in ensembl_to_symbol.keys() and second in ensembl_to_symbol.keys():
-                cycle_pairs.append([ensembl_to_symbol[first], ensembl_to_symbol[second]])
+            if first in ensemblid_to_index.keys() and second in ensemblid_to_index.keys():
+                cycle_pairs.append([ensemblid_to_index[first], ensemblid_to_index[second]])
         symbol_marker_pairs[cycle] = cycle_pairs
     return symbol_marker_pairs
 
@@ -133,15 +133,16 @@ print(f"Loading data...")
 adata = sc.read_h5ad(Path(f"{args.count_infile}").resolve())
 _s_ante_filter = adata.shape
 
-ensembl_to_symbol = dict()
-for _, row in adata.var.iterrows():
-    ensembl_to_symbol[row["gene_ids"]] = row["symbol"]
+ensemblid_to_index = dict()
+for index, row in adata.var.iterrows():
+    ensemblid_to_index[row["ensemblid"]] = index
 
 print(f"Assigning cell cycle phases...")
 
 parser = rdata.parser.parse_file(args.marker_infile)
 marker_pairs = rdata.conversion.convert(parser)
-marker_pairs = marker_pairs_converter(ensembl_to_symbol, marker_pairs)
+marker_pairs = marker_pairs_converter(ensemblid_to_index, marker_pairs)
+
 scores = pairs.cyclone(adata, marker_pairs)
 adata.obs.rename(columns={
     "pypairs_G1": "G1_score",

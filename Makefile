@@ -46,16 +46,22 @@ ifeq ($(sample), control)
  $(eval cellranger_target := $(CELLRANGER_CTRL))
  $(eval velocyto_target := $(VELOCYTO_CTRL))
  $(eval h5ad_target := $(H5AD_CTRL))
+ $(eval filter_target := $(FILTER_CTRL))
+ $(eval normalization_target := $(NORMALISATION_CTRL))
 else ifeq ($(sample), treated)
  $(eval fastq_target := $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_TREATED))
  $(eval velocyto_target := $(VELOCYTO_TREATED))
  $(eval h5ad_target := $(H5AD_TREATED))
+ $(eval filter_target := $(FILTER_TREATED))
+ $(eval normalization_target := $(NORMALISATION_TREATED))
 else
  $(eval fastq_target := $(FASTQ_CTRL) $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_CTRL) $(CELLRANGER_TREATED))
  $(eval velocyto_target := $(VELOCYTO_CTRL) $(VELOCYTO_TREATED))
  $(eval h5ad_target := $(H5AD_CTRL) $(H5AD_TREATED))
+ $(eval filter_target := $(FILTER_CTRL) $(FILTER_TREATED))
+ $(eval normalization_target := $(NORMALISATION_CTRL) $(NORMALISATION_TREATED))
 endif
 
 ##@ Help
@@ -90,7 +96,7 @@ mrproper: ## clear cache and public/private data
 load-genome: $(GENOME) ## download DNA primary assembly genome
 load-annotations: $(TRANSCRIPTOME) ## download genome-related annotations
 load-fastq: $(fastq_target) ## download fastq files
-load-cycle-markers: $(CYCLE_MARKERS) ## download cycle phase markers
+load-markers: $(CYCLE_MARKERS) ## download cycle phase markers
 
 ##@ Counting
 
@@ -103,24 +109,19 @@ velocyto: $(velocyto_target) ## perform spliced/unspliced counting with velocyto
 
 .PHONY: conversion
 conversion: $(h5ad_target) ## convert loom file into h5ad file
+.PHONY: filtering
+filtering: $(filter_target) ## filtering low quality cells and assignment of cell cycle phases
+.PHONY: normalization
+normalization: $(normalization_target) ## filtering low quality genes and normalization of counts
+
 
 #all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
 # integration: $(MARKERS_ALL) $(INTEGRATION)
 # load-ctrl: $(10XGENOMICS_CTRL)
 # load-treated: $(10XGENOMICS_TREATED)
 # load: load-ctrl load-treated
-convert-ctrl: $(H5AD_CTRL)
-convert-treated: $(H5AD_TREATED)
-convert: convert-ctrl convert-treated
-load-markers: $(CYCLE_MARKERS)
-filter-ctrl: $(FILTER_CTRL)
-filter-treated: $(FILTER_TREATED)
-filter: filter-ctrl filter-treated
 load-signatures: $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
 convert-signatures: $(lastword $(SIGNATURES))
-normalize-ctrl: $(NORMALISATION_CTRL)
-normalize-treated: $(NORMALISATION_TREATED)
-normalize: normalize-ctrl normalize-treated
 cluster-ctrl: $(CLUSTER_CTRL)
 cluster-treated: $(CLUSTER_TREATED)
 cluster: cluster-ctrl cluster-treated
@@ -252,15 +253,13 @@ $(H5AD_CTRL): $(VELOCYTO_CTRL)
 		--sample-info $(METADATA_CTRL)
 	$(CONDA_DEACTIVATE)
 
-$(H5AD_CTRL): $(VELOCYTO_CTRL)
+$(H5AD_TREATED): $(VELOCYTO_TREATED)
 	$(call section,format conversion from loom to h5ad (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python bonesis-tools/clitools/conversion_to_h5ad.py $< $@ \
-		--sample-info $(METADATA_CTRL)
+		--sample-info $(METADATA_CTRL) \
+		--remove-positions
 	$(CONDA_DEACTIVATE)
-
-
-####
 
 $(FILTER_CTRL): $(H5AD_CTRL) $(CYCLE_MARKERS)
 	$(call section,filtering (control data))
@@ -287,6 +286,25 @@ $(FILTER_TREATED): $(H5AD_TREATED) $(CYCLE_MARKERS)
 		--lower-mad 3 \
 		--consistency-mad
 	$(CONDA_DEACTIVATE)
+
+$(NORMALISATION_CTRL): $(FILTER_CTRL)
+	$(call section,normalization (control data))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/normalization.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+		--correction G2M_score S_score G1_score \
+		--min-cell-expression-proportion 0.001 \
+		--jobs $(JOBS)
+	$(CONDA_DEACTIVATE)
+
+$(NORMALISATION_TREATED): $(FILTER_TREATED)
+	$(call section,normalization (treated data))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/normalization.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+		--correction G2M_score S_score G1_score \
+		--min-cell-expression-proportion 0.001 \
+		--jobs $(JOBS)
+	$(CONDA_DEACTIVATE)
+
 
 
 
@@ -333,24 +351,6 @@ $(lastword $(SIGNATURES)): $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
 		--list-infile $(firstword $^) \
 		--table-infile $(lastword $^) \
   		--outfile $@
-	$(CONDA_DEACTIVATE)
-
-$(NORMALISATION_CTRL): $(FILTER_CTRL)
-	$(call section,normalization (control data))
-	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/normalization.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
-		--correction G2M_score S_score G1_score \
-		--min-cell-expression-proportion 0.001 \
-		--jobs $(JOBS)
-	$(CONDA_DEACTIVATE)
-
-$(NORMALISATION_TREATED): $(FILTER_TREATED)
-	$(call section,normalization (treated data))
-	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/normalization.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
-		--correction G2M_score S_score G1_score \
-		--min-cell-expression-proportion 0.001 \
-		--jobs $(JOBS)
 	$(CONDA_DEACTIVATE)
 
 $(CLUSTER_CTRL): $(NORMALISATION_CTRL) $(lastword $(SIGNATURES))

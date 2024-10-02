@@ -106,7 +106,7 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.001,
-    help="remove gene for which the proportion of expressed cells is inferior to the given value (default = 0.001)"
+    help="remove genes for which the proportion of expressed cells is inferior to the given value (default = 0.001)"
 )
 
 parser.add_argument(
