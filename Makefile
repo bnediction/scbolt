@@ -45,14 +45,17 @@ ifeq ($(sample), control)
  $(eval fastq_target := $(FASTQ_CTRL))
  $(eval cellranger_target := $(CELLRANGER_CTRL))
  $(eval velocyto_target := $(VELOCYTO_CTRL))
+ $(eval h5ad_target := $(H5AD_CTRL))
 else ifeq ($(sample), treated)
  $(eval fastq_target := $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_TREATED))
  $(eval velocyto_target := $(VELOCYTO_TREATED))
+ $(eval h5ad_target := $(H5AD_TREATED))
 else
  $(eval fastq_target := $(FASTQ_CTRL) $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_CTRL) $(CELLRANGER_TREATED))
  $(eval velocyto_target := $(VELOCYTO_CTRL) $(VELOCYTO_TREATED))
+ $(eval h5ad_target := $(H5AD_CTRL) $(H5AD_TREATED))
 endif
 
 ##@ Help
@@ -87,6 +90,7 @@ mrproper: ## clear cache and public/private data
 load-genome: $(GENOME) ## download DNA primary assembly genome
 load-annotations: $(TRANSCRIPTOME) ## download genome-related annotations
 load-fastq: $(fastq_target) ## download fastq files
+load-cycle-markers: $(CYCLE_MARKERS) ## download cycle phase markers
 
 ##@ Counting
 
@@ -94,6 +98,11 @@ load-fastq: $(fastq_target) ## download fastq files
 cellranger: $(cellranger_target) ## perform alignment and counting with Cell Ranger
 .PHONY: velocyto
 velocyto: $(velocyto_target) ## perform spliced/unspliced counting with velocyto
+
+##@ Preprocessing
+
+.PHONY: conversion
+conversion: $(h5ad_target) ## convert loom file into h5ad file
 
 #all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
 # integration: $(MARKERS_ALL) $(INTEGRATION)
@@ -147,6 +156,12 @@ $(TRANSCRIPTOME):
 	wget --quiet --show-progress --directory-prefix=$(@D) $(TRANSCRIPTOME_URL)
 	tar -zxvf $@.tar.gz -C $(@D)
 	gunzip $@/genes/genes.gtf.gz
+
+$(CYCLE_MARKERS):
+	$(call section,download cycle phase markers)
+	mkdir -p $(@D)
+	wget --quiet --show-progress -cO $@ \
+		https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
 
 $(FASTQ_CTRL):
 	$(call section,download fastq file (control data))
@@ -230,47 +245,22 @@ $(VELOCYTO_TREATED): $(CELLRANGER_TREATED) $(TRANSCRIPTOME)
 	mv $(<D)/velocyto/cellranger.loom $@
 	rm -rf $(<D)/velocyto
 
-#############
-
-$(10XGENOMICS_CTRL):
-	$(call section,download 10X genomics data (control data))
-	mkdir -p $(@D)
-	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
-  		--directory-prefix=$(@D) \
-  		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
-	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CTRL))
-	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CTRL))
-	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CTRL))
-
-$(10XGENOMICS_TREATED):
-	$(call section,download 10X genomics data (treated data))
-	mkdir -p $(@D)
-	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
-		--directory-prefix=$(@D) \
-		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
-	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_TREATED))
-	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_TREATED))
-	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_TREATED))
-
-$(H5AD_CTRL): $(10XGENOMICS_CTRL)
-	$(call section,conversion (control data))
+$(H5AD_CTRL): $(VELOCYTO_CTRL)
+	$(call section,format conversion from loom to h5ad (control data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/load_10X.py $(<D) $@ \
-		--sample-info age=adult date=29-09-2020 sample_name=ctrl condition=control
+	python bonesis-tools/clitools/conversion_to_h5ad.py $< $@ \
+		--sample-info $(METADATA_CTRL)
 	$(CONDA_DEACTIVATE)
 
-$(H5AD_TREATED): $(10XGENOMICS_TREATED)
-	$(call section,conversion (treated data))
+$(H5AD_CTRL): $(VELOCYTO_CTRL)
+	$(call section,format conversion from loom to h5ad (treated data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/load_10X.py $(<D) $@ \
-		--sample-info age=adult date=29-09-2020 sample_name=ra condition=treated
+	python bonesis-tools/clitools/conversion_to_h5ad.py $< $@ \
+		--sample-info $(METADATA_CTRL)
 	$(CONDA_DEACTIVATE)
 
-$(CYCLE_MARKERS):
-	$(call section,download cycle phase markers)
-	mkdir -p $(@D)
-	wget --quiet --show-progress -cO $@ \
-		https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
+
+####
 
 $(FILTER_CTRL): $(H5AD_CTRL) $(CYCLE_MARKERS)
 	$(call section,filtering (control data))
@@ -297,6 +287,32 @@ $(FILTER_TREATED): $(H5AD_TREATED) $(CYCLE_MARKERS)
 		--lower-mad 3 \
 		--consistency-mad
 	$(CONDA_DEACTIVATE)
+
+
+
+#############
+
+$(10XGENOMICS_CTRL):
+	$(call section,download 10X genomics data (control data))
+	mkdir -p $(@D)
+	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
+  		--directory-prefix=$(@D) \
+  		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
+	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CTRL))
+	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CTRL))
+	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CTRL))
+
+$(10XGENOMICS_TREATED):
+	$(call section,download 10X genomics data (treated data))
+	mkdir -p $(@D)
+	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
+		--directory-prefix=$(@D) \
+		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
+	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_TREATED))
+	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_TREATED))
+	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_TREATED))
+
+
 
 $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES)):
 	$(eval FILENAME := $(basename $(notdir $@)))

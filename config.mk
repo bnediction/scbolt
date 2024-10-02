@@ -10,6 +10,8 @@ endef
 
 # metadata
 ORGANISM = mouse
+METADATA_CTRL = age=adult date=29-09-2020 sample_name=ctrl condition=control
+METADATA_TREATED = age=adult date=29-09-2020 sample_name=treated condition=treated
 
 # url
 GENOME_URL = ftp://ftp.ensembl.org/pub/release-112/fasta/mus_musculus/dna/Mus_musculus.GRCm39.dna.primary_assembly.fa.gz
@@ -47,10 +49,13 @@ CELLRANGER_TREATED = $(RNA_TREATED)/cellranger/ra/treated.mri.tgz
 VELOCYTO_CTRL = $(RNA_CTRL)/velocyto/ctrl.loom
 VELOCYTO_TREATED = $(RNA_TREATED)/velocyto/treated.loom
 
+H5AD_CTRL = $(RNA_CTRL)/raw/ctrl.h5ad
+H5AD_TREATED = $(RNA_TREATED)/raw/treated.h5ad
+
+
+
 10XGENOMICS_CTRL = $(RNA_CTRL)/raw/matrix.mtx.gz $(RNA_CTRL)/raw/features.tsv.gz $(RNA_CTRL)/raw/barcodes.tsv.gz
 10XGENOMICS_TREATED = $(RNA_TREATED)/raw/ra/matrix.mtx.gz $(RNA_TREATED)/raw/ra/features.tsv.gz $(RNA_TREATED)/raw/ra/barcodes.tsv.gz
-H5AD_CTRL = $(RNA_CTRL)/raw/ct.h5ad
-H5AD_TREATED = $(RNA_TREATED)/raw/ra/ra.h5ad
 CYCLE_MARKERS = $(PUBLIC)/cycle_phases/mouse_cycle_markers.rds
 FILTER_CTRL = $(RNA_CTRL)/cell_filtering/ct/tables/counts.h5ad
 FILTER_TREATED = $(RNA_TREATED)/cell_filtering/ra/tables/counts.h5ad
