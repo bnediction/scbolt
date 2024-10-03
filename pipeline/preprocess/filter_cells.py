@@ -118,6 +118,16 @@ parser.add_argument(
     help="median absolute deviation (MAD) is refactorised for asymptotically normal consistency"
 )
 
+parser.add_argument(
+    "--ensembl-column",
+    dest="ensembl_column",
+    type=str,
+    required=False,
+    default="Accession",
+    metavar="LITERAL",
+    help="column name in h5ad file containing Ensembl Id"
+)
+
 args = parser.parse_args()
 
 data_outpath = Path(f"{args.outpath}/tables")
@@ -135,7 +145,7 @@ _s_ante_filter = adata.shape
 
 ensemblid_to_index = dict()
 for index, row in adata.var.iterrows():
-    ensemblid_to_index[row["ensemblid"]] = index
+    ensemblid_to_index[row[args.ensembl_column]] = index
 
 print(f"Assigning cell cycle phases...")
 

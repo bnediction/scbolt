@@ -48,6 +48,8 @@ ifeq ($(sample), control)
  $(eval h5ad_target := $(H5AD_CTRL))
  $(eval filter_target := $(FILTER_CTRL))
  $(eval normalization_target := $(NORMALISATION_CTRL))
+ $(eval cluster_target := $(CLUSTER_CTRL))
+ $(eval label_target := $(LABELS_CTRL))
 else ifeq ($(sample), treated)
  $(eval fastq_target := $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_TREATED))
@@ -55,6 +57,8 @@ else ifeq ($(sample), treated)
  $(eval h5ad_target := $(H5AD_TREATED))
  $(eval filter_target := $(FILTER_TREATED))
  $(eval normalization_target := $(NORMALISATION_TREATED))
+ $(eval cluster_target := $(CLUSTER_TREATED))
+ $(eval label_target := $(LABELS_TREATED))
 else
  $(eval fastq_target := $(FASTQ_CTRL) $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_CTRL) $(CELLRANGER_TREATED))
@@ -62,6 +66,8 @@ else
  $(eval h5ad_target := $(H5AD_CTRL) $(H5AD_TREATED))
  $(eval filter_target := $(FILTER_CTRL) $(FILTER_TREATED))
  $(eval normalization_target := $(NORMALISATION_CTRL) $(NORMALISATION_TREATED))
+ $(eval cluster_target := $(CLUSTER_CTRL) $(CLUSTER_TREATED))
+ $(eval label_target := $(LABELS_CTRL) $(LABELS_TREATED))
 endif
 
 ##@ Help
@@ -97,6 +103,7 @@ load-genome: $(GENOME) ## download DNA primary assembly genome
 load-annotations: $(TRANSCRIPTOME) ## download genome-related annotations
 load-fastq: $(fastq_target) ## download fastq files
 load-markers: $(CYCLE_MARKERS) ## download cycle phase markers
+load-signatures: $(lastword $(SIGNATURES)) ## download signatures and convert it into json file
 
 ##@ Counting
 
@@ -113,6 +120,10 @@ conversion: $(h5ad_target) ## convert loom file into h5ad file
 filtering: $(filter_target) ## filtering low quality cells and assignment of cell cycle phases
 .PHONY: normalization
 normalization: $(normalization_target) ## filtering low quality genes and normalization of counts
+.PHONY: clustering
+clustering: $(cluster_target) ## perform dimension reduction and cell clustering
+.PHONY: labeling
+labeling: $(label_target) ## analyse cell clusters
 
 
 #all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
@@ -120,14 +131,8 @@ normalization: $(normalization_target) ## filtering low quality genes and normal
 # load-ctrl: $(10XGENOMICS_CTRL)
 # load-treated: $(10XGENOMICS_TREATED)
 # load: load-ctrl load-treated
-load-signatures: $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
-convert-signatures: $(lastword $(SIGNATURES))
-cluster-ctrl: $(CLUSTER_CTRL)
-cluster-treated: $(CLUSTER_TREATED)
-cluster: cluster-ctrl cluster-treated
 load-go: $(GO) $(GENE2GO) $(MGI_GAF)
 go-enrichment: $(ENRICHMENT_BASIC_CTRL) $(ENRICHMENT_MOUSE_CTRL)
-label-ctrl: $(LABELS_CTRL)
 pseudotime-ctrl: $(PSEUDOTIME_CTRL)
 trajectories-ctrl: $(TRAJECTORIES_CTRL)
 stream-ctrl: trajectories-ctrl
@@ -161,8 +166,26 @@ $(TRANSCRIPTOME):
 $(CYCLE_MARKERS):
 	$(call section,download cycle phase markers)
 	mkdir -p $(@D)
-	wget --quiet --show-progress -cO $@ \
-		https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
+	wget --quiet --show-progress -cO $@ $(CELL_CYCLE_URL)
+
+$(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES)):
+	$(call section,download $(FILENAME) signatures)
+	mkdir -p $(@D)
+	$(eval FILENAME := $(basename $(notdir $@)))
+	if [ $(FILENAME) = "geiger" ]; then \
+		wget --quiet --show-progress -cO $@ $(GEIGER_URL); \
+	else \
+		wget --quiet --show-progress -cO $@ $(CHAMBERS_URL); \
+	fi
+
+$(lastword $(SIGNATURES)): $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
+	$(call section,convert signatures)
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/load_signatures.py \
+		--list-infile $(firstword $^) \
+		--table-infile $(lastword $^) \
+  		--outfile $@
+	$(CONDA_DEACTIVATE)
 
 $(FASTQ_CTRL):
 	$(call section,download fastq file (control data))
@@ -250,7 +273,8 @@ $(H5AD_CTRL): $(VELOCYTO_CTRL)
 	$(call section,format conversion from loom to h5ad (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python bonesis-tools/clitools/conversion_to_h5ad.py $< $@ \
-		--sample-info $(METADATA_CTRL)
+		--sample-info $(METADATA_CTRL) \
+		--remove-positions
 	$(CONDA_DEACTIVATE)
 
 $(H5AD_TREATED): $(VELOCYTO_TREATED)
@@ -305,55 +329,7 @@ $(NORMALISATION_TREATED): $(FILTER_TREATED)
 		--jobs $(JOBS)
 	$(CONDA_DEACTIVATE)
 
-
-
-
-#############
-
-$(10XGENOMICS_CTRL):
-	$(call section,download 10X genomics data (control data))
-	mkdir -p $(@D)
-	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
-  		--directory-prefix=$(@D) \
-  		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
-	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CTRL))
-	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CTRL))
-	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CTRL))
-
-$(10XGENOMICS_TREATED):
-	$(call section,download 10X genomics data (treated data))
-	mkdir -p $(@D)
-	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
-		--directory-prefix=$(@D) \
-		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
-	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_TREATED))
-	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_TREATED))
-	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_TREATED))
-
-
-
-$(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES)):
-	$(eval FILENAME := $(basename $(notdir $@)))
-	if [ $(FILENAME) = "geiger" ]; then \
-		URL=https://doi.org/10.1371/journal.pbio.2003389.s025; \
-	else \
-		URL=https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls; \
-	fi
-	$(call section,download $(FILENAME) signatures)
-	mkdir -p $(@D)
-	wget --quiet --show-progress -cO $@ $$URL
-	unset URL
-
-$(lastword $(SIGNATURES)): $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
-	$(call section,convert signatures)
-	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/load_signatures.py \
-		--list-infile $(firstword $^) \
-		--table-infile $(lastword $^) \
-  		--outfile $@
-	$(CONDA_DEACTIVATE)
-
-$(CLUSTER_CTRL): $(NORMALISATION_CTRL) $(lastword $(SIGNATURES))
+$(CLUSTER_CTRL): $(NORMALISATION_CTRL)
 	$(call section,clustering (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/clusters.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
@@ -390,6 +366,36 @@ $(MARKERS_TREATED): $(CLUSTER_TREATED) $(lastword $(SIGNATURES))
   		--logfc-threshold 0.25 \
   		--verbose
 	$(CONDA_DEACTIVATE)
+
+#############
+
+$(10XGENOMICS_CTRL):
+	$(call section,download 10X genomics data (control data))
+	mkdir -p $(@D)
+	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
+  		--directory-prefix=$(@D) \
+  		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
+	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CTRL))
+	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CTRL))
+	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CTRL))
+
+$(10XGENOMICS_TREATED):
+	$(call section,download 10X genomics data (treated data))
+	mkdir -p $(@D)
+	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
+		--directory-prefix=$(@D) \
+		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
+	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_TREATED))
+	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_TREATED))
+	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_TREATED))
+
+
+
+
+
+
+
+
 
 $(OVER_REPRESENTATION_CTRL): $(CLUSTER_CTRL) $(MARKERS_CTRL)
 	$(call section,over-representation gene set (control data))
