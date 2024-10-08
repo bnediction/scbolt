@@ -49,6 +49,9 @@ ifeq ($(sample), control)
  $(eval filter_target := $(FILTER_CTRL))
  $(eval normalization_target := $(NORMALISATION_CTRL))
  $(eval cluster_target := $(CLUSTER_CTRL))
+ $(eval markers_target := $(MARKERS_CTRL))
+ $(eval over_representation_target := $(OVER_REPRESENTATION_CTRL))
+ $(eval goea_target := $(ENRICHMENT_BASIC_CTRL) $(ENRICHMENT_MOUSE_CTRL))
  $(eval label_target := $(LABELS_CTRL))
 else ifeq ($(sample), treated)
  $(eval fastq_target := $(FASTQ_TREATED))
@@ -58,6 +61,9 @@ else ifeq ($(sample), treated)
  $(eval filter_target := $(FILTER_TREATED))
  $(eval normalization_target := $(NORMALISATION_TREATED))
  $(eval cluster_target := $(CLUSTER_TREATED))
+ $(eval markers_target := $(MARKERS_TREATED))
+ $(eval over_representation_target := $(OVER_REPRESENTATION_TREATED))
+ $(eval goea_target := $(ENRICHMENT_BASIC_TREATED) $(ENRICHMENT_MOUSE_TREATED))
  $(eval label_target := $(LABELS_TREATED))
 else
  $(eval fastq_target := $(FASTQ_CTRL) $(FASTQ_TREATED))
@@ -67,6 +73,9 @@ else
  $(eval filter_target := $(FILTER_CTRL) $(FILTER_TREATED))
  $(eval normalization_target := $(NORMALISATION_CTRL) $(NORMALISATION_TREATED))
  $(eval cluster_target := $(CLUSTER_CTRL) $(CLUSTER_TREATED))
+ $(eval markers_target := $(MARKERS_CTRL) $(MARKERS_TREATED))
+ $(eval over_representation_target := $(OVER_REPRESENTATION_CTRL) $(OVER_REPRESENTATION_TREATED))
+ $(eval goea_target := $(ENRICHMENT_BASIC_CTRL) $(ENRICHMENT_MOUSE_CTRL) $(ENRICHMENT_BASIC_TREATED) $(ENRICHMENT_MOUSE_TREATED))
  $(eval label_target := $(LABELS_CTRL) $(LABELS_TREATED))
 endif
 
@@ -75,7 +84,7 @@ endif
 .PHONY: help
 help: ## display this help and exit
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [sample=control|treated|all]\n"}/^[a-zA-Z_-]+:.*?##/ \
-	{ printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BOLD)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	{ printf "  $(GREEN)%-22s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BOLD)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Clean
 
@@ -122,10 +131,18 @@ filtering: $(filter_target) ## filtering low quality cells and assignment of cel
 normalization: $(normalization_target) ## filtering low quality genes and normalization of counts
 .PHONY: clustering
 clustering: $(cluster_target) ## perform dimension reduction and cell clustering
-.PHONY: labeling
+
+
+##@ Analysis
+
+marker-analysis: $(markers_target) ## search for gene markers and compare markers and signatures
+differential-analysis: $(over_representation_target) ## compute over-representated cluster-related genes
+goea-analysis: $(goea_target) ## perform gene ontology enrichment analysis
+
+
+##@ Other
+
 labeling: $(label_target) ## analyse cell clusters
-
-
 #all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
 # integration: $(MARKERS_ALL) $(INTEGRATION)
 # load-ctrl: $(10XGENOMICS_CTRL)
@@ -145,19 +162,19 @@ inference-sub-ctrl: $(INFERENCE_SUB_CTRL)
 inference-min-ctrl: $(INFERENCE_MIN_CTRL)
 
 $(GENOME):
-	$(call section, download genome)
+	$(call section, load-genome)
 	mkdir -p $(@D)
 	wget --quiet --show-progress --directory-prefix=$(@D) $(GENOME_URL)
 	gunzip $@.gz
 
-$(ANNOTATIONS):
-	$(call section, download annotations)
-	mkdir -p $(@D)
-	wget --quiet --show-progress --directory-prefix=$(@D) $(ANNOTATIONS_URL)
-	gunzip $@.gz
+#$(ANNOTATIONS):
+#	$(call section, load-annotations)
+#	mkdir -p $(@D)
+#	wget --quiet --show-progress --directory-prefix=$(@D) $(ANNOTATIONS_URL)
+#	gunzip $@.gz
 
 $(TRANSCRIPTOME):
-	$(call section, download transcriptome)
+	$(call section, load-annotations)
 	mkdir -p $(@D)
 	wget --quiet --show-progress --directory-prefix=$(@D) $(TRANSCRIPTOME_URL)
 	tar -zxvf $@.tar.gz -C $(@D)
@@ -179,7 +196,7 @@ $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES)):
 	fi
 
 $(lastword $(SIGNATURES)): $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
-	$(call section,convert signatures)
+	$(call section,convert-signatures)
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/load_signatures.py \
 		--list-infile $(firstword $^) \
@@ -188,7 +205,7 @@ $(lastword $(SIGNATURES)): $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
 	$(CONDA_DEACTIVATE)
 
 $(FASTQ_CTRL):
-	$(call section,download fastq file (control data))
+	$(call section,load-fastq (control data))
 	$(CONDA_ACTIVATE) fastq-dump
 	sample_naming="ctrl"
 	lane=0
@@ -206,7 +223,7 @@ $(FASTQ_CTRL):
 	$(CONDA_DEACTIVATE)
 
 $(FASTQ_TREATED):
-	$(call section,download fastq file (treated data))
+	$(call section,load-fastq (treated data))
 	$(CONDA_ACTIVATE) fastq-dump
 	sample_naming="treated"
 	lane=0
@@ -270,7 +287,7 @@ $(VELOCYTO_TREATED): $(CELLRANGER_TREATED) $(TRANSCRIPTOME)
 	rm -rf $(<D)/velocyto
 
 $(H5AD_CTRL): $(VELOCYTO_CTRL)
-	$(call section,format conversion from loom to h5ad (control data))
+	$(call section,conversion (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python bonesis-tools/clitools/conversion_to_h5ad.py $< $@ \
 		--sample-info $(METADATA_CTRL) \
@@ -278,7 +295,7 @@ $(H5AD_CTRL): $(VELOCYTO_CTRL)
 	$(CONDA_DEACTIVATE)
 
 $(H5AD_TREATED): $(VELOCYTO_TREATED)
-	$(call section,format conversion from loom to h5ad (treated data))
+	$(call section,conversion (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python bonesis-tools/clitools/conversion_to_h5ad.py $< $@ \
 		--sample-info $(METADATA_CTRL) \
@@ -350,7 +367,7 @@ $(CLUSTER_TREATED): $(NORMALISATION_TREATED)
 	$(CONDA_DEACTIVATE)
 
 $(MARKERS_CTRL): $(CLUSTER_CTRL) $(lastword $(SIGNATURES))
-	$(call section,analyse cell types (control data))
+	$(call section,marker-analysis (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/markers.py $^ $(@D) \
   		--group leiden \
@@ -359,7 +376,7 @@ $(MARKERS_CTRL): $(CLUSTER_CTRL) $(lastword $(SIGNATURES))
 	$(CONDA_DEACTIVATE)
 
 $(MARKERS_TREATED): $(CLUSTER_TREATED) $(lastword $(SIGNATURES))
-	$(call section,analyse cell types (treated data))
+	$(call section,marker-analysis (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/markers.py $^ $(@D) \
   		--group leiden \
@@ -367,38 +384,22 @@ $(MARKERS_TREATED): $(CLUSTER_TREATED) $(lastword $(SIGNATURES))
   		--verbose
 	$(CONDA_DEACTIVATE)
 
-#############
-
-$(10XGENOMICS_CTRL):
-	$(call section,download 10X genomics data (control data))
-	mkdir -p $(@D)
-	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
-  		--directory-prefix=$(@D) \
-  		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
-	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CTRL))
-	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CTRL))
-	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CTRL))
-
-$(10XGENOMICS_TREATED):
-	$(call section,download 10X genomics data (treated data))
-	mkdir -p $(@D)
-	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
-		--directory-prefix=$(@D) \
-		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
-	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_TREATED))
-	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_TREATED))
-	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_TREATED))
-
-
-
-
-
-
-
-
-
 $(OVER_REPRESENTATION_CTRL): $(CLUSTER_CTRL) $(MARKERS_CTRL)
-	$(call section,over-representation gene set (control data))
+	$(call section,differential-analysis (control data))
+	$(CONDA_ACTIVATE) preprocess
+	@echo -e 'compute background genes'
+	python bonesis-tools/clitools/genename.py $< $@
+	$(eval CLUSTER := $(shell column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u))
+	@echo -e 'compute over-representated cluster-related genes'
+	for cluster in $(CLUSTER)
+	do
+		`column -s, -t < $(lastword $^) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
+		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
+	done
+	$(CONDA_DEACTIVATE)
+
+$(OVER_REPRESENTATION_TREATED): $(CLUSTER_TREATED) $(MARKERS_TREATED)
+	$(call section,differential-analysis (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	@echo -e 'compute background genes'
 	python bonesis-tools/clitools/genename.py $< $@
@@ -433,20 +434,6 @@ $(ENRICHMENT_MOUSE_CTRL): $(OVER_REPRESENTATION_CTRL) $(GO_MOUSE) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(OVER_REPRESENTATION_TREATED): $(CLUSTER_TREATED) $(MARKERS_TREATED)
-	$(call section,over-representation gene set (treated data))
-	$(CONDA_ACTIVATE) preprocess
-	@echo -e 'compute background genes'
-	python bonesis-tools/clitools/genename.py $< $@
-	$(eval CLUSTER := $(shell column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u))
-	@echo -e 'compute over-representated cluster-related genes'
-	for cluster in $(CLUSTER)
-	do
-		`column -s, -t < $(lastword $^) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
-		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
-	done
-	$(CONDA_DEACTIVATE)
-
 $(ENRICHMENT_BASIC_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_BASIC) $(GENE2GO)
 	$(call section,gene ontology enrichment analysis (treated data, with go-basic.obo))
 	$(CONDA_ACTIVATE) preprocess
@@ -468,6 +455,42 @@ $(ENRICHMENT_MOUSE_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_MOUSE) $(GENE2G
     	--gene2go $(lastword $^) \
     	--verbose
 	$(CONDA_DEACTIVATE)
+
+#############
+
+$(10XGENOMICS_CTRL):
+	$(call section,download 10X genomics data (control data))
+	mkdir -p $(@D)
+	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
+  		--directory-prefix=$(@D) \
+  		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
+	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CTRL))
+	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CTRL))
+	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CTRL))
+
+$(10XGENOMICS_TREATED):
+	$(call section,download 10X genomics data (treated data))
+	mkdir -p $(@D)
+	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
+		--directory-prefix=$(@D) \
+		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
+	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_TREATED))
+	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_TREATED))
+	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_TREATED))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 $(LABELS_CTRL): $(CLUSTER_CTRL)
 	$(call section,assign cell types (control data))

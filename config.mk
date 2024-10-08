@@ -44,10 +44,10 @@ $(eval TRANSCRIPTOME := $(PUBLIC)/genome/$(notdir $(TRANSCRIPTOME_URL)))
 TRANSCRIPTOME := $(TRANSCRIPTOME:.tar.gz=)
 
 FASTQ_CTRL = $(RNA_CTRL)/fastq
-FASTQ_TREATED = $(RNA_TREATED)/fastq/ra
+FASTQ_TREATED = $(RNA_TREATED)/fastq
 
 CELLRANGER_CTRL = $(RNA_CTRL)/cellranger/ctrl.mri.tgz
-CELLRANGER_TREATED = $(RNA_TREATED)/cellranger/ra/treated.mri.tgz
+CELLRANGER_TREATED = $(RNA_TREATED)/cellranger/treated.mri.tgz
 
 VELOCYTO_CTRL = $(RNA_CTRL)/velocyto/ctrl.loom
 VELOCYTO_TREATED = $(RNA_TREATED)/velocyto/treated.loom
@@ -55,24 +55,27 @@ VELOCYTO_TREATED = $(RNA_TREATED)/velocyto/treated.loom
 H5AD_CTRL = $(RNA_CTRL)/raw/ctrl.h5ad
 H5AD_TREATED = $(RNA_TREATED)/raw/treated.h5ad
 
-FILTER_CTRL = $(RNA_CTRL)/cell_filtering/tables/counts.h5ad
-FILTER_TREATED = $(RNA_TREATED)/cell_filtering/tables/counts.h5ad
+FILTER_CTRL = $(RNA_CTRL)/cell_filtering/tables/counts.h5ad					# Must contain the parent directory tables/
+FILTER_TREATED = $(RNA_TREATED)/cell_filtering/tables/counts.h5ad			# Must contain the parent directory tables/
 
-NORMALISATION_CTRL = $(RNA_CTRL)/normalization/tables/corrected.h5ad
-NORMALISATION_TREATED = $(RNA_TREATED)/normalization/tables/corrected.h5ad
+NORMALISATION_CTRL = $(RNA_CTRL)/normalization/tables/corrected.h5ad		# Must contain the parent directory tables/
+NORMALISATION_TREATED = $(RNA_TREATED)/normalization/tables/corrected.h5ad	# Must contain the parent directory tables/
 
-CLUSTER_CTRL = $(RNA_CTRL)/cluster/tables/counts.h5ad
-CLUSTER_TREATED = $(RNA_TREATED)/cluster/tables/counts.h5ad
+CLUSTER_CTRL = $(RNA_CTRL)/cluster/tables/counts.h5ad						# Must contain the parent directory tables/
+CLUSTER_TREATED = $(RNA_TREATED)/cluster/tables/counts.h5ad					# Must contain the parent directory tables/
+
+MARKERS_CTRL = $(RNA_CTRL)/markers/markers.csv
+MARKERS_TREATED = $(RNA_TREATED)/markers/markers.csv
+
+OVER_REPRESENTATION_CTRL = $(RNA_CTRL)/enrichment/background.txt
+
+ENRICHMENT_BASIC_CTRL = $(RNA_CTRL)/enrichment/goea_basic.xlsx
+ENRICHMENT_MOUSE_CTRL = $(RNA_CTRL)/enrichment/goea_mouse.xlsx
+ENRICHMENT_BASIC_TREATED = $(RNA_TREATED)/enrichment/goea_basic.xlsx
+ENRICHMENT_MOUSE_TREATED = $(RNA_TREATED)/enrichment/goea_mouse.xlsx
 
 10XGENOMICS_CTRL = $(RNA_CTRL)/raw/matrix.mtx.gz $(RNA_CTRL)/raw/features.tsv.gz $(RNA_CTRL)/raw/barcodes.tsv.gz
 10XGENOMICS_TREATED = $(RNA_TREATED)/raw/ra/matrix.mtx.gz $(RNA_TREATED)/raw/ra/features.tsv.gz $(RNA_TREATED)/raw/ra/barcodes.tsv.gz
-MARKERS_CTRL = $(RNA_CTRL)/markers/ct/markers.csv
-MARKERS_TREATED = $(RNA_TREATED)/markers/ra/markers.csv
-OVER_REPRESENTATION_CTRL = $(RNA_CTRL)/enrichment/ct/background.txt
-ENRICHMENT_BASIC_CTRL = $(RNA_CTRL)/enrichment/ct/goea_basic.xlsx
-ENRICHMENT_MOUSE_CTRL = $(RNA_CTRL)/enrichment/ct/goea_mouse.xlsx
-ENRICHMENT_BASIC_TREATED = $(RNA_TREATED)/enrichment/ra/goea_basic.xlsx
-ENRICHMENT_MOUSE_TREATED = $(RNA_TREATED)/enrichment/ra/goea_mouse.xlsx
 LABELS_CTRL = $(dir $(CLUSTER_CTRL))/counts_labels.h5ad
 PSEUDOTIME_CTRL = $(RNA_CTRL)/stream/pseudotime/ct/tables/stream.h5ad.pkl
 TRAJECTORIES_CTRL = $(RNA_CTRL)/stream/trajectories/ct/branches.txt
@@ -83,7 +86,7 @@ FILTER1_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage1.txt
 FILTER2_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage2.txt
 INFERENCE_SUB_CTRL = $(RNA_CTRL)/bonesis/ct/sub.bn
 INFERENCE_MIN_CTRL = $(RNA_CTRL)/bonesis/ct/min.bn
-INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad)
+INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad) # Must contain the parent directory tables/
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
 
 # algorithm parameters
