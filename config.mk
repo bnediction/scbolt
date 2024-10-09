@@ -14,11 +14,10 @@ METADATA_TREATED = age=adult date=29-09-2020 sample_name=treated condition=treat
 
 # url
 GENOME_URL = ftp://ftp.ensembl.org/pub/release-112/fasta/mus_musculus/dna/Mus_musculus.GRCm39.dna.primary_assembly.fa.gz
-ANNOTATIONS_URL = ftp://ftp.ensembl.org/pub/release-112/gtf/mus_musculus/Mus_musculus.GRCm39.112.chr.gtf.gz
 TRANSCRIPTOME_URL = https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz
 CELL_CYCLE_URL = https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
-GEIGER_URL = https://doi.org/10.1371/journal.pbio.2003389.s025
-CHAMBERS_URL=https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
+GO_BASIC_URL = http://purl.obolibrary.org/obo/go/go-basic.obo
+GO_MOUSE_URL = https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
 
 # sample ids
 SRA_CTRL = SRR15305311 SRR15305312 SRR15305313 SRR15305314
@@ -67,6 +66,7 @@ MARKERS_CTRL = $(RNA_CTRL)/markers/markers.csv
 MARKERS_TREATED = $(RNA_TREATED)/markers/markers.csv
 
 OVER_REPRESENTATION_CTRL = $(RNA_CTRL)/enrichment/background.txt
+OVER_REPRESENTATION_TREATED = $(RNA_TREATED)/enrichment/background.txt
 
 GOEA_BASIC_CTRL = $(RNA_CTRL)/enrichment/goea_basic.xlsx
 GOEA_MOUSE_CTRL = $(RNA_CTRL)/enrichment/goea_mouse.xlsx
@@ -74,6 +74,8 @@ GOEA_BASIC_TREATED = $(RNA_TREATED)/enrichment/goea_basic.xlsx
 GOEA_MOUSE_TREATED = $(RNA_TREATED)/enrichment/goea_mouse.xlsx
 
 LABELS_CTRL = $(dir $(CLUSTER_CTRL))/counts_labels.h5ad
+LABELS_TREATED = $(dir $(CLUSTER_TREATED))/counts_labels.h5ad
+
 PSEUDOTIME_CTRL = $(RNA_CTRL)/stream/pseudotime/ct/tables/stream.h5ad.pkl
 TRAJECTORIES_CTRL = $(RNA_CTRL)/stream/trajectories/ct/branches.txt
 SCBOOLSEQ_CTRL = $(RNA_CTRL)/binarization/ct/cluster_bin_node_clusters.csv
@@ -86,9 +88,9 @@ INFERENCE_MIN_CTRL = $(RNA_CTRL)/bonesis/ct/min.bn
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad) # Must contain the parent directory tables/
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
 
-# 10XGENOMICS_CTRL = $(RNA_CTRL)/raw/matrix.mtx.gz $(RNA_CTRL)/raw/features.tsv.gz $(RNA_CTRL)/raw/barcodes.tsv.gz
-# 10XGENOMICS_TREATED = $(RNA_TREATED)/raw/ra/matrix.mtx.gz $(RNA_TREATED)/raw/ra/features.tsv.gz $(RNA_TREATED)/raw/ra/barcodes.tsv.gz
-# MGI_GAF = $(PUBLIC)/enrichment/mgi.gaf
+# cluster labels
+$(eval cluster_label_ctrl := 0=Prom2 1=Trans 2=Rep 3=Prom1 4=Prom3 5=Gran) 		# depends on the marker and goea analysis if not knwown
+$(eval cluster_label_treated := 0=Prom2 1=Trans 2=Rep 3=Prom1 4=Prom3 5=Gran)	# depends on the marker and goea analysis if not knwown
 
 # algorithm parameters
 INTEGRATION_METHOD = bbknn

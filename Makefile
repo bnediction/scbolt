@@ -11,6 +11,10 @@ CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda d
 
 sample = all
 
+# urls
+GEIGER_URL = https://doi.org/10.1371/journal.pbio.2003389.s025
+CHAMBERS_URL = https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
+
 # colors
 NC = \033[0m
 RED = \033[0;31m
@@ -145,11 +149,9 @@ goea: $(goea_target) ## perform gene ontology enrichment analysis
 ##@ Other
 
 labeling: $(label_target) ## analyse cell clusters
-#all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
+
+# all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
 # integration: $(MARKERS_ALL) $(INTEGRATION)
-# load-ctrl: $(10XGENOMICS_CTRL)
-# load-treated: $(10XGENOMICS_TREATED)
-# load: load-ctrl load-treated
 pseudotime-ctrl: $(PSEUDOTIME_CTRL)
 trajectories-ctrl: $(TRAJECTORIES_CTRL)
 stream-ctrl: trajectories-ctrl
@@ -166,12 +168,6 @@ $(GENOME):
 	mkdir -p $(@D)
 	wget --quiet --show-progress --directory-prefix=$(@D) $(GENOME_URL)
 	gunzip $@.gz
-
-#$(ANNOTATIONS):
-#	$(call section, load-annotations)
-#	mkdir -p $(@D)
-#	wget --quiet --show-progress --directory-prefix=$(@D) $(ANNOTATIONS_URL)
-#	gunzip $@.gz
 
 $(TRANSCRIPTOME):
 	$(call section, load-annotations)
@@ -207,12 +203,12 @@ $(lastword $(SIGNATURES)): $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
 $(GO_BASIC):
 	$(call section,load-go-basic)
 	mkdir -p $(@D)
-	wget --quiet --show-progress -cO $@ http://purl.obolibrary.org/obo/go/go-basic.obo
+	wget --quiet --show-progress -cO $@ $(GO_BASIC_URL)
 
 $(GO_MOUSE):
 	$(call section,load-goslim-mouse)
 	mkdir -p $(@D)
-	wget --quiet --show-progress -cO $@ https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
+	wget --quiet --show-progress -cO $@ $(GO_MOUSE_URL)
 
 $(GENE2GO):
 	$(call section,load-gene2go)
@@ -472,6 +468,26 @@ $(GOEA_MOUSE_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_MOUSE) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
+$(LABELS_CTRL): $(CLUSTER_CTRL)
+	$(call section,assign cell types (control data))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/label_clusters.py $< $@ \
+		--column leiden \
+		--name $(cluster_label_ctrl)
+	python figures/plot_embedding.py figures/umap_labels.json \
+		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
+	$(CONDA_DEACTIVATE)
+
+$(LABELS_TREATED): $(CLUSTER_TREATED)
+	$(call section,assign cell types (control data))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/label_clusters.py $< $@ \
+		--column leiden \
+		--name $(cluster_label_treated)
+	python figures/plot_embedding.py figures/umap_labels.json \
+		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
+	$(CONDA_DEACTIVATE)
+
 #$(10XGENOMICS_CTRL):
 #	$(call section,download 10X genomics data (control data))
 #	mkdir -p $(@D)
@@ -491,16 +507,6 @@ $(GOEA_MOUSE_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_MOUSE) $(GENE2GO)
 #	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_TREATED))
 #	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_TREATED))
 #	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_TREATED))
-
-$(LABELS_CTRL): $(CLUSTER_CTRL)
-	$(call section,assign cell types (control data))
-	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/label_clusters.py $< $@ \
-		--column leiden \
-		--name 0=Prom2 1=Trans 2=Rep 3=Prom1 4=Prom3 5=Gran
-	python figures/plot_embedding.py figures/umap_labels.json \
-		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
-	$(CONDA_DEACTIVATE)
 
 $(PSEUDOTIME_CTRL): $(LABELS_CTRL)
 	$(call section,trajectory analysis (stream pseudotime, control data))
@@ -618,11 +624,19 @@ $(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD)_labels.h5ad: $(INTEGRATION)
 	$(CONDA_DEACTIVATE)
 
 
+# 10XGENOMICS_CTRL = $(RNA_CTRL)/raw/matrix.mtx.gz $(RNA_CTRL)/raw/features.tsv.gz $(RNA_CTRL)/raw/barcodes.tsv.gz
+# 10XGENOMICS_TREATED = $(RNA_TREATED)/raw/ra/matrix.mtx.gz $(RNA_TREATED)/raw/ra/features.tsv.gz $(RNA_TREATED)/raw/ra/barcodes.tsv.gz
+# MGI_GAF = $(PUBLIC)/enrichment/mgi.gaf
+# ANNOTATIONS_URL = ftp://ftp.ensembl.org/pub/release-112/gtf/mus_musculus/Mus_musculus.GRCm39.112.chr.gtf.gz
 
+#$(ANNOTATIONS):
+#	$(call section, load-annotations)
+#	mkdir -p $(@D)
+#	wget --quiet --show-progress --directory-prefix=$(@D) $(ANNOTATIONS_URL)
+#	gunzip $@.gz
 
-$(MGI_GAF):
-	$(call section,download mgi.gaf file)
-	mkdir -p $(@D)
-	wget --quiet --show-progress --directory-prefix=$(@D) https://current.geneontology.org/annotations/mgi.gaf.gz
-	gunzip $@.gz
-
+#$(MGI_GAF):
+#	$(call section,download mgi.gaf file)
+#	mkdir -p $(@D)
+#	wget --quiet --show-progress --directory-prefix=$(@D) https://current.geneontology.org/annotations/mgi.gaf.gz
+#	gunzip $@.gz

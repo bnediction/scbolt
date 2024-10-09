@@ -50,7 +50,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     nargs="+",
     required=True,
-    metavar="FILE [FILE ...]",
+    metavar="FILE",
     help="txt files containing interest gene set"
 )
 
