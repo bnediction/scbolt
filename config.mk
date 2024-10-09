@@ -5,7 +5,7 @@ JOBS = 16
 
 # functions
 define section
-	@echo -e '$(RED)===== $(1) =====$(NC)'
+	@echo -e '$(GREEN)===== $(1) =====$(NC)'
 endef
 
 # metadata
@@ -89,8 +89,8 @@ INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
 
 # cluster labels
-$(eval cluster_label_ctrl := 0=Prom2 1=Trans 2=Rep 3=Prom1 4=Prom3 5=Gran) 		# depends on the marker and goea analysis if not knwown
-$(eval cluster_label_treated := 0=Prom2 1=Trans 2=Rep 3=Prom1 4=Prom3 5=Gran)	# depends on the marker and goea analysis if not knwown
+$(eval CLUSTER_LABEL_CTRL := 0=Prom1 1=Prom2 2=Trans 3=Rep 4=Prom3 5=Gran) 		# depends on the marker, signature and goea analysis if not well-characterized
+# $(eval CLUSTER_LABEL_TREATED := 0=Prom2 1=Trans 2=Rep 3=Prom1 4=Prom3 5=Gran)		# depends on the marker, signature and goea analysis if not well-characterized
 
 # algorithm parameters
 INTEGRATION_METHOD = bbknn

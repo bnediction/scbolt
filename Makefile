@@ -18,6 +18,7 @@ CHAMBERS_URL = https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mm
 # colors
 NC = \033[0m
 RED = \033[0;31m
+BOLDRED = \033[1;31m
 GREEN = \033[0;32m
 BOLDGREEN = \033[1;32m
 BOLD=\033[1m
@@ -93,12 +94,10 @@ help: ## display this help and exit
 ##@ Clean
 
 .PHONY: clean
-clean: ## clear cache and private data
+clean: ## clear cache
 	find . -name "\*.pyc" -delete
 	find . -name "__pycache__" -delete
 	find . -type d -name "cache" -exec rm -rf "{}" \;
-	rm -rf $(RNA)
-	mkdir $(RNA) $(RNA_CTRL) $(RNA_TREATED) $(RNA_INTEGRATED)
 
 .PHONY: mrproper
 mrproper: ## clear cache and public/private data
@@ -148,7 +147,7 @@ goea: $(goea_target) ## perform gene ontology enrichment analysis
 
 ##@ Other
 
-labeling: $(label_target) ## analyse cell clusters
+cluster-annotation: $(label_target) ## analyse cell clusters
 
 # all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
 # integration: $(MARKERS_ALL) $(INTEGRATION)
@@ -468,25 +467,37 @@ $(GOEA_MOUSE_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_MOUSE) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(LABELS_CTRL): $(CLUSTER_CTRL)
-	$(call section,assign cell types (control data))
+ifdef CLUSTER_LABEL_CTRL
+ $(LABELS_CTRL): $(CLUSTER_CTRL)
+	$(call section,cluster-annotation (control data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/label_clusters.py $< $@ \
+	python pipeline/preprocess/cluster_annotation.py $< $@ \
 		--column leiden \
-		--name $(cluster_label_ctrl)
+		--name $(CLUSTER_LABEL_CTRL)
 	python figures/plot_embedding.py figures/umap_labels.json \
 		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
 	$(CONDA_DEACTIVATE)
+else
+ $(LABELS_CTRL): $(CLUSTER_CTRL)
+	@echo -e '$(BOLDRED)CLUSTER_LABEL_CTRL is not defined. Please define it in the command-line or in config.mk file. Aborting.$(NC)'
+	exit
+endif
 
-$(LABELS_TREATED): $(CLUSTER_TREATED)
-	$(call section,assign cell types (control data))
+ifdef CLUSTER_LABEL_TREATED
+ $(LABELS_TREATED): $(CLUSTER_TREATED)
+	$(call section,cluster-annotation (treated data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/label_clusters.py $< $@ \
+	python pipeline/preprocess/cluster_annotation.py $< $@ \
 		--column leiden \
-		--name $(cluster_label_treated)
+		--name $(CLUSTER_LABEL_TREATED)
 	python figures/plot_embedding.py figures/umap_labels.json \
 		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
 	$(CONDA_DEACTIVATE)
+else
+ $(LABELS_TREATED): $(CLUSTER_TREATED)
+	@echo -e '$(BOLDRED)CLUSTER_LABEL_TREATED is not defined. Please define it in the command-line or in config.mk file. Aborting.$(NC)'
+	exit
+endif
 
 #$(10XGENOMICS_CTRL):
 #	$(call section,download 10X genomics data (control data))
