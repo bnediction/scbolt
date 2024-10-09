@@ -51,7 +51,7 @@ ifeq ($(sample), control)
  $(eval cluster_target := $(CLUSTER_CTRL))
  $(eval markers_target := $(MARKERS_CTRL))
  $(eval over_representation_target := $(OVER_REPRESENTATION_CTRL))
- $(eval goea_target := $(ENRICHMENT_BASIC_CTRL) $(ENRICHMENT_MOUSE_CTRL))
+ $(eval goea_target := $(GOEA_BASIC_CTRL) $(GOEA_MOUSE_CTRL))
  $(eval label_target := $(LABELS_CTRL))
 else ifeq ($(sample), treated)
  $(eval fastq_target := $(FASTQ_TREATED))
@@ -63,7 +63,7 @@ else ifeq ($(sample), treated)
  $(eval cluster_target := $(CLUSTER_TREATED))
  $(eval markers_target := $(MARKERS_TREATED))
  $(eval over_representation_target := $(OVER_REPRESENTATION_TREATED))
- $(eval goea_target := $(ENRICHMENT_BASIC_TREATED) $(ENRICHMENT_MOUSE_TREATED))
+ $(eval goea_target := $(GOEA_BASIC_TREATED) $(GOEA_MOUSE_TREATED))
  $(eval label_target := $(LABELS_TREATED))
 else
  $(eval fastq_target := $(FASTQ_CTRL) $(FASTQ_TREATED))
@@ -75,7 +75,7 @@ else
  $(eval cluster_target := $(CLUSTER_CTRL) $(CLUSTER_TREATED))
  $(eval markers_target := $(MARKERS_CTRL) $(MARKERS_TREATED))
  $(eval over_representation_target := $(OVER_REPRESENTATION_CTRL) $(OVER_REPRESENTATION_TREATED))
- $(eval goea_target := $(ENRICHMENT_BASIC_CTRL) $(ENRICHMENT_MOUSE_CTRL) $(ENRICHMENT_BASIC_TREATED) $(ENRICHMENT_MOUSE_TREATED))
+ $(eval goea_target := $(GOEA_BASIC_CTRL) $(GOEA_MOUSE_CTRL) $(GOEA_BASIC_TREATED) $(GOEA_MOUSE_TREATED))
  $(eval label_target := $(LABELS_CTRL) $(LABELS_TREATED))
 endif
 
@@ -113,6 +113,7 @@ load-annotations: $(TRANSCRIPTOME) ## download genome-related annotations
 load-fastq: $(fastq_target) ## download fastq files
 load-markers: $(CYCLE_MARKERS) ## download cycle phase markers
 load-signatures: $(lastword $(SIGNATURES)) ## download signatures and convert it into json file
+load-go: $(GO_BASIC) $(GO_MOUSE) $(GENE2GO) ## download gene ontology-related files
 
 ##@ Counting
 
@@ -132,13 +133,14 @@ normalization: $(normalization_target) ## filtering low quality genes and normal
 .PHONY: clustering
 clustering: $(cluster_target) ## perform dimension reduction and cell clustering
 
-
 ##@ Analysis
 
+.PHONY: marker-analysis
 marker-analysis: $(markers_target) ## search for gene markers and compare markers and signatures
+.PHONY: differential-analysis
 differential-analysis: $(over_representation_target) ## compute over-representated cluster-related genes
-goea-analysis: $(goea_target) ## perform gene ontology enrichment analysis
-
+.PHONY: goea
+goea: $(goea_target) ## perform gene ontology enrichment analysis
 
 ##@ Other
 
@@ -148,8 +150,6 @@ labeling: $(label_target) ## analyse cell clusters
 # load-ctrl: $(10XGENOMICS_CTRL)
 # load-treated: $(10XGENOMICS_TREATED)
 # load: load-ctrl load-treated
-load-go: $(GO) $(GENE2GO) $(MGI_GAF)
-go-enrichment: $(ENRICHMENT_BASIC_CTRL) $(ENRICHMENT_MOUSE_CTRL)
 pseudotime-ctrl: $(PSEUDOTIME_CTRL)
 trajectories-ctrl: $(TRAJECTORIES_CTRL)
 stream-ctrl: trajectories-ctrl
@@ -203,6 +203,22 @@ $(lastword $(SIGNATURES)): $(word 1,$(SIGNATURES)) $(word 2,$(SIGNATURES))
 		--table-infile $(lastword $^) \
   		--outfile $@
 	$(CONDA_DEACTIVATE)
+
+$(GO_BASIC):
+	$(call section,load-go-basic)
+	mkdir -p $(@D)
+	wget --quiet --show-progress -cO $@ http://purl.obolibrary.org/obo/go/go-basic.obo
+
+$(GO_MOUSE):
+	$(call section,load-goslim-mouse)
+	mkdir -p $(@D)
+	wget --quiet --show-progress -cO $@ https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
+
+$(GENE2GO):
+	$(call section,load-gene2go)
+	mkdir -p $(@D)
+	wget --quiet --show-progress --directory-prefix=$(@D) ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
+	gunzip $@.gz
 
 $(FASTQ_CTRL):
 	$(call section,load-fastq (control data))
@@ -412,8 +428,8 @@ $(OVER_REPRESENTATION_TREATED): $(CLUSTER_TREATED) $(MARKERS_TREATED)
 	done
 	$(CONDA_DEACTIVATE)
 
-$(ENRICHMENT_BASIC_CTRL): $(OVER_REPRESENTATION_CTRL) $(GO_BASIC) $(GENE2GO)
-	$(call section,gene ontology enrichment analysis (control data, with go-basic.obo))
+$(GOEA_BASIC_CTRL): $(OVER_REPRESENTATION_CTRL) $(GO_BASIC) $(GENE2GO)
+	$(call section,goea (control data, with go-basic.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
     	--population $< \
@@ -423,8 +439,8 @@ $(ENRICHMENT_BASIC_CTRL): $(OVER_REPRESENTATION_CTRL) $(GO_BASIC) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(ENRICHMENT_MOUSE_CTRL): $(OVER_REPRESENTATION_CTRL) $(GO_MOUSE) $(GENE2GO)
-	$(call section,gene ontology enrichment analysis (control data, with goslim_mouse.obo))
+$(GOEA_MOUSE_CTRL): $(OVER_REPRESENTATION_CTRL) $(GO_MOUSE) $(GENE2GO)
+	$(call section,goea (control data, with goslim_mouse.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
     	--population $< \
@@ -434,8 +450,8 @@ $(ENRICHMENT_MOUSE_CTRL): $(OVER_REPRESENTATION_CTRL) $(GO_MOUSE) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(ENRICHMENT_BASIC_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_BASIC) $(GENE2GO)
-	$(call section,gene ontology enrichment analysis (treated data, with go-basic.obo))
+$(GOEA_BASIC_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_BASIC) $(GENE2GO)
+	$(call section,goea (treated data, with go-basic.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
     	--population $< \
@@ -445,8 +461,8 @@ $(ENRICHMENT_BASIC_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_BASIC) $(GENE2G
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(ENRICHMENT_MOUSE_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_MOUSE) $(GENE2GO)
-	$(call section,gene ontology enrichment analysis (treated data, with goslim_mouse.obo))
+$(GOEA_MOUSE_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_MOUSE) $(GENE2GO)
+	$(call section,goea (treated data, with goslim_mouse.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
     	--population $< \
@@ -456,41 +472,25 @@ $(ENRICHMENT_MOUSE_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_MOUSE) $(GENE2G
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-#############
+#$(10XGENOMICS_CTRL):
+#	$(call section,download 10X genomics data (control data))
+#	mkdir -p $(@D)
+#	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
+#  		--directory-prefix=$(@D) \
+#  		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
+#	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CTRL))
+#	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CTRL))
+#	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CTRL))
 
-$(10XGENOMICS_CTRL):
-	$(call section,download 10X genomics data (control data))
-	mkdir -p $(@D)
-	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
-  		--directory-prefix=$(@D) \
-  		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492245/suppl/
-	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_CTRL))
-	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CTRL))
-	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CTRL))
-
-$(10XGENOMICS_TREATED):
-	$(call section,download 10X genomics data (treated data))
-	mkdir -p $(@D)
-	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
-		--directory-prefix=$(@D) \
-		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
-	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_TREATED))
-	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_TREATED))
-	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_TREATED))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#$(10XGENOMICS_TREATED):
+#	$(call section,download 10X genomics data (treated data))
+#	mkdir -p $(@D)
+#	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
+#		--directory-prefix=$(@D) \
+#		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
+#	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_TREATED))
+#	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_TREATED))
+#	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_TREATED))
 
 $(LABELS_CTRL): $(CLUSTER_CTRL)
 	$(call section,assign cell types (control data))
@@ -618,21 +618,7 @@ $(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD)_labels.h5ad: $(INTEGRATION)
 	$(CONDA_DEACTIVATE)
 
 
-$(GO_BASIC):
-	$(call section,download GO go-basic.obo file)
-	mkdir -p $(@D)
-	wget --quiet --show-progress -cO $@ http://purl.obolibrary.org/obo/go/go-basic.obo
 
-$(GO_MOUSE):
-	$(call section,download GO goslim_mouse.obo)
-	mkdir -p $(@D)
-	wget --quiet --show-progress -cO $@ https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
-
-$(GENE2GO):
-	$(call section,download NCBI gene2go file)
-	mkdir -p $(@D)
-	wget --quiet --show-progress --directory-prefix=$(@D) ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
-	gunzip $@.gz
 
 $(MGI_GAF):
 	$(call section,download mgi.gaf file)

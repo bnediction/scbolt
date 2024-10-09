@@ -31,12 +31,11 @@ RNA_CTRL = data/rna/ctrl
 RNA_TREATED = data/rna/treated
 RNA_INTEGRATED = data/rna/integrated
 
+CYCLE_MARKERS = $(PUBLIC)/cycle_phases/mouse_cycle_markers.rds
 SIGNATURES = $(PUBLIC)/signatures/geiger.xls $(PUBLIC)/signatures/chambers.xls $(PUBLIC)/signatures/signatures.json
 GO_BASIC = $(PUBLIC)/enrichment/go-basic.obo
 GO_MOUSE = $(PUBLIC)/enrichment/goslim.obo
 GENE2GO = $(PUBLIC)/enrichment/gene2go
-MGI_GAF = $(PUBLIC)/enrichment/mgi.gaf
-CYCLE_MARKERS = $(PUBLIC)/cycle_phases/mouse_cycle_markers.rds
 
 $(eval GENOME := $(PUBLIC)/genome/$(basename $(notdir $(GENOME_URL))))
 $(eval ANNOTATIONS := $(PUBLIC)/genome/$(basename $(notdir $(ANNOTATIONS_URL))))
@@ -69,13 +68,11 @@ MARKERS_TREATED = $(RNA_TREATED)/markers/markers.csv
 
 OVER_REPRESENTATION_CTRL = $(RNA_CTRL)/enrichment/background.txt
 
-ENRICHMENT_BASIC_CTRL = $(RNA_CTRL)/enrichment/goea_basic.xlsx
-ENRICHMENT_MOUSE_CTRL = $(RNA_CTRL)/enrichment/goea_mouse.xlsx
-ENRICHMENT_BASIC_TREATED = $(RNA_TREATED)/enrichment/goea_basic.xlsx
-ENRICHMENT_MOUSE_TREATED = $(RNA_TREATED)/enrichment/goea_mouse.xlsx
+GOEA_BASIC_CTRL = $(RNA_CTRL)/enrichment/goea_basic.xlsx
+GOEA_MOUSE_CTRL = $(RNA_CTRL)/enrichment/goea_mouse.xlsx
+GOEA_BASIC_TREATED = $(RNA_TREATED)/enrichment/goea_basic.xlsx
+GOEA_MOUSE_TREATED = $(RNA_TREATED)/enrichment/goea_mouse.xlsx
 
-10XGENOMICS_CTRL = $(RNA_CTRL)/raw/matrix.mtx.gz $(RNA_CTRL)/raw/features.tsv.gz $(RNA_CTRL)/raw/barcodes.tsv.gz
-10XGENOMICS_TREATED = $(RNA_TREATED)/raw/ra/matrix.mtx.gz $(RNA_TREATED)/raw/ra/features.tsv.gz $(RNA_TREATED)/raw/ra/barcodes.tsv.gz
 LABELS_CTRL = $(dir $(CLUSTER_CTRL))/counts_labels.h5ad
 PSEUDOTIME_CTRL = $(RNA_CTRL)/stream/pseudotime/ct/tables/stream.h5ad.pkl
 TRAJECTORIES_CTRL = $(RNA_CTRL)/stream/trajectories/ct/branches.txt
@@ -88,6 +85,10 @@ INFERENCE_SUB_CTRL = $(RNA_CTRL)/bonesis/ct/sub.bn
 INFERENCE_MIN_CTRL = $(RNA_CTRL)/bonesis/ct/min.bn
 INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad) # Must contain the parent directory tables/
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
+
+# 10XGENOMICS_CTRL = $(RNA_CTRL)/raw/matrix.mtx.gz $(RNA_CTRL)/raw/features.tsv.gz $(RNA_CTRL)/raw/barcodes.tsv.gz
+# 10XGENOMICS_TREATED = $(RNA_TREATED)/raw/ra/matrix.mtx.gz $(RNA_TREATED)/raw/ra/features.tsv.gz $(RNA_TREATED)/raw/ra/barcodes.tsv.gz
+# MGI_GAF = $(PUBLIC)/enrichment/mgi.gaf
 
 # algorithm parameters
 INTEGRATION_METHOD = bbknn

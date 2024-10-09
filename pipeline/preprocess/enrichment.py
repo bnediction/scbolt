@@ -50,7 +50,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     nargs="+",
     required=True,
-    metavar="FILE",
+    metavar="FILE [FILE ...]",
     help="txt files containing interest gene set"
 )
 
@@ -115,7 +115,10 @@ population_ids = genesynonyms.sequence_standardization(
 )
 if None in population_ids:
     population_ids.remove(None)
-population_ids = set(map(int, population_ids))
+if annotations_alias_type == "geneid":
+    population_ids = set(map(lambda geneid: int(geneid) if geneid.isnumeric() else None, population_ids))
+if None in population_ids:
+    population_ids.remove(None)
 
 section("Loading study gene sets...")
 
@@ -129,7 +132,10 @@ for _study_file in args.study:
 )
     if None in _study_ids:
         _study_ids.remove(None)
-    _study_ids = set(map(int, _study_ids))
+    if annotations_alias_type == "geneid":
+        _study_ids = set(map(lambda geneid: int(geneid) if geneid.isnumeric() else None, _study_ids))
+    if None in _study_ids:
+        _study_ids.remove(None)
     study_ids[os.path.basename(_study_file).rsplit(".", maxsplit=1)[0]] = _study_ids
 
 section("Loading gene ontologies...")
