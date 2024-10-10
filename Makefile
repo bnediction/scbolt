@@ -381,7 +381,7 @@ $(MARKERS_CTRL): $(CLUSTER_CTRL) $(lastword $(SIGNATURES))
 	$(call section,marker-analysis (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/markers.py $^ $(@D) \
-  		--group leiden \
+  		--cluster leiden \
   		--logfc-threshold 0.25 \
   		--verbose
 	$(CONDA_DEACTIVATE)
@@ -390,7 +390,7 @@ $(MARKERS_TREATED): $(CLUSTER_TREATED) $(lastword $(SIGNATURES))
 	$(call section,marker-analysis (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/markers.py $^ $(@D) \
-  		--group leiden \
+  		--cluster leiden \
   		--logfc-threshold 0.25 \
   		--verbose
 	$(CONDA_DEACTIVATE)

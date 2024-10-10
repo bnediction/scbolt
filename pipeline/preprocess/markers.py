@@ -60,8 +60,8 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-g", "--group", "--cluster",
-    dest="group",
+    "--cluster",
+    dest="cluster",
     type=str,
     required=True,
     metavar="LITERAL",
@@ -111,7 +111,7 @@ for _condition in sorted(adata_d.keys()):
         adata_d[_condition],
         layer=layer,
         use_raw=False,
-        groupby=args.group,
+        groupby=args.cluster,
         reference="rest",
         method="wilcoxon",
         tie_correct=True,
@@ -126,7 +126,7 @@ for _condition in sorted(adata_d.keys()):
         df=markers_d[_condition],
         adata=adata_d[_condition],
         layer=layer,
-        groupby=args.group,
+        groupby=args.cluster,
         is_log=True,
         cluster_rebalancing=False,
         threshold=args.logfc_threshold
@@ -168,7 +168,7 @@ for _condition in sorted(adata_d.keys()):
             adata_d[_condition],
             signatures_d,
             markers_d[_condition],
-            groupby=args.group
+            groupby=args.cluster
         ),
         orient="index"
     )
