@@ -58,6 +58,8 @@ ifeq ($(sample), control)
  $(eval over_representation_target := $(OVER_REPRESENTATION_CTRL))
  $(eval goea_target := $(GOEA_BASIC_CTRL) $(GOEA_MOUSE_CTRL))
  $(eval label_target := $(LABELS_CTRL))
+ $(eval stream_pseudotime_target := $(PSEUDOTIME_STREAM_CTRL))
+ $(eval stream_trajectories_target := $(TRAJECTORIES_STREAM_CTRL))
 else ifeq ($(sample), treated)
  $(eval fastq_target := $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_TREATED))
@@ -70,6 +72,8 @@ else ifeq ($(sample), treated)
  $(eval over_representation_target := $(OVER_REPRESENTATION_TREATED))
  $(eval goea_target := $(GOEA_BASIC_TREATED) $(GOEA_MOUSE_TREATED))
  $(eval label_target := $(LABELS_TREATED))
+ $(eval stream_pseudotime_target := $(PSEUDOTIME_STREAM_TREATED))
+ $(eval stream_trajectories_target := $(TRAJECTORIES_STREAM_TREATED))
 else
  $(eval fastq_target := $(FASTQ_CTRL) $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_CTRL) $(CELLRANGER_TREATED))
@@ -82,6 +86,8 @@ else
  $(eval over_representation_target := $(OVER_REPRESENTATION_CTRL) $(OVER_REPRESENTATION_TREATED))
  $(eval goea_target := $(GOEA_BASIC_CTRL) $(GOEA_MOUSE_CTRL) $(GOEA_BASIC_TREATED) $(GOEA_MOUSE_TREATED))
  $(eval label_target := $(LABELS_CTRL) $(LABELS_TREATED))
+ $(eval stream_pseudotime_target := $(PSEUDOTIME_STREAM_CTRL) $(PSEUDOTIME_STREAM_TREATED))
+ $(eval stream_trajectories_target := $(TRAJECTORIES_STREAM_CTRL) $(TRAJECTORIES_STREAM_TREATED))
 endif
 
 ##@ Help
@@ -136,7 +142,7 @@ normalization: $(normalization_target) ## filtering low quality genes and normal
 .PHONY: clustering
 clustering: $(cluster_target) ## perform dimension reduction and cell clustering
 
-##@ Analysis
+##@ Cluster analysis
 
 .PHONY: marker-analysis
 marker-analysis: $(markers_target) ## search for gene markers and compare markers and signatures
@@ -144,10 +150,18 @@ marker-analysis: $(markers_target) ## search for gene markers and compare marker
 differential-analysis: $(over_representation_target) ## compute over-representated cluster-related genes
 .PHONY: goea
 goea: $(goea_target) ## perform gene ontology enrichment analysis
+cluster-annotation: $(label_target) ## annotate clusters
 
-##@ Other
+##@ Trajectory analysis
 
-cluster-annotation: $(label_target) ## analyse cell clusters
+scvelo-trajectories: $(scvelo_trajectories_target) ## compute trajectories with scvelo
+stream-pseudotime: $(stream_pseudotime_target) ## compute elastic principal graph and pseudotime with stream
+stream-trajectories: $(stream_trajectories_target) ## compute trajectories with stream
+
+
+##@ Binarization
+
+##@ Boolean inference
 
 # all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
 # integration: $(MARKERS_ALL) $(INTEGRATION)
@@ -499,6 +513,50 @@ else
 	exit
 endif
 
+### Add scvelo here ###
+
+$(PSEUDOTIME_STREAM_CTRL): $(LABELS_CTRL)
+	$(call section,stream-pseudotime (control data))
+	$(CONDA_ACTIVATE) stream
+	python pipeline/stream/pseudotime.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+		--extension both --cluster-number 6 --groups leiden \
+		--lambda $(LAMBDA_CTRL) --mu $(MU_CTRL) --alpha $(ALPHA_CTRL) \
+		--extend-leaf-nodes --extend-mode WeigthedCentroid --extend-parameter $(EXTEND_CTRL) \
+		--add-legend --add-graph \
+		--jobs $(JOBS)
+	$(CONDA_DEACTIVATE)
+
+$(PSEUDOTIME_STREAM_TREATED): $(LABELS_TREATED)
+	$(call section,stream-pseudotime (treated data))
+	$(CONDA_ACTIVATE) stream
+	python pipeline/stream/pseudotime.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+		--extension both --cluster-number 6 --groups leiden \
+		--lambda $(LAMBDA_TREATED) --mu $(MU_TREATED) --alpha $(ALPHA_TREATED) \
+		--extend-leaf-nodes --extend-mode WeigthedCentroid --extend-parameter $(EXTEND_TREATED) \
+		--add-legend --add-graph \
+		--jobs $(JOBS)
+	$(CONDA_DEACTIVATE)
+
+$(TRAJECTORIES_STREAM_CTRL): $(PSEUDOTIME_STREAM_CTRL)
+	$(call section,stream-trajectories (control data))
+	@echo -e '$(BOLDGREEN)Warning: root can be modified depending on scvelo and BDC analysis$(NC)'
+	$(CONDA_ACTIVATE) stream
+	python pipeline/stream/trajectories.py $< $(@D) --root $(ROOT_CTRL) \
+		--groups leiden kmeans node_clusters \
+		--add-legend --add-graph \
+		--ignore-nodes $(IGNORED_NODES_CTRL)
+	$(CONDA DEACTIVATE)
+
+$(TRAJECTORIES_STREAM_TREATED): $(PSEUDOTIME_STREAM_TREATED)
+	$(call section,stream-trajectories (control data))
+	@echo -e '$(BOLDGREEN)Warning: root can be modified depending on scvelo and BDC analysis$(NC)'
+	$(CONDA_ACTIVATE) stream
+	python pipeline/stream/trajectories.py $< $(@D) --root $(ROOT_TREATED) \
+		--groups leiden kmeans node_clusters \
+		--add-legend --add-graph \
+		--ignore-nodes $(IGNORED_NODES_TREATED)
+	$(CONDA DEACTIVATE)
+
 #$(10XGENOMICS_CTRL):
 #	$(call section,download 10X genomics data (control data))
 #	mkdir -p $(@D)
@@ -519,16 +577,6 @@ endif
 #	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_TREATED))
 #	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_TREATED))
 
-$(PSEUDOTIME_CTRL): $(LABELS_CTRL)
-	$(call section,trajectory analysis (stream pseudotime, control data))
-	$(CONDA_ACTIVATE) stream
-	python pipeline/stream/pseudotime.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
-		--extension both --cluster-number 6 --groups leiden \
-		--lambda 0.05 --mu 0.03 --alpha 0.03 \
-		--extend-leaf-nodes --extend-mode WeigthedCentroid --extend-parameter 0.8 \
-		--add-legend --add-graph \
-		--jobs $(JOBS)
-	$(CONDA_DEACTIVATE)
 
 $(SCBOOLSEQ_CTRL): $(PSEUDOTIME_CTRL)
 	$(call section,scBoolSeq binarization (control data))

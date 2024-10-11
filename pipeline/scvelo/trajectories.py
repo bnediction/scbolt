@@ -43,8 +43,38 @@ parser.add_argument(
     help="column name such as adata.obs[`LITERAL`] distinguishes cluster"
 )
 
+parser.add_argument(
+    "-k", "--k-neighbors",
+    dest="k_neighbors",
+    type=int,
+    required=False,
+    default=20,
+    metavar="PATH",
+    help="number of closest neighbors computed when computing KNN graph (default: 20)"
+)
 
-s = """data/rna/ctrl/cluster/tables/counts_labels.h5ad data/rna/ctrl/scvelo --cluster leiden"""
+parser.add_argument(
+    "-p", "--dim-pca",
+    dest="dim_pca",
+    type=int,
+    required=False,
+    default=50,
+    metavar="INT",
+    help="number of principal components (default: 50)"
+)
+
+parser.add_argument(
+    "-m", "--mode",
+    dest="mode",
+    type=str,
+    required=False,
+    choices=["deterministic", "stochastic", "dynamical"],
+    default="stochastic",
+    metavar="[deterministic | stochastic | dynamical]",
+    help="mode used to estimate the steady-state model (default: stochastic)"
+)
+
+s = """data/rna/ctrl/cluster/tables/counts_labels.h5ad data/rna/ctrl/scvelo --cluster leiden --k-neighbors 30 --dim-pca 30 --mode stochastic"""
 
 args = parser.parse_args(s.split())
 
@@ -56,8 +86,17 @@ print(f"Loading data...")
 adata = scv.read(args.infile, cache=True)
 adata2 = scv.datasets.pancreas()
 
-scv.set_figure_params()
-adt.pl.set_default()
+# scv.set_figure_params()
+# adt.pl.set_default()
+
+adata.obs["clusters"] = adata.obs[args.cluster]
+# n_clusters = len(adata.obs["clusters"].cat.categories)
+import numpy as np
+
+adata.uns["colors"] = np.array([adt.pl.rgb2hex(adt.pl.COLORS[idx]) for idx, _ in enumerate (adata.obs["clusters"].cat.categories)])
+color_map = {cluster: adt.pl.rgb2hex(adt.pl.COLORS[idx]) for idx, cluster in enumerate(adata.obs["clusters"].cat.categories)}
+# adata.obs["cluster_colors"] = adata.obs["clusters"].map(color_mapping)
+# adata.uns["cluster_coarse_colors"] = np.array()
 
 scv.pl.proportions(
     adata,
@@ -69,16 +108,52 @@ scv.pl.proportions(
 plt.savefig(Path(f"{args.outpath}/proportions.pdf"))
 plt.close()
 
-print("Computing metrics...")
+print("Computing first- and second-order moments...")
 
-# scv.pp.remove_duplicate_cells(adata)
-# scv.pp.filter_and_normalize(adata, min_shared_counts=20, n_top_genes=2000)
-adata.X = adata.layers["raw"]
-scv.pp.moments(adata, n_pcs=30, n_neighbors=30)
+try:
+    adata.X = adata.layers["raw"]
+except:
+    pass
+
+scv.pp.moments(
+    adata,
+    n_pcs=args.dim_pca,
+    n_neighbors=args.k_neighbors,
+    copy=False
+)
+
+print("Computing velocity...")
+
+scv.tl.velocity(
+    adata,
+    mode=args.mode,
+    copy=False
+)
+scv.tl.velocity_graph(
+    adata,
+    copy=False,
+)
 
 print("Plotting trajectories...")
 
-scv.tl.velocity(adata)
-scv.tl.velocity_graph(adata)
 
-scv.pl.velocity_embedding_stream(adata, basis='umap')
+import matplotlib as mpl
+
+scv.pl.velocity_embedding_stream(
+    adata,
+    basis="umap",
+    title="",
+    linewidth=1,
+    size=5,
+    color_map=color_map,
+#    color=list(color_map.values()),
+    show=True, alpha=0.5,
+    legend_fontweight="bold",
+    fontsize=50,
+#    groups="clusters"
+    figsize=(7,5),
+)
+
+
+plt.savefig(Path(f"{args.outpath}/trajectories.pdf"))
+plt.close()

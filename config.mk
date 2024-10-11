@@ -76,8 +76,12 @@ GOEA_MOUSE_TREATED = $(RNA_TREATED)/enrichment/goea_mouse.xlsx
 LABELS_CTRL = $(dir $(CLUSTER_CTRL))/counts_labels.h5ad
 LABELS_TREATED = $(dir $(CLUSTER_TREATED))/counts_labels.h5ad
 
-PSEUDOTIME_CTRL = $(RNA_CTRL)/stream/pseudotime/ct/tables/stream.h5ad.pkl
-TRAJECTORIES_CTRL = $(RNA_CTRL)/stream/trajectories/ct/branches.txt
+PSEUDOTIME_STREAM_CTRL = $(RNA_CTRL)/stream/pseudotime/tables/stream.h5ad.pkl			# Must contain the parent directory tables/
+PSEUDOTIME_STREAM_TREATED = $(RNA_TREATED)/stream/pseudotime/tables/stream.h5ad.pkl		# Must contain the parent directory tables/
+
+TRAJECTORIES_STREAM_CTRL = $(RNA_CTRL)/stream/trajectories/branches.txt
+TRAJECTORIES_STREAM_TREATED = $(RNA_TREATED)/stream/trajectories/branches.txt
+
 SCBOOLSEQ_CTRL = $(RNA_CTRL)/binarization/ct/cluster_bin_node_clusters.csv
 BDC_CTRL = $(RNA_CTRL)/binarization/ct/pairwise_predecessor_scores.csv
 SPECIFICATION_CTRL = $(RNA_CTRL)/bonesis/ct/plzf_TREATEDra_model.txt
@@ -92,8 +96,24 @@ MARKERS_ALL = $(RNA)/markers/all/markers.csv
 $(eval CLUSTER_LABEL_CTRL := 0=Prom1 1=Prom2 2=Trans 3=Rep 4=Prom3 5=Gran) 		# depends on the marker, signature and goea analysis if not well-characterized
 # $(eval CLUSTER_LABEL_TREATED := 0=Prom2 1=Trans 2=Rep 3=Prom1 4=Prom3 5=Gran)		# depends on the marker, signature and goea analysis if not well-characterized
 
+# stream parameters
+
+LAMBDA_CTRL := 0.05
+MU_CTRL := 0.05
+ALPHA_CTRL := 0.03
+EXTEND_CTRL := 0.8
+ROOT_CTRL := 0
+IGNORED_NODES_CTRL := 5
+
+LAMBDA_TREATED := 0.05
+MU_TREATED := 0.03
+ALPHA_TREATED := 0.03
+EXTEND_TREATED := 0.8
+ROOT_TREATED := 0
+IGNORED_NODES_TREATED := 
+
 # algorithm parameters
+
 INTEGRATION_METHOD = bbknn
 SEED_CLUSTER_CTRL = 0
-ROOT = 3
 IGNORED_NODES = 4

@@ -137,16 +137,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-j", "--jobs",
-    dest="n_jobs",
-    type=int,
-    required=False,
-    default=1,
-    metavar="INT",
-    help="number of parallel jobs to run"
-)
-
-parser.add_argument(
     "-n", "--cluster-number",
     dest="n_clusters",
     type=int,
@@ -278,6 +268,16 @@ parser.add_argument(
     required=False,
     action="store_true",
     help="plot figures in three dimensions"
+)
+
+parser.add_argument(
+    "-j", "--jobs",
+    dest="n_jobs",
+    type=int,
+    required=False,
+    default=1,
+    metavar="INT",
+    help="number of parallel jobs to run"
 )
 
 args = parser.parse_args()
