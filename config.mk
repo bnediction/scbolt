@@ -88,7 +88,9 @@ SCBOOLSEQ_TREATED = $(RNA_TREATED)/binarization/cluster_bin_node_clusters.csv
 BDC_CTRL = $(RNA_CTRL)/binarization/pairwise_predecessor_scores.csv
 BDC_TREATED = $(RNA_TREATED)/binarization/pairwise_predecessor_scores.csv
 
-SPECIFICATION_CTRL = $(RNA_CTRL)/bonesis/ct/plzf_TREATEDra_model.txt
+MODEL_SPECIFICATION_CTRL = $(RNA_CTRL)/bonesis/specification_model.txt
+MODEL_SPECIFICATION_TREATED = $(RNA_TREATED)/bonesis/specification_model.txt
+
 FILTER1_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage1.txt
 FILTER2_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage2.txt
 INFERENCE_SUB_CTRL = $(RNA_CTRL)/bonesis/ct/sub.bn

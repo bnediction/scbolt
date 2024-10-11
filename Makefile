@@ -62,6 +62,7 @@ ifeq ($(sample), control)
  $(eval stream_trajectories_target := $(TRAJECTORIES_STREAM_CTRL))
  $(eval scboolseq_target := $(SCBOOLSEQ_CTRL))
  $(eval bdc_target := $(BDC_CTRL))
+ $(eval model_specification_target := $(MODEL_SPECIFICATION_CTRL))
 else ifeq ($(sample), treated)
  $(eval fastq_target := $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_TREATED))
@@ -78,6 +79,7 @@ else ifeq ($(sample), treated)
  $(eval stream_trajectories_target := $(TRAJECTORIES_STREAM_TREATED))
  $(eval scboolseq_target := $(SCBOOLSEQ_TREATED))
  $(eval bdc_target := $(BDC_TREATED))
+ $(eval model_specification_target := $(MODEL_SPECIFICATION_TREATED))
 else
  $(eval fastq_target := $(FASTQ_CTRL) $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_CTRL) $(CELLRANGER_TREATED))
@@ -94,6 +96,7 @@ else
  $(eval stream_trajectories_target := $(TRAJECTORIES_STREAM_CTRL) $(TRAJECTORIES_STREAM_TREATED))
  $(eval scboolseq_target := $(SCBOOLSEQ_CTRL) $(SCBOOLSEQ_TREATED))
  $(eval bdc_target := $(BDC_CTRL) $(BDC_TREATED))
+ $(eval model_specification_target := $(MODEL_SPECIFICATION_CTRL) $(MODEL_SPECIFICATION_TREATED))
 endif
 
 ##@ Help
@@ -171,12 +174,15 @@ bdc: $(bdc_target) ## perform boolean differential calculus analysis
 
 ##@ Boolean inference
 
-# all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
-# integration: $(MARKERS_ALL) $(INTEGRATION)
+model-specification: $(model_specification_target) ## specify model for bonesis
+
+bonesis-filter1: $(FILTER1_CTRL)
 filter-stage1-ctrl: $(FILTER1_CTRL)
 filter-stage2-ctrl: $(FILTER2_CTRL)
 inference-sub-ctrl: $(INFERENCE_SUB_CTRL)
 inference-min-ctrl: $(INFERENCE_MIN_CTRL)
+# all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
+# integration: $(MARKERS_ALL) $(INTEGRATION)
 
 $(GENOME):
 	$(call section, load-genome)
@@ -589,12 +595,12 @@ $(BDC_TREATED): $(SCBOOLSEQ_TREATED)
 	python pipeline/binarization/differential_analysis.py $< $(@D) --verbose
 	$(CONDA DEACTIVATE)
 
-$(SPECIFICATION_CTRL): $(TRAJECTORIES_STREAM_CTRL)
+$(MODEL_SPECIFICATION_CTRL): $(TRAJECTORIES_STREAM_CTRL)
 	$(call section,model-specification (control data))
 	mkdir -p $(@D)
 	python3 pipeline/bonesis/design_bo.py $< > $@
 
-$(SPECIFICATION_TREATED): $(TRAJECTORIES_STREAM_TREATED)
+$(MODEL_SPECIFICATION_TREATED): $(TRAJECTORIES_STREAM_TREATED)
 	$(call section,model-specification (treated data))
 	mkdir -p $(@D)
 	python3 pipeline/bonesis/design_bo.py $< > $@
