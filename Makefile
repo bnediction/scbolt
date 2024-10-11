@@ -60,6 +60,8 @@ ifeq ($(sample), control)
  $(eval label_target := $(LABELS_CTRL))
  $(eval stream_pseudotime_target := $(PSEUDOTIME_STREAM_CTRL))
  $(eval stream_trajectories_target := $(TRAJECTORIES_STREAM_CTRL))
+ $(eval scboolseq_target := $(SCBOOLSEQ_CTRL))
+ $(eval bdc_target := $(BDC_CTRL))
 else ifeq ($(sample), treated)
  $(eval fastq_target := $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_TREATED))
@@ -74,6 +76,8 @@ else ifeq ($(sample), treated)
  $(eval label_target := $(LABELS_TREATED))
  $(eval stream_pseudotime_target := $(PSEUDOTIME_STREAM_TREATED))
  $(eval stream_trajectories_target := $(TRAJECTORIES_STREAM_TREATED))
+ $(eval scboolseq_target := $(SCBOOLSEQ_TREATED))
+ $(eval bdc_target := $(BDC_TREATED))
 else
  $(eval fastq_target := $(FASTQ_CTRL) $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_CTRL) $(CELLRANGER_TREATED))
@@ -88,6 +92,8 @@ else
  $(eval label_target := $(LABELS_CTRL) $(LABELS_TREATED))
  $(eval stream_pseudotime_target := $(PSEUDOTIME_STREAM_CTRL) $(PSEUDOTIME_STREAM_TREATED))
  $(eval stream_trajectories_target := $(TRAJECTORIES_STREAM_CTRL) $(TRAJECTORIES_STREAM_TREATED))
+ $(eval scboolseq_target := $(SCBOOLSEQ_CTRL) $(SCBOOLSEQ_TREATED))
+ $(eval bdc_target := $(BDC_CTRL) $(BDC_TREATED))
 endif
 
 ##@ Help
@@ -154,23 +160,19 @@ cluster-annotation: $(label_target) ## annotate clusters
 
 ##@ Trajectory analysis
 
-scvelo-trajectories: $(scvelo_trajectories_target) ## compute trajectories with scvelo
+scvelo: $(scvelo_trajectories_target) ## compute trajectories with scvelo
 stream-pseudotime: $(stream_pseudotime_target) ## compute elastic principal graph and pseudotime with stream
 stream-trajectories: $(stream_trajectories_target) ## compute trajectories with stream
 
-
 ##@ Binarization
+
+scboolseq: $(scboolseq_target) ## binarize normalized counts with scBoolSeq
+bdc: $(bdc_target) ## perform boolean differential calculus analysis
 
 ##@ Boolean inference
 
 # all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
 # integration: $(MARKERS_ALL) $(INTEGRATION)
-pseudotime-ctrl: $(PSEUDOTIME_CTRL)
-trajectories-ctrl: $(TRAJECTORIES_CTRL)
-stream-ctrl: trajectories-ctrl
-scboolseq-ctrl: $(SCBOOLSEQ_CTRL)
-bdc-ctrl: $(BDC_CTRL)
-specification-ctrl: $(SPECIFICATION_CTRL)
 filter-stage1-ctrl: $(FILTER1_CTRL)
 filter-stage2-ctrl: $(FILTER2_CTRL)
 inference-sub-ctrl: $(INFERENCE_SUB_CTRL)
@@ -557,6 +559,46 @@ $(TRAJECTORIES_STREAM_TREATED): $(PSEUDOTIME_STREAM_TREATED)
 		--ignore-nodes $(IGNORED_NODES_TREATED)
 	$(CONDA DEACTIVATE)
 
+$(SCBOOLSEQ_CTRL): $(PSEUDOTIME_STREAM_CTRL)
+	$(call section,scboolseq (control data))
+	$(CONDA_ACTIVATE) scboolseq
+	python pipeline/binarization/bin_clusters.py $(shell echo $< | sed "s/.pkl//") $(dir $@) \
+		--cluster leiden node_clusters --exclude nan \
+		--layer log-normalize --hvg \
+		--verbose
+	$(CONDA DEACTIVATE)
+
+$(SCBOOLSEQ_TREATED): $(PSEUDOTIME_STREAM_TREATED)
+	$(call section,scboolseq (control data))
+	$(CONDA_ACTIVATE) scboolseq
+	python pipeline/binarization/bin_clusters.py $(shell echo $< | sed "s/.pkl//") $(dir $@) \
+		--cluster leiden node_clusters --exclude nan \
+		--layer log-normalize --hvg \
+		--verbose
+	$(CONDA DEACTIVATE)
+
+$(BDC_CTRL): $(SCBOOLSEQ_CTRL)
+	$(call section,Boolean differential calculus (control data))
+	$(CONDA_ACTIVATE) scboolseq
+	python pipeline/binarization/differential_analysis.py $< $(@D) --verbose
+	$(CONDA DEACTIVATE)
+
+$(BDC_TREATED): $(SCBOOLSEQ_TREATED)
+	$(call section,Boolean differential calculus (treated data))
+	$(CONDA_ACTIVATE) scboolseq
+	python pipeline/binarization/differential_analysis.py $< $(@D) --verbose
+	$(CONDA DEACTIVATE)
+
+$(SPECIFICATION_CTRL): $(TRAJECTORIES_STREAM_CTRL)
+	$(call section,model-specification (control data))
+	mkdir -p $(@D)
+	python3 pipeline/bonesis/design_bo.py $< > $@
+
+$(SPECIFICATION_TREATED): $(TRAJECTORIES_STREAM_TREATED)
+	$(call section,model-specification (treated data))
+	mkdir -p $(@D)
+	python3 pipeline/bonesis/design_bo.py $< > $@
+
 #$(10XGENOMICS_CTRL):
 #	$(call section,download 10X genomics data (control data))
 #	mkdir -p $(@D)
@@ -578,35 +620,6 @@ $(TRAJECTORIES_STREAM_TREATED): $(PSEUDOTIME_STREAM_TREATED)
 #	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_TREATED))
 
 
-$(SCBOOLSEQ_CTRL): $(PSEUDOTIME_CTRL)
-	$(call section,scBoolSeq binarization (control data))
-	$(CONDA_ACTIVATE) scboolseq
-	python pipeline/binarization/bin_clusters.py $(shell echo $< | sed "s/.pkl//") $(dir $@) \
-		--cluster leiden node_clusters --exclude nan \
-		--layer log-normalize --hvg \
-		--verbose
-	$(CONDA DEACTIVATE)
-
-$(BDC_CTRL): $(SCBOOLSEQ_CTRL)
-	$(call section,Boolean differential calculus (control data))
-	$(CONDA_ACTIVATE) scboolseq
-	python pipeline/binarization/differential_analysis.py $< $(@D) --verbose
-	$(CONDA DEACTIVATE)
-
-$(TRAJECTORIES_CTRL): $(PSEUDOTIME_CTRL)
-	$(call section,trajectory analysis (stream trajectories, control data))
-	@echo -e '$(BOLDGREEN)Warning: root can be modified depending on previous Boolean differential calculus analysis$(NC)'
-	$(CONDA_ACTIVATE) stream
-	python pipeline/stream/trajectories.py $< $(@D) --root $(ROOT) \
-		--groups leiden kmeans node_clusters \
-		--add-legend --add-graph \
-		--ignore-nodes $(IGNORED_NODES)
-	$(CONDA DEACTIVATE)
-
-$(SPECIFICATION_CTRL): $(TRAJECTORIES_CTRL)
-	$(call section,Bonesis model specification (control data))
-	mkdir -p $(@D)
-	python3 pipeline/bonesis/design_bo.py $< > $@
 
 $(FILTER1_CTRL): $(SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
 	$(call section,Bonesis filtering (control data, stage 1))

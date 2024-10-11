@@ -82,8 +82,12 @@ PSEUDOTIME_STREAM_TREATED = $(RNA_TREATED)/stream/pseudotime/tables/stream.h5ad.
 TRAJECTORIES_STREAM_CTRL = $(RNA_CTRL)/stream/trajectories/branches.txt
 TRAJECTORIES_STREAM_TREATED = $(RNA_TREATED)/stream/trajectories/branches.txt
 
-SCBOOLSEQ_CTRL = $(RNA_CTRL)/binarization/ct/cluster_bin_node_clusters.csv
-BDC_CTRL = $(RNA_CTRL)/binarization/ct/pairwise_predecessor_scores.csv
+SCBOOLSEQ_CTRL = $(RNA_CTRL)/binarization/cluster_bin_node_clusters.csv
+SCBOOLSEQ_TREATED = $(RNA_TREATED)/binarization/cluster_bin_node_clusters.csv
+
+BDC_CTRL = $(RNA_CTRL)/binarization/pairwise_predecessor_scores.csv
+BDC_TREATED = $(RNA_TREATED)/binarization/pairwise_predecessor_scores.csv
+
 SPECIFICATION_CTRL = $(RNA_CTRL)/bonesis/ct/plzf_TREATEDra_model.txt
 FILTER1_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage1.txt
 FILTER2_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage2.txt
@@ -116,4 +120,3 @@ IGNORED_NODES_TREATED :=
 
 INTEGRATION_METHOD = bbknn
 SEED_CLUSTER_CTRL = 0
-IGNORED_NODES = 4
