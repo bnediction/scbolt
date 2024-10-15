@@ -396,7 +396,7 @@ $(CLUSTER_TREATED): $(NORMALISATION_TREATED)
 		--hvg --metric euclidean --k-neighbors 20 --resolution 0.4 \
 		--dim-pca $(DIM_PCA_TREATED) --dim-clustering $(DIM_CLUSTERING_TREATED) --dim-umap $(DIM_UMAP_TREATED) \
 		--add-legend \
-		--seed 1 --verbose
+		--seed $(SEED_CLUSTER_TREATED) --verbose
 	$(CONDA_DEACTIVATE)
 
 $(MARKERS_CTRL): $(CLUSTER_CTRL) $(lastword $(SIGNATURES))

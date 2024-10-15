@@ -62,7 +62,7 @@ if args.column not in adata.obs:
 elif not hasattr(adata.obs[args.column], "cat"):
     raise ValueError("values in adata.obs[`{args.column}`] are not derived from a Categorical type.")
 else:
-    adata.obs[args.column] = adata.obs[args.column].cat.rename_categories(args.labels)
+    adata.obs[args.column].replace(args.labels, inplace=True)
 
 print("Saving data...")
 adata.write_h5ad(filename=args.outfile, compression="gzip")
