@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 
 import warnings
-warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=DeprecationWarning) 
 
 import os, argparse
 from pathlib import Path
-
-import re
+from utils.stdout import disable_print
 
 import pandas as pd
-import anndatatools as adt, scvelo as scv
+import anndatatools as adt, scanpy as sc, scvelo as scv
+
+import numpy as np
 
 import matplotlib.pyplot as plt
 
@@ -54,17 +55,27 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-p", "--dim-pca",
-    dest="dim_pca",
-    type=int,
+    "--metric",
+    dest="metric",
+    type=str,
     required=False,
-    default=50,
-    metavar="INT",
-    help="number of principal components (default: 50)"
+    default="euclidean",
+    metavar="METRIC",
+    help="metric used for knn and bbknn-based integration algorithms (default: euclidean)"
 )
 
 parser.add_argument(
-    "-m", "--mode",
+    "-c", "--dim-clustering",
+    dest="dim_clustering",
+    type=int,
+    required=False,
+    default=15,
+    metavar="INT",
+    help="number of principal components taken into account for clustering cells (default: 15)"
+)
+
+parser.add_argument(
+    "--mode",
     dest="mode",
     type=str,
     required=False,
@@ -74,7 +85,8 @@ parser.add_argument(
     help="mode used to estimate the steady-state model (default: stochastic)"
 )
 
-s = """data/rna/ctrl/cluster/tables/counts_labels.h5ad data/rna/ctrl/scvelo --cluster leiden --k-neighbors 30 --dim-pca 30 --mode stochastic"""
+s = """data/rna/ctrl/cluster/tables/counts_labels.h5ad data/rna/ctrl/scvelo --cluster leiden --k-neighbors 30 --dim-clustering 30 --mode stochastic"""
+s = """data/rna/treated/cluster/tables/counts_labels.h5ad data/rna/treated/scvelo --cluster leiden --k-neighbors 30 --dim-clustering 30 --mode stochastic"""
 
 args = parser.parse_args(s.split())
 
@@ -83,27 +95,20 @@ if not args.outpath.exists():
 
 print(f"Loading data...")
 
-adata = scv.read(args.infile, cache=True)
-adata2 = scv.datasets.pancreas()
-
-# scv.set_figure_params()
-# adt.pl.set_default()
+adata = sc.read_h5ad(args.infile)
+# adata2 = scv.datasets.pancreas()
 
 adata.obs["clusters"] = adata.obs[args.cluster]
-# n_clusters = len(adata.obs["clusters"].cat.categories)
-import numpy as np
 
 adata.uns["colors"] = np.array([adt.pl.rgb2hex(adt.pl.COLORS[idx]) for idx, _ in enumerate (adata.obs["clusters"].cat.categories)])
 color_map = {cluster: adt.pl.rgb2hex(adt.pl.COLORS[idx]) for idx, cluster in enumerate(adata.obs["clusters"].cat.categories)}
-# adata.obs["cluster_colors"] = adata.obs["clusters"].map(color_mapping)
-# adata.uns["cluster_coarse_colors"] = np.array()
 
 scv.pl.proportions(
     adata,
     groupby=args.cluster,
     fontsize=plt.rcParams["font.size"],
-    figsize=(9,5),
-    show=False,
+    figsize=(11,5),
+    show=False
 )
 plt.savefig(Path(f"{args.outpath}/proportions.pdf"))
 plt.close()
@@ -115,45 +120,55 @@ try:
 except:
     pass
 
-scv.pp.moments(
+sc.pp.neighbors(
     adata,
-    n_pcs=args.dim_pca,
     n_neighbors=args.k_neighbors,
+    use_rep="X_pca",
+    n_pcs=args.dim_clustering,
+    metric=args.metric,
     copy=False
 )
+
+with disable_print():
+    scv.pp.moments(
+        adata,
+        copy=False
+    )
 
 print("Computing velocity...")
 
-scv.tl.velocity(
-    adata,
-    mode=args.mode,
-    copy=False
-)
-scv.tl.velocity_graph(
-    adata,
-    copy=False,
-)
+with disable_print():
+    scv.tl.velocity(
+        adata,
+        mode=args.mode,
+        copy=False
+    )
+
+print("Computing velocity graph...")
+
+with disable_print():
+    scv.tl.velocity_graph(
+        adata,
+        copy=False,
+        show_progress_bar=False
+    )
 
 print("Plotting trajectories...")
 
-
-import matplotlib as mpl
-
-scv.pl.velocity_embedding_stream(
-    adata,
-    basis="umap",
-    title="",
-    linewidth=1,
-    size=5,
-    color_map=color_map,
-#    color=list(color_map.values()),
-    show=True, alpha=0.5,
-    legend_fontweight="bold",
-    fontsize=50,
-#    groups="clusters"
-    figsize=(7,5),
-)
-
-
-plt.savefig(Path(f"{args.outpath}/trajectories.pdf"))
-plt.close()
+with disable_print():
+    ax = scv.pl.velocity_embedding_stream(
+        adata,
+        basis="umap",
+        title="",
+        linewidth=1,
+        size=5,
+        color_map=color_map,
+        alpha=0.5,
+        legend_fontweight="bold",
+        figsize=(7,4),
+        show=False
+    )
+    for txt in ax.texts:
+        txt.set_visible(False)
+    plt.savefig(Path(f"{args.outpath}/trajectories.pdf"))
+    plt.close()

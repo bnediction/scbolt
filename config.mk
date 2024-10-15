@@ -111,6 +111,7 @@ DIM_UMAP_TREATED := 2					# number of embedding dimensions
 SEED_CLUSTER_TREATED = 1
 
 # cluster labels
+
 $(eval CLUSTER_LABEL_CTRL := 0=Prom1 1=Prom2 2=Trans 3=Rep 4=Prom3 5=Gran)			# depends on the marker, signature and goea analysis if not well-characterized
 $(eval CLUSTER_LABEL_TREATED := 0=Trans 1=Prom1 2=Unknown 3=Rep 4=Gran 5=Rep)		# depends on the marker, signature and goea analysis if not well-characterized
 
