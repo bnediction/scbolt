@@ -384,7 +384,7 @@ $(CLUSTER_CTRL): $(NORMALISATION_CTRL)
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/clusters.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
 		--hvg --metric euclidean --k-neighbors 20 --resolution 0.45 \
-		--dim-pca 50 --dim-clustering 15 --dim-umap 2 \
+		--dim-pca $(DIM_PCA_CTRL) --dim-clustering $(DIM_CLUSTERING_CTRL) --dim-umap $(DIM_UMAP_CTRL) \
 		--add-legend \
 		--seed $(SEED_CLUSTER_CTRL) --verbose
 	$(CONDA_DEACTIVATE)
@@ -394,7 +394,7 @@ $(CLUSTER_TREATED): $(NORMALISATION_TREATED)
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/clusters.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
 		--hvg --metric euclidean --k-neighbors 20 --resolution 0.4 \
-		--dim-pca 50 --dim-clustering 15 --dim-umap 2 \
+		--dim-pca $(DIM_PCA_TREATED) --dim-clustering $(DIM_CLUSTERING_TREATED) --dim-umap $(DIM_UMAP_TREATED) \
 		--add-legend \
 		--seed 1 --verbose
 	$(CONDA_DEACTIVATE)
