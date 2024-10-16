@@ -58,6 +58,7 @@ ifeq ($(sample), control)
  $(eval over_representation_target := $(OVER_REPRESENTATION_CTRL))
  $(eval goea_target := $(GOEA_BASIC_CTRL) $(GOEA_MOUSE_CTRL))
  $(eval label_target := $(LABELS_CTRL))
+ $(eval scvelo_trajectories_target := $(SCVELO_CTRL))
  $(eval stream_pseudotime_target := $(PSEUDOTIME_STREAM_CTRL))
  $(eval stream_trajectories_target := $(TRAJECTORIES_STREAM_CTRL))
  $(eval scboolseq_target := $(SCBOOLSEQ_CTRL))
@@ -75,6 +76,7 @@ else ifeq ($(sample), treated)
  $(eval over_representation_target := $(OVER_REPRESENTATION_TREATED))
  $(eval goea_target := $(GOEA_BASIC_TREATED) $(GOEA_MOUSE_TREATED))
  $(eval label_target := $(LABELS_TREATED))
+ $(eval scvelo_trajectories_target := $(SCVELO_TREATED))
  $(eval stream_pseudotime_target := $(PSEUDOTIME_STREAM_TREATED))
  $(eval stream_trajectories_target := $(TRAJECTORIES_STREAM_TREATED))
  $(eval scboolseq_target := $(SCBOOLSEQ_TREATED))
@@ -92,6 +94,7 @@ else
  $(eval over_representation_target := $(OVER_REPRESENTATION_CTRL) $(OVER_REPRESENTATION_TREATED))
  $(eval goea_target := $(GOEA_BASIC_CTRL) $(GOEA_MOUSE_CTRL) $(GOEA_BASIC_TREATED) $(GOEA_MOUSE_TREATED))
  $(eval label_target := $(LABELS_CTRL) $(LABELS_TREATED))
+ $(eval scvelo_trajectories_target := $(SCVELO_CTRL) $(SCVELO_TREATED))
  $(eval stream_pseudotime_target := $(PSEUDOTIME_STREAM_CTRL) $(PSEUDOTIME_STREAM_TREATED))
  $(eval stream_trajectories_target := $(TRAJECTORIES_STREAM_CTRL) $(TRAJECTORIES_STREAM_TREATED))
  $(eval scboolseq_target := $(SCBOOLSEQ_CTRL) $(SCBOOLSEQ_TREATED))
@@ -383,7 +386,7 @@ $(CLUSTER_CTRL): $(NORMALISATION_CTRL)
 	$(call section,clustering (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/clusters.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
-		--hvg --metric euclidean --k-neighbors 20 --resolution 0.45 \
+		--hvg --metric euclidean --k-neighbors $(K_NEIGHBORS_CTRL) --resolution $(RESOLUTION_LEIDEN_CTRL) \
 		--dim-pca $(DIM_PCA_CTRL) --dim-clustering $(DIM_CLUSTERING_CTRL) --dim-umap $(DIM_UMAP_CTRL) \
 		--add-legend \
 		--seed $(SEED_CLUSTER_CTRL) --verbose
@@ -393,7 +396,7 @@ $(CLUSTER_TREATED): $(NORMALISATION_TREATED)
 	$(call section,clustering (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/clusters.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
-		--hvg --metric euclidean --k-neighbors 20 --resolution 0.4 \
+		--hvg --metric euclidean --k-neighbors $(K_NEIGHBORS_TREATED) --resolution $(RESOLUTION_LEIDEN_TREATED) \
 		--dim-pca $(DIM_PCA_TREATED) --dim-clustering $(DIM_CLUSTERING_TREATED) --dim-umap $(DIM_UMAP_TREATED) \
 		--add-legend \
 		--seed $(SEED_CLUSTER_TREATED) --verbose
@@ -521,7 +524,27 @@ else
 	exit
 endif
 
-### Add scvelo here ###
+$(SCVELO_CTRL): $(LABELS_CTRL)
+	$(call section,scvelo (control data))
+	$(CONDA_ACTIVATE) scvelo
+	python pipeline/scvelo/trajectories.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+	--cluster leiden \
+	--k-neighbors $(SCVELO_K_NEIGHBORS_CTRL) \
+	--dim-clustering $(SCVELO_DIM_CLUSTERING_CTRL) \
+	--mode $(SMM_MODE_CTRL) \
+	--add-legend
+	$(CONDA_DEACTIVATE)
+
+$(SCVELO_TREATED): $(LABELS_TREATED)
+	$(call section,scvelo (treated data))
+	$(CONDA_ACTIVATE) scvelo
+	python pipeline/scvelo/trajectories.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+	--cluster leiden \
+	--k-neighbors $(SCVELO_K_NEIGHBORS_TREATED) \
+	--dim-clustering $(SCVELO_DIM_CLUSTERING_TREATED) \
+	--mode $(SMM_MODE_TREATED) \
+	--add-legend
+	$(CONDA_DEACTIVATE)
 
 $(PSEUDOTIME_STREAM_CTRL): $(LABELS_CTRL)
 	$(call section,stream-pseudotime (control data))
