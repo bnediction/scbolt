@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning) 
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os, argparse
 from pathlib import Path
@@ -96,6 +96,7 @@ if not args.outpath.exists():
 print(f"Loading data...")
 
 adata = sc.read_h5ad(args.infile)
+n_components = adata.obsm["X_umap"].shape[1]
 # adata2 = scv.datasets.pancreas()
 
 adata.obs["clusters"] = adata.obs[args.cluster]
@@ -155,6 +156,7 @@ with disable_print():
 
 print("Plotting trajectories...")
 
+figwidth, figheight = 7, 4
 with disable_print():
     ax = scv.pl.velocity_embedding_stream(
         adata,
@@ -164,11 +166,16 @@ with disable_print():
         size=5,
         color_map=color_map,
         alpha=0.5,
+        legend_loc="best",
         legend_fontweight="bold",
-        figsize=(7,4),
+        figsize=(figwidth,figheight),
         show=False
     )
     for txt in ax.texts:
         txt.set_visible(False)
-    plt.savefig(Path(f"{args.outpath}/trajectories.pdf"))
-    plt.close()
+plt.savefig(Path(f"{args.outpath}/trajectories.pdf"))
+plt.close()
+
+scv.tl.velocity_pseudotime(adata)
+scv.pl.scatter(adata, color='velocity_pseudotime', cmap='gnuplot')
+
