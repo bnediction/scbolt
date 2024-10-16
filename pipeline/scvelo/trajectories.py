@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os, argparse
 from pathlib import Path
@@ -13,6 +12,10 @@ import anndatatools as adt, scanpy as sc, scvelo as scv
 import numpy as np
 
 import matplotlib.pyplot as plt
+from anndatatools.plotting import (
+    fig,
+    color
+)
 
 parser = argparse.ArgumentParser(
     prog="scvelo of sc-RNAseq data",
@@ -85,19 +88,36 @@ parser.add_argument(
     help="mode used to estimate the steady-state model (default: stochastic)"
 )
 
+parser.add_argument(
+    "--add-legend",
+    dest="legend",
+    required=False,
+    action="store_true",
+    help="add legend to figures"
+)
+
+parser.add_argument(
+    "--plot-3d",
+    dest="plot_3d",
+    required=False,
+    action="store_true",
+    help="plot figures in three dimensions"
+)
+
 s = """data/rna/ctrl/cluster/tables/counts_labels.h5ad data/rna/ctrl/scvelo --cluster leiden --k-neighbors 30 --dim-clustering 30 --mode stochastic"""
-s = """data/rna/treated/cluster/tables/counts_labels.h5ad data/rna/treated/scvelo --cluster leiden --k-neighbors 30 --dim-clustering 30 --mode stochastic"""
+s = """data/rna/treated/cluster/tables/counts_labels.h5ad data/rna/treated/scvelo --cluster leiden --k-neighbors 30 --dim-clustering 30 --mode stochastic --add-legend"""
 
 args = parser.parse_args(s.split())
 
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 print(f"Loading data...")
 
 adata = sc.read_h5ad(args.infile)
 n_components = adata.obsm["X_umap"].shape[1]
-# adata2 = scv.datasets.pancreas()
 
 adata.obs["clusters"] = adata.obs[args.cluster]
 
@@ -154,6 +174,11 @@ with disable_print():
         show_progress_bar=False
     )
 
+print("Computing velocity graph...")
+
+with disable_print():
+    scv.tl.velocity_pseudotime(adata)
+
 print("Plotting trajectories...")
 
 figwidth, figheight = 7, 4
@@ -176,6 +201,31 @@ with disable_print():
 plt.savefig(Path(f"{args.outpath}/trajectories.pdf"))
 plt.close()
 
-scv.tl.velocity_pseudotime(adata)
-scv.pl.scatter(adata, color='velocity_pseudotime', cmap='gnuplot')
-
+fig, _ = adt.pl.embedding_plot(
+    adata,
+    obs="velocity_pseudotime",
+    obsm="X_umap",
+    xlabel=r"$\mathrm{UMAP_{1}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$",
+    zlabel=r"$\mathrm{UMAP_{3}}$",
+    add_legend=args.legend,
+    figwidth=6,
+    s=4,
+    alpha=1,
+    lgd_params={
+        "title":"pseudotime",
+        "ncol":1,
+        "markerscale":5,
+        "frameon":True,
+        "edgecolor":color.black,
+        "shadow":False
+    },
+    n_components = 3 if adata.obsm["velocity_umap"].shape[1] > 2 and args.plot_3d is True else 2,
+    background_visible=False,
+    colorbar_scale=0.3,
+    colors="gnuplot"
+)
+with disable_print():
+    plt.axis("off")
+fig.set_figwidth(fig.get_figwidth()*1.25)
+plt.savefig(Path(f"{args.outpath}/velocity_pseudotime.pdf"))
