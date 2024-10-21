@@ -527,7 +527,7 @@ endif
 $(SCVELO_CTRL): $(LABELS_CTRL)
 	$(call section,scvelo (control data))
 	$(CONDA_ACTIVATE) scvelo
-	python pipeline/scvelo/trajectories.py $< $(dir $@) \
+	python pipeline/scvelo/trajectories.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
 	--cluster leiden \
 	--k-neighbors $(SCVELO_K_NEIGHBORS_CTRL) \
 	--dim-clustering $(SCVELO_DIM_CLUSTERING_CTRL) \
@@ -538,7 +538,7 @@ $(SCVELO_CTRL): $(LABELS_CTRL)
 $(SCVELO_TREATED): $(LABELS_TREATED)
 	$(call section,scvelo (treated data))
 	$(CONDA_ACTIVATE) scvelo
-	python pipeline/scvelo/trajectories.py $< $(dir $@) \
+	python pipeline/scvelo/trajectories.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
 	--cluster leiden \
 	--k-neighbors $(SCVELO_K_NEIGHBORS_TREATED) \
 	--dim-clustering $(SCVELO_DIM_CLUSTERING_TREATED) \

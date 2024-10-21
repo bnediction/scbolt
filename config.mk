@@ -76,8 +76,8 @@ GOEA_MOUSE_TREATED = $(RNA_TREATED)/enrichment/goea_mouse.xlsx
 LABELS_CTRL = $(dir $(CLUSTER_CTRL))/counts_labels.h5ad
 LABELS_TREATED = $(dir $(CLUSTER_TREATED))/counts_labels.h5ad
 
-SCVELO_CTRL = $(RNA_CTRL)/scvelo/scvelo.h5ad
-SCVELO_TREATED = $(RNA_TREATED)/scvelo/scvelo.h5ad
+SCVELO_CTRL = $(RNA_CTRL)/scvelo/tables/scvelo.h5ad							# Must contain the parent directory tables/
+SCVELO_TREATED = $(RNA_TREATED)/scvelo/tables/scvelo.h5ad					# Must contain the parent directory tables/
 
 PSEUDOTIME_STREAM_CTRL = $(RNA_CTRL)/stream/pseudotime/tables/stream.h5ad.pkl			# Must contain the parent directory tables/
 PSEUDOTIME_STREAM_TREATED = $(RNA_TREATED)/stream/pseudotime/tables/stream.h5ad.pkl		# Must contain the parent directory tables/
