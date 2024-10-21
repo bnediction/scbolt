@@ -54,6 +54,7 @@ ifeq ($(sample), control)
  $(eval filter_target := $(FILTER_CTRL))
  $(eval normalization_target := $(NORMALISATION_CTRL))
  $(eval cluster_target := $(CLUSTER_CTRL))
+ $(eval integration_target := )
  $(eval markers_target := $(MARKERS_CTRL))
  $(eval over_representation_target := $(OVER_REPRESENTATION_CTRL))
  $(eval goea_target := $(GOEA_BASIC_CTRL) $(GOEA_MOUSE_CTRL))
@@ -72,6 +73,7 @@ else ifeq ($(sample), treated)
  $(eval filter_target := $(FILTER_TREATED))
  $(eval normalization_target := $(NORMALISATION_TREATED))
  $(eval cluster_target := $(CLUSTER_TREATED))
+ $(eval integration_target := )
  $(eval markers_target := $(MARKERS_TREATED))
  $(eval over_representation_target := $(OVER_REPRESENTATION_TREATED))
  $(eval goea_target := $(GOEA_BASIC_TREATED) $(GOEA_MOUSE_TREATED))
@@ -90,6 +92,7 @@ else
  $(eval filter_target := $(FILTER_CTRL) $(FILTER_TREATED))
  $(eval normalization_target := $(NORMALISATION_CTRL) $(NORMALISATION_TREATED))
  $(eval cluster_target := $(CLUSTER_CTRL) $(CLUSTER_TREATED))
+ $(eval integration_target := $(INTEGRATION))
  $(eval markers_target := $(MARKERS_CTRL) $(MARKERS_TREATED))
  $(eval over_representation_target := $(OVER_REPRESENTATION_CTRL) $(OVER_REPRESENTATION_TREATED))
  $(eval goea_target := $(GOEA_BASIC_CTRL) $(GOEA_MOUSE_CTRL) $(GOEA_BASIC_TREATED) $(GOEA_MOUSE_TREATED))
@@ -153,6 +156,8 @@ filtering: $(filter_target) ## filtering low quality cells and assignment of cel
 normalization: $(normalization_target) ## filtering low quality genes and normalization of counts
 .PHONY: clustering
 clustering: $(cluster_target) ## perform dimension reduction and cell clustering
+.PHONY: integration
+integration: $(integration_target) ## integrate control and treated samples and perform cell clustering
 
 ##@ Cluster analysis
 
@@ -334,7 +339,7 @@ $(H5AD_TREATED): $(VELOCYTO_TREATED)
 	$(call section,conversion (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python bonesis-tools/clitools/conversion_to_h5ad.py $< $@ \
-		--sample-info $(METADATA_CTRL) \
+		--sample-info $(METADATA_TREATED) \
 		--remove-positions
 	$(CONDA_DEACTIVATE)
 
@@ -388,8 +393,9 @@ $(CLUSTER_CTRL): $(NORMALISATION_CTRL)
 	python pipeline/preprocess/clusters.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
 		--hvg --metric euclidean --k-neighbors $(K_NEIGHBORS_CTRL) --resolution $(RESOLUTION_LEIDEN_CTRL) \
 		--dim-pca $(DIM_PCA_CTRL) --dim-clustering $(DIM_CLUSTERING_CTRL) --dim-umap $(DIM_UMAP_CTRL) \
-		--add-legend \
-		--seed $(SEED_CLUSTER_CTRL) --verbose
+		--add-legend --plot-3d \
+		--seed $(SEED_CLUSTER_CTRL) \
+		--verbose
 	$(CONDA_DEACTIVATE)
 
 $(CLUSTER_TREATED): $(NORMALISATION_TREATED)
@@ -398,8 +404,22 @@ $(CLUSTER_TREATED): $(NORMALISATION_TREATED)
 	python pipeline/preprocess/clusters.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
 		--hvg --metric euclidean --k-neighbors $(K_NEIGHBORS_TREATED) --resolution $(RESOLUTION_LEIDEN_TREATED) \
 		--dim-pca $(DIM_PCA_TREATED) --dim-clustering $(DIM_CLUSTERING_TREATED) --dim-umap $(DIM_UMAP_TREATED) \
-		--add-legend \
-		--seed $(SEED_CLUSTER_TREATED) --verbose
+		--add-legend --plot-3d \
+		--seed $(SEED_CLUSTER_TREATED) \
+		--verbose
+	$(CONDA_DEACTIVATE)
+
+$(INTEGRATION): $(NORMALISATION_CTRL) $(NORMALISATION_TREATED)
+	$(call section,integration)
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/integration.py $^ $(shell echo $(dir $@) | sed "s/tables\///") \
+		--label condition --method $(INTEGRATION_METHOD) \
+		--hvg --metric euclidean --k-neighbors $(K_NEIGHBORS_INTEGRATED) --resolution $(RESOLUTION_LEIDEN_INTEGRATED) \
+		--dim-pca $(DIM_PCA_INTEGRATED) --dim-clustering $(DIM_CLUSTERING_INTEGRATED) --dim-umap $(DIM_UMAP_INTEGRATED) \
+		--add-legend --plot-3d \
+		--seed $(SEED_CLUSTER_INTEGRATED) \
+		--jobs $(JOBS) \
+		--verbose
 	$(CONDA_DEACTIVATE)
 
 $(MARKERS_CTRL): $(CLUSTER_CTRL) $(lastword $(SIGNATURES))
@@ -693,18 +713,6 @@ $(INFERENCE_MIN_CTRL): $(FILTER2_CTRL) $(SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
 
 
 ### INTEGRATION ###
-
-$(INTEGRATION): $(NORMALISATION_CTRL) $(NORMALISATION_TREATED)
-	$(call section,integration)
-	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/integration.py $^ $(shell echo $(dir $@) | sed "s/tables\///") \
-		--label condition --method $(INTEGRATION_METHOD) \
-		--dim-pca 50 --dim-clustering 15 --dim-umap 3 \
-		--hvg --metric euclidean --k-neighbors 20 --resolution 0.38 \
-		--add-legend --plot-3d \
-		--jobs $(JOBS) --seed 10 \
-		--verbose
-	$(CONDA_DEACTIVATE)
 
 $(MARKERS_ALL): $(INTEGRATION) $(lastword $(SIGNATURES))
 	$(call section,analyse cell types (integrated data))

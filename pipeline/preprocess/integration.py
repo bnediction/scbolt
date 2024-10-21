@@ -112,10 +112,10 @@ parser.add_argument(
     dest="method",
     type=str,
     required=False,
-    default="all",
-    choices=["all", "ingest", "bbknn", "scanorama"],
-    metavar="[all | ingest | bbknn | scanorama]",
-    help="integration method to use (default: all)"
+    default="bbknn",
+    choices=["bbknn", "ingest", "scanorama"],
+    metavar="[bbknn | ingest | scanorama]",
+    help="integration method to use (default: bbknn)"
 )
 
 parser.add_argument(
@@ -225,7 +225,7 @@ parser.add_argument(
     dest="seed",
     type=int,
     required=False,
-    default=None,
+    default=0,
     metavar="FLOAT",
     help="random number generator"
 )
@@ -253,7 +253,6 @@ if not data_outpath.exists():
 if not fig_outpath.exists():
     os.makedirs(fig_outpath)
 
-default_seed = args.seed if args.seed else 10
 section = Section(verbose = args.verbose)
 
 print(f"Loading data...")
@@ -275,9 +274,9 @@ for key in adata_d.keys():
 
 del valid_genes
 
-if args.method=="ingest" or args.method=="all":
+if args.method=="ingest":
 
-    print("Integration using ingest:")
+    print("Integration: ingest")
 
     section("Computation of reference sample embedding components...", reset=True)
     sc.tl.pca(
@@ -296,7 +295,7 @@ if args.method=="ingest" or args.method=="all":
     sc.tl.umap(
         adata_d["reference"],
         n_components=args.dim_umap,
-        random_state=default_seed
+        random_state=args.seed
     )
 
     section("Integration of interest sample...")
@@ -381,12 +380,12 @@ if args.method=="ingest" or args.method=="all":
             pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
 
     section("Saving data...")
-    adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}ingest.h5ad", compression="gzip")
+    adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}integrated.h5ad", compression="gzip")
     del adata
 
-if args.method=="bbknn" or args.method=="all":
+elif args.method=="bbknn":
 
-    print("Integration using bbknn:")
+    print("Integration: bbknn")
 
     if "adata" not in globals():
         try:
@@ -436,7 +435,7 @@ if args.method=="bbknn" or args.method=="all":
     sc.tl.umap(
         adata,
         n_components=args.dim_umap,
-        random_state=default_seed
+        random_state=args.seed
     )
     sc.pp.neighbors(
         adata,
@@ -500,12 +499,12 @@ if args.method=="bbknn" or args.method=="all":
             pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
 
     section("Saving data...")
-    adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}bbknn.h5ad", compression="gzip")
+    adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}integrated.h5ad", compression="gzip")
     del adata
 
-if args.method=="scanorama" or args.method=="all":
+elif args.method=="scanorama":
 
-    print("Integration using scanorama...")
+    print("Integration: scanorama")
 
     for key in adata_d.keys():
         clean_adata(adata_d[key])
@@ -546,7 +545,7 @@ if args.method=="scanorama" or args.method=="all":
     sc.tl.umap(
         adata,
         n_components=args.dim_umap,
-        random_state=default_seed
+        random_state=args.seed
     )
 
     section("Plot of embedding components...")
@@ -597,4 +596,4 @@ if args.method=="scanorama" or args.method=="all":
             pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
 
     section("Saving data...")
-    adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}scanorama.h5ad", compression="gzip")
+    adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}integrated.h5ad", compression="gzip")

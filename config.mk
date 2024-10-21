@@ -62,6 +62,8 @@ NORMALISATION_TREATED = $(RNA_TREATED)/normalization/tables/corrected.h5ad	# Mus
 CLUSTER_CTRL = $(RNA_CTRL)/cluster/tables/counts.h5ad						# Must contain the parent directory tables/
 CLUSTER_TREATED = $(RNA_TREATED)/cluster/tables/counts.h5ad					# Must contain the parent directory tables/
 
+INTEGRATION = $(RNA_INTEGRATED)/cluster/tables/integrated.h5ad				# Must contain the parent directory tables/
+
 MARKERS_CTRL = $(RNA_CTRL)/markers/markers.csv
 MARKERS_TREATED = $(RNA_TREATED)/markers/markers.csv
 
@@ -98,24 +100,34 @@ FILTER1_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage1.txt
 FILTER2_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage2.txt
 INFERENCE_SUB_CTRL = $(RNA_CTRL)/bonesis/ct/sub.bn
 INFERENCE_MIN_CTRL = $(RNA_CTRL)/bonesis/ct/min.bn
-INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad) # Must contain the parent directory tables/
+# INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad) # Must contain the parent directory tables/
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
 
 # cluster parameters
 
 $(eval K_NEIGHBORS_CTRL := 20)					# K-closest neighbors
+$(eval RESOLUTION_LEIDEN_CTRL := 0.45)			# coarseness of the clustering when using Leiden algorithm
 $(eval DIM_PCA_CTRL := 50)						# number of principal components
 $(eval DIM_CLUSTERING_CTRL := 15)				# number of principal components taken into account for clustering
 $(eval DIM_UMAP_CTRL := 2)						# number of embedding dimensions
-$(eval RESOLUTION_LEIDEN_CTRL := 0.45)			# coarseness of the clustering when using Leiden algorithm
-$(eval SEED_CLUSTER_CTRL := 0)
+SEED_CLUSTER_CTRL = 0
 
 $(eval K_NEIGHBORS_TREATED := 20)				# K-closest neighbors
+$(eval RESOLUTION_LEIDEN_TREATED := 0.4)		# coarseness of the clustering when using Leiden algorithm
 $(eval DIM_PCA_TREATED := 50)					# number of principal components
 $(eval DIM_CLUSTERING_TREATED := 15)			# number of principal components taken into account for clustering
 $(eval DIM_UMAP_TREATED := 2)					# number of embedding dimensions
-$(eval RESOLUTION_LEIDEN_TREATED := 0.4)		# coarseness of the clustering when using Leiden algorithm
-$(eval SEED_CLUSTER_TREATED := 1)
+SEED_CLUSTER_TREATED = 1
+
+# integration parameters
+
+INTEGRATION_METHOD = bbknn
+$(eval K_NEIGHBORS_INTEGRATED := 20)			# K-closest neighbors
+$(eval RESOLUTION_LEIDEN_INTEGRATED := 0.4)		# coarseness of the clustering when using Leiden algorithm
+$(eval DIM_PCA_INTEGRATED := 50)				# number of principal components
+$(eval DIM_CLUSTERING_INTEGRATED := 15)			# number of principal components taken into account for clustering
+$(eval DIM_UMAP_INTEGRATED := 2)				# number of embedding dimensions
+SEED_CLUSTER_INTEGRATED = 1
 
 # cluster labels
 
@@ -149,5 +161,3 @@ ROOT_TREATED := 0
 IGNORED_NODES_TREATED := 
 
 # algorithm parameters
-
-INTEGRATION_METHOD = bbknn
