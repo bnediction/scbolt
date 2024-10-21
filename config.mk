@@ -9,8 +9,8 @@ define section
 endef
 
 # metadata
-METADATA_CTRL = age=adult date=29-09-2020 sample_name=ctrl condition=control
-METADATA_TREATED = age=adult date=29-09-2020 sample_name=treated condition=treated
+METADATA_CTRL = age=adult date=29-09-2020 sample_name=ctrl condition=control			# Must contains condition
+METADATA_TREATED = age=adult date=29-09-2020 sample_name=treated condition=treated		# Must contains condition
 
 # url
 GENOME_URL = ftp://ftp.ensembl.org/pub/release-112/fasta/mus_musculus/dna/Mus_musculus.GRCm39.dna.primary_assembly.fa.gz
@@ -61,19 +61,22 @@ NORMALISATION_TREATED = $(RNA_TREATED)/normalization/tables/corrected.h5ad	# Mus
 
 CLUSTER_CTRL = $(RNA_CTRL)/cluster/tables/counts.h5ad						# Must contain the parent directory tables/
 CLUSTER_TREATED = $(RNA_TREATED)/cluster/tables/counts.h5ad					# Must contain the parent directory tables/
-
-INTEGRATION = $(RNA_INTEGRATED)/cluster/tables/integrated.h5ad				# Must contain the parent directory tables/
+CLUSTER_INTEGRATED = $(RNA_INTEGRATED)/cluster/tables/integrated.h5ad		# Must contain the parent directory tables/
 
 MARKERS_CTRL = $(RNA_CTRL)/markers/markers.csv
 MARKERS_TREATED = $(RNA_TREATED)/markers/markers.csv
+MARKERS_INTEGRATED = $(RNA_INTEGRATED)/markers/markers.csv
 
 OVER_REPRESENTATION_CTRL = $(RNA_CTRL)/enrichment/background.txt
 OVER_REPRESENTATION_TREATED = $(RNA_TREATED)/enrichment/background.txt
+OVER_REPRESENTATION_INTEGRATED = $(RNA_INTEGRATED)/enrichment/background.txt
 
 GOEA_BASIC_CTRL = $(RNA_CTRL)/enrichment/goea_basic.xlsx
 GOEA_MOUSE_CTRL = $(RNA_CTRL)/enrichment/goea_mouse.xlsx
 GOEA_BASIC_TREATED = $(RNA_TREATED)/enrichment/goea_basic.xlsx
 GOEA_MOUSE_TREATED = $(RNA_TREATED)/enrichment/goea_mouse.xlsx
+GOEA_BASIC_INTEGRATED = $(RNA_INTEGRATED)/enrichment/goea_basic.xlsx
+GOEA_MOUSE_INTEGRATED = $(RNA_INTEGRATED)/enrichment/goea_mouse.xlsx
 
 LABELS_CTRL = $(dir $(CLUSTER_CTRL))/counts_labels.h5ad
 LABELS_TREATED = $(dir $(CLUSTER_TREATED))/counts_labels.h5ad
@@ -100,11 +103,9 @@ FILTER1_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage1.txt
 FILTER2_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage2.txt
 INFERENCE_SUB_CTRL = $(RNA_CTRL)/bonesis/ct/sub.bn
 INFERENCE_MIN_CTRL = $(RNA_CTRL)/bonesis/ct/min.bn
-# INTEGRATION = $(foreach METHOD,$(INTEGRATION_METHOD),$(RNA)/integration/tables/$(METHOD).h5ad) # Must contain the parent directory tables/
 MARKERS_ALL = $(RNA)/markers/all/markers.csv
 
 # cluster parameters
-
 $(eval K_NEIGHBORS_CTRL := 20)					# K-closest neighbors
 $(eval RESOLUTION_LEIDEN_CTRL := 0.45)			# coarseness of the clustering when using Leiden algorithm
 $(eval DIM_PCA_CTRL := 50)						# number of principal components
@@ -120,7 +121,6 @@ $(eval DIM_UMAP_TREATED := 2)					# number of embedding dimensions
 SEED_CLUSTER_TREATED = 1
 
 # integration parameters
-
 INTEGRATION_METHOD = bbknn
 $(eval K_NEIGHBORS_INTEGRATED := 20)			# K-closest neighbors
 $(eval RESOLUTION_LEIDEN_INTEGRATED := 0.4)		# coarseness of the clustering when using Leiden algorithm
@@ -130,12 +130,10 @@ $(eval DIM_UMAP_INTEGRATED := 2)				# number of embedding dimensions
 SEED_CLUSTER_INTEGRATED = 1
 
 # cluster labels
-
 $(eval CLUSTER_LABEL_CTRL := 0=Prom1 1=Prom2 2=Trans 3=Rep 4=Prom3 5=Gran)			# depends on the marker, signature and goea analysis if not well-characterized
 $(eval CLUSTER_LABEL_TREATED := 0=Trans 1=Prom1 2=Unknown 3=Rep 4=Gran 5=Rep)		# depends on the marker, signature and goea analysis if not well-characterized
 
 # scvelo parameters
-
 $(eval SCVELO_K_NEIGHBORS_CTRL := 20)			# K-closest neighbors
 $(eval SCVELO_DIM_CLUSTERING_CTRL := 15)		# number of principal components taken into account for clustering
 $(eval SMM_MODE_CTRL := stochastic)				# mode used to estimate the steady-state model								
@@ -145,7 +143,6 @@ $(eval SCVELO_DIM_CLUSTERING_TREATED := 15)		# number of principal components ta
 $(eval SMM_MODE_TREATED := stochastic)			# mode used to estimate the steady-state model								
 
 # stream parameters
-
 LAMBDA_CTRL := 0.05
 MU_CTRL := 0.05
 ALPHA_CTRL := 0.03
@@ -159,5 +156,3 @@ ALPHA_TREATED := 0.03
 EXTEND_TREATED := 0.8
 ROOT_TREATED := 0
 IGNORED_NODES_TREATED := 
-
-# algorithm parameters

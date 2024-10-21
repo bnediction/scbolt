@@ -9,7 +9,7 @@ include config.mk
 CONDA_ACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
 CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda deactivate ; conda deactivate
 
-sample = all
+sample = control+treated
 
 # urls
 GEIGER_URL = https://doi.org/10.1371/journal.pbio.2003389.s025
@@ -46,70 +46,80 @@ define fastq_naming
 	fi
 endef
 
-ifeq ($(sample), control)
- $(eval fastq_target := $(FASTQ_CTRL))
- $(eval cellranger_target := $(CELLRANGER_CTRL))
- $(eval velocyto_target := $(VELOCYTO_CTRL))
- $(eval h5ad_target := $(H5AD_CTRL))
- $(eval filter_target := $(FILTER_CTRL))
- $(eval normalization_target := $(NORMALISATION_CTRL))
- $(eval cluster_target := $(CLUSTER_CTRL))
- $(eval integration_target := )
- $(eval markers_target := $(MARKERS_CTRL))
- $(eval over_representation_target := $(OVER_REPRESENTATION_CTRL))
- $(eval goea_target := $(GOEA_BASIC_CTRL) $(GOEA_MOUSE_CTRL))
- $(eval label_target := $(LABELS_CTRL))
- $(eval scvelo_trajectories_target := $(SCVELO_CTRL))
- $(eval stream_pseudotime_target := $(PSEUDOTIME_STREAM_CTRL))
- $(eval stream_trajectories_target := $(TRAJECTORIES_STREAM_CTRL))
- $(eval scboolseq_target := $(SCBOOLSEQ_CTRL))
- $(eval bdc_target := $(BDC_CTRL))
- $(eval model_specification_target := $(MODEL_SPECIFICATION_CTRL))
-else ifeq ($(sample), treated)
- $(eval fastq_target := $(FASTQ_TREATED))
- $(eval cellranger_target := $(CELLRANGER_TREATED))
- $(eval velocyto_target := $(VELOCYTO_TREATED))
- $(eval h5ad_target := $(H5AD_TREATED))
- $(eval filter_target := $(FILTER_TREATED))
- $(eval normalization_target := $(NORMALISATION_TREATED))
- $(eval cluster_target := $(CLUSTER_TREATED))
- $(eval integration_target := )
- $(eval markers_target := $(MARKERS_TREATED))
- $(eval over_representation_target := $(OVER_REPRESENTATION_TREATED))
- $(eval goea_target := $(GOEA_BASIC_TREATED) $(GOEA_MOUSE_TREATED))
- $(eval label_target := $(LABELS_TREATED))
- $(eval scvelo_trajectories_target := $(SCVELO_TREATED))
- $(eval stream_pseudotime_target := $(PSEUDOTIME_STREAM_TREATED))
- $(eval stream_trajectories_target := $(TRAJECTORIES_STREAM_TREATED))
- $(eval scboolseq_target := $(SCBOOLSEQ_TREATED))
- $(eval bdc_target := $(BDC_TREATED))
- $(eval model_specification_target := $(MODEL_SPECIFICATION_TREATED))
-else
+fastq_target :=
+cellranger_target :=
+velocyto_target :=
+h5ad_target :=
+filter_target :=
+normalization_target :=
+cluster_target :=
+markers_target :=
+over_representation_target :=
+goea_target :=
+label_target :=
+scvelo_trajectories_target :=
+stream_pseudotime_target :=
+stream_trajectories_target :=
+scboolseq_target :=
+bdc_target :=
+model_specification_target :=
+
+ifeq (control,$(findstring control,$(sample)))
+ $(eval fastq_target := $(fastq_target) $(FASTQ_CTRL))
+ $(eval cellranger_target := $(cellranger_target) $(CELLRANGER_CTRL))
+ $(eval velocyto_target := $(velocyto_target) $(VELOCYTO_CTRL))
+ $(eval h5ad_target := $(h5ad_target) $(H5AD_CTRL))
+ $(eval filter_target := $(filter_target) $(FILTER_CTRL))
+ $(eval normalization_target := $(normalization_target) $(NORMALISATION_CTRL))
+ $(eval cluster_target := $(cluster_target) $(CLUSTER_CTRL))
+ $(eval markers_target := $(markers_target) $(MARKERS_CTRL))
+ $(eval over_representation_target := $(over_representation_target) $(OVER_REPRESENTATION_CTRL))
+ $(eval goea_target := $(goea_target) $(GOEA_BASIC_CTRL) $(GOEA_MOUSE_CTRL))
+ $(eval label_target := $(label_target) $(LABELS_CTRL))
+ $(eval scvelo_trajectories_target := $(scvelo_trajectories_target) $(SCVELO_CTRL))
+ $(eval stream_pseudotime_target := $(stream_pseudotime_target) $(PSEUDOTIME_STREAM_CTRL))
+ $(eval stream_trajectories_target := $(stream_trajectories_target) $(TRAJECTORIES_STREAM_CTRL))
+ $(eval scboolseq_target := $(scboolseq_target) $(SCBOOLSEQ_CTRL))
+ $(eval bdc_target := $(bdc_target) $(BDC_CTRL))
+ $(eval model_specification_target := $(model_specification_target) $(MODEL_SPECIFICATION_CTRL))
+endif
+ifeq (treated,$(findstring treated,$(sample)))
+ $(eval fastq_target := $(fastq_target) $(FASTQ_TREATED))
+ $(eval cellranger_target := $(cellranger_target) $(CELLRANGER_TREATED))
+ $(eval velocyto_target := $(velocyto_target) $(VELOCYTO_TREATED))
+ $(eval h5ad_target := $(h5ad_target) $(H5AD_TREATED))
+ $(eval filter_target := $(filter_target) $(FILTER_TREATED))
+ $(eval normalization_target := $(normalization_target) $(NORMALISATION_TREATED))
+ $(eval cluster_target := $(cluster_target) $(CLUSTER_TREATED))
+ $(eval markers_target := $(markers_target) $(MARKERS_TREATED))
+ $(eval over_representation_target := $(over_representation_target) $(OVER_REPRESENTATION_TREATED))
+ $(eval goea_target := $(goea_target) $(GOEA_BASIC_TREATED) $(GOEA_MOUSE_TREATED))
+ $(eval label_target := $(label_target) $(LABELS_TREATED))
+ $(eval scvelo_trajectories_target := $(scvelo_trajectories_target) $(SCVELO_TREATED))
+ $(eval stream_pseudotime_target := $(stream_pseudotime_target) $(PSEUDOTIME_STREAM_TREATED))
+ $(eval stream_trajectories_target := $(stream_trajectories_target) $(TRAJECTORIES_STREAM_TREATED))
+ $(eval scboolseq_target := $(scboolseq_target) $(SCBOOLSEQ_TREATED))
+ $(eval bdc_target := $(bdc_target) $(BDC_TREATED))
+ $(eval model_specification_target := $(model_specification_target) $(MODEL_SPECIFICATION_TREATED))
+endif
+ifeq (integrated,$(findstring integrated,$(sample)))
  $(eval fastq_target := $(FASTQ_CTRL) $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_CTRL) $(CELLRANGER_TREATED))
  $(eval velocyto_target := $(VELOCYTO_CTRL) $(VELOCYTO_TREATED))
  $(eval h5ad_target := $(H5AD_CTRL) $(H5AD_TREATED))
  $(eval filter_target := $(FILTER_CTRL) $(FILTER_TREATED))
  $(eval normalization_target := $(NORMALISATION_CTRL) $(NORMALISATION_TREATED))
- $(eval cluster_target := $(CLUSTER_CTRL) $(CLUSTER_TREATED))
- $(eval integration_target := $(INTEGRATION))
- $(eval markers_target := $(MARKERS_CTRL) $(MARKERS_TREATED))
- $(eval over_representation_target := $(OVER_REPRESENTATION_CTRL) $(OVER_REPRESENTATION_TREATED))
- $(eval goea_target := $(GOEA_BASIC_CTRL) $(GOEA_MOUSE_CTRL) $(GOEA_BASIC_TREATED) $(GOEA_MOUSE_TREATED))
- $(eval label_target := $(LABELS_CTRL) $(LABELS_TREATED))
- $(eval scvelo_trajectories_target := $(SCVELO_CTRL) $(SCVELO_TREATED))
- $(eval stream_pseudotime_target := $(PSEUDOTIME_STREAM_CTRL) $(PSEUDOTIME_STREAM_TREATED))
- $(eval stream_trajectories_target := $(TRAJECTORIES_STREAM_CTRL) $(TRAJECTORIES_STREAM_TREATED))
- $(eval scboolseq_target := $(SCBOOLSEQ_CTRL) $(SCBOOLSEQ_TREATED))
- $(eval bdc_target := $(BDC_CTRL) $(BDC_TREATED))
- $(eval model_specification_target := $(MODEL_SPECIFICATION_CTRL) $(MODEL_SPECIFICATION_TREATED))
+ $(eval cluster_target := $(cluster_target) $(CLUSTER_INTEGRATED))
+ $(eval markers_target := $(markers_target) $(MARKERS_INTEGRATED))
+ $(eval over_representation_target := $(over_representation_target) $(OVER_REPRESENTATION_INTEGRATED))
+ $(eval goea_target := $(goea_target) $(GOEA_BASIC_INTEGRATED) $(GOEA_MOUSE_INTEGRATED))
 endif
 
 ##@ Help
 
 .PHONY: help
 help: ## display this help and exit
-	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [sample=control|treated|all]\n"}/^[a-zA-Z_-]+:.*?##/ \
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [sample=control+treated+integrated]\n"}/^[a-zA-Z_-]+:.*?##/ \
 	{ printf "  $(GREEN)%-22s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BOLD)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Clean
@@ -155,9 +165,7 @@ filtering: $(filter_target) ## filtering low quality cells and assignment of cel
 .PHONY: normalization
 normalization: $(normalization_target) ## filtering low quality genes and normalization of counts
 .PHONY: clustering
-clustering: $(cluster_target) ## perform dimension reduction and cell clustering
-.PHONY: integration
-integration: $(integration_target) ## integrate control and treated samples and perform cell clustering
+clustering: $(cluster_target) ## perform dimension reduction and cell clustering (and optionally INTEGRATION)
 
 ##@ Cluster analysis
 
@@ -409,8 +417,8 @@ $(CLUSTER_TREATED): $(NORMALISATION_TREATED)
 		--verbose
 	$(CONDA_DEACTIVATE)
 
-$(INTEGRATION): $(NORMALISATION_CTRL) $(NORMALISATION_TREATED)
-	$(call section,integration)
+$(CLUSTER_INTEGRATED): $(NORMALISATION_CTRL) $(NORMALISATION_TREATED)
+	$(call section,clustering (integrated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/integration.py $^ $(shell echo $(dir $@) | sed "s/tables\///") \
 		--label condition --method $(INTEGRATION_METHOD) \
@@ -440,6 +448,15 @@ $(MARKERS_TREATED): $(CLUSTER_TREATED) $(lastword $(SIGNATURES))
   		--verbose
 	$(CONDA_DEACTIVATE)
 
+$(MARKERS_INTEGRATED): $(CLUSTER_INTEGRATED) $(lastword $(SIGNATURES))
+	$(call section,marker-analysis (integrated data))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/markers.py $^ $(@D) \
+  		--cluster leiden \
+  		--logfc-threshold 0.25 \
+  		--verbose
+	$(CONDA_DEACTIVATE)
+
 $(OVER_REPRESENTATION_CTRL): $(CLUSTER_CTRL) $(MARKERS_CTRL)
 	$(call section,differential-analysis (control data))
 	$(CONDA_ACTIVATE) preprocess
@@ -456,6 +473,20 @@ $(OVER_REPRESENTATION_CTRL): $(CLUSTER_CTRL) $(MARKERS_CTRL)
 
 $(OVER_REPRESENTATION_TREATED): $(CLUSTER_TREATED) $(MARKERS_TREATED)
 	$(call section,differential-analysis (treated data))
+	$(CONDA_ACTIVATE) preprocess
+	@echo -e 'compute background genes'
+	python bonesis-tools/clitools/genename.py $< $@
+	$(eval CLUSTER := $(shell column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u))
+	@echo -e 'compute over-representated cluster-related genes'
+	for cluster in $(CLUSTER)
+	do
+		`column -s, -t < $(lastword $^) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
+		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
+	done
+	$(CONDA_DEACTIVATE)
+
+$(OVER_REPRESENTATION_INTEGRATED): $(CLUSTER_INTEGRATED) $(MARKERS_INTEGRATED)
+	$(call section,differential-analysis (integrated data))
 	$(CONDA_ACTIVATE) preprocess
 	@echo -e 'compute background genes'
 	python bonesis-tools/clitools/genename.py $< $@
@@ -503,6 +534,28 @@ $(GOEA_BASIC_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_BASIC) $(GENE2GO)
 
 $(GOEA_MOUSE_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_MOUSE) $(GENE2GO)
 	$(call section,goea (treated data, with goslim_mouse.obo))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/enrichment.py $@ \
+    	--population $< \
+    	--study $(<D)/cluster*.txt \
+    	--go $(word 2,$^) \
+    	--gene2go $(lastword $^) \
+    	--verbose
+	$(CONDA_DEACTIVATE)
+
+$(GOEA_BASIC_INTEGRATED): $(OVER_REPRESENTATION_INTEGRATED) $(GO_BASIC) $(GENE2GO)
+	$(call section,goea (integrated data, with go-basic.obo))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/enrichment.py $@ \
+    	--population $< \
+    	--study $(<D)/cluster*.txt \
+    	--go $(word 2,$^) \
+    	--gene2go $(lastword $^) \
+    	--verbose
+	$(CONDA_DEACTIVATE)
+
+$(GOEA_MOUSE_INTEGRATED): $(OVER_REPRESENTATION_INTEGRATED) $(GO_MOUSE) $(GENE2GO)
+	$(call section,goea (integrated data, with goslim_mouse.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
     	--population $< \
