@@ -76,8 +76,8 @@ GOEA_MOUSE_TREATED = $(RNA_TREATED)/enrichment/goea_mouse.xlsx
 LABELS_CTRL = $(dir $(CLUSTER_CTRL))/counts_labels.h5ad
 LABELS_TREATED = $(dir $(CLUSTER_TREATED))/counts_labels.h5ad
 
-SCVELO_CTRL = $(RNA_CTRL)/scvelo/tables/scvelo.h5ad
-SCVELO_TREATED = $(RNA_TREATED)/scvelo/tables/scvelo.h5ad
+SCVELO_CTRL = $(RNA_CTRL)/scvelo/scvelo.h5ad
+SCVELO_TREATED = $(RNA_TREATED)/scvelo/scvelo.h5ad
 
 PSEUDOTIME_STREAM_CTRL = $(RNA_CTRL)/stream/pseudotime/tables/stream.h5ad.pkl			# Must contain the parent directory tables/
 PSEUDOTIME_STREAM_TREATED = $(RNA_TREATED)/stream/pseudotime/tables/stream.h5ad.pkl		# Must contain the parent directory tables/
@@ -103,19 +103,19 @@ MARKERS_ALL = $(RNA)/markers/all/markers.csv
 
 # cluster parameters
 
-K_NEIGHBORS_CTRL := 20					# K-closest neighbors
-DIM_PCA_CTRL := 50						# number of principal components
-DIM_CLUSTERING_CTRL := 15				# number of principal components taken into account for clustering
-DIM_UMAP_CTRL := 2						# number of embedding dimensions
-RESOLUTION_LEIDEN_CTRL := 0.45			# coarseness of the clustering when using Leiden algorithm
-SEED_CLUSTER_CTRL := 0
+$(eval K_NEIGHBORS_CTRL := 20)					# K-closest neighbors
+$(eval DIM_PCA_CTRL := 50)						# number of principal components
+$(eval DIM_CLUSTERING_CTRL := 15)				# number of principal components taken into account for clustering
+$(eval DIM_UMAP_CTRL := 2)						# number of embedding dimensions
+$(eval RESOLUTION_LEIDEN_CTRL := 0.45)			# coarseness of the clustering when using Leiden algorithm
+$(eval SEED_CLUSTER_CTRL := 0)
 
-K_NEIGHBORS_TREATED := 20				# K-closest neighbors
-DIM_PCA_TREATED := 50					# number of principal components
-DIM_CLUSTERING_TREATED := 15			# number of principal components taken into account for clustering
-DIM_UMAP_TREATED := 2					# number of embedding dimensions
-RESOLUTION_LEIDEN_TREATED := 0.4		# coarseness of the clustering when using Leiden algorithm
-SEED_CLUSTER_TREATED = 1
+$(eval K_NEIGHBORS_TREATED := 20)				# K-closest neighbors
+$(eval DIM_PCA_TREATED := 50)					# number of principal components
+$(eval DIM_CLUSTERING_TREATED := 15)			# number of principal components taken into account for clustering
+$(eval DIM_UMAP_TREATED := 2)					# number of embedding dimensions
+$(eval RESOLUTION_LEIDEN_TREATED := 0.4)		# coarseness of the clustering when using Leiden algorithm
+$(eval SEED_CLUSTER_TREATED := 1)
 
 # cluster labels
 
@@ -124,13 +124,13 @@ $(eval CLUSTER_LABEL_TREATED := 0=Trans 1=Prom1 2=Unknown 3=Rep 4=Gran 5=Rep)		#
 
 # scvelo parameters
 
-SCVELO_K_NEIGHBORS_CTRL := 20					# K-closest neighbors
-SCVELO_DIM_CLUSTERING_CTRL := 15				# number of principal components taken into account for clustering
-SMM_MODE_CTRL := stochastic						# mode used to estimate the steady-state model								
+$(eval SCVELO_K_NEIGHBORS_CTRL := 20)			# K-closest neighbors
+$(eval SCVELO_DIM_CLUSTERING_CTRL := 15)		# number of principal components taken into account for clustering
+$(eval SMM_MODE_CTRL := stochastic)				# mode used to estimate the steady-state model								
 
-SCVELO_K_NEIGHBORS_TREATED := 20				# K-closest neighbors
-SCVELO_DIM_CLUSTERING_TREATED := 15				# number of principal components taken into account for clustering
-SMM_MODE_TREATED := stochastic					# mode used to estimate the steady-state model								
+$(eval SCVELO_K_NEIGHBORS_TREATED := 20)		# K-closest neighbors
+$(eval SCVELO_DIM_CLUSTERING_TREATED := 15)		# number of principal components taken into account for clustering
+$(eval SMM_MODE_TREATED := stochastic)			# mode used to estimate the steady-state model								
 
 # stream parameters
 

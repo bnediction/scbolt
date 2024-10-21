@@ -277,4 +277,4 @@ plt.close()
 
 print("Saving data...")
 
-adata.write_h5ad(filename=f"{args.outpath}/counts.h5ad")
+adata.write_h5ad(filename=f"{args.outpath}/scvelo.h5ad")
