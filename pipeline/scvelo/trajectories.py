@@ -6,8 +6,9 @@ import os, argparse
 from pathlib import Path
 from utils.stdout import disable_print
 
-import pandas as pd
-import anndatatools as adt, scanpy as sc, scvelo as scv
+import anndatatools as adt
+import scanpy as sc
+import scvelo as scv
 
 import numpy as np
 
@@ -104,10 +105,7 @@ parser.add_argument(
     help="plot figures in three dimensions"
 )
 
-s = """data/rna/ctrl/cluster/tables/counts_labels.h5ad data/rna/ctrl/scvelo --cluster leiden --k-neighbors 30 --dim-clustering 30 --mode stochastic"""
-s = """data/rna/treated/cluster/tables/counts_labels.h5ad data/rna/treated/scvelo --cluster leiden --k-neighbors 30 --dim-clustering 30 --mode stochastic --add-legend"""
-
-args = parser.parse_args(s.split())
+args = parser.parse_args()
 
 if not args.outpath.exists():
     os.makedirs(args.outpath)
@@ -121,8 +119,8 @@ n_components = adata.obsm["X_umap"].shape[1]
 
 adata.obs["clusters"] = adata.obs[args.cluster]
 
-adata.uns["colors"] = np.array([adt.pl.rgb2hex(adt.pl.COLORS[idx]) for idx, _ in enumerate (adata.obs["clusters"].cat.categories)])
-color_map = {cluster: adt.pl.rgb2hex(adt.pl.COLORS[idx]) for idx, cluster in enumerate(adata.obs["clusters"].cat.categories)}
+adata.uns["colors"] = np.array([adt.pl.COLORS[idx] for idx, _ in enumerate (adata.obs["clusters"].cat.categories)])
+color_map = {cluster: adt.pl.COLORS[idx] for idx, cluster in enumerate(adata.obs["clusters"].cat.categories)}
 
 scv.pl.proportions(
     adata,
@@ -174,10 +172,16 @@ with disable_print():
         show_progress_bar=False
     )
 
-print("Computing velocity graph...")
+print("Computing velocity pseudotime...")
 
 with disable_print():
     scv.tl.velocity_pseudotime(adata)
+
+print("computing PAGA...")
+
+with disable_print():
+    scv.tl.paga(adata, groups=args.cluster)
+    adata.uns["transitions_confidence"] = adata.uns["paga"]["transitions_confidence"]
 
 print("Plotting trajectories...")
 
@@ -229,3 +233,48 @@ with disable_print():
     plt.axis("off")
 fig.set_figwidth(fig.get_figwidth()*1.25)
 plt.savefig(Path(f"{args.outpath}/velocity_pseudotime.pdf"))
+plt.close()
+
+fig, ax = adt.pl.embedding_plot(
+    adata,
+    obs="clusters",
+    obsm="X_umap",
+    xlabel=r"$\mathrm{UMAP_{1}}$",
+    ylabel=r"$\mathrm{UMAP_{2}}$",
+    zlabel=r"$\mathrm{UMAP_{3}}$",
+    add_legend=args.legend,
+    figwidth=6,
+    s=4,
+    alpha=1,
+    lgd_params={
+        "title":"phenotype",
+        "ncol":1,
+        "markerscale":5,
+        "frameon":True,
+        "edgecolor":color.black,
+        "shadow":False
+    },
+    color=adata.uns["colors"],
+    n_components = 3 if adata.obsm["velocity_umap"].shape[1] > 2 and args.plot_3d is True else 2,
+    background_visible=False,
+)
+with disable_print():
+    plt.axis("off")
+ax = adt.pl.draw_paga(
+    adata=adata,
+    obs=args.cluster,
+    obsm="X_umap",
+    edges="transitions_confidence",
+    threshold=0.01,
+    ax=ax,
+    with_labels=False,
+    width=2,
+    node_size=100,
+    node_color=color_map
+)
+plt.savefig(Path(f"{args.outpath}/paga.pdf"))
+plt.close()
+
+print("Saving data...")
+
+adata.write_h5ad(filename=f"{args.outpath}/counts.h5ad")
