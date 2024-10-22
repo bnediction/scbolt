@@ -119,7 +119,12 @@ endif
 
 .PHONY: help
 help: ## display this help and exit
-	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [sample=control+treated+integrated]\n"}/^[a-zA-Z_-]+:.*?##/ \
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [sample=control+treated+integrated] (default:sample=control+treated)\n\
+	Semi-automatic pipeline proposing a general methodology for inferring executable models reproducing \
+	the observed cellular dynamics from two conditions/experiences (control and treated), \
+	using scRNA-seq and scATAC-seq sequencing data. The pipeline is particularly useful when phenotype-related cells are not well characterized. \
+	Samples can be integrated at the clustering step, in order to annotate cell clusters in control and treated dependently.\n\
+	"}/^[a-zA-Z_-]+:.*?##/ \
 	{ printf "  $(GREEN)%-22s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BOLD)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Clean
