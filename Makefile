@@ -122,9 +122,9 @@ help: ## display this help and exit
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [sample=control+treated+integrated] (default:sample=control+treated)\n\
 	Semi-automatic pipeline proposing a general methodology for inferring executable models reproducing \
 	the observed cellular dynamics from two conditions/experiences (control and treated), \
-	using scRNA-seq and scATAC-seq sequencing data. The pipeline is particularly useful when phenotype-related cells are not well characterized. \
-	Samples can be integrated at the clustering step, in order to annotate cell clusters in control and treated dependently.\n\
-	"}/^[a-zA-Z_-]+:.*?##/ \
+	using scRNA-seq and scATAC-seq sequencing data. The pipeline is particularly useful when phenotype-related cells are not well characterized \
+	and when studying almost differentiated cells, where biological process are difficult to determine. \
+	Samples can be integrated at the clustering step, in order to annotate cell clusters in control and treated dependently.\n"}/^[a-zA-Z_-]+:.*?##/ \
 	{ printf "  $(GREEN)%-22s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BOLD)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Clean
@@ -196,8 +196,11 @@ bdc: $(bdc_target) ## perform boolean differential calculus analysis
 ##@ Boolean inference
 
 model-specification: $(model_specification_target) ## specify model for bonesis
+filter-one: $(FILTER1_CTRL) ## filter genes (stage 1) with Bonesis
+filter-two: $(FILTER1_CTRL) ## filter genes (stage 2) with Bonesis
+inference-sub: $(INFERENCE_SUB_CTRL) ## infer boolean network (subminimal) with Bonesis
+inference-min: $(INFERENCE_MIN_CTRL) ## infer boolean network (minimal) with Bonesis
 
-bonesis-filter1: $(FILTER1_CTRL)
 filter-stage1-ctrl: $(FILTER1_CTRL)
 filter-stage2-ctrl: $(FILTER2_CTRL)
 inference-sub-ctrl: $(INFERENCE_SUB_CTRL)
@@ -467,13 +470,14 @@ $(OVER_REPRESENTATION_CTRL): $(CLUSTER_CTRL) $(MARKERS_CTRL)
 	$(CONDA_ACTIVATE) preprocess
 	@echo -e 'compute background genes'
 	python bonesis-tools/clitools/genename.py $< $@
-	$(eval CLUSTER := $(shell column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u))
+	export clusters=`column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u | tr '\n' ' '`
 	@echo -e 'compute over-representated cluster-related genes'
-	for cluster in $(CLUSTER)
+	for cluster in $${clusters}
 	do
 		`column -s, -t < $(lastword $^) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
 		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
 	done
+	unset clusters
 	$(CONDA_DEACTIVATE)
 
 $(OVER_REPRESENTATION_TREATED): $(CLUSTER_TREATED) $(MARKERS_TREATED)
@@ -481,13 +485,14 @@ $(OVER_REPRESENTATION_TREATED): $(CLUSTER_TREATED) $(MARKERS_TREATED)
 	$(CONDA_ACTIVATE) preprocess
 	@echo -e 'compute background genes'
 	python bonesis-tools/clitools/genename.py $< $@
-	$(eval CLUSTER := $(shell column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u))
+	export clusters=`column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u | tr '\n' ' '`
 	@echo -e 'compute over-representated cluster-related genes'
-	for cluster in $(CLUSTER)
+	for cluster in $${clusters}
 	do
 		`column -s, -t < $(lastword $^) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
 		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
 	done
+	unset clusters
 	$(CONDA_DEACTIVATE)
 
 $(OVER_REPRESENTATION_INTEGRATED): $(CLUSTER_INTEGRATED) $(MARKERS_INTEGRATED)
@@ -495,13 +500,14 @@ $(OVER_REPRESENTATION_INTEGRATED): $(CLUSTER_INTEGRATED) $(MARKERS_INTEGRATED)
 	$(CONDA_ACTIVATE) preprocess
 	@echo -e 'compute background genes'
 	python bonesis-tools/clitools/genename.py $< $@
-	$(eval CLUSTER := $(shell column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u))
+	export clusters=`column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u | tr '\n' ' '`
 	@echo -e 'compute over-representated cluster-related genes'
-	for cluster in $(CLUSTER)
+	for cluster in $${clusters}
 	do
 		`column -s, -t < $(lastword $^) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
 		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
 	done
+	unset clusters
 	$(CONDA_DEACTIVATE)
 
 $(GOEA_BASIC_CTRL): $(OVER_REPRESENTATION_CTRL) $(GO_BASIC) $(GENE2GO)

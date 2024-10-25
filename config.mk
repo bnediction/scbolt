@@ -67,9 +67,9 @@ MARKERS_CTRL = $(RNA_CTRL)/markers/markers.csv
 MARKERS_TREATED = $(RNA_TREATED)/markers/markers.csv
 MARKERS_INTEGRATED = $(RNA_INTEGRATED)/markers/markers.csv
 
-OVER_REPRESENTATION_CTRL = $(RNA_CTRL)/enrichment/background.txt
-OVER_REPRESENTATION_TREATED = $(RNA_TREATED)/enrichment/background.txt
-OVER_REPRESENTATION_INTEGRATED = $(RNA_INTEGRATED)/enrichment/background.txt
+OVER_REPRESENTATION_CTRL = $(RNA_CTRL)/markers/enrichment/background.txt
+OVER_REPRESENTATION_TREATED = $(RNA_TREATED)/markers/background.txt
+OVER_REPRESENTATION_INTEGRATED = $(RNA_INTEGRATED)/markers/background.txt
 
 GOEA_BASIC_CTRL = $(RNA_CTRL)/enrichment/goea_basic.xlsx
 GOEA_MOUSE_CTRL = $(RNA_CTRL)/enrichment/goea_mouse.xlsx
