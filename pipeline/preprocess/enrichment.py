@@ -93,6 +93,9 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+if not Path(os.path.dirname(args.outfile)).exists():
+    os.makedirs(os.path.dirname(args.outfile))
+
 if args.go is None and args.annotations is None:
     raise argparse.ArgumentError("one of the following arguments is required: --go or --annotations")
 elif args.go is not None and args.annotations is not None:
@@ -207,4 +210,4 @@ with ExcelWriter(args.outfile) as xlsx_writer:
         goea_results = goea_results[column_names]
         goea_results.sort_values(by="p_fdr_bh", axis=0, ascending=True)
         goea_results.to_excel(xlsx_writer, sheet_name=cluster)
-        os.system(f"rm {xlsx_infile}")
+        os.remove(xlsx_infile)

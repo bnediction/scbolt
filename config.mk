@@ -63,13 +63,9 @@ CLUSTER_CTRL = $(RNA_CTRL)/cluster/tables/counts.h5ad						# Must contain the pa
 CLUSTER_TREATED = $(RNA_TREATED)/cluster/tables/counts.h5ad					# Must contain the parent directory tables/
 CLUSTER_INTEGRATED = $(RNA_INTEGRATED)/cluster/tables/integrated.h5ad		# Must contain the parent directory tables/
 
-MARKERS_CTRL = $(RNA_CTRL)/markers/markers.csv
-MARKERS_TREATED = $(RNA_TREATED)/markers/markers.csv
-MARKERS_INTEGRATED = $(RNA_INTEGRATED)/markers/markers.csv
-
-OVER_REPRESENTATION_CTRL = $(RNA_CTRL)/markers/enrichment/background.txt
-OVER_REPRESENTATION_TREATED = $(RNA_TREATED)/markers/background.txt
-OVER_REPRESENTATION_INTEGRATED = $(RNA_INTEGRATED)/markers/background.txt
+MARKERS_CTRL = $(RNA_CTRL)/markers/genes/background.txt
+MARKERS_TREATED = $(RNA_TREATED)/markers/genes/background.txt
+MARKERS_INTEGRATED = $(RNA_INTEGRATED)/markers/genes/background.txt
 
 GOEA_BASIC_CTRL = $(RNA_CTRL)/enrichment/goea_basic.xlsx
 GOEA_MOUSE_CTRL = $(RNA_CTRL)/enrichment/goea_mouse.xlsx

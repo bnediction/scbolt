@@ -54,7 +54,6 @@ filter_target :=
 normalization_target :=
 cluster_target :=
 markers_target :=
-over_representation_target :=
 goea_target :=
 label_target :=
 scvelo_trajectories_target :=
@@ -73,7 +72,6 @@ ifeq (control,$(findstring control,$(sample)))
  $(eval normalization_target := $(normalization_target) $(NORMALISATION_CTRL))
  $(eval cluster_target := $(cluster_target) $(CLUSTER_CTRL))
  $(eval markers_target := $(markers_target) $(MARKERS_CTRL))
- $(eval over_representation_target := $(over_representation_target) $(OVER_REPRESENTATION_CTRL))
  $(eval goea_target := $(goea_target) $(GOEA_BASIC_CTRL) $(GOEA_MOUSE_CTRL))
  $(eval label_target := $(label_target) $(LABELS_CTRL))
  $(eval scvelo_trajectories_target := $(scvelo_trajectories_target) $(SCVELO_CTRL))
@@ -92,7 +90,6 @@ ifeq (treated,$(findstring treated,$(sample)))
  $(eval normalization_target := $(normalization_target) $(NORMALISATION_TREATED))
  $(eval cluster_target := $(cluster_target) $(CLUSTER_TREATED))
  $(eval markers_target := $(markers_target) $(MARKERS_TREATED))
- $(eval over_representation_target := $(over_representation_target) $(OVER_REPRESENTATION_TREATED))
  $(eval goea_target := $(goea_target) $(GOEA_BASIC_TREATED) $(GOEA_MOUSE_TREATED))
  $(eval label_target := $(label_target) $(LABELS_TREATED))
  $(eval scvelo_trajectories_target := $(scvelo_trajectories_target) $(SCVELO_TREATED))
@@ -111,7 +108,6 @@ ifeq (integrated,$(findstring integrated,$(sample)))
  $(eval normalization_target := $(NORMALISATION_CTRL) $(NORMALISATION_TREATED))
  $(eval cluster_target := $(cluster_target) $(CLUSTER_INTEGRATED))
  $(eval markers_target := $(markers_target) $(MARKERS_INTEGRATED))
- $(eval over_representation_target := $(over_representation_target) $(OVER_REPRESENTATION_INTEGRATED))
  $(eval goea_target := $(goea_target) $(GOEA_BASIC_INTEGRATED) $(GOEA_MOUSE_INTEGRATED))
 endif
 
@@ -176,8 +172,6 @@ clustering: $(cluster_target) ## perform dimension reduction and cell clustering
 
 .PHONY: marker-analysis
 marker-analysis: $(markers_target) ## search for gene markers and compare markers and signatures
-.PHONY: differential-analysis
-differential-analysis: $(over_representation_target) ## compute over-representated cluster-related genes
 .PHONY: goea
 goea: $(goea_target) ## perform gene ontology enrichment analysis
 cluster-annotation: $(label_target) ## annotate clusters
@@ -206,7 +200,6 @@ filter-stage2-ctrl: $(FILTER2_CTRL)
 inference-sub-ctrl: $(INFERENCE_SUB_CTRL)
 inference-min-ctrl: $(INFERENCE_MIN_CTRL)
 # all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
-# integration: $(MARKERS_ALL) $(INTEGRATION)
 
 $(GENOME):
 	$(call section, load-genome)
@@ -439,78 +432,66 @@ $(CLUSTER_INTEGRATED): $(NORMALISATION_CTRL) $(NORMALISATION_TREATED)
 	$(CONDA_DEACTIVATE)
 
 $(MARKERS_CTRL): $(CLUSTER_CTRL) $(lastword $(SIGNATURES))
+	$(eval MARKERS_CSV_CTRL := $(dir $(@D))markers.csv)
 	$(call section,marker-analysis (control data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/markers.py $^ $(@D) \
+	python pipeline/preprocess/markers.py $^ $(dir $(MARKERS_CSV_CTRL)) \
   		--cluster leiden \
   		--logfc-threshold 0.25 \
   		--verbose
+	@echo -e 'Compute background genes...'
+	python bonesis-tools/clitools/genename.py $< $@
+	export clusters=`column -s, -t < $(MARKERS_CSV_CTRL) | awk 'NR>1 {print $$2}' | sort -u | tr '\n' ' '`
+	@echo -e 'Compute upregulated cluster-related genes...'
+	for cluster in $${clusters}
+	do
+		`column -s, -t < $(MARKERS_CSV_CTRL) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
+		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
+	done
+	unset clusters
 	$(CONDA_DEACTIVATE)
 
 $(MARKERS_TREATED): $(CLUSTER_TREATED) $(lastword $(SIGNATURES))
+	$(eval MARKERS_CSV_TREATED := $(dir $(@D))markers.csv)
 	$(call section,marker-analysis (treated data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/markers.py $^ $(@D) \
+	python pipeline/preprocess/markers.py $^ $(dir $(MARKERS_CSV_TREATED)) \
   		--cluster leiden \
   		--logfc-threshold 0.25 \
   		--verbose
+	@echo -e 'Compute background genes...'
+	python bonesis-tools/clitools/genename.py $< $@
+	export clusters=`column -s, -t < $(MARKERS_CSV_TREATED) | awk 'NR>1 {print $$2}' | sort -u | tr '\n' ' '`
+	@echo -e 'Compute upregulated cluster-related genes...'
+	for cluster in $${clusters}
+	do
+		`column -s, -t < $(MARKERS_CSV_TREATED) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
+		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
+	done
+	unset clusters
 	$(CONDA_DEACTIVATE)
 
 $(MARKERS_INTEGRATED): $(CLUSTER_INTEGRATED) $(lastword $(SIGNATURES))
+	$(eval MARKERS_CSV_INTEGRATED := $(dir $(@D))markers.csv)
 	$(call section,marker-analysis (integrated data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/markers.py $^ $(@D) \
+	python pipeline/preprocess/markers.py $^ $(dir $(MARKERS_CSV_INTEGRATED)) \
   		--cluster leiden \
   		--logfc-threshold 0.25 \
   		--verbose
-	$(CONDA_DEACTIVATE)
-
-$(OVER_REPRESENTATION_CTRL): $(CLUSTER_CTRL) $(MARKERS_CTRL)
-	$(call section,differential-analysis (control data))
-	$(CONDA_ACTIVATE) preprocess
-	@echo -e 'compute background genes'
+	@echo -e 'Compute background genes...'
 	python bonesis-tools/clitools/genename.py $< $@
-	export clusters=`column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u | tr '\n' ' '`
-	@echo -e 'compute over-representated cluster-related genes'
+	export clusters=`column -s, -t < $(MARKERS_CSV_INTEGRATED) | awk 'NR>1 {print $$2}' | sort -u | tr '\n' ' '`
+	@echo -e 'Compute upregulated cluster-related genes...'
 	for cluster in $${clusters}
 	do
-		`column -s, -t < $(lastword $^) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
+		`column -s, -t < $(MARKERS_CSV_INTEGRATED) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
 		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
 	done
 	unset clusters
 	$(CONDA_DEACTIVATE)
 
-$(OVER_REPRESENTATION_TREATED): $(CLUSTER_TREATED) $(MARKERS_TREATED)
-	$(call section,differential-analysis (treated data))
-	$(CONDA_ACTIVATE) preprocess
-	@echo -e 'compute background genes'
-	python bonesis-tools/clitools/genename.py $< $@
-	export clusters=`column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u | tr '\n' ' '`
-	@echo -e 'compute over-representated cluster-related genes'
-	for cluster in $${clusters}
-	do
-		`column -s, -t < $(lastword $^) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
-		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
-	done
-	unset clusters
-	$(CONDA_DEACTIVATE)
-
-$(OVER_REPRESENTATION_INTEGRATED): $(CLUSTER_INTEGRATED) $(MARKERS_INTEGRATED)
-	$(call section,differential-analysis (integrated data))
-	$(CONDA_ACTIVATE) preprocess
-	@echo -e 'compute background genes'
-	python bonesis-tools/clitools/genename.py $< $@
-	export clusters=`column -s, -t < $(lastword $^) | awk 'NR>1 {print $$2}' | sort -u | tr '\n' ' '`
-	@echo -e 'compute over-representated cluster-related genes'
-	for cluster in $${clusters}
-	do
-		`column -s, -t < $(lastword $^) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
-		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
-	done
-	unset clusters
-	$(CONDA_DEACTIVATE)
-
-$(GOEA_BASIC_CTRL): $(OVER_REPRESENTATION_CTRL) $(GO_BASIC) $(GENE2GO)
+$(GOEA_BASIC_CTRL): $(GOEA_PREPROCESS_CTRL) $(GO_BASIC) $(GENE2GO)
 	$(call section,goea (control data, with go-basic.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
@@ -521,7 +502,7 @@ $(GOEA_BASIC_CTRL): $(OVER_REPRESENTATION_CTRL) $(GO_BASIC) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(GOEA_MOUSE_CTRL): $(OVER_REPRESENTATION_CTRL) $(GO_MOUSE) $(GENE2GO)
+$(GOEA_MOUSE_CTRL): $(GOEA_PREPROCESS_CTRL) $(GO_MOUSE) $(GENE2GO)
 	$(call section,goea (control data, with goslim_mouse.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
@@ -532,7 +513,7 @@ $(GOEA_MOUSE_CTRL): $(OVER_REPRESENTATION_CTRL) $(GO_MOUSE) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(GOEA_BASIC_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_BASIC) $(GENE2GO)
+$(GOEA_BASIC_TREATED): $(GOEA_PREPROCESS_TREATED) $(GO_BASIC) $(GENE2GO)
 	$(call section,goea (treated data, with go-basic.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
@@ -543,7 +524,7 @@ $(GOEA_BASIC_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_BASIC) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(GOEA_MOUSE_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_MOUSE) $(GENE2GO)
+$(GOEA_MOUSE_TREATED): $(GOEA_PREPROCESS_TREATED) $(GO_MOUSE) $(GENE2GO)
 	$(call section,goea (treated data, with goslim_mouse.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
@@ -554,7 +535,7 @@ $(GOEA_MOUSE_TREATED): $(OVER_REPRESENTATION_TREATED) $(GO_MOUSE) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(GOEA_BASIC_INTEGRATED): $(OVER_REPRESENTATION_INTEGRATED) $(GO_BASIC) $(GENE2GO)
+$(GOEA_BASIC_INTEGRATED): $(MARKERS_INTEGRATED) $(GO_BASIC) $(GENE2GO)
 	$(call section,goea (integrated data, with go-basic.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
@@ -565,7 +546,7 @@ $(GOEA_BASIC_INTEGRATED): $(OVER_REPRESENTATION_INTEGRATED) $(GO_BASIC) $(GENE2G
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(GOEA_MOUSE_INTEGRATED): $(OVER_REPRESENTATION_INTEGRATED) $(GO_MOUSE) $(GENE2GO)
+$(GOEA_MOUSE_INTEGRATED): $(MARKERS_INTEGRATED) $(GO_MOUSE) $(GENE2GO)
 	$(call section,goea (integrated data, with goslim_mouse.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
@@ -774,28 +755,6 @@ $(INFERENCE_MIN_CTRL): $(FILTER2_CTRL) $(SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
 		--model-specification $(word 2, $^) \
 		--filter-grn $(firstword $^)
 	$(CONDA_DEACTIVATE)
-
-
-### INTEGRATION ###
-
-$(MARKERS_ALL): $(INTEGRATION) $(lastword $(SIGNATURES))
-	$(call section,analyse cell types (integrated data))
-	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/markers.py $^ $(@D) \
-		--condition condition --group leiden \
-		--logfc-threshold 0.25 \
-		--verbose
-	$(CONDA_DEACTIVATE)
-
-$(PATH_INTEGRATION)/tables/$(INTEGRATION_METHOD)_labels.h5ad: $(INTEGRATION)
-	$(call section,assign cell types (integrated data))
-	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/label_clusters.py $< $@ \
-		--column leiden \
-		--name 0=Unknown 1=Rep 2=Prom1 3=Prom2 4=Gran 5=Prom3
-	python figures/plot_embedding.py figures/umap_labels.json
-	$(CONDA_DEACTIVATE)
-
 
 # 10XGENOMICS_CTRL = $(RNA_CTRL)/raw/matrix.mtx.gz $(RNA_CTRL)/raw/features.tsv.gz $(RNA_CTRL)/raw/barcodes.tsv.gz
 # 10XGENOMICS_TREATED = $(RNA_TREATED)/raw/ra/matrix.mtx.gz $(RNA_TREATED)/raw/ra/features.tsv.gz $(RNA_TREATED)/raw/ra/barcodes.tsv.gz
