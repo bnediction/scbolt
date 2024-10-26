@@ -74,8 +74,9 @@ GOEA_MOUSE_TREATED = $(RNA_TREATED)/enrichment/goea_mouse.xlsx
 GOEA_BASIC_INTEGRATED = $(RNA_INTEGRATED)/enrichment/goea_basic.xlsx
 GOEA_MOUSE_INTEGRATED = $(RNA_INTEGRATED)/enrichment/goea_mouse.xlsx
 
-LABELS_CTRL = $(dir $(CLUSTER_CTRL))/counts_labels.h5ad
-LABELS_TREATED = $(dir $(CLUSTER_TREATED))/counts_labels.h5ad
+LABELS_CTRL = $(dir $(CLUSTER_CTRL))counts_labels.h5ad
+LABELS_TREATED = $(dir $(CLUSTER_TREATED))counts_labels.h5ad
+LABELS_INTEGRATED = $(dir $(CLUSTER_INTEGRATED))counts_labels.h5ad
 
 SCVELO_CTRL = $(RNA_CTRL)/scvelo/tables/scvelo.h5ad							# Must contain the parent directory tables/
 SCVELO_TREATED = $(RNA_TREATED)/scvelo/tables/scvelo.h5ad					# Must contain the parent directory tables/
@@ -128,8 +129,8 @@ SEED_CLUSTER_INTEGRATED = 1
 # cluster labels
 $(eval CLUSTER_LABEL_CTRL := 0=Prom1 1=Prom2 2=Trans 3=Rep 4=Prom3 5=Gran)			# depends on the marker, signature and goea analysis if not well-characterized
 $(eval CLUSTER_LABEL_TREATED := 0=Trans 1=Prom1 2=Unknown 3=Rep 4=Gran 5=Rep)		# depends on the marker, signature and goea analysis if not well-characterized
+$(eval CLUSTER_LABEL_INTEGRATED := 0=Prom2 1=Rep 2=Prom1 3=Gran 4=Prom3)		 	# depends on the marker, signature and goea analysis if not well-characterized
 
-# scvelo parameters
 $(eval SCVELO_K_NEIGHBORS_CTRL := 20)			# K-closest neighbors
 $(eval SCVELO_DIM_CLUSTERING_CTRL := 15)		# number of principal components taken into account for clustering
 $(eval SMM_MODE_CTRL := stochastic)				# mode used to estimate the steady-state model								

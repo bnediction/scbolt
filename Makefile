@@ -3,8 +3,9 @@
 .ONESHELL:
 
 MAKEFLAGS += --silent
+CONFIG_FILE = config.mk
 
-include config.mk
+include $(CONFIG_FILE)
 
 CONDA_ACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
 CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda deactivate ; conda deactivate
@@ -109,6 +110,7 @@ ifeq (integrated,$(findstring integrated,$(sample)))
  $(eval cluster_target := $(cluster_target) $(CLUSTER_INTEGRATED))
  $(eval markers_target := $(markers_target) $(MARKERS_INTEGRATED))
  $(eval goea_target := $(goea_target) $(GOEA_BASIC_INTEGRATED) $(GOEA_MOUSE_INTEGRATED))
+ $(eval label_target := $(label_target) $(LABELS_INTEGRATED))
 endif
 
 ##@ Help
@@ -569,7 +571,7 @@ ifdef CLUSTER_LABEL_CTRL
 	$(CONDA_DEACTIVATE)
 else
  $(LABELS_CTRL): $(CLUSTER_CTRL)
-	@echo -e '$(BOLDRED)CLUSTER_LABEL_CTRL is not defined. Please define it in the command-line or in config.mk file. Aborting.$(NC)'
+	@echo -e '$(BOLDRED)CLUSTER_LABEL_CTRL is not defined. Please define it in the command-line or in $(CONFIG_FILE). Aborting.$(NC)'
 	exit
 endif
 
@@ -585,7 +587,23 @@ ifdef CLUSTER_LABEL_TREATED
 	$(CONDA_DEACTIVATE)
 else
  $(LABELS_TREATED): $(CLUSTER_TREATED)
-	@echo -e '$(BOLDRED)CLUSTER_LABEL_TREATED is not defined. Please define it in the command-line or in config.mk file. Aborting.$(NC)'
+	@echo -e '$(BOLDRED)CLUSTER_LABEL_TREATED is not defined. Please define it in the command-line or in $(CONFIG_FILE). Aborting.$(NC)'
+	exit
+endif
+
+ifdef CLUSTER_LABEL_INTEGRATED
+ $(LABELS_INTEGRATED): $(CLUSTER_INTEGRATED)
+	$(call section,cluster-annotation (integrated data))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/cluster_annotation.py $< $@ \
+		--column leiden \
+		--name $(CLUSTER_LABEL_INTEGRATED)
+	python figures/plot_embedding.py figures/umap_labels.json \
+		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
+	$(CONDA_DEACTIVATE)
+else
+ $(LABELS_INTEGRATED): $(CLUSTER_INTEGRATED)
+	@echo -e '$(BOLDRED)CLUSTER_LABEL_INTEGRATED is not defined. Please define it in the command-line or in $(CONFIG_FILE). Aborting.$(NC)'
 	exit
 endif
 
