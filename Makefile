@@ -491,7 +491,7 @@ $(MARKERS_INTEGRATED): $(CLUSTER_INTEGRATED) $(lastword $(SIGNATURES))
 	unset clusters
 	$(CONDA_DEACTIVATE)
 
-$(GOEA_BASIC_CTRL): $(GOEA_PREPROCESS_CTRL) $(GO_BASIC) $(GENE2GO)
+$(GOEA_BASIC_CTRL): $(MARKERS_CTRL) $(GO_BASIC) $(GENE2GO)
 	$(call section,goea (control data, with go-basic.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
@@ -502,7 +502,7 @@ $(GOEA_BASIC_CTRL): $(GOEA_PREPROCESS_CTRL) $(GO_BASIC) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(GOEA_MOUSE_CTRL): $(GOEA_PREPROCESS_CTRL) $(GO_MOUSE) $(GENE2GO)
+$(GOEA_MOUSE_CTRL): $(MARKERS_CTRL) $(GO_MOUSE) $(GENE2GO)
 	$(call section,goea (control data, with goslim_mouse.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
@@ -513,7 +513,7 @@ $(GOEA_MOUSE_CTRL): $(GOEA_PREPROCESS_CTRL) $(GO_MOUSE) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(GOEA_BASIC_TREATED): $(GOEA_PREPROCESS_TREATED) $(GO_BASIC) $(GENE2GO)
+$(GOEA_BASIC_TREATED): $(MARKERS_TREATED) $(GO_BASIC) $(GENE2GO)
 	$(call section,goea (treated data, with go-basic.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
@@ -524,7 +524,7 @@ $(GOEA_BASIC_TREATED): $(GOEA_PREPROCESS_TREATED) $(GO_BASIC) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-$(GOEA_MOUSE_TREATED): $(GOEA_PREPROCESS_TREATED) $(GO_MOUSE) $(GENE2GO)
+$(GOEA_MOUSE_TREATED): $(MARKERS_TREATED) $(GO_MOUSE) $(GENE2GO)
 	$(call section,goea (treated data, with goslim_mouse.obo))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/enrichment.py $@ \
