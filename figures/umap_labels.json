@@ -7,7 +7,6 @@
         "xlabel",
         "ylabel",
         "zlabel",
-        ["lgd_params", "labels"],
         ["lgd_params", "edgecolor"],
         "n_components"
     ],
@@ -26,7 +25,6 @@
         "alpha": 1,
         "lgd_params": {
             "title": "clusters",
-            "labels": "[string.replace('cluster ','') for string in np.sort(adata.obs['leiden'].unique())]",
             "ncol": 1,
             "markerscale": 5,
             "frameon": true,
