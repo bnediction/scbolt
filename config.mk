@@ -130,7 +130,9 @@ SEED_CLUSTER_INTEGRATED = 1
 $(eval CLUSTER_LABEL_CTRL := 0=Prom1 1=Prom2 2=Trans 3=Rep 4=Prom3 5=Gran)			# depends on the marker, signature and goea analysis if not well-characterized
 $(eval CLUSTER_LABEL_TREATED := 0=Trans 1=Prom1 2=Unknown 3=Rep 4=Gran 5=Rep)		# depends on the marker, signature and goea analysis if not well-characterized
 $(eval CLUSTER_LABEL_INTEGRATED := 0=Prom2 1=Rep 2=Prom1 3=Gran 4=Prom3)		 	# depends on the marker, signature and goea analysis if not well-characterized
+$(eval LABELING_FROM_INTEGRATION := true)		# true or false
 
+# scvelo parameters
 $(eval SCVELO_K_NEIGHBORS_CTRL := 20)			# K-closest neighbors
 $(eval SCVELO_DIM_CLUSTERING_CTRL := 15)		# number of principal components taken into account for clustering
 $(eval SMM_MODE_CTRL := stochastic)				# mode used to estimate the steady-state model								
@@ -153,3 +155,4 @@ ALPHA_TREATED := 0.03
 EXTEND_TREATED := 0.8
 ROOT_TREATED := 0
 IGNORED_NODES_TREATED := 
+

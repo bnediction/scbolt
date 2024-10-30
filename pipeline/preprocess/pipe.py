@@ -10,8 +10,8 @@ import anndata as ad
 
 parser = argparse.ArgumentParser(
     prog="data merging",
-    description="""Send information from integrated data towards control and treated data.""",
-    usage="""python right_join.py [-h] <FILE> <FILE> <FILE> --condition <LITERAL [LITERAL ...]> [OPTIONS]"""
+    description="""Send information from integrated data towards multiple datasets, each one containing one condition.""",
+    usage="""python pipe.py [-h] <FILE> <FILE [FILE ...]> --columns <COLUMNS [COLUMNS ...]> [OPTIONS]"""
 )
 
 parser.add_argument(
@@ -22,37 +22,22 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "control",
+    "infiles",
     type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="control condition-based file in h5ad format"
+    metavar="FILE [FILE ...]",
+    nargs="+",
+    help="condition-based input file(s) in h5ad format"
 )
 
 parser.add_argument(
-    "treated",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="treated condition-based file in h5ad format"
-)
-
-parser.add_argument(
-    "--out-control",
-    dest="out_control",
+    "--outfiles",
+    dest="outfiles",
     type=lambda x: Path(x).resolve(),
     required=False,
-    metavar="FILE",
+    metavar="FILE [FILE ...]",
     default=None,
-    help="control condition-based output file in h5ad format (not specified: replace infile)"
-)
-
-parser.add_argument(
-    "--out-treated",
-    dest="out_treated",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    metavar="FILE",
-    default=None,
-    help="treated condition-based output file in h5ad format (not specified: replace infile)"
+    nargs="+",
+    help="condition-based output file(s) in h5ad format (not specified: replace input file(s))"
 )
 
 parser.add_argument(
@@ -77,37 +62,24 @@ args = parser.parse_args()
 
 print(f"Loading data...")
 
-ctrl_adata = ad.read_h5ad(args.control)
-treated_adata = ad.read_h5ad(args.treated)
+condition_adata = [ad.read_h5ad(infile) for infile in args.infiles]
 integrated_adata = ad.read_h5ad(args.integrated)
 
 print(f"Merging data...")
 
 for column in args.columns:
-    if column in ctrl_adata.obs:
-        del ctrl_adata.obs[column]
-    if column in treated_adata.obs:
-        del treated_adata.obs[column]
+    for adata in condition_adata:
+        if column in adata.obs:
+            del adata.obs[column]
     if column not in integrated_adata.obs:
         raise KeyError(f"{column} does not exist in integrated_adata.obs")
 
-cond_ctrl = integrated_adata.obs[args.condition] == ctrl_adata.uns[args.condition]
-cond_treated = integrated_adata.obs[args.condition] == treated_adata.uns[args.condition]
-
-ctrl_df = integrated_adata.obs.loc[cond_ctrl][args.columns]
-treated_df = integrated_adata.obs.loc[cond_treated][args.columns]
-
-ctrl_adata.obs = ctrl_adata.obs.merge(how='left',right=ctrl_df, left_index=True, right_index=True)
-treated_adata.obs = treated_adata.obs.merge(how='left',right=treated_df, left_index=True, right_index=True)
+for adata in condition_adata:
+    cond = integrated_adata.obs[args.condition] == adata.uns[args.condition]
+    df = integrated_adata.obs.loc[cond][args.columns]
+    adata.obs = adata.obs.merge(how='left',right=df, left_index=True, right_index=True)
 
 print("Saving data...")
 
-if args.out_control is None:
-    ctrl_adata.write_h5ad(filename=args.control, compression="gzip")
-else:
-    ctrl_adata.write_h5ad(filename=args.out_control, compression="gzip")
-
-if args.out_treated is None:
-    treated_adata.write_h5ad(filename=args.treated, compression="gzip")
-else:
-    treated_adata.write_h5ad(filename=args.out_treated, compression="gzip")
+for adata, outfile in zip(condition_adata, args.outfiles):
+    adata.write_h5ad(filename=outfile, compression="gzip")
