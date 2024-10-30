@@ -559,38 +559,6 @@ $(GOEA_MOUSE_INTEGRATED): $(MARKERS_INTEGRATED) $(GO_MOUSE) $(GENE2GO)
     	--verbose
 	$(CONDA_DEACTIVATE)
 
-ifdef CLUSTER_LABEL_CTRL
- $(LABELS_CTRL): $(CLUSTER_CTRL)
-	$(call section,cluster-annotation (control data))
-	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/cluster_annotation.py $< $@ \
-		--column leiden \
-		--name $(CLUSTER_LABEL_CTRL)
-	python figures/plot_embedding.py figures/umap_labels.json \
-		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
-	$(CONDA_DEACTIVATE)
-else
- $(LABELS_CTRL): $(CLUSTER_CTRL)
-	@echo -e '$(BOLDRED)CLUSTER_LABEL_CTRL is not defined. Please define it in the command-line or in $(CONFIG_FILE). Aborting.$(NC)'
-	exit
-endif
-
-ifdef CLUSTER_LABEL_TREATED
- $(LABELS_TREATED): $(CLUSTER_TREATED)
-	$(call section,cluster-annotation (treated data))
-	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/cluster_annotation.py $< $@ \
-		--column leiden \
-		--name $(CLUSTER_LABEL_TREATED)
-	python figures/plot_embedding.py figures/umap_labels.json \
-		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
-	$(CONDA_DEACTIVATE)
-else
- $(LABELS_TREATED): $(CLUSTER_TREATED)
-	@echo -e '$(BOLDRED)CLUSTER_LABEL_TREATED is not defined. Please define it in the command-line or in $(CONFIG_FILE). Aborting.$(NC)'
-	exit
-endif
-
 ifdef CLUSTER_LABEL_INTEGRATED
  $(LABELS_INTEGRATED): $(CLUSTER_INTEGRATED)
 	$(call section,cluster-annotation (integrated data))
@@ -605,6 +573,54 @@ else
  $(LABELS_INTEGRATED): $(CLUSTER_INTEGRATED)
 	@echo -e '$(BOLDRED)CLUSTER_LABEL_INTEGRATED is not defined. Please define it in the command-line or in $(CONFIG_FILE). Aborting.$(NC)'
 	exit
+endif
+
+ifeq ($(LABELING_FROM_INTEGRATION),true)
+$(LABELS_CTRL): $(LABELS_INTEGRATED) $(CLUSTER_CTRL)
+	$(call section,cluster-annotation (control data))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/pipe.py $^ --outfiles $@ --column leiden --condition condition
+	python figures/plot_embedding.py figures/umap_labels.json \
+		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
+	$(CONDA_DEACTIVATE)
+$(LABELS_TREATED): $(LABELS_INTEGRATED) $(CLUSTER_TREATED)
+	$(call section,cluster-annotation (treated data))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/pipe.py $^ --outfiles $@ --column leiden --condition condition
+	python figures/plot_embedding.py figures/umap_labels.json \
+		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
+	$(CONDA_DEACTIVATE)
+else
+ifdef CLUSTER_LABEL_CTRL
+$(LABELS_CTRL): $(CLUSTER_CTRL)
+	$(call section,cluster-annotation (control data))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/cluster_annotation.py $< $@ \
+		--column leiden \
+		--name $(CLUSTER_LABEL_CTRL)
+	python figures/plot_embedding.py figures/umap_labels.json \
+		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
+	$(CONDA_DEACTIVATE)
+else
+$(LABELS_CTRL): $(CLUSTER_CTRL)
+	@echo -e '$(BOLDRED)CLUSTER_LABEL_CTRL is not defined. Please define it in the command-line or in $(CONFIG_FILE). Aborting.$(NC)'
+	exit
+endif
+ifdef CLUSTER_LABEL_TREATED
+$(LABELS_TREATED): $(CLUSTER_TREATED)
+	$(call section,cluster-annotation (treated data))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/preprocess/cluster_annotation.py $< $@ \
+		--column leiden \
+		--name $(CLUSTER_LABEL_TREATED)
+	python figures/plot_embedding.py figures/umap_labels.json \
+		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
+	$(CONDA_DEACTIVATE)
+else
+$(LABELS_TREATED): $(CLUSTER_TREATED)
+	@echo -e '$(BOLDRED)CLUSTER_LABEL_TREATED is not defined. Please define it in the command-line or in $(CONFIG_FILE). Aborting.$(NC)'
+	exit
+endif
 endif
 
 $(SCVELO_CTRL): $(LABELS_CTRL)
