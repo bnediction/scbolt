@@ -180,7 +180,7 @@ cluster-annotation: $(label_target) ## annotate clusters
 
 ##@ Trajectory analysis
 
-scvelo: $(scvelo_trajectories_target) ## compute trajectories with scvelo
+scvelo: $(scvelo_trajectories_target) ## compute rna velocity with scvelo
 stream-pseudotime: $(stream_pseudotime_target) ## compute elastic principal graph and pseudotime with stream
 stream-trajectories: $(stream_trajectories_target) ## compute trajectories with stream
 
@@ -626,7 +626,7 @@ endif
 $(SCVELO_CTRL): $(LABELS_CTRL)
 	$(call section,scvelo (control data))
 	$(CONDA_ACTIVATE) scvelo
-	python pipeline/scvelo/trajectories.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+	python pipeline/trajectories/scvelo_velocity.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
 	--cluster leiden \
 	--k-neighbors $(SCVELO_K_NEIGHBORS_CTRL) \
 	--dim-clustering $(SCVELO_DIM_CLUSTERING_CTRL) \
@@ -637,7 +637,7 @@ $(SCVELO_CTRL): $(LABELS_CTRL)
 $(SCVELO_TREATED): $(LABELS_TREATED)
 	$(call section,scvelo (treated data))
 	$(CONDA_ACTIVATE) scvelo
-	python pipeline/scvelo/trajectories.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+	python pipeline/trajectories/scvelo_velocity.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
 	--cluster leiden \
 	--k-neighbors $(SCVELO_K_NEIGHBORS_TREATED) \
 	--dim-clustering $(SCVELO_DIM_CLUSTERING_TREATED) \

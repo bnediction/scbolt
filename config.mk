@@ -135,11 +135,11 @@ $(eval LABELING_FROM_INTEGRATION := true)		# true or false
 # scvelo parameters
 $(eval SCVELO_K_NEIGHBORS_CTRL := 20)			# K-closest neighbors
 $(eval SCVELO_DIM_CLUSTERING_CTRL := 15)		# number of principal components taken into account for clustering
-$(eval SMM_MODE_CTRL := stochastic)				# mode used to estimate the steady-state model								
+$(eval SMM_MODE_CTRL := dynamical)				# mode used to estimate the steady-state model (deterministic, stochastic or dynamical)								
 
 $(eval SCVELO_K_NEIGHBORS_TREATED := 20)		# K-closest neighbors
 $(eval SCVELO_DIM_CLUSTERING_TREATED := 15)		# number of principal components taken into account for clustering
-$(eval SMM_MODE_TREATED := stochastic)			# mode used to estimate the steady-state model								
+$(eval SMM_MODE_TREATED := dynamical)			# mode used to estimate the steady-state model (deterministic, stochastic or dynamical)
 
 # stream parameters
 LAMBDA_CTRL := 0.05
