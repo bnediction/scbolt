@@ -648,7 +648,7 @@ $(SCVELO_TREATED): $(LABELS_TREATED)
 $(PSEUDOTIME_STREAM_CTRL): $(LABELS_CTRL)
 	$(call section,stream-pseudotime (control data))
 	$(CONDA_ACTIVATE) stream
-	python pipeline/stream/pseudotime.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+	python pipeline/trajectories/stream_pseudotime.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
 		--extension both --cluster-number 6 --groups leiden \
 		--lambda $(LAMBDA_CTRL) --mu $(MU_CTRL) --alpha $(ALPHA_CTRL) \
 		--extend-leaf-nodes --extend-mode WeigthedCentroid --extend-parameter $(EXTEND_CTRL) \
@@ -659,7 +659,7 @@ $(PSEUDOTIME_STREAM_CTRL): $(LABELS_CTRL)
 $(PSEUDOTIME_STREAM_TREATED): $(LABELS_TREATED)
 	$(call section,stream-pseudotime (treated data))
 	$(CONDA_ACTIVATE) stream
-	python pipeline/stream/pseudotime.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+	python pipeline/trajectories/stream_pseudotime.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
 		--extension both --cluster-number 6 --groups leiden \
 		--lambda $(LAMBDA_TREATED) --mu $(MU_TREATED) --alpha $(ALPHA_TREATED) \
 		--extend-leaf-nodes --extend-mode WeigthedCentroid --extend-parameter $(EXTEND_TREATED) \
@@ -671,7 +671,7 @@ $(TRAJECTORIES_STREAM_CTRL): $(PSEUDOTIME_STREAM_CTRL)
 	$(call section,stream-trajectories (control data))
 	@echo -e '$(BOLDGREEN)Warning: root can be modified depending on scvelo and BDC analysis$(NC)'
 	$(CONDA_ACTIVATE) stream
-	python pipeline/stream/trajectories.py $< $(@D) --root $(ROOT_CTRL) \
+	python pipeline/trajectories/stream_trajectories.py $< $(@D) --root $(ROOT_CTRL) \
 		--groups leiden kmeans node_clusters \
 		--add-legend --add-graph \
 		--ignore-nodes $(IGNORED_NODES_CTRL)
@@ -681,7 +681,7 @@ $(TRAJECTORIES_STREAM_TREATED): $(PSEUDOTIME_STREAM_TREATED)
 	$(call section,stream-trajectories (control data))
 	@echo -e '$(BOLDGREEN)Warning: root can be modified depending on scvelo and BDC analysis$(NC)'
 	$(CONDA_ACTIVATE) stream
-	python pipeline/stream/trajectories.py $< $(@D) --root $(ROOT_TREATED) \
+	python pipeline/trajectories/stream_trajectories.py $< $(@D) --root $(ROOT_TREATED) \
 		--groups leiden kmeans node_clusters \
 		--add-legend --add-graph \
 		--ignore-nodes $(IGNORED_NODES_TREATED)
