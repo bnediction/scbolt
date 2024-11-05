@@ -54,7 +54,7 @@ parser.add_argument(
     type=int,
     required=False,
     default=20,
-    metavar="PATH",
+    metavar="INT",
     help="number of closest neighbors computed when computing KNN graph (default: 20)"
 )
 

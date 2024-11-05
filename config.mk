@@ -81,6 +81,9 @@ LABELS_INTEGRATED = $(dir $(CLUSTER_INTEGRATED))counts_labels.h5ad
 SCVELO_CTRL = $(RNA_CTRL)/scvelo/tables/scvelo.h5ad							# Must contain the parent directory tables/
 SCVELO_TREATED = $(RNA_TREATED)/scvelo/tables/scvelo.h5ad					# Must contain the parent directory tables/
 
+CELLRANK_CTRL = $(RNA_CTRL)/cellrank/tables/cellrank.h5ad					# Must contain the parent directory tables/
+CELLRANK_TREATED = $(RNA_TREATED)/cellrank/tables/cellrank.h5ad				# Must contain the parent directory tables/
+
 PSEUDOTIME_STREAM_CTRL = $(RNA_CTRL)/stream/pseudotime/tables/stream.h5ad.pkl			# Must contain the parent directory tables/
 PSEUDOTIME_STREAM_TREATED = $(RNA_TREATED)/stream/pseudotime/tables/stream.h5ad.pkl		# Must contain the parent directory tables/
 
@@ -140,6 +143,16 @@ $(eval SMM_MODE_CTRL := dynamical)				# mode used to estimate the steady-state m
 $(eval SCVELO_K_NEIGHBORS_TREATED := 20)		# K-closest neighbors
 $(eval SCVELO_DIM_CLUSTERING_TREATED := 15)		# number of principal components taken into account for clustering
 $(eval SMM_MODE_TREATED := dynamical)			# mode used to estimate the steady-state model (deterministic, stochastic or dynamical)
+
+# cellrank parameters
+$(eval CELLRANK_METHOD := stability)			# stability, top_n, eigengap or eigengap_coarse
+$(eval MACROSTATE_SIZE := 30)
+
+$(eval INITIAL_STATES_CTRL := 1)
+$(eval TERMINAL_STATES_CTRL := 4)
+
+$(eval INITIAL_STATES_TREATED := 1)
+$(eval TERMINAL_STATES_TREATED := 4)
 
 # stream parameters
 LAMBDA_CTRL := 0.05

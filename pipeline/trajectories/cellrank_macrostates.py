@@ -1,26 +1,23 @@
 #!/usr/bin/env python
 
 import warnings
+warnings.filterwarnings("ignore")
 
 import os, argparse
 from pathlib import Path
-from utils.stdout import Section, disable_print
+from utils.stdout import Section
 
 import scanpy as sc
-import scvelo as scv
 import cellrank as cr
 import anndatatools as adt
 
 import matplotlib.pyplot as plt
-from anndatatools.plotting import (
-    fig,
-    color
-)
+from anndatatools.plotting import color
 
 parser = argparse.ArgumentParser(
     prog="scvelo of sc-RNAseq data",
     description="""From one-condition sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
-    perform scvelo analysis.""",
+    perform cellrank analysis to find macrostates.""",
     usage="python scvelo.py <FILE> <PATH> [<args>]"
 )
 
@@ -38,6 +35,75 @@ parser.add_argument(
     help="output path"
 )
 
+parser.add_argument(
+    "--macrostate-size",
+    dest="macrostate_size",
+    type=int,
+    required=False,
+    default=50,
+    metavar="INT",
+    help="number of cells in each macrostate (default: 50)"
+)
+
+parser.add_argument(
+    "--initial-states",
+    dest="initial_states",
+    type=int,
+    required=False,
+    default=1,
+    metavar="INT",
+    help="number of initial states (default: 1)"
+)
+
+parser.add_argument(
+    "--terminal-states",
+    dest="terminal_states",
+    type=int,
+    required=False,
+    default=None,
+    metavar="INT",
+    help="number of terminal states, used when method = top_n (default: None)"
+)
+
+parser.add_argument(
+    "--method",
+    dest="method",
+    type=str,
+    required=False,
+    default="stability",
+    choices=["stability", "top_n", "eigengap", "eigengap_coarse"],
+    metavar="[stability | top_n | eigengap | eigengap_coarse]",
+    help="method used to select terminal states (default: stability)"
+)
+
+parser.add_argument(
+    "--stability_threshold",
+    dest="stability_threshold",
+    type=float,
+    required=False,
+    default=0.96,
+    metavar="FLOAT",
+    help="number of terminal states, used when method = stability (default: 0.96)"
+)
+
+parser.add_argument(
+    "--alpha",
+    dest="alpha",
+    type=float,
+    required=False,
+    default=1,
+    metavar="FLOAT",
+    help="weight given to the deviation of an eigenvalue from one, used when method = eigengap or eigengap_coarse (default: 1)"
+)
+
+parser.add_argument(
+    "--plot-3d",
+    dest="plot_3d",
+    required=False,
+    action="store_true",
+    help="plot figures in three dimensions"
+)
+
 args = parser.parse_args()
 
 data_outpath = Path(f"{args.outpath}/tables")
@@ -48,7 +114,7 @@ if not data_outpath.exists():
 if not fig_outpath.exists():
     os.makedirs(fig_outpath)
 
-scv.settings.set_figure_params("scvelo")
+adt.pl.set_default()
 
 section = Section(verbose = True)
 
@@ -75,9 +141,24 @@ combined_kernel = 0.8 * vk + 0.2 * ck
 print(f"Identifying initial and terminal states...")
 
 g = cr.estimators.GPCCA(combined_kernel)
-g.fit(cluster_key="clusters", n_states=[4, 20])
-g.predict_initial_states()
-g.predict_terminal_states()
+g.fit(
+    cluster_key="clusters",
+    n_cells = args.macrostate_size,
+    n_states=[4, 20]
+)
+
+g.predict_initial_states(
+    n_states = args.initial_states,
+    n_cells = args.macrostate_size
+)
+
+g.predict_terminal_states(
+    method=args.method,
+    n_states=args.terminal_states,
+    n_cells=args.macrostate_size,
+    stability_threshold=args.stability_threshold,
+    alpha=args.alpha
+)
 
 fig, _ = adt.pl.embedding_plot(
     adata,
