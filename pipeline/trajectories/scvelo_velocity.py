@@ -43,9 +43,9 @@ parser.add_argument(
     "--cluster",
     dest="cluster",
     type=str,
-    required=False,
+    required=True,
     metavar="LITERAL",
-    help="column name such as adata.obs[`LITERAL`] distinguishes cluster"
+    help="column name such as adata.obs[`LITERAL`] distinguishes clusters"
 )
 
 parser.add_argument(

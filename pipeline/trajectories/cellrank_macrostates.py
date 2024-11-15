@@ -18,7 +18,7 @@ parser = argparse.ArgumentParser(
     prog="scvelo of sc-RNAseq data",
     description="""From one-condition sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
     perform cellrank analysis to find macrostates.""",
-    usage="python scvelo.py <FILE> <PATH> [<args>]"
+    usage="python cellrank_macrostates.py <FILE> <PATH> [<args>]"
 )
 
 parser.add_argument(
@@ -106,13 +106,8 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-data_outpath = Path(f"{args.outpath}/tables")
-fig_outpath = Path(f"{args.outpath}/figures")
-
-if not data_outpath.exists():
-    os.makedirs(data_outpath)
-if not fig_outpath.exists():
-    os.makedirs(fig_outpath)
+if not args.outpath.exists():
+    os.makedirs(args.outpath)
 
 adt.pl.set_default()
 
@@ -146,6 +141,7 @@ g.fit(
     n_cells = args.macrostate_size,
     n_states=[4, 20]
 )
+adata.obs["macrostates"] = adata.obs["macrostates_fwd"]
 
 g.predict_initial_states(
     n_states = args.initial_states,
@@ -157,7 +153,8 @@ g.predict_terminal_states(
     n_states=args.terminal_states,
     n_cells=args.macrostate_size,
     stability_threshold=args.stability_threshold,
-    alpha=args.alpha
+    alpha=args.alpha,
+    allow_overlap=True
 )
 
 fig, _ = adt.pl.embedding_plot(
@@ -182,7 +179,7 @@ fig, _ = adt.pl.embedding_plot(
     n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
     background_visible=False
 )
-plt.savefig(Path(f"{fig_outpath}/macrostates.pdf"))
+plt.savefig(Path(f"{args.outpath}/macrostates.pdf"))
 
 fig, _ = adt.pl.embedding_plot(
     adata,
@@ -206,7 +203,7 @@ fig, _ = adt.pl.embedding_plot(
     n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
     background_visible=False
 )
-plt.savefig(Path(f"{fig_outpath}/initial_states.pdf"))
+plt.savefig(Path(f"{args.outpath}/initial_states.pdf"))
 
 fig, _ = adt.pl.embedding_plot(
     adata,
@@ -230,8 +227,8 @@ fig, _ = adt.pl.embedding_plot(
     n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
     background_visible=False
 )
-plt.savefig(Path(f"{fig_outpath}/terminal_states.pdf"))
+plt.savefig(Path(f"{args.outpath}/terminal_states.pdf"))
 
 print("Saving data...")
 
-adata.write_h5ad(filename=f"{data_outpath}/cellrank.h5ad")
+adata.write_h5ad(filename=f"{args.outpath}/adata.h5ad")

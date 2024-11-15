@@ -24,6 +24,10 @@ GREEN = \033[0;32m
 BOLDGREEN = \033[1;32m
 BOLD=\033[1m
 
+define section
+	@echo -e '$(GREEN)===== $(1) =====$(NC)'
+endef
+
 define fastq_naming
 	n_fastq="$$(find $(1) -name "$(2)_[1-4].fastq.gz" -printf '.' | wc -m)"
 	if [ $${n_fastq} -eq 0 ]; then \
@@ -47,6 +51,89 @@ define fastq_naming
 	fi
 endef
 
+# directories
+PUBLIC = data/public
+RNA = data/rna
+RNA_CTRL = data/rna/ctrl
+RNA_TREATED = data/rna/treated
+RNA_INTEGRATED = data/rna/integrated
+
+CYCLE_MARKERS = $(PUBLIC)/cycle_phases/mouse_cycle_markers.rds
+SIGNATURES = $(PUBLIC)/signatures/geiger.xls $(PUBLIC)/signatures/chambers.xls $(PUBLIC)/signatures/signatures.json
+GO_BASIC = $(PUBLIC)/enrichment/go-basic.obo
+GO_MOUSE = $(PUBLIC)/enrichment/goslim.obo
+GENE2GO = $(PUBLIC)/enrichment/gene2go
+
+$(eval GENOME := $(PUBLIC)/genome/$(basename $(notdir $(GENOME_URL))))
+$(eval ANNOTATIONS := $(PUBLIC)/genome/$(basename $(notdir $(ANNOTATIONS_URL))))
+$(eval TRANSCRIPTOME := $(PUBLIC)/genome/$(notdir $(TRANSCRIPTOME_URL)))
+TRANSCRIPTOME := $(TRANSCRIPTOME:.tar.gz=)
+
+FASTQ_CTRL = $(RNA_CTRL)/fastq
+FASTQ_TREATED = $(RNA_TREATED)/fastq
+
+CELLRANGER_CTRL = $(RNA_CTRL)/cellranger/ctrl.mri.tgz
+CELLRANGER_TREATED = $(RNA_TREATED)/cellranger/treated.mri.tgz
+
+VELOCYTO_CTRL = $(RNA_CTRL)/velocyto/ctrl.loom
+VELOCYTO_TREATED = $(RNA_TREATED)/velocyto/treated.loom
+
+H5AD_CTRL = $(RNA_CTRL)/raw/ctrl.h5ad
+H5AD_TREATED = $(RNA_TREATED)/raw/treated.h5ad
+
+FILTER_CTRL = $(RNA_CTRL)/cell_filtering/tables/counts.h5ad					# Must contain the parent directory tables/
+FILTER_TREATED = $(RNA_TREATED)/cell_filtering/tables/counts.h5ad			# Must contain the parent directory tables/
+
+NORMALISATION_CTRL = $(RNA_CTRL)/normalization/tables/corrected.h5ad		# Must contain the parent directory tables/
+NORMALISATION_TREATED = $(RNA_TREATED)/normalization/tables/corrected.h5ad	# Must contain the parent directory tables/
+
+CLUSTER_CTRL = $(RNA_CTRL)/cluster/tables/counts.h5ad						# Must contain the parent directory tables/
+CLUSTER_TREATED = $(RNA_TREATED)/cluster/tables/counts.h5ad					# Must contain the parent directory tables/
+CLUSTER_INTEGRATED = $(RNA_INTEGRATED)/cluster/tables/integrated.h5ad		# Must contain the parent directory tables/
+
+MARKERS_CTRL = $(RNA_CTRL)/markers/genes/background.txt
+MARKERS_TREATED = $(RNA_TREATED)/markers/genes/background.txt
+MARKERS_INTEGRATED = $(RNA_INTEGRATED)/markers/genes/background.txt
+
+GOEA_BASIC_CTRL = $(RNA_CTRL)/enrichment/goea_basic.xlsx
+GOEA_MOUSE_CTRL = $(RNA_CTRL)/enrichment/goea_mouse.xlsx
+GOEA_BASIC_TREATED = $(RNA_TREATED)/enrichment/goea_basic.xlsx
+GOEA_MOUSE_TREATED = $(RNA_TREATED)/enrichment/goea_mouse.xlsx
+GOEA_BASIC_INTEGRATED = $(RNA_INTEGRATED)/enrichment/goea_basic.xlsx
+GOEA_MOUSE_INTEGRATED = $(RNA_INTEGRATED)/enrichment/goea_mouse.xlsx
+
+LABELS_CTRL = $(dir $(CLUSTER_CTRL))counts_labels.h5ad
+LABELS_TREATED = $(dir $(CLUSTER_TREATED))counts_labels.h5ad
+LABELS_INTEGRATED = $(dir $(CLUSTER_INTEGRATED))counts_labels.h5ad
+
+SCVELO_CTRL = $(RNA_CTRL)/scvelo/tables/scvelo.h5ad					# Must contain the parent directory tables/
+SCVELO_TREATED = $(RNA_TREATED)/scvelo/tables/scvelo.h5ad			# Must contain the parent directory tables/
+
+MACROSTATES_CTRL = $(RNA_CTRL)/macrostates/adata.h5ad				# Must contain the parent directory tables/
+MACROSTATES_TREATED = $(RNA_TREATED)/macrostates/adata.h5ad			# Must contain the parent directory tables/
+
+PSEUDOTIME_STREAM_CTRL = $(RNA_CTRL)/stream/pseudotime/tables/stream.h5ad.pkl			# Must contain the parent directory tables/
+PSEUDOTIME_STREAM_TREATED = $(RNA_TREATED)/stream/pseudotime/tables/stream.h5ad.pkl		# Must contain the parent directory tables/
+
+TRAJECTORIES_STREAM_CTRL = $(RNA_CTRL)/stream/trajectories/branches.txt
+TRAJECTORIES_STREAM_TREATED = $(RNA_TREATED)/stream/trajectories/branches.txt
+
+SCBOOLSEQ_CTRL = $(RNA_CTRL)/binarization/cluster_bin_node_clusters.csv
+SCBOOLSEQ_TREATED = $(RNA_TREATED)/binarization/cluster_bin_node_clusters.csv
+
+BDC_CTRL = $(RNA_CTRL)/binarization/pairwise_predecessor_scores.csv
+BDC_TREATED = $(RNA_TREATED)/binarization/pairwise_predecessor_scores.csv
+
+MODEL_SPECIFICATION_CTRL = $(RNA_CTRL)/bonesis/specification_model.txt
+MODEL_SPECIFICATION_TREATED = $(RNA_TREATED)/bonesis/specification_model.txt
+
+FILTER1_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage1.txt
+FILTER2_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage2.txt
+INFERENCE_SUB_CTRL = $(RNA_CTRL)/bonesis/ct/sub.bn
+INFERENCE_MIN_CTRL = $(RNA_CTRL)/bonesis/ct/min.bn
+MARKERS_ALL = $(RNA)/markers/all/markers.csv
+
+# targets
 fastq_target :=
 cellranger_target :=
 velocyto_target :=
@@ -58,7 +145,7 @@ markers_target :=
 goea_target :=
 label_target :=
 scvelo_velocity_target :=
-cellrank_macrostates_target :=
+macrostates_target :=
 stream_pseudotime_target :=
 stream_trajectories_target :=
 scboolseq_target :=
@@ -77,7 +164,7 @@ ifeq (control,$(findstring control,$(sample)))
  $(eval goea_target := $(goea_target) $(GOEA_BASIC_CTRL) $(GOEA_MOUSE_CTRL))
  $(eval label_target := $(label_target) $(LABELS_CTRL))
  $(eval scvelo_velocity_target := $(scvelo_velocity_target) $(SCVELO_CTRL))
- $(eval cellrank_macrostates_target := $(cellrank_macrostates_target) $(CELLRANK_CTRL))
+ $(eval macrostates_target := $(macrostates_target) $(MACROSTATES_CTRL))
  $(eval stream_pseudotime_target := $(stream_pseudotime_target) $(PSEUDOTIME_STREAM_CTRL))
  $(eval stream_trajectories_target := $(stream_trajectories_target) $(TRAJECTORIES_STREAM_CTRL))
  $(eval scboolseq_target := $(scboolseq_target) $(SCBOOLSEQ_CTRL))
@@ -96,7 +183,7 @@ ifeq (treated,$(findstring treated,$(sample)))
  $(eval goea_target := $(goea_target) $(GOEA_BASIC_TREATED) $(GOEA_MOUSE_TREATED))
  $(eval label_target := $(label_target) $(LABELS_TREATED))
  $(eval scvelo_velocity_target := $(scvelo_velocity_target) $(SCVELO_TREATED))
- $(eval cellrank_macrostates_target := $(cellrank_macrostates_target) $(CELLRANK_TREATED))
+ $(eval macrostates_target := $(macrostates_target) $(MACROSTATES_TREATED))
  $(eval stream_pseudotime_target := $(stream_pseudotime_target) $(PSEUDOTIME_STREAM_TREATED))
  $(eval stream_trajectories_target := $(stream_trajectories_target) $(TRAJECTORIES_STREAM_TREATED))
  $(eval scboolseq_target := $(scboolseq_target) $(SCBOOLSEQ_TREATED))
@@ -184,7 +271,7 @@ cluster-annotation: $(label_target) ## annotate clusters
 ##@ Trajectory analysis
 
 scvelo: $(scvelo_velocity_target) ## compute rna velocity with scvelo
-cellrank: $(cellrank_macrostates_target) ## compute macrostates with cellrank
+macrostates: $(macrostates_target) ## compute macrostates with cellrank or center-extremity method
 stream-pseudotime: $(stream_pseudotime_target) ## compute elastic principal graph and pseudotime with stream
 stream-trajectories: $(stream_trajectories_target) ## compute trajectories with stream
 
@@ -649,27 +736,51 @@ $(SCVELO_TREATED): $(LABELS_TREATED)
 		--add-legend
 	$(CONDA_DEACTIVATE)
 
-$(CELLRANK_CTRL): $(SCVELO_CTRL)
-	$(call section,cellrank (control data))
+ifeq ($(MACROSTATES_FROM_CELLRANK),true)
+$(MACROSTATES_CTRL): $(SCVELO_CTRL)
+	$(call section,macrostates (control data))
 	$(CONDA_ACTIVATE) cellrank
-	python pipeline/trajectories/cellrank_macrostates.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+	python pipeline/trajectories/cellrank_macrostates.py $< $(@D) \
 		--macrostate-size $(MACROSTATE_SIZE) \
 		--initial-states $(INITIAL_STATES_CTRL) \
 		--terminal-states $(TERMINAL_STATES_CTRL) \
 		--method $(CELLRANK_METHOD) \
 		--plot-3d
 	$(CONDA_DEACTIVATE)
-
-$(CELLRANK_TREATED): $(SCVELO_TREATED)
-	$(call section,cellrank (treated data))
+$(MACROSTATES_TREATED): $(SCVELO_TREATED)
+	$(call section,macrostates (treated data))
 	$(CONDA_ACTIVATE) cellrank
-	python pipeline/trajectories/cellrank_macrostates.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+	python pipeline/trajectories/cellrank_macrostates.py $< $(@D) \
 		--macrostate-size $(MACROSTATE_SIZE) \
 		--initial-states $(INITIAL_STATES_TREATED) \
 		--terminal-states $(TERMINAL_STATES_TREATED) \
 		--method $(CELLRANK_METHOD) \
 		--plot-3d
 	$(CONDA_DEACTIVATE)
+else
+$(MACROSTATES_CTRL): $(SCVELO_CTRL)
+	$(call section,macrostates (control data))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/trajectories/macrostates.py $< $(@D) \
+		--obs leiden --obsm X_umap \
+		--dimension $(DIM_UMAP_CTRL) \
+		--center $(CENTER_CTRL) \
+		--extremity $(EXTREMITY_CTRL) \
+		--macrostate-size $(MACROSTATE_SIZE) \
+		--plot-3d
+	$(CONDA_DEACTIVATE)
+$(MACROSTATES_TREATED): $(SCVELO_TREATED)
+	$(call section,macrostates (control data))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/trajectories/macrostates.py $< $(@D) \
+		--obs leiden --obsm X_umap \
+		--dimension $(DIM_UMAP_TREATED) \
+		--center $(CENTER_TREATED) \
+		--extremity $(EXTREMITY_TREATED) \
+		--macrostate-size $(MACROSTATE_SIZE) \
+		--plot-3d
+	$(CONDA_DEACTIVATE)
+endif
 
 $(PSEUDOTIME_STREAM_CTRL): $(LABELS_CTRL)
 	$(call section,stream-pseudotime (control data))
