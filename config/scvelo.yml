@@ -249,5 +249,4 @@ dependencies:
       - click==8.1.7
       - loompy==3.0.7
       - numpy-groupies==0.11.2
-      - scvelo==0.3.3.dev12+g22b6e7e
 prefix: ${HOME}/anaconda3/envs/scvelo

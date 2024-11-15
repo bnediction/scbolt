@@ -22,6 +22,13 @@ install_env() {
                 pip install git+https://github.com/bnediction/bonesis.git@6fb47aad96bd2d07ba3c137842d632bc2c783712
                 conda deactivate;
             fi
+            if [[ "$1" == scvelo ]];
+            then
+                conda activate $1
+                pip install git+https://github.com/theislab/scvelo.git@b2f31b345641efdccd39fbcb8c0beaa0014b4b88
+                conda deactivate;
+            fi
+
         else
             echo -e "$1 environment not reinstalled.\n"
         fi
@@ -33,6 +40,12 @@ install_env() {
         then
             conda activate $1
             pip install git+https://github.com/bnediction/bonesis.git@6fb47aad96bd2d07ba3c137842d632bc2c783712
+            conda deactivate;
+        fi
+        if [[ "$1" == scvelo ]];
+        then
+            conda activate $1
+            pip install git+https://github.com/theislab/scvelo.git@b2f31b345641efdccd39fbcb8c0beaa0014b4b88
             conda deactivate;
         fi
     fi
@@ -59,7 +72,7 @@ then
     conda activate base
 fi
 
-for environment in fastq-dump preprocess stream scboolseq bonesis
+for environment in fastq-dump preprocess scvelo stream scboolseq bonesis
 do
     install_env $environment
 done
