@@ -4,15 +4,8 @@ MEMORY = 50
 JOBS = 16
 
 # metadata
-METADATA_CTRL = age=adult date=29-09-2020 sample_name=ctrl condition=control			# Must contains condition
-METADATA_TREATED = age=adult date=29-09-2020 sample_name=treated condition=treated		# Must contains condition
-
-# url
-GENOME_URL = ftp://ftp.ensembl.org/pub/release-112/fasta/mus_musculus/dna/Mus_musculus.GRCm39.dna.primary_assembly.fa.gz
-TRANSCRIPTOME_URL = https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz
-CELL_CYCLE_URL = https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
-GO_BASIC_URL = http://purl.obolibrary.org/obo/go/go-basic.obo
-GO_MOUSE_URL = https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
+$(eval METADATA_CTRL := age=adult date=29-09-2020 sample_name=ctrl condition=control)			# Must contains condition
+$(eval METADATA_TREATED := age=adult date=29-09-2020 sample_name=treated condition=treated)		# Must contains condition
 
 # sample ids
 SRA_CTRL = SRR15305311 SRR15305312 SRR15305313 SRR15305314

@@ -13,8 +13,13 @@ CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda d
 sample = control+treated
 
 # urls
+CELL_CYCLE_URL = https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
 GEIGER_URL = https://doi.org/10.1371/journal.pbio.2003389.s025
 CHAMBERS_URL = https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
+GENOME_URL = ftp://ftp.ensembl.org/pub/release-112/fasta/mus_musculus/dna/Mus_musculus.GRCm39.dna.primary_assembly.fa.gz
+TRANSCRIPTOME_URL = https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz
+GO_BASIC_URL = http://purl.obolibrary.org/obo/go/go-basic.obo
+GO_MOUSE_URL = https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
 
 # colors
 NC = \033[0m
@@ -72,35 +77,32 @@ TRANSCRIPTOME := $(TRANSCRIPTOME:.tar.gz=)
 FASTQ_CTRL = $(RNA_CTRL)/fastq
 FASTQ_TREATED = $(RNA_TREATED)/fastq
 
-CELLRANGER_CTRL = $(RNA_CTRL)/cellranger/ctrl.mri.tgz
-CELLRANGER_TREATED = $(RNA_TREATED)/cellranger/treated.mri.tgz
+CELLRANGER_CTRL = $(RNA_CTRL)/counting/cellranger/ctrl.mri.tgz
+CELLRANGER_TREATED = $(RNA_TREATED)/counting/cellranger/treated.mri.tgz
 
-VELOCYTO_CTRL = $(RNA_CTRL)/velocyto/ctrl.loom
-VELOCYTO_TREATED = $(RNA_TREATED)/velocyto/treated.loom
+VELOCYTO_CTRL = $(RNA_CTRL)/counting/velocyto/ctrl.h5ad
+VELOCYTO_TREATED = $(RNA_TREATED)/counting/velocyto/treated.h5ad
 
-H5AD_CTRL = $(RNA_CTRL)/raw/ctrl.h5ad
-H5AD_TREATED = $(RNA_TREATED)/raw/treated.h5ad
+FILTER_CTRL = $(RNA_CTRL)/preprocessing/filtering/counts.h5ad
+FILTER_TREATED = $(RNA_TREATED)/preprocessing/filtering/counts.h5ad
 
-FILTER_CTRL = $(RNA_CTRL)/cell_filtering/tables/counts.h5ad					# Must contain the parent directory tables/
-FILTER_TREATED = $(RNA_TREATED)/cell_filtering/tables/counts.h5ad			# Must contain the parent directory tables/
+NORMALISATION_CTRL = $(RNA_CTRL)/preprocessing/normalization/corrected.h5ad
+NORMALISATION_TREATED = $(RNA_TREATED)/preprocessing/normalization/corrected.h5ad
 
-NORMALISATION_CTRL = $(RNA_CTRL)/normalization/tables/corrected.h5ad		# Must contain the parent directory tables/
-NORMALISATION_TREATED = $(RNA_TREATED)/normalization/tables/corrected.h5ad	# Must contain the parent directory tables/
+CLUSTER_CTRL = $(RNA_CTRL)/clustering/clusters/counts.h5ad
+CLUSTER_TREATED = $(RNA_TREATED)/clustering/clusters/tables/counts.h5ad
+CLUSTER_INTEGRATED = $(RNA_INTEGRATED)/clustering/clusters/tables/integrated.h5ad
 
-CLUSTER_CTRL = $(RNA_CTRL)/cluster/tables/counts.h5ad						# Must contain the parent directory tables/
-CLUSTER_TREATED = $(RNA_TREATED)/cluster/tables/counts.h5ad					# Must contain the parent directory tables/
-CLUSTER_INTEGRATED = $(RNA_INTEGRATED)/cluster/tables/integrated.h5ad		# Must contain the parent directory tables/
+MARKERS_CTRL = $(RNA_CTRL)/clustering/markers/genes/background.txt
+MARKERS_TREATED = $(RNA_TREATED)/clustering/markers/genes/background.txt
+MARKERS_INTEGRATED = $(RNA_INTEGRATED)/clustering/markers/genes/background.txt
 
-MARKERS_CTRL = $(RNA_CTRL)/markers/genes/background.txt
-MARKERS_TREATED = $(RNA_TREATED)/markers/genes/background.txt
-MARKERS_INTEGRATED = $(RNA_INTEGRATED)/markers/genes/background.txt
-
-GOEA_BASIC_CTRL = $(RNA_CTRL)/enrichment/goea_basic.xlsx
-GOEA_MOUSE_CTRL = $(RNA_CTRL)/enrichment/goea_mouse.xlsx
-GOEA_BASIC_TREATED = $(RNA_TREATED)/enrichment/goea_basic.xlsx
-GOEA_MOUSE_TREATED = $(RNA_TREATED)/enrichment/goea_mouse.xlsx
-GOEA_BASIC_INTEGRATED = $(RNA_INTEGRATED)/enrichment/goea_basic.xlsx
-GOEA_MOUSE_INTEGRATED = $(RNA_INTEGRATED)/enrichment/goea_mouse.xlsx
+GOEA_BASIC_CTRL = $(RNA_CTRL)/clustering/goea/goea_basic.xlsx
+GOEA_MOUSE_CTRL = $(RNA_CTRL)/clustering/goea/goea_mouse.xlsx
+GOEA_BASIC_TREATED = $(RNA_TREATED)/clustering/goea/goea_basic.xlsx
+GOEA_MOUSE_TREATED = $(RNA_TREATED)/clustering/goea/goea_mouse.xlsx
+GOEA_BASIC_INTEGRATED = $(RNA_INTEGRATED)/clustering/goea/goea_basic.xlsx
+GOEA_MOUSE_INTEGRATED = $(RNA_INTEGRATED)/clustering/goea/goea_mouse.xlsx
 
 LABELS_CTRL = $(dir $(CLUSTER_CTRL))counts_labels.h5ad
 LABELS_TREATED = $(dir $(CLUSTER_TREATED))counts_labels.h5ad
@@ -115,8 +117,8 @@ PSEUDOTIME_STREAM_TREATED = $(RNA_TREATED)/trajectories/stream/pseudotime/stream
 TRAJECTORIES_STREAM_CTRL = $(RNA_CTRL)/trajectories/stream/trajectories/branches.txt
 TRAJECTORIES_STREAM_TREATED = $(RNA_TREATED)/trajectories/stream/trajectories/branches.txt
 
-MACROSTATES_CTRL = $(RNA_CTRL)/trajectories/macrostates/adata.h5ad					# Must contain the parent directory tables/
-MACROSTATES_TREATED = $(RNA_TREATED)/trajectories/macrostates/adata.h5ad			# Must contain the parent directory tables/
+MACROSTATES_CTRL = $(RNA_CTRL)/trajectories/macrostates/adata.h5ad
+MACROSTATES_TREATED = $(RNA_TREATED)/trajectories/macrostates/adata.h5ad
 
 SCBOOLSEQ_CTRL = $(RNA_CTRL)/binarization/cluster_bin_node_clusters.csv
 SCBOOLSEQ_TREATED = $(RNA_TREATED)/binarization/cluster_bin_node_clusters.csv
@@ -131,7 +133,6 @@ FILTER1_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage1.txt
 FILTER2_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage2.txt
 INFERENCE_SUB_CTRL = $(RNA_CTRL)/bonesis/ct/sub.bn
 INFERENCE_MIN_CTRL = $(RNA_CTRL)/bonesis/ct/min.bn
-MARKERS_ALL = $(RNA)/markers/all/markers.csv
 
 # targets
 fastq_target :=
@@ -156,7 +157,6 @@ ifeq (control,$(findstring control,$(sample)))
  $(eval fastq_target := $(fastq_target) $(FASTQ_CTRL))
  $(eval cellranger_target := $(cellranger_target) $(CELLRANGER_CTRL))
  $(eval velocyto_target := $(velocyto_target) $(VELOCYTO_CTRL))
- $(eval h5ad_target := $(h5ad_target) $(H5AD_CTRL))
  $(eval filter_target := $(filter_target) $(FILTER_CTRL))
  $(eval normalization_target := $(normalization_target) $(NORMALISATION_CTRL))
  $(eval cluster_target := $(cluster_target) $(CLUSTER_CTRL))
@@ -175,7 +175,6 @@ ifeq (treated,$(findstring treated,$(sample)))
  $(eval fastq_target := $(fastq_target) $(FASTQ_TREATED))
  $(eval cellranger_target := $(cellranger_target) $(CELLRANGER_TREATED))
  $(eval velocyto_target := $(velocyto_target) $(VELOCYTO_TREATED))
- $(eval h5ad_target := $(h5ad_target) $(H5AD_TREATED))
  $(eval filter_target := $(filter_target) $(FILTER_TREATED))
  $(eval normalization_target := $(normalization_target) $(NORMALISATION_TREATED))
  $(eval cluster_target := $(cluster_target) $(CLUSTER_TREATED))
@@ -194,7 +193,6 @@ ifeq (integrated,$(findstring integrated,$(sample)))
  $(eval fastq_target := $(FASTQ_CTRL) $(FASTQ_TREATED))
  $(eval cellranger_target := $(CELLRANGER_CTRL) $(CELLRANGER_TREATED))
  $(eval velocyto_target := $(VELOCYTO_CTRL) $(VELOCYTO_TREATED))
- $(eval h5ad_target := $(H5AD_CTRL) $(H5AD_TREATED))
  $(eval filter_target := $(FILTER_CTRL) $(FILTER_TREATED))
  $(eval normalization_target := $(NORMALISATION_CTRL) $(NORMALISATION_TREATED))
  $(eval cluster_target := $(cluster_target) $(CLUSTER_INTEGRATED))
@@ -212,15 +210,15 @@ IGNORED_NODES_TREATED:=--ignore-nodes $(IGNORED_NODES_TREATED)
 endif
 
 ifeq ($(EXCLUDE_CTRL),true)
- $(eval EXCLUDE_CTRL := --exclude)
+EXCLUDE_CTRL:=--exclude
 else
- $(eval EXCLUDE_CTRL :=)
+EXCLUDE_CTRL:=
 endif
 
 ifeq ($(EXCLUDE_TREATED),true)
- $(eval EXCLUDE_TREATED := --exclude)
+EXCLUDE_TREATED:=--exclude
 else
- $(eval EXCLUDE_TREATED :=)
+EXCLUDE_TREATED:=
 endif
 
 ##@ Help
@@ -265,34 +263,37 @@ load-go: $(GO_BASIC) $(GO_MOUSE) $(GENE2GO) ## download gene ontology-related fi
 ##@ Counting
 
 .PHONY: cellranger
-cellranger: $(cellranger_target) ## perform alignment and counting with Cell Ranger
+cellranger: $(cellranger_target) ## perform alignment and counting with CellRanger
 .PHONY: velocyto
 velocyto: $(velocyto_target) ## perform spliced/unspliced counting with velocyto
 
 ##@ Preprocessing
 
-.PHONY: conversion
-conversion: $(h5ad_target) ## convert loom file into h5ad file
 .PHONY: filtering
 filtering: $(filter_target) ## filtering low quality cells and assignment of cell cycle phases
 .PHONY: normalization
 normalization: $(normalization_target) ## filtering low quality genes and normalization of counts
+
+##@ Clustering
+
 .PHONY: clustering
 clustering: $(cluster_target) ## perform dimension reduction and cell clustering (and optionally INTEGRATION)
-
-##@ Cluster analysis
-
 .PHONY: marker-analysis
 marker-analysis: $(markers_target) ## search for gene markers and compare markers and signatures
 .PHONY: goea
 goea: $(goea_target) ## perform gene ontology enrichment analysis
+.PHONY: cluster-annotation
 cluster-annotation: $(label_target) ## annotate clusters
 
-##@ Trajectory analysis
+##@ Trajectory inference
 
+.PHONY: scvelo
 scvelo: $(scvelo_velocity_target) ## compute rna velocity with scvelo
+.PHONY: stream-pseudotime
 stream-pseudotime: $(stream_pseudotime_target) ## compute elastic principal graph and pseudotime with stream
+.PHONY: stream-trajectories
 stream-trajectories: $(stream_trajectories_target) ## compute trajectories with stream
+.PHONY: macrostates
 macrostates: $(macrostates_target) ## compute macrostates with cellrank or center-extremity method
 
 ##@ Binarization
@@ -435,56 +436,50 @@ $(VELOCYTO_CTRL): $(CELLRANGER_CTRL) $(TRANSCRIPTOME)
 		$(dir $(firstword $^)) $(lastword $^)/genes/genes.gtf
 	$(CONDA_DEACTIVATE)
 	mkdir -p $(@D)
-	mv $(<D)/velocyto/cellranger.loom $@
+	mv $(<D)/velocyto/cellranger.loom $(shell echo $@ | sed "s/h5ad/loom/")
 	rm -rf $(<D)/velocyto
+	$(CONDA_ACTIVATE) preprocess
+	python bonesis-tools/clitools/conversion_to_h5ad.py $(shell echo $@ | sed "s/h5ad/loom/") $@ \
+		--sample-info $(METADATA_CTRL) \
+		--remove-positions
+	$(CONDA_DEACTIVATE)
 
 $(VELOCYTO_TREATED): $(CELLRANGER_TREATED) $(TRANSCRIPTOME)
-	$(call section,velocyto (treated data))
+	$(call section,velocyto (control data))
 	$(CONDA_ACTIVATE) velocyto
 	velocyto run10x -m data/public/genome/repeat_msk.gtf \
 		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
 		$(dir $(firstword $^)) $(lastword $^)/genes/genes.gtf
 	$(CONDA_DEACTIVATE)
 	mkdir -p $(@D)
-	mv $(<D)/velocyto/cellranger.loom $@
+	mv $(<D)/velocyto/cellranger.loom $(shell echo $@ | sed "s/h5ad/loom/")
 	rm -rf $(<D)/velocyto
-
-$(H5AD_CTRL): $(VELOCYTO_CTRL)
-	$(call section,conversion (control data))
 	$(CONDA_ACTIVATE) preprocess
-	python bonesis-tools/clitools/conversion_to_h5ad.py $< $@ \
-		--sample-info $(METADATA_CTRL) \
-		--remove-positions
-	$(CONDA_DEACTIVATE)
-
-$(H5AD_TREATED): $(VELOCYTO_TREATED)
-	$(call section,conversion (treated data))
-	$(CONDA_ACTIVATE) preprocess
-	python bonesis-tools/clitools/conversion_to_h5ad.py $< $@ \
+	python bonesis-tools/clitools/conversion_to_h5ad.py $(shell echo $@ | sed "s/h5ad/loom/") $@ \
 		--sample-info $(METADATA_TREATED) \
 		--remove-positions
 	$(CONDA_DEACTIVATE)
 
-$(FILTER_CTRL): $(H5AD_CTRL) $(CYCLE_MARKERS)
+$(FILTER_CTRL): $(VELOCYTO_CTRL) $(CYCLE_MARKERS)
 	$(call section,filtering (control data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/filter_cells.py \
 		--infile $(firstword $^) \
 		--marker $(lastword $^) \
-		--outpath $(shell echo $(dir $@) | sed "s/tables\///") \
+		--outpath $(@D) \
 		--mitochondrial_threshold 5 \
 		--upper-mad 2 \
 		--lower-mad 3 \
 		--consistency-mad
 	$(CONDA_DEACTIVATE)
 
-$(FILTER_TREATED): $(H5AD_TREATED) $(CYCLE_MARKERS)
+$(FILTER_TREATED): $(VELOCYTO_TREATED) $(CYCLE_MARKERS)
 	$(call section,filtering (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/filter_cells.py \
 		--infile $(firstword $^) \
 		--marker $(lastword $^) \
-		--outpath $(shell echo $(dir $@) | sed "s/tables\///") \
+		--outpath $(@D) \
 		--mitochondrial_threshold 5 \
 		--upper-mad 2 \
 		--lower-mad 3 \
@@ -494,7 +489,7 @@ $(FILTER_TREATED): $(H5AD_TREATED) $(CYCLE_MARKERS)
 $(NORMALISATION_CTRL): $(FILTER_CTRL)
 	$(call section,normalization (control data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/normalization.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+	python pipeline/preprocess/normalization.py $< $(@D) \
 		--correction G2M_score S_score G1_score \
 		--min-cell-expression-proportion 0.001 \
 		--jobs $(JOBS)
@@ -503,7 +498,7 @@ $(NORMALISATION_CTRL): $(FILTER_CTRL)
 $(NORMALISATION_TREATED): $(FILTER_TREATED)
 	$(call section,normalization (treated data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/normalization.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+	python pipeline/preprocess/normalization.py $< $(@D) \
 		--correction G2M_score S_score G1_score \
 		--min-cell-expression-proportion 0.001 \
 		--jobs $(JOBS)
@@ -512,7 +507,7 @@ $(NORMALISATION_TREATED): $(FILTER_TREATED)
 $(CLUSTER_CTRL): $(NORMALISATION_CTRL)
 	$(call section,clustering (control data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/clusters.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+	python pipeline/preprocess/clusters.py $< $(@D) \
 		--hvg --metric euclidean --k-neighbors $(K_NEIGHBORS_CTRL) --resolution $(RESOLUTION_LEIDEN_CTRL) \
 		--dim-pca $(DIM_PCA_CTRL) --dim-clustering $(DIM_CLUSTERING_CTRL) --dim-umap $(DIM_UMAP_CTRL) \
 		--add-legend --plot-3d \
@@ -523,7 +518,7 @@ $(CLUSTER_CTRL): $(NORMALISATION_CTRL)
 $(CLUSTER_TREATED): $(NORMALISATION_TREATED)
 	$(call section,clustering (treated data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/clusters.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+	python pipeline/preprocess/clusters.py $< $(@D) \
 		--hvg --metric euclidean --k-neighbors $(K_NEIGHBORS_TREATED) --resolution $(RESOLUTION_LEIDEN_TREATED) \
 		--dim-pca $(DIM_PCA_TREATED) --dim-clustering $(DIM_CLUSTERING_TREATED) --dim-umap $(DIM_UMAP_TREATED) \
 		--add-legend --plot-3d \

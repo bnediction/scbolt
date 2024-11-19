@@ -245,13 +245,8 @@ if not (args.dim_pca >= args.dim_clustering > args.dim_umap):
         f"dimension incoherence: pca dimension >= clustering dimension > umap dimension not satisfied"
     )
 
-data_outpath = Path(f"{args.outpath}/tables")
-fig_outpath = Path(f"{args.outpath}/figures")
-
-if not data_outpath.exists():
-    os.makedirs(data_outpath)
-if not fig_outpath.exists():
-    os.makedirs(fig_outpath)
+if not args.outpath.exists():
+    os.makedirs(args.outpath)
 
 section = Section(verbose = args.verbose)
 
@@ -339,7 +334,7 @@ if args.method=="ingest":
         obsm="X_pca",
         xlabel=r"$\mathrm{PC_{1}}$",
         ylabel=r"$\mathrm{PC_{2}}$",
-        outfile=Path(f"{fig_outpath}/ingest_pca"),
+        outfile=Path(f"{args.outpath}/ingest_pca"),
         add_legend=args.legend,
         s=2,
         alpha=1,
@@ -375,12 +370,12 @@ if args.method=="ingest":
             n_components = 3 if args.dim_umap > 2 and args.plot_3d is True else 2,
             background_visible=False
         )
-        plt.savefig(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.pdf"))
+        plt.savefig(Path(f"{args.outpath}/{args.prefix}bbknn_umap_{cluster}.pdf"))
         if args.dim_umap > 2 and args.plot_3d:
-            pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
+            pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
 
     section("Saving data...")
-    adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}integrated.h5ad", compression="gzip")
+    adata.write_h5ad(filename=f"{args.outpath}/{args.prefix}integrated.h5ad", compression="gzip")
     del adata
 
 elif args.method=="bbknn":
@@ -458,7 +453,7 @@ elif args.method=="bbknn":
         obsm="X_pca",
         xlabel=r"$\mathrm{PC_{1}}$",
         ylabel=r"$\mathrm{PC_{2}}$",
-        outfile=Path(f"{fig_outpath}/bbknn_pca"),
+        outfile=Path(f"{args.outpath}/bbknn_pca"),
         add_legend=args.legend,
         s=2,
         alpha=1,
@@ -494,12 +489,12 @@ elif args.method=="bbknn":
             n_components = 3 if args.dim_umap > 2 and args.plot_3d is True else 2,
             background_visible=False
         )
-        plt.savefig(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.pdf"))
+        plt.savefig(Path(f"{args.outpath}/{args.prefix}bbknn_umap_{cluster}.pdf"))
         if args.dim_umap > 2 and args.plot_3d:
-            pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
+            pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
 
     section("Saving data...")
-    adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}integrated.h5ad", compression="gzip")
+    adata.write_h5ad(filename=f"{args.outpath}/{args.prefix}integrated.h5ad", compression="gzip")
     del adata
 
 elif args.method=="scanorama":
@@ -555,7 +550,7 @@ elif args.method=="scanorama":
         obsm="X_pca",
         xlabel=r"$\mathrm{PC_{1}}$",
         ylabel=r"$\mathrm{PC_{2}}$",
-        outfile=Path(f"{fig_outpath}/bbknn_pca"),
+        outfile=Path(f"{args.outpath}/bbknn_pca"),
         add_legend=args.legend,
         s=2,
         alpha=1,
@@ -591,9 +586,9 @@ elif args.method=="scanorama":
             n_components = 3 if args.dim_umap > 2 and args.plot_3d is True else 2,
             background_visible=False
         )
-        plt.savefig(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.pdf"))
+        plt.savefig(Path(f"{args.outpath}/{args.prefix}bbknn_umap_{cluster}.pdf"))
         if args.dim_umap > 2 and args.plot_3d:
-            pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
+            pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}bbknn_umap_{cluster}.fig.pickle"), "wb"))
 
     section("Saving data...")
-    adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}integrated.h5ad", compression="gzip")
+    adata.write_h5ad(filename=f"{args.outpath}/{args.prefix}integrated.h5ad", compression="gzip")

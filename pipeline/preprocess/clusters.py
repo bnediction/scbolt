@@ -175,13 +175,8 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-data_outpath = Path(f"{args.outpath}/tables")
-fig_outpath = Path(f"{args.outpath}/figures")
-
-if not data_outpath.exists():
-    os.makedirs(data_outpath)
-if not fig_outpath.exists():
-    os.makedirs(fig_outpath)
+if not args.outpath.exists():
+    os.makedirs(args.outpath)
 
 print(f"Loading data...")
 
@@ -279,9 +274,9 @@ fig, _ = adt.pl.embedding_plot(
     n_components = 3 if args.dim_umap > 2 and args.plot_3d is True else 2,
     background_visible=False
 )
-plt.savefig(Path(f"{fig_outpath}/{args.prefix}umap_leiden.pdf"))
+plt.savefig(Path(f"{args.outpath}/{args.prefix}umap_leiden.pdf"))
 if args.dim_umap > 2 and args.plot_3d:
-    pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}umap_leiden.fig.pickle"), "wb"))
+    pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}umap_leiden.fig.pickle"), "wb"))
 
 fig, _ = adt.pl.embedding_plot(
     adata,
@@ -306,9 +301,9 @@ fig, _ = adt.pl.embedding_plot(
     n_components = 3 if args.dim_umap > 2 and args.plot_3d is True else 2,
     background_visible=False
 )
-plt.savefig(Path(f"{fig_outpath}/{args.prefix}umap_phases.pdf"))
+plt.savefig(Path(f"{args.outpath}/{args.prefix}umap_phases.pdf"))
 if args.dim_umap > 2 and args.plot_3d:
-    pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}umap_phases.fig.pkl"), "wb"))
+    pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}umap_phases.fig.pkl"), "wb"))
 
 for metric in ["total_counts", "pct_counts_mitochondrion"]:
     fig, ax = plt.subplots(nrows=1, ncols=1)
@@ -326,8 +321,8 @@ for metric in ["total_counts", "pct_counts_mitochondrion"]:
     plt.sca(ax)
     ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
     ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-    plt.savefig(f"{fig_outpath}/{args.prefix}umap_{metric}.pdf")
+    plt.savefig(f"{args.outpath}/{args.prefix}umap_{metric}.pdf")
 
 print("Saving data...")
 
-adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}counts.h5ad", compression="gzip")
+adata.write_h5ad(filename=f"{args.outpath}/{args.prefix}counts.h5ad", compression="gzip")
