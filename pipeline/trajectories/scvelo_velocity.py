@@ -107,13 +107,8 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-data_outpath = Path(f"{args.outpath}/tables")
-fig_outpath = Path(f"{args.outpath}/figures")
-
-if not data_outpath.exists():
-    os.makedirs(data_outpath)
-if not fig_outpath.exists():
-    os.makedirs(fig_outpath)
+if not args.outpath.exists():
+    os.makedirs(args.outpath)
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -134,7 +129,7 @@ scv.pl.proportions(
     figsize=(11,5),
     show=False
 )
-plt.savefig(Path(f"{fig_outpath}/proportions.pdf"))
+plt.savefig(Path(f"{args.outpath}/proportions.pdf"))
 plt.close()
 
 print("Computing first- and second-order moments...")
@@ -156,6 +151,8 @@ sc.pp.neighbors(
 with disable_print():
     scv.pp.moments(
         adata,
+        n_pcs=None,
+        n_neighbors=None,
         copy=False
     )
 
@@ -173,8 +170,7 @@ print("Computing velocity graph...")
 with disable_print():
     scv.tl.velocity_graph(
         adata,
-        copy=False,
-        show_progress_bar=False
+        copy=False
     )
 
 print("Computing velocity pseudotime...")
@@ -208,11 +204,11 @@ with disable_print():
     for txt in ax.texts:
         txt.set_visible(False)
 try:
-    plt.savefig(Path(f"{fig_outpath}/trajectories.pdf"))
+    plt.savefig(Path(f"{args.outpath}/trajectories.pdf"))
 except:
-    if os.path.isfile(Path(f"{fig_outpath}/trajectories.pdf")):
-        os.remove(Path(f"{fig_outpath}/trajectories.pdf"))
-    plt.savefig(Path(f"{fig_outpath}/trajectories.png"))
+    if os.path.isfile(Path(f"{args.outpath}/trajectories.pdf")):
+        os.remove(Path(f"{args.outpath}/trajectories.pdf"))
+    plt.savefig(Path(f"{args.outpath}/trajectories.png"))
 plt.close()
 
 fig, _ = adt.pl.embedding_plot(
@@ -242,7 +238,7 @@ fig, _ = adt.pl.embedding_plot(
 with disable_print():
     plt.axis("off")
 fig.set_figwidth(fig.get_figwidth()*1.25)
-plt.savefig(Path(f"{fig_outpath}/velocity_pseudotime.pdf"))
+plt.savefig(Path(f"{args.outpath}/velocity_pseudotime.pdf"))
 plt.close()
 
 fig, ax = adt.pl.embedding_plot(
@@ -282,9 +278,9 @@ ax = adt.pl.draw_paga(
     node_size=100,
     node_color=color_map
 )
-plt.savefig(Path(f"{fig_outpath}/paga.pdf"))
+plt.savefig(Path(f"{args.outpath}/paga.pdf"))
 plt.close()
 
 print("Saving data...")
 
-adata.write_h5ad(filename=f"{data_outpath}/scvelo.h5ad")
+adata.write_h5ad(filename=f"{args.outpath}/scvelo.h5ad")

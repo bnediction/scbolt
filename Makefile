@@ -106,17 +106,17 @@ LABELS_CTRL = $(dir $(CLUSTER_CTRL))counts_labels.h5ad
 LABELS_TREATED = $(dir $(CLUSTER_TREATED))counts_labels.h5ad
 LABELS_INTEGRATED = $(dir $(CLUSTER_INTEGRATED))counts_labels.h5ad
 
-SCVELO_CTRL = $(RNA_CTRL)/scvelo/tables/scvelo.h5ad					# Must contain the parent directory tables/
-SCVELO_TREATED = $(RNA_TREATED)/scvelo/tables/scvelo.h5ad			# Must contain the parent directory tables/
+SCVELO_CTRL = $(RNA_CTRL)/trajectories/scvelo/scvelo.h5ad
+SCVELO_TREATED = $(RNA_TREATED)/trajectories/scvelo/scvelo.h5ad
 
-MACROSTATES_CTRL = $(RNA_CTRL)/macrostates/adata.h5ad				# Must contain the parent directory tables/
-MACROSTATES_TREATED = $(RNA_TREATED)/macrostates/adata.h5ad			# Must contain the parent directory tables/
+PSEUDOTIME_STREAM_CTRL = $(RNA_CTRL)/trajectories/stream/pseudotime/stream.h5ad.pkl
+PSEUDOTIME_STREAM_TREATED = $(RNA_TREATED)/trajectories/stream/pseudotime/stream.h5ad.pkl
 
-PSEUDOTIME_STREAM_CTRL = $(RNA_CTRL)/stream/pseudotime/tables/stream.h5ad.pkl			# Must contain the parent directory tables/
-PSEUDOTIME_STREAM_TREATED = $(RNA_TREATED)/stream/pseudotime/tables/stream.h5ad.pkl		# Must contain the parent directory tables/
+TRAJECTORIES_STREAM_CTRL = $(RNA_CTRL)/trajectories/stream/trajectories/branches.txt
+TRAJECTORIES_STREAM_TREATED = $(RNA_TREATED)/trajectories/stream/trajectories/branches.txt
 
-TRAJECTORIES_STREAM_CTRL = $(RNA_CTRL)/stream/trajectories/branches.txt
-TRAJECTORIES_STREAM_TREATED = $(RNA_TREATED)/stream/trajectories/branches.txt
+MACROSTATES_CTRL = $(RNA_CTRL)/trajectories/macrostates/adata.h5ad					# Must contain the parent directory tables/
+MACROSTATES_TREATED = $(RNA_TREATED)/trajectories/macrostates/adata.h5ad			# Must contain the parent directory tables/
 
 SCBOOLSEQ_CTRL = $(RNA_CTRL)/binarization/cluster_bin_node_clusters.csv
 SCBOOLSEQ_TREATED = $(RNA_TREATED)/binarization/cluster_bin_node_clusters.csv
@@ -203,6 +203,26 @@ ifeq (integrated,$(findstring integrated,$(sample)))
  $(eval label_target := $(label_target) $(LABELS_INTEGRATED))
 endif
 
+ifneq ($(IGNORED_NODES_CTRL),)
+IGNORED_NODES_CTRL:=--ignore-nodes $(IGNORED_NODES_CTRL)
+endif
+
+ifneq ($(IGNORED_NODES_TREATED),)
+IGNORED_NODES_TREATED:=--ignore-nodes $(IGNORED_NODES_TREATED)
+endif
+
+ifeq ($(EXCLUDE_CTRL),true)
+ $(eval EXCLUDE_CTRL := --exclude)
+else
+ $(eval EXCLUDE_CTRL :=)
+endif
+
+ifeq ($(EXCLUDE_TREATED),true)
+ $(eval EXCLUDE_TREATED := --exclude)
+else
+ $(eval EXCLUDE_TREATED :=)
+endif
+
 ##@ Help
 
 .PHONY: help
@@ -271,9 +291,9 @@ cluster-annotation: $(label_target) ## annotate clusters
 ##@ Trajectory analysis
 
 scvelo: $(scvelo_velocity_target) ## compute rna velocity with scvelo
-macrostates: $(macrostates_target) ## compute macrostates with cellrank or center-extremity method
 stream-pseudotime: $(stream_pseudotime_target) ## compute elastic principal graph and pseudotime with stream
 stream-trajectories: $(stream_trajectories_target) ## compute trajectories with stream
+macrostates: $(macrostates_target) ## compute macrostates with cellrank or center-extremity method
 
 ##@ Binarization
 
@@ -717,7 +737,7 @@ endif
 $(SCVELO_CTRL): $(LABELS_CTRL)
 	$(call section,scvelo (control data))
 	$(CONDA_ACTIVATE) scvelo
-	python pipeline/trajectories/scvelo_velocity.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+	python pipeline/trajectories/scvelo_velocity.py $< $(@D) \
 		--cluster leiden \
 		--k-neighbors $(SCVELO_K_NEIGHBORS_CTRL) \
 		--dim-clustering $(SCVELO_DIM_CLUSTERING_CTRL) \
@@ -728,13 +748,53 @@ $(SCVELO_CTRL): $(LABELS_CTRL)
 $(SCVELO_TREATED): $(LABELS_TREATED)
 	$(call section,scvelo (treated data))
 	$(CONDA_ACTIVATE) scvelo
-	python pipeline/trajectories/scvelo_velocity.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
+	python pipeline/trajectories/scvelo_velocity.py $< $(@D) \
 		--cluster leiden \
 		--k-neighbors $(SCVELO_K_NEIGHBORS_TREATED) \
 		--dim-clustering $(SCVELO_DIM_CLUSTERING_TREATED) \
 		--mode $(SMM_MODE_TREATED) \
 		--add-legend
 	$(CONDA_DEACTIVATE)
+
+$(PSEUDOTIME_STREAM_CTRL): $(LABELS_CTRL)
+	$(call section,stream-pseudotime (control data))
+	$(CONDA_ACTIVATE) stream
+	python pipeline/trajectories/stream_pseudotime.py $< $(@D) \
+		--extension both --cluster-number 6 --groups leiden \
+		--lambda $(LAMBDA_CTRL) --mu $(MU_CTRL) --alpha $(ALPHA_CTRL) \
+		--extend-leaf-nodes --extend-mode WeigthedCentroid --extend-parameter $(EXTEND_CTRL) \
+		--add-legend --add-graph \
+		--jobs $(JOBS)
+	$(CONDA_DEACTIVATE)
+
+$(PSEUDOTIME_STREAM_TREATED): $(LABELS_TREATED)
+	$(call section,stream-pseudotime (treated data))
+	$(CONDA_ACTIVATE) stream
+	python pipeline/trajectories/stream_pseudotime.py $< $(@D) \
+		--extension both --cluster-number 6 --groups leiden \
+		--lambda $(LAMBDA_TREATED) --mu $(MU_TREATED) --alpha $(ALPHA_TREATED) \
+		--extend-leaf-nodes --extend-mode WeigthedCentroid --extend-parameter $(EXTEND_TREATED) \
+		--add-legend --add-graph \
+		--jobs $(JOBS)
+	$(CONDA_DEACTIVATE)
+
+$(TRAJECTORIES_STREAM_CTRL): $(PSEUDOTIME_STREAM_CTRL)
+	$(call section,stream-trajectories (control data))
+	@echo -e '$(BOLDGREEN)Warning: root can be modified depending on scvelo and BDC analysis$(NC)'
+	$(CONDA_ACTIVATE) stream
+	python pipeline/trajectories/stream_trajectories.py $< $(@D) --root $(ROOT_CTRL) \
+		--groups leiden kmeans node_clusters \
+		--add-legend --add-graph $(IGNORED_NODES_CTRL)
+	$(CONDA DEACTIVATE)
+
+$(TRAJECTORIES_STREAM_TREATED): $(PSEUDOTIME_STREAM_TREATED)
+	$(call section,stream-trajectories (control data))
+	@echo -e '$(BOLDGREEN)Warning: root can be modified depending on scvelo and BDC analysis$(NC)'
+	$(CONDA_ACTIVATE) stream
+	python pipeline/trajectories/stream_trajectories.py $< $(@D) --root $(ROOT_TREATED) \
+		--groups leiden kmeans node_clusters \
+		--add-legend --add-graph $(IGNORED_NODES_TREATED)
+	$(CONDA DEACTIVATE)
 
 ifeq ($(MACROSTATES_FROM_CELLRANK),true)
 $(MACROSTATES_CTRL): $(SCVELO_CTRL)
@@ -764,8 +824,7 @@ $(MACROSTATES_CTRL): $(SCVELO_CTRL)
 	python pipeline/trajectories/macrostates.py $< $(@D) \
 		--obs leiden --obsm X_umap \
 		--dimension $(DIM_UMAP_CTRL) \
-		--center $(CENTER_CTRL) \
-		--extremity $(EXTREMITY_CTRL) \
+		--center $(CENTER_CTRL) --extremity $(EXTREMITY_CTRL) $(EXCLUDE_CTRL) \
 		--macrostate-size $(MACROSTATE_SIZE) \
 		--plot-3d
 	$(CONDA_DEACTIVATE)
@@ -775,54 +834,11 @@ $(MACROSTATES_TREATED): $(SCVELO_TREATED)
 	python pipeline/trajectories/macrostates.py $< $(@D) \
 		--obs leiden --obsm X_umap \
 		--dimension $(DIM_UMAP_TREATED) \
-		--center $(CENTER_TREATED) \
-		--extremity $(EXTREMITY_TREATED) \
+		--center $(CENTER_TREATED) --extremity $(EXTREMITY_TREATED) $(EXCLUDE_TREATED) \
 		--macrostate-size $(MACROSTATE_SIZE) \
 		--plot-3d
 	$(CONDA_DEACTIVATE)
 endif
-
-$(PSEUDOTIME_STREAM_CTRL): $(LABELS_CTRL)
-	$(call section,stream-pseudotime (control data))
-	$(CONDA_ACTIVATE) stream
-	python pipeline/trajectories/stream_pseudotime.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
-		--extension both --cluster-number 6 --groups leiden \
-		--lambda $(LAMBDA_CTRL) --mu $(MU_CTRL) --alpha $(ALPHA_CTRL) \
-		--extend-leaf-nodes --extend-mode WeigthedCentroid --extend-parameter $(EXTEND_CTRL) \
-		--add-legend --add-graph \
-		--jobs $(JOBS)
-	$(CONDA_DEACTIVATE)
-
-$(PSEUDOTIME_STREAM_TREATED): $(LABELS_TREATED)
-	$(call section,stream-pseudotime (treated data))
-	$(CONDA_ACTIVATE) stream
-	python pipeline/trajectories/stream_pseudotime.py $< $(shell echo $(dir $@) | sed "s/tables\///") \
-		--extension both --cluster-number 6 --groups leiden \
-		--lambda $(LAMBDA_TREATED) --mu $(MU_TREATED) --alpha $(ALPHA_TREATED) \
-		--extend-leaf-nodes --extend-mode WeigthedCentroid --extend-parameter $(EXTEND_TREATED) \
-		--add-legend --add-graph \
-		--jobs $(JOBS)
-	$(CONDA_DEACTIVATE)
-
-$(TRAJECTORIES_STREAM_CTRL): $(PSEUDOTIME_STREAM_CTRL)
-	$(call section,stream-trajectories (control data))
-	@echo -e '$(BOLDGREEN)Warning: root can be modified depending on scvelo and BDC analysis$(NC)'
-	$(CONDA_ACTIVATE) stream
-	python pipeline/trajectories/stream_trajectories.py $< $(@D) --root $(ROOT_CTRL) \
-		--groups leiden kmeans node_clusters \
-		--add-legend --add-graph \
-		--ignore-nodes $(IGNORED_NODES_CTRL)
-	$(CONDA DEACTIVATE)
-
-$(TRAJECTORIES_STREAM_TREATED): $(PSEUDOTIME_STREAM_TREATED)
-	$(call section,stream-trajectories (control data))
-	@echo -e '$(BOLDGREEN)Warning: root can be modified depending on scvelo and BDC analysis$(NC)'
-	$(CONDA_ACTIVATE) stream
-	python pipeline/trajectories/stream_trajectories.py $< $(@D) --root $(ROOT_TREATED) \
-		--groups leiden kmeans node_clusters \
-		--add-legend --add-graph \
-		--ignore-nodes $(IGNORED_NODES_TREATED)
-	$(CONDA DEACTIVATE)
 
 $(SCBOOLSEQ_CTRL): $(PSEUDOTIME_STREAM_CTRL)
 	$(call section,scboolseq (control data))

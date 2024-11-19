@@ -61,10 +61,12 @@ $(eval SMM_MODE_TREATED := dynamical)			# mode used to estimate the steady-state
 $(eval MACROSTATES_FROM_CELLRANK := false)		# true or false
 $(eval MACROSTATE_SIZE := 100)
 
-$(eval CENTER_CTRL := Prom1 Prom2)
+$(eval CENTER_CTRL := Prom2)
 $(eval EXTREMITY_CTRL := Rep Prom3)
-$(eval CENTER_TREATED := Prom1 Prom2)
-$(eval EXTREMITY_TREATED := Gran Rep)
+$(eval EXCLUDE_CTRL := false)
+$(eval CENTER_TREATED := Prom2)
+$(eval EXTREMITY_TREATED := Prom1 Gran)
+$(eval EXCLUDE_TREATED := true)
 
 $(eval CELLRANK_METHOD := stability)			# stability, top_n, eigengap or eigengap_coarse
 $(eval INITIAL_STATES_CTRL := 1)				# number of initial states with cellrank
@@ -85,4 +87,4 @@ MU_TREATED := 0.03
 ALPHA_TREATED := 0.03
 EXTEND_TREATED := 0.8
 ROOT_TREATED := 0
-IGNORED_NODES_TREATED := 
+IGNORED_NODES_TREATED :=

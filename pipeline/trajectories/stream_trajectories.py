@@ -142,8 +142,9 @@ args = parser.parse_args()
 section = Section()
 
 args.root=f"S{args.root}"
-for i in range(len(args.ignore_nodes)):
-    args.ignore_nodes[i] = "S" + args.ignore_nodes[i]
+if args.ignore_nodes:
+    for i in range(len(args.ignore_nodes)):
+        args.ignore_nodes[i] = "S" + args.ignore_nodes[i]
 
 if not args.outpath.exists():
     os.makedirs(args.outpath)

@@ -69,6 +69,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--exclude",
+    dest="exclude",
+    required=False,
+    action="store_true",
+    help="exclude clusters not in `--center` and `--extremity` for computing subclusters with `--extremity`"
+)
+
+parser.add_argument(
     "--obsm",
     dest="obsm",
     type=str,
@@ -120,6 +128,8 @@ adata = sc.read_h5ad(args.infile)
 if args.dimension is None:
     args.dimension = adata.obsm[args.obsm].shape[1]
 
+exclude = set(adata.obs[args.obs].cat.categories).difference(set(args.center).union(set(args.extremity))) if args.exclude is True else None
+
 print(f"Computing macrostates...")
 
 adt.tl.subclusters(
@@ -131,6 +141,7 @@ adt.tl.subclusters(
     n_neighbors=args.macrostate_size,
     include_center=args.center,
     include_extremity=args.extremity,
+    exclude_for_computation=exclude,
     copy=False
 )
 

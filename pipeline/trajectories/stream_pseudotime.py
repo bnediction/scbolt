@@ -282,13 +282,8 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-data_outpath = Path(f"{args.outpath}/tables")
-fig_outpath = Path(f"{args.outpath}/figures")
-
-if not data_outpath.exists():
-    os.makedirs(data_outpath)
-if not fig_outpath.exists():
-    os.makedirs(fig_outpath)
+if not args.outpath.exists():
+    os.makedirs(args.outpath)
 
 groups = set(args.groups)
 
@@ -416,9 +411,9 @@ for _group in groups:
         background_visible=False
     )
     adt.pl.set_default(ax)
-    plt.savefig(f"{fig_outpath}/{args.prefix}{_group}_{adata.uns['dr'].split('_')[-1].lower()}_trajectory_plot")
+    plt.savefig(f"{args.outpath}/{args.prefix}{_group}_{adata.uns['dr'].split('_')[-1].lower()}_trajectory_plot")
     if args.plot_3d is True:
-        pickle.dump(fig, open(Path(f"{fig_outpath}/{args.prefix}{_group}_{adata.uns['dr'].split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))
+        pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}{_group}_{adata.uns['dr'].split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))
     else:
         pass
 
@@ -427,7 +422,7 @@ if args.save_tables:
     print("Saving data...")
 
     if args.extension == "pkl" or args.extension == "both":
-        st.write(adata, file_name=f"{data_outpath}/{args.prefix}stream.h5ad.pkl")
+        st.write(adata, file_name=f"{args.outpath}/{args.prefix}stream.h5ad.pkl")
     if args.extension == "h5ad" or args.extension == "both":
         del adata.uns["workdir"]
         for key in list(adata.obs.keys()):
@@ -438,4 +433,4 @@ if args.save_tables:
                 del adata.uns[key]
             if key.startswith("stream_S"):
                 del adata.uns[key]
-        adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}stream.h5ad", compression="gzip")
+        adata.write_h5ad(filename=f"{args.outpath}/{args.prefix}stream.h5ad", compression="gzip")
