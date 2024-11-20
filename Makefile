@@ -92,8 +92,8 @@ NORMALISATION_CTRL = $(RNA_CTRL)/preprocessing/normalization/corrected.h5ad
 NORMALISATION_TREATED = $(RNA_TREATED)/preprocessing/normalization/corrected.h5ad
 
 CLUSTER_CTRL = $(RNA_CTRL)/clustering/clusters/counts.h5ad
-CLUSTER_TREATED = $(RNA_TREATED)/clustering/clusters/tables/counts.h5ad
-CLUSTER_INTEGRATED = $(RNA_INTEGRATED)/clustering/clusters/tables/integrated.h5ad
+CLUSTER_TREATED = $(RNA_TREATED)/clustering/clusters/counts.h5ad
+CLUSTER_INTEGRATED = $(RNA_INTEGRATED)/clustering/clusters/integrated.h5ad
 
 MARKERS_CTRL = $(RNA_CTRL)/clustering/markers/genes/background.txt
 MARKERS_TREATED = $(RNA_TREATED)/clustering/markers/genes/background.txt
@@ -546,7 +546,7 @@ $(CLUSTER_TREATED): $(NORMALISATION_TREATED)
 $(CLUSTER_INTEGRATED): $(NORMALISATION_CTRL) $(NORMALISATION_TREATED)
 	$(call section,clustering (integrated data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/integration.py $^ $(shell echo $(dir $@) | sed "s/tables\///") \
+	python pipeline/preprocess/integration.py $^ $(@D) \
 		--label condition --method $(INTEGRATION_METHOD) \
 		--hvg --metric euclidean --k-neighbors $(K_NEIGHBORS_INTEGRATED) --resolution $(RESOLUTION_LEIDEN_INTEGRATED) \
 		--dim-pca $(DIM_PCA_INTEGRATED) --dim-clustering $(DIM_CLUSTERING_INTEGRATED) --dim-umap $(DIM_UMAP_INTEGRATED) \
