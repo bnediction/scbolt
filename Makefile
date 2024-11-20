@@ -3,9 +3,10 @@
 .ONESHELL:
 
 MAKEFLAGS += --silent
-CONFIG_FILE = config.mk
+DEFAULT_CONFIG = default_config.mk
+CONFIG = config.mk
 
-include $(CONFIG_FILE)
+include $(DEFAULT_CONFIG) $(CONFIG)
 
 CONDA_ACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
 CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda deactivate ; conda deactivate
@@ -20,6 +21,7 @@ GENOME_URL = ftp://ftp.ensembl.org/pub/release-112/fasta/mus_musculus/dna/Mus_mu
 TRANSCRIPTOME_URL = https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz
 GO_BASIC_URL = http://purl.obolibrary.org/obo/go/go-basic.obo
 GO_MOUSE_URL = https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
+GENE2GO_URL = ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
 
 # colors
 NC = \033[0m
@@ -276,7 +278,7 @@ normalization: $(normalization_target) ## filtering low quality genes and normal
 ##@ Clustering
 
 .PHONY: clustering
-clustering: $(cluster_target) ## perform dimension reduction and cell clustering (and optionally INTEGRATION)
+clustering: $(cluster_target) ## perform dimension reduction and cell clustering (and optionally integration)
 .PHONY: marker-analysis
 marker-analysis: $(markers_target) ## search for gene markers and compare markers and signatures
 .PHONY: goea
@@ -308,10 +310,6 @@ filter-two: $(FILTER1_CTRL) ## filter genes (stage 2) with Bonesis
 inference-sub: $(INFERENCE_SUB_CTRL) ## infer boolean network (subminimal) with Bonesis
 inference-min: $(INFERENCE_MIN_CTRL) ## infer boolean network (minimal) with Bonesis
 
-filter-stage1-ctrl: $(FILTER1_CTRL)
-filter-stage2-ctrl: $(FILTER2_CTRL)
-inference-sub-ctrl: $(INFERENCE_SUB_CTRL)
-inference-min-ctrl: $(INFERENCE_MIN_CTRL)
 # all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
 
 $(GENOME):
@@ -364,7 +362,7 @@ $(GO_MOUSE):
 $(GENE2GO):
 	$(call section,load-gene2go)
 	mkdir -p $(@D)
-	wget --quiet --show-progress --directory-prefix=$(@D) ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
+	wget --quiet --show-progress --directory-prefix=$(@D) $(GENE2GO_URL)
 	gunzip $@.gz
 
 $(FASTQ_CTRL):
@@ -380,6 +378,7 @@ $(FASTQ_CTRL):
 		parallel-fastq-dump --sra-id $${id} --split-files --readids --origfmt --threads $(JOBS) --outdir $${tmp_directory} --gzip
 		$(call fastq_naming,$${tmp_directory},$${id},$${sample_naming},$${lane})
 	done
+	sleep 3
 	mkdir $@
 	mv $${tmp_directory}/* $@/
 	files=$(shopt -s nullglob dotglob; echo $${tmp_directory}/*)
@@ -407,6 +406,7 @@ $(FASTQ_TREATED):
 		parallel-fastq-dump --sra-id $${id} --split-files --readids --origfmt --threads $(JOBS) --outdir $${tmp_directory} --gzip
 		$(call fastq_naming,$${tmp_directory},$${id},$${sample_naming},$${lane})
 	done
+	sleep 3
 	mkdir $@
 	mv $${tmp_directory}/* $@/
 	files=$(shopt -s nullglob dotglob; echo $${tmp_directory}/*)
@@ -694,7 +694,7 @@ ifdef CLUSTER_LABEL_INTEGRATED
 	$(CONDA_DEACTIVATE)
 else
  $(LABELS_INTEGRATED): $(CLUSTER_INTEGRATED)
-	@echo -e '$(BOLDRED)CLUSTER_LABEL_INTEGRATED is not defined. Please define it in the command-line or in $(CONFIG_FILE). Aborting.$(NC)'
+	@echo -e '$(BOLDRED)CLUSTER_LABEL_INTEGRATED is not defined. Please define it in the command-line or in $(CONFIG). Aborting.$(NC)'
 	exit
 endif
 
@@ -726,7 +726,7 @@ $(LABELS_CTRL): $(CLUSTER_CTRL)
 	$(CONDA_DEACTIVATE)
 else
 $(LABELS_CTRL): $(CLUSTER_CTRL)
-	@echo -e '$(BOLDRED)CLUSTER_LABEL_CTRL NOT FOUND. CLUSTER_LABEL_CTRL CAN BE DEFINED IN COMMAND-LINE OR IN $(CONFIG_FILE).$(NC)'
+	@echo -e '$(BOLDRED)CLUSTER_LABEL_CTRL NOT FOUND. CLUSTER_LABEL_CTRL CAN BE DEFINED IN COMMAND-LINE OR IN $(CONFIG).$(NC)'
 	exit
 endif
 ifdef CLUSTER_LABEL_TREATED
@@ -741,7 +741,7 @@ $(LABELS_TREATED): $(CLUSTER_TREATED)
 	$(CONDA_DEACTIVATE)
 else
 $(LABELS_TREATED): $(CLUSTER_TREATED)
-	@echo -e '$(BOLDRED)CLUSTER_LABEL_CTRL NOT FOUND. CLUSTER_LABEL_CTRL CAN BE DEFINED IN COMMAND-LINE OR IN $(CONFIG_FILE).$(NC)'
+	@echo -e '$(BOLDRED)CLUSTER_LABEL_CTRL NOT FOUND. CLUSTER_LABEL_CTRL CAN BE DEFINED IN COMMAND-LINE OR IN $(CONFIG).$(NC)'
 	exit
 endif
 endif
@@ -955,8 +955,6 @@ $(INFERENCE_MIN_CTRL): $(FILTER2_CTRL) $(SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
 		--filter-grn $(firstword $^)
 	$(CONDA_DEACTIVATE)
 
-# 10XGENOMICS_CTRL = $(RNA_CTRL)/raw/matrix.mtx.gz $(RNA_CTRL)/raw/features.tsv.gz $(RNA_CTRL)/raw/barcodes.tsv.gz
-# 10XGENOMICS_TREATED = $(RNA_TREATED)/raw/ra/matrix.mtx.gz $(RNA_TREATED)/raw/ra/features.tsv.gz $(RNA_TREATED)/raw/ra/barcodes.tsv.gz
 # MGI_GAF = $(PUBLIC)/enrichment/mgi.gaf
 # ANNOTATIONS_URL = ftp://ftp.ensembl.org/pub/release-112/gtf/mus_musculus/Mus_musculus.GRCm39.112.chr.gtf.gz
 

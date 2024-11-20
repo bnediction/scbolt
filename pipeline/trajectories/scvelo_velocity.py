@@ -223,7 +223,7 @@ fig, _ = adt.pl.embedding_plot(
     s=4,
     alpha=1,
     lgd_params={
-        "title":"pseudotime",
+        "title":"latent time",
         "ncol":1,
         "markerscale":5,
         "frameon":True,
