@@ -386,6 +386,9 @@ $(FASTQ_CTRL):
 	if ! (( ${#files} ))
 	then
 		rm -rf $${tmp_directory}
+	else
+		@echo -e '$(BOLDRED)FASTQ-DUMP FAILED$(NC)'
+		exit
 	fi
 	unset tmp_directory
 	unset files
@@ -410,6 +413,9 @@ $(FASTQ_TREATED):
 	if ! (( ${#files} ))
 	then
 		rm -rf $${tmp_directory}
+	else
+		@echo -e '$(BOLDRED)FASTQ-DUMP FAILED$(NC)'
+		exit
 	fi
 	unset tmp_directory
 	unset files
@@ -720,7 +726,7 @@ $(LABELS_CTRL): $(CLUSTER_CTRL)
 	$(CONDA_DEACTIVATE)
 else
 $(LABELS_CTRL): $(CLUSTER_CTRL)
-	@echo -e '$(BOLDRED)CLUSTER_LABEL_CTRL is not defined. Please define it in the command-line or in $(CONFIG_FILE). Aborting.$(NC)'
+	@echo -e '$(BOLDRED)CLUSTER_LABEL_CTRL NOT FOUND. CLUSTER_LABEL_CTRL CAN BE DEFINED IN COMMAND-LINE OR IN $(CONFIG_FILE).$(NC)'
 	exit
 endif
 ifdef CLUSTER_LABEL_TREATED
@@ -735,7 +741,7 @@ $(LABELS_TREATED): $(CLUSTER_TREATED)
 	$(CONDA_DEACTIVATE)
 else
 $(LABELS_TREATED): $(CLUSTER_TREATED)
-	@echo -e '$(BOLDRED)CLUSTER_LABEL_TREATED is not defined. Please define it in the command-line or in $(CONFIG_FILE). Aborting.$(NC)'
+	@echo -e '$(BOLDRED)CLUSTER_LABEL_CTRL NOT FOUND. CLUSTER_LABEL_CTRL CAN BE DEFINED IN COMMAND-LINE OR IN $(CONFIG_FILE).$(NC)'
 	exit
 endif
 endif
