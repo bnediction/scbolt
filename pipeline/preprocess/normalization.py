@@ -129,13 +129,8 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-data_outpath = Path(f"{args.outpath}/tables")
-fig_outpath = Path(f"{args.outpath}/figures")
-
-if not data_outpath.exists():
-    os.makedirs(data_outpath)
-if not fig_outpath.exists():
-    os.makedirs(fig_outpath)
+if not args.outpath.exists():
+    os.makedirs(args.outpath)
 
 print(f"Loading data...")
 
@@ -161,7 +156,7 @@ if args.min_cell_expression_proportion:
         edgecolor=color.red
     )
     ax.update({"xmargin": 0.1})
-    plt.savefig(f"{fig_outpath}/gene-number.pdf")
+    plt.savefig(f"{args.outpath}/gene-number.pdf")
 
 adata.layers["raw"] = adata.X.copy()
 
@@ -189,4 +184,4 @@ sc.pp.scale(adata, layer="correct")
 
 print("Saving data...")
 
-adata.write_h5ad(filename=f"{data_outpath}/{args.prefix}corrected.h5ad", compression="gzip")
+adata.write_h5ad(filename=f"{args.outpath}/{args.prefix}corrected.h5ad", compression="gzip")

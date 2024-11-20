@@ -247,7 +247,6 @@ mrproper: ## clear cache and public/private data
 	find . -name "__pycache__" -delete
 	find . -type d -name "cache" -exec rm -rf "{}" \;
 	rm -rf $(RNA)
-	rm -rf $(PUBLIC)/genome
 	find $(PUBLIC)/genome ! -name "repeat_msk.gtf" -exec rm -rf "{}" \;
 	mkdir $(RNA_CTRL) $(RNA_TREATED) $(RNA_INTEGRATED)
 
@@ -373,7 +372,7 @@ $(FASTQ_CTRL):
 	$(CONDA_ACTIVATE) fastq-dump
 	sample_naming="ctrl"
 	lane=0
-	tmp_directory=/tmp/fastq-ctrl
+	tmp_directory=tmp/fastq-ctrl
 	rm -rf $${tmp_directory} && mkdir $${tmp_directory}
 	for id in $(SRA_CTRL)
 	do
@@ -391,7 +390,7 @@ $(FASTQ_TREATED):
 	$(CONDA_ACTIVATE) fastq-dump
 	sample_naming="treated"
 	lane=0
-	tmp_directory=/tmp/fastq-treated
+	tmp_directory=tmp/fastq-treated
 	rm -rf $${tmp_directory} && mkdir $${tmp_directory}
 	for id in $(SRA_TREATED)
 	do
