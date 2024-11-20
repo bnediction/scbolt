@@ -382,7 +382,13 @@ $(FASTQ_CTRL):
 	done
 	mkdir $@
 	mv $${tmp_directory}/* $@/
-	rm -rf $${tmp_directory}
+	files=$(shopt -s nullglob dotglob; echo $${tmp_directory}/*)
+	if ! (( ${#files} ))
+	then
+		rm -rf $${tmp_directory}
+	fi
+	unset tmp_directory
+	unset files
 	$(CONDA_DEACTIVATE)
 
 $(FASTQ_TREATED):
@@ -400,7 +406,13 @@ $(FASTQ_TREATED):
 	done
 	mkdir $@
 	mv $${tmp_directory}/* $@/
-	rm -rf $${tmp_directory}
+	files=$(shopt -s nullglob dotglob; echo $${tmp_directory}/*)
+	if ! (( ${#files} ))
+	then
+		rm -rf $${tmp_directory}
+	fi
+	unset tmp_directory
+	unset files
 	$(CONDA_DEACTIVATE)
 
 $(CELLRANGER_CTRL): $(FASTQ_CTRL) $(TRANSCRIPTOME)
