@@ -354,7 +354,7 @@ for _group in args.groupby:
         print(f"\tcomputation for cluster `{_group}`")
     _cell_df = merge(
         cell_df,
-        adata.obs.loc[:,_group],
+        adata.obs.loc[:,_group].astype("category"),
         left_index=True,
         right_index=True,
         how="inner"
