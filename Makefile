@@ -119,11 +119,14 @@ PSEUDOTIME_STREAM_TREATED = $(RNA_TREATED)/trajectories/stream/pseudotime/stream
 TRAJECTORIES_STREAM_CTRL = $(RNA_CTRL)/trajectories/stream/trajectories/branches.txt
 TRAJECTORIES_STREAM_TREATED = $(RNA_TREATED)/trajectories/stream/trajectories/branches.txt
 
+TRAJECTORIES_MACROSTATES_CTRL = $(RNA_CTRL)/trajectories/macrostates/trajectories.txt
+TRAJECTORIES_MACROSTATES_TREATED = $(RNA_TREATED)/trajectories/macrostates/trajectories.txt
+
 MACROSTATES_CTRL = $(RNA_CTRL)/trajectories/macrostates/adata.h5ad
 MACROSTATES_TREATED = $(RNA_TREATED)/trajectories/macrostates/adata.h5ad
 
-SCBOOLSEQ_CTRL = $(RNA_CTRL)/binarization/cluster_bin_node_clusters.csv
-SCBOOLSEQ_TREATED = $(RNA_TREATED)/binarization/cluster_bin_node_clusters.csv
+SCBOOLSEQ_CTRL = $(RNA_CTRL)/binarization/cluster_bin_macrostates.csv
+SCBOOLSEQ_TREATED = $(RNA_TREATED)/binarization/cluster_bin_macrostates.csv
 
 BDC_CTRL = $(RNA_CTRL)/binarization/pairwise_predecessor_scores.csv
 BDC_TREATED = $(RNA_TREATED)/binarization/pairwise_predecessor_scores.csv
@@ -856,7 +859,7 @@ $(SCBOOLSEQ_CTRL): $(MACROSTATES_CTRL)
 	$(call section,scboolseq (control data))
 	$(CONDA_ACTIVATE) scboolseq
 	python pipeline/binarization/bin_clusters.py $< $(dir $@) \
-		--cluster macrostates --exclude nan \
+		--cluster leiden macrostates --exclude nan \
 		--layer log-normalize --hvg \
 		--verbose
 	$(CONDA DEACTIVATE)
@@ -865,7 +868,7 @@ $(SCBOOLSEQ_TREATED): $(MACROSTATES_TREATED)
 	$(call section,scboolseq (control data))
 	$(CONDA_ACTIVATE) scboolseq
 	python pipeline/binarization/bin_clusters.py $< $(dir $@) \
-		--cluster macrostates --exclude nan \
+		--cluster leiden macrostates --exclude nan \
 		--layer log-normalize --hvg \
 		--verbose
 	$(CONDA DEACTIVATE)
@@ -882,12 +885,12 @@ $(BDC_TREATED): $(SCBOOLSEQ_TREATED)
 	python pipeline/binarization/differential_analysis.py $< $(@D) --verbose
 	$(CONDA DEACTIVATE)
 
-$(MODEL_SPECIFICATION_CTRL): $(TRAJECTORIES_STREAM_CTRL)
+$(MODEL_SPECIFICATION_CTRL): $(TRAJECTORIES_MACROSTATES_CTRL)
 	$(call section,model-specification (control data))
 	mkdir -p $(@D)
 	python3 pipeline/bonesis/design_bo.py $< > $@
 
-$(MODEL_SPECIFICATION_TREATED): $(TRAJECTORIES_STREAM_TREATED)
+$(MODEL_SPECIFICATION_TREATED): $(TRAJECTORIES_MACROSTATES_TREATED)
 	$(call section,model-specification (treated data))
 	mkdir -p $(@D)
 	python3 pipeline/bonesis/design_bo.py $< > $@
