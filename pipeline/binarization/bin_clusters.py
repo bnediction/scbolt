@@ -170,7 +170,7 @@ def cell_to_cluster_binarization(
         return series
 
     iterables = (
-        sorted(obs_df.loc[:,group].unique()),
+        sorted(obs_df.loc[:,group].cat.categories),
         [float(0), float(1), np.nan]
     )
     group_df = DataFrame(index=MultiIndex.from_product(iterables, names=[group, "value"]))

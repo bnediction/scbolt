@@ -10,15 +10,15 @@ $(eval METADATA_TREATED := age=adult date=29-09-2020 sample_name=treated conditi
 
 ## cluster labels ##
 
-# $(eval CLUSTER_LABEL_CTRL := 0=Prom1 1=Prom2 2=Trans 3=Rep 4=Prom3 5=Gran)		# depends on the marker, signature and goea analysis if not well-characterized
-# $(eval CLUSTER_LABEL_TREATED := 0=Trans 1=Prom1 2=Unknown 3=Rep 4=Gran 5=Rep)		# depends on the marker, signature and goea analysis if not well-characterized
-$(eval CLUSTER_LABEL_INTEGRATED := 0=Prom2 1=Rep 2=Prom1 3=Gran 4=Prom3)		 	# depends on the marker, signature and goea analysis if not well-characterized
+# $(eval CLUSTER_LABEL_CTRL := 0=Prom1 1=Prom2 2=Trans 3=Rep 4=Prom3 5=Gran)		    # depends on the marker, signature and goea analysis if not well-characterized
+# $(eval CLUSTER_LABEL_TREATED := 0=Trans 1=Prom1 2=Unknown 3=Rep 4=Gran 5=Rep)		    # depends on the marker, signature and goea analysis if not well-characterized
+$(eval CLUSTER_LABEL_INTEGRATED := 0=Rep 1=Prom1 2=Prom2 3=Gran1 4=Gran2 5=Prom3)		# depends on the marker, signature and goea analysis if not well-characterized
 
-$(eval CENTER_CTRL := Prom2)
+$(eval CENTER_CTRL := Prom1 Prom2)
 $(eval EXTREMITY_CTRL := Rep Prom3)
-$(eval EXCLUDE_CTRL := false)
-$(eval CENTER_TREATED := Prom2)
-$(eval EXTREMITY_TREATED := Prom1 Gran)
+$(eval EXCLUDE_CTRL := true)
+$(eval CENTER_TREATED := Prom1 Prom2)
+$(eval EXTREMITY_TREATED := Rep Gran2)
 $(eval EXCLUDE_TREATED := true)
 
 ## others parameters ##

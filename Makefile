@@ -690,7 +690,7 @@ ifdef CLUSTER_LABEL_INTEGRATED
 		--column leiden \
 		--name $(CLUSTER_LABEL_INTEGRATED)
 	python figures/plot_embedding.py figures/umap_labels.json \
-		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
+		--infile $@ --outfile $(@D)/umap_labels.pdf
 	$(CONDA_DEACTIVATE)
 else
  $(LABELS_INTEGRATED): $(CLUSTER_INTEGRATED)
@@ -704,14 +704,14 @@ $(LABELS_CTRL): $(LABELS_INTEGRATED) $(CLUSTER_CTRL)
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/pipe.py $^ --outfiles $@ --column leiden --condition condition
 	python figures/plot_embedding.py figures/umap_labels.json \
-		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
+		--infile $@ --outfile $(@D)/umap_labels.pdf
 	$(CONDA_DEACTIVATE)
 $(LABELS_TREATED): $(LABELS_INTEGRATED) $(CLUSTER_TREATED)
 	$(call section,cluster-annotation (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/pipe.py $^ --outfiles $@ --column leiden --condition condition
 	python figures/plot_embedding.py figures/umap_labels.json \
-		--infile $@ --outfile $(shell echo $(dir $@) | sed "s/tables/figures\/umap_labels/")
+		--infile $@ --outfile $(@D)/umap_labels.pdf
 	$(CONDA_DEACTIVATE)
 else
 ifdef CLUSTER_LABEL_CTRL
@@ -852,20 +852,20 @@ $(MACROSTATES_TREATED): $(SCVELO_TREATED)
 	$(CONDA_DEACTIVATE)
 endif
 
-$(SCBOOLSEQ_CTRL): $(PSEUDOTIME_STREAM_CTRL)
+$(SCBOOLSEQ_CTRL): $(MACROSTATES_CTRL)
 	$(call section,scboolseq (control data))
 	$(CONDA_ACTIVATE) scboolseq
-	python pipeline/binarization/bin_clusters.py $(shell echo $< | sed "s/.pkl//") $(dir $@) \
-		--cluster leiden node_clusters --exclude nan \
+	python pipeline/binarization/bin_clusters.py $< $(dir $@) \
+		--cluster macrostates --exclude nan \
 		--layer log-normalize --hvg \
 		--verbose
 	$(CONDA DEACTIVATE)
 
-$(SCBOOLSEQ_TREATED): $(PSEUDOTIME_STREAM_TREATED)
+$(SCBOOLSEQ_TREATED): $(MACROSTATES_TREATED)
 	$(call section,scboolseq (control data))
 	$(CONDA_ACTIVATE) scboolseq
-	python pipeline/binarization/bin_clusters.py $(shell echo $< | sed "s/.pkl//") $(dir $@) \
-		--cluster leiden node_clusters --exclude nan \
+	python pipeline/binarization/bin_clusters.py $< $(dir $@) \
+		--cluster macrostates --exclude nan \
 		--layer log-normalize --hvg \
 		--verbose
 	$(CONDA DEACTIVATE)
