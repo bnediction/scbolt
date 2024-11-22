@@ -14,14 +14,24 @@ import networkx as nx
 import bonesis
 from bonesis.asp_encoding import clingo_encode
 
-from plzf_rara_model import (
-    important_nodes,
+from bonesis_model import (
     bomodel,
     load_bin
 )
 
 from databases.collectri import load_grn
 from databases.genesyn import GeneSynonyms
+
+def write_solution(solution, name):
+    f = solution[1]
+    f.save(f"{name}.bn")
+    df = pd.DataFrame(solution[2])
+    df.to_csv(f"{name}.csv")
+    noi = set(f) - set(f.constants())
+    with open(f"{name}.noi.txt", "w") as fp:
+        fp.write("".join([f"{n}\n" for n in noi]))
+    ig = f.influence_graph()
+    nx.drawing.nx_pydot.write_dot(ig, f"{name}.dot")
 
 parser = ArgumentParser(
     prog="Boolean network inference",
@@ -32,8 +42,8 @@ parser = ArgumentParser(
 
 parser.add_argument(
     "action",
-    metavar="[filter_stage1 | filter_stage2 | one | one-min | one-sub]",
-    choices=["filter_stage1", "filter_stage2", "one", "one-min", "one-sub"]
+    metavar="[filter-stage1 | filter-stage2 | one | one-min | one-sub]",
+    choices=["filter-stage1", "filter-stage2", "one", "one-min", "one-sub"]
 )
 
 parser.add_argument(
@@ -89,6 +99,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--important-nodes",
+    dest="important_nodes",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    metavar="PATH",
+    help="file containing important nodes"
+)
+
+parser.add_argument(
     "--maximize-important-nodes",
     dest="maximize_important_nodes",
     required=False,
@@ -125,7 +144,7 @@ pkn_options = {
 }
 if args.action.startswith("filter"):
     pkn_options["canonic"] = False
-if args.action == "filter_stage1":
+if args.action == "filter-stage1":
     pkn_options["allow_skipping_nodes"] = True
 
 gene_synonyms = GeneSynonyms()
@@ -145,7 +164,13 @@ pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
 bo = bonesis.BoNesis(pkn, meta_bin)
 bomodel(bo, args.model_specification)
 
-if args.action == "filter_stage1":
+if args.important_nodes:
+    with open(args.important_nodes) as file:
+            important_nodes = [line.rstrip() for line in file]
+    important_nodes = gene_synonyms.sequence_standardization(important_nodes)
+
+if args.action == "filter-stage1":
+    
     bo.maximize_nodes()
     if args.force_nodes:
         with open(args.force_nodes) as fp:
@@ -161,45 +186,37 @@ if args.action == "filter_stage1":
         bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
 
     def interm_solution(nodes):
-        with open(f"{args.outpath}/filter_stage1-last-model.json", "w") as fp:
+        with open(f"{args.outpath}/filter-stage1-last-model.json", "w") as fp:
             json.dump(list(sorted(nodes)), fp, indent=2)
 
     clingo_opt_strategy = args.clingo_opt_strategy or "bb,dec"
     view = bonesis.NodesView(bo, mode="optN", progress=tqdm,
                                 intermediate_model_cb=interm_solution,
                                 clingo_opt_strategy=clingo_opt_strategy)
-    view.standalone(output_filename=f"{args.outpath}/filter_stage1.sh")
+    view.standalone(output_filename=f"{args.outpath}/filter-stage1.sh")
     solution = next(iter(view))
     for node in solution:
         print(node)
 
-if args.action == "filter_stage2":
+elif args.action == "filter-stage2":
+    
     bo.maximize_strong_constants()
     view = bonesis.NonStrongConstantNodesView(bo, mode="optN",
                                   clingo_opt_strategy="usc",
                                   clingo_options=["--opt-usc-shrink=inv"])
-    view.standalone(output_filename=f"{args.outpath}/filter_stage2.sh")
+    view.standalone(output_filename=f"{args.outpath}/filter-stage2.sh")
     solution = next(iter(view))
     for node in solution:
         print(node)
 
-def write_solution(solution, name):
-    f = solution[1]
-    f.save(f"{name}.bn")
-    df = pd.DataFrame(solution[2])
-    df.to_csv(f"{name}.csv")
-    noi = set(f) - set(f.constants())
-    with open(f"{name}.noi.txt", "w") as fp:
-        fp.write("".join([f"{n}\n" for n in noi]))
-    ig = f.influence_graph()
-    nx.drawing.nx_pydot.write_dot(ig, f"{name}.dot")
-
-if args.action == "one":
+elif args.action == "one":
+    
     view = bonesis.InfluenceGraphView(bo, extra=("boolean-network", "configurations"))
     solution = next(iter(view))
     write_solution(solution, f"{args.outpath}/bn-1")
 
-if args.action == "one-min":
+elif args.action == "one-min":
+    
     bo.custom("edge(A,B) :- clause(B,_,A,_). #minimize { 1@1,A,B: edge(A,B) }.")
     bo.custom("#maximize { 1@10,N: constant(N) }.")
     view = bonesis.InfluenceGraphView(bo, mode="optN", clingo_opt_strategy="usc",
@@ -210,7 +227,8 @@ if args.action == "one-min":
     solution = next(iter(view))
     write_solution(solution, "min-1")
 
-if args.action == "one-sub":
+elif args.action == "one-sub":
+    
     view = bonesis.InfluenceGraphView(bo, solutions="subset-minimal", extra=("boolean-network", "configurations"))
     view.standalone(output_filename=f"{args.outpath}/one-sub.sh")
     solution = next(iter(view))

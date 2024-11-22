@@ -134,8 +134,9 @@ BDC_TREATED = $(RNA_TREATED)/binarization/pairwise_predecessor_scores.csv
 MODEL_SPECIFICATION_CTRL = $(RNA_CTRL)/bonesis/specification_model.txt
 MODEL_SPECIFICATION_TREATED = $(RNA_TREATED)/bonesis/specification_model.txt
 
-FILTER1_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage1.txt
-FILTER2_CTRL = $(RNA_CTRL)/bonesis/ct/bootstrap_filter_grn_stage2.txt
+BONESIS_FILTER1_CTRL = $(RNA_CTRL)/bonesis/filtering/bootstrap_filter_grn_stage1.txt
+FILTER2_CTRL = $(RNA_CTRL)/bonesis/filtering/bootstrap_filter_grn_stage2.txt
+
 INFERENCE_SUB_CTRL = $(RNA_CTRL)/bonesis/ct/sub.bn
 INFERENCE_MIN_CTRL = $(RNA_CTRL)/bonesis/ct/min.bn
 
@@ -157,6 +158,7 @@ stream_trajectories_target :=
 scboolseq_target :=
 bdc_target :=
 model_specification_target :=
+bonesis_filter1_target :=
 
 ifeq (control,$(findstring control,$(sample)))
  $(eval fastq_target := $(fastq_target) $(FASTQ_CTRL))
@@ -175,6 +177,7 @@ ifeq (control,$(findstring control,$(sample)))
  $(eval scboolseq_target := $(scboolseq_target) $(SCBOOLSEQ_CTRL))
  $(eval bdc_target := $(bdc_target) $(BDC_CTRL))
  $(eval model_specification_target := $(model_specification_target) $(MODEL_SPECIFICATION_CTRL))
+ $(eval bonesis_filter1_target := $(bonesis_filter1_target) $(BONESIS_FILTER1_CTRL))
 endif
 ifeq (treated,$(findstring treated,$(sample)))
  $(eval fastq_target := $(fastq_target) $(FASTQ_TREATED))
@@ -193,6 +196,7 @@ ifeq (treated,$(findstring treated,$(sample)))
  $(eval scboolseq_target := $(scboolseq_target) $(SCBOOLSEQ_TREATED))
  $(eval bdc_target := $(bdc_target) $(BDC_TREATED))
  $(eval model_specification_target := $(model_specification_target) $(MODEL_SPECIFICATION_TREATED))
+ $(eval bonesis_filter1_target := $(bonesis_filter1_target) $(BONESIS_FILTER1_TREATED))
 endif
 ifeq (integrated,$(findstring integrated,$(sample)))
  $(eval fastq_target := $(FASTQ_CTRL) $(FASTQ_TREATED))
@@ -204,6 +208,7 @@ ifeq (integrated,$(findstring integrated,$(sample)))
  $(eval markers_target := $(markers_target) $(MARKERS_INTEGRATED))
  $(eval goea_target := $(goea_target) $(GOEA_BASIC_INTEGRATED) $(GOEA_MOUSE_INTEGRATED))
  $(eval label_target := $(label_target) $(LABELS_INTEGRATED))
+ $(eval bonesis_filter1_target := $(bonesis_filter1_target) $(BONESIS_FILTER1_INTEGRATED))
 endif
 
 ifneq ($(IGNORED_NODES_CTRL),)
@@ -308,7 +313,7 @@ bdc: $(bdc_target) ## perform boolean differential calculus analysis
 ##@ Boolean inference
 
 model-specification: $(model_specification_target) ## specify model for bonesis
-filter-one: $(FILTER1_CTRL) ## filter genes (stage 1) with Bonesis
+bonesis-filter-one: $(bonesis_filter1_target) ## filter genes (stage 1) with Bonesis
 filter-two: $(FILTER1_CTRL) ## filter genes (stage 2) with Bonesis
 inference-sub: $(INFERENCE_SUB_CTRL) ## infer boolean network (subminimal) with Bonesis
 inference-min: $(INFERENCE_MIN_CTRL) ## infer boolean network (minimal) with Bonesis
@@ -888,12 +893,23 @@ $(BDC_TREATED): $(SCBOOLSEQ_TREATED)
 $(MODEL_SPECIFICATION_CTRL): $(TRAJECTORIES_MACROSTATES_CTRL)
 	$(call section,model-specification (control data))
 	mkdir -p $(@D)
-	python3 pipeline/bonesis/design_bo.py $< > $@
+	python3 pipeline/bonesis/bonesis_specification.py $< > $@
 
 $(MODEL_SPECIFICATION_TREATED): $(TRAJECTORIES_MACROSTATES_TREATED)
 	$(call section,model-specification (treated data))
 	mkdir -p $(@D)
-	python3 pipeline/bonesis/design_bo.py $< > $@
+	python3 pipeline/bonesis/bonesis_specification.py $< > $@
+
+$(BONESIS_FILTER1_CTRL): $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
+	$(call section,Bonesis filtering (control data, stage 1))
+	$(CONDA_ACTIVATE) bonesis
+	mkdir -p $(@D)
+	python pipeline/bonesis/infer_bo.py filter-stage1 $(@D) \
+		--organism $(ORGANISM) \
+		--model-specification $(firstword $^) \
+		--bin-metastates $(lastword $^) \
+		> $@
+	$(CONDA_DEACTIVATE)
 
 #$(10XGENOMICS_CTRL):
 #	$(call section,download 10X genomics data (control data))

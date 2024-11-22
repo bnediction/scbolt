@@ -19,7 +19,7 @@ install_env() {
             if [[ "$1" == bonesis ]];
             then
                 conda activate $1
-                pip install git+https://github.com/bnediction/bonesis.git@6fb47aad96bd2d07ba3c137842d632bc2c783712
+                pip install git+https://github.com/bnediction/bonesis.git@a40e7b49274b19aca3eeccb6e468f765153bc53f
                 conda deactivate;
             fi
             if [[ "$1" == scvelo ]];
