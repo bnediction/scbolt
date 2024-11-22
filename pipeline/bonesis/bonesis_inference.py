@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import sys
+import os
 import json
 from pathlib import Path
 from argparse import ArgumentParser
@@ -135,6 +136,9 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+
+if not args.outpath.exists():
+    os.makedirs(args.outpath)
 
 bonesis.settings["quiet"] = not args.verbose
 

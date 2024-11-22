@@ -259,3 +259,18 @@ make -f Makefile all
 ### End workflow
 
 conda deactivate
+
+# MGI_GAF = $(PUBLIC)/enrichment/mgi.gaf
+# ANNOTATIONS_URL = ftp://ftp.ensembl.org/pub/release-112/gtf/mus_musculus/Mus_musculus.GRCm39.112.chr.gtf.gz
+
+#$(ANNOTATIONS):
+#	$(call section, load-annotations)
+#	mkdir -p $(@D)
+#	wget --quiet --show-progress --directory-prefix=$(@D) $(ANNOTATIONS_URL)
+#	gunzip $@.gz
+
+#$(MGI_GAF):
+#	$(call section,download mgi.gaf file)
+#	mkdir -p $(@D)
+#	wget --quiet --show-progress --directory-prefix=$(@D) https://current.geneontology.org/annotations/mgi.gaf.gz
+#	gunzip $@.gz
