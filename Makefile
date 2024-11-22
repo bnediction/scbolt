@@ -135,7 +135,12 @@ MODEL_SPECIFICATION_CTRL = $(RNA_CTRL)/bonesis/specification_model.txt
 MODEL_SPECIFICATION_TREATED = $(RNA_TREATED)/bonesis/specification_model.txt
 
 BONESIS_FILTER1_CTRL = $(RNA_CTRL)/bonesis/filtering/bootstrap_filter_grn_stage1.txt
-FILTER2_CTRL = $(RNA_CTRL)/bonesis/filtering/bootstrap_filter_grn_stage2.txt
+BONESIS_FILTER1_TREATED = $(RNA_TREATED)/bonesis/filtering/bootstrap_filter_grn_stage1.txt
+BONESIS_FILTER1_INTEGRATED = $(RNA_INTEGRATED)/bonesis/filtering/bootstrap_filter_grn_stage1.txt
+
+BONESIS_FILTER2_CTRL = $(RNA_CTRL)/bonesis/filtering/bootstrap_filter_grn_stage2.txt
+BONESIS_FILTER2_TREATED = $(RNA_TREATED)/bonesis/filtering/bootstrap_filter_grn_stage2.txt
+BONESIS_FILTER2_INTEGRATED = $(RNA_INTEGRATED)/bonesis/filtering/bootstrap_filter_grn_stage2.txt
 
 INFERENCE_SUB_CTRL = $(RNA_CTRL)/bonesis/ct/sub.bn
 INFERENCE_MIN_CTRL = $(RNA_CTRL)/bonesis/ct/min.bn
@@ -159,6 +164,7 @@ scboolseq_target :=
 bdc_target :=
 model_specification_target :=
 bonesis_filter1_target :=
+bonesis_filter2_target :=
 
 ifeq (control,$(findstring control,$(sample)))
  $(eval fastq_target := $(fastq_target) $(FASTQ_CTRL))
@@ -178,6 +184,7 @@ ifeq (control,$(findstring control,$(sample)))
  $(eval bdc_target := $(bdc_target) $(BDC_CTRL))
  $(eval model_specification_target := $(model_specification_target) $(MODEL_SPECIFICATION_CTRL))
  $(eval bonesis_filter1_target := $(bonesis_filter1_target) $(BONESIS_FILTER1_CTRL))
+ $(eval bonesis_filter2_target := $(bonesis_filter2_target) $(BONESIS_FILTER2_CTRL))
 endif
 ifeq (treated,$(findstring treated,$(sample)))
  $(eval fastq_target := $(fastq_target) $(FASTQ_TREATED))
@@ -197,6 +204,7 @@ ifeq (treated,$(findstring treated,$(sample)))
  $(eval bdc_target := $(bdc_target) $(BDC_TREATED))
  $(eval model_specification_target := $(model_specification_target) $(MODEL_SPECIFICATION_TREATED))
  $(eval bonesis_filter1_target := $(bonesis_filter1_target) $(BONESIS_FILTER1_TREATED))
+ $(eval bonesis_filter2_target := $(bonesis_filter2_target) $(BONESIS_FILTER2_TREATED))
 endif
 ifeq (integrated,$(findstring integrated,$(sample)))
  $(eval fastq_target := $(FASTQ_CTRL) $(FASTQ_TREATED))
@@ -209,6 +217,7 @@ ifeq (integrated,$(findstring integrated,$(sample)))
  $(eval goea_target := $(goea_target) $(GOEA_BASIC_INTEGRATED) $(GOEA_MOUSE_INTEGRATED))
  $(eval label_target := $(label_target) $(LABELS_INTEGRATED))
  $(eval bonesis_filter1_target := $(bonesis_filter1_target) $(BONESIS_FILTER1_INTEGRATED))
+ $(eval bonesis_filter2_target := $(bonesis_filter2_target) $(BONESIS_FILTER2_INTEGRATED))
 endif
 
 ifneq ($(IGNORED_NODES_CTRL),)
@@ -314,6 +323,8 @@ bdc: $(bdc_target) ## perform boolean differential calculus analysis
 
 model-specification: $(model_specification_target) ## specify model for bonesis
 bonesis-filter-one: $(bonesis_filter1_target) ## filter genes (stage 1) with Bonesis
+bonesis-filter-two: $(bonesis_filter2_target) ## filter genes (stage 2) with Bonesis
+
 filter-two: $(FILTER1_CTRL) ## filter genes (stage 2) with Bonesis
 inference-sub: $(INFERENCE_SUB_CTRL) ## infer boolean network (subminimal) with Bonesis
 inference-min: $(INFERENCE_MIN_CTRL) ## infer boolean network (minimal) with Bonesis
@@ -904,11 +915,42 @@ $(BONESIS_FILTER1_CTRL): $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
 	$(call section,Bonesis filtering (control data, stage 1))
 	$(CONDA_ACTIVATE) bonesis
 	mkdir -p $(@D)
-	python pipeline/bonesis/infer_bo.py filter-stage1 $(@D) \
+	python pipeline/bonesis/bonesis_inference.py filter-stage1 $(@D) \
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(lastword $^) \
 		> $@
+	$(CONDA_DEACTIVATE)
+
+$(BONESIS_FILTER1_TREATED): $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_TREATED)
+	$(call section,Bonesis filtering (treated data, stage 1))
+	$(CONDA_ACTIVATE) bonesis
+	mkdir -p $(@D)
+	python pipeline/bonesis/bonesis_inference.py filter-stage1 $(@D) \
+		--organism $(ORGANISM) \
+		--model-specification $(firstword $^) \
+		--bin-metastates $(lastword $^) \
+		> $@
+	$(CONDA_DEACTIVATE)
+
+$(BONESIS_FILTER2_CTRL): $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL) $(BONESIS_FILTER1_CTRL) 
+	$(call section,Bonesis filtering (control data, stage 2))
+	$(CONDA_ACTIVATE) bonesis
+	python pipeline/bonesis/bonesis_inference.py filter-stage2 $(@D) \
+		--organism $(ORGANISM) \
+		--model-specification $(firstword $^) \
+		--bin-metastates $(word 2, $^) \
+  		--filter-grn $(lastword $^) > $@
+	$(CONDA_DEACTIVATE)
+
+$(BONESIS_FILTER2_TREATED): $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_TREATED) $(BONESIS_FILTER1_TREATED) 
+	$(call section,Bonesis filtering (treated data, stage 2))
+	$(CONDA_ACTIVATE) bonesis
+	python pipeline/bonesis/bonesis_inference.py filter-stage2 $(@D) \
+		--organism $(ORGANISM) \
+		--model-specification $(firstword $^) \
+		--bin-metastates $(word 2, $^) \
+  		--filter-grn $(lastword $^) > $@
 	$(CONDA_DEACTIVATE)
 
 #$(10XGENOMICS_CTRL):
@@ -921,28 +963,6 @@ $(BONESIS_FILTER1_CTRL): $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
 #	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_CTRL))
 #	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_CTRL))
 
-#$(10XGENOMICS_TREATED):
-#	$(call section,download 10X genomics data (treated data))
-#	mkdir -p $(@D)
-#	wget --quiet --show-progress --recursive --no-parent -nd --reject "index.html" \
-#		--directory-prefix=$(@D) \
-#		ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5492nnn/GSM5492246/suppl/
-#	mv $(@D)/*matrix.mtx.gz $(word 1,$(10XGENOMICS_TREATED))
-#	mv $(@D)/*genes.tsv.gz $(word 2,$(10XGENOMICS_TREATED))
-#	mv $(@D)/*barcodes.tsv.gz $(word 3,$(10XGENOMICS_TREATED))
-
-
-
-$(FILTER1_CTRL): $(SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
-	$(call section,Bonesis filtering (control data, stage 1))
-	$(CONDA_ACTIVATE) bonesis
-	mkdir -p $(@D)
-	python pipeline/bonesis/infer_bo.py filter_stage1 $(dir $<) \
-		--organism $(ORGANISM) \
-		--bin-metastates $(lastword $^) \
-  		--model-specification $(firstword $^) > $@
-	$(CONDA_DEACTIVATE)
-
 $(FILTER2_CTRL): $(FILTER1_CTRL) $(SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
 	$(call section,Bonesis filtering (control data, stage 2))
 	$(CONDA_ACTIVATE) bonesis
@@ -953,7 +973,7 @@ $(FILTER2_CTRL): $(FILTER1_CTRL) $(SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
   		--filter-grn $(firstword $^) > $@
 	$(CONDA_DEACTIVATE)
 
-$(INFERENCE_SUB_CTRL): $(FILTER2_CTRL) $(SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
+$(INFERENCE_SUB_CTRL): $(FILTER2_CTRL) $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
 	$(call section,Bonesis inference (control data, one-sub))
 	$(CONDA_ACTIVATE) bonesis
 	mkdir -p $(@D)
@@ -964,7 +984,7 @@ $(INFERENCE_SUB_CTRL): $(FILTER2_CTRL) $(SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
 		--filter-grn $(firstword $^)
 	$(CONDA_DEACTIVATE)
 
-$(INFERENCE_MIN_CTRL): $(FILTER2_CTRL) $(SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
+$(INFERENCE_MIN_CTRL): $(FILTER2_CTRL) $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
 	$(call section,Bonesis inference (control data, one-min))
 	$(CONDA_ACTIVATE) bonesis
 	mkdir -p $(@D)

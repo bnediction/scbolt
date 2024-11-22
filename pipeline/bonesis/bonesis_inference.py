@@ -186,7 +186,7 @@ if args.action == "filter-stage1":
         bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
 
     def interm_solution(nodes):
-        with open(f"{args.outpath}/filter-stage1-last-model.json", "w") as fp:
+        with open(f"{args.outpath}/filter-stage1.json", "w") as fp:
             json.dump(list(sorted(nodes)), fp, indent=2)
 
     clingo_opt_strategy = args.clingo_opt_strategy or "bb,dec"
