@@ -229,7 +229,7 @@ elif args.action == "one-min":
                                       progress=tqdm)
     view.standalone(output_filename=f"{args.outpath}/one-min.sh")
     solution = next(iter(view))
-    write_solution(solution, "min-1")
+    write_solution(solution, f"{args.outpath}/min-1")
 
 elif args.action == "one-sub":
     
