@@ -942,6 +942,16 @@ $(BONESIS_FILTER1_TREATED): $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_TREATED)
 		> $@
 	$(CONDA_DEACTIVATE)
 
+$(BONESIS_FILTER1_INTEGRATED): $(MODEL_SPECIFICATION_CTRL) $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_CTRL) $(SCBOOLSEQ_TREATED)
+	$(call section,Bonesis filtering (integrated data, stage 1))
+	$(CONDA_ACTIVATE) bonesis
+	python pipeline/bonesis/bonesis_inference.py filter-stage1 $(@D) \
+		--organism $(ORGANISM) \
+		--model-specification $(word 1, $^) $(word 2, $^) \
+		--bin-metastates $(word 3, $^) $(word 4, $^) \
+		> $@
+	$(CONDA_DEACTIVATE)
+
 $(BONESIS_FILTER2_CTRL): $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL) $(BONESIS_FILTER1_CTRL) 
 	$(call section,Bonesis filtering (control data, stage 2))
 	$(CONDA_ACTIVATE) bonesis
@@ -959,6 +969,16 @@ $(BONESIS_FILTER2_TREATED): $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_TREATED) 
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
+  		--filter-grn $(lastword $^) > $@
+	$(CONDA_DEACTIVATE)
+
+$(BONESIS_FILTER2_INTEGRATED): $(MODEL_SPECIFICATION_CTRL) $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_CTRL) $(SCBOOLSEQ_TREATED) $(BONESIS_FILTER1_INTEGRATED)
+	$(call section,Bonesis filtering (integrated data, stage 2))
+	$(CONDA_ACTIVATE) bonesis
+	python pipeline/bonesis/bonesis_inference.py filter-stage2 $(@D) \
+		--organism $(ORGANISM) \
+		--model-specification $(word 1, $^) $(word 2, $^) \
+		--bin-metastates $(word 3, $^) $(word 4, $^) \
   		--filter-grn $(lastword $^) > $@
 	$(CONDA_DEACTIVATE)
 
@@ -982,8 +1002,18 @@ $(BONESIS_INFERENCE_MIN_TREATED): $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_TRE
   		--filter-grn $(lastword $^)
 	$(CONDA_DEACTIVATE)
 
+$(BONESIS_INFERENCE_MIN_INTEGRATED): $(MODEL_SPECIFICATION_CTRL) $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_CTRL) $(SCBOOLSEQ_TREATED) $(BONESIS_FILTER2_INTEGRATED)
+	$(call section,Bonesis inference (integrated data, minimal solution))
+	$(CONDA_ACTIVATE) bonesis
+	python pipeline/bonesis/bonesis_inference.py one-min $(@D) \
+		--organism $(ORGANISM) \
+		--model-specification $(word 1, $^) $(word 2, $^) \
+		--bin-metastates $(word 3, $^) $(word 4, $^) \
+  		--filter-grn $(lastword $^)
+	$(CONDA_DEACTIVATE)
+
 $(BONESIS_INFERENCE_SUB_CTRL): $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL) $(BONESIS_FILTER2_CTRL)
-	$(call section,Bonesis inference (control data, one-sub))
+	$(call section,Bonesis inference (control data, subset minimal solution))
 	$(CONDA_ACTIVATE) bonesis
 	python pipeline/bonesis/bonesis_inference.py one-sub $(@D) \
 		--organism $(ORGANISM) \
@@ -993,11 +1023,21 @@ $(BONESIS_INFERENCE_SUB_CTRL): $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL) $(B
 	$(CONDA_DEACTIVATE)
 
 $(BONESIS_INFERENCE_SUB_TREATED): $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_TREATED) $(BONESIS_FILTER2_TREATED)
-	$(call section,Bonesis inference (treated data, one-sub))
+	$(call section,Bonesis inference (treated data, subset minimal solution))
 	$(CONDA_ACTIVATE) bonesis
 	python pipeline/bonesis/bonesis_inference.py one-sub $(@D) \
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
+  		--filter-grn $(lastword $^)
+	$(CONDA_DEACTIVATE)
+
+$(BONESIS_INFERENCE_SUB_INTEGRATED): $(MODEL_SPECIFICATION_CTRL) $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_CTRL) $(SCBOOLSEQ_TREATED) $(BONESIS_FILTER2_INTEGRATED)
+	$(call section,Bonesis inference (integrated data, subset minimal solution))
+	$(CONDA_ACTIVATE) bonesis
+	python pipeline/bonesis/bonesis_inference.py one-sub $(@D) \
+		--organism $(ORGANISM) \
+		--model-specification $(word 1, $^) $(word 2, $^) \
+		--bin-metastates $(word 3, $^) $(word 4, $^) \
   		--filter-grn $(lastword $^)
 	$(CONDA_DEACTIVATE)

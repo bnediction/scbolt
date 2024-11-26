@@ -85,6 +85,7 @@ logs/
 *tmp*
 *tmp/
 todo.*
+*.pdf
 
 ### Related-repository ###
 !.pipeline.png

@@ -66,19 +66,20 @@ parser.add_argument(
     "--bin-metastates",
     dest="bin_metastates",
     type=lambda x: Path(x).resolve(),
+    nargs="+",
     required=True,
     metavar="PATH",
-    help="file with binarized clusters"
+    help="file(s) with binarized clusters"
 )
 
 parser.add_argument(
     "--model-specification",
     dest="model_specification",
     type=lambda x: Path(x).resolve(),
-    required=False,
-    default="plzf_rara_model.txt",
+    required=True,
+    nargs="+",
     metavar="PATH",
-    help="file with binarized clusters (default: plzf_rara_model.txt)"
+    help="file with binarized clusters"
 )
 
 parser.add_argument(
@@ -96,7 +97,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="PATH",
-    help="json file with node list"
+    help="json or txt file with node list, each nodes being forced to appear"
 )
 
 parser.add_argument(
@@ -105,21 +106,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="PATH",
-    help="file containing important nodes"
-)
-
-parser.add_argument(
-    "--maximize-important-nodes",
-    dest="maximize_important_nodes",
-    required=False,
-    action="store_true"
-)
-
-parser.add_argument(
-    "--force-important-nodes",
-    dest="force_important_nodes",
-    required=False,
-    action="store_true"
+    help="json or txt file with node list, each nodes being prioritize to appear"
 )
 
 parser.add_argument(
@@ -139,6 +126,9 @@ args = parser.parse_args()
 
 if not args.outpath.exists():
     os.makedirs(args.outpath)
+
+if len(args.bin_metastates) != len(args.model_specification):
+    raise ValueError(f"--bin-metastates and --model-specification does not specify the same number of files")
 
 bonesis.settings["quiet"] = not args.verbose
 
@@ -168,26 +158,31 @@ pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
 bo = bonesis.BoNesis(pkn, meta_bin)
 bomodel(bo, args.model_specification)
 
-if args.important_nodes:
-    with open(args.important_nodes) as file:
-            important_nodes = [line.rstrip() for line in file]
-    important_nodes = gene_synonyms.sequence_standardization(important_nodes)
-
 if args.action == "filter-stage1":
     
     bo.maximize_nodes()
+
     if args.force_nodes:
-        with open(args.force_nodes) as fp:
-            nodes = json.load(fp)
-        for node in nodes:
+        try:
+            with open(args.force_nodes) as file:
+                forced_nodes = list(json.load(file).keys())
+        except:
+            with open(args.force_nodes) as file:
+                forced_nodes = [line.rstrip() for line in file.readlines()]
+        forced_nodes = gene_synonyms.sequence_standardization(forced_nodes)
+        for node in forced_nodes:
             bo.custom(f"node({clingo_encode(node)}).")
-    if args.force_important_nodes:
-        for node in important_nodes:
-            bo.custom(f"node({clingo_encode(node)}).")
-    elif args.maximize_important_nodes:
-        for node in important_nodes:
-            bo.custom(f"important_node({clingo_encode(node)}).")
-        bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
+
+    if args.important_nodes:
+        try:
+            with open(args.important_nodes) as file:
+                priority_nodes = list(json.load(file).keys())
+        except:
+            with open(args.important_nodes) as file:
+                priority_nodes = [line.rstrip() for line in file.readlines()]
+        priority_nodes = gene_synonyms.sequence_standardization(priority_nodes)
+        for node in priority_nodes:
+            bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
 
     def interm_solution(nodes):
         with open(f"{args.outpath}/filter-stage1.json", "w") as fp:
