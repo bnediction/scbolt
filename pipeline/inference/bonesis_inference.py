@@ -4,7 +4,7 @@ import sys
 import os
 import json
 from pathlib import Path
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentError
 from utils.argtype import Store_organism
 
 from tqdm import tqdm
@@ -38,7 +38,7 @@ parser = ArgumentParser(
     prog="Boolean network inference",
     description="""From binarized meta-observations and specified trajectories,
     infer a Most Permissive Boolean Network""",
-    usage="""python infer_bo.py [-h] <action> <path> --bin-metastate <path> [<args>]"""
+    usage="""python bonesis_inference.py [-h] <ACTION> <FILE> --bin-metastate <FILE> [<args>]"""
 )
 
 parser.add_argument(
@@ -68,7 +68,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     nargs="+",
     required=True,
-    metavar="PATH",
+    metavar="FILE",
     help="file(s) with binarized clusters"
 )
 
@@ -78,7 +78,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     nargs="+",
-    metavar="PATH",
+    metavar="FILE",
     help="file with binarized clusters"
 )
 
@@ -87,7 +87,7 @@ parser.add_argument(
     dest="filter_grn",
     type=lambda x: Path(x).resolve(),
     required=False,
-    metavar="PATH",
+    metavar="FILE",
     help="file with one node per line"
 )
 
@@ -96,7 +96,7 @@ parser.add_argument(
     dest="force_nodes",
     type=lambda x: Path(x).resolve(),
     required=False,
-    metavar="PATH",
+    metavar="FILE",
     help="json or txt file with node list, each nodes being forced to appear"
 )
 
@@ -105,7 +105,7 @@ parser.add_argument(
     dest="important_nodes",
     type=lambda x: Path(x).resolve(),
     required=False,
-    metavar="PATH",
+    metavar="FILE",
     help="json or txt file with node list, each nodes being prioritize to appear"
 )
 
@@ -128,7 +128,7 @@ if not args.outpath.exists():
     os.makedirs(args.outpath)
 
 if len(args.bin_metastates) != len(args.model_specification):
-    raise ValueError(f"--bin-metastates and --model-specification does not specify the same number of files")
+    raise ArgumentError(f"--bin-metastates and --model-specification does not specify the same number of files")
 
 bonesis.settings["quiet"] = not args.verbose
 
