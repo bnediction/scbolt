@@ -66,10 +66,9 @@ parser.add_argument(
     "--bin-metastates",
     dest="bin_metastates",
     type=lambda x: Path(x).resolve(),
-    nargs="+",
     required=True,
     metavar="FILE",
-    help="file(s) with binarized clusters"
+    help="csv file containing binarized macrostates"
 )
 
 parser.add_argument(
@@ -77,9 +76,8 @@ parser.add_argument(
     dest="model_specification",
     type=lambda x: Path(x).resolve(),
     required=True,
-    nargs="+",
     metavar="FILE",
-    help="file with binarized clusters"
+    help="txt file containing model specifications in Bonesis langage"
 )
 
 parser.add_argument(
@@ -126,9 +124,6 @@ args = parser.parse_args()
 
 if not args.outpath.exists():
     os.makedirs(args.outpath)
-
-if len(args.bin_metastates) != len(args.model_specification):
-    raise ArgumentError(f"--bin-metastates and --model-specification does not specify the same number of files")
 
 bonesis.settings["quiet"] = not args.verbose
 
@@ -185,8 +180,12 @@ if args.action == "filter-stage1":
             bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
 
     def interm_solution(nodes):
-        with open(f"{args.outpath}/filter-stage1.json", "w") as fp:
-            json.dump(list(sorted(nodes)), fp, indent=2)
+        with open(f"{args.outpath}/filter-stage1.json", "w") as file:
+            json.dump(list(
+                sorted(nodes)),
+                file,
+                indent=2
+            )
 
     clingo_opt_strategy = args.clingo_opt_strategy or "bb,dec"
     view = bonesis.NodesView(bo, mode="optN", progress=tqdm,

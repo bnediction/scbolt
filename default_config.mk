@@ -4,6 +4,12 @@ SHELL = /bin/bash
 MEMORY = 50
 JOBS = 16
 
+## informations ##
+
+$(eval METADATA_CTRL := sample_name=ctrl condition=control)			# Must contains condition
+$(eval METADATA_TREATED := sample_name=treated condition=treated)		# Must contains condition
+CONDITIONS := ctrl treated
+
 ## clustering parameters ##
 
 $(eval K_NEIGHBORS_CTRL := 20)					# K-closest neighbors

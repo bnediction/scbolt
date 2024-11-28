@@ -7,7 +7,6 @@ SRA_TREATED = SRR15305315 SRR15305316 SRR15305317 SRR15305318
 
 $(eval METADATA_CTRL := age=adult date=29-09-2020 sample_name=ctrl condition=control)			# Must contains condition
 $(eval METADATA_TREATED := age=adult date=29-09-2020 sample_name=treated condition=treated)		# Must contains condition
-CONDITIONS := ctrl treated
 ORGANISM := mouse
 
 ## cluster labels ##

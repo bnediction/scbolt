@@ -8,10 +8,11 @@ import argparse
 from itertools import combinations
 
 parser = argparse.ArgumentParser(
-    prog="Convert text file(s) describing trajectories into comprehensible text for bonesis package",
-    description="""Text file conversion for describing the trajectories where each line is in the form: `node_1 -> ... -> node_k`. \
-    The output stream provides specifications comprehensible for bonesis.""",
-    usage="python design_bo.py [-h] <path>"
+    prog="Bonesis specification",
+    description="""Convert file(s) describing trajectories into comprehensible text for bonesis package. \
+    Lines in the input file(s) are in the form: `node_1 -> ... -> node_k`. \
+    The output stream provides model specifications in Bonesis langage.""",
+    usage="python bonesis_specification.py [-h] <path>"
 )
 
 parser.add_argument(
