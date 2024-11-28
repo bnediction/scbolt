@@ -11,7 +11,7 @@ include $(DEFAULT_CONFIG) $(CONFIG)
 CONDA_ACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
 CONDA_DEACTIVATE = source $$(conda info --base)/etc/profile.d/conda.sh ; conda deactivate ; conda deactivate
 
-sample = control+treated
+sample = control+treated+integrated
 
 # urls
 CELL_CYCLE_URL = https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
@@ -127,6 +127,7 @@ MACROSTATES_TREATED = $(RNA_TREATED)/trajectories/macrostates/adata.h5ad
 
 SCBOOLSEQ_CTRL = $(RNA_CTRL)/binarization/cluster_bin_macrostates.csv
 SCBOOLSEQ_TREATED = $(RNA_TREATED)/binarization/cluster_bin_macrostates.csv
+SCBOOLSEQ_INTEGRATED = $(RNA_INTEGRATED)/binarization/cluster_bin_macrostates.csv
 
 BDC_CTRL = $(RNA_CTRL)/binarization/pairwise_predecessor_scores.csv
 BDC_TREATED = $(RNA_TREATED)/binarization/pairwise_predecessor_scores.csv
@@ -228,6 +229,7 @@ ifeq (integrated,$(findstring integrated,$(sample)))
  $(eval markers_target := $(markers_target) $(MARKERS_INTEGRATED))
  $(eval goea_target := $(goea_target) $(GOEA_BASIC_INTEGRATED) $(GOEA_MOUSE_INTEGRATED))
  $(eval label_target := $(label_target) $(LABELS_INTEGRATED))
+ $(eval scboolseq_target := $(scboolseq_target) $(SCBOOLSEQ_INTEGRATED))
  $(eval model_specification_target := $(model_specification_target) $(MODEL_SPECIFICATION_INTEGRATED))
  $(eval bonesis_filter1_target := $(bonesis_filter1_target) $(BONESIS_FILTER1_INTEGRATED))
  $(eval bonesis_filter2_target := $(bonesis_filter2_target) $(BONESIS_FILTER2_INTEGRATED))
@@ -902,6 +904,12 @@ $(SCBOOLSEQ_TREATED): $(MACROSTATES_TREATED)
 		--verbose
 	$(CONDA DEACTIVATE)
 
+$(SCBOOLSEQ_INTEGRATED): $(SCBOOLSEQ_CTRL) $(SCBOOLSEQ_TREATED)
+	$(call section,scboolseq (integrated data))
+	$(CONDA_ACTIVATE) preprocess
+	python pipeline/utils/row_wise_concatenation.py $^ --suffixes $(CONDITIONS) -o $@
+	$(CONDA DEACTIVATE)
+
 $(BDC_CTRL): $(SCBOOLSEQ_CTRL)
 	$(call section,Boolean differential calculus (control data))
 	$(CONDA_ACTIVATE) scboolseq
@@ -927,7 +935,7 @@ $(MODEL_SPECIFICATION_TREATED): $(TRAJECTORIES_MACROSTATES_TREATED)
 $(MODEL_SPECIFICATION_INTEGRATED): $(TRAJECTORIES_MACROSTATES_CTRL) $(TRAJECTORIES_MACROSTATES_TREATED)
 	$(call section,model-specification (integrated data))
 	mkdir -p $(@D)
-	python3 pipeline/inference/bonesis_specification.py $^ --conditions ctrl treated > $@
+	python3 pipeline/inference/bonesis_specification.py $^ --conditions $(CONDITIONS) > $@
 
 $(BONESIS_FILTER1_CTRL): $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL)
 	$(call section,Bonesis filtering (control data, stage 1))

@@ -78,4 +78,4 @@ else:
             trajectories = read_trajectories(infile)
             write_bonesis_model(trajectories, condition)
     else:
-        raise argparse.ArgumentError(None, "infiles and --conditions must be of the same length")
+        raise argparse.ArgumentError(None, "infiles and --conditions require the same number of values")
