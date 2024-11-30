@@ -1,11 +1,15 @@
 #!/usr/bin/env python
 
-from typing import Optional
+from typing import (
+    Optional,
+    Union,
+    Dict
+)
 from pathlib import Path
 
 import argparse
 
-from itertools import combinations
+import itertools
 
 parser = argparse.ArgumentParser(
     prog="Bonesis specification",
@@ -37,7 +41,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 def read_trajectories(
-    file: Path
+    file: Path,
 ) -> list:
     trajectories = list()
     with open(file, "r") as file:
@@ -47,24 +51,47 @@ def read_trajectories(
     return trajectories
 
 def write_bonesis_model(
-    trajectories: list,
-    condition: Optional[str] = None
+    trajectories: Union[list, Dict[str, list]],
 ) -> None:
-    stable_states = list()
-    for trajectory in trajectories:
-        if len(trajectory) == 1:
-            continue
-        bo_trajectory = str()
-        fp = trajectory[-1]
-        for config in trajectory:
-            if config != fp:
-                bo_trajectory += f"~bo.obs('{config}{f'_{condition}' if condition is not None else ''}') >= "
-            else:
-                bo_trajectory += f"bo.fixed(~bo.obs('{config}{f'_{condition}' if condition is not None else ''}'))"
-                stable_states.append(fp)
-        print(bo_trajectory)
-    for a, b in combinations(stable_states, 2):
-        print(f"~bo.obs('{a}{f'_{condition}' if condition is not None else ''}') != ~bo.obs('{b}{f'_{condition}' if condition is not None else ''}')")
+    
+    def write_bonesis_model_from_one_condition(
+        trajectories: Union[list, Dict[str, list]],
+        condition: Optional[str] = None
+    ) -> None:
+        stable_states = list()
+        for trajectory in trajectories:
+            if len(trajectory) == 1:
+                continue
+            bo_trajectory = str()
+            fp = trajectory[-1]
+            for config in trajectory:
+                if config != fp:
+                    bo_trajectory += f"~bo.obs('{config}{f'_{condition}' if condition is not None else ''}') >= "
+                else:
+                    bo_trajectory += f"bo.fixed(~bo.obs('{config}{f'_{condition}' if condition is not None else ''}'))"
+                    stable_states.append(fp)
+            print(bo_trajectory)
+        for s1, s2 in itertools.combinations(stable_states, 2):
+            print(f"~bo.obs('{s1}{f'_{condition}' if condition is not None else ''}') != ~bo.obs('{s2}{f'_{condition}' if condition is not None else ''}')")
+        return None
+    
+    if isinstance(trajectories, list):
+        write_bonesis_model_from_one_condition(
+            trajectories=trajectories,
+            condition=None
+        )
+    else:
+        initial_states = {}
+        for condition, trajectories_for_one_condition in trajectories.items():
+            write_bonesis_model_from_one_condition(
+                trajectories=trajectories_for_one_condition,
+                condition=condition
+            )
+            initial_states[condition] = {trajectory[0] for trajectory in trajectories_for_one_condition}
+        for condition1, condition2 in itertools.combinations(trajectories.keys(), 2):
+            for initial_state_c1 in initial_states[condition1]:
+                for initial_state_c2 in initial_states[condition2]:
+                    print(f"~bo.obs('{initial_state_c1}_{condition1}') != ~bo.obs('{initial_state_c2}_{condition2}')")
     return None
 
 if args.conditions is None:
@@ -75,8 +102,9 @@ if args.conditions is None:
         raise argparse.ArgumentError(None, "--conditions is required when there are multiple infiles passed in argument")
 else:
     if len(args.infiles) == len(args.conditions):
+        trajectories = dict()
         for infile, condition in zip(args.infiles, args.conditions):
-            trajectories = read_trajectories(infile)
-            write_bonesis_model(trajectories, condition)
+            trajectories[condition] = read_trajectories(infile)
+        write_bonesis_model(trajectories)
     else:
         raise argparse.ArgumentError(None, "infiles and --conditions require the same number of values")

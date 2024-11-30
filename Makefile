@@ -336,7 +336,7 @@ macrostates: $(macrostates_target) ## compute macrostates with cellrank or cente
 scboolseq: $(scboolseq_target) ## binarize normalized counts with scBoolSeq
 bdc: $(bdc_target) ## perform boolean differential calculus analysis
 
-##@ Boolean inference
+##@ Boolean network inference
 
 model-specification: $(model_specification_target) ## specify model for bonesis
 bonesis-filter-one: $(bonesis_filter1_target) ## filter genes with Bonesis (stage 1)
@@ -344,7 +344,7 @@ bonesis-filter-two: $(bonesis_filter2_target) ## filter genes with Bonesis (stag
 bonesis-inference-min: $(bonesis_inference_min_target) ## infer Boolean network with Bonesis (minimal solution)
 bonesis-inference-sub: $(bonesis_inference_sub_target) ## infer Boolean network with Bonesis (subset minimal solution)
 
-# all: $(INFERENCE_SUB_CTRL) $(INFERENCE_MIN_CTRL)  $(MARKERS_TREATED)
+all: bonesis-inference-min bonesis-inference-sub
 
 $(GENOME):
 	$(call section, load-genome)
