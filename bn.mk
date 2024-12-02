@@ -48,8 +48,12 @@ clean: ## clear results
 node-comparison: $(NODES_COMPARISON) ## get the common nodes between two Boolean Networks
 
 $(NODES_COMPARISON): $(BN) $(REF)
-	$(CONDA_ACTIVATE) ginsim
+	$(CONDA_ACTIVATE) bn
 		python bonesis-tools/clitools/bn/get_nodes.py $(firstword $^) > $(dir $(firstword $^))nodes.txt
+		python bonesis-tools/clitools/genename_standardization.py $(dir $(firstword $^))nodes.txt $(dir $(firstword $^))nodes.txt \
+			--organism $(ORGANISM) --q
 		python bonesis-tools/clitools/bn/get_nodes.py $(lastword $^) > $(dir $(lastword $^))nodes.txt
+		python bonesis-tools/clitools/genename_standardization.py $(dir $(lastword $^))nodes.txt $(dir $(lastword $^))nodes.txt \
+			--organism $(ORGANISM) --q
 		comm -12 <(sort $(dir $(firstword $^))nodes.txt) <(sort $(dir $(lastword $^))nodes.txt) > $@
 	$(CONDA DEACTIVATE)
