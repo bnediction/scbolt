@@ -3,6 +3,7 @@ data/
 results/
 *.png
 *.jpg
+*.svg
 *.txt
 *.csv
 *.tsv

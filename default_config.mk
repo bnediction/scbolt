@@ -8,6 +8,7 @@ JOBS = 16
 
 $(eval METADATA_CTRL := sample_name=ctrl condition=control)			# Must contains condition
 $(eval METADATA_TREATED := sample_name=treated condition=treated)		# Must contains condition
+ORGANISM := mouse
 CONDITIONS := ctrl treated
 
 ## clustering parameters ##

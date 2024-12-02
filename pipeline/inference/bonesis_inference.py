@@ -25,7 +25,7 @@ from databases.genesyn import GeneSynonyms
 
 def write_solution(solution, name):
     f = solution[1]
-    f.save(f"{name}.bn")
+    f.save(f"{name}.bnet")
     df = pd.DataFrame(solution[2])
     df.to_csv(f"{name}.csv")
     noi = set(f) - set(f.constants())
@@ -223,11 +223,11 @@ elif args.action == "one-min":
                                       progress=tqdm)
     view.standalone(output_filename=f"{args.outpath}/one-min.sh")
     solution = next(iter(view))
-    write_solution(solution, f"{args.outpath}/min-1")
+    write_solution(solution, f"{args.outpath}/one-min")
 
 elif args.action == "one-sub":
     
     view = bonesis.InfluenceGraphView(bo, solutions="subset-minimal", extra=("boolean-network", "configurations"))
     view.standalone(output_filename=f"{args.outpath}/one-sub.sh")
     solution = next(iter(view))
-    write_solution(solution, f"{args.outpath}/sub-1")
+    write_solution(solution, f"{args.outpath}/one-sub")

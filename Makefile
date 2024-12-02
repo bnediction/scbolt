@@ -144,13 +144,15 @@ BONESIS_FILTER2_CTRL = $(RNA_CTRL)/bonesis/filtering/bootstrap_filter_grn_stage2
 BONESIS_FILTER2_TREATED = $(RNA_TREATED)/bonesis/filtering/bootstrap_filter_grn_stage2.txt
 BONESIS_FILTER2_INTEGRATED = $(RNA_INTEGRATED)/bonesis/filtering/bootstrap_filter_grn_stage2.txt
 
-BONESIS_INFERENCE_MIN_CTRL = $(RNA_CTRL)/bonesis/inference/min.bn
-BONESIS_INFERENCE_MIN_TREATED = $(RNA_TREATED)/bonesis/inference/min.bn
-BONESIS_INFERENCE_MIN_INTEGRATED = $(RNA_INTEGRATED)/bonesis/inference/min.bn
+BONESIS_INFERENCE_MIN_CTRL = $(RNA_CTRL)/bonesis/inference/min/one-min.bnet
+BONESIS_INFERENCE_MIN_TREATED = $(RNA_TREATED)/bonesis/inference/min/one-min.bnet
+BONESIS_INFERENCE_MIN_INTEGRATED = $(RNA_INTEGRATED)/bonesis/inference/min/one-min.bnet
 
-BONESIS_INFERENCE_SUB_CTRL = $(RNA_CTRL)/bonesis/inference/sub.bn
-BONESIS_INFERENCE_SUB_TREATED = $(RNA_TREATED)/bonesis/inference/sub.bn
-BONESIS_INFERENCE_SUB_INTEGRATED = $(RNA_INTEGRATED)/bonesis/inference/sub.bn
+BONESIS_INFERENCE_SUB_CTRL = $(RNA_CTRL)/bonesis/inference/sub/one-sub.bnet
+BONESIS_INFERENCE_SUB_TREATED = $(RNA_TREATED)/bonesis/inference/sub/one-sub.bnet
+BONESIS_INFERENCE_SUB_INTEGRATED = $(RNA_INTEGRATED)/bonesis/inference/sub/one-sub.bnet
+
+NODES_COMPARISON_INTEGRATED = $(RNA_INTEGRATED)/bonesis/inference/min/nodes_intersection.txt
 
 # targets
 fastq_target :=

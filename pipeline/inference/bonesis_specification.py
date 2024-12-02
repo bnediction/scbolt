@@ -16,7 +16,7 @@ parser = argparse.ArgumentParser(
     description="""Convert file(s) describing trajectories into comprehensible text for bonesis package. \
     Lines in the input file(s) are in the form: `node_1 -> ... -> node_k`. \
     The output stream provides model specifications in Bonesis langage.""",
-    usage="python bonesis_specification.py [-h] <path>"
+    usage="python bonesis_specification.py [-h] <FILE ...> [--conditions <LITERAL ...>]"
 )
 
 parser.add_argument(
@@ -80,7 +80,7 @@ def write_bonesis_model(
             trajectories=trajectories,
             condition=None
         )
-    else:
+    elif isinstance(trajectories, Dict):
         initial_states = {}
         for condition, trajectories_for_one_condition in trajectories.items():
             write_bonesis_model_from_one_condition(
@@ -92,6 +92,8 @@ def write_bonesis_model(
             for initial_state_c1 in initial_states[condition1]:
                 for initial_state_c2 in initial_states[condition2]:
                     print(f"~bo.obs('{initial_state_c1}_{condition1}') != ~bo.obs('{initial_state_c2}_{condition2}')")
+    else:
+        raise ValueError("`trajectories` must be a list or a dict")
     return None
 
 if args.conditions is None:
