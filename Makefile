@@ -1011,6 +1011,7 @@ $(BONESIS_INFERENCE_MIN_CTRL): $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL) $(B
 		--bin-metastates $(word 2, $^) \
   		--filter-grn $(lastword $^)
 	$(CONDA_DEACTIVATE)
+	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
 
 $(BONESIS_INFERENCE_MIN_TREATED): $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_TREATED) $(BONESIS_FILTER2_TREATED)
 	$(call section,Bonesis inference (treated data, minimal solution))
@@ -1021,6 +1022,7 @@ $(BONESIS_INFERENCE_MIN_TREATED): $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_TRE
 		--bin-metastates $(word 2, $^) \
   		--filter-grn $(lastword $^)
 	$(CONDA_DEACTIVATE)
+	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
 
 $(BONESIS_INFERENCE_MIN_INTEGRATED): $(MODEL_SPECIFICATION_INTEGRATED) $(SCBOOLSEQ_INTEGRATED) $(BONESIS_FILTER2_INTEGRATED)
 	$(call section,Bonesis inference (integrated data, minimal solution))
@@ -1031,6 +1033,7 @@ $(BONESIS_INFERENCE_MIN_INTEGRATED): $(MODEL_SPECIFICATION_INTEGRATED) $(SCBOOLS
 		--bin-metastates $(word 2, $^) \
   		--filter-grn $(lastword $^)
 	$(CONDA_DEACTIVATE)
+	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
 
 $(BONESIS_INFERENCE_SUB_CTRL): $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL) $(BONESIS_FILTER2_CTRL)
 	$(call section,Bonesis inference (control data, subset minimal solution))
@@ -1041,6 +1044,7 @@ $(BONESIS_INFERENCE_SUB_CTRL): $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL) $(B
 		--bin-metastates $(word 2, $^) \
   		--filter-grn $(lastword $^)
 	$(CONDA_DEACTIVATE)
+	dot -Tpdf $(@D)/one-sub.dot > $(@D)/one-sub.pdf
 
 $(BONESIS_INFERENCE_SUB_TREATED): $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_TREATED) $(BONESIS_FILTER2_TREATED)
 	$(call section,Bonesis inference (treated data, subset minimal solution))
@@ -1051,6 +1055,7 @@ $(BONESIS_INFERENCE_SUB_TREATED): $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_TRE
 		--bin-metastates $(word 2, $^) \
   		--filter-grn $(lastword $^)
 	$(CONDA_DEACTIVATE)
+	dot -Tpdf $(@D)/one-sub.dot > $(@D)/one-sub.pdf
 
 $(BONESIS_INFERENCE_SUB_INTEGRATED): $(MODEL_SPECIFICATION_INTEGRATED) $(SCBOOLSEQ_INTEGRATED) $(BONESIS_FILTER2_INTEGRATED)
 	$(call section,Bonesis inference (integrated data, subset minimal solution))
@@ -1061,3 +1066,4 @@ $(BONESIS_INFERENCE_SUB_INTEGRATED): $(MODEL_SPECIFICATION_INTEGRATED) $(SCBOOLS
 		--bin-metastates $(word 2, $^) \
   		--filter-grn $(lastword $^)
 	$(CONDA_DEACTIVATE)
+	dot -Tpdf $(@D)/one-sub.dot > $(@D)/one-sub.pdf
