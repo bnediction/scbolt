@@ -4,7 +4,7 @@ import sys
 import os
 import json
 from pathlib import Path
-from argparse import ArgumentParser, ArgumentError
+from argparse import ArgumentParser
 from utils.argtype import Store_organism
 
 from tqdm import tqdm
@@ -193,6 +193,19 @@ if args.action == "filter-stage1":
                                 clingo_opt_strategy=clingo_opt_strategy)
     view.standalone(output_filename=f"{args.outpath}/filter-stage1.sh")
     solution = next(iter(view))
+    
+    input_nodes = set()
+    for bin_nodes in bo.data.values():
+        input_nodes.update(bin_nodes.keys())
+
+    with open(f"{args.outpath}/removed-nodes-stage1.txt", "w") as file:
+        for node in input_nodes.difference(solution):
+            file.write(f"{node}\n")
+
+    with open(f"{args.outpath}/explained-nodes-stage1.txt", "w") as file:
+        for node in input_nodes.intersection(solution):
+            file.write(f"{node}\n")
+
     for node in solution:
         print(node)
 
