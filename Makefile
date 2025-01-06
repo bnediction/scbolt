@@ -909,7 +909,7 @@ $(SCBOOLSEQ_TREATED): $(MACROSTATES_TREATED)
 $(SCBOOLSEQ_INTEGRATED): $(SCBOOLSEQ_CTRL) $(SCBOOLSEQ_TREATED)
 	$(call section,scboolseq (integrated data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/utils/row_wise_concatenation.py $^ --suffixes $(CONDITIONS) -o $@
+	python pipeline/utils/csv_concatenation.py $^ --suffixes $(addprefix _,$(CONDITIONS)) -o $@
 	$(CONDA DEACTIVATE)
 
 $(BDC_CTRL): $(SCBOOLSEQ_CTRL)

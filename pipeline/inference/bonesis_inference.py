@@ -198,14 +198,18 @@ if args.action == "filter-stage1":
     for bin_nodes in bo.data.values():
         input_nodes.update(bin_nodes.keys())
 
-    with open(f"{args.outpath}/removed-nodes-stage1.txt", "w") as file:
+    with open(f"{args.outpath}/nodes-removed-from-bin-stage1.txt", "w") as file:
         for node in input_nodes.difference(solution):
             file.write(f"{node}\n")
 
-    with open(f"{args.outpath}/explained-nodes-stage1.txt", "w") as file:
+    with open(f"{args.outpath}/nodes-kept-in-bin-stage1.txt", "w") as file:
         for node in input_nodes.intersection(solution):
             file.write(f"{node}\n")
-
+    
+    with open(f"{args.outpath}/nodes-removed-from-pkn-stage1.txt", "w") as file:
+        for node in set(bo.domain.nodes).difference(solution):
+            file.write(f"{node}\n")
+    
     for node in solution:
         print(node)
 

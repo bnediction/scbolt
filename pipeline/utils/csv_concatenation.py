@@ -6,14 +6,14 @@ from pathlib import Path
 from typing import Optional
 
 import argparse
-from utils.argtype import Required_length
+from utils.argtype import Store_boolean, Required_length
 
 import pandas as pd
 
 parser = argparse.ArgumentParser(
     prog="Row-wise concatenation",
     description="""csv file concatenation based on rows""",
-    usage="python row_wise_concatenation.py [-h] <FILE ...> [--suffix <LITERAL ...>]"
+    usage="python row_wise_concatenation.py [-h] <FILE ...> [--suffixes <LITERAL ...>]"
 )
 
 parser.add_argument(
@@ -26,6 +26,17 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--axis",
+    dest="axis",
+    type=str,
+    required=False,
+    default="row",
+    choices=["row","column"],
+    metavar="[row | column]",
+    help="row- or column-wise concatenation (default: row)"
+)
+
+parser.add_argument(
     "--suffixes",
     dest="suffixes",
     type=str,
@@ -34,7 +45,7 @@ parser.add_argument(
     min=2,
     metavar="LITERAL",
     default=None,
-    help="add suffixes to each row names (ordered with csv files)"
+    help="add suffixes to each labels (row or column, depending on --axis, ordered with csv files)"
 )
 
 parser.add_argument(
@@ -45,6 +56,14 @@ parser.add_argument(
     default=",",
     metavar="CHAR",
     help="field delimiter for csv infiles (default: `,`)"
+)
+
+parser.add_argument(
+    "--transpose",
+    dest="transpose",
+    required=False,
+    action="store_true",
+    help="transpose rows and columns"
 )
 
 parser.add_argument(
@@ -65,10 +84,16 @@ if args.suffixes is not None:
     if len(args.infiles) != len(args.suffixes):
         raise argparse.ArgumentError(None, "infiles and --suffixes require the same number of values")
     else:
-        for df, suffix in zip(dfs, args.suffixes):
-            df.set_index(df.index.astype(str) + f"_{suffix}", inplace=True)
+        for i in range(len(dfs)):
+            dfs[i] = dfs[i].add_suffix(f"{args.suffixes[i]}", axis=0 if args.axis=="row" else 1)
 
-df = pd.concat(dfs, axis=0)
+df = pd.concat(
+    dfs,
+    axis=0 if args.axis=="row" else 1
+)
+
+if args.transpose:
+    df = df.transpose()
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(os.path.dirname(args.outfile))
