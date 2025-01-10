@@ -440,6 +440,9 @@ for _group in args.groupby:
             cluster_d[_group] = cluster_d[_group].drop(_index_label_to_drop)
         del _index_label_to_drop, _index_label
     predict_d[_group] = predict(cluster_d[_group])
+    if isinstance(predict_d[_group].index, MultiIndex):
+        predict_d[_group].index = ["_".join(metadata) for metadata in predict_d[_group].index.to_flat_index()]
+        predict_d[_group].index.name = _group
 
 print("Saving data...")
 
