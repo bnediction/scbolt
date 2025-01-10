@@ -3,20 +3,20 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-from typing import Optional, Union
+from typing import Optional, Union, List
 from collections import namedtuple
 
 import os, argparse
 from pathlib import Path
-from utils.argtype import Range
+from utils.argtype import Range, Required_length
 from utils.stdout import Section, disable_print
 
 from pandas import (
     DataFrame,
     Series,
-    MultiIndex,
-    merge
+    MultiIndex
 )
+import pandas as pd
 import anndata as ad, anndatatools as adt
 
 import numpy as np
@@ -102,46 +102,54 @@ class Predict(object):
     ) -> Union[Series, DataFrame]:
 
         def boolean_prediction(self, zeros, ones, nans, category):
-            denominator = zeros + ones
-            total = denominator + nans
+            not_nans = zeros + ones
+            total = not_nans + nans
+            if not_nans == 0:
+                return float("nan")
             if category=="Bimodal":
                 if nans/total > self.__THRESHOLD.nans:
                     return float("nan")
-                elif zeros/denominator > self.__THRESHOLD.bimodal:
+                elif zeros/not_nans > self.__THRESHOLD.bimodal:
                     return 0
-                elif ones/denominator > self.__THRESHOLD.bimodal:
+                elif ones/not_nans > self.__THRESHOLD.bimodal:
                     return 1
                 else:
                     return float("nan")
             elif category=="ZeroInf":
                 if nans/total > self.__THRESHOLD.nans:
                     return float("nan")
-                elif ones/denominator > self.__THRESHOLD.zeroinf:
+                elif ones/not_nans > self.__THRESHOLD.zeroinf:
                     return 1
                 else:
                     return 0
             elif category=="Unimodal":
                 if nans/total > self.__THRESHOLD.nans:
                     return float("nan")
-                elif zeros/denominator > self.__THRESHOLD.unimodal:
+                elif zeros/not_nans > self.__THRESHOLD.unimodal:
                     return 0
-                elif ones/denominator > self.__THRESHOLD.unimodal:
+                elif ones/not_nans > self.__THRESHOLD.unimodal:
                     return 1
             else:
                 raise ValueError(f"Category argument must be `Bimodal`, `ZeroInf` or `Unimodal`, not `{category}`.")
+        
+        _iterable = (data.index.get_level_values(level).unique() for level in range(data.index.nlevels - 1))
+        _names = list(data.index.names)[:-1]
+        index = MultiIndex.from_product(_iterable, names=_names)
+        if index.nlevels == 1:
+            index = index.get_level_values(0)
 
         if isinstance(data, Series) and category is not None:
-            predict_series = Series(index=data.index.get_level_values(0).unique(), name=data._name)
+            predict_series = Series(index=index, name=data._name)
             if category == "Discarded":
                 return predict_series
             else:
-                for cluster in sorted(data.index.get_level_values(0).unique()):
-                    _zeros, _ones, _nans = data[data.index.get_level_values(0) == cluster].droplevel(0)
+                for cluster in index:
+                    _zeros, _ones, _nans = data.loc[cluster]
                     _value = boolean_prediction(self, zeros=_zeros, ones=_ones, nans=_nans, category=category)
                     predict_series[cluster] = _value
                 return predict_series
         elif isinstance(data, DataFrame) and category is None:
-            predict_df = DataFrame(index=data.index.get_level_values(0).unique())
+            predict_df = DataFrame(index=index)
             for gene in data:
                 predict_series = self.__call__(
                     data=data.loc[:,gene],
@@ -155,8 +163,9 @@ class Predict(object):
 
 def cell_to_cluster_binarization(
     obs_df: DataFrame,
-    columns: list,
+    columns: List,
     group: str,
+    condition: Optional[str] = None,
     dropna: bool = False
 ) -> DataFrame:
 
@@ -165,18 +174,29 @@ def cell_to_cluster_binarization(
         dropna
     ):
         series = column_series.value_counts(dropna=dropna).to_frame()
-        series.index.set_names([column_series.keys, "value"], inplace=True)
+        keys = [*column_series.keys, "value"] if isinstance(column_series.keys, list) else [column_series.keys, "value"]
+        series.index.set_names(keys, inplace=True)
         series.rename(columns={"count": column_series._selection}, inplace=True)
         return series
 
-    iterables = (
-        sorted(obs_df.loc[:,group].cat.categories),
-        [float(0), float(1), np.nan]
-    )
-    group_df = DataFrame(index=MultiIndex.from_product(iterables, names=[group, "value"]))
+    if condition:
+        iterables = (
+            sorted(obs_df.loc[:,group].cat.categories),
+            sorted(obs_df.loc[:,condition].cat.categories),
+            [float(0), float(1), np.nan]
+        )
+        names = [group, condition, "value"]
+    else:
+        iterables = (
+            sorted(obs_df.loc[:,group].cat.categories),
+            [float(0), float(1), np.nan]
+        )
+        names = [group,"value"]
+    
+    group_df = DataFrame(index=MultiIndex.from_product(iterables, names=names))
 
     for column in columns:
-        series = counts(obs_df.groupby(by=group)[column], dropna=dropna)
+        series = counts(obs_df.groupby(by=group if condition is None else [group, condition])[column], dropna=dropna)
         group_df = group_df.join(series)
 
     return group_df.fillna(0).astype(int)
@@ -186,19 +206,22 @@ parser = argparse.ArgumentParser(
     description="""From concatenated sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad), \
         compute cluster-related binarization based on scBoolSeq \
         method (see Magaña López et al. (2023): <https://hal.science/hal-04294917/>).""",
-    usage=""""python bin_clusters.py [-h] <FILE> <PATH> -c <LITERAL> [<args>]"""
+    usage=""""python bin_clusters.py [-h] <FILE> -o <PATH> -c <LITERAL> [<args>]"""
 )
 
 parser.add_argument(
-    "infile",
+    dest="infiles",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="file in h5ad format"
+    nargs="+",
+    help="file(s) in h5ad format"
 )
 
 parser.add_argument(
-    "outpath",
+    "-o", "--outpath",
+    dest="outpath",
     type=lambda x: Path(x).resolve(),
+    required=True,
     metavar="PATH",
     help="output path"
 )
@@ -211,6 +234,18 @@ parser.add_argument(
     nargs="+",
     metavar="LITERAL",
     help="clusters retrieving from adata.obs[`cluster`] used for cluster-related binarization"
+)
+
+parser.add_argument(
+    "--condition",
+    dest="condition",
+    type=str,
+    required=False,
+    action=Required_length,
+    min=2,
+    metavar="LITERAL",
+    default=None,
+    help="condition related to each dataset (ordered with h5ad files)",
 )
 
 parser.add_argument(
@@ -325,22 +360,50 @@ if not args.outpath.exists():
 
 print(f"Loading data...")
 
-adata = ad.read_h5ad(args.infile)
+adatas = [ad.read_h5ad(infile) for infile in args.infiles]
 
-adata.obs_names_make_unique()
-adata.var_names_make_unique()
+for i in range(len(adatas)):
+    adatas[i].var_names_make_unique()
+
+if len(args.infiles) > 1:
+    if args.condition is None:
+        raise argparse.ArgumentError(None, "option --condition must be specified when using multiple infiles")
+    elif len(args.infiles) != len(args.condition):
+        raise argparse.ArgumentError(None, "infiles and --condition require the same number of values")
+    else:
+        try:
+            adata = ad.concat(
+                adatas,
+                axis=0,
+                label="condition",
+                keys=["ctrl","treated"],
+                merge="first",
+                uns_merge="same"
+            )
+            adata.obs_names_make_unique() ### handle issue when there are identical barcodes between anndata.
+        except:
+            raise RuntimeError("Anndatas concatenation did not work, aborting")
+else:
+    adata = adatas[0]
+
+del adatas
 
 if args.hvg is True:
+    print(f"Selecting higly variable genes (HVG)...")
+    if "highly_variable" in adata.var:
+        del adata.var["highly_variable"]
+    from scanpy import preprocessing
+    preprocessing.highly_variable_genes(adata, layer="raw", flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
     adata = adata[:,adata.var["highly_variable"]]
 
-gene_list = list(adata.var.index)
+gene_list = adata.var.index
 counts_df = adt.tl.anndata_to_dataframe(adata, layer=args.layer)
 
 print("Data binarization...")
 
 section("Compute estimators")
 with disable_print():
-    scbool.fit(counts_df)
+    scbool.fit(counts_df, simulation=False)
 
 section("Estimate boolean values by observation")
 with disable_print():
@@ -352,9 +415,11 @@ predict_d = dict()
 for _group in args.groupby:
     if len(args.groupby) > 1:
         print(f"\tcomputation for cluster `{_group}`")
-    _cell_df = merge(
+    metadata = [_group, "condition"] if args.condition else _group
+    convert_metadata = {category: "category" for category in metadata} if isinstance(metadata,list) else "category"
+    _cell_df = pd.merge(
         cell_df,
-        adata.obs.loc[:,_group].astype("category"),
+        adata.obs.loc[:,metadata].astype(convert_metadata),
         left_index=True,
         right_index=True,
         how="inner"
@@ -363,6 +428,7 @@ for _group in args.groupby:
         obs_df=_cell_df,
         columns=gene_list,
         group=_group,
+        condition = "condition" if args.condition else None,
         dropna=False
     )
     if args.exclude:

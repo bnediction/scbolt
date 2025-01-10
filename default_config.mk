@@ -69,3 +69,7 @@ $(eval INITIAL_STATES_CTRL := 1)				# number of initial states with cellrank
 $(eval TERMINAL_STATES_CTRL := 4)				# number of terminal states with cellrank
 $(eval INITIAL_STATES_TREATED := 1)				# number of initial states with cellrank
 $(eval TERMINAL_STATES_TREATED := 4)			# number of terminal states with cellrank
+
+## binarization parameters
+
+$(eval INTEGRATED_BINARIZATION := merged)		# split or merged

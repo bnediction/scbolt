@@ -891,26 +891,44 @@ endif
 $(SCBOOLSEQ_CTRL): $(MACROSTATES_CTRL)
 	$(call section,scboolseq (control data))
 	$(CONDA_ACTIVATE) scboolseq
-	python pipeline/binarization/bin_clusters.py $< $(dir $@) \
-		--cluster leiden macrostates --exclude nan \
-		--layer log-normalize --hvg \
+	python pipeline/binarization/scboolseq_bin.py $< -o $(dir $@) \
+		--cluster leiden macrostates \
+		--exclude nan \
+		--layer log-normalize \
+		--hvg \
 		--verbose
 	$(CONDA DEACTIVATE)
 
 $(SCBOOLSEQ_TREATED): $(MACROSTATES_TREATED)
 	$(call section,scboolseq (control data))
 	$(CONDA_ACTIVATE) scboolseq
-	python pipeline/binarization/bin_clusters.py $< $(dir $@) \
-		--cluster leiden macrostates --exclude nan \
-		--layer log-normalize --hvg \
+	python pipeline/binarization/scboolseq_bin.py $< -o $(dir $@) \
+		--cluster leiden macrostates \
+		--exclude nan \
+		--layer log-normalize \
+		--hvg \
 		--verbose
 	$(CONDA DEACTIVATE)
 
+ifeq ($(INTEGRATED_BINARIZATION),split)
 $(SCBOOLSEQ_INTEGRATED): $(SCBOOLSEQ_CTRL) $(SCBOOLSEQ_TREATED)
 	$(call section,scboolseq (integrated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/utils/csv_concatenation.py $^ --suffixes $(addprefix _,$(CONDITIONS)) -o $@
 	$(CONDA DEACTIVATE)
+else
+$(SCBOOLSEQ_INTEGRATED): $(MACROSTATES_CTRL) $(MACROSTATES_TREATED)
+	$(call section,scboolseq (integrated data))
+	$(CONDA_ACTIVATE) scboolseq
+	python pipeline/binarization/scboolseq_bin.py $^ -o $(dir $@) \
+		--cluster leiden macrostates \
+		--condition $(CONDITIONS) \
+		--exclude nan \
+		--layer log-normalize \
+		--hvg \
+		--verbose
+	$(CONDA DEACTIVATE)
+endif
 
 $(BDC_CTRL): $(SCBOOLSEQ_CTRL)
 	$(call section,Boolean differential calculus (control data))

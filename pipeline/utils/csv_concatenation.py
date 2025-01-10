@@ -13,7 +13,7 @@ import pandas as pd
 parser = argparse.ArgumentParser(
     prog="Row-wise concatenation",
     description="""csv file concatenation based on rows""",
-    usage="python row_wise_concatenation.py [-h] <FILE ...> [--suffixes <LITERAL ...>]"
+    usage="python csv_concatenation.py [-h] <FILE ...> [--suffixes <LITERAL ...>]"
 )
 
 parser.add_argument(
@@ -23,6 +23,16 @@ parser.add_argument(
     min=2,
     metavar="FILE",
     help="input csv files"
+)
+
+parser.add_argument(
+    "-o", "--outfile",
+    dest="outfile",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default="results.csv",
+    metavar="FILE",
+    help="output csv file (default: results.csv)"
 )
 
 parser.add_argument(
@@ -64,16 +74,6 @@ parser.add_argument(
     required=False,
     action="store_true",
     help="transpose rows and columns"
-)
-
-parser.add_argument(
-    "-o", "--outfile",
-    dest="outfile",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    default="results.csv",
-    metavar="FILE",
-    help="output csv file (default: results.csv)"
 )
 
 args = parser.parse_args()
