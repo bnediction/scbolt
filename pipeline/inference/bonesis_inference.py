@@ -216,6 +216,8 @@ if args.action == "filter-stage1":
 elif args.action == "filter-stage2":
     
     bo.maximize_strong_constants()
+    bo.custom("edge(A,A) :- clause(A,_,A,_). #minimize { 1@10000,A: edge(A,A) }.")
+
     view = bonesis.NonStrongConstantNodesView(bo, mode="optN",
                                   clingo_opt_strategy="usc",
                                   clingo_options=["--opt-usc-shrink=inv"])
@@ -234,6 +236,7 @@ elif args.action == "one-min":
     
     bo.custom("edge(A,B) :- clause(B,_,A,_). #minimize { 1@1,A,B: edge(A,B) }.")
     bo.custom("#maximize { 1@10,N: constant(N) }.")
+    bo.custom("#minimize { 1@100,A: edge(A,A) }.")
     view = bonesis.InfluenceGraphView(bo, mode="optN", clingo_opt_strategy="usc",
                                       extra=("boolean-network",
                                              "configurations"),
