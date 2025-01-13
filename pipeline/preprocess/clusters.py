@@ -25,7 +25,7 @@ parser = argparse.ArgumentParser(
     run t-SNE and UMAP algorithm, search for gene markers and compare markers and
     signatures in order to provide useful information about potential cell-types
     of each cluster.""",
-    usage="python clusterization.py <FILE> <PATH> [<args>]"
+    usage="python clusters.py <FILE> <PATH> [<args>]"
 )
 
 parser.add_argument(

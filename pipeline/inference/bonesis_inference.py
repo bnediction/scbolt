@@ -68,7 +68,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="FILE",
-    help="csv file containing binarized macrostates"
+    help="file containing partially binarized macrostates (csv format)"
 )
 
 parser.add_argument(
@@ -77,7 +77,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="FILE",
-    help="txt file containing model specifications in Bonesis langage"
+    help="file containing model specifications in Bonesis langage (txt format)"
 )
 
 parser.add_argument(
@@ -86,7 +86,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="file with one node per line"
+    help="file with one node per line (txt format)"
 )
 
 parser.add_argument(
@@ -95,7 +95,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="json or txt file with node list, each nodes being forced to appear"
+    help="file with node list, each nodes being forced to appear (json/txt format)"
 )
 
 parser.add_argument(
@@ -104,7 +104,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="json or txt file with node list, each nodes being prioritize to appear"
+    help="file with node list, each nodes being prioritize to appear (json/txt format)"
 )
 
 parser.add_argument(
@@ -248,3 +248,10 @@ elif args.action == "one-sub":
     view.standalone(output_filename=f"{args.outpath}/one-sub.sh")
     solution = next(iter(view))
     write_solution(solution, f"{args.outpath}/one-sub")
+
+elif args.action == "one-sub":
+    
+    view = bonesis.InfluenceGraphView(bo, solutions="subset-minimal", extra=("boolean-network", "configurations"))
+    view.standalone(output_filename=f"{args.outpath}/one-sub.sh")
+    for i, solution in enumerate(view):
+        write_solution(solution, f"{args.outpath}/sub_{i}")

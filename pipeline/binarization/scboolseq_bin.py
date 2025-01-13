@@ -376,7 +376,7 @@ if len(args.infiles) > 1:
                 adatas,
                 axis=0,
                 label="condition",
-                keys=["ctrl","treated"],
+                keys=args.conditions,
                 merge="first",
                 uns_merge="same"
             )
