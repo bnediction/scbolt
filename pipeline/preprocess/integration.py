@@ -71,14 +71,14 @@ parser.add_argument(
     "infile_reference",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="file in h5ad format, being considered as control dataset"
+    help="counting file being considered as control dataset (h5ad format)"
 )
 
 parser.add_argument(
     "infile_interest",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="file in h5ad format, being considered as dataset to integrate"
+    help="counting file being considered as dataset to integrate (h5ad format)"
 )
 
 parser.add_argument(

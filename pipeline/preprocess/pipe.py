@@ -18,7 +18,7 @@ parser.add_argument(
     "integrated",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="integration-based file in h5ad format"
+    help="integration-based file (h5ad format)"
 )
 
 parser.add_argument(
@@ -26,7 +26,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     metavar="FILE [FILE ...]",
     nargs="+",
-    help="condition-based input file(s) in h5ad format"
+    help="condition-based input file(s) (h5ad format)"
 )
 
 parser.add_argument(
@@ -37,7 +37,7 @@ parser.add_argument(
     metavar="FILE [FILE ...]",
     default=None,
     nargs="+",
-    help="condition-based output file(s) in h5ad format (not specified: replace input file(s))"
+    help="condition-based output file(s) (h5ad format. If not specified, replace input file(s))"
 )
 
 parser.add_argument(

@@ -21,7 +21,7 @@ data/rna/integrated/bonesis/inference/min/analysis
 
 parser = argparse.ArgumentParser(
     prog="Boolean network statistical analysis",
-    description="""Perform statistical analysis upon a single Boolean network.
+    description="""Perform statistical analysis upon a Boolean network.
     It encompasses cycle analysis, Most Permissive reachability and attractor properties""",
     usage="python cycles.py <FILE> <PATH> [<args>]"
 )

@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 from anndatatools.plotting import color
 
 parser = argparse.ArgumentParser(
-    prog="pseudotime computation of sc-RNAseq data",
+    prog="pseudotime computation",
     description="""compute pseudotime based on STREAM method \
     (see Chen et al. (2019): <https://www.nature.com/articles/s41467-019-09670-4>).""",
     usage=""""python pseudotime.py [-h] <FILE> <PATH> [<args>]"""
@@ -31,7 +31,7 @@ parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="file in h5ad format"
+    help="counting file (h5ad format)"
 )
 
 parser.add_argument(

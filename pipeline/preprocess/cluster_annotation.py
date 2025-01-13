@@ -11,23 +11,22 @@ import anndata as ad
 
 parser = argparse.ArgumentParser(
     prog="labeling of clusters",
-    description="""From sc-rnaSeq data recorded in the hdf5 format,
-    rename labels using user-defined names.""",
-    usage="""python cluster_labeling.py [-h] <FILE> <FILE> -c <LITERAL> -n <LITERAL=LITERAL [LITERAL=LITERAL ...]>"""
+    description="""Rename labels using user-defined names.""",
+    usage="""python cluster_annotation.py [-h] <FILE> <FILE> -c <LITERAL> -n <LITERAL=LITERAL [LITERAL=LITERAL ...]>"""
 )
 
 parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="file in h5ad format"
+    help="counting file (h5ad format)"
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="PATH",
-    help="file in h5ad format with labels"
+    help="output file with labels (h5ad format)"
 )
 
 parser.add_argument(

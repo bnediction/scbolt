@@ -19,12 +19,11 @@ from anndatatools.plotting import (
 )
 
 parser = argparse.ArgumentParser(
-    prog="Clusterization of sc-RNAseq data",
-    description="""From one-condition sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
-    perform dimension reduction using PCA, create clusters using leiden algorithm,
-    run t-SNE and UMAP algorithm, search for gene markers and compare markers and
-    signatures in order to provide useful information about potential cell-types
-    of each cluster.""",
+    prog="Single-cell clustering",
+    description="""Perform clustering from single-cell sequencing data.
+    It encompasses dimension reduction using PCA, clustering using leiden algorithm,
+    embedding projection using t-SNE and UMAP algorithm, gene marker searching and
+    marker/signature comparison for providing useful information about potential cell-types.""",
     usage="python clusters.py <FILE> <PATH> [<args>]"
 )
 
@@ -32,7 +31,7 @@ parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="file in h5ad format"
+    help="counting file (h5ad format)"
 )
 
 parser.add_argument(

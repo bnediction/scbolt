@@ -13,9 +13,8 @@ import matplotlib.pyplot as plt
 from anndatatools.plotting import color
 
 parser = argparse.ArgumentParser(
-    prog="scvelo of sc-RNAseq data",
-    description="""From sc-RNAseq data recorded in the hdf5 format,
-    compute cell sub-populations in each clusters.
+    prog="macrostates computation",
+    description="""Compute cell sub-populations in each cluster.
     Two methods can be used:
     1) "center" method, computing the cells closest to the cluster-related barycenter
     2) "extremity" method, computing the cells furthest from other cluster-related barycenters""",
@@ -26,7 +25,7 @@ parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="file in h5ad format"
+    help="counting file (h5ad format)"
 )
 
 parser.add_argument(

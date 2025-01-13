@@ -67,7 +67,7 @@ parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="path to .h5ad file"
+    help="counting file (h5ad format)"
 )
 
 parser.add_argument(
@@ -124,7 +124,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of used process"
+    help="number of allocated processors"
 )
 
 args = parser.parse_args()

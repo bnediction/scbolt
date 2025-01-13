@@ -202,11 +202,10 @@ def cell_to_cluster_binarization(
     return group_df.fillna(0).astype(int)
 
 parser = argparse.ArgumentParser(
-    prog="binarization of sc-RNAseq data",
-    description="""From concatenated sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad), \
-        compute cluster-related binarization based on scBoolSeq \
-        method (see Magaña López et al. (2023): <https://hal.science/hal-04294917/>).""",
-    usage=""""python bin_clusters.py [-h] <FILE> -o <PATH> -c <LITERAL> [<args>]"""
+    prog="cluster binarization",
+    description="""compute cluster-related binarization from single-cell sequencing data, \
+    using scBoolSeq method (see Magaña López et al. (2023): <https://hal.science/hal-04294917/>).""",
+    usage=""""python scboolseq_bin.py [-h] <FILE> -o <PATH> -c <LITERAL> [<args>]"""
 )
 
 parser.add_argument(
@@ -214,7 +213,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
     nargs="+",
-    help="file(s) in h5ad format"
+    help="input file(s) (h5ad format)"
 )
 
 parser.add_argument(

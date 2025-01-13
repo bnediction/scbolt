@@ -22,14 +22,14 @@ parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="file in h5ad format"
+    help="counting file (h5ad format)"
 )
 
 parser.add_argument(
     "signatures",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="file in json format"
+    help="file containing signatures (json format)"
 )
 
 parser.add_argument(

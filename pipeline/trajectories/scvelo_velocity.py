@@ -19,9 +19,8 @@ from anndatatools.plotting import (
 )
 
 parser = argparse.ArgumentParser(
-    prog="scvelo of sc-RNAseq data",
-    description="""From one-condition sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
-    perform scvelo analysis.""",
+    prog="scvelo",
+    description="""Perform scvelo analysis.""",
     usage="python scvelo.py <FILE> <PATH> [<args>]"
 )
 
@@ -29,7 +28,7 @@ parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="file in h5ad format"
+    help="counting file (h5ad format)"
 )
 
 parser.add_argument(

@@ -49,7 +49,7 @@ parser = argparse.ArgumentParser(
     description="""From sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
     filter low-quality cells and assign cell cycle phases using marker pairs.
     Some quality metrics are computed before and after filtering.""",
-    usage="python cluster.py [-h] --i <path> [<args>]"
+    usage="python filter_cells.py [-h] --i <path> [<args>]"
 )
 
 parser.add_argument(
@@ -58,7 +58,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="PATH",
-    help="file in h5ad format"
+    help="counting file (h5ad format)"
 )
 
 parser.add_argument(
@@ -67,7 +67,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="PATH",
-    help="path to .rds cell cycle phase markers file (including file)"
+    help="file containing cell cycle phase markers (rds format)"
 )
 
 parser.add_argument(
@@ -125,7 +125,7 @@ parser.add_argument(
     required=False,
     default="Accession",
     metavar="LITERAL",
-    help="column name in h5ad file containing Ensembl Id"
+    help="column name in AnnData file containing Ensembl Id"
 )
 
 args = parser.parse_args()

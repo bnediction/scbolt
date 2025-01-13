@@ -15,9 +15,8 @@ import matplotlib.pyplot as plt
 from anndatatools.plotting import color
 
 parser = argparse.ArgumentParser(
-    prog="scvelo of sc-RNAseq data",
-    description="""From one-condition sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
-    perform cellrank analysis to find macrostates.""",
+    prog="Cellrank macrostates computation",
+    description="""Perform cellrank analysis to find macrostates.""",
     usage="python cellrank_macrostates.py <FILE> <PATH> [<args>]"
 )
 
@@ -25,7 +24,7 @@ parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="file in h5ad format"
+    help="counting file (h5ad format)"
 )
 
 parser.add_argument(
