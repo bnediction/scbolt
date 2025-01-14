@@ -259,6 +259,12 @@ else
 EXCLUDE_TREATED:=
 endif
 
+ifeq ($(MINIMIZE_AUTO_LOOPS),true)
+MINIMIZE_AUTO_LOOPS:=--minimize-auto-loops
+else
+MINIMIZE_AUTO_LOOPS:=
+endif
+
 ##@ Help
 
 .PHONY: help
@@ -922,7 +928,7 @@ $(SCBOOLSEQ_INTEGRATED): $(MACROSTATES_CTRL) $(MACROSTATES_TREATED)
 	$(CONDA_ACTIVATE) scboolseq
 	python pipeline/binarization/scboolseq_bin.py $^ -o $(dir $@) \
 		--cluster leiden macrostates \
-		--condition $(CONDITIONS) \
+		--conditions $(CONDITIONS) \
 		--exclude nan \
 		--layer log-normalize \
 		--hvg \
@@ -998,7 +1004,8 @@ $(BONESIS_FILTER2_CTRL): $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL) $(BONESIS
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
-  		--filter-grn $(lastword $^) > $@
+  		--filter-grn $(lastword $^) \
+		$(MINIMIZE_AUTO_LOOPS) > $@
 	$(CONDA_DEACTIVATE)
 
 $(BONESIS_FILTER2_TREATED): $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_TREATED) $(BONESIS_FILTER1_TREATED) 
@@ -1009,7 +1016,8 @@ $(BONESIS_FILTER2_TREATED): $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_TREATED) 
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
-  		--filter-grn $(lastword $^) > $@
+  		--filter-grn $(lastword $^) \
+		$(MINIMIZE_AUTO_LOOPS) > $@
 	$(CONDA_DEACTIVATE)
 
 $(BONESIS_FILTER2_INTEGRATED): $(MODEL_SPECIFICATION_INTEGRATED) $(SCBOOLSEQ_INTEGRATED) $(BONESIS_FILTER1_INTEGRATED) 
@@ -1020,7 +1028,8 @@ $(BONESIS_FILTER2_INTEGRATED): $(MODEL_SPECIFICATION_INTEGRATED) $(SCBOOLSEQ_INT
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
-  		--filter-grn $(lastword $^) > $@
+  		--filter-grn $(lastword $^) \
+		$(MINIMIZE_AUTO_LOOPS) > $@
 	$(CONDA_DEACTIVATE)
 
 $(BONESIS_INFERENCE_MIN_CTRL): $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL) $(BONESIS_FILTER2_CTRL)
@@ -1031,7 +1040,8 @@ $(BONESIS_INFERENCE_MIN_CTRL): $(MODEL_SPECIFICATION_CTRL) $(SCBOOLSEQ_CTRL) $(B
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
-  		--filter-grn $(lastword $^)
+  		--filter-grn $(lastword $^) \
+		$(MINIMIZE_AUTO_LOOPS)
 	$(CONDA_DEACTIVATE)
 	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
 
@@ -1043,7 +1053,8 @@ $(BONESIS_INFERENCE_MIN_TREATED): $(MODEL_SPECIFICATION_TREATED) $(SCBOOLSEQ_TRE
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
-  		--filter-grn $(lastword $^)
+  		--filter-grn $(lastword $^) \
+		$(MINIMIZE_AUTO_LOOPS)
 	$(CONDA_DEACTIVATE)
 	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
 
@@ -1055,7 +1066,8 @@ $(BONESIS_INFERENCE_MIN_INTEGRATED): $(MODEL_SPECIFICATION_INTEGRATED) $(SCBOOLS
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
-  		--filter-grn $(lastword $^)
+  		--filter-grn $(lastword $^) \
+		$(MINIMIZE_AUTO_LOOPS)
 	$(CONDA_DEACTIVATE)
 	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
 

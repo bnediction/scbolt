@@ -73,3 +73,7 @@ $(eval TERMINAL_STATES_TREATED := 4)			# number of terminal states with cellrank
 ## binarization parameters
 
 $(eval INTEGRATED_BINARIZATION := merged)		# split or merged
+
+## inference parameters
+
+$(eval MINIMIZE_AUTO_LOOPS := true)				# true or false

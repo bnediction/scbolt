@@ -236,8 +236,8 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--condition",
-    dest="condition",
+    "--conditions",
+    dest="conditions",
     type=str,
     required=False,
     action=Required_length,
@@ -365,9 +365,9 @@ for i in range(len(adatas)):
     adatas[i].var_names_make_unique()
 
 if len(args.infiles) > 1:
-    if args.condition is None:
+    if args.conditions is None:
         raise argparse.ArgumentError(None, "option --condition must be specified when using multiple infiles")
-    elif len(args.infiles) != len(args.condition):
+    elif len(args.infiles) != len(args.conditions):
         raise argparse.ArgumentError(None, "infiles and --condition require the same number of values")
     else:
         try:
@@ -414,7 +414,7 @@ predict_d = dict()
 for _group in args.groupby:
     if len(args.groupby) > 1:
         print(f"\tcomputation for cluster `{_group}`")
-    metadata = [_group, "condition"] if args.condition else _group
+    metadata = [_group, "condition"] if args.conditions else _group
     convert_metadata = {category: "category" for category in metadata} if isinstance(metadata,list) else "category"
     _cell_df = pd.merge(
         cell_df,
@@ -427,7 +427,7 @@ for _group in args.groupby:
         obs_df=_cell_df,
         columns=gene_list,
         group=_group,
-        condition = "condition" if args.condition else None,
+        condition = "condition" if args.conditions else None,
         dropna=False
     )
     if args.exclude:
@@ -447,5 +447,5 @@ print("Saving data...")
 
 cell_df.to_csv(f"{args.outpath}/cell_bin.csv", sep=",", index=True)
 for _group in args.groupby:
-    cluster_d[_group].to_csv(f"{args.outpath}/cluster_bin_counts_{_group}.csv", sep=",", index=True)
-    predict_d[_group].to_csv(f"{args.outpath}/cluster_bin_{_group}.csv", sep=",", index=True)
+    cluster_d[_group].transpose().to_csv(f"{args.outpath}/cluster_bin_counts_{_group}.csv", sep=",", index=True)
+    predict_d[_group].transpose().to_csv(f"{args.outpath}/cluster_bin_{_group}.csv", sep=",", index=True)

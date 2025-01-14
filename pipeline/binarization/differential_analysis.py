@@ -185,7 +185,7 @@ bdc = bp.algebra.BooleanDifferentialCalculus()
 
 print(f"Loading data...")
 
-meta_bin = pd.read_csv(args.infile, index_col=0)
+meta_bin = pd.read_csv(args.infile, index_col=0).transpose()
 
 collectri_db = dc.get_collectri(organism="mouse", split_complexes=True)
 grn = collectri_to_grn(collectri_db, sign_label="weight", remove_pmid=True)

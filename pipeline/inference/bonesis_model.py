@@ -16,5 +16,5 @@ def bomodel(bo: BoNesis, file: Path) -> None:
 def load_bin(file: Path, gene_synonyms: GeneSynonyms = None) -> dict:
     meta_bin = pd.read_csv(file, index_col=0)
     if gene_synonyms is not None and isinstance(gene_synonyms, GeneSynonyms):
-        gene_synonyms.df_standardization(meta_bin, axis=1, copy=False)
-    return {config: genes.dropna().to_dict() for config, genes in meta_bin.iterrows()}
+        gene_synonyms.df_standardization(meta_bin, axis=0, copy=False)
+    return {config: genes.dropna().to_dict() for config, genes in meta_bin.items()}

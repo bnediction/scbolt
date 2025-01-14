@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from typing import Optional, List
+
 import os, argparse
 from pathlib import Path
 
@@ -8,6 +10,7 @@ from typing import Any
 import pandas as pd
 
 from colomoto import minibn
+from colomoto.types import Hypercube
 import mpbn
 
 import networkx as nx
@@ -17,7 +20,8 @@ s = """data/rna/integrated/bonesis/inference/min/one-min.bnet
 data/rna/integrated/bonesis/inference/min/analysis
 --bin-bonesis data/rna/integrated/bonesis/inference/min/one-min.csv
 --bin-metastates data/rna/integrated/binarization/cluster_bin_macrostates.csv
---init-names Prom2_ctrl Prom2_treated"""
+--init-states Prom2_ctrl Prom2_treated
+--final-states Rep_ctrl Prom3_ctrl Rep_treated Gran2_treated"""
 
 parser = argparse.ArgumentParser(
     prog="Boolean network statistical analysis",
@@ -41,6 +45,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--bin-metastates",
+    dest="bin_metastates",
+    type=lambda x: Path(x).resolve(),
+    required=True,
+    metavar="FILE",
+    help="file containing partially binarized macrostates (csv format)"
+)
+
+parser.add_argument(
     "--bin-bonesis",
     dest="bin_bonesis",
     type=lambda x: Path(x).resolve(),
@@ -50,38 +63,67 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--bin-metastates",
-    dest="bin_metastates",
-    type=lambda x: Path(x).resolve(),
+    "--init-states",
+    dest="init_states",
+    type=str,
     required=True,
-    metavar="FILE",
-    help="file containing partially binarized macrostates (csv format)"
+    nargs="+",
+    metavar="LITERAL",
+    help="names of the initial configurations"
+)
+
+parser.add_argument(
+    "--final-states",
+    dest="final_states",
+    type=str,
+    required=True,
+    nargs="+",
+    metavar="LITERAL",
+    help="names of the final configurations"
 )
 
 args = parser.parse_args(s.split())
+length_str = 30
+
+def get_states(file: Path, init_state_names: Optional[List[str]]=None, final_state_names: Optional[List[str]]=None):
+    states = pd.read_csv(file, index_col=0).fillna("*")
+    init_states = {state_name: Hypercube(states.loc[:,state_name].to_dict()) for state_name in init_state_names} if init_state_names is not None else None
+    final_states = {state_name: Hypercube(states.loc[:,state_name].to_dict()) for state_name in final_state_names} if final_state_names is not None else None
+    return states, init_states, final_states
 
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
 bn = mpbn.MPBooleanNetwork.load(str(args.infile))
 grn = bn.influence_graph()
-states_bonesis = pd.read_csv(args.bin_bonesis, index_col=0)
-init_ctrl = states_bonesis.loc[:,args.init_names[0]].to_dict()
-init_treated = states_bonesis.loc[:,args.init_names[1]].to_dict()
+
+bonesis_states, init_config, final_config = get_states(args.bin_bonesis, args.init_states, args.final_states)
+metastates, init_states, final_states = get_states(args.bin_metastates, args.init_states, args.final_states)
 
 cycles = nx.simple_cycles(grn)
 
+print(f"{'cycles':-^{length_str}}\n")
+
 with open(f"{args.outpath}/simple-cycles.txt", "w") as file:
     for cycle in cycles:
-        file.write(f"{path_to_string(grn, *cycle, cycle[0])}\n")
+        cycle_str = path_to_string(grn, *cycle, cycle[0])
+        file.write(f"{cycle_str}\n")
+        print(cycle_str)
 
-attractors = list(bn.attractors(reachable_from=init_ctrl))
-attractors = list(bn.attractors(reachable_from=init_treated))
+print(f"\n{'attractors':-^{length_str}}\n")
+
+print(f"number of attractors: {len(list(bn.attractors()))}")
+
+reachable_attractors = {state_name: list(bn.attractors(reachable_from=init_config[state_name])) for state_name in args.init_states}
+for state_name in args.init_states:
+    print(f"state: {state_name}")
+    print(f"number of reachable attractors: {len(reachable_attractors[state_name])}")
+    print(f"attractors corresponding to Gran2_treated: {len(reachable_attractors[state_name])}")
 
 # attractors = list(bn.attractors(reachable_from=init))
 
-macrostates = pd.read_csv(args.bin_macrostates, index_col=0)
-final_names_ctrl = ["Prom3_ctrl", "Rep_ctrl"]
-final_macrostates = macrostates.loc[final_names_ctrl,:].transpose().replace(float("nan"),"*").to_dict()
-
-import mpsim
+# macrostates = pd.read_csv(args.bin_macrostates, index_col=0)
+# final_names_ctrl = ["Prom3_ctrl", "Rep_ctrl"]
+# final_macrostates = macrostates.loc[final_names_ctrl,:].transpose().replace(float("nan"),"*").to_dict()
+# 
+# import mpsim
