@@ -96,9 +96,18 @@ if not args.outpath.exists():
 
 bn = mpbn.MPBooleanNetwork.load(str(args.infile))
 grn = bn.influence_graph()
+nodes = set(grn.nodes)
 
 bonesis_states, init_config, final_config = get_states(args.bin_bonesis, args.init_states, args.final_states)
-metastates, init_states, final_states = get_states(args.bin_metastates, args.init_states, args.final_states)
+metastates, init_metastates, final_metastates = get_states(args.bin_metastates, args.init_states, args.final_states)
+
+_nodes_explained_by_data = nodes.intersection(set(metastates.index))
+_nodes_explained_by_inference = nodes.difference(set(metastates.index))
+
+for _metastates in [init_metastates, final_metastates]:
+    for name, hypercube in _metastates.items():
+        _metastates[name] = Hypercube({node: hypercube[node] for node in _nodes_explained_by_data})
+        _metastates[name].update({node: "*" for node in _nodes_explained_by_inference})
 
 cycles = nx.simple_cycles(grn)
 
@@ -112,13 +121,22 @@ with open(f"{args.outpath}/simple-cycles.txt", "w") as file:
 
 print(f"\n{'attractors':-^{length_str}}\n")
 
-print(f"number of attractors: {len(list(bn.attractors()))}")
+reachable_attractors = [Hypercube(attractor) for attractor in bn.attractors()]
+print(f"number of attractors: {len(reachable_attractors)}")
+for name, hypercube in final_metastates.items():
+    matching_attractor_number = 0
+    for attractor in reachable_attractors:
+        if hypercube.match_partial_state(attractor):
+            matching_attractor_number += 1
+    print(f"attractors subcube of state {name}: {matching_attractor_number}")
+
 
 reachable_attractors = {state_name: list(bn.attractors(reachable_from=init_config[state_name])) for state_name in args.init_states}
 for state_name in args.init_states:
-    print(f"state: {state_name}")
+    print(f"From {state_name}:")
     print(f"number of reachable attractors: {len(reachable_attractors[state_name])}")
     print(f"attractors corresponding to Gran2_treated: {len(reachable_attractors[state_name])}")
+
 
 # attractors = list(bn.attractors(reachable_from=init))
 
