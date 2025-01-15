@@ -10,7 +10,7 @@ from typing import Any
 import pandas as pd
 
 from colomoto import minibn
-from colomoto.types import Hypercube
+from hypercube import Hypercube
 import mpbn
 
 import networkx as nx
@@ -86,7 +86,7 @@ args = parser.parse_args(s.split())
 length_str = 30
 
 def get_states(file: Path, init_state_names: Optional[List[str]]=None, final_state_names: Optional[List[str]]=None):
-    states = pd.read_csv(file, index_col=0).fillna("*")
+    states = pd.read_csv(file, index_col=0).fillna("*").replace("-","_")
     init_states = {state_name: Hypercube(states.loc[:,state_name].to_dict()) for state_name in init_state_names} if init_state_names is not None else None
     final_states = {state_name: Hypercube(states.loc[:,state_name].to_dict()) for state_name in final_state_names} if final_state_names is not None else None
     return states, init_states, final_states
@@ -121,27 +121,22 @@ with open(f"{args.outpath}/simple-cycles.txt", "w") as file:
 
 print(f"\n{'attractors':-^{length_str}}\n")
 
-reachable_attractors = [Hypercube(attractor) for attractor in bn.attractors()]
-print(f"number of attractors: {len(reachable_attractors)}")
+attractors = [Hypercube(attractor) for attractor in bn.attractors()]
+print(f"attractors: {len(attractors)}")
 for name, hypercube in final_metastates.items():
-    matching_attractor_number = 0
-    for attractor in reachable_attractors:
-        if hypercube.match_partial_state(attractor):
-            matching_attractor_number += 1
-    print(f"attractors subcube of state {name}: {matching_attractor_number}")
-
+    n = 0
+    for attractor in attractors:
+        n = n+1 if attractor.is_subhypercube(hypercube) else n
+    print(f"sub-hypercube of {name} (bin): {n}")
+for name, hypercube in final_config.items():
+    n = 0
+    for attractor in attractors:
+        n = n+1 if attractor.is_subhypercube(hypercube) else n
+    print(f"sub-hypercube of {name} (bonesis): {n}")
 
 reachable_attractors = {state_name: list(bn.attractors(reachable_from=init_config[state_name])) for state_name in args.init_states}
 for state_name in args.init_states:
-    print(f"From {state_name}:")
-    print(f"number of reachable attractors: {len(reachable_attractors[state_name])}")
-    print(f"attractors corresponding to Gran2_treated: {len(reachable_attractors[state_name])}")
+    print(f"\nstate (bonesis): {state_name}")
+    print(f"reachable attractors: {len(reachable_attractors[state_name])}")
 
-
-# attractors = list(bn.attractors(reachable_from=init))
-
-# macrostates = pd.read_csv(args.bin_macrostates, index_col=0)
-# final_names_ctrl = ["Prom3_ctrl", "Rep_ctrl"]
-# final_macrostates = macrostates.loc[final_names_ctrl,:].transpose().replace(float("nan"),"*").to_dict()
-# 
 # import mpsim
