@@ -1,6 +1,6 @@
 {
-    "infile": "data/rna/integrated/clustering/clusters/integrated.h5ad",
-    "outfile": "figures/results/umap_conditions_wo_lgd",
+    "infile": "data/rna/ctrl/trajectories/macrostates/adata.h5ad",
+    "outfile": "figures/results/umap_macrostates_wo_axis",
     "modules": [
         {"numpy": "np"},
         {"anndatatools": "adt"}
@@ -10,10 +10,11 @@
         "xlabel",
         "ylabel",
         "zlabel",
+        ["lgd_params", "edgecolor"],
         "n_components"
     ],
     "figure": {
-        "obs": "condition",
+        "obs": "macrostates",
         "obsm": "X_umap",
         "figheight": 5,
         "figwidth": 6,
@@ -25,6 +26,19 @@
         "add_text": false,
         "s": 2,
         "alpha": 1,
+        "add_legend": true,
+        "lgd_params": {
+            "title": "clusters",
+            "ncol": 1,
+            "markerscale": 5,
+            "frameon": true,
+            "edgecolor": "adt.pl.color.black",
+            "shadow": false
+        },
+        "text": {
+            "fontsize": 12,
+            "fontweight": "extra bold"
+        },
         "n_components": "2 if adata.obsm['X_umap'].shape[1] == 2 else 3",
         "background_visible": false
     },

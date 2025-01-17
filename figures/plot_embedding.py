@@ -32,8 +32,7 @@ def do_eval(_eval_params, _figure_params):
 
 parser = argparse.ArgumentParser(
     prog="figure plotting",
-    description="""From sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
-    plot figure using a json file.""",
+    description="""plot figure from anndata object""",
     usage="""python <PATH> [-i <PATH> -o <PATH>]"""
 )
 
@@ -104,7 +103,10 @@ fig, ax = adt.pl.embedding_plot(
     **params["figure"]
 )
 adt.pl.set_default(ax)
-# plt.grid(False); plt.axis('off')
+if "grid" in params:
+    plt.grid(params["grid"])
+if "axis" in params:
+    plt.axis(params["axis"])
 plt.savefig(f"{outfile}.pdf", bbox_inches="tight", pad_inches=0.3)
 try:
     os.system(f"pdfcrop --margins '0 0 0 0' {outfile}.pdf {outfile}.pdf")

@@ -1,0 +1,45 @@
+{
+    "infile": "data/rna/integrated/clustering/clusters/counts_labels.h5ad",
+    "outfile": "figures/results/umap_labels_wo_axis",
+    "modules": [
+        {"numpy": "np"},
+        {"anndatatools": "adt"}
+    ],
+    "eval": [
+        "xlabel",
+        "ylabel",
+        "zlabel",
+        ["lgd_params", "edgecolor"],
+        "n_components"
+    ],
+    "figure": {
+        "obs": "leiden",
+        "obsm": "X_umap",
+        "figheight": 5,
+        "figwidth": 6,
+        "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
+        "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
+        "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
+        "add_graph": false,
+        "add_text": false,
+        "add_legend": true,
+        "s": 2,
+        "alpha": 1,
+        "lgd_params": {
+            "title": "clusters",
+            "ncol": 1,
+            "markerscale": 5,
+            "frameon": true,
+            "edgecolor": "adt.pl.color.black",
+            "shadow": false
+        },
+        "text": {
+            "fontsize": 12,
+            "fontweight": "extra bold"
+        },
+        "n_components": "3 if adata.obsm['X_umap'].shape[1] > 2 and args.plot_3d is True else 2",
+        "background_visible": false
+    },
+    "grid": false,
+    "axis": "off"
+}

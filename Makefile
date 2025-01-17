@@ -732,7 +732,7 @@ ifdef CLUSTER_LABEL_INTEGRATED
 		--column leiden \
 		--name $(CLUSTER_LABEL_INTEGRATED)
 	python figures/plot_embedding.py figures/umap_labels.json \
-		--infile $@ --outfile $(@D)/umap_labels.pdf
+		--infile $@ --outfile $(@D)/umap_labels
 	$(CONDA_DEACTIVATE)
 else
  $(LABELS_INTEGRATED): $(CLUSTER_INTEGRATED)
@@ -746,14 +746,14 @@ $(LABELS_CTRL): $(LABELS_INTEGRATED) $(CLUSTER_CTRL)
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/pipe.py $^ --outfiles $@ --column leiden --condition condition
 	python figures/plot_embedding.py figures/umap_labels.json \
-		--infile $@ --outfile $(@D)/umap_labels.pdf
+		--infile $@ --outfile $(@D)/umap_labels
 	$(CONDA_DEACTIVATE)
 $(LABELS_TREATED): $(LABELS_INTEGRATED) $(CLUSTER_TREATED)
 	$(call section,cluster-annotation (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/preprocess/pipe.py $^ --outfiles $@ --column leiden --condition condition
 	python figures/plot_embedding.py figures/umap_labels.json \
-		--infile $@ --outfile $(@D)/umap_labels.pdf
+		--infile $@ --outfile $(@D)/umap_labels
 	$(CONDA_DEACTIVATE)
 else
 ifdef CLUSTER_LABEL_CTRL
@@ -883,7 +883,7 @@ $(MACROSTATES_CTRL): $(SCVELO_CTRL)
 		--plot-3d
 	$(CONDA_DEACTIVATE)
 $(MACROSTATES_TREATED): $(SCVELO_TREATED)
-	$(call section,macrostates (control data))
+	$(call section,macrostates (treated data))
 	$(CONDA_ACTIVATE) preprocess
 	python pipeline/trajectories/macrostates.py $< $(@D) \
 		--obs leiden --obsm X_umap \
