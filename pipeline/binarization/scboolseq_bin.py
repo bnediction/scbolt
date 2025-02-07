@@ -205,7 +205,7 @@ parser = argparse.ArgumentParser(
     prog="cluster binarization",
     description="""compute cluster-related binarization from single-cell sequencing data, \
     using scBoolSeq method (see Magaña López et al. (2023): <https://hal.science/hal-04294917/>).""",
-    usage=""""python scboolseq_bin.py [-h] <FILE> -o <PATH> -c <LITERAL> [<args>]"""
+    usage=""""python scboolseq_bin.py [-h] <FILE...> -o <PATH> -c <LITERAL> [<args>]"""
 )
 
 parser.add_argument(

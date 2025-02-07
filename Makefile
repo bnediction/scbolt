@@ -259,6 +259,13 @@ else
 EXCLUDE_TREATED:=
 endif
 
+ifeq ($(BINARIZATION_ONLY_HVG),true)
+BINARIZATION_ONLY_HVG:=--hvg
+else
+BINARIZATION_ONLY_HVG:=
+endif
+
+
 ifeq ($(MINIMIZE_AUTO_LOOPS),true)
 MINIMIZE_AUTO_LOOPS:=--minimize-auto-loops
 else
@@ -899,9 +906,7 @@ $(SCBOOLSEQ_CTRL): $(MACROSTATES_CTRL)
 	$(CONDA_ACTIVATE) scboolseq
 	python pipeline/binarization/scboolseq_bin.py $< -o $(dir $@) \
 		--cluster leiden macrostates \
-		--exclude nan \
-		--layer log-normalize \
-		--hvg \
+		--exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) \
 		--verbose
 	$(CONDA DEACTIVATE)
 
@@ -910,9 +915,7 @@ $(SCBOOLSEQ_TREATED): $(MACROSTATES_TREATED)
 	$(CONDA_ACTIVATE) scboolseq
 	python pipeline/binarization/scboolseq_bin.py $< -o $(dir $@) \
 		--cluster leiden macrostates \
-		--exclude nan \
-		--layer log-normalize \
-		--hvg \
+		--exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) \
 		--verbose
 	$(CONDA DEACTIVATE)
 
@@ -928,10 +931,7 @@ $(SCBOOLSEQ_INTEGRATED): $(MACROSTATES_CTRL) $(MACROSTATES_TREATED)
 	$(CONDA_ACTIVATE) scboolseq
 	python pipeline/binarization/scboolseq_bin.py $^ -o $(dir $@) \
 		--cluster leiden macrostates \
-		--conditions $(CONDITIONS) \
-		--exclude nan \
-		--layer log-normalize \
-		--hvg \
+		--conditions $(CONDITIONS) --exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) \
 		--verbose
 	$(CONDA DEACTIVATE)
 endif

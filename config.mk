@@ -23,6 +23,8 @@ $(eval EXCLUDE_TREATED := true)
 
 ## others parameters ##
 
+BINARIZATION_ONLY_HVG = false
+
 SEED_CLUSTER_INTEGRATED = 1
 MU_TREATED := 0.03
 

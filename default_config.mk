@@ -73,6 +73,7 @@ $(eval TERMINAL_STATES_TREATED := 4)			# number of terminal states with cellrank
 ## binarization parameters
 
 $(eval INTEGRATED_BINARIZATION := merged)		# split or merged
+$(eval BINARIZATION_ONLY_HVG := true)			# perform binarization with highly-variable genes only or with all genes
 
 ## inference parameters
 
