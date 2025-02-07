@@ -498,7 +498,7 @@ $(VELOCYTO_CTRL): $(CELLRANGER_CTRL) $(TRANSCRIPTOME)
 	mv $(<D)/velocyto/cellranger.loom $(shell echo $@ | sed "s/h5ad/loom/")
 	rm -rf $(<D)/velocyto
 	$(CONDA_ACTIVATE) preprocess
-	python bonesis-tools/clitools/conversion_to_h5ad.py $(shell echo $@ | sed "s/h5ad/loom/") $@ \
+	python bonesis-tools/clitools/format/to_h5ad.py $(shell echo $@ | sed "s/h5ad/loom/") $@ \
 		--sample-info $(METADATA_CTRL) \
 		--remove-positions
 	$(CONDA_DEACTIVATE)
@@ -514,7 +514,7 @@ $(VELOCYTO_TREATED): $(CELLRANGER_TREATED) $(TRANSCRIPTOME)
 	mv $(<D)/velocyto/cellranger.loom $(shell echo $@ | sed "s/h5ad/loom/")
 	rm -rf $(<D)/velocyto
 	$(CONDA_ACTIVATE) preprocess
-	python bonesis-tools/clitools/conversion_to_h5ad.py $(shell echo $@ | sed "s/h5ad/loom/") $@ \
+	python bonesis-tools/clitools/format/to_h5ad.py $(shell echo $@ | sed "s/h5ad/loom/") $@ \
 		--sample-info $(METADATA_TREATED) \
 		--remove-positions
 	$(CONDA_DEACTIVATE)
