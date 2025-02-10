@@ -120,8 +120,10 @@ class Predict(object):
                     return float("nan")
                 elif ones/not_nans > self.__THRESHOLD.zeroinf:
                     return 1
-                else:
+                elif zeros/not_nans > self.__THRESHOLD.zeroinf:
                     return 0
+                else:
+                    return float("nan")
             elif category=="Unimodal":
                 if nans/total > self.__THRESHOLD.nans:
                     return float("nan")
@@ -276,6 +278,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--zeroes_are_zeroes",
+    dest="zeroes_are_zeroes",
+    required=False,
+    action="store_true",
+    help="""when zero-inflated is inferred for a gene-related distribution:
+    if its counting with respect to a cell is equal to zero, binarize to zero"""
+)
+
+parser.add_argument(
     "-n", "--nans-threshold",
     dest="nans_threshold",
     type=float,
@@ -343,8 +354,9 @@ args = parser.parse_args()
 section = Section(verbose = args.verbose)
 
 scbool = scBoolSeq(
-    margin_quantile=0.10,
-    zeroinf_binarizer="zero_or_not"
+    margin_quantile = 0.10,
+    zeroinf_binarizer = "zero_or_not",
+    zeroes_are = 0 if args.zeroes_are_zeroes else np.nan
 )
 
 predict = Predict(
@@ -449,3 +461,5 @@ cell_df.to_csv(f"{args.outpath}/cell_bin.csv", sep=",", index=True)
 for _group in args.groupby:
     cluster_d[_group].transpose().to_csv(f"{args.outpath}/cluster_bin_counts_{_group}.csv", sep=",", index=True)
     predict_d[_group].transpose().to_csv(f"{args.outpath}/cluster_bin_{_group}.csv", sep=",", index=True)
+
+scbool.criteria_.to_csv(f"{args.outpath}/statistics.csv", sep=",", index=True)

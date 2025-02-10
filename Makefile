@@ -265,6 +265,11 @@ else
 BINARIZATION_ONLY_HVG:=
 endif
 
+ifeq ($(ZEROES_ARE_ZEROES),true)
+ZEROES_ARE_ZEROES:=--zeroes_are_zeroes
+else
+ZEROES_ARE_ZEROES:=
+endif
 
 ifeq ($(MINIMIZE_AUTO_LOOPS),true)
 MINIMIZE_AUTO_LOOPS:=--minimize-auto-loops
@@ -505,9 +510,10 @@ $(VELOCYTO_CTRL): $(CELLRANGER_CTRL) $(TRANSCRIPTOME)
 	mv $(<D)/velocyto/cellranger.loom $(shell echo $@ | sed "s/h5ad/loom/")
 	rm -rf $(<D)/velocyto
 	$(CONDA_ACTIVATE) preprocess
-	python bonesis-tools/clitools/format/to_h5ad.py $(shell echo $@ | sed "s/h5ad/loom/") $@ \
-		--sample-info $(METADATA_CTRL) \
-		--remove-positions
+	python bonesis-tools/clitools/adata_conversion.py $(shell echo $@ | sed "s/h5ad/loom/") $@ --from loom --to h5ad \
+		--metadata $(METADATA_CTRL) \
+		--remove-positions \
+		--genename-standardization
 	$(CONDA_DEACTIVATE)
 
 $(VELOCYTO_TREATED): $(CELLRANGER_TREATED) $(TRANSCRIPTOME)
@@ -521,9 +527,10 @@ $(VELOCYTO_TREATED): $(CELLRANGER_TREATED) $(TRANSCRIPTOME)
 	mv $(<D)/velocyto/cellranger.loom $(shell echo $@ | sed "s/h5ad/loom/")
 	rm -rf $(<D)/velocyto
 	$(CONDA_ACTIVATE) preprocess
-	python bonesis-tools/clitools/format/to_h5ad.py $(shell echo $@ | sed "s/h5ad/loom/") $@ \
-		--sample-info $(METADATA_TREATED) \
-		--remove-positions
+	python bonesis-tools/clitools/adata_conversion.py $(shell echo $@ | sed "s/h5ad/loom/") $@ --from loom --to h5ad \
+		--metadata $(METADATA_TREATED) \
+		--remove-positions \
+		--genename-standardization
 	$(CONDA_DEACTIVATE)
 
 $(FILTER_CTRL): $(VELOCYTO_CTRL) $(CYCLE_MARKERS)
@@ -614,7 +621,7 @@ $(MARKERS_CTRL): $(CLUSTER_CTRL) $(lastword $(SIGNATURES))
   		--logfc-threshold 0.25 \
   		--verbose
 	@echo -e 'Compute background genes...'
-	python bonesis-tools/clitools/genename.py $< $@
+	python bonesis-tools/clitools/get_genes.py $< $@
 	export clusters=`column -s, -t < $(MARKERS_CSV_CTRL) | awk 'NR>1 {print $$2}' | sort -u | tr '\n' ' '`
 	@echo -e 'Compute upregulated cluster-related genes...'
 	for cluster in $${clusters}
@@ -634,7 +641,7 @@ $(MARKERS_TREATED): $(CLUSTER_TREATED) $(lastword $(SIGNATURES))
   		--logfc-threshold 0.25 \
   		--verbose
 	@echo -e 'Compute background genes...'
-	python bonesis-tools/clitools/genename.py $< $@
+	python bonesis-tools/clitools/get_genes.py $< $@
 	export clusters=`column -s, -t < $(MARKERS_CSV_TREATED) | awk 'NR>1 {print $$2}' | sort -u | tr '\n' ' '`
 	@echo -e 'Compute upregulated cluster-related genes...'
 	for cluster in $${clusters}
@@ -654,7 +661,7 @@ $(MARKERS_INTEGRATED): $(CLUSTER_INTEGRATED) $(lastword $(SIGNATURES))
   		--logfc-threshold 0.25 \
   		--verbose
 	@echo -e 'Compute background genes...'
-	python bonesis-tools/clitools/genename.py $< $@
+	python bonesis-tools/clitools/get_genes.py $< $@
 	export clusters=`column -s, -t < $(MARKERS_CSV_INTEGRATED) | awk 'NR>1 {print $$2}' | sort -u | tr '\n' ' '`
 	@echo -e 'Compute upregulated cluster-related genes...'
 	for cluster in $${clusters}
@@ -906,8 +913,7 @@ $(SCBOOLSEQ_CTRL): $(MACROSTATES_CTRL)
 	$(CONDA_ACTIVATE) scboolseq
 	python pipeline/binarization/scboolseq_bin.py $< -o $(dir $@) \
 		--cluster leiden macrostates \
-		--exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) \
-		--verbose
+		--exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES) --verbose
 	$(CONDA DEACTIVATE)
 
 $(SCBOOLSEQ_TREATED): $(MACROSTATES_TREATED)
@@ -915,8 +921,7 @@ $(SCBOOLSEQ_TREATED): $(MACROSTATES_TREATED)
 	$(CONDA_ACTIVATE) scboolseq
 	python pipeline/binarization/scboolseq_bin.py $< -o $(dir $@) \
 		--cluster leiden macrostates \
-		--exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) \
-		--verbose
+		--exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES) --verbose
 	$(CONDA DEACTIVATE)
 
 ifeq ($(INTEGRATED_BINARIZATION),split)

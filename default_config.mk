@@ -7,7 +7,7 @@ JOBS = 16
 ## informations ##
 
 $(eval METADATA_CTRL := sample_name=ctrl condition=control)			# Must contains condition
-$(eval METADATA_TREATED := sample_name=treated condition=treated)		# Must contains condition
+$(eval METADATA_TREATED := sample_name=treated condition=treated)	# Must contains condition
 ORGANISM := mouse
 CONDITIONS := ctrl treated
 
@@ -74,6 +74,7 @@ $(eval TERMINAL_STATES_TREATED := 4)			# number of terminal states with cellrank
 
 $(eval INTEGRATED_BINARIZATION := merged)		# split or merged
 $(eval BINARIZATION_ONLY_HVG := true)			# perform binarization with highly-variable genes only or with all genes
+$(eval ZEROES_ARE_ZEROES := false)				# when zero-inflated is inferred for a gene-related distribution; if its counting with respect to a cell is equal to zero, binarize either to zero or nan
 
 ## inference parameters
 
