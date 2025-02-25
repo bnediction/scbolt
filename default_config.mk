@@ -13,6 +13,8 @@ CONDITIONS := ctrl treated
 
 ## clustering parameters ##
 
+$(eval CLUSTERING_METHOD := cotan)				# cotan or leiden
+
 $(eval K_NEIGHBORS_CTRL := 20)					# K-closest neighbors
 $(eval RESOLUTION_LEIDEN_CTRL := 0.4)			# coarseness of the clustering when using Leiden algorithm
 $(eval DIM_PCA_CTRL := 50)						# number of principal components
@@ -40,9 +42,9 @@ $(eval LABELING_FROM_INTEGRATION := true)		# true or false
 ## trajectory parameters ##
 
 # scvelo #
-$(eval SCVELO_K_NEIGHBORS_CTRL := 20)			# K-closest neighbors
-$(eval SCVELO_DIM_CLUSTERING_CTRL := 15)		# number of principal components taken into account for clustering
-$(eval SMM_MODE_CTRL := dynamical)				# mode used to estimate the steady-state model (deterministic, stochastic or dynamical)								
+$(eval SCVELO_K_NEIGHBORS_CTRL := 20)							# K-closest neighbors
+$(eval SCVELO_DIM_CLUSTERING_CTRL := 15)						# number of principal components taken into account for clustering
+$(eval SMM_MODE_CTRL := dynamical)								# mode used to estimate the steady-state model (deterministic, stochastic or dynamical)								
 $(eval SCVELO_K_NEIGHBORS_TREATED := $(K_NEIGHBORS_TREATED))	# K-closest neighbors
 $(eval SCVELO_DIM_CLUSTERING_TREATED := 15)						# number of principal components taken into account for clustering
 $(eval SMM_MODE_TREATED := dynamical)							# mode used to estimate the steady-state model (deterministic, stochastic or dynamical)

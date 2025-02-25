@@ -577,21 +577,37 @@ $(NORMALISATION_TREATED): $(FILTER_TREATED)
 		--jobs $(JOBS)
 	$(CONDA_DEACTIVATE)
 
+ifeq ($(CLUSTERING_METHOD),leiden)
 $(CLUSTER_CTRL): $(NORMALISATION_CTRL)
-	$(call section,clustering (control data))
+	$(call section,clustering (leiden algorithm, control data))
+	mkdir -p $(@D)
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/clusters.py $< $(@D) \
+	python pipeline/preprocess/leiden_clustering.py $< $(@D) \
 		--hvg --metric euclidean --k-neighbors $(K_NEIGHBORS_CTRL) --resolution $(RESOLUTION_LEIDEN_CTRL) \
 		--dim-pca $(DIM_PCA_CTRL) --dim-clustering $(DIM_CLUSTERING_CTRL) --dim-umap $(DIM_UMAP_CTRL) \
 		--add-legend --plot-3d \
 		--seed $(SEED_CLUSTER_CTRL) \
 		--verbose
 	$(CONDA_DEACTIVATE)
+else ifeq ($(CLUSTERING_METHOD),cotan)
+$(CLUSTER_CTRL): $(NORMALISATION_CTRL)
+	$(call section,clustering (cotan algorithm, control data))
+	mkdir -p $(@D)
+	$(CONDA_ACTIVATE) preprocess
+	python bonesis-tools/clitools/adata_conversion.py $< $(@D)/.tmp.csv --from h5ad --to csv --layer matrix
+	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $(@D)/.tmp.csv > $(@D)/counts.csv
+	rm $(@D)/.tmp.csv
+	$(CONDA_DEACTIVATE)
+	$(CONDA_ACTIVATE) cotan
+	Rscript pipeline/preprocess/cotan_clustering.R --infile $(@D)/counts.csv --outpath $(@D) --sep , \
+		--cotan-filtering --jobs $(JOBS)
+	$(CONDA DEACTIVATE)
+endif
 
 $(CLUSTER_TREATED): $(NORMALISATION_TREATED)
 	$(call section,clustering (treated data))
 	$(CONDA_ACTIVATE) preprocess
-	python pipeline/preprocess/clusters.py $< $(@D) \
+	python pipeline/preprocess/leiden_clustering.py $< $(@D) \
 		--hvg --metric euclidean --k-neighbors $(K_NEIGHBORS_TREATED) --resolution $(RESOLUTION_LEIDEN_TREATED) \
 		--dim-pca $(DIM_PCA_TREATED) --dim-clustering $(DIM_CLUSTERING_TREATED) --dim-umap $(DIM_UMAP_TREATED) \
 		--add-legend --plot-3d \
@@ -936,8 +952,7 @@ $(SCBOOLSEQ_INTEGRATED): $(MACROSTATES_CTRL) $(MACROSTATES_TREATED)
 	$(CONDA_ACTIVATE) scboolseq
 	python pipeline/binarization/scboolseq_bin.py $^ -o $(dir $@) \
 		--cluster leiden macrostates \
-		--conditions $(CONDITIONS) --exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) \
-		--verbose
+		--conditions $(CONDITIONS) --exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES) --verbose
 	$(CONDA DEACTIVATE)
 endif
 

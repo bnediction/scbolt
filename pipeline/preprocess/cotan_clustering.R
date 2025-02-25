@@ -25,24 +25,26 @@ for (pkg in pkgs.to.load) {
   suppressPackageStartupMessages(library(pkg, character.only = TRUE))
 }
 
+is.defined = function(x)!is.null(x)
+
 description <- ""
 usage <- ""
 arguments <- list(
-  make_option("--infile",
+  make_option(c("-i", "--infile"),
               dest="infile",
               type="character",
               default=NULL,
               metavar="FILE",
               help="counting file (csv format)",
               ),
-  make_option("--outpath",
+  make_option(c("-o", "--outpath"),
               dest="outpath",
               type="character",
               default=NULL,
               metavar="PATH",
               help="output path"
               ),
-  make_option("--sep",
+  make_option(c("-s", "--sep"),
               dest="sep",
               type="character",
               action="store",
@@ -50,13 +52,81 @@ arguments <- list(
               metavar="CHAR",
               help="field delimiter for csv infile (default: `\\t`)"
               ),
-  make_option("--condition",
+  make_option(c("-c", "--condition"),
               dest="condition",
               type="character",
               action="store",
-              default=NULL,
+              default="control",
               metavar="LITERAL",
-              help="sample condition"
+              help="sample condition (default: control)"
+  ),
+  make_option("--drop-mithocondrial",
+              dest="drop_mithocondrial",
+              action = "store_true",
+              default = FALSE,
+              help = "drop mithocondrial genes (default: false)"
+  ),
+  make_option("--min-reads",
+              dest="min_reads",
+              type="integer",
+              action="store",
+              default=NULL,
+              metavar="INT",
+              help="drop cells with too few reads, potentially being dead (default: none)"
+  ),
+  make_option("--max-reads",
+              dest="max_reads",
+              type="integer",
+              action="store",
+              default=NULL,
+              metavar="INT",
+              help="drop cells with too many reads, potentially being multiplets (default: none)"
+  ),
+  make_option("--min-expression",
+              dest="min_expression",
+              type="integer",
+              action="store",
+              default=NULL,
+              metavar="INT",
+              help="drop cells with too low gene expression, potentially being dead (default: none)"
+  ),
+  make_option("--max-expression",
+              dest="max_expression",
+              type="integer",
+              action="store",
+              default=NULL,
+              metavar="INT",
+              help="drop cells with too many gene expression, potentially being multiplets (default: none)"
+  ),
+  make_option("--mithocondrial-threshold",
+              dest="mithocondrial_threshold",
+              type="double",
+              action="store",
+              default=NULL,
+              metavar="[0-1]",
+              help="drop cells with too high percentage of mithocondrial genes, potentially being dead (default: none)"
+  ),
+  make_option("--cotan-filtering",
+              dest="cotan_filtering",
+              action = "store_true",
+              default = FALSE,
+              help = "drop cell outliers (default: false)"
+  ),
+  make_option("--min-ude",
+              dest="ude_threshold",
+              type="double",
+              action="store",
+              default=NULL,
+              metavar="[0-1]",
+              help="drop cells with too high percentage of mithocondrial genes, potentially being dead (recommended: 0.3, default: none)"
+  ),
+  make_option(c("-j", "--jobs"),
+              dest="jobs",
+              type="integer",
+              action="store",
+              default=1,
+              metavar="INT",
+              help="number of process to use (default: 1)"
   )
 )
 
@@ -67,9 +137,19 @@ parser <- OptionParser(
   )
 args <- parse_args(parser)
 
-args$infile <- "/tmp/RtmpJByYY8/GSM2861514/GSM2861514_E175_Only_Cortical_Cells_DGE.txt.gz"
-args$outpath <- "tmp"
-args$sep <- "\t"
+print(paste("infile:",args$infile))
+print(paste("outpath:",args$outpath))
+print(paste("sep:",args$sep))
+print(paste("condition:",args$condition))
+print(paste("drop mithocondrial:",args$drop_mithocondrial))
+print(paste("min_reads:",args$min_reads))
+print(paste("max_reads:",args$max_reads))
+print(paste("min_expression:",args$min_expression))
+print(paste("max_expression:",args$max_expression))
+print(paste("mithocondrial_threshold:",args$mithocondrial_threshold))
+print(paste("cotan_filtering:",args$cotan_filtering))
+print(paste("min_ude:",args$min_ude))
+print(paste("jobs:",args$jobs))
 
 if (is.null(args$infile)) {
   stop("`--infile` argument is not specified.")
@@ -78,14 +158,14 @@ if (is.null(args$infile)) {
 }
 
 dir.create(
-  path=file.path(dataDir, GEO),
+  path=args$outpath,
   showWarnings=FALSE,
   recursive=TRUE
 )
 
-setLoggingFile(file.path(args$output, "cotan.log"))
+setLoggingFile(file.path(args$outpath, "cotan.log"))
 
-print("Loading data...")
+cat("Data loading...\n")
 
 df <- read.csv(
   args$infile,
@@ -93,81 +173,100 @@ df <- read.csv(
   row.names=1L
 )
 
-print("COTAN pipeline")
-
-condition <- "mouse_cortex_E17.5"
-GEO <- "GSM2861514"
-
-cotan.data <- COTAN(raw=df)
-cotan.data <- initializeMetaDataset(
-  cotan.data,
+cotan <- COTAN(raw=df)
+cotan <- initializeMetaDataset(
+  cotan,
   sequencingMethod = "rna_seq",
-  GEO=GEO,
+  GEO=NULL,
   sampleCondition = args$condition
 )
 
-plot(ECDPlot(cotan.data))
-plot(cellSizePlot(cotan.data))
-plot(genesSizePlot(cotan.data))
-plot(scatterPlot(cotan.data))
+cat("Data preprocessing...\n")
 
-cotan.data <- addElementToMetaDataset(cotan.data, "Num drop B group", 0)
-cotan.data <- clean(cotan.data)
-
-c(pcaCellsPlot, pcaCellsData, genesPlot,
-  UDEPlot, nuPlot, zoomedNuPlot) %<-% cleanPlots(cotan.data)
-
-plot(pcaCellsPlot)
-plot(genesPlot)
-
-cells.to.remove <- rownames(pcaCellsData)[pcaCellsData[["groups"]] == "B"]
-cotan.data <- dropGenesCells(cotan.data, cells = cells.to.remove)
-
-cotan.data <- addElementToMetaDataset(
-  cotan.data,
-  tag="Num drop B group",
-  value=1
-)
-cotan.data <- clean(cotan.data)
-
-c(pcaCellsPlot, pcaCellsData, genesPlot,
-  UDEPlot, nuPlot, zoomedNuPlot) %<-% cleanPlots(cotan.data)
-
-plot(pcaCellsPlot)
-plot(UDEPlot)
-plot(nuPlot)
-plot(zoomedNuPlot)
-
-UDE.low.threshold <- 0.30
-cotan.data <- addElementToMetaDataset(
-  cotan.data,
-  tag="Low UDE cells' threshold",
-  value=UDE.low.threshold
-)
-
-cotan.data <- addElementToMetaDataset(cotan.data, "Num drop B group", 2)
-
-cells.to.remove <- getCells(cotan.data)[getNu(cotan.data) < UDELowThr]
-cotan.data <- dropGenesCells(
-  cotan.data,
-  cells=cells.to.remove
-)
-
-### To drop ###
-
-fName <- "GSM2861514_E175_Only_Cortical_Cells_DGE.txt.gz"
-
-dataSetFile <- file.path(dataDir, GEO, fName)
-
-c(useTorch, device) %<-% COTAN:::canUseTorch(TRUE, "cuda")
-if (useTorch) {
-  message("`torch` library available")
-  if (device == "cuda") {
-    message("`torch` library can use the `CUDA` GPU")
-  } else {
-    message("`torch` library can only use the CPU")
-    message("Please ensure you have the `OpenBLAS` libraries",
-            " installed on the system")
-  }
+if (isTRUE(args$drop_mithocondrial)){
+  cotan <- addElementToMetaDataset(cotan, tag="remove mithocondrial genes and cells", value=TRUE)
+  genes.to.remove <- getGenes(cotan)[grep("^Mt", getGenes(cotan))]
+  cells.to.remove <- getCells(cotan)[which(getCellsSize(cotan) == 0L)]
+  cotan <- dropGenesCells(cotan, genes.to.remove, cells.to.remove)
+} else {
+  cotan <- addElementToMetaDataset(cotan, tag="remove mithocondrial genes and cells", value=FALSE)
 }
 
+if (is.defined(args$min_reads))
+{
+  cotan <- addElementToMetaDataset(cotan, tag="minimum read threshold", value=args$min_reads)
+  cells.to.remove <- getCells(cotan)[getCellsSize(cotan) < args$min_reads]
+  cotan <- dropGenesCells(cotan, cells = cells.to.remove)
+}
+
+if (is.defined(args$max_reads))
+{
+  cotan <- addElementToMetaDataset(cotan, tag="maximum read threshold", value=args$max_reads)
+  cells.to.remove <- getCells(cotan)[getCellsSize(cotan) > args$max_reads]
+  cotan <- dropGenesCells(cotan, cells = cells.to.remove)
+}
+
+if (is.defined(args$min_expression))
+{
+  cotan <- addElementToMetaDataset(cotan, tag="minimum gene expression threshold", value=args$min_expression)
+  cells.to.remove <- getCells(cotan)[getNumExpressedGenes(cotan) < args$min_expression]
+  cotan <- dropGenesCells(cotan, cells = cells.to.remove)
+}
+
+if (is.defined(args$max_expression))
+{
+  cotan <- addElementToMetaDataset(cotan, tag="maximum gene expression threshold", value=args$max_expression)
+  cells.to.remove <- getCells(cotan)[getNumExpressedGenes(cotan) > args$max_expression]
+  cotan <- dropGenesCells(cotan, cells = cells.to.remove)
+}
+
+if (is.defined(args$mithocondrial_threshold)){
+  cotan <- addElementToMetaDataset(cotan, "mithocondrial percentage threshold", args$mithocondrial_threshold)
+  c(mitochondrial.plot, mitochondrial.sizes) %<-% mitochondrialPercentagePlot(cotan, genePrefix = "^Mt")
+  cells.to.remove <- rownames(mitochondrial.sizes)[mitochondrial.sizes[["mit.percentage"]] > args$mithocondrial_threshold]
+  cotan <- dropGenesCells(cotan, cells = cells.to.remove)
+}
+  
+if (isTRUE(args$cotan_filtering)){
+  cotan <- addElementToMetaDataset(cotan, tag="cotan filtering", value=TRUE)
+  cotan <- clean(cotan)
+  c(pca.plot, pca.data, genes.plot, UDE.plot, nu.plot, zoomed.nu.plot) %<-% cleanPlots(cotan)
+  
+  cells.to.remove <- rownames(pca.data)[pca.data[["groups"]] == "B"]
+  cotan <- dropGenesCells(cotan, cells = cells.to.remove)
+
+  cotan <- clean(cotan)
+  
+  cotan <- addElementToMetaDataset(cotan, "minimum UDE cell threshold", args$ude_threshold)
+  cells.to.remove <- getCells(cotan)[getNu(cotan) < args$ude_threshold]
+  cotan <- dropGenesCells(cotan, cells = cells.to.remove)
+} else {
+  cotan <- addElementToMetaDataset(cotan, tag="cotan filtering", value=FALSE)
+}
+
+cat("Cotan analysis...\n")
+
+cotan <- clean(cotan)
+c(pca.plot, pca.data, genes.plot, UDE.plot, nu.plot, zoomed.nu.plot) %<-% cleanPlots(cotan)
+
+c(can.use.torch, device) %<-% canUseTorch(TRUE, "cuda")
+
+cotan <- proceedToCoex(
+  cotan,
+  calcCoex=TRUE,
+  optimizeForSpeed=if (can.use.torch == TRUE && device=="cuda") TRUE else FALSE,
+  cores=args$jobs,
+  device="cuda",
+  saveObj=FALSE,
+  outDir=args$outpath
+)
+
+saveRDS(cotan, file = file.path(args$outpath, "cotan.RDS"))
+
+global.differentiation.index <- calculateGDI(cotan)
+cotan <- storeGDI(
+  cotan,
+  genesGDI=global.differentiation.index
+)
+
+quit(save="no")
