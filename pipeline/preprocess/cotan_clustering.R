@@ -14,7 +14,8 @@ pkgs.to.load <- c(
   "Rtsne",
   "GEOquery",
   "ComplexHeatmap",
-  "torch"
+  "torch",
+  "Seurat"
 )
 pkgs.to.install <- pkgs.to.load[!(pkgs.to.load %in% installed.packages()[,"Package"])]
 
@@ -120,6 +121,7 @@ arguments <- list(
               metavar="[0-1]",
               help="drop cells with too high percentage of mithocondrial genes, potentially being dead (recommended: 0.3, default: none)"
   ),
+  
   make_option(c("-j", "--jobs"),
               dest="jobs",
               type="integer",
@@ -127,7 +129,13 @@ arguments <- list(
               default=1,
               metavar="INT",
               help="number of process to use (default: 1)"
-  )
+  ),
+  make_option("--merge-clusters",
+              dest="merge_clusters",
+              action = "store_true",
+              default = FALSE,
+              help = "merge clusters to achieve cluster uniformity (default: false)"
+  ),
 )
 
 parser <- OptionParser(
@@ -136,6 +144,15 @@ parser <- OptionParser(
   option_list=arguments,
   )
 args <- parse_args(parser)
+
+args <- c()
+args$infile <- "data/rna/ctrl/clustering/clusters/counts.csv"
+args$outpath <- "data/rna/ctrl/clustering/clusters/counts.h5ad"
+args$sep <- ","
+args$cotan_filtering <- TRUE
+args$jobs <- 15
+args$merge_clusters <- TRUE
+
 
 print(paste("infile:",args$infile))
 print(paste("outpath:",args$outpath))
@@ -249,24 +266,141 @@ cat("Cotan analysis...\n")
 cotan <- clean(cotan)
 c(pca.plot, pca.data, genes.plot, UDE.plot, nu.plot, zoomed.nu.plot) %<-% cleanPlots(cotan)
 
-c(can.use.torch, device) %<-% canUseTorch(TRUE, "cuda")
+c(can.use.torch, device) %<-% COTAN:::canUseTorch(TRUE, "cuda")
 
 cotan <- proceedToCoex(
   cotan,
   calcCoex=TRUE,
   optimizeForSpeed=if (can.use.torch == TRUE && device=="cuda") TRUE else FALSE,
   cores=args$jobs,
-  device="cuda",
+  device=device,
   saveObj=FALSE,
   outDir=args$outpath
 )
-
-saveRDS(cotan, file = file.path(args$outpath, "cotan.RDS"))
 
 global.differentiation.index <- calculateGDI(cotan)
 cotan <- storeGDI(
   cotan,
   genesGDI=global.differentiation.index
 )
+
+cat("Cotan clustering...\n")
+
+advanced.GDI.uniformity.checker <- new("AdvancedGDIUniformityCheck")
+
+c(split.clusters, split.coex.df) %<-%
+  cellsUniformClustering(
+    cotan,
+    initialResolution=0.8,
+    checker=advanced.GDI.uniformity.checker,
+    optimizeForSpeed=if (can.use.torch == TRUE && device=="cuda") TRUE else FALSE,
+    deviceStr=device,
+    cores=args$jobs,
+    saveObj=FALSE,
+    outDir=args$outpath
+  )
+cotan <- addClusterization(
+  cotan,
+  clName="split",
+  clusters=split.clusters,
+  coexDF=split.coex.df
+)
+
+table(split.clusters)
+
+c(summary.data, summary.plot) %<-%
+  clustersSummaryPlot(
+    cotan,
+    clName="split",
+    plotTitle="cluster summary"
+  )
+
+summaryData
+
+if (isTRUE(args$merge_clusters)){
+  c(clusters, coex.df) %<-%
+    mergeUniformCellsClusters(
+      cotan,
+      clusters=split.clusters,
+      checkers=advanced.GDI.uniformity.checker,
+      optimizeForSpeed=if (can.use.torch == TRUE && device=="cuda") TRUE else FALSE,
+      deviceStr=device,
+      cores=args$jobs,
+      saveObj=FALSE,
+      outDir=args$outpath
+    )
+  cotan <- addClusterization(
+    cotan,
+    clName="merge",
+    override=TRUE,
+    clusters=clusters,
+    coexDF=coex.df
+  )
+} else {
+  c(clusters, coex.df) %<-%
+    c(split.clusters, split.coex.df)
+}
+
+table(clusters)
+
+cat("Umap plotting...\n")
+
+c(umap.plot, cells.pca) %<-%
+  cellsUMAPPlot(
+    cotan,
+    clName="merge",
+    dataMethod="LogLikelihood",
+    colors=NULL,
+    numNeighbors=15L,
+    minPointsDist=0.2
+  )
+plot(umapPlot)
+
+cat("Data saving...\n")
+
+saveRDS(cotan, file = file.path(args$outpath, "cotan.RDS"))
+
+setLoggingFile("")
+options(parallelly.fork.enable = FALSE)
+
+
+### Third iteration
+
+GDI.uniformity.checkers.list <- list(
+  advanced.GDI.uniformity.checker,
+  shiftCheckerThresholds(advanced.GDI.uniformity.checker, 0.01),
+  shiftCheckerThresholds(advChecker, 0.03)
+)
+prevCheckRes <- data.frame()
+
+c(clusters2, coex.df2) %<-%
+  mergeUniformCellsClusters(
+    cotan,
+    clusters=split.clusters,
+    checkers=GDI.uniformity.checkers.list,
+    allCheckResults=prevCheckRes,
+    optimizeForSpeed=if (can.use.torch == TRUE && device=="cuda") TRUE else FALSE,
+    deviceStr=device,
+    cores=args$jobs,
+    saveObj=FALSE,
+    outDir=args$outpath
+  )
+cotan <- addClusterization(
+  cotan,
+  clName="merge2",
+  override=TRUE,
+  clusters=clusters2,
+  coexDF=coex.df2
+)
+table(clusters2)
+
+
+
+
+# quantile.90 <- quantile(unlist(global.differentiation.index[2], use.names=FALSE), probs=0.9)
+# genes.list <- row.names(subset(global.differentiation.index, GDI > quantile.90))[0:10]
+
+# plot(genesHeatmapPlot(cotan, primaryMarkers = genes.list,
+#                       pValueThreshold = 0.001, symmetric = TRUE))
 
 quit(save="no")
