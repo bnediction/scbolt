@@ -92,4 +92,4 @@ todo.*
 !.pipeline.png
 *.obo
 supplemental/
-bonesis-tools/
+bonesistools/
