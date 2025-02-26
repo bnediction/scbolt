@@ -510,7 +510,7 @@ $(VELOCYTO_CTRL): $(CELLRANGER_CTRL) $(TRANSCRIPTOME)
 	mv $(<D)/velocyto/cellranger.loom $(shell echo $@ | sed "s/h5ad/loom/")
 	rm -rf $(<D)/velocyto
 	$(CONDA_ACTIVATE) preprocess
-	python bonesis-tools/clitools/adata_conversion.py $(shell echo $@ | sed "s/h5ad/loom/") $@ --from loom --to h5ad \
+	python bonesistools/clitools/adata_conversion.py $(shell echo $@ | sed "s/h5ad/loom/") $@ --from loom --to h5ad \
 		--metadata $(METADATA_CTRL) \
 		--remove-positions \
 		--genename-standardization
@@ -527,7 +527,7 @@ $(VELOCYTO_TREATED): $(CELLRANGER_TREATED) $(TRANSCRIPTOME)
 	mv $(<D)/velocyto/cellranger.loom $(shell echo $@ | sed "s/h5ad/loom/")
 	rm -rf $(<D)/velocyto
 	$(CONDA_ACTIVATE) preprocess
-	python bonesis-tools/clitools/adata_conversion.py $(shell echo $@ | sed "s/h5ad/loom/") $@ --from loom --to h5ad \
+	python bonesistools/clitools/adata_conversion.py $(shell echo $@ | sed "s/h5ad/loom/") $@ --from loom --to h5ad \
 		--metadata $(METADATA_TREATED) \
 		--remove-positions \
 		--genename-standardization
@@ -594,7 +594,7 @@ $(CLUSTER_CTRL): $(NORMALISATION_CTRL)
 	$(call section,clustering (cotan algorithm, control data))
 	mkdir -p $(@D)
 	$(CONDA_ACTIVATE) preprocess
-	python bonesis-tools/clitools/adata_conversion.py $< $(@D)/.tmp.csv --from h5ad --to csv --layer matrix
+	python bonesistools/clitools/adata_conversion.py $< $(@D)/.tmp.csv --from h5ad --to csv --layer matrix
 	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $(@D)/.tmp.csv > $(@D)/counts.csv
 	rm $(@D)/.tmp.csv
 	$(CONDA_DEACTIVATE)
@@ -637,13 +637,13 @@ $(MARKERS_CTRL): $(CLUSTER_CTRL) $(lastword $(SIGNATURES))
   		--logfc-threshold 0.25 \
   		--verbose
 	@echo -e 'Compute background genes...'
-	python bonesis-tools/clitools/get_genes.py $< $@
+	python bonesistools/clitools/get_genes.py $< $@
 	export clusters=`column -s, -t < $(MARKERS_CSV_CTRL) | awk 'NR>1 {print $$2}' | sort -u | tr '\n' ' '`
 	@echo -e 'Compute upregulated cluster-related genes...'
 	for cluster in $${clusters}
 	do
 		`column -s, -t < $(MARKERS_CSV_CTRL) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
-		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
+		python bonesistools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
 	done
 	unset clusters
 	$(CONDA_DEACTIVATE)
@@ -657,13 +657,13 @@ $(MARKERS_TREATED): $(CLUSTER_TREATED) $(lastword $(SIGNATURES))
   		--logfc-threshold 0.25 \
   		--verbose
 	@echo -e 'Compute background genes...'
-	python bonesis-tools/clitools/get_genes.py $< $@
+	python bonesistools/clitools/get_genes.py $< $@
 	export clusters=`column -s, -t < $(MARKERS_CSV_TREATED) | awk 'NR>1 {print $$2}' | sort -u | tr '\n' ' '`
 	@echo -e 'Compute upregulated cluster-related genes...'
 	for cluster in $${clusters}
 	do
 		`column -s, -t < $(MARKERS_CSV_TREATED) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
-		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
+		python bonesistools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
 	done
 	unset clusters
 	$(CONDA_DEACTIVATE)
@@ -677,13 +677,13 @@ $(MARKERS_INTEGRATED): $(CLUSTER_INTEGRATED) $(lastword $(SIGNATURES))
   		--logfc-threshold 0.25 \
   		--verbose
 	@echo -e 'Compute background genes...'
-	python bonesis-tools/clitools/get_genes.py $< $@
+	python bonesistools/clitools/get_genes.py $< $@
 	export clusters=`column -s, -t < $(MARKERS_CSV_INTEGRATED) | awk 'NR>1 {print $$2}' | sort -u | tr '\n' ' '`
 	@echo -e 'Compute upregulated cluster-related genes...'
 	for cluster in $${clusters}
 	do
 		`column -s, -t < $(MARKERS_CSV_INTEGRATED) | awk -v c=$${cluster} '$$2==c {print $$1}' > $(@D)/cluster$${cluster}.txt`
-		python bonesis-tools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
+		python bonesistools/clitools/genename_standardization.py $(@D)/cluster$${cluster}.txt $(@D)/cluster$${cluster}.txt --quiet
 	done
 	unset clusters
 	$(CONDA_DEACTIVATE)

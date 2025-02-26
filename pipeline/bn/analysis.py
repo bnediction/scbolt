@@ -10,7 +10,7 @@ from typing import Any
 import pandas as pd
 
 from colomoto import minibn
-from hypercube import Hypercube
+from hypercube import Hypercube, HypercubeCollection
 import mpbn
 
 import networkx as nx
@@ -98,6 +98,11 @@ bn = mpbn.MPBooleanNetwork.load(str(args.infile))
 grn = bn.influence_graph()
 nodes = set(grn.nodes)
 
+print(f"{'influence graph':-^{length_str}}\n")
+
+print(f"nodes: {len(grn.nodes)}")
+print(f"edges: {len(grn.edges)}")
+
 bonesis_states, init_config, final_config = get_states(args.bin_bonesis, args.init_states, args.final_states)
 metastates, init_metastates, final_metastates = get_states(args.bin_metastates, args.init_states, args.final_states)
 
@@ -121,22 +126,28 @@ with open(f"{args.outpath}/simple-cycles.txt", "w") as file:
 
 print(f"\n{'attractors':-^{length_str}}\n")
 
-attractors = [Hypercube(attractor) for attractor in bn.attractors()]
+attractors = HypercubeCollection(list(bn.attractors()))
+fixed_points = attractors.are_fixed_points()
+print(f"fixed points: {len(fixed_points)}")
 print(f"attractors: {len(attractors)}")
 for name, hypercube in final_metastates.items():
     n = 0
     for attractor in attractors:
         n = n+1 if attractor.is_subhypercube(hypercube) else n
-    print(f"sub-hypercube of {name} (bin): {n}")
+    print(f"\tsub-hypercube of {name} (bin): {n}")
 for name, hypercube in final_config.items():
     n = 0
     for attractor in attractors:
         n = n+1 if attractor.is_subhypercube(hypercube) else n
-    print(f"sub-hypercube of {name} (bonesis): {n}")
+    print(f"\tsub-hypercube of {name} (bonesis): {n}")
 
-reachable_attractors = {state_name: list(bn.attractors(reachable_from=init_config[state_name])) for state_name in args.init_states}
-for state_name in args.init_states:
-    print(f"\nstate (bonesis): {state_name}")
-    print(f"reachable attractors: {len(reachable_attractors[state_name])}")
+reachable_attractors = {init_state_name: list(bn.attractors(reachable_from=init_config[init_state_name])) for init_state_name in args.init_states}
+for init_state_name in args.init_states:
+    print(f"\ninitial state (bonesis): {init_state_name}")
+    print(f"reachable attractors: {len(reachable_attractors[init_state_name])}")
+    for final_state_name, state in final_metastates.items():
+        print(f"\tmatching {final_state_name} (bin): {state.is_subhypercube_number(reachable_attractors[init_state_name])}")
+    for final_state_name, config in final_config.items():
+        print(f"\tmatching {final_state_name} (bonesis): {config.is_subhypercube_number(reachable_attractors[init_state_name])}")
 
 # import mpsim

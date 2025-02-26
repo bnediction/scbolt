@@ -63,9 +63,9 @@ arguments <- list(
   ),
   make_option("--drop-mithocondrial",
               dest="drop_mithocondrial",
-              action = "store_true",
-              default = FALSE,
-              help = "drop mithocondrial genes (default: false)"
+              action="store_true",
+              default=FALSE,
+              help="drop mithocondrial genes (default: false)"
   ),
   make_option("--min-reads",
               dest="min_reads",
@@ -121,7 +121,22 @@ arguments <- list(
               metavar="[0-1]",
               help="drop cells with too high percentage of mithocondrial genes, potentially being dead (recommended: 0.3, default: none)"
   ),
-  
+  make_option("--max-iterations",
+              dest="max_iterations",
+              type="integer",
+              action="store",
+              default=25,
+              metavar="INT",
+              help="maximum number of re-clustering iterations (default: 25)"
+  ),
+  make_option("--method",
+              dest="method",
+              type="character",
+              action="store",
+              default="classic",
+              metavar="[classic | soft-merging | strong-merging]",
+              help="clustering method. Merging clusters can be useful to achieve cluster uniformity (default: classic)"
+  ),
   make_option(c("-j", "--jobs"),
               dest="jobs",
               type="integer",
@@ -129,13 +144,7 @@ arguments <- list(
               default=1,
               metavar="INT",
               help="number of process to use (default: 1)"
-  ),
-  make_option("--merge-clusters",
-              dest="merge_clusters",
-              action = "store_true",
-              default = FALSE,
-              help = "merge clusters to achieve cluster uniformity (default: false)"
-  ),
+  )
 )
 
 parser <- OptionParser(
@@ -152,7 +161,7 @@ args$sep <- ","
 args$cotan_filtering <- TRUE
 args$jobs <- 15
 args$merge_clusters <- TRUE
-
+args$strong_merging <- TRUE
 
 print(paste("infile:",args$infile))
 print(paste("outpath:",args$outpath))
@@ -172,6 +181,8 @@ if (is.null(args$infile)) {
   stop("`--infile` argument is not specified.")
 } else if (is.null(args$outpath)) {
   stop("`--outpath` argument is not specified.")
+} else if (args$method %notin% c("classic", "soft-merging", "strong-merging")){
+  stop(paste0("`--method` argument can only take one of the following values: 'classif', 'soft-merging', 'strong-merging' (current value:",args$method,")"))
 }
 
 dir.create(
@@ -292,6 +303,7 @@ c(split.clusters, split.coex.df) %<-%
   cellsUniformClustering(
     cotan,
     initialResolution=0.8,
+    maxIterations=args$max_iterations,
     checker=advanced.GDI.uniformity.checker,
     optimizeForSpeed=if (can.use.torch == TRUE && device=="cuda") TRUE else FALSE,
     deviceStr=device,
@@ -306,18 +318,10 @@ cotan <- addClusterization(
   coexDF=split.coex.df
 )
 
-table(split.clusters)
-
-c(summary.data, summary.plot) %<-%
-  clustersSummaryPlot(
-    cotan,
-    clName="split",
-    plotTitle="cluster summary"
-  )
-
-summaryData
-
-if (isTRUE(args$merge_clusters)){
+if (args$method == "classic"){
+  c(clusters, coex.df) %<-%
+    c(split.clusters, split.coex.df)
+} else if (args$method == "soft-merging"){
   c(clusters, coex.df) %<-%
     mergeUniformCellsClusters(
       cotan,
@@ -337,9 +341,41 @@ if (isTRUE(args$merge_clusters)){
     coexDF=coex.df
   )
 } else {
+  GDI.uniformity.checkers.list <- list(
+    advanced.GDI.uniformity.checker,
+    shiftCheckerThresholds(advanced.GDI.uniformity.checker, 0.01),
+    shiftCheckerThresholds(advChecker, 0.03)
+  )
+  prevCheckRes <- data.frame()
   c(clusters, coex.df) %<-%
-    c(split.clusters, split.coex.df)
+    mergeUniformCellsClusters(
+      cotan,
+      clusters=split.clusters,
+      checkers=GDI.uniformity.checkers.list,
+      allCheckResults=prevCheckRes,
+      optimizeForSpeed=if (can.use.torch == TRUE && device=="cuda") TRUE else FALSE,
+      deviceStr=device,
+      cores=args$jobs,
+      saveObj=FALSE,
+      outDir=args$outpath
+    )
+  cotan <- addClusterization(
+    cotan,
+    clName="merge",
+    override=TRUE,
+    clusters=clusters,
+    coexDF=coex.df
+  )
 }
+
+c(summary.data, summary.plot) %<-%
+  clustersSummaryPlot(
+    cotan,
+    plotTitle="clustering summary"
+  )
+
+cat("clusters:\n")
+summary.data
 
 table(clusters)
 
@@ -362,45 +398,5 @@ saveRDS(cotan, file = file.path(args$outpath, "cotan.RDS"))
 
 setLoggingFile("")
 options(parallelly.fork.enable = FALSE)
-
-
-### Third iteration
-
-GDI.uniformity.checkers.list <- list(
-  advanced.GDI.uniformity.checker,
-  shiftCheckerThresholds(advanced.GDI.uniformity.checker, 0.01),
-  shiftCheckerThresholds(advChecker, 0.03)
-)
-prevCheckRes <- data.frame()
-
-c(clusters2, coex.df2) %<-%
-  mergeUniformCellsClusters(
-    cotan,
-    clusters=split.clusters,
-    checkers=GDI.uniformity.checkers.list,
-    allCheckResults=prevCheckRes,
-    optimizeForSpeed=if (can.use.torch == TRUE && device=="cuda") TRUE else FALSE,
-    deviceStr=device,
-    cores=args$jobs,
-    saveObj=FALSE,
-    outDir=args$outpath
-  )
-cotan <- addClusterization(
-  cotan,
-  clName="merge2",
-  override=TRUE,
-  clusters=clusters2,
-  coexDF=coex.df2
-)
-table(clusters2)
-
-
-
-
-# quantile.90 <- quantile(unlist(global.differentiation.index[2], use.names=FALSE), probs=0.9)
-# genes.list <- row.names(subset(global.differentiation.index, GDI > quantile.90))[0:10]
-
-# plot(genesHeatmapPlot(cotan, primaryMarkers = genes.list,
-#                       pValueThreshold = 0.001, symmetric = TRUE))
 
 quit(save="no")

@@ -35,11 +35,11 @@ install_env() {
     else
         echo "install $1 conda environment"
         conda env create -f ${config_dir}$1.yml
-        conda develop --name $1 ${develop_dir} ${develop_dir}/bonesis-tools;
+        conda develop --name $1 ${develop_dir} ${develop_dir}/bonesistools;
         if [[ "$1" == bonesis ]];
         then
             conda activate $1
-            pip install git+https://github.com/bnediction/bonesis.git@6fb47aad96bd2d07ba3c137842d632bc2c783712
+            pip install git+https://github.com/bnediction/bonesistools.git@d4710d937da23b16117ce832e97a41d2a98753e2
             conda deactivate;
         fi
         if [[ "$1" == scvelo ]];
