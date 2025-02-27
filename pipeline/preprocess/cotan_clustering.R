@@ -67,6 +67,22 @@ arguments <- list(
               default=FALSE,
               help="drop mithocondrial genes (default: false)"
   ),
+  make_option("--min-expression",
+              dest="min_expression",
+              type="integer",
+              action="store",
+              default=NULL,
+              metavar="INT",
+              help="drop cells with too few expressed genes, potentially being dead (default: none)"
+  ),
+  make_option("--max-expression",
+              dest="max_expression",
+              type="integer",
+              action="store",
+              default=NULL,
+              metavar="INT",
+              help="drop cells with too many expressed genes, potentially being multiplets (default: none)"
+  ),
   make_option("--min-reads",
               dest="min_reads",
               type="integer",
@@ -83,22 +99,6 @@ arguments <- list(
               metavar="INT",
               help="drop cells with too many reads, potentially being multiplets (default: none)"
   ),
-  make_option("--min-expression",
-              dest="min_expression",
-              type="integer",
-              action="store",
-              default=NULL,
-              metavar="INT",
-              help="drop cells with too low gene expression, potentially being dead (default: none)"
-  ),
-  make_option("--max-expression",
-              dest="max_expression",
-              type="integer",
-              action="store",
-              default=NULL,
-              metavar="INT",
-              help="drop cells with too many gene expression, potentially being multiplets (default: none)"
-  ),
   make_option("--mithocondrial-threshold",
               dest="mithocondrial_threshold",
               type="double",
@@ -114,7 +114,7 @@ arguments <- list(
               help = "drop cell outliers (default: false)"
   ),
   make_option("--min-ude",
-              dest="ude_threshold",
+              dest="min_ude",
               type="double",
               action="store",
               default=NULL,
@@ -154,35 +154,12 @@ parser <- OptionParser(
   )
 args <- parse_args(parser)
 
-args <- c()
-args$infile <- "data/rna/ctrl/clustering/clusters/counts.csv"
-args$outpath <- "data/rna/ctrl/clustering/clusters/counts.h5ad"
-args$sep <- ","
-args$cotan_filtering <- TRUE
-args$jobs <- 15
-args$merge_clusters <- TRUE
-args$strong_merging <- TRUE
-
-print(paste("infile:",args$infile))
-print(paste("outpath:",args$outpath))
-print(paste("sep:",args$sep))
-print(paste("condition:",args$condition))
-print(paste("drop mithocondrial:",args$drop_mithocondrial))
-print(paste("min_reads:",args$min_reads))
-print(paste("max_reads:",args$max_reads))
-print(paste("min_expression:",args$min_expression))
-print(paste("max_expression:",args$max_expression))
-print(paste("mithocondrial_threshold:",args$mithocondrial_threshold))
-print(paste("cotan_filtering:",args$cotan_filtering))
-print(paste("min_ude:",args$min_ude))
-print(paste("jobs:",args$jobs))
-
 if (is.null(args$infile)) {
   stop("`--infile` argument is not specified.")
 } else if (is.null(args$outpath)) {
   stop("`--outpath` argument is not specified.")
 } else if (args$method %notin% c("classic", "soft-merging", "strong-merging")){
-  stop(paste0("`--method` argument can only take one of the following values: 'classif', 'soft-merging', 'strong-merging' (current value:",args$method,")"))
+  stop(paste0("`--method` argument can only take one of the following values: 'classic', 'soft-merging', 'strong-merging' (value: ",args$method,")"))
 }
 
 dir.create(
@@ -265,8 +242,8 @@ if (isTRUE(args$cotan_filtering)){
 
   cotan <- clean(cotan)
   
-  cotan <- addElementToMetaDataset(cotan, "minimum UDE cell threshold", args$ude_threshold)
-  cells.to.remove <- getCells(cotan)[getNu(cotan) < args$ude_threshold]
+  cotan <- addElementToMetaDataset(cotan, "minimum UDE cell threshold", args$min_ude)
+  cells.to.remove <- getCells(cotan)[getNu(cotan) < args$min_ude]
   cotan <- dropGenesCells(cotan, cells = cells.to.remove)
 } else {
   cotan <- addElementToMetaDataset(cotan, tag="cotan filtering", value=FALSE)
@@ -344,7 +321,7 @@ if (args$method == "classic"){
   GDI.uniformity.checkers.list <- list(
     advanced.GDI.uniformity.checker,
     shiftCheckerThresholds(advanced.GDI.uniformity.checker, 0.01),
-    shiftCheckerThresholds(advChecker, 0.03)
+    shiftCheckerThresholds(advanced.GDI.uniformity.checker, 0.03)
   )
   prevCheckRes <- data.frame()
   c(clusters, coex.df) %<-%
@@ -377,8 +354,6 @@ c(summary.data, summary.plot) %<-%
 cat("clusters:\n")
 summary.data
 
-table(clusters)
-
 cat("Umap plotting...\n")
 
 c(umap.plot, cells.pca) %<-%
@@ -390,11 +365,14 @@ c(umap.plot, cells.pca) %<-%
     numNeighbors=15L,
     minPointsDist=0.2
   )
-plot(umapPlot)
+pdf(file = file.path(args$outpath, "umap_plot.pdf"))
+plot(umap.plot)
+dev.off()
 
-cat("Data saving...\n")
+# cat("Data saving...\n")
 
 saveRDS(cotan, file = file.path(args$outpath, "cotan.RDS"))
+write.table(data.frame(clusters), file.path(args$outpath, "clusters.csv"), row.names=TRUE, col.names=FALSE, quote=FALSE, sep=",")
 
 setLoggingFile("")
 options(parallelly.fork.enable = FALSE)

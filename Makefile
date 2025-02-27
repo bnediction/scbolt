@@ -600,8 +600,20 @@ $(CLUSTER_CTRL): $(NORMALISATION_CTRL)
 	$(CONDA_DEACTIVATE)
 	$(CONDA_ACTIVATE) cotan
 	Rscript pipeline/preprocess/cotan_clustering.R --infile $(@D)/counts.csv --outpath $(@D) --sep , \
-		--cotan-filtering --jobs $(JOBS)
+		--condition ctrl \
+		--drop-mithocondrial \
+		--max-reads 6000 \
+		--min-expression 500 \
+		--max-expression 3000 \
+		--cotan-filtering \
+		--min-ude 0.3 \
+		--max-iterations 25 \
+		--method strong-merging \
+		--jobs $(JOBS)
 	$(CONDA DEACTIVATE)
+	$(CONDA_ACTIVATE) preprocess
+	python bonesistools/clitools/add_to_adata.py $< $@ --obs $(@D)/clusters.csv --obs-type str --sep ,
+	$(CONDA_DEACTIVATE)
 endif
 
 $(CLUSTER_TREATED): $(NORMALISATION_TREATED)
