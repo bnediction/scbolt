@@ -6,6 +6,7 @@ warnings.filterwarnings("ignore")
 import os, argparse
 from pathlib import Path
 from utils.argtype import Store_prefix
+from utils.stdout import print_task
 
 import pandas as pd, scanpy as sc, json
 import anndatatools as adt
@@ -91,11 +92,11 @@ args = parser.parse_args()
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
-print(f"Loading data...")
+print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 
-print(f"Marker analysis...")
+print_task("marker analysis")
 
 layer = "log-normalize"
 if args.condition is None:
@@ -132,7 +133,7 @@ for _condition in sorted(adata_d.keys()):
         threshold=args.logfc_threshold
     )
 
-print(f"Signature analysis...")
+print_task("signature analysis")
 
 with open(args.signatures, "r") as signatures_f:
     signatures_d = json.load(signatures_f)
@@ -159,7 +160,7 @@ for adata in adata_d.values():
             use_raw=False
         )
 
-print("Summarizing clusters...")
+print_task("cluster summarizing")
 
 info_d = dict()
 for _condition in sorted(adata_d.keys()):
@@ -178,7 +179,7 @@ if args.condition is None:
 else:
     info_df = pd.concat(list(info_d.values()), keys=list(info_d.keys()))
 
-print("Saving data...")
+print_task("data saving")
 
 if args.condition is None:
     markers_d["all"].to_csv(f"{args.outpath}/{args.prefix}markers.csv", sep=",", index=False)

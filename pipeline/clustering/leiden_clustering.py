@@ -21,10 +21,9 @@ from anndatatools.plotting import (
 parser = argparse.ArgumentParser(
     prog="Single-cell clustering",
     description="""Perform clustering from single-cell sequencing data.
-    It encompasses dimension reduction using PCA, clustering using leiden algorithm,
-    embedding projection using t-SNE and UMAP algorithm, gene marker searching and
-    marker/signature comparison for providing useful information about potential cell-types.""",
-    usage="python clusters.py <FILE> <PATH> [<args>]"
+    It encompasses dimension reduction using PCA, clustering using leiden algorithm
+    and embedding projection using t-SNE and UMAP algorithm for visualizing high-dimensional data.""",
+    usage="python leiden_clustering.py <FILE> <PATH> [<args>]"
 )
 
 parser.add_argument(
@@ -48,6 +47,16 @@ parser.add_argument(
     required=False,
     default="",
     help="prefix for each saving file"
+)
+
+parser.add_argument(
+    "-l", "--layer",
+    dest="layer",
+    type=str,
+    required=False,
+    default=None,
+    metavar="LITERAL",
+    help="layer used (if not specified, use adata.X)"
 )
 
 parser.add_argument(
@@ -99,7 +108,7 @@ parser.add_argument(
 
 parser.add_argument(
     "-p", "--dim-pca",
-    dest="dim_pca",
+    dest="pca_dimension",
     type=int,
     required=False,
     default=50,
@@ -109,7 +118,7 @@ parser.add_argument(
 
 parser.add_argument(
     "-c", "--dim-clustering",
-    dest="dim_clustering",
+    dest="clustering_dimension",
     type=int,
     required=False,
     default=15,
@@ -119,7 +128,7 @@ parser.add_argument(
 
 parser.add_argument(
     "-u", "--dim-umap",
-    dest="dim_umap",
+    dest="umap_dimension",
     type=int,
     required=False,
     default=2,
@@ -169,7 +178,7 @@ parser.add_argument(
     required=False,
     default=False,
     action="store_true",
-    help="get summarizing information about cluster in stdout"
+    help="get summarizing information about clusters in stdout"
 )
 
 args = parser.parse_args()
@@ -181,10 +190,13 @@ print(f"Loading data...")
 
 adata = sc.read_h5ad(args.infile)
 
-if args.dim_pca < max(args.dim_clustering, args.dim_umap) or args.dim_clustering < args.dim_umap:
+if args.pca_dimension < max(args.clustering_dimension, args.umap_dimension) or args.clustering_dimension < args.umap_dimension:
     raise argparse.ArgumentError(
-        f"dimension incoherence: dim_pca > dim_clustering > dim_umap not satisfied"
+        f"invalid values for arguments: dim-pca > dim-clustering > dim-umap not satisfied"
     )
+
+if args.layer:
+    adata.X = adata.layers[args.layer]
 
 default_seed = args.seed if args.seed else 100
 
@@ -197,11 +209,10 @@ phase = adata.obs["pypairs_cc_prediction"]
 
 print("Computation of principal components (pca)...")
 
-adata.X = adata.layers["correct"]
 sc.tl.pca(
     adata,
     zero_center=args.zero_center,
-    n_comps=args.dim_pca,
+    n_comps=args.pca_dimension,
     use_highly_variable=args.hvg,
     copy=False
 )
@@ -212,7 +223,7 @@ sc.pp.neighbors(
     adata,
     n_neighbors=args.k_neighbors,
     use_rep="X_pca",
-    n_pcs=args.dim_clustering,
+    n_pcs=args.clustering_dimension,
     metric=args.metric,
     key_added="knn",
     copy=False
@@ -245,7 +256,7 @@ print("Computation of embedding components (umap)...")
 sc.tl.umap(
     adata,
     neighbors_key="knn",
-    n_components=args.dim_umap,
+    n_components=args.umap_dimension,
     random_state=default_seed
 )
 
@@ -270,11 +281,11 @@ fig, _ = adt.pl.embedding_plot(
         "edgecolor":color.black,
         "shadow":False
     },
-    n_components = 3 if args.dim_umap > 2 and args.plot_3d is True else 2,
+    n_components = 3 if args.umap_dimension > 2 and args.plot_3d is True else 2,
     background_visible=False
 )
 plt.savefig(Path(f"{args.outpath}/{args.prefix}umap_leiden.pdf"))
-if args.dim_umap > 2 and args.plot_3d:
+if args.umap_dimension > 2 and args.plot_3d:
     pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}umap_leiden.fig.pickle"), "wb"))
 
 fig, _ = adt.pl.embedding_plot(
@@ -297,11 +308,11 @@ fig, _ = adt.pl.embedding_plot(
         "edgecolor":color.black,
         "shadow":False
     },
-    n_components = 3 if args.dim_umap > 2 and args.plot_3d is True else 2,
+    n_components = 3 if args.umap_dimension > 2 and args.plot_3d is True else 2,
     background_visible=False
 )
 plt.savefig(Path(f"{args.outpath}/{args.prefix}umap_phases.pdf"))
-if args.dim_umap > 2 and args.plot_3d:
+if args.umap_dimension > 2 and args.plot_3d:
     pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}umap_phases.fig.pkl"), "wb"))
 
 for metric in ["total_counts", "pct_counts_mitochondrion"]:

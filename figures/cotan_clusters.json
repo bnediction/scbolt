@@ -1,11 +1,10 @@
 {
-    "infile": "data/rna/integrated/clustering/clusters/counts_labels.h5ad",
-    "outfile": "figures/results/umap_labels_wo_axis",
     "modules": [
         {"numpy": "np"},
         {"anndatatools": "adt"}
     ],
     "eval": [
+        "colors",
         "xlabel",
         "ylabel",
         "zlabel",
@@ -13,18 +12,20 @@
         "n_components"
     ],
     "figure": {
-        "obs": "leiden",
+        "obs": "cotan",
         "obsm": "X_umap",
         "figheight": 5,
         "figwidth": 6,
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "add_legend": true,
+        "colors": "adt.pl.color.COLORS",
         "s": 2,
         "alpha": 1,
+        "add_labels": true,
+        "add_legend": true,
         "lgd_params": {
-            "title": "clusters",
+            "title": "cotan clusters",
             "ncol": 1,
             "markerscale": 5,
             "frameon": true,
@@ -32,10 +33,10 @@
             "shadow": false
         },
         "text": {
-            "fontsize": 12,
+            "fontsize": 15,
             "fontweight": "extra bold"
         },
-        "n_components": "3 if adata.obsm['X_umap'].shape[1] > 2 and args.plot_3d is True else 2",
+        "n_components": "2 if adata.obsm['X_umap'].shape[1] == 2 else 3",
         "background_visible": false
     },
     "grid": false,

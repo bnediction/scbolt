@@ -1,43 +1,38 @@
-## computing resources ##
+## BEGIN COMPUTING RESOURCES ##
 
-SHELL = /bin/bash
 MEMORY = 50
 JOBS = 16
 
-## informations ##
+## END COMPUTING RESOURCES ##
+
+## BEGIN INFORMATION ##
 
 $(eval METADATA_CTRL := sample_name=ctrl condition=control)			# Must contains condition
 $(eval METADATA_TREATED := sample_name=treated condition=treated)	# Must contains condition
 ORGANISM := mouse
 CONDITIONS := ctrl treated
+SEED := 0
 
-## clustering parameters ##
+## END INFORMATION ##
 
-$(eval CLUSTERING_METHOD := cotan)				# cotan or leiden
+## BEGIN CLUSTERING ##
 
-$(eval K_NEIGHBORS_CTRL := 20)					# K-closest neighbors
-$(eval RESOLUTION_LEIDEN_CTRL := 0.4)			# coarseness of the clustering when using Leiden algorithm
-$(eval DIM_PCA_CTRL := 50)						# number of principal components
-$(eval DIM_CLUSTERING_CTRL := 15)				# number of principal components taken into account for clustering
-$(eval DIM_UMAP_CTRL := 2)						# number of embedding dimensions
-SEED_CLUSTER_CTRL = 0
+# clustering #
 
-$(eval K_NEIGHBORS_TREATED := 20)				# K-closest neighbors
-$(eval RESOLUTION_LEIDEN_TREATED := 0.4)		# coarseness of the clustering when using Leiden algorithm
-$(eval DIM_PCA_TREATED := 50)					# number of principal components
-$(eval DIM_CLUSTERING_TREATED := 15)			# number of principal components taken into account for clustering
-$(eval DIM_UMAP_TREATED := 2)					# number of embedding dimensions
-SEED_CLUSTER_TREATED = 0
+$(eval K_NEIGHBORS := 20)					# K-closest neighbors
+$(eval RESOLUTION := 0.4)					# coarseness of the clustering for Leiden algorithm
+$(eval DIM_PCA := 50)						# number of principal components
+$(eval DIM_CLUSTERING := 15)				# number of principal components taken into account for clustering
+$(eval DIM_UMAP := 2)						# number of embedding dimensions
+$(eval INTEGRATION_METHOD := bbknn)			# bbknn, ingest or scanorama
 
-INTEGRATION_METHOD = bbknn
-$(eval K_NEIGHBORS_INTEGRATED := $(K_NEIGHBORS_CTRL))	# K-closest neighbors
-$(eval RESOLUTION_LEIDEN_INTEGRATED := 0.4)				# coarseness of the clustering when using Leiden algorithm
-$(eval DIM_PCA_INTEGRATED := 50)						# number of principal components
-$(eval DIM_CLUSTERING_INTEGRATED := 15)					# number of principal components taken into account for clustering
-$(eval DIM_UMAP_INTEGRATED := 2)						# number of embedding dimensions
-SEED_CLUSTER_INTEGRATED = 0
+# annotation #
 
-$(eval LABELING_FROM_INTEGRATION := true)		# true or false
+# $(eval CLUSTER_LABEL_INTEGRATED := 0=cluster0 1=cluster1 ...)
+$(eval LABELING_FROM_INTEGRATION := true)	# true or false (if false, please define CLUSTER_LABEL_<CONDITION>)
+
+## END CLUSTERING ##
+
 
 ## trajectory parameters ##
 
@@ -64,7 +59,7 @@ ROOT_TREATED := 0
 IGNORED_NODES_TREATED :=
 
 # macrostates #
-$(eval MACROSTATES_FROM_CELLRANK := false)		# true or false
+$(eval MACROSTATES_METHOD := cotan)				# cellrank, center-extremity or cotan
 $(eval MACROSTATE_SIZE := 100)
 $(eval CELLRANK_METHOD := stability)			# stability, top_n, eigengap or eigengap_coarse
 $(eval INITIAL_STATES_CTRL := 1)				# number of initial states with cellrank

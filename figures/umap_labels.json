@@ -18,8 +18,6 @@
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "add_graph": false,
-        "add_text": false,
         "add_legend": true,
         "s": 2,
         "alpha": 1,

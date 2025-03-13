@@ -181,7 +181,7 @@ for _group in groups:
         ylabel=r"$\mathrm{UMAP_{2}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
         zlabel=r"$\mathrm{UMAP_{3}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{3}^{\mathrm{scanorama}}}$",
         add_graph=args.graph,
-        add_text=args.text,
+        add_labels_to_graph=args.text,
         add_legend=args.legend if _group != "node_clusters" else False,
         figwidth=6 if args.legend else 5,
         s=2,

@@ -20,8 +20,6 @@
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
         "colors": "adt.pl.color.LIGHT_COLORS",
-        "add_graph": false,
-        "add_text": false,
         "s": 2,
         "alpha": 1,
         "n_components": 3,
