@@ -4,10 +4,15 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import os, argparse
+import re
 import pickle
 from pathlib import Path
-from utils.argtype import Store_boolean, Store_prefix, Range
-from utils.stdout import disable_print
+from utils.argtype import Store_boolean, Range
+from utils.stdout import (
+    disable_print,
+    print_task,
+    print_info
+)
 
 import anndata as ad, anndatatools as adt, stream as st
 
@@ -22,9 +27,9 @@ from anndatatools.plotting import color
 
 parser = argparse.ArgumentParser(
     prog="pseudotime computation",
-    description="""compute pseudotime based on STREAM method \
+    description="""compute pseudotime using STREAM method \
     (see Chen et al. (2019): <https://www.nature.com/articles/s41467-019-09670-4>).""",
-    usage=""""python pseudotime.py [-h] <FILE> <PATH> [<args>]"""
+    usage=""""python stream_pseudotime.py [-h] <FILE> <PATH> [<args>]"""
 )
 
 parser.add_argument(
@@ -39,16 +44,6 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     metavar="PATH",
     help="output path"
-)
-
-parser.add_argument(
-    "-p", "--prefix",
-    dest="prefix",
-    action=Store_prefix,
-    required=False,
-    default="",
-    metavar="LITERAL",
-    help="prefix for each saving file"
 )
 
 parser.add_argument(
@@ -287,7 +282,7 @@ if not args.outpath.exists():
 
 groups = set(args.groups)
 
-print("Loading data...")
+print_task("data loading")
 
 adata = ad.read_h5ad(args.infile)
 adata.obs_names_make_unique()
@@ -296,7 +291,7 @@ adata.uns["workdir"] = str(args.outpath)
 if args.use_stream_embedding is True and args.obsm is not None:
     raise argparse.ArgumentError("--use-stream-embedding and --obsm arguments cannot be used simultaneously.")
 elif args.use_stream_embedding is True:
-    print("Computing embedding components using stream...")
+    print_task("preprocessing for stream")
     with disable_print():
         adata.X = adata.layers[args.layer].toarray() if issparse(adata.layers[args.layer]) else adata.layers[args.layer]
         if args.hvg:
@@ -320,6 +315,7 @@ elif args.use_stream_embedding is True:
         )
         adata.uns["dr"] = f"{args.method}"
 else:
+    print_info("no preprocessing for stream (use previous results)")
     if args.obsm:
         adata.uns["dr"] = args.obsm
     if "X_umap" in adata.obsm.keys():
@@ -336,7 +332,7 @@ for group in groups:
     except:
         pass
 
-print("Computing elastic principal graph...")
+print_task("elastic principal graph computation")
 
 with disable_print():
     st.seed_elastic_principal_graph(
@@ -364,40 +360,42 @@ with disable_print():
             epg_n_processes=args.n_jobs
         )
 
-adata.obs["node_clusters"] = nan
-adata.obs["node_clusters"] = adata.obs["node_clusters"].astype(str)
+adata.obs["kmeans"] = adata.obs["kmeans"].transform(lambda x: re.search(r"\d+", x).group())
+
+adata.obs["clusters"] = nan
+adata.obs["clusters"] = adata.obs["clusters"].astype(str)
 
 nodes_mapping = dict()
-for key, value in adata.uns["flat_tree"]._node.items():
-    nodes_mapping[key] = value["label"]
+for node, attributes in adata.uns["flat_tree"]._node.items():
+    _label = re.search(r"\d+", attributes["label"]).group()
+    adata.uns["flat_tree"].nodes[node]["label"] = _label
+    nodes_mapping[node] = _label
 
-node_clusters = dict()
 for node in nodes_mapping.keys():
     _true = adata.obs["node"] == node
-    adata.obs["node_clusters"][_true] = str(nodes_mapping[node])
+    adata.obs["clusters"][_true] = str(nodes_mapping[node])
 
-groups = groups.union({"kmeans", "node_clusters"})
+groups = groups.union({"kmeans", "clusters"})
 
-print("Plotting trajectories...")
+print_task("trajectory plotting")
 
 for _group in groups:
     fig, ax = adt.pl.embedding_plot(
         adata,
         obs=_group,
         obsm=adata.uns["dr"],
-        colors=[color.blue]*(len(nodes_mapping)) + [color.lightgray] if _group == "node_clusters" else None,
+        colors=[color.blue]*(len(nodes_mapping)) + [color.lightgray] if _group == "clusters" else None,
         xlabel=r"$\mathrm{UMAP_{1}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
         zlabel=r"$\mathrm{UMAP_{3}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{3}^{\mathrm{scanorama}}}$",
         add_graph=args.graph,
         add_labels_to_graph=True if not is_float_dtype(adata.obs[_group]) else False,
-        add_legend=args.legend if _group != "node_clusters" else False,
+        add_legend=args.legend if _group != "clusters" else False,
         figwidth=6 if args.legend else 5,
         s=2,
         alpha=0.4 if (args.plot_3d and not is_float_dtype(adata.obs[_group])) else 0.7,
         lgd_params={
             "title":"clusters" if _group != "condition" else "conditions",
-            "labels":[string.replace("cluster ","") for string in sorted(adata.obs[_group].unique())],
             "ncol":1,
             "markerscale":5,
             "frameon":True,
@@ -411,18 +409,16 @@ for _group in groups:
         background_visible=False
     )
     adt.pl.set_default(ax)
-    plt.savefig(f"{args.outpath}/{args.prefix}{_group}_{adata.uns['dr'].split('_')[-1].lower()}_trajectory_plot")
+    plt.savefig(f"{args.outpath}/{_group}_{adata.uns['dr'].split('_')[-1].lower()}_trajectory_plot")
     if args.plot_3d is True:
-        pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}{_group}_{adata.uns['dr'].split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))
+        pickle.dump(fig, open(Path(f"{args.outpath}/{_group}_{adata.uns['dr'].split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))
     else:
         pass
 
 if args.save_tables:
-
-    print("Saving data...")
-
+    print_task("data saving")
     if args.extension == "pkl" or args.extension == "both":
-        st.write(adata, file_name=f"{args.outpath}/{args.prefix}stream.h5ad.pkl")
+        st.write(adata, file_name=f"{args.outpath}/stream.h5ad.pkl")
     if args.extension == "h5ad" or args.extension == "both":
         del adata.uns["workdir"]
         for key in list(adata.obs.keys()):
@@ -433,4 +429,6 @@ if args.save_tables:
                 del adata.uns[key]
             if key.startswith("stream_S"):
                 del adata.uns[key]
-        adata.write_h5ad(filename=f"{args.outpath}/{args.prefix}stream.h5ad", compression="gzip")
+        adata.write_h5ad(filename=f"{args.outpath}/stream.h5ad", compression="gzip")
+else:
+    print_info("no data saving")

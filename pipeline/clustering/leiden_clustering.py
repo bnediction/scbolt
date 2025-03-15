@@ -5,7 +5,7 @@ warnings.filterwarnings("ignore")
 
 import os, argparse
 from pathlib import Path
-from utils.argtype import Store_prefix
+from utils.stdout import print_task
 
 import pickle
 import scanpy as sc
@@ -38,15 +38,6 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     metavar="PATH",
     help="output path"
-)
-
-parser.add_argument(
-    "--prefix",
-    dest="prefix",
-    action=Store_prefix,
-    required=False,
-    default="",
-    help="prefix for each saving file"
 )
 
 parser.add_argument(
@@ -186,7 +177,7 @@ args = parser.parse_args()
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
-print(f"Loading data...")
+print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 
@@ -207,7 +198,7 @@ color_d = {
 }
 phase = adata.obs["pypairs_cc_prediction"]
 
-print("Computation of principal components (pca)...")
+print_task("pca computation")
 
 sc.tl.pca(
     adata,
@@ -217,7 +208,7 @@ sc.tl.pca(
     copy=False
 )
 
-print(f"Computation of clusters (leiden)")
+print_task("knn/snn computation")
 
 sc.pp.neighbors(
     adata,
@@ -235,6 +226,9 @@ adt.tl.shared_neighbors(
     prune_snn = 1/15,
     copy=False
 )
+
+print_task("leiden clustering")
+
 if args.neighborhood_graph == "knn":
     sc.tl.leiden(
         adata,
@@ -251,7 +245,7 @@ elif args.neighborhood_graph == "snn":
         key_added=f"leiden"
     )
 
-print("Computation of embedding components (umap)...")
+print_task("umap computation")
 
 sc.tl.umap(
     adata,
@@ -260,7 +254,7 @@ sc.tl.umap(
     random_state=default_seed
 )
 
-print("Plot of embedding components...")
+print_task("embedding component plotting")
 
 fig, _ = adt.pl.embedding_plot(
     adata,
@@ -284,9 +278,9 @@ fig, _ = adt.pl.embedding_plot(
     n_components = 3 if args.umap_dimension > 2 and args.plot_3d is True else 2,
     background_visible=False
 )
-plt.savefig(Path(f"{args.outpath}/{args.prefix}umap_leiden.pdf"))
+plt.savefig(Path(f"{args.outpath}/umap_leiden.pdf"))
 if args.umap_dimension > 2 and args.plot_3d:
-    pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}umap_leiden.fig.pickle"), "wb"))
+    pickle.dump(fig, open(Path(f"{args.outpath}/umap_leiden.fig.pickle"), "wb"))
 
 fig, _ = adt.pl.embedding_plot(
     adata,
@@ -311,9 +305,9 @@ fig, _ = adt.pl.embedding_plot(
     n_components = 3 if args.umap_dimension > 2 and args.plot_3d is True else 2,
     background_visible=False
 )
-plt.savefig(Path(f"{args.outpath}/{args.prefix}umap_phases.pdf"))
+plt.savefig(Path(f"{args.outpath}/umap_phases.pdf"))
 if args.umap_dimension > 2 and args.plot_3d:
-    pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}umap_phases.fig.pkl"), "wb"))
+    pickle.dump(fig, open(Path(f"{args.outpath}/umap_phases.fig.pkl"), "wb"))
 
 for metric in ["total_counts", "pct_counts_mitochondrion"]:
     fig, ax = plt.subplots(nrows=1, ncols=1)
@@ -331,8 +325,8 @@ for metric in ["total_counts", "pct_counts_mitochondrion"]:
     plt.sca(ax)
     ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
     ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-    plt.savefig(f"{args.outpath}/{args.prefix}umap_{metric}.pdf")
+    plt.savefig(f"{args.outpath}/umap_{metric}.pdf")
 
-print("Saving data...")
+print_task("data saving")
 
-adata.write_h5ad(filename=f"{args.outpath}/{args.prefix}counts.h5ad", compression="gzip")
+adata.write_h5ad(filename=f"{args.outpath}/counts.h5ad", compression="gzip")

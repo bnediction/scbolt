@@ -4,7 +4,7 @@ import warnings
 
 import os, argparse
 from pathlib import Path
-from utils.stdout import disable_print
+from utils.stdout import disable_print, print_task
 
 import anndatatools as adt
 import scanpy as sc
@@ -19,9 +19,9 @@ from anndatatools.plotting import (
 )
 
 parser = argparse.ArgumentParser(
-    prog="scvelo",
+    prog="velocity",
     description="""Perform scvelo analysis.""",
-    usage="python scvelo.py <FILE> <PATH> [<args>]"
+    usage="python scvelo_velocity.py <FILE> <PATH> [<args>]"
 )
 
 parser.add_argument(
@@ -111,7 +111,7 @@ if not args.outpath.exists():
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-print(f"Loading data...")
+print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 n_components = adata.obsm["X_umap"].shape[1]
@@ -131,7 +131,7 @@ scv.pl.proportions(
 plt.savefig(Path(f"{args.outpath}/proportions.pdf"))
 plt.close()
 
-print("Computing first- and second-order moments...")
+print_task("first- and second-order moments computation")
 
 try:
     adata.X = adata.layers["raw"]
@@ -155,7 +155,7 @@ with disable_print():
         copy=False
     )
 
-print("Computing velocity...")
+print_task("velocity estimation")
 
 with disable_print():
     scv.tl.velocity(
@@ -164,7 +164,7 @@ with disable_print():
         copy=False
     )
 
-print("Computing velocity graph...")
+print_task("velocity graph computation")
 
 with disable_print():
     scv.tl.velocity_graph(
@@ -172,18 +172,18 @@ with disable_print():
         copy=False
     )
 
-print("Computing velocity pseudotime...")
+print_task("velocity pseudotime estimation")
 
 with disable_print():
     scv.tl.velocity_pseudotime(adata)
 
-print("computing PAGA...")
+print_task("PAGA estimation")
 
 with disable_print():
     scv.tl.paga(adata, groups=args.cluster)
     adata.uns["transitions_confidence"] = adata.uns["paga"]["transitions_confidence"]
 
-print("Plotting trajectories...")
+print_task("trajectory plotting")
 
 figwidth, figheight = 7, 4
 with disable_print():
@@ -202,13 +202,13 @@ with disable_print():
     )
     for txt in ax.texts:
         txt.set_visible(False)
-try:
-    plt.savefig(Path(f"{args.outpath}/trajectories.pdf"))
-except:
-    if os.path.isfile(Path(f"{args.outpath}/trajectories.pdf")):
-        os.remove(Path(f"{args.outpath}/trajectories.pdf"))
-    plt.savefig(Path(f"{args.outpath}/trajectories.png"))
-plt.close()
+    try:
+        plt.savefig(Path(f"{args.outpath}/trajectories.pdf"))
+    except:
+        if os.path.isfile(Path(f"{args.outpath}/trajectories.pdf")):
+            os.remove(Path(f"{args.outpath}/trajectories.pdf"))
+        plt.savefig(Path(f"{args.outpath}/trajectories.png"))
+    plt.close()
 
 fig, _ = adt.pl.embedding_plot(
     adata,
@@ -236,9 +236,9 @@ fig, _ = adt.pl.embedding_plot(
 )
 with disable_print():
     plt.axis("off")
-fig.set_figwidth(fig.get_figwidth()*1.25)
-plt.savefig(Path(f"{args.outpath}/velocity_pseudotime.pdf"))
-plt.close()
+    fig.set_figwidth(fig.get_figwidth()*1.25)
+    plt.savefig(Path(f"{args.outpath}/velocity_pseudotime.pdf"))
+    plt.close()
 
 fig, ax = adt.pl.embedding_plot(
     adata,
@@ -265,21 +265,21 @@ fig, ax = adt.pl.embedding_plot(
 )
 with disable_print():
     plt.axis("off")
-ax = adt.pl.draw_paga(
-    adata=adata,
-    obs=args.cluster,
-    obsm="X_umap",
-    edges="transitions_confidence",
-    threshold=0.01,
-    ax=ax,
-    with_labels=False,
-    width=2,
-    node_size=100,
-    node_color=color_map
-)
-plt.savefig(Path(f"{args.outpath}/paga.pdf"))
-plt.close()
+    ax = adt.pl.draw_paga(
+        adata=adata,
+        obs=args.cluster,
+        obsm="X_umap",
+        edges="transitions_confidence",
+        threshold=0.01,
+        ax=ax,
+        with_labels=False,
+        width=2,
+        node_size=100,
+        node_color=color_map
+    )
+    plt.savefig(Path(f"{args.outpath}/paga.pdf"))
+    plt.close()
 
-print("Saving data...")
+print_task("data saving")
 
 adata.write_h5ad(filename=f"{args.outpath}/scvelo.h5ad")

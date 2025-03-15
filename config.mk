@@ -26,7 +26,4 @@ $(eval EXCLUDE_TREATED := true)
 BINARIZATION_ONLY_HVG = false
 ZEROES_ARE_ZEROES := true
 
-SEED_CLUSTER_INTEGRATED = 1
-MU_TREATED := 0.03
-
 BOOLEAN_NETWORK_REF = $(PUBLIC)/data/public/reference/APL_model.bnet

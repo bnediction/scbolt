@@ -5,6 +5,7 @@ warnings.filterwarnings("ignore")
 
 import argparse
 from pathlib import Path
+from utils.stdout import print_task
 
 import anndata as ad
 
@@ -60,12 +61,12 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-print(f"Loading data...")
+print_task("data loading")
 
 condition_adata = [ad.read_h5ad(infile) for infile in args.infiles]
 integrated_adata = ad.read_h5ad(args.integrated)
 
-print(f"Merging data...")
+print_task("data merging")
 
 for column in args.columns:
     for adata in condition_adata:
@@ -79,7 +80,7 @@ for adata in condition_adata:
     df = integrated_adata.obs.loc[cond][args.columns]
     adata.obs = adata.obs.merge(how='left',right=df, left_index=True, right_index=True)
 
-print("Saving data...")
+print_task("data saving")
 
 for adata, outfile in zip(condition_adata, args.outfiles):
     adata.write_h5ad(filename=outfile, compression="gzip")

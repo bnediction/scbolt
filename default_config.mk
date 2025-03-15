@@ -7,8 +7,8 @@ JOBS = 16
 
 ## BEGIN INFORMATION ##
 
-$(eval METADATA_CTRL := sample_name=ctrl condition=control)			# Must contains condition
-$(eval METADATA_TREATED := sample_name=treated condition=treated)	# Must contains condition
+$(eval METADATA_CTRL := sample_name=ctrl condition=control)			# must contains condition
+$(eval METADATA_TREATED := sample_name=treated condition=treated)	# must contains condition
 ORGANISM := mouse
 CONDITIONS := ctrl treated
 SEED := 0
@@ -19,6 +19,7 @@ SEED := 0
 
 # clustering #
 
+$(eval HVG := 2000)							# top highly variables genes
 $(eval K_NEIGHBORS := 20)					# K-closest neighbors
 $(eval RESOLUTION := 0.4)					# coarseness of the clustering for Leiden algorithm
 $(eval DIM_PCA := 50)						# number of principal components
@@ -33,30 +34,26 @@ $(eval LABELING_FROM_INTEGRATION := true)	# true or false (if false, please defi
 
 ## END CLUSTERING ##
 
-
-## trajectory parameters ##
+## BEGIN TRAJECTORY INFERENCE ##
 
 # scvelo #
-$(eval SCVELO_K_NEIGHBORS_CTRL := 20)							# K-closest neighbors
-$(eval SCVELO_DIM_CLUSTERING_CTRL := 15)						# number of principal components taken into account for clustering
-$(eval SMM_MODE_CTRL := dynamical)								# mode used to estimate the steady-state model (deterministic, stochastic or dynamical)								
-$(eval SCVELO_K_NEIGHBORS_TREATED := $(K_NEIGHBORS_TREATED))	# K-closest neighbors
-$(eval SCVELO_DIM_CLUSTERING_TREATED := 15)						# number of principal components taken into account for clustering
-$(eval SMM_MODE_TREATED := dynamical)							# mode used to estimate the steady-state model (deterministic, stochastic or dynamical)
 
-# stream #
-LAMBDA_CTRL := 0.05
-MU_CTRL := 0.05
-ALPHA_CTRL := 0.03
-EXTEND_CTRL := 0.8
-ROOT_CTRL := 0
-IGNORED_NODES_CTRL :=
-LAMBDA_TREATED := 0.05
-MU_TREATED := 0.05
-ALPHA_TREATED := 0.03
-EXTEND_TREATED := 0.8
-ROOT_TREATED := 0
-IGNORED_NODES_TREATED :=
+$(eval SMM_MODE := dynamical)				# mode used to estimate the steady-state model (deterministic, stochastic or dynamical)								
+
+# stream-pseudotime #
+
+CLUSTER_NUMBER = 6
+LAMBDA = 0.05
+MU = 0.05
+ALPHA = 0.03
+EXTEND := 0.8
+EXTEND_LEAF_NODES := true
+PRUNE_GRAPH := false
+
+# stream-trajectories #
+
+# ROOT_<CONDITION> = 0						# specify which node is the starting point
+# IGNORED_NODES_<CONDITION> =				# specify which nodes to ignore for deciphering trajectories
 
 # macrostates #
 $(eval MACROSTATES_METHOD := cotan)				# cellrank, center-extremity or cotan

@@ -6,7 +6,7 @@ warnings.filterwarnings("ignore")
 import os, argparse
 from pathlib import Path
 from utils.argtype import Store_prefix
-from utils.stdout import print_task
+from utils.stdout import print_task, print_info
 
 import pandas as pd, scanpy as sc, json
 import anndatatools as adt
@@ -190,4 +190,5 @@ info_df.to_csv(f"{args.outpath}/{args.prefix}cluster_cell_types.csv", sep=",", i
 info_df.transpose().to_csv(f"{args.outpath}/{args.prefix}cluster_cell_types.transpose.csv", sep=",", index=True)
 
 if args.verbose:
+    print_info("cluster information")
     print(info_df.transpose())

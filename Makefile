@@ -55,19 +55,19 @@ BOLD=\033[1m
 ## BEGIN FUNCTIONS ##
 
 define print_rule
-	$(if $2,@echo `date "+%Y-%m-%d %H:%M:%S"` - RULE - $(1) \($(2)\),@echo `date "+%Y-%m-%d %H:%M:%S"` - RULE - $(1))
+	$(if $2,@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - RULE - $(1) \($(2)\),@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - RULE - $(1))
 endef
 
 define print_task
-	@echo `date "+%Y-%m-%d %H:%M:%S"` - TASK - $(1)
+	@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - TASK - $(1)
 endef
 
 define print_info
-	@echo `date "+%Y-%m-%d %H:%M:%S"` - INFO - $(1)
+	@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - INFO - $(1)
 endef
 
 define print_error
-	@echo `date "+%Y-%m-%d %H:%M:%S"` - ERROR - $(1)
+	@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - ERROR - $(1)
 	exit
 endef
 
@@ -130,8 +130,8 @@ velocyto_$(1) = $(rna)/$(1)/counting/velocyto/counts.h5ad
 filtering_$(1) = $(rna)/$(1)/preprocessing/filtering/counts.h5ad
 normalization_$(1) = $(rna)/$(1)/preprocessing/normalization/counts.h5ad
 scvelo_$(1) = $(rna)/$(1)/trajectories/scvelo/scvelo.h5ad
-pseudotime_stream_$(1) = $(rna)/$(1)/trajectories/stream/pseudotime/stream.h5ad.pkl
-trajectories_stream_$(1) = $(rna)/$(1)/trajectories/stream/trajectories/branches.txt
+stream_pseudotime_$(1) = $(rna)/$(1)/trajectories/stream/pseudotime/stream.h5ad.pkl
+stream_trajectories_$(1) = $(rna)/$(1)/trajectories/stream/trajectories/branches.txt
 trajectories_macrostates_$(1) = $(rna)/$(1)/trajectories/macrostates/trajectories.txt
 cellrank_$(1) = $(rna)/$(1)/macrostates/cellrank/adata.h5ad
 center_extremity_$(1) = $(rna)/$(1)/macrostates/center_extremity/adata.h5ad
@@ -212,8 +212,8 @@ $(eval velocyto_target := $(velocyto_target) $(velocyto_$(1)))
 $(eval filtering_target := $(filtering_target) $(filtering_$(1)))
 $(eval normalization_target := $(normalization_target) $(normalization_$(1)))
 $(eval scvelo_velocity_target := $(scvelo_velocity_target) $(scvelo_$(1)))
-$(eval stream_pseudotime_target := $(stream_pseudotime_target) $(pseudotime_stream_$(1)))
-$(eval stream_trajectories_target := $(stream_trajectories_target) $(trajectories_stream_$(1)))
+$(eval stream_pseudotime_target := $(stream_pseudotime_target) $(stream_pseudotime_$(1)))
+$(eval stream_trajectories_target := $(stream_trajectories_target) $(stream_trajectories_$(1)))
 $(eval cellrank_target := $(cellrank_target) $(cellrank_$(1)))
 $(eval center_extremity_target := $(center_extremity_target) $(center_extremity_$(1)))
 $(eval cotan_target := $(cotan_target) $(cotan_$(1)))
@@ -237,12 +237,28 @@ $(eval bonesis_inference_sub_target := $(bonesis_inference_sub_target) $(bonesis
 
 endef
 
-$(foreach l,$(_samples),$(eval $(call dependant_targets,$(l))))
-$(foreach l,$(_samples_without_integration),$(eval $(call dependant_targets_with_integration,$(l))))
+$(foreach l,$(_samples_without_integration),$(eval $(call dependant_targets,$(l))))
+$(foreach l,$(_samples),$(eval $(call dependant_targets_with_integration,$(l))))
 
 ## END TARGETS ##
 
 ## BEGIN PARAMETERS ##
+
+ifeq ($(EXTEND_LEAF_NODES),true)
+EXTEND_LEAF_NODES:=--extend-leaf-nodes
+else ifeq ($(EXTEND_LEAF_NODES),false)
+EXTEND_LEAF_NODES:=
+else
+$(error EXTEND_LEAF_NODES not set to true or false)
+endif
+
+ifeq ($(PRUNE_GRAPH),true)
+PRUNE_GRAPH:=--prune-graph
+else ifeq ($(PRUNE_GRAPH),false)
+PRUNE_GRAPH:=
+else
+$(error PRUNE_GRAPH not set to true or false)
+endif
 
 ifneq ($(IGNORED_NODES_CTRL),)
 IGNORED_NODES_CTRL:=--ignore-nodes $(IGNORED_NODES_CTRL)
@@ -352,7 +368,7 @@ annotation: $(annotation_target) ## annotate clusters
 ##@ Trajectory inference
 
 .PHONY: scvelo
-scvelo: $(scvelo_velocity_target) ## compute rna velocity with scvelo
+scvelo: $(scvelo_velocity_target) ## estimate rna velocity with scvelo
 .PHONY: stream-pseudotime
 stream-pseudotime: $(stream_pseudotime_target) ## compute elastic principal graph and pseudotime with stream
 .PHONY: stream-trajectories
@@ -361,13 +377,13 @@ stream-trajectories: $(stream_trajectories_target) ## compute trajectories with 
 ##@ Macrostate characterization
 
 .PHONY: cellrank
-cellrank: $(cellrank_target) ## compute macrostates with cellrank
+cellrank: $(cellrank_target) ## estimate macrostates with cellrank
 .PHONY: center-extremity
-center-extremity: $(center_extremity_target) ## compute macrostates with center-extremity method
+center-extremity: $(center_extremity_target) ## estimate macrostates with center-extremity method
 .PHONY: cotan
-cotan: $(cotan_target) ## compute macrostates with cotan
+cotan: $(cotan_target) ## estimate macrostates with cotan
 .PHONY: macrostates
-macrostates: $(macrostates_target) ## compute macrostates depending on MACROSTATES_METHOD parameter
+macrostates: $(macrostates_target) ## estimate macrostates depending on MACROSTATES_METHOD parameter
 
 ##@ Macrostate binarization
 
@@ -475,14 +491,14 @@ $(fastq_$(1)):
 $(cellranger_$(1)): $(fastq_$(1)) $(transcriptome)
 	$(call print_rule,cellranger,$(1))
 	mkdir -p $$(@D)
-	cellranger count --id=ctrl \
+	cellranger count --id=$(1) \
 		--fastqs=$$(firstword $$^) \
    		--transcriptome=$$(lastword $$^) \
    		--create-bam true \
    		--localcores=$(JOBS) \
    		--localmem=$(MEMORY)
-	mv ctrl/* $$(@D)
-	rm -rf ctrl
+	mv $(1)/* $$(@D)
+	rm -rf $(1)
 
 $(velocyto_$(1)): $(cellranger_$(1)) $(transcriptome)
 	$(call print_rule,velocyto,$(1))
@@ -542,6 +558,7 @@ $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 	$(call print_rule,annotation,$(1))
 	$$(conda_activate) preprocess
 	python pipeline/utils/pipe.py $$^ --outfiles $$@ --column leiden --condition condition
+	$(call print_task,embedding component plotting)
 	python figures/plot_embedding.py figures/umap_labels.json \
 		--infile $$@ --outfile $$(@D)/umap_labels
 	$$(conda_deactivate)
@@ -553,6 +570,7 @@ $(annotation_$(1)): $(clustering_$(1))
 	python pipeline/clustering/annotation.py $$< $$@ \
 		--column leiden \
 		--name $$(CLUSTER_LABEL_$(call toupper,$(1)))
+	$(call print_task,embedding component plotting)
 	python figures/plot_embedding.py figures/umap_labels.json \
 		--infile $$@ --outfile $$(@D)/umap_labels
 	$$(conda_deactivate)
@@ -564,25 +582,47 @@ $(annotation_$(1)): $(clustering_$(1))
 endif
 endif
 
+$(scvelo_$(1)): $(annotation_$(1))
+	$(call print_rule,scvelo,$(1))
+	$$(conda_activate) scvelo
+	python pipeline/trajectories/scvelo_velocity.py $$< $$(@D) \
+		--cluster leiden \
+		--k-neighbors $(K_NEIGHBORS) \
+		--dim-clustering $(DIM_CLUSTERING) \
+		--mode $(SMM_MODE) \
+		--add-legend
+	$$(conda_deactivate)
+
+$(stream_pseudotime_$(1)): $(annotation_$(1))
+	$(call print_rule,stream-pseudotime,$(1))
+	$$(conda_activate) stream
+	python pipeline/trajectories/stream_pseudotime.py $$< $$(@D) \
+		--extension both --cluster-number $(CLUSTER_NUMBER) --groups leiden \
+		--lambda $(LAMBDA) --mu $(MU) --alpha $(ALPHA) \
+		$(EXTEND_LEAF_NODES) --extend-mode WeigthedCentroid --extend-parameter $(EXTEND) $(PRUNE_GRAPH) \
+		--add-legend --add-graph \
+		--jobs $(JOBS)
+	$$(conda_deactivate)
+
 endef
 
 define condition_plus_integrated_dependant_rules
 
 $(markers_$(1)): $(clustering_$(1)) $(lastword $(signatures))
-	$$(eval markers_csv_ctrl := $$(dir $$(@D))markers.csv)
+	$$(eval markers_csv := $$(dir $$(@D))markers.csv)
 	$(call print_rule,marker-analysis,$(1))
 	$$(conda_activate) preprocess
-	python pipeline/clustering/markers.py $$(^) $$(dir $$(markers_csv_ctrl)) \
+	python pipeline/clustering/markers.py $$(^) $$(dir $$(markers_csv)) \
   		--cluster leiden \
   		--logfc-threshold 0.25 \
   		--verbose
 	$(call print_task, background genes computation)
 	python bonesistools/clitools/get_genes.py $$(<) $$(@)
-	export clusters=`column -s, -t < $$(markers_csv_ctrl) | awk 'NR>1 {print $$$$2}' | sort -u | tr '\n' ' '`
+	export clusters=`column -s, -t < $$(markers_csv) | awk 'NR>1 {print $$$$2}' | sort -u | tr '\n' ' '`
 	$(call print_task, upregulated cluster-related genes computation)
 	for cluster in $$$${clusters}
 	do
-		`column -s, -t < $$(markers_csv_ctrl) | awk -v c=$$$${cluster} '$$$$2==c {print $$$$1}' > $$(@D)/cluster$$$${cluster}.txt`
+		`column -s, -t < $$(markers_csv) | awk -v c=$$$${cluster} '$$$$2==c {print $$$$1}' > $$(@D)/cluster$$$${cluster}.txt`
 		python bonesistools/clitools/genename_standardization.py $$(@D)/cluster$$$${cluster}.txt $$(@D)/cluster$$$${cluster}.txt --quiet
 	done
 	unset clusters
@@ -614,13 +654,12 @@ $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(co
 	$(call print_rule,clustering,integrated)
 	mkdir -p $(@D)
 	$(conda_activate) preprocess
-	python pipeline/clustering/integration.py $^ $@ \
+	python pipeline/clustering/integration.py $^ --outfile $@ \
 		--labels $(conditions) --method $(INTEGRATION_METHOD) --layer correct \
-		--hvg --metric euclidean --k-neighbors $(K_NEIGHBORS) --resolution $(RESOLUTION) \
+		--hvg $(HVG) --metric euclidean --k-neighbors $(K_NEIGHBORS) --resolution $(RESOLUTION) \
 		--dim-pca $(DIM_PCA) --dim-clustering $(DIM_CLUSTERING) --dim-umap $(DIM_UMAP) \
 		--add-legend --plot-3d \
-		--seed $(SEED) \
-		--jobs $(JOBS) \
+		--seed $(SEED) --jobs $(JOBS)
 	$(conda_deactivate)
 
 ifdef CLUSTER_LABEL_INTEGRATED
@@ -630,6 +669,7 @@ $(annotation_integrated): $(clustering_integrated)
 	python pipeline/clustering/annotation.py $< $@ \
 		--column leiden \
 		--name $(CLUSTER_LABEL_INTEGRATED)
+	$(call print_task,embedding component plotting)
 	python figures/plot_embedding.py figures/umap_labels.json \
 		--infile $@ --outfile $(@D)/umap_labels
 	$(conda_deactivate)
@@ -644,51 +684,9 @@ $(foreach condition,$(conditions),$(eval $(call condition_dependant_rules,$(cond
 $(foreach condition,$(conditions_plus_integrated),$(eval $(call condition_plus_integrated_dependant_rules,$(condition))))
 
 
-$(scvelo_ctrl): $(labels_ctrl)
-	$(call section,scvelo (control data))
-	$(conda_activate) scvelo
-	python pipeline/trajectories/scvelo_velocity.py $< $(@D) \
-		--cluster leiden \
-		--k-neighbors $(SCVELO_K_NEIGHBORS_CTRL) \
-		--dim-clustering $(SCVELO_DIM_CLUSTERING_CTRL) \
-		--mode $(SMM_MODE_CTRL) \
-		--add-legend
-	$(conda_deactivate)
 
-$(SCVELO_TREATED): $(LABELS_TREATED)
-	$(call section,scvelo (treated data))
-	$(conda_activate) scvelo
-	python pipeline/trajectories/scvelo_velocity.py $< $(@D) \
-		--cluster leiden \
-		--k-neighbors $(SCVELO_K_NEIGHBORS_TREATED) \
-		--dim-clustering $(SCVELO_DIM_CLUSTERING_TREATED) \
-		--mode $(SMM_MODE_TREATED) \
-		--add-legend
-	$(conda_deactivate)
 
-$(pseudotime_stream_ctrl): $(labels_ctrl)
-	$(call section,stream-pseudotime (control data))
-	$(conda_activate) stream
-	python pipeline/trajectories/stream_pseudotime.py $< $(@D) \
-		--extension both --cluster-number 6 --groups leiden \
-		--lambda $(LAMBDA_CTRL) --mu $(MU_CTRL) --alpha $(ALPHA_CTRL) \
-		--extend-leaf-nodes --extend-mode WeigthedCentroid --extend-parameter $(EXTEND_CTRL) \
-		--add-legend --add-graph \
-		--jobs $(JOBS)
-	$(conda_deactivate)
-
-$(pseudotime_stream_treated): $(LABELS_TREATED)
-	$(call section,stream-pseudotime (treated data))
-	$(conda_activate) stream
-	python pipeline/trajectories/stream_pseudotime.py $< $(@D) \
-		--extension both --cluster-number 6 --groups leiden \
-		--lambda $(LAMBDA_TREATED) --mu $(MU_TREATED) --alpha $(ALPHA_TREATED) \
-		--extend-leaf-nodes --extend-mode WeigthedCentroid --extend-parameter $(EXTEND_TREATED) \
-		--add-legend --add-graph \
-		--jobs $(JOBS)
-	$(conda_deactivate)
-
-$(trajectories_stream_ctrl): $(pseudotime_stream_ctrl)
+$(stream_trajectories_ctrl): $(stream_pseudotime_ctrl)
 	$(call section,stream-trajectories (control data))
 	@echo -e '$(BOLDGREEN)Warning: root can be modified depending on scvelo and BDC analysis$(NC)'
 	$(conda_activate) stream
@@ -697,7 +695,7 @@ $(trajectories_stream_ctrl): $(pseudotime_stream_ctrl)
 		--add-legend --add-graph $(IGNORED_NODES_CTRL)
 	$(conda_deactivate)
 
-$(trajectories_stream_treated): $(pseudotime_stream_treated)
+$(stream_trajectories_treated): $(stream_pseudotime_treated)
 	$(call section,stream-trajectories (control data))
 	@echo -e '$(BOLDGREEN)Warning: root can be modified depending on scvelo and BDC analysis$(NC)'
 	$(conda_activate) stream
@@ -770,6 +768,7 @@ $(COTAN_CTRL): $(scvelo_ctrl)
 	sed -i '1 i\,cotan' $(@D)/clusters.csv
 	$(conda_activate) preprocess
 	python bonesistools/clitools/add_to_adata.py $< $@ --obs $(@D)/clusters.csv --obs-type str --sep ,
+	$(call print_task,embedding component plotting)
 	python figures/plot_embedding.py figures/cotan_clusters.json --infile $@ --outfile $(@D)/cotan_clusters
 	$(conda_deactivate)
 
@@ -793,6 +792,7 @@ $(COTAN_TREATED): $(SCVELO_TREATED)
 	sed -i '1 i\,cotan' $(@D)/clusters.csv
 	$(conda_activate) preprocess
 	python bonesistools/clitools/add_to_adata.py $< $@ --obs $(@D)/clusters.csv --obs-type str --sep ,
+	$(call print_task,embedding component plotting)	
 	python figures/plot_embedding.py figures/cotan_clusters.json --infile $@ --outfile $(@D)/cotan_clusters
 	$(conda_deactivate)
 

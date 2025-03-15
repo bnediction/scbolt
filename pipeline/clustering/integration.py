@@ -158,9 +158,11 @@ parser.add_argument(
 parser.add_argument(
     "--hvg",
     dest="hvg",
+    type=int,
     required=False,
-    action="store_true",
-    help="select the most variable genes for dimension reduction with pca"
+    default=None,
+    metavar="INT",
+    help="select the most variable genes for dimension reduction (default: None)"
 )
 
 parser.add_argument(
@@ -264,19 +266,12 @@ for i, label in enumerate(labels):
     else:
         valid_genes = valid_genes.intersection(set(adata_d[label].var.index))
 
+valid_genes = list(valid_genes)
+
 for k in adata_d.keys():
     if args.layer:
         adata_d[k].X = adata_d[k].layers[args.layer]
     adata_d[k] = adata_d[k][:,valid_genes]
-    sc.pp.highly_variable_genes(
-        adata_d[k],
-        layer="raw",
-        flavor="seurat_v3",
-        span=0.3,
-        n_bins=20,
-        n_top_genes=2000,
-        inplace=True
-    )
 
 del valid_genes
 
@@ -284,12 +279,27 @@ if args.method=="ingest":
 
     print_info("integration using ingest algorithm")
 
+    if args.hvg is not None:
+        print_task("highly variable genes estimation")
+        for k in adata_d.keys():
+            sc.pp.highly_variable_genes(
+                adata_d[k],
+                layer="raw",
+                flavor="seurat_v3",
+                span=0.3,
+                n_bins=20,
+                n_top_genes=args.hvg,
+                inplace=True
+            )
+    else:
+        print_info("no highly variable genes estimation")
+
     print_task("pca computation (reference sample)")
     sc.tl.pca(
         adata_d[labels[0]],
         zero_center=args.zero_center,
         n_comps=args.dim_pca,
-        use_highly_variable=args.hvg,
+        use_highly_variable=True if args.hvg is not None else False,
         copy=False
     )
 
@@ -312,7 +322,7 @@ if args.method=="ingest":
     for _label in labels[1:]:
         sc.tl.ingest(
             adata=adata_d[_label],
-            adata_ref=adata_d[label[0]],
+            adata_ref=adata_d[labels[0]],
             obs=None,
             embedding_method=["pca", "umap"],
             inplace=True,
@@ -322,14 +332,13 @@ if args.method=="ingest":
         adata = ad.concat(
             adatas=list(adata_d.values()),
             join="inner",
-            label=True,
+            label="condition",
             keys=list(adata_d.keys()),
             merge="same",
             uns_merge="same"
         )
     except:
         raise RuntimeError("Anndatas concatenation did not work")
-    clean_adata(adata)
 
     print_task("knn computation (integrated)")
     sc.pp.neighbors(
@@ -357,8 +366,8 @@ elif args.method=="bbknn":
             adata = ad.concat(
                 list(adata_d.values()),
                 join="inner",
-                label=args.label,
-                keys=label,
+                label="condition",
+                keys=list(adata_d.keys()),
                 merge="same",
                 uns_merge="same"
             )
@@ -370,30 +379,33 @@ elif args.method=="bbknn":
         obs="leiden"
     )
 
-    print_task("higly variable genes computation")
-    sc.pp.highly_variable_genes(
-        adata,
-        layer="raw",
-        flavor="seurat_v3",
-        span=0.3,
-        n_bins=20,
-        n_top_genes=2000,
-        inplace=True
-    )
+    if args.hvg:
+        print_task("highly variable genes estimation")
+        sc.pp.highly_variable_genes(
+            adata,
+            layer="raw",
+            flavor="seurat_v3",
+            span=0.3,
+            n_bins=20,
+            n_top_genes=args.hvg,
+            inplace=True
+        )
+    else:
+        print_info("no highly variable genes estimation")
 
     print_task("pca computation")
     sc.tl.pca(
         adata,
         zero_center=args.zero_center,
         n_comps=args.dim_pca,
-        use_highly_variable=args.hvg,
+        use_highly_variable=True if args.hvg is not None else False,
         copy=False
     )
 
     print_task("knn integration")
     sc.external.pp.bbknn(
         adata,
-        batch_key=args.label,
+        batch_key="condition",
         use_rep="X_pca",
         metric=args.metric,
         copy=False,
@@ -444,8 +456,8 @@ elif args.method=="scanorama":
         adata = ad.concat(
             adata_l,
             join="inner",
-            label=args.label,
-            keys=label,
+            label="condition",
+            keys=labels,
             merge="same",
             uns_merge="same"
         )
@@ -461,6 +473,7 @@ elif args.method=="scanorama":
         n_pcs=args.dim_clustering,
         copy=False
     )
+    adata.obsm["X_pca"] = adata.obsm["X_scanorama"]
 
     print_task("leiden clustering (integrated)")
     sc.tl.leiden(
@@ -484,7 +497,7 @@ adt.pl.embedding_plot(
     obsm="X_pca",
     xlabel=r"$\mathrm{PC_{1}}$",
     ylabel=r"$\mathrm{PC_{2}}$",
-    outfile=Path(f"{args.outpath}/pca"),
+    outfile=Path(f"{os.path.dirname(args.outfile)}/pca"),
     add_legend=args.legend,
     s=2,
     alpha=1,
@@ -527,4 +540,4 @@ for obs in ["condition", "leiden"]:
 
 print_task("data saving")
 
-adata.write_h5ad(filename=f"{args.outpath}/integrated.h5ad", compression="gzip")
+adata.write_h5ad(filename=args.outfile, compression="gzip")
