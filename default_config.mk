@@ -52,17 +52,27 @@ PRUNE_GRAPH := false
 
 # stream-trajectories #
 
-# ROOT_<CONDITION> = 0						# specify which node is the starting point
-# IGNORED_NODES_<CONDITION> =				# specify which nodes to ignore for deciphering trajectories
+# ROOT_<CONDITION> = 0						# specify which node is the starting point for condition <CONDITION>
+# IGNORED_NODES_<CONDITION> =				# specify which nodes to ignore for deciphering trajectories in condition <CONDITION>
 
-# macrostates #
-$(eval MACROSTATES_METHOD := cotan)				# cellrank, center-extremity or cotan
+## END TRAJECTORY INFERENCE ##
+
+## BEGIN MACROSTATE CHARACTERIZATION ##
+
+$(eval MACROSTATES_METHOD := cotan)			# cellrank, center-extremity or cotan
+
+# cellrank #
+
 $(eval MACROSTATE_SIZE := 100)
-$(eval CELLRANK_METHOD := stability)			# stability, top_n, eigengap or eigengap_coarse
-$(eval INITIAL_STATES_CTRL := 1)				# number of initial states with cellrank
-$(eval TERMINAL_STATES_CTRL := 4)				# number of terminal states with cellrank
-$(eval INITIAL_STATES_TREATED := 1)				# number of initial states with cellrank
-$(eval TERMINAL_STATES_TREATED := 4)			# number of terminal states with cellrank
+$(eval CELLRANK_METHOD := stability)		# stability, top_n, eigengap or eigengap_coarse
+# INITIAL_STATES_<CONDITION> =				# number of initial states with cellrank for condition <CONDITION>
+# TERMINAL_STATES_<CONDITION> =				# number of terminal states with cellrank for condition <CONDITION>
+
+# center-extremity #
+
+# CENTER_<CONDITION> := <cluster...>		# clusters for which macrostates are deriving by keeping cells closest to the cluster-related barycenter
+# EXTREMITY_<CONDITION> := <cluster...>		# clusters for which macrostates are deriving by keeping cells cells furthest from other cluster-related barycenters
+EXCLUDE := true
 
 ## binarization parameters
 

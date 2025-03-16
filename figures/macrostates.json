@@ -12,7 +12,7 @@
         "n_components"
     ],
     "figure": {
-        "obs": "cotan",
+        "obs": "macrostates",
         "obsm": "X_umap",
         "figheight": 5,
         "figwidth": 6,

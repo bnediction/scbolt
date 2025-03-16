@@ -362,8 +362,8 @@ with disable_print():
 
 adata.obs["kmeans"] = adata.obs["kmeans"].transform(lambda x: re.search(r"\d+", x).group())
 
-adata.obs["clusters"] = nan
-adata.obs["clusters"] = adata.obs["clusters"].astype(str)
+adata.obs["macrostates"] = nan
+adata.obs["macrostates"] = adata.obs["macrostates"].astype(str)
 
 nodes_mapping = dict()
 for node, attributes in adata.uns["flat_tree"]._node.items():
@@ -373,9 +373,9 @@ for node, attributes in adata.uns["flat_tree"]._node.items():
 
 for node in nodes_mapping.keys():
     _true = adata.obs["node"] == node
-    adata.obs["clusters"][_true] = str(nodes_mapping[node])
+    adata.obs["macrostates"][_true] = str(nodes_mapping[node])
 
-groups = groups.union({"kmeans", "clusters"})
+groups = groups.union({"kmeans", "macrostates"})
 
 print_task("trajectory plotting")
 
@@ -384,18 +384,18 @@ for _group in groups:
         adata,
         obs=_group,
         obsm=adata.uns["dr"],
-        colors=[color.blue]*(len(nodes_mapping)) + [color.lightgray] if _group == "clusters" else None,
+        colors=[color.blue]*(len(nodes_mapping)) + [color.lightgray] if _group == "macrostates" else None,
         xlabel=r"$\mathrm{UMAP_{1}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
         zlabel=r"$\mathrm{UMAP_{3}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{3}^{\mathrm{scanorama}}}$",
         add_graph=args.graph,
         add_labels_to_graph=True if not is_float_dtype(adata.obs[_group]) else False,
-        add_legend=args.legend if _group != "clusters" else False,
+        add_legend=args.legend if _group != "macrostates" else False,
         figwidth=6 if args.legend else 5,
         s=2,
         alpha=0.4 if (args.plot_3d and not is_float_dtype(adata.obs[_group])) else 0.7,
         lgd_params={
-            "title":"clusters" if _group != "condition" else "conditions",
+            "title":"macrostates" if _group != "condition" else "conditions",
             "ncol":1,
             "markerscale":5,
             "frameon":True,
@@ -417,18 +417,19 @@ for _group in groups:
 
 if args.save_tables:
     print_task("data saving")
-    if args.extension == "pkl" or args.extension == "both":
-        st.write(adata, file_name=f"{args.outpath}/stream.h5ad.pkl")
-    if args.extension == "h5ad" or args.extension == "both":
-        del adata.uns["workdir"]
-        for key in list(adata.obs.keys()):
-            if isinstance (adata.obs[key][0], tuple):
-                del adata.obs[key]
-        for key in list(adata.uns.keys()):
-            if isinstance(adata.uns[key], (tuple, Path, Graph, ListSexpVector)):
-                del adata.uns[key]
-            if key.startswith("stream_S"):
-                del adata.uns[key]
-        adata.write_h5ad(filename=f"{args.outpath}/stream.h5ad", compression="gzip")
+    with disable_print():
+        if args.extension == "pkl" or args.extension == "both":
+            st.write(adata, file_name=f"{args.outpath}/stream.h5ad.pkl")
+        if args.extension == "h5ad" or args.extension == "both":
+            del adata.uns["workdir"]
+            for key in list(adata.obs.keys()):
+                if isinstance (adata.obs[key][0], tuple):
+                    del adata.obs[key]
+            for key in list(adata.uns.keys()):
+                if isinstance(adata.uns[key], (tuple, Path, Graph, ListSexpVector)):
+                    del adata.uns[key]
+                if key.startswith("stream_S"):
+                    del adata.uns[key]
+            adata.write_h5ad(filename=f"{args.outpath}/stream.h5ad", compression="gzip")
 else:
     print_info("no data saving")

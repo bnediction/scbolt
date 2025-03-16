@@ -26,7 +26,17 @@ for (pkg in pkgs.to.load) {
   suppressPackageStartupMessages(library(pkg, character.only = TRUE))
 }
 
-is.defined = function(x)!is.null(x)
+datetime.now.POSIXct <- function()
+  format(Sys.time(), format='%Y-%m-%d %H:%M:%S')
+
+print_task <- function(x)
+  cat(paste0(datetime.now.POSIXct()," - TASK - ",x,"\n"))
+
+print_info <- function(x)
+  cat(paste0(datetime.now.POSIXct()," - INFO - ",x,"\n"))
+
+is.defined = function(x)
+  !is.null(x)
 
 description <- ""
 usage <- ""
@@ -170,7 +180,7 @@ dir.create(
 
 setLoggingFile(file.path(args$outpath, "cotan.log"))
 
-cat("Data loading...\n")
+print_task("data loading")
 
 df <- read.csv(
   args$infile,
@@ -186,7 +196,7 @@ cotan <- initializeMetaDataset(
   sampleCondition = args$condition
 )
 
-cat("Data preprocessing...\n")
+print_task("data preprocessing")
 
 if (isTRUE(args$drop_mithocondrial)){
   cotan <- addElementToMetaDataset(cotan, tag="remove mithocondrial genes and cells", value=TRUE)
@@ -249,7 +259,7 @@ if (isTRUE(args$cotan_filtering)){
   cotan <- addElementToMetaDataset(cotan, tag="cotan filtering", value=FALSE)
 }
 
-cat("Cotan analysis...\n")
+print_task("cotan analysis")
 
 cotan <- clean(cotan)
 c(pca.plot, pca.data, genes.plot, UDE.plot, nu.plot, zoomed.nu.plot) %<-% cleanPlots(cotan)
@@ -272,7 +282,7 @@ cotan <- storeGDI(
   genesGDI=global.differentiation.index
 )
 
-cat("Cotan clustering...\n")
+print_task("cotan clustering")
 
 advanced.GDI.uniformity.checker <- new("AdvancedGDIUniformityCheck")
 
@@ -351,10 +361,10 @@ c(summary.data, summary.plot) %<-%
     plotTitle="clustering summary"
   )
 
-cat("clusters:\n")
+print_info("cluster information:")
 summary.data
 
-cat("Umap plotting...\n")
+print_task("embedding component plotting")
 
 c(umap.plot, cells.pca) %<-%
   cellsUMAPPlot(
@@ -369,7 +379,7 @@ pdf(file = file.path(args$outpath, "umap_plot.pdf"))
 plot(umap.plot)
 dev.off()
 
-# cat("Data saving...\n")
+print_task("data saving")
 
 saveRDS(cotan, file = file.path(args$outpath, "cotan.RDS"))
 write.table(data.frame(clusters), file.path(args$outpath, "clusters.csv"), row.names=TRUE, col.names=FALSE, quote=FALSE, sep=",")

@@ -5,7 +5,10 @@ warnings.filterwarnings("ignore")
 
 import os, argparse
 from pathlib import Path
-from utils.stdout import Section
+from utils.stdout import (
+    print_task,
+    print_info
+)
 
 import scanpy as sc
 import cellrank as cr
@@ -24,14 +27,14 @@ parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="counting file (h5ad format)"
+    help="preprocessed input file (h5ad format)"
 )
 
 parser.add_argument(
-    "outpath",
+    "outfile",
     type=lambda x: Path(x).resolve(),
-    metavar="PATH",
-    help="output path"
+    metavar="FILE",
+    help="preprocessed output file storing 'macrostates' in adata.obs (h5ad format)"
 )
 
 parser.add_argument(
@@ -105,40 +108,38 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-if not args.outpath.exists():
-    os.makedirs(args.outpath)
+if not Path(os.path.dirname(args.outfile)).exists():
+    os.makedirs(Path(os.path.dirname(args.outfile)))
 
 adt.pl.set_default()
 
-section = Section(verbose = True)
-
-print(f"Loading data...")
+print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 
-print(f"Computing kernel...")
+print_task("kernel computation")
 
-section("Computing velocity kernel", reset=True)
+print_info("velocity kernel")
 
 vk = cr.kernels.VelocityKernel(adata)
 vk.compute_transition_matrix()
 
-section("Computing connectivity kernel")
+print_info("connectivity kernel")
 
 ck = cr.kernels.ConnectivityKernel(adata)
 ck.compute_transition_matrix()
 
-section("Merging kernel")
+print_info("combined kernel")
 
 combined_kernel = 0.8 * vk + 0.2 * ck
 
-print(f"Identifying initial and terminal states...")
+print_task("initial and terminal states identification")
 
 g = cr.estimators.GPCCA(combined_kernel)
 g.fit(
     cluster_key="clusters",
     n_cells = args.macrostate_size,
-    n_states=[4, 20]
+    n_states=[4, 15]
 )
 adata.obs["macrostates"] = adata.obs["macrostates_fwd"]
 
@@ -155,6 +156,8 @@ g.predict_terminal_states(
     alpha=args.alpha,
     allow_overlap=True
 )
+
+print_task("embedding component plotting")
 
 fig, _ = adt.pl.embedding_plot(
     adata,
@@ -178,7 +181,7 @@ fig, _ = adt.pl.embedding_plot(
     n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
     background_visible=False
 )
-plt.savefig(Path(f"{args.outpath}/macrostates.pdf"))
+plt.savefig(Path(f"{os.path.dirname(args.outfile)}/macrostates.pdf"))
 
 fig, _ = adt.pl.embedding_plot(
     adata,
@@ -192,7 +195,7 @@ fig, _ = adt.pl.embedding_plot(
     s=4,
     alpha=1,
     lgd_params={
-        "title":"macrostates",
+        "title":"initial macrostates",
         "ncol":1,
         "markerscale":5,
         "frameon":True,
@@ -202,7 +205,7 @@ fig, _ = adt.pl.embedding_plot(
     n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
     background_visible=False
 )
-plt.savefig(Path(f"{args.outpath}/initial_states.pdf"))
+plt.savefig(Path(f"{os.path.dirname(args.outfile)}/initial_states.pdf"))
 
 fig, _ = adt.pl.embedding_plot(
     adata,
@@ -216,7 +219,7 @@ fig, _ = adt.pl.embedding_plot(
     s=4,
     alpha=1,
     lgd_params={
-        "title":"macrostates",
+        "title":"terminal macrostates",
         "ncol":1,
         "markerscale":5,
         "frameon":True,
@@ -226,8 +229,8 @@ fig, _ = adt.pl.embedding_plot(
     n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
     background_visible=False
 )
-plt.savefig(Path(f"{args.outpath}/terminal_states.pdf"))
+plt.savefig(Path(f"{os.path.dirname(args.outfile)}/terminal_states.pdf"))
 
-print("Saving data...")
+print_task("data saving")
 
-adata.write_h5ad(filename=f"{args.outpath}/adata.h5ad")
+adata.write_h5ad(filename=args.outfile)

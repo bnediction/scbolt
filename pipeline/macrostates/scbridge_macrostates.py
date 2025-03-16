@@ -5,6 +5,7 @@ warnings.filterwarnings("ignore")
 
 import os, argparse
 from pathlib import Path
+from utils.stdout import print_task
 
 import scanpy as sc
 import anndatatools as adt
@@ -18,21 +19,21 @@ parser = argparse.ArgumentParser(
     Two methods can be used:
     1) "center" method, computing the cells closest to the cluster-related barycenter
     2) "extremity" method, computing the cells furthest from other cluster-related barycenters""",
-    usage="python macrostates.py <FILE> <PATH> [-- center <LITERAL...>] [-- extremity <LITERAL...>] [<args>]"
+    usage="python scbridge_macrostates.py <FILE> <PATH> [-- center <LITERAL...>] [-- extremity <LITERAL...>] [<args>]"
 )
 
 parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="counting file (h5ad format)"
+    help="preprocessed input file (h5ad format)"
 )
 
 parser.add_argument(
-    "outpath",
+    "outfile",
     type=lambda x: Path(x).resolve(),
-    metavar="PATH",
-    help="output path"
+    metavar="FILE",
+    help="preprocessed output file storing 'macrostates' in adata.obs (h5ad format)"
 )
 
 parser.add_argument(
@@ -50,7 +51,7 @@ parser.add_argument(
     dest="center",
     type=str,
     required=False,
-    nargs="+",
+    nargs="*",
     default=None,
     metavar="LITERAL",
     help="cluster names for which macrostates correspond to the cells closest to the barycenter (default = None)"
@@ -61,7 +62,7 @@ parser.add_argument(
     dest="extremity",
     type=str,
     required=False,
-    nargs="+",
+    nargs="*",
     default=None,
     metavar="LITERAL",
     help="cluster names for which macrostates correspond to the cells furthest from other clusters (default = None)"
@@ -115,12 +116,12 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-if not args.outpath.exists():
-    os.makedirs(args.outpath)
+if not Path(os.path.dirname(args.outfile)).exists():
+    os.makedirs(Path(os.path.dirname(args.outfile)))
 
 adt.pl.set_default()
 
-print(f"Loading data...")
+print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 
@@ -129,7 +130,7 @@ if args.dimension is None:
 
 exclude = set(adata.obs[args.obs].cat.categories).difference(set(args.center).union(set(args.extremity))) if args.exclude is True else None
 
-print(f"Computing macrostates...")
+print_task("macrostate computation")
 
 adt.tl.subclusters(
     adata,
@@ -144,6 +145,8 @@ adt.tl.subclusters(
     copy=False
 )
 
+print_task("embedding component plotting")
+
 fig, _ = adt.pl.embedding_plot(
     adata,
     obs="macrostates",
@@ -156,7 +159,7 @@ fig, _ = adt.pl.embedding_plot(
     s=4,
     alpha=1,
     lgd_params={
-        "title":"clusters",
+        "title":"macrostates",
         "ncol":1,
         "markerscale":5,
         "frameon":True,
@@ -166,9 +169,9 @@ fig, _ = adt.pl.embedding_plot(
     n_components = 3 if adata.obsm[args.obsm].shape[1] > 2 and args.plot_3d is True else 2,
     background_visible=False,
 )
-plt.savefig(Path(f"{args.outpath}/macrostates.pdf"))
+plt.savefig(Path(f"{os.path.dirname(args.outfile)}/macrostates.pdf"))
 plt.close()
 
-print("Saving data...")
+print_task("data saving")
 
-adata.write_h5ad(filename=f"{args.outpath}/adata.h5ad")
+adata.write_h5ad(filename=args.outfile)

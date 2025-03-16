@@ -5,10 +5,13 @@ warnings.filterwarnings("ignore")
 
 import os, argparse
 import pickle
+import re
 from pathlib import Path
 from utils.argtype import Store_prefix
-from utils.stdout import disable_print, Section
-import re
+from utils.stdout import (
+    disable_print,
+    print_task
+)
 
 import pandas as pd
 import anndatatools as adt, stream as st
@@ -67,7 +70,7 @@ parser.add_argument(
 parser.add_argument(
     "-r", "--root",
     dest="root",
-    type=int,
+    type=str,
     required=False,
     default=0,
     metavar="INT",
@@ -138,19 +141,12 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-section = Section()
-
-args.root=f"S{args.root}"
-if args.ignore_nodes:
-    for i in range(len(args.ignore_nodes)):
-        args.ignore_nodes[i] = "S" + args.ignore_nodes[i]
-
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
-groups = set(args.groups).union([f"{args.root}_pseudotime"])
+groups = set(args.groups).union([f"S{args.root}_pseudotime"])
 
-print("Loading data...")
+print_task("data loading")
 
 with disable_print():
     adata = st.read(str(args.infile), file_format="pkl", workdir=args.outpath)
@@ -163,32 +159,29 @@ else:
 if dr not in adata.obsm:
     raise ValueError("Integrated components {dr} in adata.obsm not found.")
 
-print("Plotting trajectories...")
+print_task("trajectory plotting")
 
-if "node_clusters" in groups:
-    node_colors = [color.blue] * (len(adata.obs["node_clusters"].unique()) - 1) + [color.lightgray]
-    node_colors[sorted(adata.obs["node_clusters"].unique()).index(args.root)] = color.red
-
-section("trajectory plot")
+if "macrostates" in groups:
+    node_colors = [color.blue] * (len(adata.obs["macrostates"].unique()) - 1) + [color.lightgray]
+    node_colors[sorted(adata.obs["macrostates"].unique()).index(args.root)] = color.red
 
 for _group in groups:
     fig, ax = adt.pl.embedding_plot(
         adata,
         obs=_group,
         obsm=adata.uns["dr"],
-        colors=node_colors if _group == "node_clusters" else None,
+        colors=node_colors if _group == "macrostates" else None,
         xlabel=r"$\mathrm{UMAP_{1}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
         zlabel=r"$\mathrm{UMAP_{3}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{3}^{\mathrm{scanorama}}}$",
         add_graph=args.graph,
         add_labels_to_graph=args.text,
-        add_legend=args.legend if _group != "node_clusters" else False,
+        add_legend=args.legend if _group != "macrostates" else False,
         figwidth=6 if args.legend else 5,
         s=2,
         alpha=0.7,
         lgd_params={
             "title":"clusters" if _group != "condition" else "conditions",
-            "labels":[string.replace("cluster ","") for string in sorted(adata.obs[_group].unique())],
             "ncol":1,
             "markerscale":5,
             "frameon":True,
@@ -213,12 +206,12 @@ for _group in groups:
     else:
         pass
 
-section("stream plot")
+print_task("stream plotting")
 
 st.plot_stream(
     adata,
-    root=args.root,
-    color=[f"{args.root}_pseudotime"],
+    root=f"{args.root}",
+    color=[f"S{args.root}_pseudotime"],
     log_scale=False,
     factor_zoomin=100,
     save_fig=False,
@@ -229,8 +222,8 @@ ax.tick_params(axis="x", which="major", pad=2)
 ax.images[-1].colorbar.remove()
 plt.savefig(f"{args.outpath}/{args.prefix}pseudotime_stream_plot.pdf")
 
-for _group in groups.difference([f"{args.root}_pseudotime"]):
-    colors = node_colors if _group == "node_clusters" else color.LIGHT_COLORS
+for _group in groups.difference([f"S{args.root}_pseudotime"]):
+    colors = node_colors if _group == "macrostates" else color.LIGHT_COLORS
     st.plot_stream(
         adata,
         root=args.root,
@@ -264,7 +257,7 @@ for _group in groups.difference([f"{args.root}_pseudotime"]):
         ax.get_legend().remove()
     plt.savefig(f"{args.outpath}/{args.prefix}{_group}_stream_plot.pdf", bbox_inches="tight")
 
-print("Trajectories inference...")
+print_task("trajectory inference")
 
 flat_tree = adata.uns["flat_tree"]
 branch_labels = tree_to_trajectories(flat_tree)
