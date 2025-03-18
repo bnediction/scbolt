@@ -11,6 +11,8 @@ results/
 *.bin
 *.desc
 *.h5ad
+*.h5mu
+*.pkl
 
 ### Distributions/packaging ###
 build/

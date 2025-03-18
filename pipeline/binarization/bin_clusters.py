@@ -5,23 +5,19 @@ warnings.filterwarnings("ignore")
 
 from typing import Optional, Union, List
 from collections import namedtuple
+from utils.argtype import Range
 
 import os, argparse
 from pathlib import Path
-from utils.argtype import Range, Required_length
-from utils.stdout import Section, disable_print
 
 from pandas import (
     DataFrame,
     Series,
     MultiIndex
 )
-import pandas as pd
 import anndata as ad, anndatatools as adt
 
 import numpy as np
-
-from scboolseq import scBoolSeq
 
 class Predict(object):
 
@@ -98,7 +94,7 @@ class Predict(object):
     def __call__(
         self,
         data: Union[Series, DataFrame],
-        category: Optional[str] = None,
+        category: Union[str, Series],
     ) -> Union[Series, DataFrame]:
 
         def boolean_prediction(self, zeros, ones, nans, category):
@@ -140,7 +136,7 @@ class Predict(object):
         if index.nlevels == 1:
             index = index.get_level_values(0)
 
-        if isinstance(data, Series) and category is not None:
+        if isinstance(data, Series) and isinstance(category,str):
             predict_series = Series(index=index, name=data._name)
             if category == "Discarded":
                 return predict_series
@@ -150,18 +146,18 @@ class Predict(object):
                     _value = boolean_prediction(self, zeros=_zeros, ones=_ones, nans=_nans, category=category)
                     predict_series[cluster] = _value
                 return predict_series
-        elif isinstance(data, DataFrame) and category is None:
+        elif isinstance(data, DataFrame) and isinstance(category, Series):
             predict_df = DataFrame(index=index)
             for gene in data:
                 predict_series = self.__call__(
                     data=data.loc[:,gene],
-                    category=scbool.criteria_.loc[gene,"Category"]
+                    category=category[gene]
                 )
                 predict_df = predict_df.join(predict_series)
             return predict_df
         else:
-            raise ValueError(f"""`data` and `category` arguments must be either of types respectively {Series} and {str}
-            or of types respectively {DataFrame} and {type(None)}, not {type(data)} and {type(category)}.""")
+            raise TypeError(f"""`data` and `category` arguments must be either of types respectively {Series} and {str}
+            or of types respectively {DataFrame} and {Series}, not {type(data)} and {type(category)}.""")
 
 def cell_to_cluster_binarization(
     obs_df: DataFrame,
@@ -205,30 +201,36 @@ def cell_to_cluster_binarization(
 
 parser = argparse.ArgumentParser(
     prog="cluster binarization",
-    description="""compute cluster-related binarization from single-cell sequencing data, \
-    using scBoolSeq method (see Magaña López et al. (2023): <https://hal.science/hal-04294917/>).""",
-    usage=""""python scboolseq_bin.py [-h] <FILE...> -o <PATH> -c <LITERAL> [<args>]"""
+    description="""compute cluster-related binarization from single-cell sequencing data using voting rule""",
+    usage=""""python macrostate_binarization.py [-h] <FILE...> -o <PATH> -c <LITERAL> [<args>]"""
 )
 
 parser.add_argument(
-    dest="infiles",
+    dest="infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    nargs="+",
-    help="input file(s) (h5ad format)"
+    help="input file with binarized layer (h5ad format)"
 )
 
 parser.add_argument(
-    "-o", "--outpath",
     dest="outpath",
     type=lambda x: Path(x).resolve(),
-    required=True,
     metavar="PATH",
     help="output path"
 )
 
 parser.add_argument(
-    "-c", "--cluster",
+    "--layer",
+    dest="layer",
+    type=str,
+    required=False,
+    default="bin",
+    metavar="LITERAL",
+    help="layer storing binarized counts (default: bin)"
+)
+
+parser.add_argument(
+    "--cluster",
     dest="groupby",
     type=str,
     required=True,
@@ -238,15 +240,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--conditions",
-    dest="conditions",
+    "--condition",
+    dest="condition",
     type=str,
     required=False,
-    action=Required_length,
-    min=2,
-    metavar="LITERAL",
     default=None,
-    help="condition related to each dataset (ordered with h5ad files)",
+    metavar="LITERAL",
+    help="column name such as adata.obs[`LITERAL`] distinguishes samples (default: None)"
 )
 
 parser.add_argument(
@@ -260,39 +260,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-l", "--layer",
-    dest="layer",
-    type=str,
-    required=False,
-    default="log-normalize",
-    metavar="LITERAL",
-    help="layer used for binarization (default: `log-normalize`)"
-)
-
-parser.add_argument(
-    "--hvg",
-    dest="hvg",
-    required=False,
-    action="store_true",
-    help="select the most variable genes for binarization"
-)
-
-parser.add_argument(
-    "--zeroes_are_zeroes",
-    dest="zeroes_are_zeroes",
-    required=False,
-    action="store_true",
-    help="""when zero-inflated is inferred for a gene-related distribution:
-    if its counting with respect to a cell is equal to zero, binarize to zero"""
-)
-
-parser.add_argument(
     "-n", "--nans-threshold",
     dest="nans_threshold",
     type=float,
     action=Range,
-    min=0.,
-    max=1.,
+    min=0.0,
+    max=1.0,
     required=False,
     default=0.3,
     help="""set binarized gene value of a cluster to nan if the proportion of nan values
@@ -305,7 +278,7 @@ parser.add_argument(
     type=float,
     action=Range,
     min=0.5,
-    max=1.,
+    max=1.0,
     required=False,
     default=2/3,
     help="""for a bimodal gene, set binarized gene value of a cluster to 0 (resp. 1)
@@ -318,13 +291,13 @@ parser.add_argument(
     dest="zeroinf_threshold",
     type=float,
     action=Range,
-    min=0.,
-    max=0.5,
+    min=0.5,
+    max=1.0,
     required=False,
-    default=0.3,
+    default=0.5,
     help="""for a zero-inflated gene, set binarized gene value of a cluster to 1
     if the proportion of one-values in the cluster is above `zeroinf_threshold`,
-    otherwise 0 (default: 0.3)"""
+    otherwise 0 (default: 0.5)"""
 )
 
 parser.add_argument(
@@ -333,7 +306,7 @@ parser.add_argument(
     type=float,
     action=Range,
     min=0.5,
-    max=1.,
+    max=1.0,
     required=False,
     default=2/3,
     help="""for a unimodal gene, set binarized gene value of a cluster to 0 (resp. 1)
@@ -341,23 +314,7 @@ parser.add_argument(
     with respect to binarized values (default: 2/3)"""
 )
 
-parser.add_argument(
-    "-v", "--verbose",
-    dest="verbose",
-    required=False,
-    action="store_true",
-    help="display information about running programm"
-)
-
 args = parser.parse_args()
-
-section = Section(verbose = args.verbose)
-
-scbool = scBoolSeq(
-    margin_quantile = 0.10,
-    zeroinf_binarizer = "zero_or_not",
-    zeroes_are = 0 if args.zeroes_are_zeroes else np.nan
-)
 
 predict = Predict(
     args.nans_threshold,
@@ -369,77 +326,25 @@ predict = Predict(
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
-print(f"Loading data...")
+adata = ad.read_h5ad(args.adata)
 
-adatas = [ad.read_h5ad(infile) for infile in args.infiles]
-
-for i in range(len(adatas)):
-    adatas[i].var_names_make_unique()
-
-if len(args.infiles) > 1:
-    if args.conditions is None:
-        raise argparse.ArgumentError(None, "option --condition must be specified when using multiple infiles")
-    elif len(args.infiles) != len(args.conditions):
-        raise argparse.ArgumentError(None, "infiles and --condition require the same number of values")
-    else:
-        try:
-            adata = ad.concat(
-                adatas,
-                axis=0,
-                label="condition",
-                keys=args.conditions,
-                merge="first",
-                uns_merge="same"
-            )
-            adata.obs_names_make_unique() ### handle issue when there are identical barcodes between anndata.
-        except:
-            raise RuntimeError("Anndatas concatenation did not work, aborting")
-else:
-    adata = adatas[0]
-
-del adatas
-
-if args.hvg is True:
-    print(f"Selecting higly variable genes (HVG)...")
-    if "highly_variable" in adata.var:
-        del adata.var["highly_variable"]
-    from scanpy import preprocessing
-    preprocessing.highly_variable_genes(adata, layer="raw", flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
-    adata = adata[:,adata.var["highly_variable"]]
-
-gene_list = adata.var.index
-counts_df = adt.tl.anndata_to_dataframe(adata, layer=args.layer)
-
-print("Data binarization...")
-
-section("Compute estimators")
-with disable_print():
-    scbool.fit(counts_df, simulation=False)
-
-section("Estimate boolean values by observation")
-with disable_print():
-    cell_df = scbool.binarize(counts_df)
-
-section("Estimate boolean values by cluster")
 cluster_d = dict()
 predict_d = dict()
 for _group in args.groupby:
     if len(args.groupby) > 1:
         print(f"\tcomputation for cluster `{_group}`")
-    metadata = [_group, "condition"] if args.conditions else _group
+    metadata = [_group, args.condition] if args.condition else [_group]
     convert_metadata = {category: "category" for category in metadata} if isinstance(metadata,list) else "category"
-    _cell_df = pd.merge(
-        cell_df,
-        adata.obs.loc[:,metadata].astype(convert_metadata),
-        left_index=True,
-        right_index=True,
-        how="inner"
+    _cell_df = adt.tl.anndata_to_dataframe(
+        adata=adata,
+        obs=metadata,
+        layer="bin"
     )
     cluster_d[_group] = cell_to_cluster_binarization(
         obs_df=_cell_df,
-        columns=gene_list,
+        columns=adata.var.index,
         group=_group,
-        condition = "condition" if args.conditions else None,
+        condition = args.condition if args.condition else None,
         dropna=False
     )
     if args.exclude:
@@ -450,16 +355,11 @@ for _group in args.groupby:
         if _index_label_to_drop:
             cluster_d[_group] = cluster_d[_group].drop(_index_label_to_drop)
         del _index_label_to_drop, _index_label
-    predict_d[_group] = predict(cluster_d[_group])
+    predict_d[_group] = predict(cluster_d[_group], adata.var["distribution"])
     if isinstance(predict_d[_group].index, MultiIndex):
         predict_d[_group].index = ["_".join(metadata) for metadata in predict_d[_group].index.to_flat_index()]
         predict_d[_group].index.name = _group
 
-print("Saving data...")
-
-cell_df.to_csv(f"{args.outpath}/cell_bin.csv", sep=",", index=True)
 for _group in args.groupby:
     cluster_d[_group].transpose().to_csv(f"{args.outpath}/cluster_bin_counts_{_group}.csv", sep=",", index=True)
     predict_d[_group].transpose().to_csv(f"{args.outpath}/cluster_bin_{_group}.csv", sep=",", index=True)
-
-scbool.criteria_.to_csv(f"{args.outpath}/statistics.csv", sep=",", index=True)

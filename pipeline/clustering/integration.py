@@ -280,7 +280,7 @@ if args.method=="ingest":
     print_info("integration using ingest algorithm")
 
     if args.hvg is not None:
-        print_task("highly variable genes estimation")
+        print_task("highly variable gene selection")
         for k in adata_d.keys():
             sc.pp.highly_variable_genes(
                 adata_d[k],
@@ -292,7 +292,7 @@ if args.method=="ingest":
                 inplace=True
             )
     else:
-        print_info("no highly variable genes estimation")
+        print_info("no highly variable gene selection")
 
     print_task("pca computation (reference sample)")
     sc.tl.pca(

@@ -74,11 +74,17 @@ $(eval CELLRANK_METHOD := stability)		# stability, top_n, eigengap or eigengap_c
 # EXTREMITY_<CONDITION> := <cluster...>		# clusters for which macrostates are deriving by keeping cells cells furthest from other cluster-related barycenters
 EXCLUDE := true
 
-## binarization parameters
+## END MACROSTATE CHARACTERIZATION ##
+
+## BEGIN BINARIZATION ##
+
+# bin-cells #
 
 $(eval INTEGRATED_BINARIZATION := merged)		# split or merged
-$(eval BINARIZATION_ONLY_HVG := true)			# perform binarization with highly-variable genes only or with all genes
+$(eval BINARIZATION_ONLY_HVG := true)			# perform binarization with only highly-variable genes or with all genes
 $(eval ZEROES_ARE_ZEROES := false)				# when zero-inflated is inferred for a gene-related distribution; if its counting with respect to a cell is equal to zero, binarize either to zero or nan
+
+# bin-macrostates #
 
 ## inference parameters
 

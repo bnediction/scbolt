@@ -128,54 +128,53 @@ transcriptome := $(transcriptome:.tar.gz=)
 
 define condition_dependant_paths
 
-fastq_$(1) = $(rna)/$(1)/fastq
-cellranger_$(1) = $(rna)/$(1)/counting/cellranger/$(1).mri.tgz
-velocyto_$(1) = $(rna)/$(1)/counting/velocyto/counts.h5ad
-filtering_$(1) = $(rna)/$(1)/preprocessing/filtering/counts.h5ad
-normalization_$(1) = $(rna)/$(1)/preprocessing/normalization/counts.h5ad
-scvelo_$(1) = $(rna)/$(1)/trajectories/scvelo/scvelo.h5ad
-trajectories_macrostates_$(1) = $(rna)/$(1)/trajectories/macrostates/trajectories.txt
-cellrank_$(1) = $(rna)/$(1)/macrostates/cellrank/macrostates.h5ad
-center_extremity_$(1) = $(rna)/$(1)/macrostates/center_extremity/macrostates.h5ad
-cotan_$(1) = $(rna)/$(1)/macrostates/cotan/macrostates.h5ad
-bdc_$(1) = $(Rrna)/$(1)/binarization/pairwise_predecessor_scores.csv
-
-ifeq ($(MACROSTATES_METHOD),cellrank)
-macrostates_$(1) = cellrank_$(1)
-bin_macrostates_$(1) = $(rna)/$(1)/macrostates/cellrank/macrostates_bin.csv
-else ifeq ($(MACROSTATES_METHOD),center-extremity)
-macrostates_$(1) = center_extremity_$(1)
-bin_macrostates_$(1) = $(rna)/$(1)/macrostates/center_extremity/macrostates_bin.csv
-else ifeq ($(MACROSTATES_METHOD),cotan)
-macrostates_$(1) = cotan_$(1)
-bin_macrostates_$(1) = $(rna)/$(1)/macrostates/cotan/macrostates_bin.csv
-else
-macrostates_$(1) bin_macrostates_$(1):
-	$(call print_error,unsupported values for `MACROSTATES_METHOD` \(supported values: cellrank, center-extremity or cotan\))
-endif
+fastq_$(1) = 					$(rna)/$(1)/fastq
+cellranger_$(1) = 				$(rna)/$(1)/counting/cellranger/$(1).mri.tgz
+velocyto_$(1) = 				$(rna)/$(1)/counting/velocyto/counts.h5ad
+filtering_$(1) = 				$(rna)/$(1)/preprocessing/filtering/counts.h5ad
+normalization_$(1) = 			$(rna)/$(1)/preprocessing/normalization/counts.h5ad
+scvelo_$(1) = 					$(rna)/$(1)/trajectories/scvelo/scvelo.h5ad
+trajectories_macrostates_$(1) =	$(rna)/$(1)/trajectories/macrostates/trajectories.txt
+cellrank_$(1) = 				$(rna)/$(1)/macrostates/cellrank/macrostates.h5ad
+center_extremity_$(1) = 		$(rna)/$(1)/macrostates/center_extremity/macrostates.h5ad
+cotan_$(1) = 					$(rna)/$(1)/macrostates/cotan/macrostates.h5ad
+bdc_$(1) = 						$(rna)/$(1)/binarization/pairwise_predecessor_scores.csv
 
 endef
 
 define condition_plus_integrated_dependant_paths
 
-clustering_$(1) = $(rna)/$(1)/clustering/clusters/counts.h5ad
-markers_$(1) = $(rna)/$(1)/clustering/markers/genes/background.txt
-goea_basic_$(1) = $(rna)/$(1)/clustering/goea/goea_basic.xlsx
-goea_mouse_$(1) = $(rna)/$(1)/clustering/goea/goea_mouse.xlsx
-annotation_$(1) = $(rna)/$(1)/clustering/clusters/annotation.h5ad
-stream_pseudotime_$(1) = $(rna)/$(1)/trajectories/stream/pseudotime/stream.h5ad.pkl
-stream_trajectories_$(1) = $(rna)/$(1)/trajectories/stream/trajectories/branches.txt
-bin_cells_$(1) = $(rna)/$(1)/binarization/cluster_bin_macrostates.csv
-model_specification_$(1) = $(rna)/$(1)/bonesis/specification_model.txt
-bonesis_filter1_$(1) = $(rna)/$(1)/bonesis/filtering/stage1/bootstrap_filter_grn_stage1.txt
-bonesis_filter2_$(1) = $(rna)/$(1)/bonesis/filtering/stage2/bootstrap_filter_grn_stage2.txt
-bonesis_inference_min_$(1) = $(rna)/$(1)/bonesis/inference/min/one-min.bnet
-bonesis_inference_sub_$(1) = $(rna)/$(1)/bonesis/inference/sub/one-sub.bnet
+clustering_$(1) = 				$(rna)/$(1)/clustering/clusters/counts.h5ad
+markers_$(1) = 					$(rna)/$(1)/clustering/markers/genes/background.txt
+goea_basic_$(1) = 				$(rna)/$(1)/clustering/goea/goea_basic.xlsx
+goea_mouse_$(1) = 				$(rna)/$(1)/clustering/goea/goea_mouse.xlsx
+annotation_$(1) = 				$(rna)/$(1)/clustering/clusters/annotation.h5ad
+stream_pseudotime_$(1) = 		$(rna)/$(1)/trajectories/stream/pseudotime/stream.h5ad.pkl
+stream_trajectories_$(1) = 		$(rna)/$(1)/trajectories/stream/trajectories/branches.txt
+bin_cells_$(1) = 				$(rna)/$(1)/binarization/bin.h5ad
+model_specification_$(1) = 		$(rna)/$(1)/bonesis/specification_model.txt
+bonesis_filter1_$(1) = 			$(rna)/$(1)/bonesis/filtering/stage1/bootstrap_filter_grn_stage1.txt
+bonesis_filter2_$(1) = 			$(rna)/$(1)/bonesis/filtering/stage2/bootstrap_filter_grn_stage2.txt
+bonesis_inference_min_$(1) = 	$(rna)/$(1)/bonesis/inference/min/one-min.bnet
+bonesis_inference_sub_$(1) = 	$(rna)/$(1)/bonesis/inference/sub/one-sub.bnet
+
+ifeq ($(MACROSTATES_METHOD),cellrank)
+macrostates_$(1) = 				$$(cellrank_$(1))
+bin_macrostates_$(1) = 			$(rna)/$(1)/macrostates/cellrank/binarized_macrostates.csv
+else ifeq ($(MACROSTATES_METHOD),center-extremity)
+macrostates_$(1) = 				$$(center_extremity_$(1))
+bin_macrostates_$(1) = 			$(rna)/$(1)/macrostates/center_extremity/binarized_macrostates.csv
+else ifeq ($(MACROSTATES_METHOD),cotan)
+macrostates_$(1) = 				$$(cotan_$(1))
+bin_macrostates_$(1) = 			$(rna)/$(1)/macrostates/cotan/binarized_macrostates.csv
+else
+$$(error unsupported value for `MACROSTATES_METHOD` (supported values: cellrank, center-extremity or cotan))
+endif
 
 endef
 
-$(foreach l,$(conditions),$(eval $(call condition_dependant_paths,$(l))))
-$(foreach l,$(conditions_plus_integrated),$(eval $(call condition_plus_integrated_dependant_paths,$(l))))
+$(foreach sample,$(conditions),$(eval $(call condition_dependant_paths,$(sample))))
+$(foreach sample,$(conditions_plus_integrated),$(eval $(call condition_plus_integrated_dependant_paths,$(sample))))
 
 NODES_COMPARISON_INTEGRATED = $(RNA_INTEGRATED)/bonesis/inference/min/nodes_intersection.txt
 
@@ -201,6 +200,7 @@ cellrank_target :=
 center_extremity_target :=
 cotan_target :=
 bin_cells_target :=
+bin_macrostates_target :=
 bdc_target :=
 model_specification_target :=
 bonesis_filter1_target :=
@@ -232,7 +232,8 @@ $(eval goea_target := $(goea_target) $(goea_basic_$(1)) $(goea_mouse_$(1)))
 $(eval annotation_target := $(annotation_target) $(annotation_$(1)))
 $(eval stream_pseudotime_target := $(stream_pseudotime_target) $(stream_pseudotime_$(1)))
 $(eval stream_trajectories_target := $(stream_trajectories_target) $(stream_trajectories_$(1)))
-$(eval bin_cells_target := $(scboolseq_target) $(bin_cell_$(1)))
+$(eval bin_cells_target := $(bin_cells_target) $(bin_cells_$(1)))
+$(eval bin_macrostates_target := $(bin_macrostates_target) $(bin_macrostates_$(1)))
 $(eval model_specification_target := $(model_specification_target) $(model_specification_$(1)))
 $(eval bonesis_filter1_target := $(bonesis_filter1_target) $(bonesis_filter1_$(1)))
 $(eval bonesis_filter2_target := $(bonesis_filter2_target) $(bonesis_filter2_$(1)))
@@ -241,8 +242,8 @@ $(eval bonesis_inference_sub_target := $(bonesis_inference_sub_target) $(bonesis
 
 endef
 
-$(foreach l,$(_samples_without_integration),$(eval $(call dependant_targets,$(l))))
-$(foreach l,$(_samples),$(eval $(call dependant_targets_with_integration,$(l))))
+$(foreach sample,$(_samples_without_integration),$(eval $(call dependant_targets,$(sample))))
+$(foreach sample,$(_samples),$(eval $(call dependant_targets_with_integration,$(sample))))
 
 ## END TARGETS ##
 
@@ -276,7 +277,7 @@ ifneq ($(IGNORED_NODES_$(call toupper,$(1))),)
 IGNORED_NODES_$(call toupper,$(1)):=--ignore-nodes $(IGNORED_NODES_$(call toupper,$(1)))
 endif
 endef
-$(foreach ignore_nodes,$(_samples),$(eval $(call stream_ignored_nodes,$(ignore_nodes))))
+$(foreach condition,$(_samples),$(eval $(call stream_ignored_nodes,$(condition))))
 
 ifeq ($(EXCLUDE),true)
 EXCLUDE:=--exclude
@@ -391,12 +392,12 @@ cotan: $(cotan_target) ## estimate macrostates with cotan
 .PHONY: macrostates
 macrostates: $(macrostates_target) ## estimate macrostates depending on MACROSTATES_METHOD parameter
 
-##@ Macrostate binarization
+##@ Binarization
 
-.PHONY: scboolseq
-scboolseq: $(scboolseq_target) ## binarize cell counts with scBoolSeq
-.PHONY: macrostate-binarization
-bin-macrostates: $(bin-macrostate_target) ## binarize macrostates w.r.t. voting rule
+.PHONY: bin-cells
+bin-cells: $(bin_cells_target) ## binarize cells with scBoolSeq
+.PHONY: bin-macrostates
+bin-macrostates: $(bin_macrostates_target) ## binarize macrostates w.r.t. voting rule
 .PHONY: bdc
 bdc: $(bdc_target) ## perform boolean differential calculus analysis
 
@@ -559,7 +560,7 @@ $(clustering_$(1)): $(normalization_$(1))
 		--seed $(SEED)
 	$$(conda_deactivate)
 
-ifeq ($$(LABELING_FROM_INTEGRATION),true)
+ifeq ($(LABELING_FROM_INTEGRATION),true)
 $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 	$(call print_rule,annotation,$(1))
 	mkdir -p $$(@D)
@@ -604,10 +605,10 @@ $(scvelo_$(1)): $(annotation_$(1))
 
 ifndef INITIAL_STATES_$(call toupper,$(1))
 $(cellrank_$(1)): $(scvelo_$(1))
-$(call print_error,INITIAL_STATES_$(call toupper,$(1)) not defined)
+	$(call print_error,INITIAL_STATES_$(call toupper,$(1)) not defined)
 else ifndef TERMINAL_STATES_$(call toupper,$(1))
 $(cellrank_$(1)): $(scvelo_$(1))
-$(call print_error,TERMINAL_STATES_$(call toupper,$(1)) not defined)
+	$(call print_error,TERMINAL_STATES_$(call toupper,$(1)) not defined)
 else
 $(cellrank_$(1)): $(scvelo_$(1))
 	$(call print_rule,cellrank,$(1))
@@ -624,7 +625,7 @@ endif
 
 ifeq ($(or $(CENTER_$(call toupper,$(1))),$(EXTREMITY_$(call toupper,$(1)))),)
 $(center_extremity_$(1)): $(scvelo_$(1))
-$(call print_error,CENTER_$(call toupper,$(1)) and EXTREMITY_$(call toupper,$(1)) not defined \(at least one must be defined\))
+	$(call print_error,CENTER_$(call toupper,$(1)) and EXTREMITY_$(call toupper,$(1)) not defined \(at least one must be defined\))
 else
 $(center_extremity_$(1)): $(scvelo_$(1))
 	$(call print_rule,center-extremity,$(1))
@@ -660,6 +661,21 @@ $(cotan_$(1)): $(scvelo_$(1))
 	$(call print_task,embedding component plotting)
 	python figures/plot_embedding.py figures/macrostates.json --infile $$@ --outfile $$(@D)/cotan_clusters
 	$$(conda_deactivate)
+
+$(bin_cells_$(1)): $(macrostates_$(1))
+	$(call print_rule,bin-cells,$(1))
+	$$(conda_activate) scboolseq
+	python pipeline/binarization/bin_cells.py $$< -o $$(dir $$@) \
+		--cluster leiden --exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES)
+	$$(conda_deactivate)
+
+$(bin_macrostates_$(1)): $(bin_cells_$(1))
+	$(call print_rule,bin-macrostates,$(1))
+	$$(conda_activate) scboolseq
+	python pipeline/binarization/bin_clusters.py $$< $$(@D) \
+		--cluster macrostates
+	$$(conda_deactivate)
+
 
 
 endef
@@ -751,72 +767,34 @@ $(annotation_integrated): $(clustering_integrated)
 		--infile $@ --outfile $(@D)/umap_labels
 	$(conda_deactivate)
 else
-$(labels_annotation): $(cluster_integrated)
+$(annotation_integrated): $(clustering_integrated)
 	$(call print_rule,annotation,integrated)
 	$(call print_error,CLUSTER_LABEL_INTEGRATED not defined)
-	exit 1
+endif
+
+ifeq ($(INTEGRATED_BINARIZATION),split)
+$(bin_cells_integrated): $(bin_cell_ctrl) $(bin_cell_treated)
+	$(call print_rule,bin-cells,integrated)
+	$(call print_info,perform binarization using conditions independently)
+	$(conda_activate) preprocess
+	python pipeline/utils/csv_concatenation.py $^ -o $@ --suffixes $(addprefix _,$(conditions))
+	$(conda_deactivate)
+else ifeq ($(INTEGRATED_BINARIZATION),merged)
+$(bin_cells_integrated): $(scvelo_ctrl) $(scvelo_treated)
+	$(call print_rule,bin-cells,integrated)
+	$(call print_info,perform binarization using conditions jointly)
+	$(conda_activate) scboolseq
+	python pipeline/binarization/bin_cells.py $^ -o $(dir $@) \
+		--cluster leiden --conditions $(conditions) --exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES)
+	$(conda_deactivate)
+else
+$(bin_cells_integrated): $(bin_cell_ctrl) $(bin_cell_treated) $(scvelo_ctrl) $(scvelo_treated)
+	$(call print_rule,bin-cells,integrated)
+	$(call print_error,unsupported value for `INTEGRATED_BINARIZATION` \(supported values: split or merged\))
 endif
 
 $(foreach condition,$(conditions),$(eval $(call condition_dependant_rules,$(condition))))
 $(foreach condition,$(conditions_plus_integrated),$(eval $(call condition_plus_integrated_dependant_rules,$(condition))))
-
-
-
-$(COTAN_TREATED): $(SCVELO_TREATED)
-	$(call section,cotan (control data))
-	mkdir -p $(@D)
-	$(conda_activate) preprocess
-	python bonesistools/clitools/adata_conversion.py $< $(@D)/.tmp.csv --from h5ad --to csv --layer matrix
-	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $(@D)/.tmp.csv > $(@D)/counts.csv
-	rm $(@D)/.tmp.csv
-	$(conda_deactivate)
-	$(conda_activate) cotan
-	Rscript pipeline/macrostates/cotan_clustering.R --infile $(@D)/counts.csv --outpath $(@D) --sep , \
-		--condition treated \
-		--cotan-filtering \
-		--min-ude 0.3 \
-		--max-iterations 25 \
-		--method strong-merging \
-		--jobs $(JOBS)
-	$(conda_deactivate)
-	sed -i '1 i\,cotan' $(@D)/clusters.csv
-	$(conda_activate) preprocess
-	python bonesistools/clitools/add_to_adata.py $< $@ --obs $(@D)/clusters.csv --obs-type str --sep ,
-	$(call print_task,embedding component plotting)	
-	python figures/plot_embedding.py figures/cotan_clusters.json --infile $@ --outfile $(@D)/cotan_clusters
-	$(conda_deactivate)
-
-$(bin_cell_ctrl): $(MACROSTATES_CTRL)
-	$(call section,scboolseq (control data))
-	$(conda_activate) scboolseq
-	python pipeline/binarization/scboolseq_bin.py $< -o $(dir $@) \
-		--cluster leiden macrostates \
-		--exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES) --verbose
-	$(conda_deactivate)
-
-$(bin_cell_treated): $(MACROSTATES_TREATED)
-	$(call section,scboolseq (control data))
-	$(conda_activate) scboolseq
-	python pipeline/binarization/scboolseq_bin.py $< -o $(dir $@) \
-		--cluster leiden macrostates \
-		--exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES) --verbose
-	$(conda_deactivate)
-
-ifeq ($(INTEGRATED_BINARIZATION),split)
-$(bin_cells_integrated): $(bin_cell_ctrl) $(bin_cell_treated)
-	$(call section,scboolseq (integrated data))
-	$(conda_activate) preprocess
-	python pipeline/utils/csv_concatenation.py $^ --suffixes $(addprefix _,$(conditions)) -o $@
-	$(conda_deactivate)
-else
-$(bin_cells_integrated): $(MACROSTATES_CTRL) $(MACROSTATES_TREATED)
-	$(call section,scboolseq (integrated data))
-	$(conda_activate) scboolseq
-	python pipeline/binarization/scboolseq_bin.py $^ -o $(dir $@) \
-		--cluster leiden macrostates \
-		--conditions $(conditions) --exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES) --verbose
-	$(conda_deactivate)
-endif
 
 $(BDC_CTRL): $(bin_cell_ctrl)
 	$(call section,Boolean differential calculus (control data))
