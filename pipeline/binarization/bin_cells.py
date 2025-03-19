@@ -143,7 +143,7 @@ if len(args.infiles) > 1:
                 merge="first",
                 uns_merge="same"
             )
-            adata.obs_names_make_unique() ### handle issue when there are identical barcodes between anndata
+#            adata.obs_names_make_unique() ### handle issue when there are identical barcodes between anndata
         except:
             raise RuntimeError("Anndatas concatenation did not work, aborting")
 else:

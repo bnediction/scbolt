@@ -5,14 +5,17 @@ warnings.filterwarnings("ignore")
 
 import argparse
 from pathlib import Path
-from utils.stdout import print_task
+from utils.stdout import (
+    print_task,
+    print_info
+)
 
 import anndata as ad
 
 parser = argparse.ArgumentParser(
-    prog="data merging",
-    description="""Send information from integrated data towards multiple datasets, each one containing one condition.""",
-    usage="""python pipe.py [-h] <FILE> <FILE [FILE ...]> --columns <COLUMNS [COLUMNS ...]> [OPTIONS]"""
+    prog="integrated-to-specific information transfer",
+    description="""send information from integrated data towards multiple datasets, each one containing one condition""",
+    usage="""python pipe_its.py [-h] <FILE> <FILE [FILE ...]> --columns <COLUMNS [COLUMNS ...]> [OPTIONS]"""
 )
 
 parser.add_argument(
@@ -25,7 +28,7 @@ parser.add_argument(
 parser.add_argument(
     "infiles",
     type=lambda x: Path(x).resolve(),
-    metavar="FILE [FILE ...]",
+    metavar="FILE",
     nargs="+",
     help="condition-based input file(s) (h5ad format)"
 )
@@ -35,7 +38,7 @@ parser.add_argument(
     dest="outfiles",
     type=lambda x: Path(x).resolve(),
     required=False,
-    metavar="FILE [FILE ...]",
+    metavar="FILE",
     default=None,
     nargs="+",
     help="condition-based output file(s) (h5ad format. If not specified, replace input file(s))"
@@ -63,24 +66,31 @@ args = parser.parse_args()
 
 print_task("data loading")
 
-condition_adata = [ad.read_h5ad(infile) for infile in args.infiles]
+print_info("loading integrated sample")
 integrated_adata = ad.read_h5ad(args.integrated)
+print_info("loading condition-dependant samples")
+condition_adatas = [ad.read_h5ad(infile) for infile in args.infiles]
 
-print_task("data merging")
+print_task("information transfer")
 
 for column in args.columns:
-    for adata in condition_adata:
+    for adata in condition_adatas:
         if column in adata.obs:
             del adata.obs[column]
     if column not in integrated_adata.obs:
-        raise KeyError(f"{column} does not exist in integrated_adata.obs")
+        raise KeyError(f"column `{column}` not found in integrated_adata.obs")
 
-for adata in condition_adata:
+for adata in condition_adatas:
     cond = integrated_adata.obs[args.condition] == adata.uns[args.condition]
     df = integrated_adata.obs.loc[cond][args.columns]
-    adata.obs = adata.obs.merge(how='left',right=df, left_index=True, right_index=True)
+    adata.obs = adata.obs.merge(
+        right=df,
+        how="left",
+        left_index=True,
+        right_index=True
+    )
 
 print_task("data saving")
 
-for adata, outfile in zip(condition_adata, args.outfiles):
+for adata, outfile in zip(condition_adatas, args.outfiles):
     adata.write_h5ad(filename=outfile, compression="gzip")

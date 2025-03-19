@@ -6,6 +6,10 @@ warnings.filterwarnings("ignore")
 from typing import Optional, Union, List
 from collections import namedtuple
 from utils.argtype import Range
+from utils.stdout import (
+    print_task,
+    print_info
+)
 
 import os, argparse
 from pathlib import Path
@@ -18,6 +22,9 @@ from pandas import (
 import anndata as ad, anndatatools as adt
 
 import numpy as np
+
+import matplotlib.pyplot as plt
+from anndatatools.plotting import color
 
 class Predict(object):
 
@@ -314,6 +321,14 @@ parser.add_argument(
     with respect to binarized values (default: 2/3)"""
 )
 
+parser.add_argument(
+    "--plot-3d",
+    dest="plot_3d",
+    required=False,
+    action="store_true",
+    help="plot figures in three dimensions"
+)
+
 args = parser.parse_args()
 
 predict = Predict(
@@ -326,13 +341,16 @@ predict = Predict(
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
-adata = ad.read_h5ad(args.adata)
+print_task("data loading")
+
+adata = ad.read_h5ad(args.infile)
+
+print_task("cluster binarization")
 
 cluster_d = dict()
 predict_d = dict()
 for _group in args.groupby:
-    if len(args.groupby) > 1:
-        print(f"\tcomputation for cluster `{_group}`")
+    print_info(f"binarizing cluster `{_group}`")
     metadata = [_group, args.condition] if args.condition else [_group]
     convert_metadata = {category: "category" for category in metadata} if isinstance(metadata,list) else "category"
     _cell_df = adt.tl.anndata_to_dataframe(
@@ -360,6 +378,71 @@ for _group in args.groupby:
         predict_d[_group].index = ["_".join(metadata) for metadata in predict_d[_group].index.to_flat_index()]
         predict_d[_group].index.name = _group
 
+if args.condition:
+    for _group in args.groupby:
+        print_info(f"renaming categories for `{_group}`")
+        adata.obs[_group] = (adata.obs[_group].astype(str) + "_" + adata.obs[args.condition].astype(str)).astype("category")
+        _nans_cat = {"nan_" + condition for condition in adata.obs[args.condition].cat.categories}
+        _nans_cat = [x for x in _nans_cat if x in set(adata.obs[_group].cat.categories)]
+        adata.obs[_group] = adata.obs[_group].cat.remove_categories(_nans_cat)
+
+print_task("data saving")
+
+adata.write_h5ad(filename=f"{args.outpath}/bin_clusters.h5ad", compression="gzip")
 for _group in args.groupby:
-    cluster_d[_group].transpose().to_csv(f"{args.outpath}/cluster_bin_counts_{_group}.csv", sep=",", index=True)
-    predict_d[_group].transpose().to_csv(f"{args.outpath}/cluster_bin_{_group}.csv", sep=",", index=True)
+    cluster_d[_group].transpose().to_csv(f"{args.outpath}/counting_bin_{_group}.csv", sep=",", index=True)
+    predict_d[_group].transpose().to_csv(f"{args.outpath}/bin_{_group}.csv", sep=",", index=True)
+
+print_task("plotting")
+for _group in args.groupby:
+    print_info(f"checking cluster homogeneity for `{_group}`")
+    pct_binarized = (predict_d[_group].count(axis=1) / predict_d[_group].shape[1]).to_dict()
+    adata.obs[f"pct_bin_{_group}"] = adata.obs[_group].map(pct_binarized)
+    fig, _ = adt.pl.embedding_plot(
+        adata,
+        obs=f"pct_bin_{_group}",
+        obsm="X_umap",
+        xlabel=r"$\mathrm{UMAP_{1}}$",
+        ylabel=r"$\mathrm{UMAP_{2}}$",
+        zlabel=r"$\mathrm{UMAP_{3}}$",
+        add_legend=True,
+        figwidth=6,
+        s=4,
+        alpha=1,
+        lgd_params={
+            "title":"pct bin",
+            "ncol":1,
+            "markerscale":5,
+            "frameon":True,
+            "edgecolor":color.black,
+            "shadow":False
+        },
+        n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
+        background_visible=False
+    )
+    plt.savefig(Path(f"{args.outpath}/pct_bin_{_group}.pdf"))
+    if args.condition:
+        for _condition in adata.obs[args.condition].cat.categories:
+            fig, _ = adt.pl.embedding_plot(
+                adata[adata.obs[args.condition]==_condition],
+                obs=f"pct_bin_{_group}",
+                obsm="X_umap",
+                xlabel=r"$\mathrm{UMAP_{1}}$",
+                ylabel=r"$\mathrm{UMAP_{2}}$",
+                zlabel=r"$\mathrm{UMAP_{3}}$",
+                add_legend=True,
+                figwidth=6,
+                s=4,
+                alpha=1,
+                lgd_params={
+                    "title":"pct bin",
+                    "ncol":1,
+                    "markerscale":5,
+                    "frameon":True,
+                    "edgecolor":color.black,
+                    "shadow":False
+                },
+                n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
+                background_visible=False
+            )
+            plt.savefig(Path(f"{args.outpath}/pct_bin_{_group}_cond_{_condition}.pdf"))

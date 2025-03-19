@@ -80,12 +80,16 @@ EXCLUDE := true
 
 # bin-cells #
 
-$(eval INTEGRATED_BINARIZATION := merged)		# split or merged
-$(eval BINARIZATION_ONLY_HVG := true)			# perform binarization with only highly-variable genes or with all genes
-$(eval ZEROES_ARE_ZEROES := false)				# when zero-inflated is inferred for a gene-related distribution; if its counting with respect to a cell is equal to zero, binarize either to zero or nan
+$(eval INTEGRATED_BINARIZATION := merged)	# split or merged
+$(eval BINARIZATION_ONLY_HVG := false)		# perform binarization with only highly-variable genes or with all genes
+$(eval ZEROES_ARE_ZEROES := true)			# when zero-inflated is inferred for a gene-related distribution; if its counting with respect to a cell is equal to zero, binarize either to zero or nan
 
-# bin-macrostates #
+## END BINARIZATION ##
 
-## inference parameters
+## BEGIN BOOLEAN NETWORK INFERENCE ##
 
-$(eval MINIMIZE_AUTO_LOOPS := true)				# true or false
+# bonesis-inference #
+
+$(eval MINIMIZE_AUTO_LOOPS := true)			# true or false (minimize the number of auto-loops for inferring Boolean networks)
+
+## END BOOLEAN NETWORK INFERENCE ##

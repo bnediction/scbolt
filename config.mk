@@ -28,7 +28,4 @@ $(eval EXTREMITY_TREATED := Rep Gran2)
 
 ## others parameters ##
 
-BINARIZATION_ONLY_HVG = false
-ZEROES_ARE_ZEROES := true
-
 BOOLEAN_NETWORK_REF = $(PUBLIC)/data/public/reference/APL_model.bnet

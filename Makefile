@@ -151,7 +151,7 @@ goea_mouse_$(1) = 				$(rna)/$(1)/clustering/goea/goea_mouse.xlsx
 annotation_$(1) = 				$(rna)/$(1)/clustering/clusters/annotation.h5ad
 stream_pseudotime_$(1) = 		$(rna)/$(1)/trajectories/stream/pseudotime/stream.h5ad.pkl
 stream_trajectories_$(1) = 		$(rna)/$(1)/trajectories/stream/trajectories/branches.txt
-bin_cells_$(1) = 				$(rna)/$(1)/binarization/bin.h5ad
+bin_cells_$(1) = 				$(rna)/$(1)/binarization/cells/bin.h5ad
 model_specification_$(1) = 		$(rna)/$(1)/bonesis/specification_model.txt
 bonesis_filter1_$(1) = 			$(rna)/$(1)/bonesis/filtering/stage1/bootstrap_filter_grn_stage1.txt
 bonesis_filter2_$(1) = 			$(rna)/$(1)/bonesis/filtering/stage2/bootstrap_filter_grn_stage2.txt
@@ -160,13 +160,13 @@ bonesis_inference_sub_$(1) = 	$(rna)/$(1)/bonesis/inference/sub/one-sub.bnet
 
 ifeq ($(MACROSTATES_METHOD),cellrank)
 macrostates_$(1) = 				$$(cellrank_$(1))
-bin_macrostates_$(1) = 			$(rna)/$(1)/macrostates/cellrank/binarized_macrostates.csv
+bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/cellrank/bin_macrostates.csv
 else ifeq ($(MACROSTATES_METHOD),center-extremity)
 macrostates_$(1) = 				$$(center_extremity_$(1))
-bin_macrostates_$(1) = 			$(rna)/$(1)/macrostates/center_extremity/binarized_macrostates.csv
+bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/center_extremity/bin_macrostates.csv
 else ifeq ($(MACROSTATES_METHOD),cotan)
 macrostates_$(1) = 				$$(cotan_$(1))
-bin_macrostates_$(1) = 			$(rna)/$(1)/macrostates/cotan/binarized_macrostates.csv
+bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/cotan/bin_macrostates.csv
 else
 $$(error unsupported value for `MACROSTATES_METHOD` (supported values: cellrank, center-extremity or cotan))
 endif
@@ -565,7 +565,7 @@ $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 	$(call print_rule,annotation,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python pipeline/utils/pipe.py $$^ --outfiles $$@ --column leiden --condition condition
+	python pipeline/utils/pipe_its.py $$^ --outfiles $$@ --column leiden --condition condition
 	$(call print_task,embedding component plotting)
 	python figures/plot_embedding.py figures/umap_labels.json \
 		--infile $$@ --outfile $$(@D)/umap_labels
@@ -671,12 +671,11 @@ $(bin_cells_$(1)): $(macrostates_$(1))
 
 $(bin_macrostates_$(1)): $(bin_cells_$(1))
 	$(call print_rule,bin-macrostates,$(1))
-	$$(conda_activate) scboolseq
+	mkdir -p $$(@D)
+	$$(conda_activate) preprocess
 	python pipeline/binarization/bin_clusters.py $$< $$(@D) \
-		--cluster macrostates
+		--cluster macrostates --plot-3d
 	$$(conda_deactivate)
-
-
 
 endef
 
@@ -792,6 +791,17 @@ $(bin_cells_integrated): $(bin_cell_ctrl) $(bin_cell_treated) $(scvelo_ctrl) $(s
 	$(call print_rule,bin-cells,integrated)
 	$(call print_error,unsupported value for `INTEGRATED_BINARIZATION` \(supported values: split or merged\))
 endif
+
+$(bin_macrostates_integrated): $(bin_cells_integrated) $(foreach condition,$(conditions),$(macrostates_$(condition)))
+	$(call print_rule,bin-macrostates,integrated)
+	mkdir -p $(@D)
+	$(conda_activate) preprocess
+	$(call print_info,all-to-one information transfer)
+	python pipeline/utils/pipe_sti.py $^ --conditions $(conditions) --outfile $(@D)/tmp.h5ad --column macrostates --condition-column condition
+	$(call print_info,macrostate binarization)
+	python pipeline/binarization/bin_clusters.py $(@D)/tmp.h5ad $(@D) \
+		--condition condition --cluster macrostates --plot-3d
+	$(conda_deactivate)
 
 $(foreach condition,$(conditions),$(eval $(call condition_dependant_rules,$(condition))))
 $(foreach condition,$(conditions_plus_integrated),$(eval $(call condition_plus_integrated_dependant_rules,$(condition))))
