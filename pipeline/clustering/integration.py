@@ -20,7 +20,7 @@ import scanorama
 import matplotlib.pyplot as plt
 from anndatatools.plotting import color
 
-@adt._adata_arg_checking
+@adt.adata_checker
 def clean_adata(
     adata: ad.AnnData,
     obs: Sequence[str] = None,

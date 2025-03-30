@@ -92,7 +92,6 @@ class HypercubeCollection(list):
                 super().append(hypercube if isinstance(other, Hypercube) else Hypercube(other))
             super().append([hypercube if isinstance(hypercube, Hypercube) else Hypercube(hypercube) for hypercube in hypercube_list])
 
-
     def are_fixed_points(self):
 
         fixed_points = HypercubeCollection()

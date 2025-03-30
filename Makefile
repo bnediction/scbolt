@@ -75,14 +75,10 @@ define print_error
 	exit
 endef
 
-define section
-	@echo -e '$(GREEN)===== $(1) =====$(NC)'
-endef
-
 define fastq_naming
 	n_fastq="$$(find $(1) -name "$(2)_[1-4].fastq.gz" -printf '.' | wc -m)"
 	if [ $${n_fastq} -eq 0 ]; then \
-		@echo -e '$(RED)ERROR: fastq downloading failed.$(NC)';\
+		$(call print_error,fastq downloading failed);\
 	
 	elif [ $${n_fastq} -eq 1 ]; then \
 		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_S1_L00$(4)_R1_001.fastq.gz;\
@@ -103,7 +99,7 @@ define fastq_naming
 		mv $(1)/$(2)_4.fastq.gz $(1)/$(3)_S1_L00$(4)_R2_001.fastq.gz;\
 
 	else \
-		@echo -e '$(RED)ERROR: number of downloaded fastq exceeds 4.$(NC)';\
+		$(call print_error,number of downloaded fastq exceeds 4);\
 
 	fi
 endef
@@ -642,6 +638,7 @@ $(cotan_$(1)): $(scvelo_$(1))
 	$(call print_rule,cotan,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
+	$(call print_task,h5ad to csv format conversion)
 	python bonesistools/clitools/adata_conversion.py $$< $$(@D)/.tmp.csv --from h5ad --to csv --layer matrix
 	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $$(@D)/.tmp.csv > $$(@D)/counts.csv
 	rm $$(@D)/.tmp.csv
@@ -649,8 +646,6 @@ $(cotan_$(1)): $(scvelo_$(1))
 	$$(conda_activate) cotan
 	Rscript pipeline/macrostates/cotan_clustering.R --infile $$(@D)/counts.csv --outpath $$(@D) --sep , \
 		--condition $(1) \
-		--cotan-filtering \
-		--min-ude 0.3 \
 		--max-iterations 25 \
 		--method strong-merging \
 		--jobs $(JOBS)
@@ -772,22 +767,45 @@ $(annotation_integrated): $(clustering_integrated)
 endif
 
 ifeq ($(INTEGRATED_BINARIZATION),split)
-$(bin_cells_integrated): $(bin_cell_ctrl) $(bin_cell_treated)
+$(bin_cells_integrated): $(foreach condition,$(conditions),$(bin_cell_$(condition)))
 	$(call print_rule,bin-cells,integrated)
 	$(call print_info,perform binarization using conditions independently)
 	$(conda_activate) preprocess
 	python pipeline/utils/csv_concatenation.py $^ -o $@ --suffixes $(addprefix _,$(conditions))
 	$(conda_deactivate)
 else ifeq ($(INTEGRATED_BINARIZATION),merged)
-$(bin_cells_integrated): $(scvelo_ctrl) $(scvelo_treated)
+$(bin_cells_integrated): $(annotation_integrated) $(foreach condition,$(conditions),$(scvelo_$(condition)))
 	$(call print_rule,bin-cells,integrated)
 	$(call print_info,perform binarization using conditions jointly)
 	$(conda_activate) scboolseq
-	python pipeline/binarization/bin_cells.py $^ -o $(dir $@) \
+	python pipeline/binarization/bin_cells.py $(filter-out $(annotation_integrated),$^) -o $(dir $@) \
 		--cluster leiden --conditions $(conditions) --exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES)
 	$(conda_deactivate)
+	mv $@ $(@D)/tmp.h5ad
+	$(conda_activate) preprocess
+	python pipeline/utils/transfer_info.py $< $(@D)/tmp.h5ad --outfile $@ --obs pct_bin --layer bin --index condition
+	$(conda_deactivate)
+	rm $(@D)/tmp.h5ad
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 else
-$(bin_cells_integrated): $(bin_cell_ctrl) $(bin_cell_treated) $(scvelo_ctrl) $(scvelo_treated)
+$(bin_cells_integrated): $(foreach condition,$(conditions),$(bin_cell_$(condition))) $(foreach condition,$(conditions),$(scvelo_$(condition)))
 	$(call print_rule,bin-cells,integrated)
 	$(call print_error,unsupported value for `INTEGRATED_BINARIZATION` \(supported values: split or merged\))
 endif
@@ -807,34 +825,34 @@ $(foreach condition,$(conditions),$(eval $(call condition_dependant_rules,$(cond
 $(foreach condition,$(conditions_plus_integrated),$(eval $(call condition_plus_integrated_dependant_rules,$(condition))))
 
 $(BDC_CTRL): $(bin_cell_ctrl)
-	$(call section,Boolean differential calculus (control data))
+	$(call print_rule,Boolean differential calculus (control data))
 	$(conda_activate) scboolseq
 	python pipeline/binarization/differential_analysis.py $< $(@D) --verbose
 	$(conda_deactivate)
 
 $(BDC_TREATED): $(bin_cell_treated)
-	$(call section,Boolean differential calculus (treated data))
+	$(call print_rule,Boolean differential calculus (treated data))
 	$(conda_activate) scboolseq
 	python pipeline/binarization/differential_analysis.py $< $(@D) --verbose
 	$(conda_deactivate)
 
 $(MODEL_SPECIFICATION_CTRL): $(TRAJECTORIES_MACROSTATES_CTRL)
-	$(call section,model-specification (control data))
+	$(call print_rule,model-specification (control data))
 	mkdir -p $(@D)
 	python3 pipeline/inference/bonesis_specification.py $< > $@
 
 $(MODEL_SPECIFICATION_TREATED): $(TRAJECTORIES_MACROSTATES_TREATED)
-	$(call section,model-specification (treated data))
+	$(call print_rule,model-specification (treated data))
 	mkdir -p $(@D)
 	python3 pipeline/inference/bonesis_specification.py $< > $@
 
 $(model_specification_integrated): $(TRAJECTORIES_MACROSTATES_CTRL) $(TRAJECTORIES_MACROSTATES_TREATED)
-	$(call section,model-specification (integrated data))
+	$(call print_rule,model-specification (integrated data))
 	mkdir -p $(@D)
 	python3 pipeline/inference/bonesis_specification.py $^ --conditions $(conditions) > $@
 
 $(BONESIS_FILTER1_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl)
-	$(call section,Bonesis filtering (control data, stage 1))
+	$(call print_rule,Bonesis filtering (control data, stage 1))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python pipeline/inference/bonesis_inference.py filter-stage1 $(@D) \
@@ -845,7 +863,7 @@ $(BONESIS_FILTER1_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl)
 	$(conda_deactivate)
 
 $(BONESIS_FILTER1_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_treated)
-	$(call section,Bonesis filtering (treated data, stage 1))
+	$(call print_rule,Bonesis filtering (treated data, stage 1))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python pipeline/inference/bonesis_inference.py filter-stage1 $(@D) \
@@ -856,7 +874,7 @@ $(BONESIS_FILTER1_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_treated)
 	$(conda_deactivate)
 
 $(BONESIS_FILTER1_INTEGRATED): $(model_specification_integrated) $(bin_cells_integrated)
-	$(call section,Bonesis filtering (integrated data, stage 1))
+	$(call print_rule,Bonesis filtering (integrated data, stage 1))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python pipeline/inference/bonesis_inference.py filter-stage1 $(@D) \
@@ -867,7 +885,7 @@ $(BONESIS_FILTER1_INTEGRATED): $(model_specification_integrated) $(bin_cells_int
 	$(conda_deactivate)
 
 $(BONESIS_FILTER2_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(BONESIS_FILTER1_CTRL) 
-	$(call section,Bonesis filtering (control data, stage 2))
+	$(call print_rule,Bonesis filtering (control data, stage 2))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python pipeline/inference/bonesis_inference.py filter-stage2 $(@D) \
@@ -879,7 +897,7 @@ $(BONESIS_FILTER2_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(BONESIS_
 	$(conda_deactivate)
 
 $(BONESIS_FILTER2_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_treated) $(BONESIS_FILTER1_TREATED) 
-	$(call section,Bonesis filtering (treated data, stage 2))
+	$(call print_rule,Bonesis filtering (treated data, stage 2))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python pipeline/inference/bonesis_inference.py filter-stage2 $(@D) \
@@ -891,7 +909,7 @@ $(BONESIS_FILTER2_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_treated) $
 	$(conda_deactivate)
 
 $(BONESIS_FILTER2_INTEGRATED): $(model_specification_integrated) $(bin_cells_integrated) $(BONESIS_FILTER1_INTEGRATED) 
-	$(call section,Bonesis filtering (integrated data, stage 2))
+	$(call print_rule,Bonesis filtering (integrated data, stage 2))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python pipeline/inference/bonesis_inference.py filter-stage2 $(@D) \
@@ -903,7 +921,7 @@ $(BONESIS_FILTER2_INTEGRATED): $(model_specification_integrated) $(bin_cells_int
 	$(conda_deactivate)
 
 $(BONESIS_INFERENCE_MIN_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(BONESIS_FILTER2_CTRL)
-	$(call section,Bonesis inference (control data, minimal solution))
+	$(call print_rule,Bonesis inference (control data, minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python pipeline/inference/bonesis_inference.py one-min $(@D) \
@@ -916,7 +934,7 @@ $(BONESIS_INFERENCE_MIN_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(BO
 	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
 
 $(BONESIS_INFERENCE_MIN_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_treated) $(BONESIS_FILTER2_TREATED)
-	$(call section,Bonesis inference (treated data, minimal solution))
+	$(call print_rule,Bonesis inference (treated data, minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python pipeline/inference/bonesis_inference.py one-min $(@D) \
@@ -929,7 +947,7 @@ $(BONESIS_INFERENCE_MIN_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_trea
 	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
 
 $(BONESIS_INFERENCE_MIN_INTEGRATED): $(model_specification_integrated) $(bin_cells_integrated) $(BONESIS_FILTER2_INTEGRATED)
-	$(call section,Bonesis inference (integrated data, minimal solution))
+	$(call print_rule,Bonesis inference (integrated data, minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python pipeline/inference/bonesis_inference.py one-min $(@D) \
@@ -942,7 +960,7 @@ $(BONESIS_INFERENCE_MIN_INTEGRATED): $(model_specification_integrated) $(bin_cel
 	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
 
 $(BONESIS_INFERENCE_SUB_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(BONESIS_FILTER2_CTRL)
-	$(call section,Bonesis inference (control data, subset minimal solution))
+	$(call print_rule,Bonesis inference (control data, subset minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python pipeline/inference/bonesis_inference.py one-sub $(@D) \
@@ -954,7 +972,7 @@ $(BONESIS_INFERENCE_SUB_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(BO
 	dot -Tpdf $(@D)/one-sub.dot > $(@D)/one-sub.pdf
 
 $(BONESIS_INFERENCE_SUB_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_treated) $(BONESIS_FILTER2_TREATED)
-	$(call section,Bonesis inference (treated data, subset minimal solution))
+	$(call print_rule,Bonesis inference (treated data, subset minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python pipeline/inference/bonesis_inference.py one-sub $(@D) \
@@ -966,7 +984,7 @@ $(BONESIS_INFERENCE_SUB_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_trea
 	dot -Tpdf $(@D)/one-sub.dot > $(@D)/one-sub.pdf
 
 $(BONESIS_INFERENCE_SUB_INTEGRATED): $(model_specification_integrated) $(bin_cells_integrated) $(BONESIS_FILTER2_INTEGRATED)
-	$(call section,Bonesis inference (integrated data, subset minimal solution))
+	$(call print_rule,Bonesis inference (integrated data, subset minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python pipeline/inference/bonesis_inference.py one-sub $(@D) \

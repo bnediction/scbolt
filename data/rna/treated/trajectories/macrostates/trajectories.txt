@@ -1,2 +1,0 @@
-Prom2 -> Prom1 -> Rep
-Prom2 -> Gran2
