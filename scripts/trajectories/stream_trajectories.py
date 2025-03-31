@@ -1,0 +1,283 @@
+#!/usr/bin/env python
+
+import warnings
+warnings.filterwarnings("ignore")
+
+import os, argparse
+import pickle
+import re
+from pathlib import Path
+from bonesistools.utils.argtype import Store_prefix
+from bonesistools.utils.stdout import (
+    disable_print,
+    print_task
+)
+
+import pandas as pd
+import stream as st
+from bonesistools import anndatatools as adt
+
+import networkx as nx
+
+import matplotlib.pyplot as plt
+from bonesistools.anndatatools.plotting import color
+
+def node_to_value(branch, attribute) -> list:
+    return [attribute[_node] for _node in branch]
+
+def tree_to_trajectories(flat_tree) -> list:
+    labels = nx.get_node_attributes(flat_tree, "label")
+    for _node, _label in labels.items():
+        if _label == args.root:
+            root = _node
+            break
+    leafs = [_node for _node in flat_tree.nodes if flat_tree.degree(_node) == 1 and _node != root]
+    branches = list()
+    for _leaf in leafs:
+        branches.extend(list(nx.algorithms.all_simple_paths(G= flat_tree, source=root, target=_leaf)))
+    return [node_to_value(_branch, labels) for _branch in branches]
+
+parser = argparse.ArgumentParser(
+    prog="trajectory inference",
+    description="""Using pre-computed stream pseudotime, compute cell phenotype trajectories based on STREAM method
+    (see Chen et al. (2019): <https://www.nature.com/articles/s41467-019-09670-4>).""",
+    usage=""""python stream_trajectories.py [-h] <FILE> <PATH> [--root <INT> <args>]"""
+)
+
+parser.add_argument(
+    "infile",
+    type=lambda x: Path(x).resolve(),
+    metavar="FILE",
+    help="counting file (h5ad.pkl format)"
+)
+
+parser.add_argument(
+    "outpath",
+    type=lambda x: Path(x).resolve(),
+    metavar="PATH",
+    help="output path"
+)
+
+parser.add_argument(
+    "-p", "--prefix",
+    dest="prefix",
+    action=Store_prefix,
+    required=False,
+    default="",
+    metavar="LITERAL",
+    help="prefix for each saving file"
+)
+
+parser.add_argument(
+    "-r", "--root",
+    dest="root",
+    type=str,
+    required=False,
+    default=0,
+    metavar="INT",
+    help="root of the elastic principal graph"
+)
+
+parser.add_argument(
+    "--obsm",
+    dest="obsm",
+    type=str,
+    required=False,
+    default=None,
+    metavar="LITERAL",
+    help="embedding component used"
+)
+
+parser.add_argument(
+    "-g", "--groups",
+    dest="groups",
+    type=str,
+    required=False,
+    nargs="+",
+    metavar="LITERAL",
+    help="clusters retrieving from adata.obs[`cluster`] used for cluster-related trajectory plotting"
+)
+
+parser.add_argument(
+    "--add-legend",
+    dest="legend",
+    required=False,
+    action="store_true",
+    help="add legend to figures"
+)
+
+parser.add_argument(
+    "--add-graph",
+    dest="graph",
+    required=False,
+    action="store_true",
+    help="add elastic principal graph to figures"
+)
+
+parser.add_argument(
+    "--add-text",
+    dest="text",
+    required=False,
+    action="store_true",
+    help="add node labels to figures"
+)
+
+parser.add_argument(
+    "--plot-3d",
+    dest="plot_3d",
+    required=False,
+    action="store_true",
+    help="plot figures in three dimensions"
+)
+
+parser.add_argument(
+    "--ignore-nodes",
+    dest="ignore_nodes",
+    type=str,
+    required=False,
+    nargs="+",
+    metavar="LITERAL",
+    help="nodes to ignore for the specification of the trajectories in the tree"
+)
+
+args = parser.parse_args()
+
+if not args.outpath.exists():
+    os.makedirs(args.outpath)
+
+groups = set(args.groups).union([f"S{args.root}_pseudotime"])
+
+print_task("data loading")
+
+with disable_print():
+    adata = st.read(str(args.infile), file_format="pkl", workdir=args.outpath)
+
+if args.obsm is None and "dr" not in adata.uns:
+    raise ValueError("neither `obsm` argument is specified nor adata.uns[`dr`] exists.")
+else:
+    dr = args.obsm if args.obsm is not None else adata.uns["dr"]
+
+if dr not in adata.obsm:
+    raise ValueError("Integrated components {dr} in adata.obsm not found.")
+
+print_task("trajectory plotting")
+
+if "macrostates" in groups:
+    node_colors = [color.blue] * (len(adata.obs["macrostates"].unique()) - 1) + [color.lightgray]
+    node_colors[sorted(adata.obs["macrostates"].unique()).index(args.root)] = color.red
+
+for _group in groups:
+    fig, ax = adt.pl.embedding_plot(
+        adata,
+        obs=_group,
+        obsm=adata.uns["dr"],
+        colors=node_colors if _group == "macrostates" else None,
+        xlabel=r"$\mathrm{UMAP_{1}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
+        ylabel=r"$\mathrm{UMAP_{2}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
+        zlabel=r"$\mathrm{UMAP_{3}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{3}^{\mathrm{scanorama}}}$",
+        add_graph=args.graph,
+        add_labels_to_graph=args.text,
+        add_legend=args.legend if _group != "macrostates" else False,
+        figwidth=6 if args.legend else 5,
+        s=2,
+        alpha=0.7,
+        lgd_params={
+            "title":"clusters" if _group != "condition" else "conditions",
+            "ncol":1,
+            "markerscale":5,
+            "frameon":True,
+            "shadow":False
+        } if not pd.api.types.is_float_dtype(adata.obs[_group]) else None,
+        text={
+            "fontsize":14,
+            "fontweight":"extra bold"
+        },
+        n_components = 3 if args.plot_3d is True else 2,
+        background_visible=False
+    )
+    adt.pl.set_default(ax)
+    if "pseudotime" not in _group:
+        plt.savefig(f"{args.outpath}/{args.prefix}{_group}_{dr.split('_')[-1].lower()}_trajectory_plot.pdf")
+    else:
+        plt.savefig(f"{args.outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}_trajectory_plot.pdf")
+    if args.plot_3d is True and "pseudotime" not in _group:
+        pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}{_group}_{dr.split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))
+    elif args.plot_3d is True:
+        pickle.dump(fig, open(Path(f"{args.outpath}/{args.prefix}pseudotime_{dr.split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))
+    else:
+        pass
+
+print_task("stream plotting")
+
+st.plot_stream(
+    adata,
+    root=f"{args.root}",
+    color=[f"S{args.root}_pseudotime"],
+    log_scale=False,
+    factor_zoomin=100,
+    save_fig=False,
+)
+fig, ax = (plt.gcf(), plt.gca())
+adt.pl.set_default(ax)
+ax.tick_params(axis="x", which="major", pad=2)
+ax.images[-1].colorbar.remove()
+plt.savefig(f"{args.outpath}/{args.prefix}pseudotime_stream_plot.pdf")
+
+for _group in groups.difference([f"S{args.root}_pseudotime"]):
+    colors = node_colors if _group == "macrostates" else color.LIGHT_COLORS
+    st.plot_stream(
+        adata,
+        root=args.root,
+        color=[_group],
+        log_scale=False,
+        factor_zoomin=100,
+        save_fig=False,
+    )
+    fig, ax = (plt.gcf(), plt.gca())
+    ax.tick_params(axis="x", which="major", pad=2)
+    adt.pl.set_default(ax)
+    for idx, patch in enumerate(ax.patches):
+        if idx == len(ax.patches)-1:
+            continue
+        else:
+            patch.set_color(colors[idx])
+            patch.set_alpha(1)
+    if args.legend:
+        ax.legend(
+            [string.replace("cluster ","") for string in sorted(adata.obs[_group].unique())],
+            bbox_to_anchor=(1.03, 0.5),
+            loc='center left',
+            title="clusters" if _group != "condition" else "conditions",
+            ncol=1,
+            frameon=False,
+            columnspacing=0.4,
+            borderaxespad=0.2,
+            handletextpad=0.3
+        )
+    else:
+        ax.get_legend().remove()
+    plt.savefig(f"{args.outpath}/{args.prefix}{_group}_stream_plot.pdf", bbox_inches="tight")
+
+print_task("trajectory inference")
+
+flat_tree = adata.uns["flat_tree"]
+branch_labels = tree_to_trajectories(flat_tree)
+branch_labels
+
+def tree_pruning(tree, nodes_to_delete):
+    pruning_tree = list()
+    for branch in tree:
+        branch = list(filter(lambda node: node not in nodes_to_delete, branch))
+        if len(branch) <= 1:
+            pass
+        else:
+            pruning_tree.append(branch)
+    return pruning_tree
+
+if args.ignore_nodes:
+    branch_labels = tree_pruning(branch_labels, args.ignore_nodes)
+
+with open(f"{args.outpath}/branches.txt", "w") as file:
+    for _branch in branch_labels:
+        line = re.sub("[\[\]\']", "", re.sub(",", " ->", str(_branch)))
+        file.write(line + "\n")

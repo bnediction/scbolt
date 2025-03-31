@@ -4,8 +4,8 @@
 
 SHELL = /bin/bash
 MAKEFLAGS += --silent
-DEFAULT_CONFIG = default_config.mk
-CONFIG = config.mk
+DEFAULT_CONFIG = default_params.mk
+CONFIG = params.mk
 
 include $(DEFAULT_CONFIG) $(CONFIG)
 
@@ -440,7 +440,7 @@ $(word 1,$(signatures)) $(word 2,$(signatures)):
 $(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures))
 	$(call print_rule,load-signatures,conversion)
 	$(conda_activate) preprocess
-	python pipeline/utils/load_signatures.py \
+	python scripts/utils/load_signatures.py \
 		--list-infile $(firstword $^) \
 		--table-infile $(lastword $^) \
   		--outfile $@
@@ -524,7 +524,7 @@ $(filtering_$(1)): $(velocyto_$(1)) $(cycle_markers)
 	$(call print_rule,filtering,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python pipeline/preprocessing/filtering.py \
+	python scripts/preprocessing/filtering.py \
 		--infile $$(firstword $$^) \
 		--marker $$(lastword $$^) \
 		--outpath $$(@D) \
@@ -538,7 +538,7 @@ $(normalization_$(1)): $(filtering_$(1))
 	$(call print_rule,normalization,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python pipeline/preprocessing/normalization.py $$< $$(@) \
+	python scripts/preprocessing/normalization.py $$< $$(@) \
 		--correction G2M_score S_score G1_score \
 		--min-cell-expression-proportion 0.001 \
 		--jobs $(JOBS)
@@ -548,7 +548,7 @@ $(clustering_$(1)): $(normalization_$(1))
 	$(call print_rule,clustering,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python pipeline/clustering/leiden_clustering.py $$< $$(@D) \
+	python scripts/clustering/leiden_clustering.py $$< $$(@D) \
 		--layer correct --hvg \
 		--metric euclidean --k-neighbors $(K_NEIGHBORS) --resolution $(RESOLUTION) \
 		--dim-pca $(DIM_PCA) --dim-clustering $(DIM_CLUSTERING) --dim-umap $(DIM_UMAP) \
@@ -561,9 +561,9 @@ $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 	$(call print_rule,annotation,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python pipeline/utils/pipe_its.py $$^ --outfiles $$@ --column leiden --condition condition
+	python scripts/utils/pipe_its.py $$^ --outfiles $$@ --column leiden --condition condition
 	$(call print_task,embedding component plotting)
-	python figures/plot_embedding.py figures/umap_labels.json \
+	python fig/plot_embedding.py fig/umap_labels.json \
 		--infile $$@ --outfile $$(@D)/umap_labels
 	$$(conda_deactivate)
 else
@@ -572,11 +572,11 @@ $(annotation_$(1)): $(clustering_$(1))
 	$(call print_rule,annotation,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python pipeline/clustering/annotation.py $$< $$@ \
+	python scripts/clustering/annotation.py $$< $$@ \
 		--column leiden \
 		--name $$(CLUSTER_LABEL_$(call toupper,$(1)))
 	$(call print_task,embedding component plotting)
-	python figures/plot_embedding.py figures/umap_labels.json \
+	python fig/plot_embedding.py fig/umap_labels.json \
 		--infile $$@ --outfile $$(@D)/umap_labels
 	$$(conda_deactivate)
 else
@@ -591,7 +591,7 @@ $(scvelo_$(1)): $(annotation_$(1))
 	$(call print_rule,scvelo,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) scvelo
-	python pipeline/trajectories/scvelo_velocity.py $$< $$(@D) \
+	python scripts/trajectories/scvelo_velocity.py $$< $$(@D) \
 		--cluster leiden \
 		--k-neighbors $(K_NEIGHBORS) \
 		--dim-clustering $(DIM_CLUSTERING) \
@@ -610,7 +610,7 @@ $(cellrank_$(1)): $(scvelo_$(1))
 	$(call print_rule,cellrank,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) cellrank
-	python pipeline/macrostates/cellrank_macrostates.py $$< $$@ \
+	python scripts/macrostates/cellrank_macrostates.py $$< $$@ \
 		--macrostate-size $(MACROSTATE_SIZE) \
 		--initial-states $(INITIAL_STATES_$(call toupper,$(1))) \
 		--terminal-states $(TERMINAL_STATES_$(call toupper,$(1))) \
@@ -627,7 +627,7 @@ $(center_extremity_$(1)): $(scvelo_$(1))
 	$(call print_rule,center-extremity,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python pipeline/macrostates/scbridge_macrostates.py $$< $$@ \
+	python scripts/macrostates/scbridge_macrostates.py $$< $$@ \
 		--obs leiden --obsm X_umap --dimension $(DIM_UMAP) --macrostate-size $(MACROSTATE_SIZE) \
 		--center $(CENTER_$(call toupper,$(1))) --extremity $(EXTREMITY_$(call toupper,$(1))) $(EXCLUDE) \
 		--plot-3d
@@ -644,7 +644,7 @@ $(cotan_$(1)): $(scvelo_$(1))
 	rm $$(@D)/.tmp.csv
 	$$(conda_deactivate)
 	$$(conda_activate) cotan
-	Rscript pipeline/macrostates/cotan_clustering.R --infile $$(@D)/counts.csv --outpath $$(@D) --sep , \
+	Rscript scripts/macrostates/cotan_clustering.R --infile $$(@D)/counts.csv --outpath $$(@D) --sep , \
 		--condition $(1) \
 		--max-iterations 25 \
 		--method strong-merging \
@@ -654,13 +654,13 @@ $(cotan_$(1)): $(scvelo_$(1))
 	$$(conda_activate) preprocess
 	python bonesistools/clitools/add_to_adata.py $$< $$@ --obs $$(@D)/clusters.csv --obs-type str --sep ,
 	$(call print_task,embedding component plotting)
-	python figures/plot_embedding.py figures/macrostates.json --infile $$@ --outfile $$(@D)/cotan_clusters
+	python fig/plot_embedding.py fig/macrostates.json --infile $$@ --outfile $$(@D)/cotan_clusters
 	$$(conda_deactivate)
 
 $(bin_cells_$(1)): $(macrostates_$(1))
 	$(call print_rule,bin-cells,$(1))
 	$$(conda_activate) scboolseq
-	python pipeline/binarization/bin_cells.py $$< -o $$(dir $$@) \
+	python scripts/binarization/bin_cells.py $$< -o $$(dir $$@) \
 		--cluster leiden --exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES)
 	$$(conda_deactivate)
 
@@ -668,7 +668,7 @@ $(bin_macrostates_$(1)): $(bin_cells_$(1))
 	$(call print_rule,bin-macrostates,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python pipeline/binarization/bin_clusters.py $$< $$(@D) \
+	python scripts/binarization/bin_clusters.py $$< $$(@D) \
 		--cluster macrostates --plot-3d
 	$$(conda_deactivate)
 
@@ -680,7 +680,7 @@ $(markers_$(1)): $(clustering_$(1)) $(lastword $(signatures))
 	$$(eval markers_csv := $$(dir $$(@D))markers.csv)
 	$(call print_rule,marker-analysis,$(1))
 	$$(conda_activate) preprocess
-	python pipeline/clustering/markers.py $$(^) $$(dir $$(markers_csv)) \
+	python scripts/clustering/markers.py $$(^) $$(dir $$(markers_csv)) \
   		--cluster leiden \
   		--logfc-threshold 0.25 \
   		--verbose
@@ -699,7 +699,7 @@ $(markers_$(1)): $(clustering_$(1)) $(lastword $(signatures))
 $(goea_basic_$(1)): $(markers_$(1)) $(go_basic) $(gene2go)
 	$(call print_rule,goea,$(1) with go-basic)
 	$$(conda_activate) preprocess
-	python pipeline/clustering/enrichment.py $$(@) \
+	python scripts/clustering/enrichment.py $$(@) \
     	--population $$(<) \
     	--study $$(<D)/cluster*.txt \
     	--go $$(word 2,$$^) \
@@ -709,7 +709,7 @@ $(goea_basic_$(1)): $(markers_$(1)) $(go_basic) $(gene2go)
 $(goea_mouse_$(1)): $(markers_$(1)) $(go_mouse) $(gene2go)
 	$(call print_rule,goea,$(1) with go-mouse)
 	$$(conda_activate) preprocess
-	python pipeline/clustering/enrichment.py $$(@) \
+	python scripts/clustering/enrichment.py $$(@) \
     	--population $$(<) \
     	--study $$(<D)/cluster*.txt \
     	--go $$(word 2,$$^) \
@@ -719,7 +719,7 @@ $(goea_mouse_$(1)): $(markers_$(1)) $(go_mouse) $(gene2go)
 $(stream_pseudotime_$(1)): $(annotation_$(1))
 	$(call print_rule,stream-pseudotime,$(1))
 	$$(conda_activate) stream
-	python pipeline/trajectories/stream_pseudotime.py $$< $$(@D) \
+	python scripts/trajectories/stream_pseudotime.py $$< $$(@D) \
 		--extension both --cluster-number $(CLUSTER_NUMBER) --groups leiden \
 		--lambda $(LAMBDA) --mu $(MU) --alpha $(ALPHA) \
 		$(EXTEND_LEAF_NODES) --extend-mode WeigthedCentroid --extend-parameter $(EXTEND) $(PRUNE_GRAPH) \
@@ -730,7 +730,7 @@ $(stream_trajectories_$(1)): $(stream_pseudotime_$(1))
 	$(call print_rule,stream-trajectories,$(1))
 	$(call print_warning,root can be modified using ROOT_$(call toupper,$(1)) \(current value: $(ROOT_$(call toupper, $(1)))\))
 	$$(conda_activate) stream
-	python pipeline/trajectories/stream_trajectories.py $$< $$(@D) --root $(ROOT_$(call toupper, $(1))) \
+	python scripts/trajectories/stream_trajectories.py $$< $$(@D) --root $(ROOT_$(call toupper, $(1))) \
 		--groups leiden kmeans macrostates \
 		--add-legend --add-graph $(IGNORED_NODES_$(call toupper, $(1)))
 	$$(conda_deactivate)
@@ -741,7 +741,7 @@ $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(co
 	$(call print_rule,clustering,integrated)
 	mkdir -p $(@D)
 	$(conda_activate) preprocess
-	python pipeline/clustering/integration.py $^ --outfile $@ \
+	python scripts/clustering/integration.py $^ --outfile $@ \
 		--labels $(conditions) --method $(INTEGRATION_METHOD) --layer correct \
 		--hvg $(HVG) --metric euclidean --k-neighbors $(K_NEIGHBORS) --resolution $(RESOLUTION) \
 		--dim-pca $(DIM_PCA) --dim-clustering $(DIM_CLUSTERING) --dim-umap $(DIM_UMAP) \
@@ -753,11 +753,11 @@ ifdef CLUSTER_LABEL_INTEGRATED
 $(annotation_integrated): $(clustering_integrated)
 	$(call print_rule,annotation,integrated)
 	$(conda_activate) preprocess
-	python pipeline/clustering/annotation.py $< $@ \
+	python scripts/clustering/annotation.py $< $@ \
 		--column leiden \
 		--name $(CLUSTER_LABEL_INTEGRATED)
 	$(call print_task,embedding component plotting)
-	python figures/plot_embedding.py figures/umap_labels.json \
+	python fig/plot_embedding.py fig/umap_labels.json \
 		--infile $@ --outfile $(@D)/umap_labels
 	$(conda_deactivate)
 else
@@ -771,19 +771,19 @@ $(bin_cells_integrated): $(foreach condition,$(conditions),$(bin_cell_$(conditio
 	$(call print_rule,bin-cells,integrated)
 	$(call print_info,perform binarization using conditions independently)
 	$(conda_activate) preprocess
-	python pipeline/utils/csv_concatenation.py $^ -o $@ --suffixes $(addprefix _,$(conditions))
+	python scripts/utils/csv_concatenation.py $^ -o $@ --suffixes $(addprefix _,$(conditions))
 	$(conda_deactivate)
 else ifeq ($(INTEGRATED_BINARIZATION),merged)
 $(bin_cells_integrated): $(annotation_integrated) $(foreach condition,$(conditions),$(scvelo_$(condition)))
 	$(call print_rule,bin-cells,integrated)
 	$(call print_info,perform binarization using conditions jointly)
 	$(conda_activate) scboolseq
-	python pipeline/binarization/bin_cells.py $(filter-out $(annotation_integrated),$^) -o $(dir $@) \
+	python scripts/binarization/bin_cells.py $(filter-out $(annotation_integrated),$^) -o $(dir $@) \
 		--cluster leiden --conditions $(conditions) --exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES)
 	$(conda_deactivate)
 	mv $@ $(@D)/tmp.h5ad
 	$(conda_activate) preprocess
-	python pipeline/utils/transfer_info.py $< $(@D)/tmp.h5ad --outfile $@ --obs pct_bin --layer bin --index condition
+	python scripts/utils/transfer_info.py $< $(@D)/tmp.h5ad --outfile $@ --obs pct_bin --layer bin --index condition
 	$(conda_deactivate)
 	rm $(@D)/tmp.h5ad
 
@@ -815,9 +815,9 @@ $(bin_macrostates_integrated): $(bin_cells_integrated) $(foreach condition,$(con
 	mkdir -p $(@D)
 	$(conda_activate) preprocess
 	$(call print_info,all-to-one information transfer)
-	python pipeline/utils/pipe_sti.py $^ --conditions $(conditions) --outfile $(@D)/tmp.h5ad --column macrostates --condition-column condition
+	python scripts/utils/pipe_sti.py $^ --conditions $(conditions) --outfile $(@D)/tmp.h5ad --column macrostates --condition-column condition
 	$(call print_info,macrostate binarization)
-	python pipeline/binarization/bin_clusters.py $(@D)/tmp.h5ad $(@D) \
+	python scripts/binarization/bin_clusters.py $(@D)/tmp.h5ad $(@D) \
 		--condition condition --cluster macrostates --plot-3d
 	$(conda_deactivate)
 
@@ -827,13 +827,13 @@ $(foreach condition,$(conditions_plus_integrated),$(eval $(call condition_plus_i
 $(BDC_CTRL): $(bin_cell_ctrl)
 	$(call print_rule,Boolean differential calculus (control data))
 	$(conda_activate) scboolseq
-	python pipeline/binarization/differential_analysis.py $< $(@D) --verbose
+	python scripts/binarization/differential_analysis.py $< $(@D) --verbose
 	$(conda_deactivate)
 
 $(BDC_TREATED): $(bin_cell_treated)
 	$(call print_rule,Boolean differential calculus (treated data))
 	$(conda_activate) scboolseq
-	python pipeline/binarization/differential_analysis.py $< $(@D) --verbose
+	python scripts/binarization/differential_analysis.py $< $(@D) --verbose
 	$(conda_deactivate)
 
 $(MODEL_SPECIFICATION_CTRL): $(TRAJECTORIES_MACROSTATES_CTRL)
@@ -855,7 +855,7 @@ $(BONESIS_FILTER1_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl)
 	$(call print_rule,Bonesis filtering (control data, stage 1))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
-	python pipeline/inference/bonesis_inference.py filter-stage1 $(@D) \
+	python scripts/inference/bonesis_inference.py filter-stage1 $(@D) \
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(lastword $^) \
@@ -866,7 +866,7 @@ $(BONESIS_FILTER1_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_treated)
 	$(call print_rule,Bonesis filtering (treated data, stage 1))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
-	python pipeline/inference/bonesis_inference.py filter-stage1 $(@D) \
+	python scripts/inference/bonesis_inference.py filter-stage1 $(@D) \
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(lastword $^) \
@@ -877,7 +877,7 @@ $(BONESIS_FILTER1_INTEGRATED): $(model_specification_integrated) $(bin_cells_int
 	$(call print_rule,Bonesis filtering (integrated data, stage 1))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
-	python pipeline/inference/bonesis_inference.py filter-stage1 $(@D) \
+	python scripts/inference/bonesis_inference.py filter-stage1 $(@D) \
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(lastword $^) \
@@ -888,7 +888,7 @@ $(BONESIS_FILTER2_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(BONESIS_
 	$(call print_rule,Bonesis filtering (control data, stage 2))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
-	python pipeline/inference/bonesis_inference.py filter-stage2 $(@D) \
+	python scripts/inference/bonesis_inference.py filter-stage2 $(@D) \
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
@@ -900,7 +900,7 @@ $(BONESIS_FILTER2_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_treated) $
 	$(call print_rule,Bonesis filtering (treated data, stage 2))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
-	python pipeline/inference/bonesis_inference.py filter-stage2 $(@D) \
+	python scripts/inference/bonesis_inference.py filter-stage2 $(@D) \
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
@@ -912,7 +912,7 @@ $(BONESIS_FILTER2_INTEGRATED): $(model_specification_integrated) $(bin_cells_int
 	$(call print_rule,Bonesis filtering (integrated data, stage 2))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
-	python pipeline/inference/bonesis_inference.py filter-stage2 $(@D) \
+	python scripts/inference/bonesis_inference.py filter-stage2 $(@D) \
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
@@ -924,7 +924,7 @@ $(BONESIS_INFERENCE_MIN_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(BO
 	$(call print_rule,Bonesis inference (control data, minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
-	python pipeline/inference/bonesis_inference.py one-min $(@D) \
+	python scripts/inference/bonesis_inference.py one-min $(@D) \
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
@@ -937,7 +937,7 @@ $(BONESIS_INFERENCE_MIN_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_trea
 	$(call print_rule,Bonesis inference (treated data, minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
-	python pipeline/inference/bonesis_inference.py one-min $(@D) \
+	python scripts/inference/bonesis_inference.py one-min $(@D) \
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
@@ -950,7 +950,7 @@ $(BONESIS_INFERENCE_MIN_INTEGRATED): $(model_specification_integrated) $(bin_cel
 	$(call print_rule,Bonesis inference (integrated data, minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
-	python pipeline/inference/bonesis_inference.py one-min $(@D) \
+	python scripts/inference/bonesis_inference.py one-min $(@D) \
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
@@ -963,7 +963,7 @@ $(BONESIS_INFERENCE_SUB_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(BO
 	$(call print_rule,Bonesis inference (control data, subset minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
-	python pipeline/inference/bonesis_inference.py one-sub $(@D) \
+	python scripts/inference/bonesis_inference.py one-sub $(@D) \
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
@@ -975,7 +975,7 @@ $(BONESIS_INFERENCE_SUB_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_trea
 	$(call print_rule,Bonesis inference (treated data, subset minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
-	python pipeline/inference/bonesis_inference.py one-sub $(@D) \
+	python scripts/inference/bonesis_inference.py one-sub $(@D) \
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
@@ -987,7 +987,7 @@ $(BONESIS_INFERENCE_SUB_INTEGRATED): $(model_specification_integrated) $(bin_cel
 	$(call print_rule,Bonesis inference (integrated data, subset minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
-	python pipeline/inference/bonesis_inference.py one-sub $(@D) \
+	python scripts/inference/bonesis_inference.py one-sub $(@D) \
 		--organism $(ORGANISM) \
 		--model-specification $(firstword $^) \
 		--bin-metastates $(word 2, $^) \
