@@ -7,7 +7,7 @@ import os, argparse
 from pathlib import Path
 
 import anndata as ad
-import anndatatools as adt
+from bonesistools import anndatatools as adt
 
 import matplotlib.pyplot as plt
 

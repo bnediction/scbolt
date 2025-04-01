@@ -8,18 +8,15 @@ random.seed(100)
 
 import os, argparse
 from pathlib import Path
-from utils.argtype import Range
-from utils.stdout import print_task
 
 import scanpy as sc
 import numpy as np
+import bonesistools as bt
 from sklearn.linear_model import LinearRegression
 
 import matplotlib.pyplot as plt
-from bonesistools.anndatatools.plotting import (
-    fig,
-    color
-)
+
+bt.adt.pl.set_default_params()
 
 def regress_out_feature(interest, regressors, intercept=False, n_jobs=1):
 
@@ -124,11 +121,11 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-print_task("data loading")
+bt.utils.std.print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 
-print_task("gene filtering")
+bt.utils.std.print_task("gene filtering")
 
 if args.min_cell_expression_proportion:
 
@@ -144,36 +141,36 @@ if args.min_cell_expression_proportion:
         ["before filtering", "after filtering"], _k,
         width=0.8,
         linewidth=2,
-        color=color.pink,
-        edgecolor=color.red
+        color=bt.adt.pl.get_color("pink"),
+        edgecolor=bt.adt.pl.get_color("red")
     )
     ax.update({"xmargin": 0.1})
     plt.savefig(f"{os.path.dirname(args.outfile)}/gene-number.pdf")
 
 adata.layers["raw"] = adata.X.copy()
 
-print_task("data normalisation")
+bt.utils.std.print_task("data normalisation")
 
 adata.layers["normalize"] = sc.pp.normalize_total(adata, target_sum=1e4, inplace=False)["X"]
 adata.layers["log-normalize"] = adata.layers["normalize"].copy()
 sc.pp.log1p(adata, base=np.exp(1), layer="log-normalize")
 
-print_task("selecting higly variable genes (HVG)")
+bt.utils.std.print_task("selecting higly variable genes (HVG)")
 
 sc.pp.highly_variable_genes(adata, layer="raw", flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
 if args.hvg_filtering:
     adata = adata[:, adata.var.highly_variable]
 
-print_task("data scaling")
+bt.utils.std.print_task("data scaling")
 
 adata.layers["scale"] = adata.layers["log-normalize"].copy()
 sc.pp.scale(adata, layer="scale", copy=False)
 
-print_task("unwanted effects correction and data scaling")
+bt.utils.std.print_task("unwanted effects correction and data scaling")
 
 adata.layers["correct"] = regress_out(adata, args.correction, layer="log-normalize", intercept=False, n_jobs=args.n_jobs)
 sc.pp.scale(adata, layer="correct")
 
-print_task("data saving")
+bt.utils.std.print_task("data saving")
 
 adata.write_h5ad(filename=f"{args.outfile}", compression="gzip")

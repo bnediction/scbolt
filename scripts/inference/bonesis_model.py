@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from pathlib import Path
-from bonesistools.databases.genesyn import GeneSynonyms
+from bonesistools.databases.ncbi import GeneSynonyms
 
 import pandas as pd
 

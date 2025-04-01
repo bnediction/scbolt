@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 import argparse
-from bonesistools.utils.argtype import Required_length
+from bonesistools.utils.cmd import Required_length
 
 import pandas as pd
 

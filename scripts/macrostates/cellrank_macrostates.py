@@ -5,17 +5,14 @@ warnings.filterwarnings("ignore")
 
 import os, argparse
 from pathlib import Path
-from bonesistools.utils.stdout import (
-    print_task,
-    print_info
-)
 
 import scanpy as sc
 import cellrank as cr
-from bonesistools import anndatatools as adt
+import bonesistools as bt
 
 import matplotlib.pyplot as plt
-from anndatatools.plotting import color
+
+bt.adt.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="Cellrank macrostates computation",
@@ -111,29 +108,27 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-adt.pl.set_default()
-
-print_task("data loading")
+bt.utils.std.print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 
-print_task("kernel computation")
+bt.utils.std.print_task("kernel computation")
 
-print_info("velocity kernel")
+bt.utils.std.print_info("velocity kernel")
 
 vk = cr.kernels.VelocityKernel(adata)
 vk.compute_transition_matrix()
 
-print_info("connectivity kernel")
+bt.utils.std.print_info("connectivity kernel")
 
 ck = cr.kernels.ConnectivityKernel(adata)
 ck.compute_transition_matrix()
 
-print_info("combined kernel")
+bt.utils.std.print_info("combined kernel")
 
 combined_kernel = 0.8 * vk + 0.2 * ck
 
-print_task("initial and terminal states identification")
+bt.utils.std.print_task("initial and terminal states identification")
 
 g = cr.estimators.GPCCA(combined_kernel)
 g.fit(
@@ -157,9 +152,9 @@ g.predict_terminal_states(
     allow_overlap=True
 )
 
-print_task("embedding component plotting")
+bt.utils.std.print_task("embedding component plotting")
 
-fig, _ = adt.pl.embedding_plot(
+fig, _ = bt.adt.pl.embedding_plot(
     adata,
     obs="macrostates_fwd",
     obsm="X_umap",
@@ -175,7 +170,7 @@ fig, _ = adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":color.black,
+        "edgecolor":bt.adt.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
@@ -183,7 +178,7 @@ fig, _ = adt.pl.embedding_plot(
 )
 plt.savefig(Path(f"{os.path.dirname(args.outfile)}/macrostates.pdf"))
 
-fig, _ = adt.pl.embedding_plot(
+fig, _ = bt.adt.pl.embedding_plot(
     adata,
     obs="init_states_fwd",
     obsm="X_umap",
@@ -199,7 +194,7 @@ fig, _ = adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":color.black,
+        "edgecolor":bt.adt.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
@@ -207,7 +202,7 @@ fig, _ = adt.pl.embedding_plot(
 )
 plt.savefig(Path(f"{os.path.dirname(args.outfile)}/initial_states.pdf"))
 
-fig, _ = adt.pl.embedding_plot(
+fig, _ = bt.adt.pl.embedding_plot(
     adata,
     obs="term_states_fwd",
     obsm="X_umap",
@@ -223,7 +218,7 @@ fig, _ = adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":color.black,
+        "edgecolor":bt.adt.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
@@ -231,6 +226,6 @@ fig, _ = adt.pl.embedding_plot(
 )
 plt.savefig(Path(f"{os.path.dirname(args.outfile)}/terminal_states.pdf"))
 
-print_task("data saving")
+bt.utils.std.print_task("data saving")
 
 adata.write_h5ad(filename=args.outfile)

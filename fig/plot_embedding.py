@@ -9,10 +9,12 @@ import os, argparse
 import json, pickle
 from pathlib import Path
 
-import anndata as ad, anndatatools as adt
+import anndata as ad
+from bonesistools import anndatatools as adt
 
 import matplotlib.pyplot as plt
-from anndatatools.plotting import fig
+
+adt.pl.set_default_params()
 
 def import_module_as(module, alias):
     module = importlib.import_module(module)
@@ -102,7 +104,7 @@ fig, ax = adt.pl.embedding_plot(
     adata,
     **params["figure"]
 )
-adt.pl.set_default(ax)
+adt.pl.set_default_axis(ax)
 if "grid" in params:
     plt.grid(params["grid"])
 if "axis" in params:

@@ -5,13 +5,9 @@ warnings.filterwarnings("ignore")
 
 import argparse
 from pathlib import Path
-from bonesistools.utils.stdout import (
-    print_task,
-    print_info
-)
 
 import anndata as ad
-from bonesistools import anndatatools as adt
+import bonesistools as bt
 
 parser = argparse.ArgumentParser(
     prog="info transfer",
@@ -85,17 +81,17 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-print_task("data loading")
+bt.utils.std.print_task("data loading")
 
-print_info("loading left sample")
+bt.utils.std.print_info("loading left sample")
 left_ad = ad.read_h5ad(args.left)
-print_info("loading right sample")
+bt.utils.std.print_info("loading right sample")
 right_ad = ad.read_h5ad(args.right)
 
 if args.index:
-    print_task("index setting")
+    bt.utils.std.print_task("index setting")
     for adata in [left_ad, right_ad]:
-        adt.pp.set_index(
+        bt.adt.pp.set_index(
             adata=adata,
             keys=args.index,
             axis=0,
@@ -103,46 +99,46 @@ if args.index:
         )
 
 if args.obs:
-    print_task("observation transfer")
+    bt.utils.std.print_task("observation transfer")
     right_ad.obs = right_ad.obs.loc[:,args.obs]
-    adt.pp.merge(
+    bt.adt.pp.merge(
         left_ad=left_ad,
         right_ad=right_ad,
         axis="obs",
         copy=False
     )
 else:
-    print_info("no observation transfer")
+    bt.utils.std.print_info("no observation transfer")
 
 if args.var:
-    print_task("variable transfer")
+    bt.utils.std.print_task("variable transfer")
     right_ad.var = right_ad.var.loc[:,args.var]
-    adt.pp.merge(
+    bt.adt.pp.merge(
         left_ad=left_ad,
         right_ad=right_ad,
         axis="var",
         copy=False
     )
 else:
-    print_info("no variable transfer")
+    bt.utils.std.print_info("no variable transfer")
 
 if args.layers:
-    print_task("layer transfer")
-    adt.pp.transfer_layer(
+    bt.utils.std.print_task("layer transfer")
+    bt.adt.pp.transfer_layer(
         left_ad=left_ad,
         right_ad=right_ad,
         layers=args.layers,
         copy=False
     )
 else:
-    print_info("no layer transfer")
+    bt.utils.std.print_info("no layer transfer")
 
 if args.index:
     for idx, name in enumerate(args.index,start=1):
         left_ad.obs[name] = left_ad.obs.index.str.get(idx)
     left_ad.obs.index = left_ad.obs.index.str.get(0)
 
-print_task("data saving")
+bt.utils.std.print_task("data saving")
 
 left_ad.write_h5ad(
     filename=args.outfile if args.outfile else args.left,

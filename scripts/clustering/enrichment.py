@@ -6,12 +6,6 @@ warnings.filterwarnings("ignore")
 import os
 import argparse
 from pathlib import Path
-from bonesistools.utils.stdout import (
-    disable_print,
-    print_task,
-    print_info,
-    print_warning
-)
 
 import re
 
@@ -20,7 +14,7 @@ from pandas import (
     read_excel
 )
 
-from databases.genesyn import GeneSynonyms
+import bonesistools as bt
 
 from goatools.utils import read_geneset
 from goatools.obo_parser import GODag
@@ -109,11 +103,11 @@ elif args.go is not None and args.annotations is not None:
 else:
     annotations_alias_type = "geneid" if args.go else "MGI"
 
-genesynonyms = GeneSynonyms()
+genesynonyms = bt.dbs.ncbi.GeneSynonyms()
 
-print_task("background gene set loading")
+bt.utils.std.print_task("background gene set loading")
 
-with disable_print(disable=not args.verbose):
+with bt.utils.std.disable_print(disable=not args.verbose):
     population_ids = read_geneset(args.population)
     population_ids = genesynonyms.sequence_standardization(
         gene_sequence=population_ids,
@@ -127,9 +121,9 @@ with disable_print(disable=not args.verbose):
     if None in population_ids:
         population_ids.remove(None)
 
-print_task("study gene sets loading")
+bt.utils.std.print_task("study gene sets loading")
 
-with disable_print(disable=not args.verbose):
+with bt.stdout.disable_print(disable=not args.verbose):
     study_ids = dict()
     for _study_file in args.study:
         _study_ids = read_geneset(_study_file)
@@ -146,7 +140,7 @@ with disable_print(disable=not args.verbose):
             _study_ids.remove(None)
         study_ids[os.path.basename(_study_file).rsplit(".", maxsplit=1)[0]] = _study_ids
 
-print_task("gene ontologies loading")
+bt.utils.std.print_task("gene ontologies loading")
 
 go_dag = GODag(args.go)
 
@@ -171,9 +165,9 @@ with open(args.go, "r") as go_reader:
             else:
                 continue
 
-print_task("gene-to-go associations loading")
+bt.utils.std.print_task("gene-to-go associations loading")
 
-with disable_print(disable=not args.verbose):
+with bt.utils.std.disable_print(disable=not args.verbose):
     if args.gene2go:
         annotations = Gene2GoReader(args.gene2go, taxids=[10090])
     else:
@@ -181,11 +175,11 @@ with disable_print(disable=not args.verbose):
     associations = annotations.get_ns2assc()
 
 for namespace, geneid2go in associations.items():
-    print_info(f"{namespace} {len(geneid2go):,} annotated mouse genes")
+    bt.stdout.print_info(f"{namespace} {len(geneid2go):,} annotated mouse genes")
 
-print_task("gene ontology enrichment analysis")
+bt.utils.std.print_task("gene ontology enrichment analysis")
 
-with disable_print(disable=not args.verbose):
+with bt.utils.std.disable_print(disable=not args.verbose):
     goea = GOEnrichmentStudyNS(
         pop=population_ids,
         ns2assoc=associations,
@@ -200,9 +194,9 @@ with disable_print(disable=not args.verbose):
         _goea_significant_results = [result for result in _goea_all_results if result.p_fdr_bh < 0.05]
         goea.wr_xlsx(f"{os.path.dirname(args.outfile)}/{cluster}", _goea_significant_results)
 
-print_task("data saving")
+bt.utils.std.print_task("data saving")
 
-with disable_print(disable=not args.verbose):
+with bt.stdout.disable_print(disable=not args.verbose):
     with ExcelWriter(args.outfile) as xlsx_writer:
         for cluster in study_ids.keys():
             xlsx_infile = f"{os.path.dirname(args.outfile)}/{cluster}"
@@ -220,4 +214,4 @@ with disable_print(disable=not args.verbose):
                 goea_results.to_excel(xlsx_writer, sheet_name=cluster)
                 os.remove(xlsx_infile)
             else:
-                print_warning(f"{xlsx_infile} not found")
+                bt.utils.std.print_warning(f"{xlsx_infile} not found")

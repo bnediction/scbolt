@@ -4,22 +4,16 @@ import warnings
 
 import os, argparse
 from pathlib import Path
-from bonesistools.utils.stdout import (
-    disable_print,
-    print_task
-)
 
-from bonesistools import anndatatools as adt
 import scanpy as sc
+import bonesistools as bt
 import scvelo as scv
 
 import numpy as np
 
 import matplotlib.pyplot as plt
-from bonesistools.anndatatools.plotting import (
-    fig,
-    color
-)
+
+bt.adt.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="velocity",
@@ -114,15 +108,15 @@ if not args.outpath.exists():
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-print_task("data loading")
+bt.utils.std.print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 n_components = adata.obsm["X_umap"].shape[1]
 
 adata.obs["clusters"] = adata.obs[args.cluster]
 
-adata.uns["colors"] = np.array([adt.pl.COLORS[idx] for idx, _ in enumerate (adata.obs["clusters"].cat.categories)])
-color_map = {cluster: adt.pl.COLORS[idx] for idx, cluster in enumerate(adata.obs["clusters"].cat.categories)}
+adata.uns["colors"] = np.array([bt.adt.pl.COLORS[idx] for idx, _ in enumerate (adata.obs["clusters"].cat.categories)])
+color_map = {cluster: bt.adt.pl.COLORS[idx] for idx, cluster in enumerate(adata.obs["clusters"].cat.categories)}
 
 scv.pl.proportions(
     adata,
@@ -134,7 +128,7 @@ scv.pl.proportions(
 plt.savefig(Path(f"{args.outpath}/proportions.pdf"))
 plt.close()
 
-print_task("first- and second-order moments computation")
+bt.utils.std.print_task("first- and second-order moments computation")
 
 try:
     adata.X = adata.layers["raw"]
@@ -150,7 +144,7 @@ sc.pp.neighbors(
     copy=False
 )
 
-with disable_print():
+with bt.utils.std.disable_print():
     scv.pp.moments(
         adata,
         n_pcs=None,
@@ -158,38 +152,38 @@ with disable_print():
         copy=False
     )
 
-print_task("velocity estimation")
+bt.utils.std.print_task("velocity estimation")
 
-with disable_print():
+with bt.utils.std.disable_print():
     scv.tl.velocity(
         adata,
         mode=args.mode,
         copy=False
     )
 
-print_task("velocity graph computation")
+bt.utils.std.print_task("velocity graph computation")
 
-with disable_print():
+with bt.utils.std.disable_print():
     scv.tl.velocity_graph(
         adata,
         copy=False
     )
 
-print_task("velocity pseudotime estimation")
+bt.utils.std.print_task("velocity pseudotime estimation")
 
-with disable_print():
+with bt.utils.std.disable_print():
     scv.tl.velocity_pseudotime(adata)
 
-print_task("PAGA estimation")
+bt.utils.std.print_task("PAGA estimation")
 
-with disable_print():
+with bt.utils.std.disable_print():
     scv.tl.paga(adata, groups=args.cluster)
     adata.uns["transitions_confidence"] = adata.uns["paga"]["transitions_confidence"]
 
-print_task("trajectory plotting")
+bt.utils.std.print_task("trajectory plotting")
 
 figwidth, figheight = 7, 4
-with disable_print():
+with bt.utils.std.disable_print():
     ax = scv.pl.velocity_embedding_stream(
         adata,
         basis="umap",
@@ -213,7 +207,7 @@ with disable_print():
         plt.savefig(Path(f"{args.outpath}/trajectories.png"))
     plt.close()
 
-fig, _ = adt.pl.embedding_plot(
+fig, _ = bt.adt.pl.embedding_plot(
     adata,
     obs="velocity_pseudotime",
     obsm="X_umap",
@@ -229,7 +223,7 @@ fig, _ = adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":color.black,
+        "edgecolor":bt.adt.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if adata.obsm["velocity_umap"].shape[1] > 2 and args.plot_3d is True else 2,
@@ -237,13 +231,13 @@ fig, _ = adt.pl.embedding_plot(
     colorbar_scale=0.3,
     colors="gnuplot"
 )
-with disable_print():
+with bt.utils.std.disable_print():
     plt.axis("off")
     fig.set_figwidth(fig.get_figwidth()*1.25)
     plt.savefig(Path(f"{args.outpath}/velocity_pseudotime.pdf"))
     plt.close()
 
-fig, ax = adt.pl.embedding_plot(
+fig, ax = bt.adt.pl.embedding_plot(
     adata,
     obs="clusters",
     obsm="X_umap",
@@ -259,16 +253,16 @@ fig, ax = adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":color.black,
+        "edgecolor":bt.adt.pl.get_color("black"),
         "shadow":False
     },
     color=adata.uns["colors"],
     n_components = 3 if adata.obsm["velocity_umap"].shape[1] > 2 and args.plot_3d is True else 2,
     background_visible=False,
 )
-with disable_print():
+with bt.utils.std.disable_print():
     plt.axis("off")
-    ax = adt.pl.draw_paga(
+    ax = bt.adt.pl.draw_paga(
         adata=adata,
         obs=args.cluster,
         obsm="X_umap",
@@ -283,6 +277,6 @@ with disable_print():
     plt.savefig(Path(f"{args.outpath}/paga.pdf"))
     plt.close()
 
-print_task("data saving")
+bt.utils.std.print_task("data saving")
 
 adata.write_h5ad(filename=f"{args.outpath}/scvelo.h5ad")

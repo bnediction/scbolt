@@ -4,10 +4,10 @@
 
 SHELL = /bin/bash
 MAKEFLAGS += --silent
-DEFAULT_CONFIG = default_params.mk
-CONFIG = params.mk
+DEFAULT_PARAMS = default_params.mk
+PARAMS = params.mk
 
-include $(DEFAULT_CONFIG) $(CONFIG)
+include $(DEFAULT_PARAMS) $(PARAMS)
 
 conda_activate = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
 conda_deactivate = source $$(conda info --base)/etc/profile.d/conda.sh ; conda deactivate ; conda deactivate
@@ -309,7 +309,7 @@ endif
 
 .PHONY: help
 help: ## display this help and exit
-	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [SAMPLES=control+treated+integrated] (default:SAMPLES=$(SAMPLES))\n\
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [SAMPLES=<...>] (default:SAMPLES=$(subst $(space),$(plus),$(conditions_plus_integrated)))\n\
 	Semi-automatic pipeline proposing a general methodology for inferring executable models reproducing \
 	the observed cellular dynamics from two conditions/experiences (control and treated), \
 	using scRNA-seq and scATAC-seq sequencing data. The pipeline is particularly useful when phenotype-related cells are not well characterized \
@@ -514,7 +514,7 @@ $(velocyto_$(1)): $(cellranger_$(1)) $(transcriptome)
 	mv $$(<D)/velocyto/cellranger.loom $$(shell echo $$(@) | sed "s/h5ad/loom/")
 	rm -rf $$(<D)/velocyto
 	$$(conda_activate) preprocess
-	python bonesistools/clitools/adata_conversion.py $$(shell echo $$(@) | sed "s/h5ad/loom/") $$(@) --from loom --to h5ad \
+	python scripts/utils/adata_conversion.py $$(shell echo $$(@) | sed "s/h5ad/loom/") $$(@) --from loom --to h5ad \
 		--metadata $$(METADATA_$(call toupper,$(1))) \
 		--remove-positions \
 		--genename-standardization
@@ -639,7 +639,7 @@ $(cotan_$(1)): $(scvelo_$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
 	$(call print_task,h5ad to csv format conversion)
-	python bonesistools/clitools/adata_conversion.py $$< $$(@D)/.tmp.csv --from h5ad --to csv --layer matrix
+	python scripts/utils/adata_conversion.py $$< $$(@D)/.tmp.csv --from h5ad --to csv --layer matrix
 	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $$(@D)/.tmp.csv > $$(@D)/counts.csv
 	rm $$(@D)/.tmp.csv
 	$$(conda_deactivate)
@@ -652,7 +652,7 @@ $(cotan_$(1)): $(scvelo_$(1))
 	$$(conda_deactivate)
 	sed -i '1 i\,macrostates' $$(@D)/clusters.csv
 	$$(conda_activate) preprocess
-	python bonesistools/clitools/add_to_adata.py $$< $$@ --obs $$(@D)/clusters.csv --obs-type str --sep ,
+	python scripts/utils/add_to_adata.py $$< $$@ --obs $$(@D)/clusters.csv --obs-type str --sep ,
 	$(call print_task,embedding component plotting)
 	python fig/plot_embedding.py fig/macrostates.json --infile $$@ --outfile $$(@D)/cotan_clusters
 	$$(conda_deactivate)
@@ -660,7 +660,7 @@ $(cotan_$(1)): $(scvelo_$(1))
 $(bin_cells_$(1)): $(macrostates_$(1))
 	$(call print_rule,bin-cells,$(1))
 	$$(conda_activate) scboolseq
-	python scripts/binarization/bin_cells.py $$< -o $$(dir $$@) \
+	python scripts/binarization/bin_cells.py $$< -o $$(@D) \
 		--cluster leiden --exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES)
 	$$(conda_deactivate)
 
@@ -685,13 +685,13 @@ $(markers_$(1)): $(clustering_$(1)) $(lastword $(signatures))
   		--logfc-threshold 0.25 \
   		--verbose
 	$(call print_task, background genes computation)
-	python bonesistools/clitools/get_genes.py $$(<) $$(@)
+	python scripts/utils/get_genes.py $$(<) $$(@)
 	export clusters=`column -s, -t < $$(markers_csv) | awk 'NR>1 {print $$$$2}' | sort -u | tr '\n' ' '`
 	$(call print_task, upregulated cluster-related genes computation)
 	for cluster in $$$${clusters}
 	do
 		`column -s, -t < $$(markers_csv) | awk -v c=$$$${cluster} '$$$$2==c {print $$$$1}' > $$(@D)/cluster$$$${cluster}.txt`
-		python bonesistools/clitools/genename_standardization.py $$(@D)/cluster$$$${cluster}.txt $$(@D)/cluster$$$${cluster}.txt --quiet
+		python scripts/utils/genename_standardization.py $$(@D)/cluster$$$${cluster}.txt $$(@D)/cluster$$$${cluster}.txt --quiet
 	done
 	unset clusters
 	$$(conda_deactivate)

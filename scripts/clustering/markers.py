@@ -5,11 +5,11 @@ warnings.filterwarnings("ignore")
 
 import os, argparse
 from pathlib import Path
-from bonesistools.utils.argtype import Store_prefix
-from bonesistools.utils.stdout import print_task, print_info
 
-import pandas as pd, scanpy as sc, json
-from bonesistools import anndatatools as adt
+import json
+import pandas as pd
+import scanpy as sc
+import bonesistools as bt
 
 parser = argparse.ArgumentParser(
     prog="Cell type analysis",
@@ -43,7 +43,7 @@ parser.add_argument(
 parser.add_argument(
     "-p", "--prefix",
     dest="prefix",
-    action=Store_prefix,
+    action=bt.argtype.Store_prefix,
     required=False,
     default="",
     metavar="LITERAL",
@@ -92,11 +92,11 @@ args = parser.parse_args()
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
-print_task("data loading")
+bt.stdout.print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 
-print_task("marker analysis")
+bt.stdout.print_task("marker analysis")
 
 layer = "log-normalize"
 if args.condition is None:
@@ -118,12 +118,12 @@ for _condition in sorted(adata_d.keys()):
         tie_correct=True,
         corr_method="bonferroni"
     )
-    markers_d[_condition] = adt.tl.extract_rank_genes_groups(
+    markers_d[_condition] = bt.adt.tl.extract_rank_genes_groups(
         adata_d[_condition],
         logfc_keeping=False
     )
     markers_d[_condition] = markers_d[_condition].loc[markers_d[_condition]["adj_pvals"] < 0.05]
-    markers_d[_condition] = adt.tl.update_logfoldchanges(
+    markers_d[_condition] = bt.adt.tl.update_logfoldchanges(
         df=markers_d[_condition],
         adata=adata_d[_condition],
         layer=layer,
@@ -133,7 +133,7 @@ for _condition in sorted(adata_d.keys()):
         threshold=args.logfc_threshold
     )
 
-print_task("signature analysis")
+bt.stdout.print_task("signature analysis")
 
 with open(args.signatures, "r") as signatures_f:
     signatures_d = json.load(signatures_f)
@@ -160,12 +160,12 @@ for adata in adata_d.values():
             use_raw=False
         )
 
-print_task("cluster summarizing")
+bt.stdout.print_task("cluster summarizing")
 
 info_d = dict()
 for _condition in sorted(adata_d.keys()):
     info_d[_condition] = pd.DataFrame.from_dict(
-        adt.tl.get_info(
+        bt.adt.tl.get_info(
             adata_d[_condition],
             signatures_d,
             markers_d[_condition],
@@ -179,7 +179,7 @@ if args.condition is None:
 else:
     info_df = pd.concat(list(info_d.values()), keys=list(info_d.keys()))
 
-print_task("data saving")
+bt.stdout.print_task("data saving")
 
 if args.condition is None:
     markers_d["all"].to_csv(f"{args.outpath}/{args.prefix}markers.csv", sep=",", index=False)
@@ -190,5 +190,5 @@ info_df.to_csv(f"{args.outpath}/{args.prefix}cluster_cell_types.csv", sep=",", i
 info_df.transpose().to_csv(f"{args.outpath}/{args.prefix}cluster_cell_types.transpose.csv", sep=",", index=True)
 
 if args.verbose:
-    print_info("cluster information")
+    bt.stdout.print_info("cluster information")
     print(info_df.transpose())

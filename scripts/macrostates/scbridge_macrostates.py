@@ -5,13 +5,13 @@ warnings.filterwarnings("ignore")
 
 import os, argparse
 from pathlib import Path
-from bonesistools.utils.stdout import print_task
 
 import scanpy as sc
-from bonesistools import anndatatools as adt
+import bonesistools as bt
 
 import matplotlib.pyplot as plt
-from bonesistools.anndatatools.plotting import color
+
+bt.adt.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="macrostates computation",
@@ -119,9 +119,7 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-adt.pl.set_default()
-
-print_task("data loading")
+bt.utils.std.print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 
@@ -130,9 +128,9 @@ if args.dimension is None:
 
 exclude = set(adata.obs[args.obs].cat.categories).difference(set(args.center).union(set(args.extremity))) if args.exclude is True else None
 
-print_task("macrostate computation")
+bt.utils.std.print_task("macrostate computation")
 
-adt.tl.subclusters(
+bt.adt.tl.subclusters(
     adata,
     obs=args.obs,
     obsm=args.obsm,
@@ -145,9 +143,9 @@ adt.tl.subclusters(
     copy=False
 )
 
-print_task("embedding component plotting")
+bt.utils.std.print_task("embedding component plotting")
 
-fig, _ = adt.pl.embedding_plot(
+fig, _ = bt.adt.pl.embedding_plot(
     adata,
     obs="macrostates",
     obsm=args.obsm,
@@ -163,7 +161,7 @@ fig, _ = adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":color.black,
+        "edgecolor":bt.adt.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if adata.obsm[args.obsm].shape[1] > 2 and args.plot_3d is True else 2,
@@ -172,6 +170,6 @@ fig, _ = adt.pl.embedding_plot(
 plt.savefig(Path(f"{os.path.dirname(args.outfile)}/macrostates.pdf"))
 plt.close()
 
-print_task("data saving")
+bt.utils.std.print_task("data saving")
 
 adata.write_h5ad(filename=args.outfile)

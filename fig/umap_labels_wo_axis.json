@@ -3,7 +3,7 @@
     "outfile": "figures/results/umap_labels_wo_axis",
     "modules": [
         {"numpy": "np"},
-        {"anndatatools": "adt"}
+        {"bonesistools": "bt"}
     ],
     "eval": [
         "xlabel",
@@ -28,7 +28,7 @@
             "ncol": 1,
             "markerscale": 5,
             "frameon": true,
-            "edgecolor": "adt.pl.color.black",
+            "edgecolor": "bt.adt.pl.color.black",
             "shadow": false
         },
         "text": {

@@ -5,7 +5,7 @@ import os
 import json
 from pathlib import Path
 from argparse import ArgumentParser
-from bonesistools.utils.argtype import Store_organism
+from bonesistools.utils.cmd import Store_organism
 
 from tqdm import tqdm
 
@@ -20,8 +20,7 @@ from bonesis_model import (
     load_bin
 )
 
-from databases.collectri import load_grn
-from databases.genesyn import GeneSynonyms
+import bonesistools
 
 def write_solution(solution, name):
     f = solution[1]
@@ -143,9 +142,9 @@ if args.action.startswith("filter"):
 if args.action == "filter-stage1":
     pkn_options["allow_skipping_nodes"] = True
 
-gene_synonyms = GeneSynonyms()
+gene_synonyms = bonesistools.db.genesyn.GeneSynonyms()
 
-grn = load_grn(organism=args.organism, gene_synonyms=gene_synonyms)
+grn = bonesistools.db.collectri.load_grn(organism=args.organism, gene_synonyms=gene_synonyms)
 if args.filter_grn:
     with open(args.filter_grn) as fp:
         nodes = [line.strip() for line in fp.readlines()]

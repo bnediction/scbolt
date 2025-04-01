@@ -3,7 +3,7 @@
     "outfile": "figures/results/umap_labels_wo_lgd",
     "modules": [
         {"numpy": "np"},
-        {"anndatatools": "adt"}
+        {"bonesistools": "bt"}
     ],
     "eval": [
         "colors",
@@ -19,7 +19,7 @@
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "colors": "adt.pl.color.LIGHT_COLORS",
+        "colors": "bt.adt.pl.color.LIGHT_COLORS",
         "s": 2,
         "alpha": 1,
         "n_components": 3,

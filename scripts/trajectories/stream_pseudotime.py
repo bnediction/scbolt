@@ -7,16 +7,10 @@ import os, argparse
 import re
 import pickle
 from pathlib import Path
-from bonesistools.utils.argtype import Store_boolean, Range
-from bonesistools.utils.stdout import (
-    disable_print,
-    print_task,
-    print_info
-)
 
 import anndata as ad
 import stream as st
-from bonesistools import anndatatools as adt
+import bonesistools as bt
 
 from numpy import nan
 from scipy.sparse import issparse
@@ -25,7 +19,8 @@ from networkx.classes.graph import Graph
 from rpy2.rinterface import ListSexpVector
 
 import matplotlib.pyplot as plt
-from anndatatools.plotting import color
+
+bt.adt.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="pseudotime computation",
@@ -51,7 +46,7 @@ parser.add_argument(
 parser.add_argument(
     "--st", "--save-tables",
     dest="save_tables",
-    action=Store_boolean,
+    action=bt.utils.cmd.Store_boolean,
     required=False,
     default=True,
     help="save the anndata object (default: yes)"
@@ -206,7 +201,7 @@ parser.add_argument(
     "--extend-parameter",
     dest="extend_parameter",
     type=float,
-    action=Range,
+    action=bt.utils.cmd.Range,
     min=0,
     max=1,
     required=False,
@@ -284,7 +279,7 @@ if not args.outpath.exists():
 
 groups = set(args.groups)
 
-print_task("data loading")
+bt.utils.std.print_task("data loading")
 
 adata = ad.read_h5ad(args.infile)
 adata.obs_names_make_unique()
@@ -293,8 +288,8 @@ adata.uns["workdir"] = str(args.outpath)
 if args.use_stream_embedding is True and args.obsm is not None:
     raise argparse.ArgumentError("--use-stream-embedding and --obsm arguments cannot be used simultaneously.")
 elif args.use_stream_embedding is True:
-    print_task("preprocessing for stream")
-    with disable_print():
+    bt.utils.std.print_task("preprocessing for stream")
+    with bt.utils.std.disable_print():
         adata.X = adata.layers[args.layer].toarray() if issparse(adata.layers[args.layer]) else adata.layers[args.layer]
         if args.hvg:
             st.select_variable_genes(
@@ -317,7 +312,7 @@ elif args.use_stream_embedding is True:
         )
         adata.uns["dr"] = f"{args.method}"
 else:
-    print_info("no preprocessing for stream (use previous results)")
+    bt.utils.std.print_info("no preprocessing for stream (use previous results)")
     if args.obsm:
         adata.uns["dr"] = args.obsm
     if "X_umap" in adata.obsm.keys():
@@ -334,9 +329,9 @@ for group in groups:
     except:
         pass
 
-print_task("elastic principal graph computation")
+bt.utils.std.print_task("elastic principal graph computation")
 
-with disable_print():
+with bt.utils.std.disable_print():
     st.seed_elastic_principal_graph(
         adata,
         clustering="kmeans",
@@ -379,14 +374,14 @@ for node in nodes_mapping.keys():
 
 groups = groups.union({"kmeans", "macrostates"})
 
-print_task("trajectory plotting")
+bt.utils.std.print_task("trajectory plotting")
 
 for _group in groups:
-    fig, ax = adt.pl.embedding_plot(
+    fig, ax = bt.adt.pl.embedding_plot(
         adata,
         obs=_group,
         obsm=adata.uns["dr"],
-        colors=[color.blue]*(len(nodes_mapping)) + [color.lightgray] if _group == "macrostates" else None,
+        colors=[bt.adt.pl.get_color("blue")]*(len(nodes_mapping)) + [bt.adt.pl.get_color("lightgray")] if _group == "macrostates" else None,
         xlabel=r"$\mathrm{UMAP_{1}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
         zlabel=r"$\mathrm{UMAP_{3}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{3}^{\mathrm{scanorama}}}$",
@@ -410,7 +405,7 @@ for _group in groups:
         n_components = 3 if args.plot_3d is True else 2,
         background_visible=False
     )
-    adt.pl.set_default(ax)
+    bt.adt.pl.set_default_axis(ax)
     plt.savefig(f"{args.outpath}/{_group}_{adata.uns['dr'].split('_')[-1].lower()}_trajectory_plot")
     if args.plot_3d is True:
         pickle.dump(fig, open(Path(f"{args.outpath}/{_group}_{adata.uns['dr'].split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))
@@ -418,8 +413,8 @@ for _group in groups:
         pass
 
 if args.save_tables:
-    print_task("data saving")
-    with disable_print():
+    bt.utils.std.print_task("data saving")
+    with bt.utils.std.disable_print():
         if args.extension == "pkl" or args.extension == "both":
             st.write(adata, file_name=f"{args.outpath}/stream.h5ad.pkl")
         if args.extension == "h5ad" or args.extension == "both":
@@ -434,4 +429,4 @@ if args.save_tables:
                     del adata.uns[key]
             adata.write_h5ad(filename=f"{args.outpath}/stream.h5ad", compression="gzip")
 else:
-    print_info("no data saving")
+    bt.utils.std.print_info("no data saving")

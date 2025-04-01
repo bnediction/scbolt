@@ -7,20 +7,16 @@ import os, argparse
 import pickle
 import re
 from pathlib import Path
-from bonesistools.utils.argtype import Store_prefix
-from bonesistools.utils.stdout import (
-    disable_print,
-    print_task
-)
 
 import pandas as pd
 import stream as st
-from bonesistools import anndatatools as adt
+import bonesistools as bt
 
 import networkx as nx
 
 import matplotlib.pyplot as plt
-from bonesistools.anndatatools.plotting import color
+
+bt.adt.pl.set_default_params()
 
 def node_to_value(branch, attribute) -> list:
     return [attribute[_node] for _node in branch]
@@ -61,7 +57,7 @@ parser.add_argument(
 parser.add_argument(
     "-p", "--prefix",
     dest="prefix",
-    action=Store_prefix,
+    action=bt.argtype.Store_prefix,
     required=False,
     default="",
     metavar="LITERAL",
@@ -147,9 +143,9 @@ if not args.outpath.exists():
 
 groups = set(args.groups).union([f"S{args.root}_pseudotime"])
 
-print_task("data loading")
+bt.utils.std.print_task("data loading")
 
-with disable_print():
+with bt.utils.std.disable_print():
     adata = st.read(str(args.infile), file_format="pkl", workdir=args.outpath)
 
 if args.obsm is None and "dr" not in adata.uns:
@@ -160,14 +156,14 @@ else:
 if dr not in adata.obsm:
     raise ValueError("Integrated components {dr} in adata.obsm not found.")
 
-print_task("trajectory plotting")
+bt.utils.std.print_task("trajectory plotting")
 
 if "macrostates" in groups:
-    node_colors = [color.blue] * (len(adata.obs["macrostates"].unique()) - 1) + [color.lightgray]
-    node_colors[sorted(adata.obs["macrostates"].unique()).index(args.root)] = color.red
+    node_colors = [bt.adt.pl.get_color("blue")] * (len(adata.obs["macrostates"].unique()) - 1) + [bt.adt.pl.get_color("lightgray")]
+    node_colors[sorted(adata.obs["macrostates"].unique()).index(args.root)] = bt.adt.pl.get_color("red")
 
 for _group in groups:
-    fig, ax = adt.pl.embedding_plot(
+    fig, ax = bt.adt.pl.embedding_plot(
         adata,
         obs=_group,
         obsm=adata.uns["dr"],
@@ -195,7 +191,7 @@ for _group in groups:
         n_components = 3 if args.plot_3d is True else 2,
         background_visible=False
     )
-    adt.pl.set_default(ax)
+    bt.adt.pl.set_default(ax)
     if "pseudotime" not in _group:
         plt.savefig(f"{args.outpath}/{args.prefix}{_group}_{dr.split('_')[-1].lower()}_trajectory_plot.pdf")
     else:
@@ -207,7 +203,7 @@ for _group in groups:
     else:
         pass
 
-print_task("stream plotting")
+bt.utils.std.print_task("stream plotting")
 
 st.plot_stream(
     adata,
@@ -218,13 +214,13 @@ st.plot_stream(
     save_fig=False,
 )
 fig, ax = (plt.gcf(), plt.gca())
-adt.pl.set_default(ax)
+bt.adt.pl.set_default(ax)
 ax.tick_params(axis="x", which="major", pad=2)
 ax.images[-1].colorbar.remove()
 plt.savefig(f"{args.outpath}/{args.prefix}pseudotime_stream_plot.pdf")
 
 for _group in groups.difference([f"S{args.root}_pseudotime"]):
-    colors = node_colors if _group == "macrostates" else color.LIGHT_COLORS
+    colors = node_colors if _group == "macrostates" else bt.adt.pl.LIGHT_COLORS
     st.plot_stream(
         adata,
         root=args.root,
@@ -235,7 +231,7 @@ for _group in groups.difference([f"S{args.root}_pseudotime"]):
     )
     fig, ax = (plt.gcf(), plt.gca())
     ax.tick_params(axis="x", which="major", pad=2)
-    adt.pl.set_default(ax)
+    bt.adt.pl.set_default(ax)
     for idx, patch in enumerate(ax.patches):
         if idx == len(ax.patches)-1:
             continue
@@ -258,7 +254,7 @@ for _group in groups.difference([f"S{args.root}_pseudotime"]):
         ax.get_legend().remove()
     plt.savefig(f"{args.outpath}/{args.prefix}{_group}_stream_plot.pdf", bbox_inches="tight")
 
-print_task("trajectory inference")
+bt.utils.std.print_task("trajectory inference")
 
 flat_tree = adata.uns["flat_tree"]
 branch_labels = tree_to_trajectories(flat_tree)

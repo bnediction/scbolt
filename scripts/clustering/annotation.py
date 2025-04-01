@@ -5,10 +5,9 @@ warnings.filterwarnings("ignore")
 
 import os, argparse
 from pathlib import Path
-from bonesistools.utils.argtype import Store_dict
-from bonesistools.utils.stdout import print_task
 
 import anndata as ad
+import bonesistools as bt
 
 parser = argparse.ArgumentParser(
     prog="single-cell cluster labeling",
@@ -42,7 +41,7 @@ parser.add_argument(
 parser.add_argument(
     "-n", "--name",
     dest="labels",
-    action=Store_dict,
+    action=bt.utils.cmd.Store_dict,
     required=True,
     nargs="+",
     help="mapping between old and new names for labels"
@@ -53,11 +52,11 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-print_task("data loading")
+bt.utils.std.print_task("data loading")
 
 adata = ad.read_h5ad(args.infile)
 
-print_task("cluster labeling")
+bt.utils.std.print_task("cluster labeling")
 
 if args.column not in adata.obs:
     raise KeyError(f"adata.obsm[`{args.column}`] does not exist.")
@@ -66,6 +65,6 @@ elif not hasattr(adata.obs[args.column], "cat"):
 else:
     adata.obs[args.column].replace(args.labels, inplace=True)
 
-print_task("data saving")
+bt.utils.std.print_task("data saving")
 
 adata.write_h5ad(filename=args.outfile, compression="gzip")

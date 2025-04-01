@@ -5,24 +5,18 @@ warnings.filterwarnings("ignore")
 
 from typing import Optional, Union, Sequence
 from collections import OrderedDict
-import boolpy as bp
 
-import sys
 import argparse
 import json
 from pathlib import Path
-from bonesistools.utils.argtype import Range
-from bonesistools.utils.stdout import Section
 
 import pandas as pd
 import decoupler as dc
 import numpy as np
+import bonesistools as bt
 
 import itertools
 import networkx as nx
-import grntools as gtl
-
-from databases.genesyn import GeneSynonyms
 
 def collectri_to_grn(
     collectri: pd.DataFrame,
@@ -151,7 +145,7 @@ parser.add_argument(
     "--relative-threshold",
     dest="threshold",
     type=float,
-    action=Range,
+    action=bt.utils.cmd.Range,
     min=0.,
     max=1.,
     required=False,
@@ -167,53 +161,42 @@ parser.add_argument(
     help="allow a gene pairwise to be mutually influenced by the other one"
 )
 
-parser.add_argument(
-    "-v", "--verbose",
-    dest="verbose",
-    required=False,
-    action="store_true",
-    help="display information about running programm"
-)
-
 args = parser.parse_args()
 if args.base <= 1:
     raise argparse.ArgumentError("incorrect value for `base` argument : {args.base}")
 
-section = Section(verbose = args.verbose)
 nexponential_fun = lambda base, radius: 1 / base**np.arange(0, radius)
-bdc = bp.algebra.BooleanDifferentialCalculus()
+bdc = bt.bpy.BooleanDifferentialCalculus()
 
-print(f"Loading data...")
+bt.utils.std.print_task(f"data loading")
 
 meta_bin = pd.read_csv(args.infile, index_col=0).transpose()
 
 collectri_db = dc.get_collectri(organism="mouse", split_complexes=True)
 grn = collectri_to_grn(collectri_db, sign_label="weight", remove_pmid=True)
 
-if args.verbose:
-    print(f"\tgrn: {len(grn.nodes)} genes; {len(grn.edges)} interactions", file=sys.stderr)
+bt.utils.std.print_info(f"grn: {len(grn.nodes)} genes; {len(grn.edges)} interactions")
 
-gene_synonyms = GeneSynonyms()
+gene_synonyms = bt.dbs.ncbi.GeneSynonyms()
 gene_synonyms(data=meta_bin, axis=1, copy=False)
 gene_synonyms(data=grn, copy=False)
 gene_set_before_cleaning = set(meta_bin.columns)
 gene_removal(meta_bin, grn, copy=False)
 gene_set = set(meta_bin.columns)
 
-if args.verbose:
-    print(f"\tdataframe: {len(gene_set_before_cleaning)} genes; {len(gene_set_before_cleaning)- len(gene_set)}/{len(gene_set_before_cleaning)} genes removed (no matching with grn genes)", file=sys.stderr)
+bt.utils.std.print_info(f"dataframe: {len(gene_set_before_cleaning)} genes; {len(gene_set_before_cleaning)- len(gene_set)}/{len(gene_set_before_cleaning)} genes removed (no matching with grn genes)")
 
-print("Successors checking...")
+bt.utils.std.print_task("successors checking")
 
-section("Path extraction using depth-first extraction algorithm")
-interaction_scores = gtl.grn.scoring(
+bt.utils.std.print_info("path extraction using depth-first extraction algorithm")
+interaction_scores = bt.grn.scoring(
     graph=grn,
     weights=nexponential_fun(base=args.base, radius=args.radius),
     radius=args.radius,
     gene_set=gene_set
 )
 
-section("Sign likelihood between gene pairwise")
+bt.utils.std.print_info("sign likelihood between gene pairwise")
 interaction_signs = sign_likelihood(
     interaction_scores=interaction_scores,
     gene_set=gene_set,
@@ -225,7 +208,7 @@ interaction_signs = sign_likelihood(
 with open(f"{args.outpath}/sign_likelihood.json", "w") as outfile:
     json.dump(interaction_signs, outfile)
 
-section("Predecessor test using differential boolean calculus")
+bt.utils.std.print_info("Predecessor test using differential boolean calculus")
 
 score_matrix = OrderedDict({condition: {} for condition in meta_bin.index})
 for c1, c2 in itertools.product(meta_bin.index, repeat=2):
@@ -251,9 +234,9 @@ for source, targets in interaction_signs.items():
 
 score_df = pd.DataFrame.from_dict(score_matrix, orient="index")
 
-print("Saving data...")
+bt.utils.std.print_task("data saving")
 
 score_df.to_csv(f"{args.outpath}/pairwise_predecessor_scores.csv", sep=",", index=True)
 
-if args.verbose:
-    print(f"\n{score_df}\n")
+bt.utils.std.print_info("pairwise scores:")
+print(f"\n{score_df}\n")

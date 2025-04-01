@@ -5,7 +5,7 @@ warnings.filterwarnings("ignore")
 
 import argparse
 from pathlib import Path
-from bonesistools.utils.stdout import (
+from bonesistools.utils.std import (
     print_task,
     print_info
 )

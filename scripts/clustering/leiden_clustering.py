@@ -5,7 +5,7 @@ warnings.filterwarnings("ignore")
 
 import os, argparse
 from pathlib import Path
-from bonesistools.utils.stdout import print_task
+from bonesistools.utils.std import print_task
 
 import pickle
 import scanpy as sc
@@ -13,10 +13,8 @@ from bonesistools import anndatatools as adt
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
-from bonesistools.anndatatools.plotting import (
-    fig,
-    color
-)
+
+adt.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="Single-cell clustering",
@@ -192,9 +190,9 @@ if args.layer:
 default_seed = args.seed if args.seed else 100
 
 color_d = {
-    "G1": color.blue,
-    "G2M": color.red,
-    "S": color.green
+    "G1": adt.pl.get_color("blue"),
+    "G2M": adt.pl.get_color("red"),
+    "S": adt.pl.get_color("green")
 }
 phase = adata.obs["pypairs_cc_prediction"]
 
@@ -272,7 +270,7 @@ fig, _ = adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":color.black,
+        "edgecolor":adt.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if args.umap_dimension > 2 and args.plot_3d is True else 2,
@@ -293,13 +291,13 @@ fig, _ = adt.pl.embedding_plot(
     figwidth=6,
     s=2,
     alpha=1,
-    colors=[color.blue, color.red, color.green],
+    colors=[adt.pl.get_color("blue"), adt.pl.get_color("red"), adt.pl.get_color("green")],
     lgd_params={
         "title":"phases",
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":color.black,
+        "edgecolor":adt.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if args.umap_dimension > 2 and args.plot_3d is True else 2,

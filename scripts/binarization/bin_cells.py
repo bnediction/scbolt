@@ -5,26 +5,19 @@ warnings.filterwarnings("ignore")
 
 import os, argparse
 from pathlib import Path
-from bonesistools.utils.argtype import Required_length
-from bonesistools.utils.stdout import (
-    disable_print,
-    print_task,
-    print_info
-)
 
 import pickle
 
-import anndata as ad, anndatatools as adt
+import anndata as ad
+import bonesistools as bt
 
 import numpy as np
 
 from scboolseq import scBoolSeq
 
 import matplotlib.pyplot as plt
-from anndatatools.plotting import (
-    fig,
-    color
-)
+
+bt.adt.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="cell binarization",
@@ -65,7 +58,7 @@ parser.add_argument(
     dest="conditions",
     type=str,
     required=False,
-    action=Required_length,
+    action=bt.utils.cmd.Required_length,
     min=2,
     metavar="LITERAL",
     default=None,
@@ -120,7 +113,7 @@ scbool = scBoolSeq(
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
-print_task("data loading")
+bt.utils.std.print_task("data loading")
 
 adatas = [ad.read_h5ad(infile) for infile in args.infiles]
 
@@ -151,33 +144,33 @@ else:
 del adatas
 
 if args.hvg is True:
-    print_task("selecting highly variable genes")
+    bt.utils.std.print_task("selecting highly variable genes")
     if "highly_variable" in adata.var:
         del adata.var["highly_variable"]
     from scanpy import preprocessing
     preprocessing.highly_variable_genes(adata, layer="raw", flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
     adata = adata[:,adata.var["highly_variable"]]
 else:
-    print_info("not selecting highly variable genes")
+    bt.utils.std.print_info("not selecting highly variable genes")
 
 gene_list = adata.var.index
-counts_df = adt.tl.anndata_to_dataframe(adata, layer=args.layer)
+counts_df = bt.adt.tl.anndata_to_dataframe(adata, layer=args.layer)
 
-print_task("data binarization")
+bt.utils.std.print_task("data binarization")
 
-print_info("inferring estimators")
-with disable_print():
+bt.utils.std.print_info("inferring estimators")
+with bt.utils.std.disable_print():
     scbool.fit(counts_df, simulation=False)
 
-print_info("estimating boolean values by cell")
-with disable_print():
+bt.utils.std.print_info("estimating boolean values by cell")
+with bt.utils.std.disable_print():
     cell_df = scbool.binarize(counts_df)
     adata.layers["bin"] = cell_df
     adata.obs["pct_bin"] = (~cell_df.isna()).mean(axis=1)
     adata.var["distribution"] = scbool.criteria_["Category"]
 
-print_task("plotting")
-fig, _ = adt.pl.embedding_plot(
+bt.stdout.print_task("plotting")
+fig, _ = bt.adt.pl.embedding_plot(
     adata,
     obs="pct_bin",
     obsm="X_umap",
@@ -193,15 +186,15 @@ fig, _ = adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":color.black,
+        "edgecolor":bt.adt.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 else 2,
-    background_visible=False,
+    background_visible=False
 )
 plt.savefig(Path(f"{args.outpath}/pct_bin.pdf"))
 
-print_task("data saving")
+bt.stdout.print_task("data saving")
 
 cell_df.to_csv(f"{args.outpath}/binarized_cells.csv", sep=",", index=True)
 scbool.criteria_.to_csv(f"{args.outpath}/statistics.csv", sep=",", index=True)

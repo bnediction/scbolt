@@ -5,14 +5,9 @@ warnings.filterwarnings("ignore")
 
 import argparse
 from pathlib import Path
-from bonesistools.utils.argtype import Required_length
-from bonesistools.utils.stdout import (
-    print_task,
-    print_info
-)
 
 import anndata as ad
-from bonesistools import anndatatools as adt
+import bonesistools as bt
 
 parser = argparse.ArgumentParser(
     prog="specific-to-integrated information transfer",
@@ -50,7 +45,7 @@ parser.add_argument(
     dest="conditions",
     type=str,
     required=True,
-    action=Required_length,
+    action=bt.argtype.Required_length,
     min=2,
     metavar="LITERAL",
     help="condition related to each dataset (ordered with h5ad specifics)",
@@ -77,14 +72,14 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-print_task("data loading")
+bt.utils.std.print_task("data loading")
 
-print_info("loading integrated sample")
+bt.utils.std.print_info("loading integrated sample")
 integrated_adata = ad.read_h5ad(args.integrated)
-print_info("loading condition-dependant samples")
+bt.utils.std.print_info("loading condition-dependant samples")
 condition_adatas = [ad.read_h5ad(infile) for infile in args.specifics]
 
-print_info("cleaning unecessary data")
+bt.utils.std.print_info("cleaning unecessary data")
 for column in args.columns:
     if column in integrated_adata.obs:
         del integrated_adata.obs[column]
@@ -92,9 +87,9 @@ for column in args.columns:
         if column not in adata.obs:
             raise KeyError(f"column `{column}` not found in adata.obs")
 
-print_task("information transfer")
+bt.utils.std.print_task("information transfer")
 
-adt.pp.transfer_obs_sti(
+bt.adt.pp.transfer_obs_sti(
     adata=integrated_adata,
     adatas=condition_adatas,
     obs=args.columns,
@@ -103,7 +98,7 @@ adt.pp.transfer_obs_sti(
     copy=False
 )
 
-print_task("data saving")
+bt.utils.std.print_task("data saving")
 
 integrated_adata.write_h5ad(
     filename=args.outfile if args.outfile else args.integrated,

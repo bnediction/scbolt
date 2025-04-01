@@ -3,7 +3,7 @@
     "outfile": "figures/results/umap_conditions_wo_axis",
     "modules": [
         {"numpy": "np"},
-        {"anndatatools": "adt"}
+        {"bonesistools": "bt"}
     ],
     "eval": [
         "colors",
@@ -21,7 +21,7 @@
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "colors": "adt.pl.color.COLORS",
+        "colors": "bt.adt.pl.color.COLORS",
         "s": 2,
         "alpha": 1,
         "add_legend": true,
@@ -30,7 +30,7 @@
             "ncol": 1,
             "markerscale": 5,
             "frameon": true,
-            "edgecolor": "adt.pl.color.black",
+            "edgecolor": "bt.adt.pl.color.black",
             "shadow": false
         },
         "text": {
