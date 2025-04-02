@@ -2,7 +2,8 @@
 
 from typing import Optional, List
 
-import os, argparse
+import os
+import argparse
 from pathlib import Path
 
 from typing import Any

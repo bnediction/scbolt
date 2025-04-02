@@ -3,7 +3,7 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os
+import os, std
 import argparse
 from pathlib import Path
 
@@ -105,9 +105,9 @@ else:
 
 genesynonyms = bt.dbs.ncbi.GeneSynonyms()
 
-bt.utils.std.print_task("background gene set loading")
+std.print_task("background gene set loading")
 
-with bt.utils.std.disable_print(disable=not args.verbose):
+with std.disable_print(disable=not args.verbose):
     population_ids = read_geneset(args.population)
     population_ids = genesynonyms.sequence_standardization(
         gene_sequence=population_ids,
@@ -121,7 +121,7 @@ with bt.utils.std.disable_print(disable=not args.verbose):
     if None in population_ids:
         population_ids.remove(None)
 
-bt.utils.std.print_task("study gene sets loading")
+std.print_task("study gene sets loading")
 
 with bt.stdout.disable_print(disable=not args.verbose):
     study_ids = dict()
@@ -140,7 +140,7 @@ with bt.stdout.disable_print(disable=not args.verbose):
             _study_ids.remove(None)
         study_ids[os.path.basename(_study_file).rsplit(".", maxsplit=1)[0]] = _study_ids
 
-bt.utils.std.print_task("gene ontologies loading")
+std.print_task("gene ontologies loading")
 
 go_dag = GODag(args.go)
 
@@ -165,9 +165,9 @@ with open(args.go, "r") as go_reader:
             else:
                 continue
 
-bt.utils.std.print_task("gene-to-go associations loading")
+std.print_task("gene-to-go associations loading")
 
-with bt.utils.std.disable_print(disable=not args.verbose):
+with std.disable_print(disable=not args.verbose):
     if args.gene2go:
         annotations = Gene2GoReader(args.gene2go, taxids=[10090])
     else:
@@ -177,9 +177,9 @@ with bt.utils.std.disable_print(disable=not args.verbose):
 for namespace, geneid2go in associations.items():
     bt.stdout.print_info(f"{namespace} {len(geneid2go):,} annotated mouse genes")
 
-bt.utils.std.print_task("gene ontology enrichment analysis")
+std.print_task("gene ontology enrichment analysis")
 
-with bt.utils.std.disable_print(disable=not args.verbose):
+with std.disable_print(disable=not args.verbose):
     goea = GOEnrichmentStudyNS(
         pop=population_ids,
         ns2assoc=associations,
@@ -194,7 +194,7 @@ with bt.utils.std.disable_print(disable=not args.verbose):
         _goea_significant_results = [result for result in _goea_all_results if result.p_fdr_bh < 0.05]
         goea.wr_xlsx(f"{os.path.dirname(args.outfile)}/{cluster}", _goea_significant_results)
 
-bt.utils.std.print_task("data saving")
+std.print_task("data saving")
 
 with bt.stdout.disable_print(disable=not args.verbose):
     with ExcelWriter(args.outfile) as xlsx_writer:
@@ -214,4 +214,4 @@ with bt.stdout.disable_print(disable=not args.verbose):
                 goea_results.to_excel(xlsx_writer, sheet_name=cluster)
                 os.remove(xlsx_infile)
             else:
-                bt.utils.std.print_warning(f"{xlsx_infile} not found")
+                std.print_warning(f"{xlsx_infile} not found")

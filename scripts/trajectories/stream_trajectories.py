@@ -3,7 +3,8 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os, argparse
+import os, std
+import argparse
 import pickle
 import re
 from pathlib import Path
@@ -143,9 +144,9 @@ if not args.outpath.exists():
 
 groups = set(args.groups).union([f"S{args.root}_pseudotime"])
 
-bt.utils.std.print_task("data loading")
+std.print_task("data loading")
 
-with bt.utils.std.disable_print():
+with std.disable_print():
     adata = st.read(str(args.infile), file_format="pkl", workdir=args.outpath)
 
 if args.obsm is None and "dr" not in adata.uns:
@@ -156,7 +157,7 @@ else:
 if dr not in adata.obsm:
     raise ValueError("Integrated components {dr} in adata.obsm not found.")
 
-bt.utils.std.print_task("trajectory plotting")
+std.print_task("trajectory plotting")
 
 if "macrostates" in groups:
     node_colors = [bt.adt.pl.get_color("blue")] * (len(adata.obs["macrostates"].unique()) - 1) + [bt.adt.pl.get_color("lightgray")]
@@ -203,7 +204,7 @@ for _group in groups:
     else:
         pass
 
-bt.utils.std.print_task("stream plotting")
+std.print_task("stream plotting")
 
 st.plot_stream(
     adata,
@@ -254,7 +255,7 @@ for _group in groups.difference([f"S{args.root}_pseudotime"]):
         ax.get_legend().remove()
     plt.savefig(f"{args.outpath}/{args.prefix}{_group}_stream_plot.pdf", bbox_inches="tight")
 
-bt.utils.std.print_task("trajectory inference")
+std.print_task("trajectory inference")
 
 flat_tree = adata.uns["flat_tree"]
 branch_labels = tree_to_trajectories(flat_tree)

@@ -2,7 +2,8 @@
 
 import warnings
 
-import os, argparse
+import os
+import argparse
 from pathlib import Path
 
 from bonesistools.databases.ncbi import GeneSynonyms

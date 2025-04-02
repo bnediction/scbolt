@@ -3,7 +3,8 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os, argparse
+import os, std
+import argparse, cli
 import pickle
 from pathlib import Path
 
@@ -69,7 +70,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     "infiles",
     type=lambda x: Path(x).resolve(),
-    action=bt.utils.cmd.Required_length,
+    action=cli.Required_length,
     min=2,
     metavar="FILE",
     help="input files, first one being considered as reference (h5ad format)"
@@ -89,7 +90,7 @@ parser.add_argument(
     dest="labels",
     type=str,
     required=False,
-    action=bt.utils.cmd.Required_length,
+    action=cli.Required_length,
     min=2,
     default=None,
     metavar="LITERAL",
@@ -255,7 +256,7 @@ else:
     labels = ["reference"]
     labels.extend([f"interest_{i}" for i in range(1,len(args.infiles))])
 
-bt.utils.std.print_task("data loading")
+std.print_task("data loading")
 
 adata_d = odict()
 for i, label in enumerate(labels):
@@ -277,10 +278,10 @@ del valid_genes
 
 if args.method=="ingest":
 
-    bt.utils.std.print_info("integration using ingest algorithm")
+    std.print_info("integration using ingest algorithm")
 
     if args.hvg is not None:
-        bt.utils.std.print_task("highly variable gene selection")
+        std.print_task("highly variable gene selection")
         for k in adata_d.keys():
             sc.pp.highly_variable_genes(
                 adata_d[k],
@@ -292,9 +293,9 @@ if args.method=="ingest":
                 inplace=True
             )
     else:
-        bt.utils.std.print_info("no highly variable gene selection")
+        std.print_info("no highly variable gene selection")
 
-    bt.utils.std.print_task("pca computation (reference sample)")
+    std.print_task("pca computation (reference sample)")
     sc.tl.pca(
         adata_d[labels[0]],
         zero_center=args.zero_center,
@@ -303,7 +304,7 @@ if args.method=="ingest":
         copy=False
     )
 
-    bt.utils.std.print_task("knn computation (reference sample)")
+    std.print_task("knn computation (reference sample)")
     sc.pp.neighbors(
         adata_d[labels[0]],
         n_neighbors=args.k_neighbors,
@@ -311,14 +312,14 @@ if args.method=="ingest":
         copy=False
     )
 
-    bt.utils.std.print_task("umap computation (reference sample)")
+    std.print_task("umap computation (reference sample)")
     sc.tl.umap(
         adata_d[labels[0]],
         n_components=args.dim_umap,
         random_state=args.seed
     )
 
-    bt.utils.std.print_task("pca and umap integration")
+    std.print_task("pca and umap integration")
     for _label in labels[1:]:
         sc.tl.ingest(
             adata=adata_d[_label],
@@ -340,7 +341,7 @@ if args.method=="ingest":
     except:
         raise RuntimeError("Anndatas concatenation did not work")
 
-    bt.utils.std.print_task("knn computation (integrated)")
+    std.print_task("knn computation (integrated)")
     sc.pp.neighbors(
         adata,
         n_neighbors=args.k_neighbors,
@@ -350,7 +351,7 @@ if args.method=="ingest":
         copy=False
     )
 
-    bt.utils.std.print_task("leiden clustering (integrated)")
+    std.print_task("leiden clustering (integrated)")
     sc.tl.leiden(
         adata,
         resolution=args.resolution,
@@ -359,7 +360,7 @@ if args.method=="ingest":
 
 elif args.method=="bbknn":
 
-    bt.utils.std.print_info("integration using bbknn algorithm")
+    std.print_info("integration using bbknn algorithm")
 
     if "adata" not in globals():
         try:
@@ -380,7 +381,7 @@ elif args.method=="bbknn":
     )
 
     if args.hvg:
-        bt.utils.std.print_task("highly variable genes estimation")
+        std.print_task("highly variable genes estimation")
         sc.pp.highly_variable_genes(
             adata,
             layer="raw",
@@ -391,9 +392,9 @@ elif args.method=="bbknn":
             inplace=True
         )
     else:
-        bt.utils.std.print_info("no highly variable genes estimation")
+        std.print_info("no highly variable genes estimation")
 
-    bt.utils.std.print_task("pca computation")
+    std.print_task("pca computation")
     sc.tl.pca(
         adata,
         zero_center=args.zero_center,
@@ -402,7 +403,7 @@ elif args.method=="bbknn":
         copy=False
     )
 
-    bt.utils.std.print_task("knn integration")
+    std.print_task("knn integration")
     sc.external.pp.bbknn(
         adata,
         batch_key="condition",
@@ -413,14 +414,14 @@ elif args.method=="bbknn":
         n_pcs=args.dim_clustering,
     )
 
-    bt.utils.std.print_task("umap computation (integrated)")
+    std.print_task("umap computation (integrated)")
     sc.tl.umap(
         adata,
         n_components=args.dim_umap,
         random_state=args.seed
     )
 
-    bt.utils.std.print_task("knn computation (integrated)")
+    std.print_task("knn computation (integrated)")
     sc.pp.neighbors(
         adata,
         n_neighbors=args.k_neighbors,
@@ -430,7 +431,7 @@ elif args.method=="bbknn":
         copy=False
     )
 
-    bt.utils.std.print_task("leiden clustering (integrated)")
+    std.print_task("leiden clustering (integrated)")
     sc.tl.leiden(
         adata,
         resolution=args.resolution,
@@ -439,14 +440,14 @@ elif args.method=="bbknn":
 
 elif args.method=="scanorama":
 
-    bt.utils.std.print_info("integration using scanorama algorithm")
+    std.print_info("integration using scanorama algorithm")
 
     for k in adata_d.keys():
         clean_adata(adata_d[k])
     adata_l = list(adata_d.values())
     del adata_d
 
-    bt.utils.std.print_task("pca integration")
+    std.print_task("pca integration")
     adata_l = scanorama.correct_scanpy(
         adata_l,
         dimred=args.dim_pca,
@@ -465,7 +466,7 @@ elif args.method=="scanorama":
     except:
         raise RuntimeError("Anndatas concatenation did not work")
 
-    bt.utils.std.print_task("knn computation (integrated)")
+    std.print_task("knn computation (integrated)")
     sc.pp.neighbors(
         adata,
         n_neighbors=args.k_neighbors,
@@ -475,21 +476,21 @@ elif args.method=="scanorama":
     )
     adata.obsm["X_pca"] = adata.obsm["X_scanorama"]
 
-    bt.utils.std.print_task("leiden clustering (integrated)")
+    std.print_task("leiden clustering (integrated)")
     sc.tl.leiden(
         adata,
         resolution=args.resolution,
         key_added=f"leiden"
     )
 
-    bt.utils.std.print_task("umap computation (integrated)")
+    std.print_task("umap computation (integrated)")
     sc.tl.umap(
         adata,
         n_components=args.dim_umap,
         random_state=args.seed
     )
 
-bt.utils.std.print_task("embedding component plotting")
+std.print_task("embedding component plotting")
 
 bt.adt.pl.embedding_plot(
     adata,
@@ -538,6 +539,6 @@ for obs in ["condition", "leiden"]:
         f"{os.path.dirname(args.outfile)}/umap_{obs}.pdf"
         pickle.dump(fig, open(f"{os.path.dirname(args.outfile)}/umap_{obs}.fig.pkl", "wb"))
 
-bt.utils.std.print_task("data saving")
+std.print_task("data saving")
 
 adata.write_h5ad(filename=args.outfile, compression="gzip")

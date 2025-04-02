@@ -1,7 +1,7 @@
 {
     "modules": [
         {"numpy": "np"},
-        {"anndatatools": "adt"}
+        {"bonesistools": "bt"}
     ],
     "eval": [
         "colors",
@@ -19,17 +19,17 @@
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "colors": "adt.pl.color.COLORS",
+        "colors": "adt.pl.COLORS",
         "s": 2,
         "alpha": 1,
         "add_labels": true,
         "add_legend": true,
         "lgd_params": {
             "title": "cotan clusters",
-            "ncol": 1,
+            "ncol": 3,
             "markerscale": 5,
             "frameon": true,
-            "edgecolor": "adt.pl.color.black",
+            "edgecolor": "bt.adt.pl.get_color('black')",
             "shadow": false
         },
         "text": {

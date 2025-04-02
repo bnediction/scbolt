@@ -3,7 +3,8 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os, argparse
+import os, std
+import argparse, cli
 import re
 import pickle
 from pathlib import Path
@@ -46,7 +47,7 @@ parser.add_argument(
 parser.add_argument(
     "--st", "--save-tables",
     dest="save_tables",
-    action=bt.utils.cmd.Store_boolean,
+    action=cli.Store_boolean,
     required=False,
     default=True,
     help="save the anndata object (default: yes)"
@@ -201,7 +202,7 @@ parser.add_argument(
     "--extend-parameter",
     dest="extend_parameter",
     type=float,
-    action=bt.utils.cmd.Range,
+    action=cli.Range,
     min=0,
     max=1,
     required=False,
@@ -279,7 +280,7 @@ if not args.outpath.exists():
 
 groups = set(args.groups)
 
-bt.utils.std.print_task("data loading")
+std.print_task("data loading")
 
 adata = ad.read_h5ad(args.infile)
 adata.obs_names_make_unique()
@@ -288,8 +289,8 @@ adata.uns["workdir"] = str(args.outpath)
 if args.use_stream_embedding is True and args.obsm is not None:
     raise argparse.ArgumentError("--use-stream-embedding and --obsm arguments cannot be used simultaneously.")
 elif args.use_stream_embedding is True:
-    bt.utils.std.print_task("preprocessing for stream")
-    with bt.utils.std.disable_print():
+    std.print_task("preprocessing for stream")
+    with std.disable_print():
         adata.X = adata.layers[args.layer].toarray() if issparse(adata.layers[args.layer]) else adata.layers[args.layer]
         if args.hvg:
             st.select_variable_genes(
@@ -312,7 +313,7 @@ elif args.use_stream_embedding is True:
         )
         adata.uns["dr"] = f"{args.method}"
 else:
-    bt.utils.std.print_info("no preprocessing for stream (use previous results)")
+    std.print_info("no preprocessing for stream (use previous results)")
     if args.obsm:
         adata.uns["dr"] = args.obsm
     if "X_umap" in adata.obsm.keys():
@@ -329,9 +330,9 @@ for group in groups:
     except:
         pass
 
-bt.utils.std.print_task("elastic principal graph computation")
+std.print_task("elastic principal graph computation")
 
-with bt.utils.std.disable_print():
+with std.disable_print():
     st.seed_elastic_principal_graph(
         adata,
         clustering="kmeans",
@@ -374,7 +375,7 @@ for node in nodes_mapping.keys():
 
 groups = groups.union({"kmeans", "macrostates"})
 
-bt.utils.std.print_task("trajectory plotting")
+std.print_task("trajectory plotting")
 
 for _group in groups:
     fig, ax = bt.adt.pl.embedding_plot(
@@ -413,8 +414,8 @@ for _group in groups:
         pass
 
 if args.save_tables:
-    bt.utils.std.print_task("data saving")
-    with bt.utils.std.disable_print():
+    std.print_task("data saving")
+    with std.disable_print():
         if args.extension == "pkl" or args.extension == "both":
             st.write(adata, file_name=f"{args.outpath}/stream.h5ad.pkl")
         if args.extension == "h5ad" or args.extension == "both":
@@ -429,4 +430,4 @@ if args.save_tables:
                     del adata.uns[key]
             adata.write_h5ad(filename=f"{args.outpath}/stream.h5ad", compression="gzip")
 else:
-    bt.utils.std.print_info("no data saving")
+    std.print_info("no data saving")

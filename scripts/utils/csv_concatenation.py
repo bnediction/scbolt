@@ -3,8 +3,7 @@
 import os
 from pathlib import Path
 
-import argparse
-from bonesistools.utils.cmd import Required_length
+import argparse, cli
 
 import pandas as pd
 
@@ -17,7 +16,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     dest="infiles",
     type=lambda x: Path(x).resolve(),
-    action=Required_length,
+    action=cli.Required_length,
     min=2,
     metavar="FILE",
     help="input csv files"
@@ -49,7 +48,7 @@ parser.add_argument(
     dest="suffixes",
     type=str,
     required=False,
-    action=Required_length,
+    action=cli.Required_length,
     min=2,
     metavar="LITERAL",
     default=None,

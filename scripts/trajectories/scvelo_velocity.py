@@ -2,7 +2,8 @@
 
 import warnings
 
-import os, argparse
+import os, std
+import argparse
 from pathlib import Path
 
 import scanpy as sc
@@ -108,7 +109,7 @@ if not args.outpath.exists():
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-bt.utils.std.print_task("data loading")
+std.print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 n_components = adata.obsm["X_umap"].shape[1]
@@ -128,7 +129,7 @@ scv.pl.proportions(
 plt.savefig(Path(f"{args.outpath}/proportions.pdf"))
 plt.close()
 
-bt.utils.std.print_task("first- and second-order moments computation")
+std.print_task("first- and second-order moments computation")
 
 try:
     adata.X = adata.layers["raw"]
@@ -144,7 +145,7 @@ sc.pp.neighbors(
     copy=False
 )
 
-with bt.utils.std.disable_print():
+with std.disable_print():
     scv.pp.moments(
         adata,
         n_pcs=None,
@@ -152,38 +153,38 @@ with bt.utils.std.disable_print():
         copy=False
     )
 
-bt.utils.std.print_task("velocity estimation")
+std.print_task("velocity estimation")
 
-with bt.utils.std.disable_print():
+with std.disable_print():
     scv.tl.velocity(
         adata,
         mode=args.mode,
         copy=False
     )
 
-bt.utils.std.print_task("velocity graph computation")
+std.print_task("velocity graph computation")
 
-with bt.utils.std.disable_print():
+with std.disable_print():
     scv.tl.velocity_graph(
         adata,
         copy=False
     )
 
-bt.utils.std.print_task("velocity pseudotime estimation")
+std.print_task("velocity pseudotime estimation")
 
-with bt.utils.std.disable_print():
+with std.disable_print():
     scv.tl.velocity_pseudotime(adata)
 
-bt.utils.std.print_task("PAGA estimation")
+std.print_task("PAGA estimation")
 
-with bt.utils.std.disable_print():
+with std.disable_print():
     scv.tl.paga(adata, groups=args.cluster)
     adata.uns["transitions_confidence"] = adata.uns["paga"]["transitions_confidence"]
 
-bt.utils.std.print_task("trajectory plotting")
+std.print_task("trajectory plotting")
 
 figwidth, figheight = 7, 4
-with bt.utils.std.disable_print():
+with std.disable_print():
     ax = scv.pl.velocity_embedding_stream(
         adata,
         basis="umap",
@@ -231,7 +232,7 @@ fig, _ = bt.adt.pl.embedding_plot(
     colorbar_scale=0.3,
     colors="gnuplot"
 )
-with bt.utils.std.disable_print():
+with std.disable_print():
     plt.axis("off")
     fig.set_figwidth(fig.get_figwidth()*1.25)
     plt.savefig(Path(f"{args.outpath}/velocity_pseudotime.pdf"))
@@ -260,7 +261,7 @@ fig, ax = bt.adt.pl.embedding_plot(
     n_components = 3 if adata.obsm["velocity_umap"].shape[1] > 2 and args.plot_3d is True else 2,
     background_visible=False,
 )
-with bt.utils.std.disable_print():
+with std.disable_print():
     plt.axis("off")
     ax = bt.adt.pl.draw_paga(
         adata=adata,
@@ -277,6 +278,6 @@ with bt.utils.std.disable_print():
     plt.savefig(Path(f"{args.outpath}/paga.pdf"))
     plt.close()
 
-bt.utils.std.print_task("data saving")
+std.print_task("data saving")
 
 adata.write_h5ad(filename=f"{args.outpath}/scvelo.h5ad")

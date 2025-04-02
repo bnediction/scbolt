@@ -774,7 +774,7 @@ $(bin_cells_integrated): $(foreach condition,$(conditions),$(bin_cell_$(conditio
 	python scripts/utils/csv_concatenation.py $^ -o $@ --suffixes $(addprefix _,$(conditions))
 	$(conda_deactivate)
 else ifeq ($(INTEGRATED_BINARIZATION),merged)
-$(bin_cells_integrated): $(annotation_integrated) $(foreach condition,$(conditions),$(scvelo_$(condition)))
+$(bin_cells_integrated): $(annotation_integrated) $(foreach condition,$(conditions),$(macrostates_$(condition)))
 	$(call print_rule,bin-cells,integrated)
 	$(call print_info,perform binarization using conditions jointly)
 	$(conda_activate) scboolseq
@@ -783,7 +783,7 @@ $(bin_cells_integrated): $(annotation_integrated) $(foreach condition,$(conditio
 	$(conda_deactivate)
 	mv $@ $(@D)/tmp.h5ad
 	$(conda_activate) preprocess
-	python scripts/utils/transfer_info.py $< $(@D)/tmp.h5ad --outfile $@ --obs pct_bin --layer bin --index condition
+	python scripts/utils/transfer_info.py $< $(@D)/tmp.h5ad --outfile $@ --obs pct_bin --var distribution --layer bin --index condition
 	$(conda_deactivate)
 	rm $(@D)/tmp.h5ad
 

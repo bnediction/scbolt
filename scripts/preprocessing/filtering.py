@@ -3,7 +3,8 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os, argparse
+import os, std
+import argparse
 from pathlib import Path
 
 import numpy as np, random, math
@@ -134,7 +135,7 @@ args = parser.parse_args()
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
-bt.utils.std.print_task("data loading")
+std.print_task("data loading")
 
 adata = sc.read_h5ad(Path(f"{args.count_infile}").resolve())
 _s_ante_filter = adata.shape
@@ -143,7 +144,7 @@ ensemblid_to_index = dict()
 for index, row in adata.var.iterrows():
     ensemblid_to_index[row[args.ensembl_column]] = index
 
-bt.utils.std.print_task("cell cycle phases assignment")
+std.print_task("cell cycle phases assignment")
 
 parser = rdata.parser.parse_file(args.marker_infile)
 marker_pairs = rdata.conversion.convert(parser)
@@ -178,7 +179,7 @@ adata.var_names_make_unique()
 adata.var["mitochondrion"] = adata.var_names.str.startswith("mt-")          # annotate the group of mitochondrial genes
 adata.var["ribosome"] = adata.var_names.str.startswith(("Rps","Rpl","Mrp")) # annotate the group of ribosomal genes
 
-bt.utils.std.print_task("violin plot before cell filtering")
+std.print_task("violin plot before cell filtering")
 
 sc.pp.calculate_qc_metrics(adata, percent_top=None, log1p=False, inplace=True, qc_vars=["mitochondrion","ribosome"])
 ax = sc.pl.violin(
@@ -196,7 +197,7 @@ ax.axes[0,2].set_title(r"mitochondrion proportion")
 ax.axes[0,3].set_title(r"ribosome proportion")
 plt.savefig(f"{args.outpath}/violin-plot-on-UMI-before-filtering.pdf")
 
-bt.utils.std.print_task(f"low-quality cell filtering")
+std.print_task(f"low-quality cell filtering")
 
 min_counts_threshold = np.exp(np.median(np.log(adata.obs.total_counts)) \
     - args.lower_mad*median_absolute_deviation(np.log(adata.obs.total_counts),consistency=args.consistency_mad))
@@ -245,7 +246,7 @@ ax = adata.obs.pypairs_cc_prediction.value_counts().plot.bar(rot=0)
 ax.set(xlabel="cell cycle phases")
 plt.savefig(f"{args.outpath}/assigned-cell-cycle-phases-counting.pdf")
 
-bt.utils.std.print_task("violin plot after cell filtering")
+std.print_task("violin plot after cell filtering")
 
 ax = sc.pl.violin(
     adata=adata,
@@ -262,9 +263,9 @@ ax.axes[0,2].set_title(r"mitochondrion proportion")
 ax.axes[0,3].set_title(r"ribosome proportion")
 plt.savefig(f"{args.outpath}/violin-plot-on-UMI-after-filtering2.pdf")
 
-bt.utils.std.print_task("data saving")
+std.print_task("data saving")
 
 adata.write_h5ad(filename=f"{args.outpath}/counts.h5ad")
 
-bt.utils.std.print_info(f"not-filtered couting matrix dimension: {_s_ante_filter}")
-bt.utils.std.print_info(f"filtered couting matrix dimension: {_s_post_filter}")
+std.print_info(f"not-filtered couting matrix dimension: {_s_ante_filter}")
+std.print_info(f"filtered couting matrix dimension: {_s_post_filter}")

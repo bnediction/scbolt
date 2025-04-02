@@ -3,6 +3,7 @@
 import warnings
 warnings.filterwarnings("ignore")
 
+import std
 import argparse
 from pathlib import Path
 
@@ -81,15 +82,15 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-bt.utils.std.print_task("data loading")
+std.print_task("data loading")
 
-bt.utils.std.print_info("loading left sample")
+std.print_info("loading left sample")
 left_ad = ad.read_h5ad(args.left)
-bt.utils.std.print_info("loading right sample")
+std.print_info("loading right sample")
 right_ad = ad.read_h5ad(args.right)
 
 if args.index:
-    bt.utils.std.print_task("index setting")
+    std.print_task("index setting")
     for adata in [left_ad, right_ad]:
         bt.adt.pp.set_index(
             adata=adata,
@@ -99,7 +100,7 @@ if args.index:
         )
 
 if args.obs:
-    bt.utils.std.print_task("observation transfer")
+    std.print_task("observation transfer")
     right_ad.obs = right_ad.obs.loc[:,args.obs]
     bt.adt.pp.merge(
         left_ad=left_ad,
@@ -108,10 +109,10 @@ if args.obs:
         copy=False
     )
 else:
-    bt.utils.std.print_info("no observation transfer")
+    std.print_info("no observation transfer")
 
 if args.var:
-    bt.utils.std.print_task("variable transfer")
+    std.print_task("variable transfer")
     right_ad.var = right_ad.var.loc[:,args.var]
     bt.adt.pp.merge(
         left_ad=left_ad,
@@ -120,10 +121,10 @@ if args.var:
         copy=False
     )
 else:
-    bt.utils.std.print_info("no variable transfer")
+    std.print_info("no variable transfer")
 
 if args.layers:
-    bt.utils.std.print_task("layer transfer")
+    std.print_task("layer transfer")
     bt.adt.pp.transfer_layer(
         left_ad=left_ad,
         right_ad=right_ad,
@@ -131,14 +132,14 @@ if args.layers:
         copy=False
     )
 else:
-    bt.utils.std.print_info("no layer transfer")
+    std.print_info("no layer transfer")
 
 if args.index:
     for idx, name in enumerate(args.index,start=1):
         left_ad.obs[name] = left_ad.obs.index.str.get(idx)
     left_ad.obs.index = left_ad.obs.index.str.get(0)
 
-bt.utils.std.print_task("data saving")
+std.print_task("data saving")
 
 left_ad.write_h5ad(
     filename=args.outfile if args.outfile else args.left,

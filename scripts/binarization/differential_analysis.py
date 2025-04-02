@@ -6,7 +6,8 @@ warnings.filterwarnings("ignore")
 from typing import Optional, Union, Sequence
 from collections import OrderedDict
 
-import argparse
+import std
+import argparse, cli
 import json
 from pathlib import Path
 
@@ -145,7 +146,7 @@ parser.add_argument(
     "--relative-threshold",
     dest="threshold",
     type=float,
-    action=bt.utils.cmd.Range,
+    action=cli.Range,
     min=0.,
     max=1.,
     required=False,
@@ -168,14 +169,14 @@ if args.base <= 1:
 nexponential_fun = lambda base, radius: 1 / base**np.arange(0, radius)
 bdc = bt.bpy.BooleanDifferentialCalculus()
 
-bt.utils.std.print_task(f"data loading")
+std.print_task(f"data loading")
 
 meta_bin = pd.read_csv(args.infile, index_col=0).transpose()
 
 collectri_db = dc.get_collectri(organism="mouse", split_complexes=True)
 grn = collectri_to_grn(collectri_db, sign_label="weight", remove_pmid=True)
 
-bt.utils.std.print_info(f"grn: {len(grn.nodes)} genes; {len(grn.edges)} interactions")
+std.print_info(f"grn: {len(grn.nodes)} genes; {len(grn.edges)} interactions")
 
 gene_synonyms = bt.dbs.ncbi.GeneSynonyms()
 gene_synonyms(data=meta_bin, axis=1, copy=False)
@@ -184,11 +185,11 @@ gene_set_before_cleaning = set(meta_bin.columns)
 gene_removal(meta_bin, grn, copy=False)
 gene_set = set(meta_bin.columns)
 
-bt.utils.std.print_info(f"dataframe: {len(gene_set_before_cleaning)} genes; {len(gene_set_before_cleaning)- len(gene_set)}/{len(gene_set_before_cleaning)} genes removed (no matching with grn genes)")
+std.print_info(f"dataframe: {len(gene_set_before_cleaning)} genes; {len(gene_set_before_cleaning)- len(gene_set)}/{len(gene_set_before_cleaning)} genes removed (no matching with grn genes)")
 
-bt.utils.std.print_task("successors checking")
+std.print_task("successors checking")
 
-bt.utils.std.print_info("path extraction using depth-first extraction algorithm")
+std.print_info("path extraction using depth-first extraction algorithm")
 interaction_scores = bt.grn.scoring(
     graph=grn,
     weights=nexponential_fun(base=args.base, radius=args.radius),
@@ -196,7 +197,7 @@ interaction_scores = bt.grn.scoring(
     gene_set=gene_set
 )
 
-bt.utils.std.print_info("sign likelihood between gene pairwise")
+std.print_info("sign likelihood between gene pairwise")
 interaction_signs = sign_likelihood(
     interaction_scores=interaction_scores,
     gene_set=gene_set,
@@ -208,7 +209,7 @@ interaction_signs = sign_likelihood(
 with open(f"{args.outpath}/sign_likelihood.json", "w") as outfile:
     json.dump(interaction_signs, outfile)
 
-bt.utils.std.print_info("Predecessor test using differential boolean calculus")
+std.print_info("Predecessor test using differential boolean calculus")
 
 score_matrix = OrderedDict({condition: {} for condition in meta_bin.index})
 for c1, c2 in itertools.product(meta_bin.index, repeat=2):
@@ -234,9 +235,9 @@ for source, targets in interaction_signs.items():
 
 score_df = pd.DataFrame.from_dict(score_matrix, orient="index")
 
-bt.utils.std.print_task("data saving")
+std.print_task("data saving")
 
 score_df.to_csv(f"{args.outpath}/pairwise_predecessor_scores.csv", sep=",", index=True)
 
-bt.utils.std.print_info("pairwise scores:")
+std.print_info("pairwise scores:")
 print(f"\n{score_df}\n")

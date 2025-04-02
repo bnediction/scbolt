@@ -3,7 +3,8 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os, argparse
+import os, std
+import argparse, cli
 from pathlib import Path
 
 import json
@@ -43,7 +44,7 @@ parser.add_argument(
 parser.add_argument(
     "-p", "--prefix",
     dest="prefix",
-    action=bt.argtype.Store_prefix,
+    action=cli.Store_prefix,
     required=False,
     default="",
     metavar="LITERAL",
@@ -92,11 +93,11 @@ args = parser.parse_args()
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
-bt.stdout.print_task("data loading")
+std.print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 
-bt.stdout.print_task("marker analysis")
+std.print_task("marker analysis")
 
 layer = "log-normalize"
 if args.condition is None:
@@ -133,7 +134,7 @@ for _condition in sorted(adata_d.keys()):
         threshold=args.logfc_threshold
     )
 
-bt.stdout.print_task("signature analysis")
+std.print_task("signature analysis")
 
 with open(args.signatures, "r") as signatures_f:
     signatures_d = json.load(signatures_f)
@@ -160,7 +161,7 @@ for adata in adata_d.values():
             use_raw=False
         )
 
-bt.stdout.print_task("cluster summarizing")
+std.print_task("cluster summarizing")
 
 info_d = dict()
 for _condition in sorted(adata_d.keys()):
@@ -179,7 +180,7 @@ if args.condition is None:
 else:
     info_df = pd.concat(list(info_d.values()), keys=list(info_d.keys()))
 
-bt.stdout.print_task("data saving")
+std.print_task("data saving")
 
 if args.condition is None:
     markers_d["all"].to_csv(f"{args.outpath}/{args.prefix}markers.csv", sep=",", index=False)
@@ -190,5 +191,5 @@ info_df.to_csv(f"{args.outpath}/{args.prefix}cluster_cell_types.csv", sep=",", i
 info_df.transpose().to_csv(f"{args.outpath}/{args.prefix}cluster_cell_types.transpose.csv", sep=",", index=True)
 
 if args.verbose:
-    bt.stdout.print_info("cluster information")
+    std.print_info("cluster information")
     print(info_df.transpose())

@@ -3,7 +3,8 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os, argparse
+import os, std
+import argparse
 from pathlib import Path
 
 import scanpy as sc
@@ -108,27 +109,27 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-bt.utils.std.print_task("data loading")
+std.print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 
-bt.utils.std.print_task("kernel computation")
+std.print_task("kernel computation")
 
-bt.utils.std.print_info("velocity kernel")
+std.print_info("velocity kernel")
 
 vk = cr.kernels.VelocityKernel(adata)
 vk.compute_transition_matrix()
 
-bt.utils.std.print_info("connectivity kernel")
+std.print_info("connectivity kernel")
 
 ck = cr.kernels.ConnectivityKernel(adata)
 ck.compute_transition_matrix()
 
-bt.utils.std.print_info("combined kernel")
+std.print_info("combined kernel")
 
 combined_kernel = 0.8 * vk + 0.2 * ck
 
-bt.utils.std.print_task("initial and terminal states identification")
+std.print_task("initial and terminal states identification")
 
 g = cr.estimators.GPCCA(combined_kernel)
 g.fit(
@@ -152,7 +153,7 @@ g.predict_terminal_states(
     allow_overlap=True
 )
 
-bt.utils.std.print_task("embedding component plotting")
+std.print_task("embedding component plotting")
 
 fig, _ = bt.adt.pl.embedding_plot(
     adata,
@@ -226,6 +227,6 @@ fig, _ = bt.adt.pl.embedding_plot(
 )
 plt.savefig(Path(f"{os.path.dirname(args.outfile)}/terminal_states.pdf"))
 
-bt.utils.std.print_task("data saving")
+std.print_task("data saving")
 
 adata.write_h5ad(filename=args.outfile)

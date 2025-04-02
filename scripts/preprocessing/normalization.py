@@ -6,7 +6,8 @@ warnings.filterwarnings("ignore")
 import random
 random.seed(100)
 
-import os, argparse
+import os, std
+import argparse, cli
 from pathlib import Path
 
 import scanpy as sc
@@ -90,7 +91,7 @@ parser.add_argument(
     "-m", "--min-cell-expression-proportion",
     dest="min_cell_expression_proportion",
     type=float,
-    action=Range,
+    action=cli.Range,
     min=0,
     max=1,
     required=False,
@@ -121,11 +122,11 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-bt.utils.std.print_task("data loading")
+std.print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 
-bt.utils.std.print_task("gene filtering")
+std.print_task("gene filtering")
 
 if args.min_cell_expression_proportion:
 
@@ -149,28 +150,28 @@ if args.min_cell_expression_proportion:
 
 adata.layers["raw"] = adata.X.copy()
 
-bt.utils.std.print_task("data normalisation")
+std.print_task("data normalisation")
 
 adata.layers["normalize"] = sc.pp.normalize_total(adata, target_sum=1e4, inplace=False)["X"]
 adata.layers["log-normalize"] = adata.layers["normalize"].copy()
 sc.pp.log1p(adata, base=np.exp(1), layer="log-normalize")
 
-bt.utils.std.print_task("selecting higly variable genes (HVG)")
+std.print_task("selecting higly variable genes (HVG)")
 
 sc.pp.highly_variable_genes(adata, layer="raw", flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
 if args.hvg_filtering:
     adata = adata[:, adata.var.highly_variable]
 
-bt.utils.std.print_task("data scaling")
+std.print_task("data scaling")
 
 adata.layers["scale"] = adata.layers["log-normalize"].copy()
 sc.pp.scale(adata, layer="scale", copy=False)
 
-bt.utils.std.print_task("unwanted effects correction and data scaling")
+std.print_task("unwanted effects correction and data scaling")
 
 adata.layers["correct"] = regress_out(adata, args.correction, layer="log-normalize", intercept=False, n_jobs=args.n_jobs)
 sc.pp.scale(adata, layer="correct")
 
-bt.utils.std.print_task("data saving")
+std.print_task("data saving")
 
 adata.write_h5ad(filename=f"{args.outfile}", compression="gzip")

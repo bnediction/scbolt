@@ -3,12 +3,9 @@
 import warnings
 warnings.filterwarnings("ignore")
 
+import std
 import argparse
 from pathlib import Path
-from bonesistools.utils.std import (
-    print_task,
-    print_info
-)
 
 import anndata as ad
 
@@ -64,14 +61,14 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-print_task("data loading")
+std.print_task("data loading")
 
-print_info("loading integrated sample")
+std.print_info("loading integrated sample")
 integrated_adata = ad.read_h5ad(args.integrated)
-print_info("loading condition-dependant samples")
+std.print_info("loading condition-dependant samples")
 condition_adatas = [ad.read_h5ad(infile) for infile in args.infiles]
 
-print_task("information transfer")
+std.print_task("information transfer")
 
 for column in args.columns:
     for adata in condition_adatas:
@@ -90,7 +87,7 @@ for adata in condition_adatas:
         right_index=True
     )
 
-print_task("data saving")
+std.print_task("data saving")
 
 for adata, outfile in zip(condition_adatas, args.outfiles):
     adata.write_h5ad(filename=outfile, compression="gzip")

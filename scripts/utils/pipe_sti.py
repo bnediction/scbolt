@@ -3,7 +3,8 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import argparse
+import std
+import argparse, cli
 from pathlib import Path
 
 import anndata as ad
@@ -45,7 +46,7 @@ parser.add_argument(
     dest="conditions",
     type=str,
     required=True,
-    action=bt.argtype.Required_length,
+    action=cli.Required_length,
     min=2,
     metavar="LITERAL",
     help="condition related to each dataset (ordered with h5ad specifics)",
@@ -72,14 +73,14 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-bt.utils.std.print_task("data loading")
+std.print_task("data loading")
 
-bt.utils.std.print_info("loading integrated sample")
+std.print_info("loading integrated sample")
 integrated_adata = ad.read_h5ad(args.integrated)
-bt.utils.std.print_info("loading condition-dependant samples")
+std.print_info("loading condition-dependant samples")
 condition_adatas = [ad.read_h5ad(infile) for infile in args.specifics]
 
-bt.utils.std.print_info("cleaning unecessary data")
+std.print_info("cleaning unecessary data")
 for column in args.columns:
     if column in integrated_adata.obs:
         del integrated_adata.obs[column]
@@ -87,7 +88,7 @@ for column in args.columns:
         if column not in adata.obs:
             raise KeyError(f"column `{column}` not found in adata.obs")
 
-bt.utils.std.print_task("information transfer")
+std.print_task("information transfer")
 
 bt.adt.pp.transfer_obs_sti(
     adata=integrated_adata,
@@ -98,7 +99,7 @@ bt.adt.pp.transfer_obs_sti(
     copy=False
 )
 
-bt.utils.std.print_task("data saving")
+std.print_task("data saving")
 
 integrated_adata.write_h5ad(
     filename=args.outfile if args.outfile else args.integrated,

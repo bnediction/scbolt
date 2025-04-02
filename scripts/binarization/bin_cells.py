@@ -3,7 +3,8 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os, argparse
+import os, std
+import argparse, cli
 from pathlib import Path
 
 import pickle
@@ -58,7 +59,7 @@ parser.add_argument(
     dest="conditions",
     type=str,
     required=False,
-    action=bt.utils.cmd.Required_length,
+    action=cli.Required_length,
     min=2,
     metavar="LITERAL",
     default=None,
@@ -113,7 +114,7 @@ scbool = scBoolSeq(
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
-bt.utils.std.print_task("data loading")
+std.print_task("data loading")
 
 adatas = [ad.read_h5ad(infile) for infile in args.infiles]
 
@@ -144,32 +145,32 @@ else:
 del adatas
 
 if args.hvg is True:
-    bt.utils.std.print_task("selecting highly variable genes")
+    std.print_task("selecting highly variable genes")
     if "highly_variable" in adata.var:
         del adata.var["highly_variable"]
     from scanpy import preprocessing
     preprocessing.highly_variable_genes(adata, layer="raw", flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
     adata = adata[:,adata.var["highly_variable"]]
 else:
-    bt.utils.std.print_info("not selecting highly variable genes")
+    std.print_info("not selecting highly variable genes")
 
 gene_list = adata.var.index
 counts_df = bt.adt.tl.anndata_to_dataframe(adata, layer=args.layer)
 
-bt.utils.std.print_task("data binarization")
+std.print_task("data binarization")
 
-bt.utils.std.print_info("inferring estimators")
-with bt.utils.std.disable_print():
+std.print_info("inferring estimators")
+with std.disable_print():
     scbool.fit(counts_df, simulation=False)
 
-bt.utils.std.print_info("estimating boolean values by cell")
-with bt.utils.std.disable_print():
+std.print_info("estimating boolean values by cell")
+with std.disable_print():
     cell_df = scbool.binarize(counts_df)
     adata.layers["bin"] = cell_df
     adata.obs["pct_bin"] = (~cell_df.isna()).mean(axis=1)
     adata.var["distribution"] = scbool.criteria_["Category"]
 
-bt.stdout.print_task("plotting")
+std.print_task("plotting")
 fig, _ = bt.adt.pl.embedding_plot(
     adata,
     obs="pct_bin",
@@ -194,7 +195,7 @@ fig, _ = bt.adt.pl.embedding_plot(
 )
 plt.savefig(Path(f"{args.outpath}/pct_bin.pdf"))
 
-bt.stdout.print_task("data saving")
+std.print_task("data saving")
 
 cell_df.to_csv(f"{args.outpath}/binarized_cells.csv", sep=",", index=True)
 scbool.criteria_.to_csv(f"{args.outpath}/statistics.csv", sep=",", index=True)

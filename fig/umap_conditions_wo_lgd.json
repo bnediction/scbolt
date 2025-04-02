@@ -20,7 +20,7 @@
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "colors": "bt.adt.pl.color.COLORS",
+        "colors": "bt.adt.pl.COLORS",
         "s": 2,
         "alpha": 1,
         "n_components": "2 if adata.obsm['X_umap'].shape[1] == 2 else 3",

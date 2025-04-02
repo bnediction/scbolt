@@ -3,7 +3,8 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os, argparse
+import os, std
+import argparse
 from pathlib import Path
 
 import scanpy as sc
@@ -119,7 +120,7 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-bt.utils.std.print_task("data loading")
+std.print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 
@@ -128,7 +129,7 @@ if args.dimension is None:
 
 exclude = set(adata.obs[args.obs].cat.categories).difference(set(args.center).union(set(args.extremity))) if args.exclude is True else None
 
-bt.utils.std.print_task("macrostate computation")
+std.print_task("macrostate computation")
 
 bt.adt.tl.subclusters(
     adata,
@@ -143,7 +144,7 @@ bt.adt.tl.subclusters(
     copy=False
 )
 
-bt.utils.std.print_task("embedding component plotting")
+std.print_task("embedding component plotting")
 
 fig, _ = bt.adt.pl.embedding_plot(
     adata,
@@ -170,6 +171,6 @@ fig, _ = bt.adt.pl.embedding_plot(
 plt.savefig(Path(f"{os.path.dirname(args.outfile)}/macrostates.pdf"))
 plt.close()
 
-bt.utils.std.print_task("data saving")
+std.print_task("data saving")
 
 adata.write_h5ad(filename=args.outfile)

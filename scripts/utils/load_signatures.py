@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
-import argparse, os
-
+import os
+import argparse
+import json
 from pathlib import Path
 
-import pandas as pd, json
+import pandas as pd
 
 def file2signatures(file):
     signatures_d = dict()

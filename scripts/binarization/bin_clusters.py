@@ -6,7 +6,8 @@ warnings.filterwarnings("ignore")
 from typing import Optional, Union, List
 from collections import namedtuple
 
-import os, argparse
+import os, std
+import argparse, cli
 from pathlib import Path
 
 from pandas import (
@@ -267,7 +268,7 @@ parser.add_argument(
     "-n", "--nans-threshold",
     dest="nans_threshold",
     type=float,
-    action=bt.utils.cmd.Range,
+    action=cli.Range,
     min=0.0,
     max=1.0,
     required=False,
@@ -280,7 +281,7 @@ parser.add_argument(
     "-b", "--bimodal-threshold",
     dest="bimodal_threshold",
     type=float,
-    action=bt.utils.cmd.Range,
+    action=cli.Range,
     min=0.5,
     max=1.0,
     required=False,
@@ -294,7 +295,7 @@ parser.add_argument(
     "-z", "--zeroinf-threshold",
     dest="zeroinf_threshold",
     type=float,
-    action=bt.utils.cmd.Range,
+    action=cli.Range,
     min=0.5,
     max=1.0,
     required=False,
@@ -308,7 +309,7 @@ parser.add_argument(
     "-u", "--unimodal-threshold",
     dest="unimodal_threshold",
     type=float,
-    action=bt.utils.cmd.Range,
+    action=cli.Range,
     min=0.5,
     max=1.0,
     required=False,
@@ -338,16 +339,16 @@ predict = Predict(
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
-bt.utils.std.print_task("data loading")
+std.print_task("data loading")
 
 adata = ad.read_h5ad(args.infile)
 
-bt.utils.std.print_task("cluster binarization")
+std.print_task("cluster binarization")
 
 cluster_d = dict()
 predict_d = dict()
 for _group in args.groupby:
-    bt.utils.std.print_info(f"binarizing cluster `{_group}`")
+    std.print_info(f"binarizing cluster `{_group}`")
     metadata = [_group, args.condition] if args.condition else [_group]
     convert_metadata = {category: "category" for category in metadata} if isinstance(metadata,list) else "category"
     _cell_df = bt.adt.tl.anndata_to_dataframe(
@@ -377,22 +378,22 @@ for _group in args.groupby:
 
 if args.condition:
     for _group in args.groupby:
-        bt.stdout.print_info(f"renaming categories for `{_group}`")
+        std.print_info(f"renaming categories for `{_group}`")
         adata.obs[_group] = (adata.obs[_group].astype(str) + "_" + adata.obs[args.condition].astype(str)).astype("category")
         _nans_cat = {"nan_" + condition for condition in adata.obs[args.condition].cat.categories}
         _nans_cat = [x for x in _nans_cat if x in set(adata.obs[_group].cat.categories)]
         adata.obs[_group] = adata.obs[_group].cat.remove_categories(_nans_cat)
 
-bt.stdout.print_task("data saving")
+std.print_task("data saving")
 
 adata.write_h5ad(filename=f"{args.outpath}/bin_clusters.h5ad", compression="gzip")
 for _group in args.groupby:
     cluster_d[_group].transpose().to_csv(f"{args.outpath}/counting_bin_{_group}.csv", sep=",", index=True)
     predict_d[_group].transpose().to_csv(f"{args.outpath}/bin_{_group}.csv", sep=",", index=True)
 
-bt.stdout.print_task("plotting")
+std.print_task("plotting")
 for _group in args.groupby:
-    bt.stdout.print_info(f"checking cluster homogeneity for `{_group}`")
+    std.print_info(f"checking cluster homogeneity for `{_group}`")
     pct_binarized = (predict_d[_group].count(axis=1) / predict_d[_group].shape[1]).to_dict()
     adata.obs[f"pct_bin_{_group}"] = adata.obs[_group].map(pct_binarized)
     fig, _ = bt.adt.pl.embedding_plot(
