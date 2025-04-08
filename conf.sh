@@ -65,7 +65,12 @@ download_ncbi_gi() {
 
 source ${HOME}/anaconda3/etc/profile.d/conda.sh
 
-git clone https://github.com/bnediction/bonesistools.git ${lib_dir}/bonesistools
+if [ -d ${lib_dir}/bonesistools ];
+then
+    echo -e "bonesistools already cloned.\n"
+else
+    git clone https://github.com/bnediction/bonesistools.git ${lib_dir}/bonesistools
+fi
 
 if conda env list | grep -q "^base";
 then
