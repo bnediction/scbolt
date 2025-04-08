@@ -26,7 +26,7 @@
             "ncol": 1,
             "markerscale": 5,
             "frameon": true,
-            "edgecolor": "bt.adt.pl.get_color('black')",
+            "edgecolor": "bt.sct.pl.get_color('black')",
             "shadow": false
         },
         "text": {

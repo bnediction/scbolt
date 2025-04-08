@@ -18,7 +18,7 @@ from scboolseq import scBoolSeq
 
 import matplotlib.pyplot as plt
 
-bt.adt.pl.set_default_params()
+bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="cell binarization",
@@ -155,7 +155,7 @@ else:
     std.print_info("not selecting highly variable genes")
 
 gene_list = adata.var.index
-counts_df = bt.adt.tl.anndata_to_dataframe(adata, layer=args.layer)
+counts_df = bt.sct.tl.anndata_to_dataframe(adata, layer=args.layer)
 
 std.print_task("data binarization")
 
@@ -171,7 +171,7 @@ with std.disable_print():
     adata.var["distribution"] = scbool.criteria_["Category"]
 
 std.print_task("plotting")
-fig, _ = bt.adt.pl.embedding_plot(
+fig, _ = bt.sct.pl.embedding_plot(
     adata,
     obs="pct_bin",
     obsm="X_umap",
@@ -187,7 +187,7 @@ fig, _ = bt.adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":bt.adt.pl.get_color("black"),
+        "edgecolor":bt.sct.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 else 2,

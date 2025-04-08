@@ -13,7 +13,7 @@ import bonesistools as bt
 
 import matplotlib.pyplot as plt
 
-bt.adt.pl.set_default_params()
+bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="Cellrank macrostates computation",
@@ -155,7 +155,7 @@ g.predict_terminal_states(
 
 std.print_task("embedding component plotting")
 
-fig, _ = bt.adt.pl.embedding_plot(
+fig, _ = bt.sct.pl.embedding_plot(
     adata,
     obs="macrostates_fwd",
     obsm="X_umap",
@@ -171,7 +171,7 @@ fig, _ = bt.adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":bt.adt.pl.get_color("black"),
+        "edgecolor":bt.sct.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
@@ -179,7 +179,7 @@ fig, _ = bt.adt.pl.embedding_plot(
 )
 plt.savefig(Path(f"{os.path.dirname(args.outfile)}/macrostates.pdf"))
 
-fig, _ = bt.adt.pl.embedding_plot(
+fig, _ = bt.sct.pl.embedding_plot(
     adata,
     obs="init_states_fwd",
     obsm="X_umap",
@@ -195,7 +195,7 @@ fig, _ = bt.adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":bt.adt.pl.get_color("black"),
+        "edgecolor":bt.sct.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
@@ -203,7 +203,7 @@ fig, _ = bt.adt.pl.embedding_plot(
 )
 plt.savefig(Path(f"{os.path.dirname(args.outfile)}/initial_states.pdf"))
 
-fig, _ = bt.adt.pl.embedding_plot(
+fig, _ = bt.sct.pl.embedding_plot(
     adata,
     obs="term_states_fwd",
     obsm="X_umap",
@@ -219,7 +219,7 @@ fig, _ = bt.adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":bt.adt.pl.get_color("black"),
+        "edgecolor":bt.sct.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,

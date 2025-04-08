@@ -10,11 +10,11 @@ import json, pickle
 from pathlib import Path
 
 import anndata as ad
-from bonesistools import anndatatools as adt
+from bonesistools import anndatatools as sct
 
 import matplotlib.pyplot as plt
 
-adt.pl.set_default_params()
+sct.pl.set_default_params()
 
 def import_module_as(module, alias):
     module = importlib.import_module(module)
@@ -100,11 +100,11 @@ if "modules" in params:
 if "eval" in params:
     do_eval(params["eval"], params["figure"])
 
-fig, ax = adt.pl.embedding_plot(
+fig, ax = sct.pl.embedding_plot(
     adata,
     **params["figure"]
 )
-adt.pl.set_default_axis(ax)
+sct.pl.set_default_axis(ax)
 if "grid" in params:
     plt.grid(params["grid"])
 if "axis" in params:

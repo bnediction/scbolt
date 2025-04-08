@@ -17,7 +17,7 @@ import networkx as nx
 
 import matplotlib.pyplot as plt
 
-bt.adt.pl.set_default_params()
+bt.sct.pl.set_default_params()
 
 def node_to_value(branch, attribute) -> list:
     return [attribute[_node] for _node in branch]
@@ -160,11 +160,11 @@ if dr not in adata.obsm:
 std.print_task("trajectory plotting")
 
 if "macrostates" in groups:
-    node_colors = [bt.adt.pl.get_color("blue")] * (len(adata.obs["macrostates"].unique()) - 1) + [bt.adt.pl.get_color("lightgray")]
-    node_colors[sorted(adata.obs["macrostates"].unique()).index(args.root)] = bt.adt.pl.get_color("red")
+    node_colors = [bt.sct.pl.get_color("blue")] * (len(adata.obs["macrostates"].unique()) - 1) + [bt.sct.pl.get_color("lightgray")]
+    node_colors[sorted(adata.obs["macrostates"].unique()).index(args.root)] = bt.sct.pl.get_color("red")
 
 for _group in groups:
-    fig, ax = bt.adt.pl.embedding_plot(
+    fig, ax = bt.sct.pl.embedding_plot(
         adata,
         obs=_group,
         obsm=adata.uns["dr"],
@@ -192,7 +192,7 @@ for _group in groups:
         n_components = 3 if args.plot_3d is True else 2,
         background_visible=False
     )
-    bt.adt.pl.set_default(ax)
+    bt.sct.pl.set_default(ax)
     if "pseudotime" not in _group:
         plt.savefig(f"{args.outpath}/{args.prefix}{_group}_{dr.split('_')[-1].lower()}_trajectory_plot.pdf")
     else:
@@ -215,13 +215,13 @@ st.plot_stream(
     save_fig=False,
 )
 fig, ax = (plt.gcf(), plt.gca())
-bt.adt.pl.set_default(ax)
+bt.sct.pl.set_default(ax)
 ax.tick_params(axis="x", which="major", pad=2)
 ax.images[-1].colorbar.remove()
 plt.savefig(f"{args.outpath}/{args.prefix}pseudotime_stream_plot.pdf")
 
 for _group in groups.difference([f"S{args.root}_pseudotime"]):
-    colors = node_colors if _group == "macrostates" else bt.adt.pl.LIGHT_COLORS
+    colors = node_colors if _group == "macrostates" else bt.sct.pl.LIGHT_COLORS
     st.plot_stream(
         adata,
         root=args.root,
@@ -232,7 +232,7 @@ for _group in groups.difference([f"S{args.root}_pseudotime"]):
     )
     fig, ax = (plt.gcf(), plt.gca())
     ax.tick_params(axis="x", which="major", pad=2)
-    bt.adt.pl.set_default(ax)
+    bt.sct.pl.set_default(ax)
     for idx, patch in enumerate(ax.patches):
         if idx == len(ax.patches)-1:
             continue

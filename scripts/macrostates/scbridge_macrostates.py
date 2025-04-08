@@ -12,7 +12,7 @@ import bonesistools as bt
 
 import matplotlib.pyplot as plt
 
-bt.adt.pl.set_default_params()
+bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="macrostates computation",
@@ -131,7 +131,7 @@ exclude = set(adata.obs[args.obs].cat.categories).difference(set(args.center).un
 
 std.print_task("macrostate computation")
 
-bt.adt.tl.subclusters(
+bt.sct.tl.subclusters(
     adata,
     obs=args.obs,
     obsm=args.obsm,
@@ -146,7 +146,7 @@ bt.adt.tl.subclusters(
 
 std.print_task("embedding component plotting")
 
-fig, _ = bt.adt.pl.embedding_plot(
+fig, _ = bt.sct.pl.embedding_plot(
     adata,
     obs="macrostates",
     obsm=args.obsm,
@@ -162,7 +162,7 @@ fig, _ = bt.adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":bt.adt.pl.get_color("black"),
+        "edgecolor":bt.sct.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if adata.obsm[args.obsm].shape[1] > 2 and args.plot_3d is True else 2,

@@ -21,7 +21,7 @@ from rpy2.rinterface import ListSexpVector
 
 import matplotlib.pyplot as plt
 
-bt.adt.pl.set_default_params()
+bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="pseudotime computation",
@@ -378,11 +378,11 @@ groups = groups.union({"kmeans", "macrostates"})
 std.print_task("trajectory plotting")
 
 for _group in groups:
-    fig, ax = bt.adt.pl.embedding_plot(
+    fig, ax = bt.sct.pl.embedding_plot(
         adata,
         obs=_group,
         obsm=adata.uns["dr"],
-        colors=[bt.adt.pl.get_color("blue")]*(len(nodes_mapping)) + [bt.adt.pl.get_color("lightgray")] if _group == "macrostates" else None,
+        colors=[bt.sct.pl.get_color("blue")]*(len(nodes_mapping)) + [bt.sct.pl.get_color("lightgray")] if _group == "macrostates" else None,
         xlabel=r"$\mathrm{UMAP_{1}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
         ylabel=r"$\mathrm{UMAP_{2}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
         zlabel=r"$\mathrm{UMAP_{3}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{3}^{\mathrm{scanorama}}}$",
@@ -406,7 +406,7 @@ for _group in groups:
         n_components = 3 if args.plot_3d is True else 2,
         background_visible=False
     )
-    bt.adt.pl.set_default_axis(ax)
+    bt.sct.pl.set_default_axis(ax)
     plt.savefig(f"{args.outpath}/{_group}_{adata.uns['dr'].split('_')[-1].lower()}_trajectory_plot")
     if args.plot_3d is True:
         pickle.dump(fig, open(Path(f"{args.outpath}/{_group}_{adata.uns['dr'].split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))

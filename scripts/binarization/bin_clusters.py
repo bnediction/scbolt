@@ -22,7 +22,7 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
-bt.adt.pl.set_default_params()
+bt.sct.pl.set_default_params()
 
 class Predict(object):
 
@@ -351,7 +351,7 @@ for _group in args.groupby:
     std.print_info(f"binarizing cluster `{_group}`")
     metadata = [_group, args.condition] if args.condition else [_group]
     convert_metadata = {category: "category" for category in metadata} if isinstance(metadata,list) else "category"
-    _cell_df = bt.adt.tl.anndata_to_dataframe(
+    _cell_df = bt.sct.tl.anndata_to_dataframe(
         adata=adata,
         obs=metadata,
         layer="bin"
@@ -396,7 +396,7 @@ for _group in args.groupby:
     std.print_info(f"checking cluster homogeneity for `{_group}`")
     pct_binarized = (predict_d[_group].count(axis=1) / predict_d[_group].shape[1]).to_dict()
     adata.obs[f"pct_bin_{_group}"] = adata.obs[_group].map(pct_binarized)
-    fig, _ = bt.adt.pl.embedding_plot(
+    fig, _ = bt.sct.pl.embedding_plot(
         adata,
         obs=f"pct_bin_{_group}",
         obsm="X_umap",
@@ -412,7 +412,7 @@ for _group in args.groupby:
             "ncol":1,
             "markerscale":5,
             "frameon":True,
-            "edgecolor":bt.adt.pl.get_color("black"),
+            "edgecolor":bt.sct.pl.get_color("black"),
             "shadow":False
         },
         n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
@@ -421,7 +421,7 @@ for _group in args.groupby:
     plt.savefig(Path(f"{args.outpath}/pct_bin_{_group}.pdf"))
     if args.condition:
         for _condition in adata.obs[args.condition].cat.categories:
-            fig, _ = bt.adt.pl.embedding_plot(
+            fig, _ = bt.sct.pl.embedding_plot(
                 adata[adata.obs[args.condition]==_condition],
                 obs=f"pct_bin_{_group}",
                 obsm="X_umap",
@@ -437,7 +437,7 @@ for _group in args.groupby:
                     "ncol":1,
                     "markerscale":5,
                     "frameon":True,
-                    "edgecolor":bt.adt.pl.get_color("black"),
+                    "edgecolor":bt.sct.pl.get_color("black"),
                     "shadow":False
                 },
                 n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,

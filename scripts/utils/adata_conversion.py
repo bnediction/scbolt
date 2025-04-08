@@ -147,8 +147,8 @@ if args.metadata:
 if args.genename_standardization:
     adata.var["symbol"] = list(adata.var.index)
     for alias_type in ["genename","geneid","ensemblid"]:
-        bt.adt.pp.set_ncbi_reference_name(adata, annotations="var", in_alias_type=alias_type, copy=False)
-    adata = bt.adt.pp.var_names_merge_duplicates(adata, var_names_column="symbol")
+        bt.sct.pp.set_ncbi_reference_name(adata, annotations="var", in_alias_type=alias_type, copy=False)
+    adata = bt.sct.pp.var_names_merge_duplicates(adata, var_names_column="symbol")
 
 if args.__getattribute__("to") == "h5ad":
     adata.write_h5ad(filename=args.output, compression="gzip" if args.compression else None)
@@ -157,7 +157,7 @@ elif args.__getattribute__("to") == "loom":
 elif args.__getattribute__("to") == "zarr":
     adata.write_zarr(store=args.output)
 elif args.__getattribute__("to") == "csv":
-    bt.adt.tl.anndata_to_dataframe(
+    bt.sct.tl.anndata_to_dataframe(
         adata=adata,
         layer=args.layer
     ).to_csv(
@@ -167,14 +167,14 @@ elif args.__getattribute__("to") == "csv":
     )
 elif args.__getattribute__("to") == "csvs":
     adata.write_csvs(dirname=args.output, sep=",")
-    bt.adt.tl.to_csv_or_mtx(
+    bt.sct.tl.to_csv_or_mtx(
         adata=adata,
         filename=Path(f"{args.output}/matrix")
     )
     if adata.layers.keys():
         os.makedirs(name=Path(f"{args.output}/layers"), exist_ok=True)
         for layer in adata.layers:
-            bt.adt.tl.to_csv_or_mtx(
+            bt.sct.tl.to_csv_or_mtx(
                 adata=adata,
                 filename=Path(f"{args.output}/layers/{layer}"),
                 layer=layer

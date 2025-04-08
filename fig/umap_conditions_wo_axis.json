@@ -21,7 +21,7 @@
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "colors": "bt.adt.pl.COLORS",
+        "colors": "bt.sct.pl.COLORS",
         "s": 2,
         "alpha": 1,
         "add_legend": true,
@@ -30,7 +30,7 @@
             "ncol": 1,
             "markerscale": 5,
             "frameon": true,
-            "edgecolor": "bt.adt.pl.get_color('black')",
+            "edgecolor": "bt.sct.pl.get_color('black')",
             "shadow": false
         },
         "text": {

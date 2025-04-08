@@ -3,18 +3,18 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os, argparse
+import os, std
+import argparse
 from pathlib import Path
-from bonesistools.utils.std import print_task
 
 import pickle
 import scanpy as sc
-from bonesistools import anndatatools as adt
+from bonesistools import sctools as sct
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
 
-adt.pl.set_default_params()
+sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="Single-cell clustering",
@@ -175,7 +175,7 @@ args = parser.parse_args()
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
-print_task("data loading")
+std.print_task("data loading")
 
 adata = sc.read_h5ad(args.infile)
 
@@ -190,13 +190,13 @@ if args.layer:
 default_seed = args.seed if args.seed else 100
 
 color_d = {
-    "G1": adt.pl.get_color("blue"),
-    "G2M": adt.pl.get_color("red"),
-    "S": adt.pl.get_color("green")
+    "G1": sct.pl.get_color("blue"),
+    "G2M": sct.pl.get_color("red"),
+    "S": sct.pl.get_color("green")
 }
 phase = adata.obs["pypairs_cc_prediction"]
 
-print_task("pca computation")
+std.print_task("pca computation")
 
 sc.tl.pca(
     adata,
@@ -206,7 +206,7 @@ sc.tl.pca(
     copy=False
 )
 
-print_task("knn/snn computation")
+std.print_task("knn/snn computation")
 
 sc.pp.neighbors(
     adata,
@@ -217,7 +217,7 @@ sc.pp.neighbors(
     key_added="knn",
     copy=False
 )
-adt.tl.shared_neighbors(
+sct.tl.shared_neighbors(
     adata,
     knn_key="knn",
     snn_key="snn",
@@ -225,7 +225,7 @@ adt.tl.shared_neighbors(
     copy=False
 )
 
-print_task("leiden clustering")
+std.print_task("leiden clustering")
 
 if args.neighborhood_graph == "knn":
     sc.tl.leiden(
@@ -235,7 +235,7 @@ if args.neighborhood_graph == "knn":
         key_added=f"leiden"
     )
 elif args.neighborhood_graph == "snn":
-    obsp = adata.uns["snn"]["similarities_key"]
+    obsp = adata.uns["snn"]["connectivities_key"]
     sc.tl.leiden(
         adata,
         resolution=args.resolution,
@@ -243,7 +243,7 @@ elif args.neighborhood_graph == "snn":
         key_added=f"leiden"
     )
 
-print_task("umap computation")
+std.print_task("umap computation")
 
 sc.tl.umap(
     adata,
@@ -252,9 +252,9 @@ sc.tl.umap(
     random_state=default_seed
 )
 
-print_task("embedding component plotting")
+std.print_task("embedding component plotting")
 
-fig, _ = adt.pl.embedding_plot(
+fig, _ = sct.pl.embedding_plot(
     adata,
     obs="leiden",
     obsm="X_umap",
@@ -270,7 +270,7 @@ fig, _ = adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":adt.pl.get_color("black"),
+        "edgecolor":sct.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if args.umap_dimension > 2 and args.plot_3d is True else 2,
@@ -280,7 +280,7 @@ plt.savefig(Path(f"{args.outpath}/umap_leiden.pdf"))
 if args.umap_dimension > 2 and args.plot_3d:
     pickle.dump(fig, open(Path(f"{args.outpath}/umap_leiden.fig.pickle"), "wb"))
 
-fig, _ = adt.pl.embedding_plot(
+fig, _ = sct.pl.embedding_plot(
     adata,
     obs="pypairs_cc_prediction",
     obsm="X_umap",
@@ -291,13 +291,13 @@ fig, _ = adt.pl.embedding_plot(
     figwidth=6,
     s=2,
     alpha=1,
-    colors=[adt.pl.get_color("blue"), adt.pl.get_color("red"), adt.pl.get_color("green")],
+    colors=[sct.pl.get_color("blue"), sct.pl.get_color("red"), sct.pl.get_color("green")],
     lgd_params={
         "title":"phases",
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":adt.pl.get_color("black"),
+        "edgecolor":sct.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if args.umap_dimension > 2 and args.plot_3d is True else 2,
@@ -325,6 +325,6 @@ for metric in ["total_counts", "pct_counts_mitochondrion"]:
     ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
     plt.savefig(f"{args.outpath}/umap_{metric}.pdf")
 
-print_task("data saving")
+std.print_task("data saving")
 
 adata.write_h5ad(filename=f"{args.outpath}/counts.h5ad", compression="gzip")

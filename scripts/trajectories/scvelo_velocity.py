@@ -14,7 +14,7 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
-bt.adt.pl.set_default_params()
+bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="velocity",
@@ -116,8 +116,8 @@ n_components = adata.obsm["X_umap"].shape[1]
 
 adata.obs["clusters"] = adata.obs[args.cluster]
 
-adata.uns["colors"] = np.array([bt.adt.pl.COLORS[idx] for idx, _ in enumerate (adata.obs["clusters"].cat.categories)])
-color_map = {cluster: bt.adt.pl.COLORS[idx] for idx, cluster in enumerate(adata.obs["clusters"].cat.categories)}
+adata.uns["colors"] = np.array([bt.sct.pl.COLORS[idx] for idx, _ in enumerate (adata.obs["clusters"].cat.categories)])
+color_map = {cluster: bt.sct.pl.COLORS[idx] for idx, cluster in enumerate(adata.obs["clusters"].cat.categories)}
 
 scv.pl.proportions(
     adata,
@@ -208,7 +208,7 @@ with std.disable_print():
         plt.savefig(Path(f"{args.outpath}/trajectories.png"))
     plt.close()
 
-fig, _ = bt.adt.pl.embedding_plot(
+fig, _ = bt.sct.pl.embedding_plot(
     adata,
     obs="velocity_pseudotime",
     obsm="X_umap",
@@ -224,7 +224,7 @@ fig, _ = bt.adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":bt.adt.pl.get_color("black"),
+        "edgecolor":bt.sct.pl.get_color("black"),
         "shadow":False
     },
     n_components = 3 if adata.obsm["velocity_umap"].shape[1] > 2 and args.plot_3d is True else 2,
@@ -238,7 +238,7 @@ with std.disable_print():
     plt.savefig(Path(f"{args.outpath}/velocity_pseudotime.pdf"))
     plt.close()
 
-fig, ax = bt.adt.pl.embedding_plot(
+fig, ax = bt.sct.pl.embedding_plot(
     adata,
     obs="clusters",
     obsm="X_umap",
@@ -254,7 +254,7 @@ fig, ax = bt.adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":bt.adt.pl.get_color("black"),
+        "edgecolor":bt.sct.pl.get_color("black"),
         "shadow":False
     },
     color=adata.uns["colors"],
@@ -263,7 +263,7 @@ fig, ax = bt.adt.pl.embedding_plot(
 )
 with std.disable_print():
     plt.axis("off")
-    ax = bt.adt.pl.draw_paga(
+    ax = bt.sct.pl.draw_paga(
         adata=adata,
         obs=args.cluster,
         obsm="X_umap",

@@ -92,7 +92,7 @@ right_ad = ad.read_h5ad(args.right)
 if args.index:
     std.print_task("index setting")
     for adata in [left_ad, right_ad]:
-        bt.adt.pp.set_index(
+        bt.sct.pp.set_index(
             adata=adata,
             keys=args.index,
             axis=0,
@@ -102,7 +102,7 @@ if args.index:
 if args.obs:
     std.print_task("observation transfer")
     right_ad.obs = right_ad.obs.loc[:,args.obs]
-    bt.adt.pp.merge(
+    bt.sct.pp.merge(
         left_ad=left_ad,
         right_ad=right_ad,
         axis="obs",
@@ -114,7 +114,7 @@ else:
 if args.var:
     std.print_task("variable transfer")
     right_ad.var = right_ad.var.loc[:,args.var]
-    bt.adt.pp.merge(
+    bt.sct.pp.merge(
         left_ad=left_ad,
         right_ad=right_ad,
         axis="var",
@@ -125,7 +125,7 @@ else:
 
 if args.layers:
     std.print_task("layer transfer")
-    bt.adt.pp.transfer_layer(
+    bt.sct.pp.transfer_layer(
         left_ad=left_ad,
         right_ad=right_ad,
         layers=args.layers,

@@ -18,7 +18,7 @@ from pypairs import pairs
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
 
-bt.adt.pl.set_default_params()
+bt.sct.pl.set_default_params()
 
 random.seed(1000)
 
@@ -162,8 +162,8 @@ ax.scatter(
     adata.obs.G1_score,
     adata.obs.G2M_score,
     s=30,
-    facecolors=bt.adt.pl.get_color("white"),
-    edgecolors=bt.adt.pl.get_color("blue"),
+    facecolors=bt.sct.pl.get_color("white"),
+    edgecolors=bt.sct.pl.get_color("blue"),
     alpha=1
 )
 ax.set_xlabel(r"score $\mathrm{G_{1}}$")
@@ -216,7 +216,7 @@ sc.pl.violin(
     show=False,
     save=False,
 )
-[ax[0].axhline(threshold, linewidth=1.5, linestyle='--', color=bt.adt.pl.get_color("red")) for threshold in [min_counts_threshold, max_counts_threshold]]
+[ax[0].axhline(threshold, linewidth=1.5, linestyle='--', color=bt.sct.pl.get_color("red")) for threshold in [min_counts_threshold, max_counts_threshold]]
 ax[0].set_ylim(_ylim)
 ax[0].set(title="before cell filtering")
 
@@ -235,8 +235,8 @@ sc.pl.violin(
     show=False,
     save=False,
 )
-ax[1].axhline(min_counts_threshold, linewidth=1.5, linestyle='--', color=bt.adt.pl.get_color("red"))
-ax[1].axhline(max_counts_threshold, linewidth=1.5, linestyle='--', color=bt.adt.pl.get_color("red"))
+ax[1].axhline(min_counts_threshold, linewidth=1.5, linestyle='--', color=bt.sct.pl.get_color("red"))
+ax[1].axhline(max_counts_threshold, linewidth=1.5, linestyle='--', color=bt.sct.pl.get_color("red"))
 ax[1].set_ylim(_ylim)
 ax[1].set(title="after cell filtering")
 plt.savefig(f"{args.outpath}/violin-plot-on-barcode-counts.pdf")

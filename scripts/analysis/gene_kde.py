@@ -7,7 +7,7 @@ import os, argparse
 from pathlib import Path
 
 import anndata as ad
-from bonesistools import anndatatools as adt
+from bonesistools import anndatatools as sct
 
 import matplotlib.pyplot as plt
 
@@ -94,6 +94,6 @@ for gene in args.genes:
     if gene not in adata.var.index:
         print(f"gene {gene} not found.")
     else:
-        fig, ax = adt.pl.kde_plot(adata, gene, layer=args.layer, obs=args.obs)
+        fig, ax = sct.pl.kde_plot(adata, gene, layer=args.layer, obs=args.obs)
         plt.savefig(Path(f"{args.outpath}/{gene}.pdf"))
         plt.close()

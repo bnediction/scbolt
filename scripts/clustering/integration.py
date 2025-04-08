@@ -19,9 +19,9 @@ import bonesistools as bt
 
 import matplotlib.pyplot as plt
 
-bt.adt.pl.set_default_params()
+bt.sct.pl.set_default_params()
 
-@bt.adt.adata_checker
+@bt.sct.adata_checker
 def clean_adata(
     adata: ad.AnnData,
     obs: Sequence[str] = None,
@@ -492,7 +492,7 @@ elif args.method=="scanorama":
 
 std.print_task("embedding component plotting")
 
-bt.adt.pl.embedding_plot(
+bt.sct.pl.embedding_plot(
     adata,
     obs="condition",
     obsm="X_pca",
@@ -507,13 +507,13 @@ bt.adt.pl.embedding_plot(
         "ncol":1,
         "markerscale":5,
         "frameon":True,
-        "edgecolor":bt.adt.pl.get_color("black"),
+        "edgecolor":bt.sct.pl.get_color("black"),
         "shadow":False,
         "loc":"best"
     }
 )
 for obs in ["condition", "leiden"]:
-    fig, _ = bt.adt.pl.embedding_plot(
+    fig, _ = bt.sct.pl.embedding_plot(
         adata,
         obs=obs,
         obsm="X_umap",
@@ -528,7 +528,7 @@ for obs in ["condition", "leiden"]:
             "ncol":1,
             "markerscale":5,
             "frameon":True,
-            "edgecolor":bt.adt.pl.get_color("black"),
+            "edgecolor":bt.sct.pl.get_color("black"),
             "shadow":False
         },
         n_components = 3 if args.dim_umap > 2 and args.plot_3d is True else 2,

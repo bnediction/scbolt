@@ -17,7 +17,7 @@ from sklearn.linear_model import LinearRegression
 
 import matplotlib.pyplot as plt
 
-bt.adt.pl.set_default_params()
+bt.sct.pl.set_default_params()
 
 def regress_out_feature(interest, regressors, intercept=False, n_jobs=1):
 
@@ -142,8 +142,8 @@ if args.min_cell_expression_proportion:
         ["before filtering", "after filtering"], _k,
         width=0.8,
         linewidth=2,
-        color=bt.adt.pl.get_color("pink"),
-        edgecolor=bt.adt.pl.get_color("red")
+        color=bt.sct.pl.get_color("pink"),
+        edgecolor=bt.sct.pl.get_color("red")
     )
     ax.update({"xmargin": 0.1})
     plt.savefig(f"{os.path.dirname(args.outfile)}/gene-number.pdf")

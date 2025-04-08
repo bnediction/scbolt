@@ -90,7 +90,7 @@ for column in args.columns:
 
 std.print_task("information transfer")
 
-bt.adt.pp.transfer_obs_sti(
+bt.sct.pp.transfer_obs_sti(
     adata=integrated_adata,
     adatas=condition_adatas,
     obs=args.columns,
