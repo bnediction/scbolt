@@ -10,7 +10,7 @@ import json, pickle
 from pathlib import Path
 
 import anndata as ad
-from bonesistools import anndatatools as sct
+from bonesistools import sctools as sct
 
 import matplotlib.pyplot as plt
 
@@ -92,7 +92,7 @@ adata = ad.read_h5ad(infile)
 if "modules" in params:
     for module in params["modules"]:
         if isinstance(module, str):
-            importlib.import_module(module)
+            globals()[module] = importlib.import_module(module)
         elif isinstance(module, dict):
             for name, alias in module.items():
                 import_module_as(name, alias)
@@ -104,6 +104,7 @@ fig, ax = sct.pl.embedding_plot(
     adata,
     **params["figure"]
 )
+
 sct.pl.set_default_axis(ax)
 if "grid" in params:
     plt.grid(params["grid"])

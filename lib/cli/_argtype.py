@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+from typing import (
+    Union,
+    Sequence
+)
+
+import math
+
 import argparse
 
 class Range(argparse.Action):
@@ -11,6 +18,13 @@ class Range(argparse.Action):
         *args,
         **kwargs
     ):
+
+        if min > max:
+            raise argparse.ArgumentError(
+                self,
+                f"invalid values for 'min' and 'max': min must be inferior to max, but received min={min} and max={max}"
+            )
+        
         self.min = min
         self.max = max
         kwargs.update({
@@ -27,8 +41,176 @@ class Range(argparse.Action):
         option_string=None
     ):
         if not (self.min <= value <= self.max):
-            raise argparse.ArgumentError(self, f"value {value} not in range [{self.min}-{self.max}].")
+            raise argparse.ArgumentError(self, f"value {value} not in range [{self.min}-{self.max}]")
         setattr(namespace, self.dest, value)
+
+class Min_and_max(argparse.Action):
+
+    def __init__(
+        self,
+        type: type=float,
+        min: Union[float,int]=-math.inf,
+        max: Union[float,int]=math.inf,
+        allowed_none: bool=True,
+        *args,
+        **kwargs
+    ):
+
+        if min > max:
+            raise argparse.ArgumentError(
+                self,
+                f"invalid values for 'min' and 'max': min must be inferior to max, but received min={min} and max={max}"
+            )
+        if type not in [float,int]:
+            raise argparse.ArgumentError(
+                self,
+                f"invalid value for 'type': expected {float} or {int}, but received {type}"
+            )
+
+        self.min = min
+        self.max = max
+        self.allowed_none = allowed_none
+        self.to_type = type
+        kwargs.update({
+            "nargs":2,
+            "type":str,
+            "metavar":f"INT" if self.to_type==int else "FLOAT"
+        })
+        if "default" not in kwargs:
+            kwargs["default"] = [self.min, self.max]
+        super(Min_and_max, self).__init__(*args, **kwargs)
+
+    def __call__(
+        self,
+        parser,
+        namespace,
+        values,
+        option_string=None
+    ):
+        
+        def convert(self, value):
+            if value in ["none","None"]:
+                if self.allowed_none is True:
+                    return None
+                else:
+                    raise argparse.ArgumentTypeError(self, f"expected {self.to_type}, but received {None}")
+            else:
+                return self.to_type(value)
+
+        checked_values = []
+        for i in range(2):
+            v = convert(self, values[i])
+            if v is not None and not isinstance(v, str):
+                if not self.min <= v <= self.max:
+                    raise argparse.ArgumentTypeError(self, f"expected values between {self.min} and {self.max}, but received {v}")
+            checked_values.append(v)
+        if not any(v is None or isinstance(v,str) for v in checked_values):
+            checked_values.sort()
+        else:
+            if checked_values[0] is None:
+                checked_values[0] = self.min
+            if checked_values[1] is None:
+                checked_values[1] = self.max
+        
+        setattr(namespace, self.dest, checked_values)
+
+class Str_or_min_and_max(argparse.Action):
+
+    def __init__(
+        self,
+        strings: Union[str,Sequence[str]],
+        type: type=float,
+        min: Union[float,int]=-math.inf,
+        max: Union[float,int]=math.inf,
+        allowed_none: bool=True,
+        *args,
+        **kwargs
+    ):
+
+        if min > max:
+            raise argparse.ArgumentError(
+                self,
+                f"invalid values for 'min' and 'max': min must be inferior to max, but received min={min} and max={max}"
+            )
+        if type not in [float,int]:
+            raise argparse.ArgumentError(
+                self,
+                f"invalid value for 'type': expected {float} or {int}, but received {type}"
+            )
+
+        self.min = min
+        self.max = max
+        if isinstance(strings, str):
+            self.strings = [strings]
+        elif isinstance(strings, list):
+            for s in strings:
+                if not isinstance(s, str):
+                    raise argparse.ArgumentTypeError(
+                        self,
+                        f"unsupported argument type for an element in 'strings': expected '{str}' but received '{type(s)}'"
+                    )
+            self.strings = strings
+        else:
+            raise argparse.ArgumentTypeError(
+                self,
+                f"unsupported argument type for 'strings': expected '{list}' or '{str} but received '{type(strings)}'"
+            )
+        self.allowed_none = allowed_none
+        self.to_type = type
+        kwargs.update({
+            "nargs":"+",
+            "type":str,
+            "metavar":f"INT|LITERAL" if self.to_type==int else "FLOAT|LITERAL"
+        })
+        if "default" not in kwargs:
+            kwargs["default"] = [self.min, self.max]
+        super(Str_or_min_and_max, self).__init__(*args, **kwargs)
+
+    def __call__(
+        self,
+        parser,
+        namespace,
+        values,
+        option_string=None
+    ):
+        
+        def convert(self, value):
+            if value in ["none","None"]:
+                if self.allowed_none is True:
+                    return None
+                else:
+                    raise argparse.ArgumentTypeError(self, f"expected {self.to_type}, but received {None}")
+            else:
+                return self.to_type(value)
+        
+        checked_values = []
+        if len(values) == 1:
+            if values[0] in self.strings:
+                setattr(namespace, self.dest, values[0])
+                return None
+            elif isinstance(values[0], str):
+                raise argparse.ArgumentTypeError(self, f"allowed strings are {self.strings}, but received {values[0]}")
+            else:
+                raise argparse.ArgumentTypeError(self, f"required two values, but received one value ({values})")
+        elif len(values) == 2:
+            for i in range(2):
+                v = convert(self, values[i])
+                if v is not None:
+                    if not self.min <= v <= self.max:
+                        raise argparse.ArgumentTypeError(self, f"expected values between {self.min} and {self.max}, but received {v}")
+                checked_values.append(v)
+            if not any(v is None for v in checked_values):
+                checked_values.sort()
+            else:
+                if checked_values[0] is None:
+                    checked_values[0] = self.min
+                if checked_values[1] is None:
+                    checked_values[1] = self.max
+            setattr(namespace, self.dest, checked_values)
+            return None
+        else:
+            raise argparse.ArgumentTypeError(self, f"too much values: expected at most two but received {len(values)}")
+
 
 class Store_boolean(argparse.Action):
 
@@ -96,13 +278,13 @@ class Store_dict(argparse.Action):
             metavar_key = "LITERAL" if type_key == str else type_key.__name__.upper()
             self.type_key = type_key
         else:
-            raise TypeError(f"`type_key` is of type {type(type_key)} instead of {type}") 
+            raise TypeError(f"'type_key' is of type {type(type_key)} instead of {type}") 
 
         if isinstance(type_value, type):
             metavar_value = "LITERAL" if type_value == str else type_value.__name__.upper()
             self.type_value = type_value
         else:
-            raise TypeError(f"`type_key` is of type {type(type_value)} instead of {type}")
+            raise TypeError(f"'type_key' is of type {type(type_value)} instead of {type}")
         
         if "nargs" not in kwargs:
             kwargs["nargs"] = "+"
@@ -152,8 +334,6 @@ class Store_organism(argparse.Action):
         setattr(namespace, self.dest, value)
 
 class Required_length(argparse.Action):
-
-    import math
 
     def __init__(
         self,

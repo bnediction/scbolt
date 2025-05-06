@@ -61,14 +61,14 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-std.print_task("data loading")
+std.print_task("loading data")
 
-std.print_info("loading integrated sample")
+std.print_info(f"loading integrated sample ({str(args.integrated)})")
 integrated_adata = ad.read_h5ad(args.integrated)
-std.print_info("loading condition-dependant samples")
+std.print_info(f"loading specific samples ({', '.join(map(str, args.specifics))})")
 condition_adatas = [ad.read_h5ad(infile) for infile in args.infiles]
 
-std.print_task("information transfer")
+std.print_task("transferring information from integrated sample to specific samples")
 
 for column in args.columns:
     for adata in condition_adatas:
@@ -87,7 +87,7 @@ for adata in condition_adatas:
         right_index=True
     )
 
-std.print_task("data saving")
+std.print_task(f"saving data ({', '.join(map(str, args.outfiles))})")
 
 for adata, outfile in zip(condition_adatas, args.outfiles):
     adata.write_h5ad(filename=outfile, compression="gzip")

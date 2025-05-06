@@ -33,7 +33,6 @@ _samples_without_integration := $(subst $(space)integrated,,$(_samples))
 cell_cycle_url = https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
 geiger_url = https://doi.org/10.1371/journal.pbio.2003389.s025
 chambers_url = https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
-genome_url = ftp://ftp.ensembl.org/pub/release-112/fasta/mus_musculus/dna/Mus_musculus.GRCm39.dna.primary_assembly.fa.gz
 transcriptome_url = https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz
 go_basic_url = http://purl.obolibrary.org/obo/go/go-basic.obo
 go_mouse_url = https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
@@ -55,7 +54,7 @@ BOLD=\033[1m
 ## BEGIN FUNCTIONS ##
 
 define print_rule
-	$(if $2,@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - RULE - $(1) \($(2)\),@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - RULE - $(1))
+	$(if $2,@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - RULE - $(1) \(reference: $(2)\),@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - RULE - $(1))
 endef
 
 define print_task
@@ -72,7 +71,7 @@ endef
 
 define print_error
 	@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - ERROR - $(1)
-	exit
+	exit 1
 endef
 
 define fastq_naming
@@ -117,8 +116,6 @@ go_basic = $(public)/enrichment/go-basic.obo
 go_mouse = $(public)/enrichment/goslim.obo
 gene2go = $(public)/enrichment/gene2go
 
-$(eval genome := $(public)/genome/$(basename $(notdir $(genome_url))))
-$(eval annotations := $(public)/genome/$(basename $(notdir $(annotations_url))))
 $(eval transcriptome := $(public)/genome/$(notdir $(transcriptome_url)))
 transcriptome := $(transcriptome:.tar.gz=)
 
@@ -311,8 +308,8 @@ endif
 help: ## display this help and exit
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [SAMPLES=<...>] (default:SAMPLES=$(subst $(space),$(plus),$(conditions_plus_integrated)))\n\
 	Semi-automatic pipeline proposing a general methodology for inferring executable models reproducing \
-	the observed cellular dynamics from two conditions/experiences (control and treated), \
-	using scRNA-seq and scATAC-seq sequencing data. The pipeline is particularly useful when phenotype-related cells are not well characterized \
+	the observed cellular dynamics from multiples conditions/experiments, using scRNA-seq sequencing data. \
+	The pipeline is particularly useful when phenotype-related cells are not well characterized \
 	and when studying almost differentiated cells, where biological process are difficult to determine. \
 	Samples can be integrated at the clustering step, in order to annotate cell clusters in control and treated dependently.\n"}/^[a-zA-Z_-]+:.*?##/ \
 	{ printf "  $(GREEN)%-22s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BOLD)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
@@ -322,22 +319,21 @@ help: ## display this help and exit
 .PHONY: clean
 clean: ## clear cache
 	find . -name "\*.pyc" -delete
-	find . -name "__pycache__" -delete
+	find . -type d -name "__pycache__" -exec rm -rf "{}" \;
 	find . -type d -name "cache" -exec rm -rf "{}" \;
 
 .PHONY: mrproper
 mrproper: ## clear cache and public/private data
 	find . -name "\*.pyc" -delete
-	find . -name "__pycache__" -delete
+	find . -type d -name "__pycache__" -exec rm -rf "{}" \;
 	find . -type d -name "cache" -exec rm -rf "{}" \;
 	rm -rf $(rna)
-	find $(public)/genome ! -name "repeat_msk.gtf" -exec rm -rf "{}" \;
 	mkdir $(rna)
+	find $(public)/transcriptome ! -name "repeat_msk.gtf" -type f -exec rm -f "{}" \;
 
 ##@ Download
 
-load-genome: $(genome) ## download DNA primary assembly genome
-load-annotations: $(transcriptome) ## download genome-related annotations
+load-annotations: $(transcriptome) ## download transcriptome-related annotations
 load-fastq: $(fastq_target) ## download fastq files
 load-markers: $(cycle_markers) ## download cycle phase markers
 load-signatures: $(lastword $(signatures)) ## download signatures and convert it into json file
@@ -409,12 +405,6 @@ bonesis-inference-sub: $(bonesis_inference_sub_target) ## infer Boolean network 
 
 ## BEGIN RULES ##
 
-$(genome):
-	$(call print_rule,load-genome)
-	mkdir -p $(@D)
-	wget --quiet --show-progress --directory-prefix=$(@D) $(genome_url)
-	gunzip $@.gz
-
 $(transcriptome):
 	$(call print_rule,load-annotations)
 	mkdir -p $(@D)
@@ -485,7 +475,7 @@ $(fastq_$(1)):
 	then
 		rm -rf $$$${tmp_directory}
 	else
-		$(call print_error,fastq-dump failure)
+		$(call print_error,cannot download fastq files: fastq-dump failed)
 	fi
 	unset tmp_directory
 	unset files
@@ -505,33 +495,33 @@ $(cellranger_$(1)): $(fastq_$(1)) $(transcriptome)
 
 $(velocyto_$(1)): $(cellranger_$(1)) $(transcriptome)
 	$(call print_rule,velocyto,$(1))
-	$$(conda_activate) velocyto
-	velocyto run10x -m data/public/genome/repeat_msk.gtf \
-		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
-		$$(dir $$(firstword $$^)) $$(lastword $$^)/genes/genes.gtf
-	$$(conda_deactivate)
-	mkdir -p $$(@D)
-	mv $$(<D)/velocyto/cellranger.loom $$(shell echo $$(@) | sed "s/h5ad/loom/")
-	rm -rf $$(<D)/velocyto
-	$$(conda_activate) preprocess
-	python scripts/utils/adata_conversion.py $$(shell echo $$(@) | sed "s/h5ad/loom/") $$(@) --from loom --to h5ad \
-		--metadata $$(METADATA_$(call toupper,$(1))) \
-		--remove-positions \
-		--genename-standardization
-	$$(conda_deactivate)
+	if [ -f data/public/transcriptome/repeat_msk.gtf ]; then
+		$$(conda_activate) velocyto
+		velocyto run10x -m data/public/transcriptome/repeat_msk.gtf \
+			--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
+			$$(dir $$(firstword $$^)) $$(lastword $$^)/genes/genes.gtf
+		$$(conda_deactivate)
+		mkdir -p $$(@D)
+		mv $$(<D)/velocyto/cellranger.loom $$(shell echo $$@ | sed "s/h5ad/loom/")
+		rm -rf $$(<D)/velocyto
+		$$(conda_activate) preprocess
+		$(call print_task,converting $$(shell echo $$@ | sed "s/h5ad/loom/") into $$@ and standardizing gene names)
+		python scripts/utils/adata_conversion.py $$(shell echo $$@ | sed "s/h5ad/loom/") $$@ --from loom --to h5ad \
+			--remove-positions \
+			--genename-standardization
+		$$(conda_deactivate)
+	else
+		$(call print_error,cannot run velocyto: file data/public/transcriptome/repeat_msk.gtf does not exist \(please refer to documentation for downloading it\))
+	fi
 
 $(filtering_$(1)): $(velocyto_$(1)) $(cycle_markers)
 	$(call print_rule,filtering,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python scripts/preprocessing/filtering.py \
-		--infile $$(firstword $$^) \
-		--marker $$(lastword $$^) \
-		--outpath $$(@D) \
-		--mitochondrial_threshold 5 \
-		--upper-mad 2 \
-		--lower-mad 3 \
-		--consistency-mad
+	python scripts/preprocessing/filtering.py $$(firstword $$^) $$@ --marker $$(lastword $$^) \
+		--proportion $(PROPORTION) \
+		--mad-deviation $(MAD_DEVIATION) --consistent-mad \
+		--mt $(MT)
 	$$(conda_deactivate)
 
 $(normalization_$(1)): $(filtering_$(1))
@@ -757,8 +747,7 @@ $(annotation_integrated): $(clustering_integrated)
 		--column leiden \
 		--name $(CLUSTER_LABEL_INTEGRATED)
 	$(call print_task,embedding component plotting)
-	python fig/plot_embedding.py fig/umap_labels.json \
-		--infile $@ --outfile $(@D)/umap_labels
+	python fig/plot_embedding.py fig/umap_labels.json --infile $@ --outfile $(@D)/umap_labels
 	$(conda_deactivate)
 else
 $(annotation_integrated): $(clustering_integrated)
@@ -784,26 +773,9 @@ $(bin_cells_integrated): $(annotation_integrated) $(foreach condition,$(conditio
 	mv $@ $(@D)/tmp.h5ad
 	$(conda_activate) preprocess
 	python scripts/utils/transfer_info.py $< $(@D)/tmp.h5ad --outfile $@ --obs pct_bin --var distribution --layer bin --index condition
-	$(conda_deactivate)
 	rm $(@D)/tmp.h5ad
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	python fig/plot_embedding.py fig/pct_bin.json --infile $@ --outfile $(@D)/pct_bin
+	$(conda_deactivate)
 else
 $(bin_cells_integrated): $(foreach condition,$(conditions),$(bin_cell_$(condition))) $(foreach condition,$(conditions),$(scvelo_$(condition)))
 	$(call print_rule,bin-cells,integrated)
@@ -814,11 +786,13 @@ $(bin_macrostates_integrated): $(bin_cells_integrated) $(foreach condition,$(con
 	$(call print_rule,bin-macrostates,integrated)
 	mkdir -p $(@D)
 	$(conda_activate) preprocess
-	$(call print_info,all-to-one information transfer)
+	$(call print_info,transferring information from integrated-to-specifics)
 	python scripts/utils/pipe_sti.py $^ --conditions $(conditions) --outfile $(@D)/tmp.h5ad --column macrostates --condition-column condition
-	$(call print_info,macrostate binarization)
-	python scripts/binarization/bin_clusters.py $(@D)/tmp.h5ad $(@D) \
-		--condition condition --cluster macrostates --plot-3d
+	$(call print_info,binarizing macrostates)
+	python scripts/binarization/bin_clusters.py $(@D)/tmp.h5ad $(@D) --condition condition --cluster macrostates --plot-3d
+	rm $(@D)/tmp.h5ad
+	$(call print_info,plotting macrostate labels)
+	python fig/plot_embedding.py fig/macrostates.json --infile $(@D)/bin_clusters.h5ad --outfile $(@D)/macrostates
 	$(conda_deactivate)
 
 $(foreach condition,$(conditions),$(eval $(call condition_dependant_rules,$(condition))))

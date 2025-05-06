@@ -2,6 +2,8 @@
 
 from ._argtype import (
     Range,
+    Min_and_max,
+    Str_or_min_and_max,
     Store_boolean,
     Store_prefix,
     Store_dict,

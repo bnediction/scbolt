@@ -132,7 +132,7 @@ parser.add_argument(
     required=False,
     default=0.6,
     metavar="FLOAT",
-    help="parameter value controlling the coarseness of the clustering when using Leiden algorithm (default: 0.6)"
+    help="parameter value controlling the coarseness of the clustering when using leiden algorithm (default: 0.6)"
 )
 
 parser.add_argument(

@@ -62,8 +62,8 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--in-alias-type",
-    dest="in_alias_type",
+    "input-type",
+    dest="input_type",
     default="genename",
     required=False,
     metavar="[genename | geneid | ensemblid | <database>]",
@@ -71,8 +71,8 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--out-alias-type",
-    dest="out_alias_type",
+    "--output-type",
+    dest="output_type",
     default="referencename",
     required=False,
     metavar="[referencename | geneid | ensemblid | <database>]",
@@ -102,7 +102,11 @@ genesynonyms = GeneSynonyms(organism=args.organism)
 if file_extension == "txt":
     with open(args.infile, "r") as file:
         gene_list = [line.replace("\n","") for line in file]
-    gene_list = genesynonyms(gene_list, in_alias_type=args.in_alias_type, out_alias_type=args.out_alias_type)
+    gene_list = genesynonyms(
+        gene_list,
+        input_type=args.input_type,
+        output_type=args.output_type
+    )
     with open(args.outfile, "w") as file:
         for gene in gene_list:
             file.write(f"{gene}\n")
@@ -110,8 +114,8 @@ elif file_extension == "csv" or file_extension == "tsv":
     output = pd.read_csv(args.infile, index_col=0, sep=args.sep)
     genesynonyms(
         output,
-        in_alias_type=args.in_alias_type,
-        out_alias_type=args.out_alias_type,
+        input_type=args.input_type,
+        output_type=args.output_type,
         axis=args.axis,
         copy=False
     )

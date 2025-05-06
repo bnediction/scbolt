@@ -73,11 +73,11 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-std.print_task("data loading")
+std.print_task("loading data")
 
-std.print_info("loading integrated sample")
+std.print_info(f"loading integrated sample ({str(args.integrated)})")
 integrated_adata = ad.read_h5ad(args.integrated)
-std.print_info("loading condition-dependant samples")
+std.print_info(f"loading specific samples ({', '.join(map(str, args.specifics))})")
 condition_adatas = [ad.read_h5ad(infile) for infile in args.specifics]
 
 std.print_info("cleaning unecessary data")
@@ -88,7 +88,7 @@ for column in args.columns:
         if column not in adata.obs:
             raise KeyError(f"column `{column}` not found in adata.obs")
 
-std.print_task("information transfer")
+std.print_task("transferring information from specific samples to integrated sample")
 
 bt.sct.pp.transfer_obs_sti(
     adata=integrated_adata,
@@ -99,7 +99,7 @@ bt.sct.pp.transfer_obs_sti(
     copy=False
 )
 
-std.print_task("data saving")
+std.print_task(f"saving data ({str(args.outfile)})")
 
 integrated_adata.write_h5ad(
     filename=args.outfile if args.outfile else args.integrated,

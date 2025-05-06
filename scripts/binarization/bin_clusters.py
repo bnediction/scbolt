@@ -339,11 +339,11 @@ predict = Predict(
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
-std.print_task("data loading")
+std.print_task(f"loading data ({str(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
-std.print_task("cluster binarization")
+std.print_task("binarizing clusters")
 
 cluster_d = dict()
 predict_d = dict()
@@ -384,14 +384,14 @@ if args.condition:
         _nans_cat = [x for x in _nans_cat if x in set(adata.obs[_group].cat.categories)]
         adata.obs[_group] = adata.obs[_group].cat.remove_categories(_nans_cat)
 
-std.print_task("data saving")
+std.print_task(f"saving data (folder {str(args.outpath)})")
 
 adata.write_h5ad(filename=f"{args.outpath}/bin_clusters.h5ad", compression="gzip")
 for _group in args.groupby:
     cluster_d[_group].transpose().to_csv(f"{args.outpath}/counting_bin_{_group}.csv", sep=",", index=True)
     predict_d[_group].transpose().to_csv(f"{args.outpath}/bin_{_group}.csv", sep=",", index=True)
 
-std.print_task("plotting")
+std.print_task("plotting cluster-related binarization in UMAP projection")
 for _group in args.groupby:
     std.print_info(f"checking cluster homogeneity for `{_group}`")
     pct_binarized = (predict_d[_group].count(axis=1) / predict_d[_group].shape[1]).to_dict()

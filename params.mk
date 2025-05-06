@@ -8,6 +8,10 @@ SRA_TREATED = SRR15305315 SRR15305316 SRR15305317 SRR15305318
 $(eval METADATA_CTRL := age=adult date=29-09-2020 sample_name=ctrl condition=control)			# Must contains condition
 $(eval METADATA_TREATED := age=adult date=29-09-2020 sample_name=treated condition=treated)		# Must contains condition
 
+## preprocessing ##
+
+$(eval MAD_DEVIATION := 3 2)
+
 ## annotation ##
 
 $(eval CLUSTER_LABEL_INTEGRATED := 0=Rep 1=Prom1 2=Prom2 3=Gran1 4=Gran2 5=Prom3)		# depends on the marker, signature and goea analysis if not well-characterized
@@ -25,7 +29,3 @@ $(eval CENTER_CTRL := Prom1 Prom2)
 $(eval EXTREMITY_CTRL := Rep Prom3)
 $(eval CENTER_TREATED := Prom1 Prom2)
 $(eval EXTREMITY_TREATED := Rep Gran2)
-
-## others parameters ##
-
-BOOLEAN_NETWORK_REF = $(PUBLIC)/data/public/reference/APL_model.bnet

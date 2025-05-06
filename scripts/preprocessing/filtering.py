@@ -4,10 +4,11 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import os, std
-import argparse
+import argparse, cli
 from pathlib import Path
 
-import numpy as np, random, math
+import math
+import numpy as np
 
 import rdata
 import pandas as pd
@@ -20,13 +21,26 @@ from matplotlib.ticker import FormatStrFormatter
 
 bt.sct.pl.set_default_params()
 
-random.seed(1000)
-
 pd.DataFrame.iteritems = pd.DataFrame.items
 
+def marker_pairs_converter(ensemblid_marker_pairs, output_type: str="referencename"):
+    """Convert marker pairs from ensemblid into their corresponding alias."""
+    genesyn = bt.dbs.ncbi.GeneSynonyms()
+    converted_marker_pairs = dict()
+    for cc, pairs in ensemblid_marker_pairs.items():
+        cycle_pairs = list()
+        for _, (first, second) in pairs.iterrows():
+            first_alias = genesyn.conversion(first, "ensemblid", output_type)
+            second_alias = genesyn.conversion(second, "ensemblid", output_type)
+            cycle_pairs.append([
+                first_alias if first_alias is not None else first,
+                second_alias if second_alias is not None else second
+            ])
+        converted_marker_pairs[cc] = cycle_pairs
+    return converted_marker_pairs
+
 def median_absolute_deviation(x, consistency=False):
-    """Compute the mean absolute deviation (MAD),
-    i.e. the median of the absolute deviations from the median.
+    """Compute the mean absolute deviation (MAD).
     If consistency is true, adjust by a factor for asymptotically normal consistency.
     Asymptotic normal consistency means that:
         E[MAD(X_1,...,X_n)] = sigma
@@ -35,196 +49,283 @@ def median_absolute_deviation(x, consistency=False):
     constant = 1.4826 if consistency else 1
     return constant*np.median(np.absolute(x - np.median(x)))
 
-def marker_pairs_converter(ensemblid_to_index: dict, ensemblid_marker_pairs):
-    """convert marker pairs from ensembl id into its name"""
-    symbol_marker_pairs = dict()
-    for cycle, pairs in ensemblid_marker_pairs.items():
-        cycle_pairs = list()
-        for _, (first, second) in pairs.iterrows():
-            if first in ensemblid_to_index.keys() and second in ensemblid_to_index.keys():
-                cycle_pairs.append([ensemblid_to_index[first], ensemblid_to_index[second]])
-        symbol_marker_pairs[cycle] = cycle_pairs
-    return symbol_marker_pairs
-
 parser = argparse.ArgumentParser(
-    prog="Cell filtering and cell cycle phases assignement on sc-RNAseq data",
-    description="""From sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
-    filter low-quality cells and assign cell cycle phases using marker pairs.
-    Some quality metrics are computed before and after filtering.""",
-    usage="python filter_cells.py [-h] --i <path> [<args>]"
+    prog="calculate metrics and filter low quality cells and genes",
+    description=
+    """
+    Calculate metrics (proportions of genes encoding mitocondrial and ribosomal proteins,
+    quality control metrics), assign cell to a cell cycle phase
+    and filter low-quality genes and cells.
+    """,
+    usage="python filtering.py [-h] <FILE> <FILE> [--marker <FILE>] [<args>]"
 )
 
 parser.add_argument(
-    "-i", "--infile",
-    dest="count_infile",
+    dest="infile",
     type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
-    help="counting file (h5ad format)"
+    metavar="FILE",
+    help="input file storing counts (h5ad format)"
 )
 
 parser.add_argument(
-    "-c", "--cycle","--marker",
+    dest="outfile",
+    type=lambda x: Path(x).resolve(),
+    metavar="FILE",
+    help="output file storing counts before filtering (h5ad format)"
+)
+
+parser.add_argument(
+    "--marker",
     dest="marker_infile",
     type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="PATH",
-    help="file containing cell cycle phase markers (rds format)"
-)
-
-parser.add_argument(
-    "-o", "--outpath",
-    dest="outpath",
-    type=lambda x: Path(x).resolve(),
     required=False,
-    default=Path("./").resolve(),
-    metavar="PATH",
-    help="output path"
+    default=None,
+    metavar="FILE",
+    help="input file storing cell cycle phase markers (rds format)"
 )
 
 parser.add_argument(
-    "-t", "--mitochondrial_threshold",
-    dest="mitochondrial_threshold",
+    "--cell-expression",
+    dest="cell_expression",
+    action=cli.Min_and_max,
+    type=int,
+    min=0,
+    max=math.inf,
+    required=False,
+    default=[0, math.inf],
+    help="minimum and maximum number of expressed cells required for a gene to pass filtering (default: [0, inf])"
+)
+
+parser.add_argument(
+    "--proportion",
+    dest="proportion",
+    action=cli.Min_and_max,
     type=float,
+    min=0,
+    max=1,
     required=False,
-    default=100,
-    metavar="FLOAT",
-    help="maximum mitochondria threshold in a cell (value between 0 and 100)"
+    default=[0, 1],
+    help="minimum and maximum proportion of expressed cells required for a gene to pass filtering (default: [0, 1])"
 )
 
 parser.add_argument(
-    "-u", "--upper-mad",
-    dest="upper_mad",
+    "--counts",
+    dest="counts",
+    action=cli.Min_and_max,
+    type=int,
+    min=0,
+    max=math.inf,
+    required=False,
+    default=[0, math.inf],
+    help="minimum and maximum number of counts required for a gene to pass filtering (default: [0, inf])"
+)
+
+parser.add_argument(
+    "--expression",
+    dest="expression",
+    action=cli.Min_and_max,
+    type=int,
+    min=0,
+    max=math.inf,
+    required=False,
+    default=[0, math.inf],
+    help="minimum and maximum number of expressed genes required for a cell to pass filtering (default: [0, inf])"
+)
+
+parser.add_argument(
+    "--reads",
+    dest="reads",
+    action=cli.Min_and_max,
+    type=int,
+    min=0,
+    max=math.inf,
+    required=False,
+    default=[0, math.inf],
+    help="minimum and maximum number of reads required for a cell to pass filtering (default: [0, inf])"
+)
+
+parser.add_argument(
+    "--mad-deviation",
+    dest="mad_deviation",
     type=float,
+    nargs=2,
     required=False,
-    default=2,
+    default=[math.inf,math.inf],
     metavar="FLOAT",
-    help="factor removing cells for which their count are higher than this factor*MAD with respect to the median count"
+    help="factor droping cells for which their total reads are smaller or higher than this factor*mean-absolute-deviation with respect to the median (default: [inf,inf])"
 )
 
 parser.add_argument(
-    "-l", "--lower-mad",
-    dest="lower_mad",
-    type=float,
-    required=False,
-    default=2,
-    metavar="FLOAT",
-    help="factor removing cells for which their count are lower than this factor*MAD with respect to the median count"
-)
-
-parser.add_argument(
-    "-m", "--consistency-mad",
-    dest="consistency_mad",
+    "--consistent-mad",
+    dest="consistent_mad",
     required=False,
     action="store_true",
-    help="median absolute deviation (MAD) is refactorised for asymptotically normal consistency"
+    help="use normalized mean absolute deviation"
 )
 
 parser.add_argument(
-    "--ensembl-column",
-    dest="ensembl_column",
-    type=str,
+    "--mt",
+    dest="mt",
+    action=cli.Range,
+    type=float,
+    min=0,
+    max=1,
     required=False,
-    default="Accession",
-    metavar="LITERAL",
-    help="column name in AnnData file containing Ensembl Id"
+    default=1,
+    help="maximum proportion of expressed genes encoding mithocondrion proteins required for a cell to pass filtering (default: 1)"
 )
 
 args = parser.parse_args()
 
-if not args.outpath.exists():
-    os.makedirs(args.outpath)
+if any(v<0 for v in args.mad_deviation):
+    raise argparse.ArgumentError(f"expected positive values, but received {args.mad_deviation}")
 
-std.print_task("data loading")
+outpath = Path(os.path.dirname(args.outfile))
+if not outpath.exists():
+    os.makedirs(outpath)
 
-adata = sc.read_h5ad(Path(f"{args.count_infile}").resolve())
-_s_ante_filter = adata.shape
+std.print_task(f"loading file {str(args.infile)}")
 
-ensemblid_to_index = dict()
-for index, row in adata.var.iterrows():
-    ensemblid_to_index[row[args.ensembl_column]] = index
+adata = sc.read_h5ad(Path(f"{args.infile}").resolve())
 
-std.print_task("cell cycle phases assignment")
+std.print_task(f"initializing settings")
 
-parser = rdata.parser.parse_file(args.marker_infile)
-marker_pairs = rdata.conversion.convert(parser)
-marker_pairs = marker_pairs_converter(ensemblid_to_index, marker_pairs)
-
-scores = pairs.cyclone(adata, marker_pairs)
-adata.obs.rename(columns={
-    "pypairs_G1": "G1_score",
-    "pypairs_S": "S_score",
-    "pypairs_G2M": "G2M_score"
-}, inplace=True)
-
-fig, ax = plt.subplots(nrows=1, ncols=1)
-ax.scatter(
-    adata.obs.G1_score,
-    adata.obs.G2M_score,
-    s=30,
-    facecolors=bt.sct.pl.get_color("white"),
-    edgecolors=bt.sct.pl.get_color("blue"),
-    alpha=1
-)
-ax.set_xlabel(r"score $\mathrm{G_{1}}$")
-ax.set_ylabel(r"score $\mathrm{G_{2}/M}$")
-plt.sca(ax)
-ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
-ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-plt.savefig(f"{args.outpath}/cell-cycle-phases-assignment.pdf")
-plt.close()
-
+adata.layers["counts"] = adata.X.copy()
 adata.var_names_make_unique()
 
-adata.var["mitochondrion"] = adata.var_names.str.startswith("mt-")          # annotate the group of mitochondrial genes
-adata.var["ribosome"] = adata.var_names.str.startswith(("Rps","Rpl","Mrp")) # annotate the group of ribosomal genes
+std.print_task("computing metrics")
 
-std.print_task("violin plot before cell filtering")
+shape = {"init":adata.shape}
 
-sc.pp.calculate_qc_metrics(adata, percent_top=None, log1p=False, inplace=True, qc_vars=["mitochondrion","ribosome"])
+std.print_info("classifying genes encoding mitocondrial proteins")
+bt.sct.tl.mitochondrial_genes(
+    adata,
+    index_type="genename",
+    key="mt",
+    axis=1,
+    copy=False
+)
+
+std.print_info("classifying genes encoding ribosomal proteins")
+bt.sct.tl.ribosomal_genes(
+    adata,
+    index_type="genename",
+    key="rps",
+    axis=1,
+    copy=False
+)
+
+if args.marker_infile is None:
+    std.print_warning(f"cannot classify cell cycle phases because marker file not specified")
+else:
+    std.print_info(f"classifying cell cycle phases (using file {str(args.marker_infile)})")
+    parser = rdata.parser.parse_file(args.marker_infile)
+    marker_pairs = rdata.conversion.convert(parser)
+    marker_pairs = marker_pairs_converter(marker_pairs, "referencename")
+    scores = pairs.cyclone(adata, marker_pairs)
+    adata.obs.rename(columns={"pypairs_G1": "G1_score", "pypairs_S": "S_score", "pypairs_G2M": "G2M_score"}, inplace=True)
+
+std.print_info("calculating quality control metrics")
+sc.pp.calculate_qc_metrics(
+    adata,
+    qc_vars=["mt","rps"],
+    percent_top=None,
+    log1p=False,
+    inplace=True,
+)
+
+std.print_info("plotting violin plots before filtering")
 ax = sc.pl.violin(
     adata=adata,
-    keys=["n_genes_by_counts", "total_counts", "pct_counts_mitochondrion", "pct_counts_ribosome"],
+    keys=["n_genes_by_counts", "total_counts", "pct_counts_mt", "pct_counts_rps"],
     jitter=0.4,
     multi_panel=True,
     stripplot=False,
     show=False,
     save=False
 )
-ax.axes[0,0].set_title(r"gene number")
-ax.axes[0,1].set_title(r"gene counts")
-ax.axes[0,2].set_title(r"mitochondrion proportion")
-ax.axes[0,3].set_title(r"ribosome proportion")
-plt.savefig(f"{args.outpath}/violin-plot-on-UMI-before-filtering.pdf")
+for i, title in zip(range(4), [r"gene number", r"gene counts", r"mitochondrion proportion", r"ribosome proportion"]):
+    ax.axes[0,i].set_title(title)
+plt.savefig(f"{outpath}/raw-data.pdf")
+plt.close()
 
-std.print_task(f"low-quality cell filtering")
+std.print_task(f"preprocessing counting data")
 
-min_counts_threshold = np.exp(np.median(np.log(adata.obs.total_counts)) \
-    - args.lower_mad*median_absolute_deviation(np.log(adata.obs.total_counts),consistency=args.consistency_mad))
-max_counts_threshold = np.exp(np.median(np.log(adata.obs.total_counts)) \
-    + args.upper_mad*median_absolute_deviation(np.log(adata.obs.total_counts),consistency=args.consistency_mad))
+mad = median_absolute_deviation(np.log(adata.obs.total_counts),consistency=(args.consistent_mad))
+reads = [
+        np.exp(np.median(np.log(adata.obs.total_counts)) - args.mad_deviation[0]*mad),
+        np.exp(np.median(np.log(adata.obs.total_counts)) + args.mad_deviation[1]*mad)
+    ]
+proportion = [
+    args.proportion[0]*adata.n_obs,
+    args.proportion[1]*adata.n_obs
+]
 
-_ylim = [0, round(math.ceil(max(adata.obs.total_counts)+1000),-3)]
+ylim = [0, round(math.ceil(max(adata.obs.total_counts)+1000),-3)]
 fig, ax = plt.subplots(nrows=1, ncols=2)
 sc.pl.violin(
     adata=adata,
     keys="total_counts",
-    jitter=0.4,
-    multi_panel=None,
     stripplot=False,
+    jitter=0.4,
     ax=ax[0],
     show=False,
-    save=False,
+    save=False
 )
-[ax[0].axhline(threshold, linewidth=1.5, linestyle='--', color=bt.sct.pl.get_color("red")) for threshold in [min_counts_threshold, max_counts_threshold]]
-ax[0].set_ylim(_ylim)
-ax[0].set(title="before cell filtering")
+ax[0].axhline(reads[0], linewidth=1.5, linestyle='--', color=bt.sct.pl.get_color("red"))
+ax[0].axhline(reads[1], linewidth=1.5, linestyle='--', color=bt.sct.pl.get_color("red"))
+ax[0].set_ylim(ylim)
+ax[0].set(title="raw")
 
-sc.pp.filter_cells(adata, min_counts=min_counts_threshold, inplace=True)
-sc.pp.filter_cells(adata, max_counts=max_counts_threshold, inplace=True)
-adata = adata[adata.obs.pct_counts_mitochondrion < args.mitochondrial_threshold, :]
-_s_post_filter = adata.shape
+std.print_info(f"filtering low-quality genes")
 
+bt.sct.pp.filter_var(
+    adata,
+    "n_cells_by_counts",
+    lambda x: (x >= args.cell_expression[0]) & (x < args.cell_expression[1])
+)
+
+bt.sct.pp.filter_var(
+    adata,
+    "n_cells_by_counts",
+    lambda x: (x >= proportion[0]) & (x < proportion[1])
+)
+
+bt.sct.pp.filter_var(
+    adata,
+    "total_counts",
+    lambda x: (x >= args.counts[0]) & (x < args.counts[1])
+)
+
+std.print_info(f"filtering low-quality cells")
+
+bt.sct.pp.filter_obs(
+    adata,
+    "total_counts",
+    lambda x: (x >= args.reads[0]) & (x < args.reads[1])
+)
+
+bt.sct.pp.filter_obs(
+    adata,
+    "total_counts",
+    lambda x: (x >= reads[0]) & (x < reads[1])
+)
+
+bt.sct.pp.filter_obs(
+    adata,
+    "n_genes_by_counts",
+    lambda x: (x >= args.expression[0]) & (x < args.expression[1])
+)
+
+bt.sct.pp.filter_obs(
+    adata,
+    "pct_counts_mt",
+    lambda x: x < 1e2*args.mt
+)
+
+shape["final"] = adata.shape
+
+std.print_info("plotting total counting distribution before/after filtering")
 sc.pl.violin(
     adata=adata,
     keys="total_counts",
@@ -235,37 +336,35 @@ sc.pl.violin(
     show=False,
     save=False,
 )
-ax[1].axhline(min_counts_threshold, linewidth=1.5, linestyle='--', color=bt.sct.pl.get_color("red"))
-ax[1].axhline(max_counts_threshold, linewidth=1.5, linestyle='--', color=bt.sct.pl.get_color("red"))
-ax[1].set_ylim(_ylim)
-ax[1].set(title="after cell filtering")
-plt.savefig(f"{args.outpath}/violin-plot-on-barcode-counts.pdf")
+ax[1].axhline(reads[0], linewidth=1.5, linestyle='--', color=bt.sct.pl.get_color("red"))
+ax[1].axhline(reads[1], linewidth=1.5, linestyle='--', color=bt.sct.pl.get_color("red"))
+ax[1].set_ylim(ylim)
+ax[1].set(title="filtered")
+plt.savefig(f"{outpath}/total-counts.pdf")
 
-fig, ax = plt.subplots(nrows=1, ncols=1)
-ax = adata.obs.pypairs_cc_prediction.value_counts().plot.bar(rot=0)
-ax.set(xlabel="cell cycle phases")
-plt.savefig(f"{args.outpath}/assigned-cell-cycle-phases-counting.pdf")
-
-std.print_task("violin plot after cell filtering")
-
+std.print_info("plotting violin plots after filtering")
 ax = sc.pl.violin(
     adata=adata,
-    keys=["n_genes_by_counts", "total_counts", "pct_counts_mitochondrion", "pct_counts_ribosome"],
+    keys=["n_genes_by_counts", "total_counts", "pct_counts_mt", "pct_counts_rps"],
     jitter=0.4,
     multi_panel=True,
     stripplot=False,
     show=False,
     save=False
 )
-ax.axes[0,0].set_title(r"gene number")
-ax.axes[0,1].set_title(r"gene counts")
-ax.axes[0,2].set_title(r"mitochondrion proportion")
-ax.axes[0,3].set_title(r"ribosome proportion")
-plt.savefig(f"{args.outpath}/violin-plot-on-UMI-after-filtering2.pdf")
+for i, title in zip(range(4), [r"gene number", r"gene counts", r"mitochondrion proportion", r"ribosome proportion"]):
+    ax.axes[0,i].set_title(title)
+plt.savefig(f"{outpath}/filtered-data.pdf")
 
-std.print_task("data saving")
+if args.marker_infile:
+    std.print_info("plotting cell cycle predictions")
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    ax = adata.obs.pypairs_cc_prediction.value_counts().plot.bar(rot=0)
+    ax.set(xlabel="cell cycle phases")
+    plt.savefig(f"{outpath}/cell-cycles-counting.pdf")
 
-adata.write_h5ad(filename=f"{args.outpath}/counts.h5ad")
+std.print_task(f"saving data in {str(args.outfile)}")
+adata.write_h5ad(filename=args.outfile)
 
-std.print_info(f"not-filtered couting matrix dimension: {_s_ante_filter}")
-std.print_info(f"filtered couting matrix dimension: {_s_post_filter}")
+std.print_info(f"gene number: [before filtering: {shape['init'][0]}, after filtering: {shape['final'][0]}, removed: {shape['init'][0] - shape['final'][0]}]")
+std.print_info(f"cell number: [before filtering: {shape['init'][1]}, after filtering: {shape['final'][1]}, removed: {shape['init'][1] - shape['final'][1]}]")

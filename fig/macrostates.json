@@ -1,13 +1,14 @@
 {
     "modules": [
         {"numpy": "np"},
-        {"bonesistools": "bt"}
+        {"bonesistools": "bt"},
+        "math"
     ],
     "eval": [
-        "colors",
         "xlabel",
         "ylabel",
         "zlabel",
+        ["lgd_params", "ncol"],
         ["lgd_params", "edgecolor"],
         "n_components"
     ],
@@ -15,19 +16,18 @@
         "obs": "macrostates",
         "obsm": "X_umap",
         "figheight": 5,
-        "figwidth": 6,
+        "figwidth": 10,
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "colors": "sct.pl.COLORS",
         "s": 2,
         "alpha": 1,
         "add_labels": true,
         "add_legend": true,
         "lgd_params": {
             "title": "cotan clusters",
-            "ncol": 3,
-            "markerscale": 5,
+            "ncol": "math.ceil(len(adata.obs['macrostates'].astype('category').cat.categories) / 16)",
+            "markerscale": 8,
             "frameon": true,
             "edgecolor": "bt.sct.pl.get_color('black')",
             "shadow": false
@@ -37,6 +37,7 @@
             "fontweight": "extra bold"
         },
         "n_components": "2 if adata.obsm['X_umap'].shape[1] == 2 else 3",
+        "automatic_resize": true,
         "background_visible": false
     },
     "grid": false,

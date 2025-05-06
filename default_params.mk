@@ -7,13 +7,17 @@ JOBS = 16
 
 ## BEGIN INFORMATION ##
 
-$(eval METADATA_CTRL := sample_name=ctrl condition=control)			# must contains condition
-$(eval METADATA_TREATED := sample_name=treated condition=treated)	# must contains condition
 ORGANISM := mouse
 CONDITIONS := ctrl treated
 SEED := 0
 
 ## END INFORMATION ##
+
+## BEGIN PREPROCESSING ##
+
+$(eval PROPORTION := 0.001 1)				# minimum and maximum proportion of expressed cells required for a gene to pass filtering
+$(eval MAD_DEVIATION := 2 2)				# factor droping cells for which their total reads are smaller or higher than this factor*mean-absolute-deviation with respect to the median
+$(eval MT := 0.05)							# maximum proportion of expressed genes encoding mithocondrion proteins required for a cell to pass filtering
 
 ## BEGIN CLUSTERING ##
 
@@ -46,8 +50,8 @@ CLUSTER_NUMBER = 6
 LAMBDA = 0.05
 MU = 0.05
 ALPHA = 0.03
-EXTEND := 0.8
 EXTEND_LEAF_NODES := true
+EXTEND := 0.8
 PRUNE_GRAPH := false
 
 # stream-trajectories #
