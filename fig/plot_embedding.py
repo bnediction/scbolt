@@ -35,7 +35,7 @@ def do_eval(_eval_params, _figure_params):
 parser = argparse.ArgumentParser(
     prog="figure plotting",
     description="""plot figure from anndata object""",
-    usage="""python <PATH> [-i <PATH> -o <PATH>]"""
+    usage="""python <PATH> [--infile <PATH> --outfile <PATH>]"""
 )
 
 parser.add_argument(
@@ -46,7 +46,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-i", "--infile",
+    "--infile",
     dest="infile",
     type=lambda x: Path(x).resolve(),
     required=False,
@@ -56,7 +56,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-o", "--outfile",
+    "--outfile",
     dest="outfile",
     type=lambda x: Path(x).resolve(),
     required=False,
@@ -110,12 +110,9 @@ if "grid" in params:
     plt.grid(params["grid"])
 if "axis" in params:
     plt.axis(params["axis"])
-plt.savefig(f"{outfile}.pdf", bbox_inches="tight", pad_inches=0.3)
-try:
-    os.system(f"pdfcrop --margins '0 0 0 0' {outfile}.pdf {outfile}.pdf > {os.devnull}")
-except OSError:
-    print("Unix command `pdfcrop` not available: no figure trimming")
-if "n_components" in params["figure"]:
-    if params["figure"]["n_components"] == 3:
-        pickle.dump(fig, open(Path(f"{outfile}.fig.pkl"), "wb"))
+plt.savefig(outfile, bbox_inches="tight", pad_inches=0.3)
 plt.close()
+try:
+    os.system(f"pdfcrop --margins '0 0 0 0' {outfile} {outfile} > {os.devnull}")
+except OSError:
+    print("unavailable unix command 'pdfcrop': no figure trimming")

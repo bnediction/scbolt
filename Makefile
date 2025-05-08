@@ -24,8 +24,8 @@ space := $(empty) $(empty)
 
 conditions := $(call tolower, $(CONDITIONS))
 conditions_plus_integrated := $(conditions) integrated
-SAMPLES := $(subst $(space),$(plus),$(conditions_plus_integrated))
-_samples := $(subst $(plus),$(space),$(SAMPLES))
+REFERENCES := $(subst $(space),$(plus),$(conditions_plus_integrated))
+_samples := $(subst $(plus),$(space),$(REFERENCES))
 _samples_without_integration := $(subst $(space)integrated,,$(_samples))
 
 ## BEGIN URLS ##
@@ -266,6 +266,14 @@ else
 $(error CC_CORRECTION not set to true or false)
 endif
 
+ifeq ($(PCA_ONLY_HVG),true)
+pca_only_hvg=--hvg
+else ifeq ($(PCA_ONLY_HVG),false)
+pca_only_hvg=
+else
+$(error PCA_ONLY_HVG not set to true or false)
+endif
+
 ifeq ($(EXTEND_LEAF_NODES),true)
 EXTEND_LEAF_NODES:=--extend-leaf-nodes
 else ifeq ($(EXTEND_LEAF_NODES),false)
@@ -330,7 +338,7 @@ endif
 
 .PHONY: help
 help: ## display this help and exit
-	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [SAMPLES=<...>] (default:SAMPLES=$(subst $(space),$(plus),$(conditions_plus_integrated)))\n\
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [REFERENCES=<...>] (default:REFERENCES=$(subst $(space),$(plus),$(conditions_plus_integrated)))\n\
 	Semi-automatic pipeline proposing a general methodology for inferring executable models reproducing \
 	the observed cellular dynamics from multiples conditions/experiments, using scRNA-seq sequencing data. \
 	The pipeline is particularly useful when phenotype-related cells are not well characterized \
@@ -560,12 +568,11 @@ $(clustering_$(1)): $(normalization_$(1))
 	$(call print_rule,clustering,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python scripts/clustering/leiden_clustering.py $$< $$(@D) \
-		--layer correct --hvg \
-		--metric euclidean --k-neighbors $(K_NEIGHBORS) --resolution $(RESOLUTION) \
-		--dim-pca $(DIM_PCA) --dim-clustering $(DIM_CLUSTERING) --dim-umap $(DIM_UMAP) \
-		--add-legend --plot-3d \
-		--seed $(SEED)
+	python scripts/clustering/clustering.py $$< $$@ \
+		--layer correct --adjacency knn --embedding $(EMBEDDING) \
+		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_CLUSTERING) --embedding-dimension $(DIM_EMBEDDING) \
+		$(pca_only_hvg) --neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) --seed $(SEED)
+	python fig/plot_embedding.py fig/cc_$(EMBEDDING).json --infile $$@ --outfile $$(@D)/$(EMBEDDING)_cc.pdf 
 	$$(conda_deactivate)
 
 ifeq ($(LABELING_FROM_INTEGRATION),true)

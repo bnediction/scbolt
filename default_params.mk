@@ -31,20 +31,24 @@ $(eval FILTER_NON_HVG := false)				# filter non-highly variable genes
 
 ## BEGIN NORMALIZATION ##
 
-$(eval CC_CORRECTION := true)				# regress-out cell cycle effects 
+$(eval CC_CORRECTION := true)				# regress-out cell cycle effects
 
 ## END NORMALIZATION ##
 
 ## BEGIN CLUSTERING ##
 
-# clustering #
+$(eval EMBEDDING := umap)					# embedding projection (umap or tsne)
+$(eval DIM_PCA := 50)						# number of computed principal components
+$(eval DIM_CLUSTERING := 15)				# number of principal components taken into account for clustering cells
+$(eval DIM_EMBEDDING := 2)					# number of embedding dimensions
+$(eval PCA_ONLY_HVG := true)				# use only highly variable genes for PCA projection
+$(eval NEIGHBORS := 20)						# number of closest neighbors
+$(eval METRIC := euclidean)					# metric used for computing closest neighbors and optionally t-sne projection
+$(eval RESOLUTION := 0.4)					# parameter value controlling the coarseness of the clustering
 
-$(eval K_NEIGHBORS := 20)					# K-closest neighbors
-$(eval RESOLUTION := 0.4)					# coarseness of the clustering for Leiden algorithm
-$(eval DIM_PCA := 50)						# number of principal components
-$(eval DIM_CLUSTERING := 15)				# number of principal components taken into account for clustering
-$(eval DIM_UMAP := 2)						# number of embedding dimensions
 $(eval INTEGRATION_METHOD := bbknn)			# bbknn, ingest or scanorama
+
+## END CLUSTERING ##
 
 # annotation #
 

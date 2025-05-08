@@ -20,21 +20,21 @@ parser = argparse.ArgumentParser(
     with respect to library size, log-transformation, scaling data
     and correction of unwanted effects).
     """,
-    usage="python normalization.py <FILE> <PATH> [<args>]"
+    usage="python normalization.py <FILE> <FILE> [<args>]"
 )
 
 parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="counting file (h5ad format)"
+    help="input file storing counts (h5ad format)"
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="normalized counting file (h5ad format)"
+    help="output file storing normalized counts (h5ad format)"
 )
 
 parser.add_argument(
@@ -44,7 +44,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="used layer (if not specified, use adata.X)"
+    help="layer used (if not specified, use adata.X)"
 )
 
 parser.add_argument(

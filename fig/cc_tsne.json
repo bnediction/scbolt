@@ -1,0 +1,40 @@
+{
+    "modules": [
+        {"numpy": "np"},
+        {"bonesistools": "bt"},
+        "math"
+    ],
+    "eval": [
+        "xlabel",
+        "ylabel",
+        "zlabel",
+        "colors",
+        ["lgd_params", "edgecolor"],
+        "n_components"
+    ],
+    "figure": {
+        "obs": "pypairs_cc_prediction",
+        "obsm": "X_tsne",
+        "figwidth": 6,
+        "xlabel": "r'$\\mathrm{t-sne_{1}}$'",
+        "ylabel": "r'$\\mathrm{t-sne_{2}}$'",
+        "zlabel": "r'$\\mathrm{t-sne_{3}}$'",
+        "s": 3,
+        "alpha": 1,
+        "colors": "[sct.pl.get_color('blue'), sct.pl.get_color('red'), sct.pl.get_color('green')]",
+        "add_legend": true,
+        "lgd_params": {
+            "title": "cotan clusters",
+            "ncol": 1,
+            "markerscale": 8,
+            "frameon": true,
+            "edgecolor": "bt.sct.pl.get_color('black')",
+            "shadow": false
+        },
+        "n_components": "2 if adata.obsm['X_tsne'].shape[1] == 2 else 3",
+        "automatic_resize": true,
+        "background_visible": false
+    },
+    "grid": false,
+    "axis": "off"
+}
