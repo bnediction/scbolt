@@ -89,11 +89,15 @@ class Min_and_max(argparse.Action):
     ):
         
         def convert(self, value):
-            if value in ["none","None"]:
+            if value.lower() == "none":
                 if self.allowed_none is True:
                     return None
                 else:
                     raise argparse.ArgumentTypeError(self, f"expected {self.to_type}, but received {None}")
+            elif value.lower() == "inf":
+                return math.inf
+            elif value.lower() == "-inf":
+                return -math.inf
             else:
                 return self.to_type(value)
 
@@ -173,13 +177,17 @@ class Str_or_min_and_max(argparse.Action):
         values,
         option_string=None
     ):
-        
+            
         def convert(self, value):
-            if value in ["none","None"]:
+            if value.lower() == "none":
                 if self.allowed_none is True:
                     return None
                 else:
                     raise argparse.ArgumentTypeError(self, f"expected {self.to_type}, but received {None}")
+            elif value.lower() == "inf":
+                return math.inf
+            elif value.lower() == "-inf":
+                return -math.inf
             else:
                 return self.to_type(value)
         

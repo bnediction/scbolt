@@ -242,6 +242,30 @@ $(foreach sample,$(_samples),$(eval $(call dependant_targets_with_integration,$(
 
 ## BEGIN PARAMETERS ##
 
+ifeq ($(NORM_MAD),true)
+norm_mad=--consistent-mad
+else ifeq ($(NORM_MAD),false)
+norm_mad=
+else
+$(error NORM_MAD not set to true or false)
+endif
+
+ifeq ($(FILTER_NON_HVG),true)
+filter_non_hvg=--filter-non-hvg
+else ifeq ($(FILTER_NON_HVG),false)
+filter_non_hvg=
+else
+$(error HVG_FILTERING not set to true or false)
+endif
+
+ifeq ($(CC_CORRECTION),true)
+correction=--correction G2M_score S_score G1_score
+else ifeq ($(CC_CORRECTION),false)
+correction=
+else
+$(error CC_CORRECTION not set to true or false)
+endif
+
 ifeq ($(EXTEND_LEAF_NODES),true)
 EXTEND_LEAF_NODES:=--extend-leaf-nodes
 else ifeq ($(EXTEND_LEAF_NODES),false)
@@ -519,19 +543,17 @@ $(filtering_$(1)): $(velocyto_$(1)) $(cycle_markers)
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
 	python scripts/preprocessing/filtering.py $$(firstword $$^) $$@ --marker $$(lastword $$^) \
-		--proportion $(PROPORTION) \
-		--mad-deviation $(MAD_DEVIATION) --consistent-mad \
-		--mt $(MT)
+		--gene-dropout $(GENE_DROPOUT) --gene-expression $(GENE_EXPRESSION) --gene-counts $(GENE_COUNTS) \
+		--cell-dropout $(CELL_DROPOUT) --cell-expression $(CELL_EXPRESSION) --cell-reads $(CELL_READS) \
+		--mad $(MAD_DEVIATION) $(norm_mad) --mt $(MT) \
+		--hvg $(HVG) $(filter_non_hvg)
 	$$(conda_deactivate)
 
 $(normalization_$(1)): $(filtering_$(1))
 	$(call print_rule,normalization,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python scripts/preprocessing/normalization.py $$< $$(@) \
-		--correction G2M_score S_score G1_score \
-		--min-cell-expression-proportion 0.001 \
-		--jobs $(JOBS)
+	python scripts/preprocessing/normalization.py $$< $$(@) $(correction) --jobs $(JOBS)
 	$$(conda_deactivate)
 
 $(clustering_$(1)): $(normalization_$(1))
@@ -651,7 +673,7 @@ $(bin_cells_$(1)): $(macrostates_$(1))
 	$(call print_rule,bin-cells,$(1))
 	$$(conda_activate) scboolseq
 	python scripts/binarization/bin_cells.py $$< -o $$(@D) \
-		--cluster leiden --exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES)
+		--cluster leiden --exclude nan --layer log-norm $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES)
 	$$(conda_deactivate)
 
 $(bin_macrostates_$(1)): $(bin_cells_$(1))
@@ -768,7 +790,7 @@ $(bin_cells_integrated): $(annotation_integrated) $(foreach condition,$(conditio
 	$(call print_info,perform binarization using conditions jointly)
 	$(conda_activate) scboolseq
 	python scripts/binarization/bin_cells.py $(filter-out $(annotation_integrated),$^) -o $(dir $@) \
-		--cluster leiden --conditions $(conditions) --exclude nan --layer log-normalize $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES)
+		--cluster leiden --conditions $(conditions) --exclude nan --layer log-norm $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES)
 	$(conda_deactivate)
 	mv $@ $(@D)/tmp.h5ad
 	$(conda_activate) preprocess

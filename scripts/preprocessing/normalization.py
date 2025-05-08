@@ -3,62 +3,23 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import random
-random.seed(100)
-
 import os, std
-import argparse, cli
+import argparse
 from pathlib import Path
 
+import anndata as ad
 import scanpy as sc
 import numpy as np
 import bonesistools as bt
-from sklearn.linear_model import LinearRegression
-
-import matplotlib.pyplot as plt
-
-bt.sct.pl.set_default_params()
-
-def regress_out_feature(interest, regressors, intercept=False, n_jobs=1):
-
-    regression_model = LinearRegression(fit_intercept=False, n_jobs=n_jobs)
-    regression_model.fit(regressors, interest)
-    _prediction = regression_model.predict(regressors)
-
-    if intercept:
-        _intercept = regression_model.coef_[0][0]
-        _result = interest - _prediction + _intercept
-    else:
-        _result = interest - _prediction
-    
-    return _result[:,0]
-
-def regress_out(adata, correction, layer=None, intercept=False, n_jobs=1):
-
-    if layer is None:
-        counts = adata.X.copy()
-    else:
-        counts = adata.layers[layer].copy()
-
-    if sc.pp._simple.issparse(counts):
-        counts = counts.toarray()
-    regressors = adata.obs[correction]
-    regressors.insert(0, 'ones', 1.0)
-    regressors = regressors.to_numpy()
-
-    for i in range(adata.n_vars):
-        interest = counts[:,i].reshape(-1, 1)
-        corrected_interest = regress_out_feature(interest, regressors, intercept=intercept, n_jobs=n_jobs)
-        counts[:,i] = corrected_interest
-    
-    return counts
 
 parser = argparse.ArgumentParser(
-    prog="Normalization of sc-RNAseq data",
-    description="""From one-condition sc-rnaSeq data recorded in the hdf5 format (<filename>.h5ad),
-    filter low-quality genes (gene poorly expressed and no HVG),
-    normalize data with respect to the depth library, scale data
-    and correct unwanted effects.""",
+    prog="normalize counts",
+    description=
+    """
+    Normalize counts with different operations (standardization
+    with respect to library size, log-transformation, scaling data
+    and correction of unwanted effects).
+    """,
     usage="python normalization.py <FILE> <PATH> [<args>]"
 )
 
@@ -77,34 +38,24 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-c", "--correction",
+    "--layer",
+    dest="layer",
+    type=str,
+    required=False,
+    default=None,
+    metavar="LITERAL",
+    help="used layer (if not specified, use adata.X)"
+)
+
+parser.add_argument(
+    "--correction",
     dest="correction",
     type=str,
     required=False,
     nargs="+",
-    default=["G2M_score", "S_score", "G1_score"],
+    default=None,
     metavar="LITERAL",
-    help="unwanted effects to correct (default = [`G2M_score`, `S_score`, `G1_score`])"
-)
-
-parser.add_argument(
-    "-m", "--min-cell-expression-proportion",
-    dest="min_cell_expression_proportion",
-    type=float,
-    action=cli.Range,
-    min=0,
-    max=1,
-    required=False,
-    default=0.001,
-    help="remove genes for which the proportion of expressed cells is inferior to the given value (default = 0.001)"
-)
-
-parser.add_argument(
-    "-f", "--hvg-filtering",
-    dest="hvg_filtering",
-    required=False,
-    action="store_true",
-    help="remove highly variable genes (HVG)"
+    help="unwanted effects to correct (default = None)"
 )
 
 parser.add_argument(
@@ -122,56 +73,63 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task("data loading")
+std.print_task(f"loading file {str(args.infile)}")
 
-adata = sc.read_h5ad(args.infile)
+adata = ad.read_h5ad(args.infile)
 
-std.print_task("gene filtering")
+if args.layer:
+    adata.X = adata.layers[args.layer].copy()
 
-if args.min_cell_expression_proportion:
+std.print_task(f"normalizing counting data")
 
-    _k = [adata.n_vars]
+std.print_info(f"standardizing counts with respect to library size (layer: norm)")
+adata.layers["norm"] = adata.X.copy()
+sc.pp.normalize_total(
+    adata,
+    target_sum=1e4,
+    layer="norm",
+    copy=False
+)
 
-    threshold = args.min_cell_expression_proportion*adata.n_obs
-    sc.pp.filter_genes(data=adata, min_cells=threshold)
+std.print_info(f"performing log-transformation (layer: log-norm)")
+adata.layers["log-norm"] = adata.layers["norm"].copy()
+sc.pp.log1p(
+    adata,
+    base=np.exp(1),
+    layer="log-norm",
+    copy=False
+)
 
-    _k.append(adata.n_vars)
+std.print_info(f"scaling to unit variance and zero mean (layer: scale)")
+adata.layers["scale"] = adata.layers["log-norm"].copy()
+sc.pp.scale(
+    adata,
+    layer="scale",
+    copy=False
+)
 
-    fig, ax = plt.subplots(nrows=1, ncols=1)
-    plt.bar(
-        ["before filtering", "after filtering"], _k,
-        width=0.8,
-        linewidth=2,
-        color=bt.sct.pl.get_color("pink"),
-        edgecolor=bt.sct.pl.get_color("red")
+if args.correction:
+    std.print_info(f"correcting unwanted effects (layer: correct)")
+    adata.layers["correct"] = adata.layers["log-norm"].copy()
+    bt.sct.pp.regress_out(
+        adata,
+        keys=args.correction,
+        layer="correct",
+        intercept=False,
+        copy=False,
+        n_jobs=args.n_jobs
     )
-    ax.update({"xmargin": 0.1})
-    plt.savefig(f"{os.path.dirname(args.outfile)}/gene-number.pdf")
+    sc.pp.scale(
+        adata,
+        layer="correct",
+        copy=False
+    )
+else:
+    std.print_info(f"no specification of unwanted effects")
+    adata.layers["correct"] = adata.layers["scale"].copy()
 
-adata.layers["raw"] = adata.X.copy()
-
-std.print_task("data normalisation")
-
-adata.layers["normalize"] = sc.pp.normalize_total(adata, target_sum=1e4, inplace=False)["X"]
-adata.layers["log-normalize"] = adata.layers["normalize"].copy()
-sc.pp.log1p(adata, base=np.exp(1), layer="log-normalize")
-
-std.print_task("selecting higly variable genes (HVG)")
-
-sc.pp.highly_variable_genes(adata, layer="raw", flavor="seurat_v3", span=0.3, n_bins=20, n_top_genes=2000, inplace=True)
-if args.hvg_filtering:
-    adata = adata[:, adata.var.highly_variable]
-
-std.print_task("data scaling")
-
-adata.layers["scale"] = adata.layers["log-normalize"].copy()
-sc.pp.scale(adata, layer="scale", copy=False)
-
-std.print_task("unwanted effects correction and data scaling")
-
-adata.layers["correct"] = regress_out(adata, args.correction, layer="log-normalize", intercept=False, n_jobs=args.n_jobs)
-sc.pp.scale(adata, layer="correct")
-
-std.print_task("data saving")
-
-adata.write_h5ad(filename=f"{args.outfile}", compression="gzip")
+std.print_task(f"saving data in {str(args.outfile)}")
+adata.write_h5ad(
+    filename=args.outfile,
+    compression="gzip"
+)

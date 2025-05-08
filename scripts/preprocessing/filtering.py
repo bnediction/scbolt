@@ -12,12 +12,12 @@ import numpy as np
 
 import rdata
 import pandas as pd
+import anndata as ad
 import scanpy as sc
 import bonesistools as bt
 from pypairs import pairs
 
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FormatStrFormatter
 
 bt.sct.pl.set_default_params()
 
@@ -85,8 +85,20 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--cell-expression",
-    dest="cell_expression",
+    "--gene-dropout",
+    dest="gene_dropout",
+    action=cli.Range,
+    type=float,
+    min=0,
+    max=1,
+    required=False,
+    default=1,
+    help="maximum percentage of cell dropout required for a gene to pass filtering (default: 1)"
+)
+
+parser.add_argument(
+    "--gene-expression",
+    dest="gene_expression",
     action=cli.Min_and_max,
     type=int,
     min=0,
@@ -97,20 +109,8 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--proportion",
-    dest="proportion",
-    action=cli.Min_and_max,
-    type=float,
-    min=0,
-    max=1,
-    required=False,
-    default=[0, 1],
-    help="minimum and maximum proportion of expressed cells required for a gene to pass filtering (default: [0, 1])"
-)
-
-parser.add_argument(
-    "--counts",
-    dest="counts",
+    "--gene-counts",
+    dest="gene_counts",
     action=cli.Min_and_max,
     type=int,
     min=0,
@@ -121,8 +121,20 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--expression",
-    dest="expression",
+    "--cell-dropout",
+    dest="cell_dropout",
+    action=cli.Range,
+    type=float,
+    min=0,
+    max=1,
+    required=False,
+    default=1,
+    help="maximum percentage of gene dropout required for a cell to pass filtering (default: 1)"
+)
+
+parser.add_argument(
+    "--cell-expression",
+    dest="cell_expression",
     action=cli.Min_and_max,
     type=int,
     min=0,
@@ -133,8 +145,8 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--reads",
-    dest="reads",
+    "--cell-reads",
+    dest="cell_reads",
     action=cli.Min_and_max,
     type=int,
     min=0,
@@ -175,6 +187,23 @@ parser.add_argument(
     help="maximum proportion of expressed genes encoding mithocondrion proteins required for a cell to pass filtering (default: 1)"
 )
 
+parser.add_argument(
+    "--hvg",
+    dest="hvg",
+    type=float,
+    required=False,
+    default=2000,
+    help="number of highly variable genes (default: 2000)"
+)
+
+parser.add_argument(
+    "--filter-non-hvg",
+    dest="filter_non_hvg",
+    required=False,
+    action="store_true",
+    help="filter non-highly variable genes"
+)
+
 args = parser.parse_args()
 
 if any(v<0 for v in args.mad_deviation):
@@ -186,7 +215,7 @@ if not outpath.exists():
 
 std.print_task(f"loading file {str(args.infile)}")
 
-adata = sc.read_h5ad(Path(f"{args.infile}").resolve())
+adata = ad.read_h5ad(Path(f"{args.infile}").resolve())
 
 std.print_task(f"initializing settings")
 
@@ -256,10 +285,6 @@ reads = [
         np.exp(np.median(np.log(adata.obs.total_counts)) - args.mad_deviation[0]*mad),
         np.exp(np.median(np.log(adata.obs.total_counts)) + args.mad_deviation[1]*mad)
     ]
-proportion = [
-    args.proportion[0]*adata.n_obs,
-    args.proportion[1]*adata.n_obs
-]
 
 ylim = [0, round(math.ceil(max(adata.obs.total_counts)+1000),-3)]
 fig, ax = plt.subplots(nrows=1, ncols=2)
@@ -281,28 +306,40 @@ std.print_info(f"filtering low-quality genes")
 
 bt.sct.pp.filter_var(
     adata,
-    "n_cells_by_counts",
-    lambda x: (x >= args.cell_expression[0]) & (x < args.cell_expression[1])
+    "pct_dropout_by_counts",
+    lambda x: (x <= 1e2*args.gene_dropout)
 )
 
 bt.sct.pp.filter_var(
     adata,
     "n_cells_by_counts",
-    lambda x: (x >= proportion[0]) & (x < proportion[1])
+    lambda x: (x >= args.gene_expression[0]) & (x < args.gene_expression[1])
 )
 
 bt.sct.pp.filter_var(
     adata,
     "total_counts",
-    lambda x: (x >= args.counts[0]) & (x < args.counts[1])
+    lambda x: (x >= args.gene_counts[0]) & (x < args.gene_counts[1])
 )
 
 std.print_info(f"filtering low-quality cells")
 
 bt.sct.pp.filter_obs(
     adata,
+    "n_genes_by_counts",
+    lambda x: (x >= (1-args.cell_dropout)*adata.n_vars)
+)
+
+bt.sct.pp.filter_obs(
+    adata,
+    "n_genes_by_counts",
+    lambda x: (x >= args.cell_expression[0]) & (x < args.cell_expression[1])
+)
+
+bt.sct.pp.filter_obs(
+    adata,
     "total_counts",
-    lambda x: (x >= args.reads[0]) & (x < args.reads[1])
+    lambda x: (x >= args.cell_reads[0]) & (x < args.cell_reads[1])
 )
 
 bt.sct.pp.filter_obs(
@@ -313,19 +350,31 @@ bt.sct.pp.filter_obs(
 
 bt.sct.pp.filter_obs(
     adata,
-    "n_genes_by_counts",
-    lambda x: (x >= args.expression[0]) & (x < args.expression[1])
-)
-
-bt.sct.pp.filter_obs(
-    adata,
     "pct_counts_mt",
     lambda x: x < 1e2*args.mt
 )
 
+std.print_task(f"computing top {args.hvg} highly variable genes")
+
+sc.pp.highly_variable_genes(
+    adata,
+    layer="counts",
+    flavor="seurat_v3",
+    span=0.3,
+    n_bins=20,
+    n_top_genes=args.hvg,
+    inplace=True
+)
+if args.filter_non_hvg:
+    std.print_info(f"filtering non-highly variable genes")
+    adata._inplace_subset_var(adata.var.highly_variable)
+else:
+    std.print_info(f"keeping non-highly variable genes")
+
 shape["final"] = adata.shape
 
-std.print_info("plotting total counting distribution before/after filtering")
+std.print_task("plotting violin plots and bar charts")
+
 sc.pl.violin(
     adata=adata,
     keys="total_counts",
@@ -342,7 +391,6 @@ ax[1].set_ylim(ylim)
 ax[1].set(title="filtered")
 plt.savefig(f"{outpath}/total-counts.pdf")
 
-std.print_info("plotting violin plots after filtering")
 ax = sc.pl.violin(
     adata=adata,
     keys=["n_genes_by_counts", "total_counts", "pct_counts_mt", "pct_counts_rps"],
@@ -357,14 +405,16 @@ for i, title in zip(range(4), [r"gene number", r"gene counts", r"mitochondrion p
 plt.savefig(f"{outpath}/filtered-data.pdf")
 
 if args.marker_infile:
-    std.print_info("plotting cell cycle predictions")
     fig, ax = plt.subplots(nrows=1, ncols=1)
     ax = adata.obs.pypairs_cc_prediction.value_counts().plot.bar(rot=0)
     ax.set(xlabel="cell cycle phases")
     plt.savefig(f"{outpath}/cell-cycles-counting.pdf")
 
 std.print_task(f"saving data in {str(args.outfile)}")
-adata.write_h5ad(filename=args.outfile)
+adata.write_h5ad(
+    filename=args.outfile,
+    compression="gzip"
+)
 
 std.print_info(f"gene number: [before filtering: {shape['init'][0]}, after filtering: {shape['final'][0]}, removed: {shape['init'][0] - shape['final'][0]}]")
 std.print_info(f"cell number: [before filtering: {shape['init'][1]}, after filtering: {shape['final'][1]}, removed: {shape['init'][1] - shape['final'][1]}]")
