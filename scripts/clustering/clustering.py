@@ -14,8 +14,6 @@ import anndata as ad
 import scanpy as sc
 import bonesistools as bt
 
-import matplotlib.pyplot as plt
-
 bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
@@ -166,7 +164,7 @@ args = parser.parse_args()
 
 if args.pca_dimension < max(args.clustering_dimension, args.embedding_dimension) or args.clustering_dimension < args.embedding_dimension:
     raise argparse.ArgumentError(
-        f"invalid values for arguments: dim-pca > dim-clustering > dim-umap not satisfied"
+        f"invalid values for arguments: pca dimension > clustering dimension > embedding dimension not satisfied"
     )
 
 label = "UMAP" if args.embedding == "umap" else "t-SNE"
@@ -217,6 +215,7 @@ sc.tl.leiden(
     neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
     resolution=args.resolution,
     key_added=f"leiden",
+    random_state=args.seed,
     copy=False
 )
 
@@ -242,18 +241,18 @@ elif args.embedding == "tsne":
         copy=False
     )
 
-std.print_info(f"plotting {label} with respect to leiden-based clusters")
-fig, _ = bt.sct.pl.embedding_plot(
+std.print_info(f"plotting {label.lower()} with respect to leiden-based clusters")
+bt.sct.pl.embedding_plot(
     adata,
     obs="leiden",
     obsm="X_umap" if args.embedding == "umap" else "X_tsne",
     xlabel=r"$\mathrm{{{}_{{1}}}}$".format(label),
     ylabel=r"$\mathrm{{{}_{{2}}}}$".format(label),
     zlabel=r"$\mathrm{{{}_{{3}}}}$".format(label),
-    add_legend=True,
     figwidth=6,
     s=2,
     alpha=1,
+    add_legend=True,
     lgd_params={
         "title":"clusters",
         "ncol":1,
@@ -263,9 +262,9 @@ fig, _ = bt.sct.pl.embedding_plot(
         "shadow":False
     },
     n_components = 3 if args.embedding_dimension > 2 else 2,
-    background_visible=False
+    background_visible=False,
+    outfile=Path(f"{os.path.dirname(args.outfile)}/{args.embedding}_leiden.pdf")
 )
-plt.savefig(Path(f"{os.path.dirname(args.outfile)}/{args.embedding}_leiden.pdf"))
 
 std.print_task(f"saving data in {str(args.outfile)}")
 adata.write_h5ad(

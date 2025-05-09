@@ -9,7 +9,7 @@ JOBS = 16
 
 ORGANISM := mouse
 CONDITIONS := ctrl treated
-SEED := 0
+SEED := 10
 
 ## END INFORMATION ##
 
@@ -37,16 +37,14 @@ $(eval CC_CORRECTION := true)				# regress-out cell cycle effects
 
 ## BEGIN CLUSTERING ##
 
-$(eval EMBEDDING := umap)					# embedding projection (umap or tsne)
-$(eval DIM_PCA := 50)						# number of computed principal components
+$(eval INTEGRATION := bbknn)				# integration method used (bbknn, scanorama or ingest)
+$(eval DIM_PCA := 15)						# number of computed principal components
 $(eval DIM_CLUSTERING := 15)				# number of principal components taken into account for clustering cells
 $(eval DIM_EMBEDDING := 2)					# number of embedding dimensions
 $(eval PCA_ONLY_HVG := true)				# use only highly variable genes for PCA projection
 $(eval NEIGHBORS := 20)						# number of closest neighbors
 $(eval METRIC := euclidean)					# metric used for computing closest neighbors and optionally t-sne projection
 $(eval RESOLUTION := 0.4)					# parameter value controlling the coarseness of the clustering
-
-$(eval INTEGRATION_METHOD := bbknn)			# bbknn, ingest or scanorama
 
 ## END CLUSTERING ##
 

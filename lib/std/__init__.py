@@ -5,5 +5,6 @@ from ._stdout import (
     disable_print,
     print_info,
     print_task,
-    print_warning
+    print_warning,
+    print_debug
 )

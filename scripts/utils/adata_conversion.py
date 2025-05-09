@@ -143,7 +143,12 @@ if args.metadata:
 if args.genename_standardization:
     adata.var["symbol"] = list(adata.var.index)
     for alias_type in ["genename","geneid","ensemblid"]:
-        bt.sct.pp.set_ncbi_reference_name(adata, annotations="var", input_type=alias_type, copy=False)
+        bt.sct.pp.set_ncbi_reference_name(
+            adata,
+            axis="var",
+            input_type=alias_type,
+            copy=False
+        )
     adata = bt.sct.pp.var_names_merge_duplicates(adata, var_names_column="symbol")
 
 if args.__getattribute__("to") == "h5ad":

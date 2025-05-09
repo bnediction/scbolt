@@ -190,7 +190,7 @@ parser.add_argument(
 parser.add_argument(
     "--hvg",
     dest="hvg",
-    type=float,
+    type=int,
     required=False,
     default=2000,
     help="number of highly variable genes (default: 2000)"
@@ -222,11 +222,9 @@ std.print_task(f"initializing settings")
 adata.layers["counts"] = adata.X.copy()
 adata.var_names_make_unique()
 
-std.print_task("computing metrics")
-
 shape = {"init":adata.shape}
 
-std.print_info("classifying genes encoding mitocondrial proteins")
+std.print_task("classifying genes encoding mitocondrial proteins")
 bt.sct.tl.mitochondrial_genes(
     adata,
     index_type="genename",
@@ -235,7 +233,7 @@ bt.sct.tl.mitochondrial_genes(
     copy=False
 )
 
-std.print_info("classifying genes encoding ribosomal proteins")
+std.print_task("classifying genes encoding ribosomal proteins")
 bt.sct.tl.ribosomal_genes(
     adata,
     index_type="genename",
@@ -245,16 +243,19 @@ bt.sct.tl.ribosomal_genes(
 )
 
 if args.marker_infile is None:
-    std.print_warning(f"cannot classify cell cycle phases because marker file not specified")
+    std.print_warning("cannot classify cell cycle phases: marker file not specified")
 else:
-    std.print_info(f"classifying cell cycle phases (using file {str(args.marker_infile)})")
+    std.print_task(f"classifying cell cycle phases (using file {str(args.marker_infile)})")
+    std.print_debug("parsing R object")
     parser = rdata.parser.parse_file(args.marker_infile)
+    std.print_debug("converting R object into Python object")
     marker_pairs = rdata.conversion.convert(parser)
+    std.print_info("scoring cell cycle phases for each cell")
     marker_pairs = marker_pairs_converter(marker_pairs, "referencename")
     scores = pairs.cyclone(adata, marker_pairs)
     adata.obs.rename(columns={"pypairs_G1": "G1_score", "pypairs_S": "S_score", "pypairs_G2M": "G2M_score"}, inplace=True)
 
-std.print_info("calculating quality control metrics")
+std.print_task("calculating quality control metrics")
 sc.pp.calculate_qc_metrics(
     adata,
     qc_vars=["mt","rps"],

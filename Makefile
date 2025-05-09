@@ -69,6 +69,10 @@ define print_warning
 	@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - WARNING - $(1)
 endef
 
+define print_debug
+	@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - DEBUG - $(1)
+endef
+
 define print_error
 	@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - ERROR - $(1)
 	exit 1
@@ -537,7 +541,7 @@ $(velocyto_$(1)): $(cellranger_$(1)) $(transcriptome)
 		mv $$(<D)/velocyto/cellranger.loom $$(shell echo $$@ | sed "s/h5ad/loom/")
 		rm -rf $$(<D)/velocyto
 		$$(conda_activate) preprocess
-		$(call print_task,converting $$(shell echo $$@ | sed "s/h5ad/loom/") into $$@ and standardizing gene names)
+		$(call print_debug,converting $$(shell echo $$@ | sed "s/h5ad/loom/") into $$@ and standardizing gene names)
 		python scripts/utils/adata_conversion.py $$(shell echo $$@ | sed "s/h5ad/loom/") $$@ --from loom --to h5ad \
 			--remove-positions \
 			--genename-standardization
@@ -569,10 +573,11 @@ $(clustering_$(1)): $(normalization_$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
 	python scripts/clustering/clustering.py $$< $$@ \
-		--layer correct --adjacency knn --embedding $(EMBEDDING) \
+		--layer correct --adjacency knn --embedding umap \
 		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_CLUSTERING) --embedding-dimension $(DIM_EMBEDDING) \
 		$(pca_only_hvg) --neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) --seed $(SEED)
-	python fig/plot_embedding.py fig/cc_$(EMBEDDING).json --infile $$@ --outfile $$(@D)/$(EMBEDDING)_cc.pdf 
+	$(call print_task,plotting umap with respect to cell cycle phases,$(1))
+	python fig/plot_embedding.py fig/cc_umap.json --infile $$@ --outfile $$(@D)/cc_umap.pdf 
 	$$(conda_deactivate)
 
 ifeq ($(LABELING_FROM_INTEGRATION),true)
@@ -760,12 +765,10 @@ $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(co
 	$(call print_rule,clustering,integrated)
 	mkdir -p $(@D)
 	$(conda_activate) preprocess
-	python scripts/clustering/integration.py $^ --outfile $@ \
-		--labels $(conditions) --method $(INTEGRATION_METHOD) --layer correct \
-		--hvg $(HVG) --metric euclidean --k-neighbors $(K_NEIGHBORS) --resolution $(RESOLUTION) \
-		--dim-pca $(DIM_PCA) --dim-clustering $(DIM_CLUSTERING) --dim-umap $(DIM_UMAP) \
-		--add-legend --plot-3d \
-		--seed $(SEED) --jobs $(JOBS)
+	python scripts/clustering/integration.py $^ --outfile $@ --labels $(conditions) \
+		--layer correct --adjacency knn --integration $(INTEGRATION) --embedding umap \
+		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_CLUSTERING) --embedding-dimension $(DIM_EMBEDDING) \
+		$(if $(filter $(PCA_ONLY_HVG),true),--hvg $(HVG),) --neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) --seed $(SEED) --jobs $(JOBS)
 	$(conda_deactivate)
 
 ifdef CLUSTER_LABEL_INTEGRATED

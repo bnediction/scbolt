@@ -59,8 +59,8 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-j", "--jobs",
-    dest="n_jobs",
+    "--jobs",
+    dest="jobs",
     type=int,
     required=False,
     default=1,
@@ -117,7 +117,7 @@ if args.correction:
         layer="correct",
         intercept=False,
         copy=False,
-        n_jobs=args.n_jobs
+        n_jobs=args.jobs
     )
     sc.pp.scale(
         adata,
