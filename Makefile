@@ -580,8 +580,8 @@ $(clustering_$(1)): $(normalization_$(1))
 	python scripts/clustering/clustering.py $$< $$@ \
 		--layer correct --adjacency knn --embedding umap \
 		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_CLUSTERING) --embedding-dimension $(DIM_EMBEDDING) \
-		$(pca_only_hvg) --neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) --seed $(SEED)
-	$(call print_task,plotting umap with respect to cell cycle phases,$(1))
+		$(pca_only_hvg) --neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) --min-dist $(MIN_DIST) --spread $(SPREAD) --seed $(SEED)
+	$(call print_task,plotting umap with respect to cell cycle phases)
 	python fig/plot_embedding.py fig/cc_umap.json --infile $$@ --outfile $$(@D)/cc_umap.pdf 
 	$$(conda_deactivate)
 
@@ -596,17 +596,16 @@ $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 		--infile $$@ --outfile $$(@D)/umap_labels
 	$$(conda_deactivate)
 else
-ifdef CLUSTER_LABEL_$(call toupper,$(1))
+ifdef LABEL_$(call toupper,$(1))
 $(annotation_$(1)): $(clustering_$(1))
 	$(call print_rule,annotation,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python scripts/clustering/annotation.py $$< $$@ \
-		--column leiden \
-		--name $$(CLUSTER_LABEL_$(call toupper,$(1)))
+	python scripts/clustering/annotation.py $< $@ \
+		--obs leiden --labels $(join $(shell seq 0 1 $$(( $(words $$(LABEL_$(call toupper,$(1))))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
 	$(call print_task,embedding component plotting)
 	python fig/plot_embedding.py fig/umap_labels.json \
-		--infile $$@ --outfile $$(@D)/umap_labels
+		--infile $$@ --outfile $$(@D)/umap_labels.pdf
 	$$(conda_deactivate)
 else
 $(annotation_$(1)): $(clustering_$(1))
@@ -703,22 +702,6 @@ $(bin_macrostates_$(1)): $(bin_cells_$(1))
 
 endef
 
-
-#$(deseq_$(1)): $(clustering_$(1)) $(lastword $(signatures))
-#	$$(eval markers_csv := $$(dir $$(@D))markers.csv)
-#	$(call print_task, background genes computation)
-#	python scripts/utils/get_genes.py $$(<) $$(@)
-#	export clusters=`column -s, -t < $$(markers_csv) | awk 'NR>1 {print $$$$2}' | sort -u | tr '\n' ' '`
-#	$(call print_task, upregulated cluster-related genes computation)
-#	for cluster in $$$${clusters}
-#	do
-#		`column -s, -t < $$(markers_csv) | awk -v c=$$$${cluster} '$$$$2==c {print $$$$1}' > $$(@D)/cluster$$$${cluster}.txt`
-#		python scripts/utils/genename_standardization.py $$(@D)/cluster$$$${cluster}.txt $$(@D)/cluster$$$${cluster}.txt --quiet
-#	done
-#	unset clusters
-#	
-
-
 define condition_plus_integrated_dependant_rules
 
 $(deseq_$(1))&: $(clustering_$(1))
@@ -778,23 +761,23 @@ $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(co
 	python scripts/clustering/integration.py $^ --outfile $@ --labels $(conditions) \
 		--layer correct --adjacency knn --integration $(INTEGRATION) --embedding umap \
 		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_CLUSTERING) --embedding-dimension $(DIM_EMBEDDING) \
-		$(if $(filter $(PCA_ONLY_HVG),true),--hvg $(HVG),) --neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) --seed $(SEED) --jobs $(JOBS)
+		$(if $(filter $(PCA_ONLY_HVG),true),--hvg $(HVG),) --neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) \
+		--min-dist $(MIN_DIST) --spread $(SPREAD) --seed $(SEED) --jobs $(JOBS)
 	$(conda_deactivate)
 
-ifdef CLUSTER_LABEL_INTEGRATED
+ifdef LABEL_INTEGRATED
 $(annotation_integrated): $(clustering_integrated)
 	$(call print_rule,annotation,integrated)
 	$(conda_activate) preprocess
 	python scripts/clustering/annotation.py $< $@ \
-		--column leiden \
-		--name $(CLUSTER_LABEL_INTEGRATED)
-	$(call print_task,embedding component plotting)
-	python fig/plot_embedding.py fig/umap_labels.json --infile $@ --outfile $(@D)/umap_labels
+		--obs leiden --labels $(join $(shell seq 0 1 $$(( $(words $(LABEL_INTEGRATED))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
+	$(call print_task,plotting umap with respect to labels)
+	python fig/plot_embedding.py fig/umap_labels.json --infile $@ --outfile $(@D)/umap_labels.pdf
 	$(conda_deactivate)
 else
 $(annotation_integrated): $(clustering_integrated)
 	$(call print_rule,annotation,integrated)
-	$(call print_error,CLUSTER_LABEL_INTEGRATED not defined)
+	$(call print_error,LABEL_INTEGRATED not defined)
 endif
 
 ifeq ($(INTEGRATED_BINARIZATION),split)

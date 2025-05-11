@@ -278,6 +278,7 @@ class Store_dict(argparse.Action):
         self,
         type_key: type=str,
         type_value: type=str,
+        sep: str=":",
         *args,
         **kwargs
     ):
@@ -286,18 +287,23 @@ class Store_dict(argparse.Action):
             metavar_key = "LITERAL" if type_key == str else type_key.__name__.upper()
             self.type_key = type_key
         else:
-            raise TypeError(f"'type_key' is of type {type(type_key)} instead of {type}") 
+            raise TypeError(f"unsupported parameter type for 'type_key': expected '{type}' but received '{type(type_key)}'")
 
         if isinstance(type_value, type):
             metavar_value = "LITERAL" if type_value == str else type_value.__name__.upper()
             self.type_value = type_value
         else:
-            raise TypeError(f"'type_key' is of type {type(type_value)} instead of {type}")
+            raise TypeError(f"unsupported parameter type for 'type_key': expected '{type}' but received '{type(type_value)}'")
+
+        if isinstance(sep, str):
+            self.sep = sep
+        else:
+            raise TypeError(f"unsupported parameter type for 'sep': expected '{str}' but received '{type(sep)}'")
         
         if "nargs" not in kwargs:
             kwargs["nargs"] = "+"
         
-        kwargs["metavar"] = f"{metavar_key}={metavar_value}"
+        kwargs["metavar"] = f"{metavar_key}{sep}{metavar_value}"
         super(Store_dict, self).__init__(*args, **kwargs)
 
     def __call__(
@@ -309,10 +315,10 @@ class Store_dict(argparse.Action):
     ):
         setattr(namespace, self.dest, dict())
         for element in values:
-            key, value = element.split("=")
-            key = self.type_key(key)
-            value = self.type_value(value)
-            getattr(namespace, self.dest)[key] = value
+            k, v = element.split(self.sep)
+            k = self.type_key(k)
+            v = self.type_value(v)
+            getattr(namespace, self.dest)[k] = v
 
 class Store_organism(argparse.Action):
 

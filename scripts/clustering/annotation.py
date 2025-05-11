@@ -10,41 +10,44 @@ from pathlib import Path
 import anndata as ad
 
 parser = argparse.ArgumentParser(
-    prog="single-cell cluster labeling",
-    description="""Rename labels using user-defined names.""",
-    usage="""python cluster_annotation.py [-h] <FILE> <FILE> -c <LITERAL> -n <LITERAL=LITERAL [LITERAL=LITERAL ...]>"""
+    prog="annotation",
+    description="""
+    Rename labels using user-defined names.
+    Specified value for parameter '--name' must be a sequence where each element has the following syntax: <old_name>:<new_name>
+    """,
+    usage="""python annotation.py [-h] <FILE> <FILE> --obs <LITERAL> --labels <LITERAL:LITERAL [LITERAL:LITERAL ...]>"""
 )
 
 parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="counting file (h5ad format)"
+    help="input file storing counts (h5ad format)"
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="PATH",
-    help="output file with labels (h5ad format)"
+    help="input file storing counts with new labels (h5ad format)"
 )
 
 parser.add_argument(
-    "-c", "--column",
-    dest="column",
+    "--obs",
+    dest="obs",
     type=str,
     required=True,
     metavar="LITERAL",
-    help="name of the column in adata.obs from which user want to redefine category names"
+    help="column name in adata.obs where category names are redefined"
 )
 
 parser.add_argument(
-    "-n", "--name",
+    "--labels",
     dest="labels",
     action=cli.Store_dict,
     required=True,
     nargs="+",
-    help="mapping between old and new names for labels"
+    help="mapping between old and new names"
 )
 
 args = parser.parse_args()
@@ -52,19 +55,25 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task("data loading")
+dict_to_str = ""; add = ""
+for k, v in args.labels.items():
+    dict_to_str += f"{add}{k}->{v}"; add = ", "
+
+std.print_task(f"loading file {str(args.infile)}")
 
 adata = ad.read_h5ad(args.infile)
 
-std.print_task("cluster labeling")
+if args.obs not in adata.obs:
+    raise KeyError(f"colum '{args.obs}' not found in adata.obs")
+elif not hasattr(adata.obs[args.obs], "cat"):
+    raise ValueError(f"series 'adata.obs[{args.obs}]' does not refer to a categorical variable")
 
-if args.column not in adata.obs:
-    raise KeyError(f"adata.obsm[`{args.column}`] does not exist.")
-elif not hasattr(adata.obs[args.column], "cat"):
-    raise ValueError("values in adata.obs[`{args.column}`] are not derived from a Categorical type.")
-else:
-    adata.obs[args.column].replace(args.labels, inplace=True)
+std.print_task(f"renaming labels for column '{args.obs}' ({dict_to_str})")
 
-std.print_task("data saving")
+adata.obs[args.obs].replace(args.labels, inplace=True)
 
-adata.write_h5ad(filename=args.outfile, compression="gzip")
+std.print_task(f"saving data in {str(args.outfile)}")
+adata.write_h5ad(
+    filename=args.outfile,
+    compression="gzip"
+)

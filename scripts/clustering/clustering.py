@@ -147,7 +147,27 @@ parser.add_argument(
     required=False,
     default=0.6,
     metavar="FLOAT",
-    help="parameter value controlling the coarseness of the clustering (default: 0.6)"
+    help="coarseness of the clustering (default: 0.6)"
+)
+
+parser.add_argument(
+    "--min-dist",
+    dest="min_dist",
+    type=float,
+    required=False,
+    default=0.5,
+    metavar="FLOAT",
+    help="effective minimum distance between embedded points in umap (default: 0.5)"
+)
+
+parser.add_argument(
+    "--spread",
+    dest="spread",
+    type=float,
+    required=False,
+    default=1.0,
+    metavar="FLOAT",
+    help="effective scale of embedded points in umap (default: 1.0)"
 )
 
 parser.add_argument(
@@ -226,6 +246,8 @@ if args.embedding == "umap":
         adata,
         neighbors_key="neighbors",
         n_components=args.embedding_dimension,
+        min_dist=args.min_dist,
+        spread=args.spread,
         random_state=np.random.RandomState(args.seed),
         copy=False
     )

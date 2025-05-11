@@ -44,24 +44,28 @@ $(eval DIM_EMBEDDING := 2)					# number of embedding dimensions
 $(eval PCA_ONLY_HVG := true)				# use only highly variable genes for PCA projection
 $(eval NEIGHBORS := 20)						# number of closest neighbors
 $(eval METRIC := euclidean)					# metric used for computing closest neighbors and optionally t-sne projection
-$(eval RESOLUTION := 0.4)					# parameter value controlling the coarseness of the clustering
+$(eval RESOLUTION := 0.4)					# coarseness of the clustering
+$(eval MIN_DIST := 0.5)						# effective minimum distance between embedded points in umap
+$(eval SPREAD := 1)							# effective scale of embedded points in umap
 
 ## END CLUSTERING ##
 
-## BEGIN MARKER-ANALYSIS ##
+## BEGIN DESEQ ##
 
-$(eval LOGFC := 0.25)
-$(eval ALPHA := 0.05)
-$(eval CORRECTION := bonferroni)
+$(eval LOGFC := 0.25)						# minimum log2 fold-change for a gene to be considered as differentially expressed
+$(eval ALPHA := 0.05)						# significance level or probability of rejecting null hypothesis that gene is not differentially expressed
+$(eval CORRECTION := bonferroni)			# method used for correcting the significance level (benjamini-hochberg ou bonferroni)
 
-## END MARKER-ANALYSIS ##
+## END DESEQ ##
 
-# annotation #
+## BEGIN ANNOTATION ##
 
-# $(eval CLUSTER_LABEL_INTEGRATED := 0=cluster0 1=cluster1 ...)
-$(eval LABELING_FROM_INTEGRATION := true)	# true or false (if false, please define CLUSTER_LABEL_<CONDITION>)
+$(eval LABELING_FROM_INTEGRATION := true)	# whether new labels are derived from integrated data only or specified by user for each reference
 
-## END CLUSTERING ##
+# Note: if LABELING_FROM_INTEGRATION is true, then user have to specify LABEL_INTEGRATED only.
+# Otherwise, user have to specify LABEL_<REFERENCE> for each reference
+
+## END ANNOTATION ##
 
 ## BEGIN TRAJECTORY INFERENCE ##
 

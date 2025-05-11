@@ -211,7 +211,27 @@ parser.add_argument(
     required=False,
     default=0.6,
     metavar="FLOAT",
-    help="parameter value controlling the coarseness of the clustering (default: 0.6)"
+    help="coarseness of the clustering (default: 0.6)"
+)
+
+parser.add_argument(
+    "--min-dist",
+    dest="min_dist",
+    type=float,
+    required=False,
+    default=0.5,
+    metavar="FLOAT",
+    help="effective minimum distance between embedded points in umap (default: 0.5)"
+)
+
+parser.add_argument(
+    "--spread",
+    dest="spread",
+    type=float,
+    required=False,
+    default=1.0,
+    metavar="FLOAT",
+    help="effective scale of embedded points in umap (default: 1.0)"
 )
 
 parser.add_argument(
@@ -257,14 +277,14 @@ std.print_task(f"loading files")
 
 adatas = []
 for infile, label in zip(args.infiles, args.labels):
-    std.print_info(f"loading dataset {label} ({str(infile)})")
+    std.print_info(f"loading dataset '{label}' ({str(infile)})")
     adatas.append(ad.read_h5ad(infile))
 
 for adata in adatas:
     adata.X = adata.layers[args.layer].copy()
     clean_adata(adata)
 
-std.print_debug(f"merging datasets ({' '.join(label for label in args.labels)})")
+std.print_debug("merging datasets ({0})".format(', '.join(f"'{label}'" for label in args.labels)))
 try:
     adata = ad.concat(
         adatas=adatas,
@@ -337,6 +357,8 @@ if args.integration=="ingest":
         adatas[reference],
         neighbors_key="neighbors",
         n_components=args.embedding_dimension,
+        min_dist=args.min_dist,
+        spread=args.spread,
         random_state=np.random.RandomState(args.seed),
         copy=False
     )
@@ -453,6 +475,8 @@ elif args.integration=="bbknn":
             adata,
             neighbors_key="neighbors",
             n_components=args.embedding_dimension,
+            min_dist=args.min_dist,
+            spread=args.spread,
             random_state=np.random.RandomState(args.seed),
             copy=False
         )
@@ -534,6 +558,8 @@ elif args.integration=="scanorama":
             adata,
             neighbors_key="neighbors",
             n_components=args.embedding_dimension,
+            min_dist=args.min_dist,
+            spread=args.spread,
             random_state=np.random.RandomState(args.seed),
             copy=False
         )

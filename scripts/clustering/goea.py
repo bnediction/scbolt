@@ -207,7 +207,7 @@ for cluster, geneset in study_geneset.items():
     if not _goea_significant_results:
         std.print_warning(f"no enrichment results for cluster {cluster}")
     else:
-        std.print_info(f"{len(_goea_significant_results)} enrichment results for cluster {cluster}")
+        std.print_result(f"{len(_goea_significant_results)} enrichment results for cluster {cluster}")
         with std.disable_print():
             goea.wr_xlsx(f"{os.path.dirname(args.outfile)}/{cluster}", _goea_significant_results)
 
