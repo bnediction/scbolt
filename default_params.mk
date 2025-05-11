@@ -48,6 +48,14 @@ $(eval RESOLUTION := 0.4)					# parameter value controlling the coarseness of th
 
 ## END CLUSTERING ##
 
+## BEGIN MARKER-ANALYSIS ##
+
+$(eval LOGFC := 0.25)
+$(eval ALPHA := 0.05)
+$(eval CORRECTION := bonferroni)
+
+## END MARKER-ANALYSIS ##
+
 # annotation #
 
 # $(eval CLUSTER_LABEL_INTEGRATED := 0=cluster0 1=cluster1 ...)
@@ -66,7 +74,7 @@ $(eval SMM_MODE := dynamical)				# mode used to estimate the steady-state model 
 CLUSTER_NUMBER = 6
 LAMBDA = 0.05
 MU = 0.05
-ALPHA = 0.03
+# ALPHA = 0.03 # specify in marker-analysis
 EXTEND_LEAF_NODES := true
 EXTEND := 0.8
 PRUNE_GRAPH := false

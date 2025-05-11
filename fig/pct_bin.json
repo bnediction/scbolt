@@ -1,0 +1,39 @@
+{
+    "modules": [
+        {"numpy": "np"},
+        {"bonesistools": "bt"},
+        "math"
+    ],
+    "eval": [
+        "xlabel",
+        "ylabel",
+        "zlabel",
+        ["lgd_params", "title"],
+        ["lgd_params", "edgecolor"],
+        "n_components"
+    ],
+    "figure": {
+        "obs": "pct_bin",
+        "obsm": "X_umap",
+        "figwidth": 6,
+        "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
+        "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
+        "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
+        "s": 3,
+        "alpha": 1,
+        "add_labels": false,
+        "add_legend": true,
+        "lgd_params": {
+            "title": "r'$\\% \\mathrm{bin}$'",
+            "ncol": 1,
+            "markerscale": 5,
+            "frameon": true,
+            "edgecolor": "bt.sct.pl.get_color('black')",
+            "shadow": false
+        },
+        "n_components": "3 if adata.obsm['X_umap'].shape[1] > 2 else 2",
+        "background_visible": false
+    },
+    "grid": false,
+    "axis": "off"
+}

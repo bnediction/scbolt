@@ -8,7 +8,6 @@ import argparse, cli
 from pathlib import Path
 
 from typing import Sequence, Union
-from collections import OrderedDict as odict
 from anndata import AnnData
 
 import random
@@ -56,7 +55,7 @@ def clean_adata(
     return adata if copy else None
 
 parser = argparse.ArgumentParser(
-    prog="integration, clustering and embedding",
+    prog="integration",
     description=
     """
     Compute principal components, compute closest and shared-nearest neighbors,
@@ -237,9 +236,9 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-if args.pca_dimension < max(args.clustering_dimension, args.embedding_dimension) or args.clustering_dimension < args.embedding_dimension:
+if args.pca_dimension < args.clustering_dimension:
     raise argparse.ArgumentError(
-        f"invalid values for arguments: pca dimension > clustering dimension > embedding dimension not satisfied"
+        f"invalid values for arguments: 'pca-dimension' > 'clustering-dimension' not satisfied (pca-dimension: {args.pca_dimension}, clustering-dimension: {args.clustering_dimension})"
     )
 
 if args.integration == "ingest" and args.embedding == "tsne":
@@ -549,9 +548,6 @@ elif args.integration=="scanorama":
             random_state=np.random.RandomState(args.seed),
             copy=False
         )
-    
-
-print(adata.obsm["X_umap"])
 
 std.print_info(f"plotting principal components with respect to conditions")
 bt.sct.pl.embedding_plot(

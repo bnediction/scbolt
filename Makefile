@@ -114,7 +114,7 @@ endef
 public = data/public
 rna = data/rna
 
-cycle_markers = $(public)/cycle_phases/mouse_cycle_markers.rds
+cc_markers = $(public)/cycle_phases/mouse_cycle_markers.rds
 signatures = $(public)/signatures/geiger.xls $(public)/signatures/chambers.xls $(public)/signatures/signatures.json
 go_basic = $(public)/enrichment/go-basic.obo
 go_mouse = $(public)/enrichment/goslim.obo
@@ -142,7 +142,8 @@ endef
 define condition_plus_integrated_dependant_paths
 
 clustering_$(1) = 				$(rna)/$(1)/clustering/clusters/counts.h5ad
-markers_$(1) = 					$(rna)/$(1)/clustering/markers/genes/background.txt
+deseq_$(1) = 					$(rna)/$(1)/clustering/deseq/markers.csv $(rna)/$(1)/clustering/deseq/genes.xlsx
+scoring_$(1) = 					$(rna)/$(1)/clustering/scoring/phenotypes.csv
 goea_basic_$(1) = 				$(rna)/$(1)/clustering/goea/goea_basic.xlsx
 goea_mouse_$(1) = 				$(rna)/$(1)/clustering/goea/goea_mouse.xlsx
 annotation_$(1) = 				$(rna)/$(1)/clustering/clusters/annotation.h5ad
@@ -186,7 +187,8 @@ h5ad_target :=
 filtering_target :=
 normalization_target :=
 clustering_target :=
-markers_target :=
+deseq_target :=
+scoring_target :=
 goea_target :=
 annotation_target :=
 scvelo_velocity_target :=
@@ -224,7 +226,8 @@ endef
 define dependant_targets_with_integration
 
 $(eval clustering_target := $(clustering_target) $(clustering_$(1)))
-$(eval markers_target := $(markers_target) $(markers_$(1)))
+$(eval deseq_target := $(deseq_target) $(deseq_$(1)))
+$(eval scoring_target := $(scoring_target) $(scoring_$(1)))
 $(eval goea_target := $(goea_target) $(goea_basic_$(1)) $(goea_mouse_$(1)))
 $(eval annotation_target := $(annotation_target) $(annotation_$(1)))
 $(eval stream_pseudotime_target := $(stream_pseudotime_target) $(stream_pseudotime_$(1)))
@@ -371,8 +374,8 @@ mrproper: ## clear cache and public/private data
 
 load-annotations: $(transcriptome) ## download transcriptome-related annotations
 load-fastq: $(fastq_target) ## download fastq files
-load-markers: $(cycle_markers) ## download cycle phase markers
 load-signatures: $(lastword $(signatures)) ## download signatures and convert it into json file
+load-cc: $(cc_markers) ## download cell cycle phase markers
 load-go: $(go_basic) $(go_mouse) $(gene2go) ## download gene ontology-related files
 
 ##@ Alignment/Counting
@@ -393,12 +396,14 @@ normalization: $(normalization_target) ## filtering low quality genes and normal
 
 .PHONY: clustering
 clustering: $(clustering_target) ## perform dimension reduction and cell clustering (and optionally integration)
-.PHONY: marker-analysis
-marker-analysis: $(markers_target) ## search for gene markers and compare markers and signatures
+.PHONY: deseq
+deseq: $(deseq_target) ## search for markers (differentially expressed genes) between clusters
+.PHONY: scoring
+scoring: $(scoring_target) ## score signature-related phenotypes with respect to cell clusters
 .PHONY: goea
 goea: $(goea_target) ## perform gene ontology enrichment analysis
 .PHONY: annotation
-annotation: $(annotation_target) ## annotate clusters
+annotation: $(annotation_target) ## assign names to cell clusters
 
 ##@ Trajectory inference
 
@@ -448,7 +453,7 @@ $(transcriptome):
 	tar -zxvf $@.tar.gz -C $(@D)
 	gunzip $@/genes/genes.gtf.gz
 
-$(cycle_markers):
+$(cc_markers):
 	$(call print_rule,load-markers)
 	mkdir -p $(@D)
 	wget --quiet --show-progress -cO $@ $(cell_cycle_url)
@@ -473,17 +478,17 @@ $(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures))
 	$(conda_deactivate)
 
 $(go_basic):
-	$(call print_rule,load-go,go-basic)
+	$(call print_rule,load-go \(go-basic\))
 	mkdir -p $(@D)
 	wget --quiet --show-progress -cO $@ $(go_basic_url)
 
 $(go_mouse):
-	$(call print_rule,load-go,go-mouse)
+	$(call print_rule,load-go \(go-mouse\))
 	mkdir -p $(@D)
 	wget --quiet --show-progress -cO $@ $(go_mouse_url)
 
 $(gene2go):
-	$(call print_rule,load-go,gene2go)
+	$(call print_rule,load-go \(gene2go\))
 	mkdir -p $(@D)
 	wget --quiet --show-progress --directory-prefix=$(@D) $(gene2go_url)
 	gunzip $@.gz
@@ -550,7 +555,7 @@ $(velocyto_$(1)): $(cellranger_$(1)) $(transcriptome)
 		$(call print_error,cannot run velocyto: file data/public/transcriptome/repeat_msk.gtf does not exist \(please refer to documentation for downloading it\))
 	fi
 
-$(filtering_$(1)): $(velocyto_$(1)) $(cycle_markers)
+$(filtering_$(1)): $(velocyto_$(1)) $(cc_markers)
 	$(call print_rule,filtering,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
@@ -698,46 +703,51 @@ $(bin_macrostates_$(1)): $(bin_cells_$(1))
 
 endef
 
+
+#$(deseq_$(1)): $(clustering_$(1)) $(lastword $(signatures))
+#	$$(eval markers_csv := $$(dir $$(@D))markers.csv)
+#	$(call print_task, background genes computation)
+#	python scripts/utils/get_genes.py $$(<) $$(@)
+#	export clusters=`column -s, -t < $$(markers_csv) | awk 'NR>1 {print $$$$2}' | sort -u | tr '\n' ' '`
+#	$(call print_task, upregulated cluster-related genes computation)
+#	for cluster in $$$${clusters}
+#	do
+#		`column -s, -t < $$(markers_csv) | awk -v c=$$$${cluster} '$$$$2==c {print $$$$1}' > $$(@D)/cluster$$$${cluster}.txt`
+#		python scripts/utils/genename_standardization.py $$(@D)/cluster$$$${cluster}.txt $$(@D)/cluster$$$${cluster}.txt --quiet
+#	done
+#	unset clusters
+#	
+
+
 define condition_plus_integrated_dependant_rules
 
-$(markers_$(1)): $(clustering_$(1)) $(lastword $(signatures))
-	$$(eval markers_csv := $$(dir $$(@D))markers.csv)
-	$(call print_rule,marker-analysis,$(1))
+$(deseq_$(1))&: $(clustering_$(1))
+	$(call print_rule,deseq,$(1))
+	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python scripts/clustering/markers.py $$(^) $$(dir $$(markers_csv)) \
-  		--cluster leiden \
-  		--logfc-threshold 0.25 \
-  		--verbose
-	$(call print_task, background genes computation)
-	python scripts/utils/get_genes.py $$(<) $$(@)
-	export clusters=`column -s, -t < $$(markers_csv) | awk 'NR>1 {print $$$$2}' | sort -u | tr '\n' ' '`
-	$(call print_task, upregulated cluster-related genes computation)
-	for cluster in $$$${clusters}
-	do
-		`column -s, -t < $$(markers_csv) | awk -v c=$$$${cluster} '$$$$2==c {print $$$$1}' > $$(@D)/cluster$$$${cluster}.txt`
-		python scripts/utils/genename_standardization.py $$(@D)/cluster$$$${cluster}.txt $$(@D)/cluster$$$${cluster}.txt --quiet
-	done
-	unset clusters
+	python scripts/clustering/markers.py $$< $(firstword $(deseq_$(1))) --xlsx $(lastword $(deseq_$(1))) \
+		--cluster leiden --layer log-norm --are-log \
+		--logfc $(LOGFC) --alpha $(ALPHA) --correction $(CORRECTION)
 	$$(conda_deactivate)
 
-$(goea_basic_$(1)): $(markers_$(1)) $(go_basic) $(gene2go)
-	$(call print_rule,goea,$(1) with go-basic)
+$(scoring_$(1)): $(clustering_$(1)) $(lastword $(signatures)) $(lastword $(deseq_$(1)))
+	$(call print_rule,scoring,$(1))
+	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python scripts/clustering/enrichment.py $$(@) \
-    	--population $$(<) \
-    	--study $$(<D)/cluster*.txt \
-    	--go $$(word 2,$$^) \
-    	--gene2go $$(lastword $$^)
+	python scripts/clustering/scoring.py $$^ $$@ --cluster leiden --ignore-sheets background
 	$$(conda_deactivate)
 
-$(goea_mouse_$(1)): $(markers_$(1)) $(go_mouse) $(gene2go)
-	$(call print_rule,goea,$(1) with go-mouse)
+$(goea_basic_$(1)): $(lastword $(deseq_$(1))) $(go_basic) $(gene2go)
+	$(call print_rule,goea with go-basic,$(1))
+	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python scripts/clustering/enrichment.py $$(@) \
-    	--population $$(<) \
-    	--study $$(<D)/cluster*.txt \
-    	--go $$(word 2,$$^) \
-    	--gene2go $$(lastword $$^)
+	python scripts/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^) 
+	$$(conda_deactivate)
+
+$(goea_mouse_$(1)): $(lastword $(deseq_$(1))) $(go_mouse) $(gene2go)
+	$(call print_rule,goea with go-mouse,$(1))
+	$$(conda_activate) preprocess
+	python scripts/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
 	$$(conda_deactivate)
 
 $(stream_pseudotime_$(1)): $(annotation_$(1))

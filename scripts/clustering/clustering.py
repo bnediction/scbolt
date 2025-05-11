@@ -17,7 +17,7 @@ import bonesistools as bt
 bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
-    prog="clustering and embedding",
+    prog="clustering",
     description=
     """
     Compute principal components, compute closest and shared-nearest neighbors,
@@ -162,9 +162,9 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-if args.pca_dimension < max(args.clustering_dimension, args.embedding_dimension) or args.clustering_dimension < args.embedding_dimension:
+if args.pca_dimension < args.clustering_dimension:
     raise argparse.ArgumentError(
-        f"invalid values for arguments: pca dimension > clustering dimension > embedding dimension not satisfied"
+        f"invalid values for arguments: 'pca-dimension' > 'clustering-dimension' not satisfied (pca-dimension: {args.pca_dimension}, clustering-dimension: {args.clustering_dimension})"
     )
 
 label = "UMAP" if args.embedding == "umap" else "t-SNE"

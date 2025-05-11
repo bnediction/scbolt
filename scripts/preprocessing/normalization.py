@@ -13,7 +13,7 @@ import numpy as np
 import bonesistools as bt
 
 parser = argparse.ArgumentParser(
-    prog="normalize counts",
+    prog="normalization",
     description=
     """
     Normalize counts with different operations (standardization
@@ -55,7 +55,7 @@ parser.add_argument(
     nargs="+",
     default=None,
     metavar="LITERAL",
-    help="unwanted effects to correct (default = None)"
+    help="unwanted effects to correct (default: None)"
 )
 
 parser.add_argument(

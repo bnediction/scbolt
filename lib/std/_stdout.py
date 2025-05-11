@@ -61,3 +61,7 @@ def print_warning(message:str=None) -> None:
 def print_debug(message:str=None) -> None:
     print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - DEBUG - {message}", file=sys.stdout)
     return None
+
+def print_result(message:str=None) -> None:
+    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - RESULT - {message}", file=sys.stdout)
+    return None

@@ -5,6 +5,7 @@ import argparse
 import json
 from pathlib import Path
 
+import bonesistools as bt
 import pandas as pd
 
 def file2signatures(file):
@@ -31,7 +32,7 @@ parser = argparse.ArgumentParser(
 )
 
 parser.add_argument(
-    "-t", "--table-infile",
+    "--table-infile",
     dest="table_infile",
     type=lambda x: Path(x).resolve(),
     required=True,
@@ -39,7 +40,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-l", "--list-infile",
+    "--list-infile",
     dest="list_infile",
     type=lambda x: Path(x).resolve(),
     required=True,
@@ -47,7 +48,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-o", "--outfile",
+    "--outfile",
     dest="outfile",
     type=lambda x: Path(x).resolve(),
     required=True,
@@ -72,6 +73,11 @@ signatures_d = {
     **table_signatures_d,
     **list_signatures_d
 }
+
+genesyn = bt.dbs.ncbi.GeneSynonyms()
+for k, v in signatures_d.items():
+    signatures_d[k] = genesyn(v)
+signatures_d = {phenotype: signature for phenotype, signature in signatures_d.items() if signature}
 
 with open(f"{args.outfile}", "w") as file:
     json.dump(signatures_d, file, indent=1)

@@ -50,7 +50,7 @@ def median_absolute_deviation(x, consistency=False):
     return constant*np.median(np.absolute(x - np.median(x)))
 
 parser = argparse.ArgumentParser(
-    prog="calculate metrics and filter low quality cells and genes",
+    prog="filtering",
     description=
     """
     Calculate metrics (proportions of genes encoding mitocondrial and ribosomal proteins,

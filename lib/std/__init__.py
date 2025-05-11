@@ -6,5 +6,6 @@ from ._stdout import (
     print_info,
     print_task,
     print_warning,
-    print_debug
+    print_debug,
+    print_result
 )
