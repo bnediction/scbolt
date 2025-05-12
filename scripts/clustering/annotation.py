@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser(
     Rename labels using user-defined names.
     Specified value for parameter '--name' must be a sequence where each element has the following syntax: <old_name>:<new_name>
     """,
-    usage="""python annotation.py [-h] <FILE> <FILE> --obs <LITERAL> --labels <LITERAL:LITERAL [LITERAL:LITERAL ...]>"""
+    usage="python annotation.py [-h] <FILE> <FILE> --obs <LITERAL> --labels <LITERAL:LITERAL [LITERAL:LITERAL ...]>"
 )
 
 parser.add_argument(
@@ -45,8 +45,8 @@ parser.add_argument(
     "--labels",
     dest="labels",
     action=cli.Store_dict,
-    required=True,
     nargs="+",
+    required=True,
     help="mapping between old and new names"
 )
 

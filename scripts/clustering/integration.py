@@ -61,7 +61,7 @@ parser = argparse.ArgumentParser(
     Compute principal components, compute closest and shared-nearest neighbors,
     cluster cells using leiden algorithm and integrate data in an embedding projection.
     """,
-    usage="""python integration.py [-h] <FILE...> --outfile <FILE> [<args>]"""
+    usage="python integration.py [-h] <FILE...> --outfile <FILE> [<args>]"
 )
 
 parser.add_argument(

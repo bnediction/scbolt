@@ -590,10 +590,9 @@ $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 	$(call print_rule,annotation,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python scripts/utils/pipe_its.py $$^ --outfiles $$@ --column leiden --condition condition
-	$(call print_task,embedding component plotting)
-	python fig/plot_embedding.py fig/umap_labels.json \
-		--infile $$@ --outfile $$(@D)/umap_labels
+	python scripts/utils/pipe_its.py $$^ --outfiles $$@ --obs condition --names $(1) --columns leiden
+	$(call print_task,plotting umap with respect to annotated clusters)
+	python fig/plot_embedding.py fig/leiden_umap.json --infile $$@ --outfile $$(@D)/umap_annotation.pdf
 	$$(conda_deactivate)
 else
 ifdef LABEL_$(call toupper,$(1))

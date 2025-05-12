@@ -62,8 +62,9 @@ parser.add_argument(
 parser.add_argument(
     "--layers",
     dest="layers",
-    required=False,
+    type=str,
     nargs="+",
+    required=False,
     default=None,
     metavar="LITERAL",
     help="name of the layers in right-sided adata.var sent to left-sided adata"
@@ -73,8 +74,8 @@ parser.add_argument(
     "--index",
     dest="index",
     type=str,
-    required=False,
     nargs="+",
+    required=False,
     default=None,
     metavar="LITERAL",
     help="name of the columns in [left|right] adata.obs used as index with initial index (useful when identical barcodes in index, default: None)"
@@ -82,11 +83,11 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-std.print_task("loading data")
+std.print_task("loading files")
 
-std.print_info(f"loading left sample ({args.left})")
+std.print_info(f"loading left dataset ({args.left})")
 left_ad = ad.read_h5ad(args.left)
-std.print_info(f"loading right sample ({args.right})")
+std.print_info(f"loading right dataset ({args.right})")
 right_ad = ad.read_h5ad(args.right)
 
 if args.index:

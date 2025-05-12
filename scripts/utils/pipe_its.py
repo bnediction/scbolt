@@ -10,84 +10,110 @@ from pathlib import Path
 import anndata as ad
 
 parser = argparse.ArgumentParser(
-    prog="integrated-to-specific information transfer",
-    description="""send information from integrated data towards multiple datasets, each one containing one condition""",
-    usage="""python pipe_its.py [-h] <FILE> <FILE [FILE ...]> --columns <COLUMNS [COLUMNS ...]> [OPTIONS]"""
+    prog="pipe_its",
+    description="""
+    Send information from 'adata.obs' in integrated dataset towards multiple datasets, each one referring to a name.
+    Values passed to parameters '--specifics' and '--names' have to be ordered together.
+    If parameter '--outfiles' is specified, it also have to be specified in the same order as '--specifics' and '--names'.
+    """,
+    usage="""python pipe_its.py [-h] <FILE> <FILE ...> [--outfiles <FILE ...>] --obs <LITERAL> --names <LITERAL ...> [--columns <LITERAL ...>"""
 )
 
 parser.add_argument(
     "integrated",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="integration-based file (h5ad format)"
+    help="input integration-based file (h5ad format)"
 )
 
 parser.add_argument(
-    "infiles",
+    "specifics",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
     nargs="+",
-    help="condition-based input file(s) (h5ad format)"
+    help="input condition-based input file(s) (h5ad format)"
 )
 
 parser.add_argument(
     "--outfiles",
     dest="outfiles",
     type=lambda x: Path(x).resolve(),
-    required=False,
-    metavar="FILE",
-    default=None,
     nargs="+",
+    required=False,
+    default=None,
+    metavar="FILE",
     help="condition-based output file(s) (h5ad format. If not specified, replace input file(s))"
+)
+
+parser.add_argument(
+    "--obs",
+    dest="obs",
+    type=str,
+    required=True,
+    metavar="LITERAL",
+    help="column name in integrated 'adata.obs' referring to dataset names"
+)
+
+parser.add_argument(
+    "--names",
+    dest="names",
+    type=str,
+    nargs="+",
+    required=True,
+    metavar="LITERAL",
+    help="dataset names"
 )
 
 parser.add_argument(
     "--columns",
     dest="columns",
-    required=True,
-    nargs="+",
-    help="name of the columns in integrated adata.obs that the user wants to send to control and treated adata"
-)
-
-parser.add_argument(
-    "--condition",
-    dest="condition",
     type=str,
+    nargs="+",
     required=False,
+    default=None,
     metavar="LITERAL",
-    default="condition",
-    help="name of the column in integrated adata.obs matching with control and treated adata.uns[condition] (default: condition)"
+    help="column names in integrated 'adata.obs' to transfer (if not specified, transfer all columns)"
 )
 
 args = parser.parse_args()
 
-std.print_task("loading data")
+if args.outfiles is None:
+    args.outfiles = args.specifics
 
-std.print_info(f"loading integrated sample ({str(args.integrated)})")
-integrated_adata = ad.read_h5ad(args.integrated)
-std.print_info(f"loading specific samples ({', '.join(map(str, args.specifics))})")
-condition_adatas = [ad.read_h5ad(infile) for infile in args.infiles]
+std.print_task(f"loading dataset 'integrated' ({str(args.integrated)})")
+integrated_ad = ad.read_h5ad(args.integrated)
 
-std.print_task("transferring information from integrated sample to specific samples")
+specific_ad = {}
+for name, file in zip(args.names, args.specifics):
+    std.print_task(f"loading dataset '{name}' ({str(file)})")
+    specific_ad[name] = ad.read_h5ad(file)
 
-for column in args.columns:
-    for adata in condition_adatas:
-        if column in adata.obs:
-            del adata.obs[column]
-    if column not in integrated_adata.obs:
-        raise KeyError(f"column `{column}` not found in integrated_adata.obs")
+if args.obs not in integrated_ad.obs.columns:
+    raise KeyError(f"column '{args.obs}' not found in integrated_ad.obs")
 
-for adata in condition_adatas:
-    cond = integrated_adata.obs[args.condition] == adata.uns[args.condition]
-    df = integrated_adata.obs.loc[cond][args.columns]
+if args.columns is None:
+    args.columns = set(integrated_ad.obs.columns)
+    args.columns.discard(args.obs)
+else:
+    args.columns = set(args.columns)
+
+std.print_task("transferring information from integrated dataset to specific datasets")
+
+for name, adata in specific_ad.items():
+    cols_to_remove = args.columns.intersection(set(adata.obs.columns))
+    if cols_to_remove:
+        std.print_debug("removing in dataset '{0}' the following column(s): {1}".format(name,', '.join(f"'{cols}'" for cols in cols_to_remove)))
+        adata.obs = adata.obs.drop(cols_to_remove, axis=1)
     adata.obs = adata.obs.merge(
-        right=df,
+        right=integrated_ad[integrated_ad.obs[args.obs] == name].obs[list(args.columns)],
         how="left",
         left_index=True,
         right_index=True
     )
 
-std.print_task(f"saving data ({', '.join(map(str, args.outfiles))})")
-
-for adata, outfile in zip(condition_adatas, args.outfiles):
-    adata.write_h5ad(filename=outfile, compression="gzip")
+for name, outfile in zip(args.names, args.outfiles):
+    std.print_task(f"saving dataset '{name}' in {str(file)}")
+    specific_ad[name].write_h5ad(
+        filename=outfile,
+        compression="gzip"
+    )
