@@ -70,7 +70,7 @@ parser.add_argument(
     action=cli.Required_length,
     min=2,
     metavar="FILE",
-    help="input files storing counts where the first one is considered as reference base (h5ad format)"
+    help="input files storing counts where the first one is considered as reference base (format: h5ad)"
 )
 
 parser.add_argument(
@@ -79,7 +79,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="FILE",
-    help="integrated file (h5ad format)"
+    help="integrated file (format: h5ad)"
 )
 
 parser.add_argument(

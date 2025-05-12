@@ -67,11 +67,18 @@ $(eval LABELING_FROM_INTEGRATION := true)	# whether new labels are derived from 
 
 ## END ANNOTATION ##
 
+## BEGIN SCVELO ##
+
+$(eval DIM_MOMENT := 15)					# number of principal components taken into account for estimating moments
+$(eval VELOCITY_ONLY_HVG := true)			# use only highly variable genes for estimating rna velocities
+$(eval SMM_MODE := dynamical)				# mode used for estimating the steady-state model (deterministic, stochastic or dynamical)								
+
+## END SCVELO ##
+
 ## BEGIN TRAJECTORY INFERENCE ##
 
 # scvelo #
 
-$(eval SMM_MODE := dynamical)				# mode used to estimate the steady-state model (deterministic, stochastic or dynamical)								
 
 # stream-pseudotime #
 

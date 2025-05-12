@@ -27,14 +27,14 @@ parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing counts (h5ad format)"
+    help="input file storing counts (format: h5ad)"
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing normalized counts (h5ad format)"
+    help="output file storing normalized counts (format: h5ad)"
 )
 
 parser.add_argument(

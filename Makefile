@@ -281,6 +281,14 @@ else
 $(error PCA_ONLY_HVG not set to true or false)
 endif
 
+ifeq ($(VELOCITY_ONLY_HVG),true)
+velocity_only_hvg=--hvg
+else ifeq ($(VELOCITY_ONLY_HVG),false)
+velocity_only_hvg=
+else
+$(error VELOCITY_ONLY_HVG not set to true or false)
+endif
+
 ifeq ($(EXTEND_LEAF_NODES),true)
 EXTEND_LEAF_NODES:=--extend-leaf-nodes
 else ifeq ($(EXTEND_LEAF_NODES),false)
@@ -618,12 +626,9 @@ $(scvelo_$(1)): $(annotation_$(1))
 	$(call print_rule,scvelo,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) scvelo
-	python scripts/trajectories/scvelo_velocity.py $$< $$(@D) \
-		--cluster leiden \
-		--k-neighbors $(K_NEIGHBORS) \
-		--dim-clustering $(DIM_CLUSTERING) \
-		--mode $(SMM_MODE) \
-		--add-legend
+	python scripts/trajectories/velocity.py $$< $$@ \
+		--layer counts --cluster leiden --moment-dimension $(DIM_MOMENT) \
+		$(velocity_only_hvg) --mode $(SMM_MODE) --embedding umap --jobs $(JOBS)
 	$$(conda_deactivate)
 
 ifndef INITIAL_STATES_$(call toupper,$(1))

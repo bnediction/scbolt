@@ -20,14 +20,14 @@ parser.add_argument(
     "left",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="left-sided file (h5ad format)"
+    help="left-sided file (format: h5ad)"
 )
 
 parser.add_argument(
     "right",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="right-sided file (h5ad format)"
+    help="right-sided file (format: h5ad)"
 )
 
 parser.add_argument(
@@ -37,7 +37,7 @@ parser.add_argument(
     required=False,
     metavar="FILE",
     default=None,
-    help="output file (h5ad format. If not specified, replace left-sided file)"
+    help="output file (format: h5ad, if not specified, replace left-sided file)"
 )
 
 parser.add_argument(

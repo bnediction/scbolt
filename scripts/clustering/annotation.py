@@ -22,14 +22,14 @@ parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing counts (h5ad format)"
+    help="input file storing counts (format: h5ad)"
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="PATH",
-    help="input file storing counts with new labels (h5ad format)"
+    help="input file storing counts with new labels (format: h5ad)"
 )
 
 parser.add_argument(

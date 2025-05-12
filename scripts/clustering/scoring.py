@@ -37,28 +37,28 @@ parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing counts (h5ad format)"
+    help="input file storing counts (format: h5ad)"
 )
 
 parser.add_argument(
     "signatures",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing phenotype-gene list associations (json format)"
+    help="input file storing phenotype-gene list associations (format: json)"
 )
 
 parser.add_argument(
     "markers",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing gene sets for each spreadsheet (xlsx format)"
+    help="input file storing gene sets for each spreadsheet (format: xlsx)"
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing marker-metric associations (csv format)"
+    help="output file storing marker-metric associations (format: csv)"
 )
 
 parser.add_argument(

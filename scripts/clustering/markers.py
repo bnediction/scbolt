@@ -28,14 +28,14 @@ parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing counts (h5ad format)"
+    help="input file storing counts (format: h5ad)"
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing marker-metric associations (csv format)"
+    help="output file storing marker-metric associations (format: csv)"
 )
 
 parser.add_argument(
@@ -44,7 +44,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="output file storing differentially expressed genes, each spreadsheet being related to a cluster (xlsx format)"
+    help="output file storing differentially expressed genes, each spreadsheet being related to a cluster (format: xlsx)"
 )
 
 parser.add_argument(

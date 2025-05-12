@@ -34,14 +34,14 @@ parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing gene sets for each spreadsheet (xlsx format)"
+    help="input file storing gene sets for each spreadsheet (format: xlsx)"
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file containing gene ontology enrichment results (xlsx format)"
+    help="output file containing gene ontology enrichment results (format: xlsx)"
 )
 
 parser.add_argument(
@@ -59,7 +59,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="FILE",
-    help="file containing DAG with HPO terms (obo format)"
+    help="file containing DAG with HPO terms (format: obo)"
 )
 
 parser.add_argument(
@@ -69,7 +69,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="FILE",
-    help="file containing annotations of genes-to-HPO terms (annotation.tab format, cannot be used with argument --gene2go)"
+    help="file containing annotations of genes-to-HPO terms (format: annotation.tab, cannot be used with argument --gene2go)"
 )
 
 parser.add_argument(
@@ -79,7 +79,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="FILE",
-    help="file containing NCBI gene-to-GO terms (cannot be used with argument --annotations)"
+    help="file containing NCBI gene-to-GO terms (format: gene2go, cannot be used with argument --annotations)"
 )
 
 parser.add_argument(

@@ -32,14 +32,14 @@ parser.add_argument(
     dest="infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing counts (h5ad format)"
+    help="input file storing counts (format: h5ad)"
 )
 
 parser.add_argument(
     dest="outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing neighbors and embedding projection (h5ad format)"
+    help="output file storing neighbors and embedding projection (format: h5ad)"
 )
 
 parser.add_argument(
