@@ -32,8 +32,8 @@ datetime.now.POSIXct <- function()
 print_task <- function(x)
   cat(paste0(datetime.now.POSIXct()," - TASK - ",x,"\n"))
 
-print_info <- function(x)
-  cat(paste0(datetime.now.POSIXct()," - INFO - ",x,"\n"))
+print_result <- function(x)
+  cat(paste0(datetime.now.POSIXct()," - RESULT - ",x,"\n"))
 
 is.defined = function(x)
   !is.null(x)
@@ -41,21 +41,21 @@ is.defined = function(x)
 description <- ""
 usage <- ""
 arguments <- list(
-  make_option(c("-i", "--infile"),
+  make_option("--infile",
               dest="infile",
               type="character",
               default=NULL,
               metavar="FILE",
               help="counting file (csv format)",
               ),
-  make_option(c("-o", "--outpath"),
+  make_option("--outpath",
               dest="outpath",
               type="character",
               default=NULL,
               metavar="PATH",
               help="output path"
               ),
-  make_option(c("-s", "--sep"),
+  make_option("--sep",
               dest="sep",
               type="character",
               action="store",
@@ -63,7 +63,7 @@ arguments <- list(
               metavar="CHAR",
               help="field delimiter for csv infile (default: `\\t`)"
               ),
-  make_option(c("-c", "--condition"),
+  make_option("--condition",
               dest="condition",
               type="character",
               action="store",
@@ -180,7 +180,7 @@ dir.create(
 
 setLoggingFile(file.path(args$outpath, "cotan.log"))
 
-print_task("data loading")
+print_task(paste0("loading file ", args$infile))
 
 df <- read.csv(
   args$infile,
@@ -196,7 +196,7 @@ cotan <- initializeMetaDataset(
   sampleCondition = args$condition
 )
 
-print_task("data preprocessing")
+print_task("preprocessing data")
 
 if (isTRUE(args$drop_mithocondrial)){
   cotan <- addElementToMetaDataset(cotan, tag="remove mithocondrial genes and cells", value=TRUE)
@@ -259,7 +259,7 @@ if (isTRUE(args$cotan_filtering)){
   cotan <- addElementToMetaDataset(cotan, tag="cotan filtering", value=FALSE)
 }
 
-print_task("cotan analysis")
+print_task("initializing cotan settings")
 
 cotan <- clean(cotan)
 c(pca.plot, pca.data, genes.plot, UDE.plot, nu.plot, zoomed.nu.plot) %<-% cleanPlots(cotan)
@@ -282,7 +282,7 @@ cotan <- storeGDI(
   genesGDI=global.differentiation.index
 )
 
-print_task("cotan clustering")
+print_task("clustering cells using cotan algorithm")
 
 advanced.GDI.uniformity.checker <- new("AdvancedGDIUniformityCheck")
 
@@ -361,10 +361,10 @@ c(summary.data, summary.plot) %<-%
     plotTitle="clustering summary"
   )
 
-print_info("cluster information:")
+print_result("cotan summary\n")
 summary.data
 
-print_task("embedding component plotting")
+print_task("plotting principal components and umap with respect to cotan clusters")
 
 c(umap.plot, cells.pca) %<-%
   cellsUMAPPlot(
@@ -379,9 +379,10 @@ pdf(file = file.path(args$outpath, "umap_plot.pdf"))
 plot(umap.plot)
 dev.off()
 
-print_task("data saving")
-
+print_task(paste0("saving cotan data in ", args$outpath, "/cotan.RDS"))
 saveRDS(cotan, file = file.path(args$outpath, "cotan.RDS"))
+
+print_task(paste0("saving clusters related-data in ", args$outpath, "/clusters.csv"))
 write.table(data.frame(clusters), file.path(args$outpath, "clusters.csv"), row.names=TRUE, col.names=FALSE, quote=FALSE, sep=",")
 
 setLoggingFile("")

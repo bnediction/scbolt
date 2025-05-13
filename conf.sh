@@ -6,8 +6,8 @@
 install_env() {
     if conda env list | grep -q "^$1 ";
     then
-        echo "$1 conda environment already exists"
-        read -p $"Do you want to reinstall ${1} environment? ([y]/n): " choice
+        echo "conda environment '$1' already exists"
+        read -p $"Do you want to reinstall conda environment '${1}'? ([y]/n): " choice
         if [[ "$choice" == "y" || -z "$choice" ]];
         then
             conda remove --name $1 --all --yes
@@ -30,10 +30,10 @@ install_env() {
             fi
 
         else
-            echo -e "$1 environment not reinstalled.\n"
+            echo -e "conda environment '$1' not reinstalled.\n"
         fi
     else
-        echo "install $1 conda environment"
+        echo "installing conda environment '$1'"
         conda env create -f ${env_dir}/$1.yml
         conda develop --name $1 ${lib_dir};
         if [[ "$1" == bonesis ]];
@@ -54,7 +54,7 @@ install_env() {
 download_ncbi_gi() {
     if [ ! -f "$1/.mus_musculus_gene_info.tsv" ];
     then
-        echo -e "download NCBI mus musculus gene info file"
+        echo -e "downloading NCBI mus musculus gene info file"
         wget --quiet --show-progress --directory-prefix=$1 ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Mus_musculus.gene_info.gz
         gunzip --quiet $1/Mus_musculus.gene_info.gz
         mv $1/Mus_musculus.gene_info $1/.mus_musculus_gene_info.tsv;
@@ -67,7 +67,7 @@ source ${HOME}/anaconda3/etc/profile.d/conda.sh
 
 if [ -d ${lib_dir}/bonesistools ];
 then
-    echo -e "bonesistools already cloned.\n"
+    echo -e "package 'bonesistools' already cloned.\n"
 else
     git clone https://github.com/bnediction/bonesistools.git ${lib_dir}/bonesistools
 fi

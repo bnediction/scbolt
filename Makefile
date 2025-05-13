@@ -289,18 +289,18 @@ else
 $(error VELOCITY_ONLY_HVG not set to true or false)
 endif
 
-ifeq ($(EXTEND_LEAF_NODES),true)
-EXTEND_LEAF_NODES:=--extend-leaf-nodes
-else ifeq ($(EXTEND_LEAF_NODES),false)
-EXTEND_LEAF_NODES:=
+ifeq ($(EXTEND_EPG),true)
+extend_epg:=--extend-epg
+else ifeq ($(EXTEND_EPG),false)
+extend_epg:=
 else
 $(error EXTEND_LEAF_NODES not set to true or false)
 endif
 
-ifeq ($(PRUNE_GRAPH),true)
-PRUNE_GRAPH:=--prune-graph
-else ifeq ($(PRUNE_GRAPH),false)
-PRUNE_GRAPH:=
+ifeq ($(PRUNE_EPG),true)
+prune_epg:=--prune-epg
+else ifeq ($(PRUNE_EPG),false)
+prune_epg:=
 else
 $(error PRUNE_GRAPH not set to true or false)
 endif
@@ -666,27 +666,28 @@ $(center_extremity_$(1)): $(scvelo_$(1))
 	$$(conda_deactivate)
 endif
 
-$(cotan_$(1)): $(scvelo_$(1))
+$(cotan_$(1)): $(annotation_$(1))
 	$(call print_rule,cotan,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	$(call print_task,h5ad to csv format conversion)
-	python scripts/utils/adata_conversion.py $$< $$(@D)/.tmp.csv --from h5ad --to csv --layer matrix
-	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $$(@D)/.tmp.csv > $$(@D)/counts.csv
-	rm $$(@D)/.tmp.csv
+	tmp_file=$$(@D)/tmp.csv
+	$(call print_debug,converting $$< into $$$${tmp_file})
+	python scripts/utils/adata_conversion.py $$< $$$${tmp_file} --from h5ad --to csv --layer matrix
+	$(call print_debug,transposing $$$${tmp_file} and saving results in $$(@D)/counts.csv)
+	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $$$${tmp_file} > $$(@D)/counts.csv
+	rm $$$${tmp_file}
+	unset tmp_file
 	$$(conda_deactivate)
 	$$(conda_activate) cotan
 	Rscript scripts/macrostates/cotan_clustering.R --infile $$(@D)/counts.csv --outpath $$(@D) --sep , \
-		--condition $(1) \
-		--max-iterations 25 \
-		--method strong-merging \
-		--jobs $(JOBS)
+		--condition $(1) --max-iterations 25 --method strong-merging --jobs $(JOBS)
 	$$(conda_deactivate)
 	sed -i '1 i\,macrostates' $$(@D)/clusters.csv
 	$$(conda_activate) preprocess
+	$(call print_debug,adding cotan clusters to anndata object)
 	python scripts/utils/add_to_adata.py $$< $$@ --obs $$(@D)/clusters.csv --obs-type str --sep ,
-	$(call print_task,embedding component plotting)
-	python fig/plot_embedding.py fig/macrostates.json --infile $$@ --outfile $$(@D)/cotan_clusters
+	$(call print_task,plotting umap with respect to cotan clusters)
+	python fig/plot_embedding.py fig/macrostates.json --infile $$@ --outfile $$(@D)/cotan_clusters.pdf
 	$$(conda_deactivate)
 
 $(bin_cells_$(1)): $(macrostates_$(1))
@@ -739,12 +740,14 @@ $(goea_mouse_$(1)): $(lastword $(deseq_$(1))) $(go_mouse) $(gene2go)
 
 $(stream_pseudotime_$(1)): $(annotation_$(1))
 	$(call print_rule,stream-pseudotime,$(1))
+	mkdir -p $$(@D)
 	$$(conda_activate) stream
-	python scripts/trajectories/stream_pseudotime.py $$< $$(@D) \
-		--extension both --cluster-number $(CLUSTER_NUMBER) --groups leiden \
-		--lambda $(LAMBDA) --mu $(MU) --alpha $(ALPHA) \
-		$(EXTEND_LEAF_NODES) --extend-mode WeigthedCentroid --extend-parameter $(EXTEND) $(PRUNE_GRAPH) \
-		--add-legend --add-graph --jobs $(JOBS)
+	python scripts/trajectories/stream_pseudotime.py $$< $$@ --h5ad $$(shell echo $$@ | sed "s/.pkl//") \
+		--embedding umap --obs leiden --cluster-number $(CLUSTER_NUMBER) \
+		--lambda $(LAMBDA_EPG) --mu $(MU_EPG) --alpha $(ALPHA_EPG) \
+		$(extend_epg) $(if $(filter $(EXTEND_EPG),true),--extend-parameter $(EXTEND_PARAMETER),) \
+		$(prune_epg) $(if$(filter $(PRUNE_EPG),true),--collapse-parameter $(COLLAPSE_PARAMETER),) \
+		--jobs $(JOBS)
 	$$(conda_deactivate)
 
 $(stream_trajectories_$(1)): $(stream_pseudotime_$(1))

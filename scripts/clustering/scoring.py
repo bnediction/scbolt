@@ -7,8 +7,6 @@ import os, std
 import argparse
 from pathlib import Path
 
-import random
-
 import json
 import pandas as pd
 import anndata as ad

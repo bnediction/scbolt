@@ -507,4 +507,4 @@ dependencies:
   - zstd=1.5.5=hfc55251_0
   - pip:
       - decoupler==1.6.0
-prefix: {HOME}/anaconda3/envs/stream
+prefix: ${HOME}/anaconda3/envs/stream

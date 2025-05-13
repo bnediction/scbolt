@@ -3,175 +3,108 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os, std
+import os, std, re
 import argparse, cli
-import re
-import pickle
 from pathlib import Path
+
+import numpy as np
 
 import anndata as ad
 import stream as st
 import bonesistools as bt
 
-from numpy import nan
-from scipy.sparse import issparse
-from pandas.api.types import is_float_dtype
 from networkx.classes.graph import Graph
 from rpy2.rinterface import ListSexpVector
-
-import matplotlib.pyplot as plt
 
 bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
-    prog="pseudotime computation",
-    description="""compute pseudotime using STREAM method \
-    (see Chen et al. (2019): <https://www.nature.com/articles/s41467-019-09670-4>).""",
-    usage=""""python stream_pseudotime.py [-h] <FILE> <PATH> [<args>]"""
+    prog="stream pseudotime",
+    description=
+    """
+    Learn elastic principal graph, estimate pseudotime and compute macrostates using STREAM methodology.
+    See Chen et al. (2019) <https://www.nature.com/articles/s41467-019-09670-4>.
+    """,
+    usage=""""python stream_pseudotime.py [-h] <FILE> <FILE> --obs <LITERAL> [<args>]"""
 )
 
 parser.add_argument(
-    "infile",
+    dest="infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="counting file (h5ad format)"
+    help="input file storing counts (format: h5ad)"
 )
 
 parser.add_argument(
-    "outpath",
+    dest="outfile",
     type=lambda x: Path(x).resolve(),
-    metavar="PATH",
-    help="output path"
+    metavar="FILE",
+    help="output file storing elastic principal graph (format: pkl)"
 )
 
 parser.add_argument(
-    "--st", "--save-tables",
-    dest="save_tables",
-    action=cli.Store_boolean,
-    required=False,
-    default=True,
-    help="save the anndata object (default: yes)"
-)
-
-parser.add_argument(
-    "-e", "--extension",
-    dest="extension",
-    type=str,
-    required=False,
-    choices=["h5ad", "pkl", "both"],
-    default="h5ad",
-    metavar="[h5ad | pkl | both]",
-    help="""file extension of saved anndata object (default: h5ad).
-    if `both` is specified, save both anndata object in h5ad and pkl format."""
-)
-
-parser.add_argument(
-    "-s", "--use-stream-embedding",
-    dest="use_stream_embedding",
-    required=False,
-    action="store_true",
-    help="""compute embedding components using classic stream data preprocessing.
-    Trajectories are then inferred using the output array given by stream embedding.
-    Cannot be used with --use-stream-embedding argument.
-    If neither --use-stream-embedding argument nor --obsm argument is used,
-    searches pre-computed embedding components for inferring trajectories:
-    .obsm[`X_umap`] and .obsm[`X_scanorama`]."""
-)
-
-parser.add_argument(
-    "-m", "--method",
-    dest="method",
-    type=str,
-    required=False,
-    choices=["se", "mlle", "umap", "pca"],
-    metavar="[se | mlle | umap | pca]",
-    help="method used for dimension reduction (used only if --use-stream-embedding)"
-)
-
-parser.add_argument(
-    "--obsm",
-    dest="obsm",
+    "--h5ad",
+    dest="h5ad",
+    type=lambda x: Path(x).resolve(),
     required=False,
     default=None,
-    metavar="LITERAL",
-    help="""ndarray name stored in .obsm[`obsm`] used for trajectory inference.
-    Cannot be used with --use-stream-embedding argument.
-    If neither --obsm argument nor --use-stream-embedding argument is used,
-    searches pre-computed embedding components for inferring trajectories:
-    .obsm[`X_umap`] and .obsm[`X_scanorama`]."""
+    metavar="FILE",
+    help="output file storing elastic principal graph (format: h5ad)"
 )
 
 parser.add_argument(
-    "-l", "--layer",
-    dest="layer",
+    "--embedding",
+    dest="embedding",
     type=str,
     required=False,
-    default=None,
+    default="umap",
+    choices=["umap","tsne"],
+    metavar="[umap|tsne]",
+    help="embedding projection (default: umap)"
+)
+
+parser.add_argument(
+    "--obs",
+    dest="obs",
+    type=str,
+    required=True,
     metavar="LITERAL",
-    help="layer used for dimension reduction (used only if --use-stream-embedding)"
+    help="column name in adata.obs referring to clusters (default: none)"
 )
 
 parser.add_argument(
-    "--hvg",
-    dest="hvg",
-    required=False,
-    action="store_true",
-    help="select the most variable genes for dimension reduction (used only if --use-stream-embedding)"
-)
-
-parser.add_argument(
-    "-d", "--dimensions",
-    dest="n_dimensions",
-    type=int,
-    required=False,
-    default=3,
-    metavar="INT",
-    help="number of components to keep (used only if --use-stream-embedding, default: 3)"
-)
-
-parser.add_argument(
-    "-n", "--cluster-number",
-    dest="n_clusters",
+    "--cluster-number",
+    dest="cluster_number",
     type=int,
     required=False,
     default=5,
     metavar="INT",
-    help="number of clusters to compute for elastic principal graph (default: 5)"
+    help="number of clusters for elastic principal graph (default: 5)"
 )
 
 parser.add_argument(
-    "-g", "--groups",
-    dest="groups",
-    type=str,
-    required=False,
-    nargs="+",
-    metavar="LITERAL",
-    help="clusters retrieving from adata.obs[`cluster`] used for cluster-related trajectory plotting"
-)
-
-parser.add_argument(
-    "--lambda", "--epg-lambda",
-    dest="epg_lambda",
+    "--lambda",
+    dest="lambda_epg",
     type=float,
     required=False,
     default=0.05,
     metavar="FLOAT",
-    help="lambda parameter used to compute the elastic energy (default: 0.05)"
+    help="lambda parameter used for computing the elastic energy (default: 0.05)"
 )
 
 parser.add_argument(
-    "--mu", "--epg-mu",
-    dest="epg_mu",
+    "--mu",
+    dest="mu_epg",
     type=float,
     required=False,
     default=0.05,
     metavar="FLOAT",
-    help="mu parameter used to compute the elastic energy (default: 0.05)"
+    help="mu parameter used for computing the elastic energy (default: 0.05)"
 )
 
 parser.add_argument(
-    "--alpha", "--epg-alpha",
-    dest="epg_alpha",
+    "--alpha",
+    dest="alpha_epg",
     type=float,
     required=False,
     default=0.01,
@@ -180,11 +113,11 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--extend-leaf-nodes",
-    dest="extend_leaf_nodes",
+    "--extend-epg",
+    dest="extend_epg",
     required=False,
     action="store_true",
-    help="attach new node to each leaf node in order to connect the border of data point cloud to nodes"
+    help="extend leaves of elastic principal graph by attaching them new nodes"
 )
 
 parser.add_argument(
@@ -195,7 +128,7 @@ parser.add_argument(
     choices=["QuantDists","QuantCentroid","WeigthedCentroid"],
     default="QuantDists",
     metavar="[QuantDists | QuantCentroid | WeigthedCentroid]",
-    help="mode used to extend the leaves (used only if --extend-leaf-nodes, default: QuantDists)"
+    help="mode used for extending the leaves (used only if --extend, default: QuantDists)"
 )
 
 parser.add_argument(
@@ -207,15 +140,15 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.5,
-    help="parameter value used to extend the leaves (used only if --extend-leaf-nodes, default: 0.5)"
+    help="stream parameter used for extending the leaves (used only if --extend, default: 0.5)"
 )
 
 parser.add_argument(
-    "--prune-graph",
-    dest="prune_graph",
+    "--prune-epg",
+    dest="prune_epg",
     required=False,
     action="store_true",
-    help="Prune the learnt elastic principal graph by filtering out trivial branches"
+    help="prune elastic principal graph by filtering out trivial branches"
 )
 
 parser.add_argument(
@@ -226,7 +159,7 @@ parser.add_argument(
     choices=["PointNumber", "PointNumber_Extrema", "PointNumber_Leaves", "EdgesNumber", "EdgesLength"],
     default="PointNumber",
     metavar="[PointNumber | PointNumber_Extrema | PointNumber_Leaves | EdgesNumber | EdgesLength]",
-    help="mode used to prune the graph (used only if --prune-graph, default: PointNumber)"
+    help="mode used for prunning the graph (used only if --prune-graph, default: PointNumber)"
 )
 
 parser.add_argument(
@@ -236,198 +169,153 @@ parser.add_argument(
     required=False,
     default=5,
     metavar="FLOAT",
-    help="parameter value used to prune the graph (used only if --prune-graph, default: 5)"
+    help="stream parameter used for prunning the graph (used only if --prune-graph, default: 5)"
 )
 
 parser.add_argument(
-    "--add-legend",
-    dest="legend",
-    required=False,
-    action="store_true",
-    help="add legend to figures"
-)
-
-parser.add_argument(
-    "--add-graph",
-    dest="graph",
-    required=False,
-    action="store_true",
-    help="add elastic principal graph to figures"
-)
-
-parser.add_argument(
-    "--plot-3d",
-    dest="plot_3d",
-    required=False,
-    action="store_true",
-    help="plot figures in three dimensions"
-)
-
-parser.add_argument(
-    "-j", "--jobs",
-    dest="n_jobs",
+    "--jobs",
+    dest="jobs",
     type=int,
     required=False,
     default=1,
     metavar="INT",
-    help="number of parallel jobs to run"
+    help="number of allocated processors"
 )
 
 args = parser.parse_args()
 
-if not args.outpath.exists():
-    os.makedirs(args.outpath)
+label = "UMAP" if args.embedding == "umap" else "t-SNE"
 
-groups = set(args.groups)
+outpath = os.path.dirname(args.outfile)
+if not Path(outpath).exists():
+    os.makedirs(outpath)
 
-std.print_task("data loading")
-
+std.print_task(f"loading file {str(args.infile)}")
 adata = ad.read_h5ad(args.infile)
-adata.obs_names_make_unique()
-adata.uns["workdir"] = str(args.outpath)
+adata.uns["workdir"] = str(outpath)
 
-if args.use_stream_embedding is True and args.obsm is not None:
-    raise argparse.ArgumentError("--use-stream-embedding and --obsm arguments cannot be used simultaneously.")
-elif args.use_stream_embedding is True:
-    std.print_task("preprocessing for stream")
-    with std.disable_print():
-        adata.X = adata.layers[args.layer].toarray() if issparse(adata.layers[args.layer]) else adata.layers[args.layer]
-        if args.hvg:
-            st.select_variable_genes(
-                adata,
-                loess_frac=0.02
-            )
-        st.select_top_principal_components(
-            adata,
-            first_pc=True,
-            n_pc=15,
-            feature="var_genes" if args.hvg else None
-        )
-        st.dimension_reduction(
-            adata,
-            method=args.method,
-            feature="top_pcs",
-            n_components=args.n_dimensions,
-            n_neighbors=50,
-            n_jobs=args.jobs
-        )
-        adata.uns["dr"] = f"{args.method}"
+if args.embedding == "umap":
+    adata.uns["dr"] = "X_umap"
+    adata.obsm["X_dr"] = adata.obsm["X_umap"].copy()
 else:
-    std.print_info("no preprocessing for stream (use previous results)")
-    if args.obsm:
-        adata.uns["dr"] = args.obsm
-    if "X_umap" in adata.obsm.keys():
-        adata.uns["dr"] = "X_umap"
-    elif "X_scanorama" in adata.obsm.keys():
-        adata.uns["dr"] = "X_scanorama"
-    else:
-        raise ValueError("Integrated components (`X_umap` or `X_scanorama`) in adata.obsm not found.")
-    adata.obsm["X_dr"] = adata.obsm[adata.uns["dr"]].copy()
+    adata.uns["dr"] = "X_tsne"
+    adata.obsm["X_dr"] = adata.obsm["X_tsne"].copy()
 
-for group in groups:
-    try:
-        adata.obs[group] = adata.obs[group].astype(object)
-    except:
-        pass
+adata.obs[args.obs] = adata.obs[args.obs].astype(object)
 
-std.print_task("elastic principal graph computation")
+std.print_task("computing elastic principal graph")
 
+std.print_debug("initializing elastic principal graph")
 with std.disable_print():
     st.seed_elastic_principal_graph(
         adata,
         clustering="kmeans",
-        n_clusters=args.n_clusters
+        n_clusters=args.cluster_number
     )
+
+std.print_info("learning elastic principal graph")
+with std.disable_print():
     st.elastic_principal_graph(
         adata,
-        epg_alpha=args.epg_alpha,
-        epg_mu=args.epg_mu,
-        epg_lambda=args.epg_lambda
+        epg_alpha=args.alpha_epg,
+        epg_mu=args.mu_epg,
+        epg_lambda=args.lambda_epg,
+        epg_n_processes=args.jobs
     )
-    if args.extend_leaf_nodes is True:
+
+if args.extend_epg:
+    std.print_info("extending leaves of elastic principal graph")
+    with std.disable_print():
         st.extend_elastic_principal_graph(
             adata,
             epg_ext_mode=args.extend_mode,
             epg_ext_par=args.extend_parameter
         )
-    if args.prune_graph is True:
+else:
+    std.print_info("not extending leaves of elastic principal graph")
+
+if args.prune_epg:
+    std.print_info("prunning elastic principal graph by filtering out trivial branches")
+    with std.disable_print():
         st.prune_elastic_principal_graph(
             adata,
             epg_collapse_mode = args.collapse_mode,
             epg_collapse_par = args.collapse_parameter,
             epg_n_processes=args.n_jobs
         )
+else:
+    std.print_info("not prunning elastic principal graph by filtering out trivial branches")
 
-adata.obs["kmeans"] = adata.obs["kmeans"].transform(lambda x: re.search(r"\d+", x).group())
+std.print_debug("retrieving stream-based clusters")
 
-adata.obs["macrostates"] = nan
-adata.obs["macrostates"] = adata.obs["macrostates"].astype(str)
+adata.obs["kmeans"] = adata.obs["kmeans"].transform(lambda x: re.search(r"\d+", x).group()).astype("category")
 
 nodes_mapping = dict()
 for node, attributes in adata.uns["flat_tree"]._node.items():
-    _label = re.search(r"\d+", attributes["label"]).group()
-    adata.uns["flat_tree"].nodes[node]["label"] = _label
-    nodes_mapping[node] = _label
+    label = re.search(r"\d+", attributes["label"]).group()
+    adata.uns["flat_tree"].nodes[node]["label"] = label
+    nodes_mapping[node] = label
 
+adata.obs["macrostates"] = np.nan
+adata.obs["macrostates"] = adata.obs["macrostates"].astype("category").cat.add_categories(sorted(nodes_mapping.values()))
 for node in nodes_mapping.keys():
     _true = adata.obs["node"] == node
     adata.obs["macrostates"][_true] = str(nodes_mapping[node])
+adata.obs["macrostates"] = adata.obs["macrostates"].astype("category")
 
-groups = groups.union({"kmeans", "macrostates"})
+groups = set([args.obs]).union({"kmeans", "macrostates"})
 
-std.print_task("trajectory plotting")
-
-for _group in groups:
+for group in groups:
+    std.print_task(f"plotting elastic principal graph in {label.lower()} space for cluster '{group}'")
     fig, ax = bt.sct.pl.embedding_plot(
         adata,
-        obs=_group,
-        obsm=adata.uns["dr"],
-        colors=[bt.sct.pl.get_color("blue")]*(len(nodes_mapping)) + [bt.sct.pl.get_color("lightgray")] if _group == "macrostates" else None,
-        xlabel=r"$\mathrm{UMAP_{1}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{1}^{\mathrm{scanorama}}}$",
-        ylabel=r"$\mathrm{UMAP_{2}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{2}^{\mathrm{scanorama}}}$",
-        zlabel=r"$\mathrm{UMAP_{3}}$" if adata.uns["dr"] == "X_umap" else r"$\mathrm{x_{3}^{\mathrm{scanorama}}}$",
-        add_graph=args.graph,
-        add_labels_to_graph=True if not is_float_dtype(adata.obs[_group]) else False,
-        add_legend=args.legend if _group != "macrostates" else False,
-        figwidth=6 if args.legend else 5,
+        obs=group,
+        obsm="X_dr",
+        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(label),
+        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(label),
+        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(label),
+        figwidth=6,
         s=2,
-        alpha=0.4 if (args.plot_3d and not is_float_dtype(adata.obs[_group])) else 0.7,
+        alpha=0.7,
+        add_legend=True,
         lgd_params={
-            "title":"macrostates" if _group != "condition" else "conditions",
+            "title":group,
             "ncol":1,
             "markerscale":5,
             "frameon":True,
+            "edgecolor":bt.sct.pl.get_color("black"),
             "shadow":False
-        } if not is_float_dtype(adata.obs[_group]) else None,
+        },
         text={
             "fontsize":14,
             "fontweight":"extra bold"
         },
-        n_components = 3 if args.plot_3d is True else 2,
-        background_visible=False
+        add_graph=True,
+        add_labels_to_graph=True,
+        n_components=3 if adata.obsm["X_dr"].shape[1] > 2 else 2,
+        background_visible=False,
+        outfile=Path(f"{outpath}/{label}_epg_{group}.pdf")
     )
-    bt.sct.pl.set_default_axis(ax)
-    plt.savefig(f"{args.outpath}/{_group}_{adata.uns['dr'].split('_')[-1].lower()}_trajectory_plot")
-    if args.plot_3d is True:
-        pickle.dump(fig, open(Path(f"{args.outpath}/{_group}_{adata.uns['dr'].split('_')[-1].lower()}_trajectory_plot.pkl"), "wb"))
-    else:
-        pass
 
-if args.save_tables:
-    std.print_task("data saving")
-    with std.disable_print():
-        if args.extension == "pkl" or args.extension == "both":
-            st.write(adata, file_name=f"{args.outpath}/stream.h5ad.pkl")
-        if args.extension == "h5ad" or args.extension == "both":
-            del adata.uns["workdir"]
-            for key in list(adata.obs.keys()):
-                if isinstance (adata.obs[key][0], tuple):
-                    del adata.obs[key]
-            for key in list(adata.uns.keys()):
-                if isinstance(adata.uns[key], (tuple, Path, Graph, ListSexpVector)):
-                    del adata.uns[key]
-                if key.startswith("stream_S"):
-                    del adata.uns[key]
-            adata.write_h5ad(filename=f"{args.outpath}/stream.h5ad", compression="gzip")
-else:
-    std.print_info("no data saving")
+std.print_task(f"saving pkl-formatted data in {str(args.outfile)}")
+with std.disable_print():
+    st.write(
+        adata,
+        file_name=args.outfile
+    )
+
+if args.h5ad:
+    std.print_task(f"saving h5ad-formatted data in {str(args.h5ad)}")
+    del adata.uns["workdir"]
+    for key in list(adata.obs.keys()):
+        if isinstance (adata.obs[key][0], tuple):
+            del adata.obs[key]
+    for key in list(adata.uns.keys()):
+        if isinstance(adata.uns[key], (tuple, Path, Graph, ListSexpVector)):
+            del adata.uns[key]
+        if key.startswith("stream_S"):
+            del adata.uns[key]
+    adata.write_h5ad(
+        filename=args.h5ad,
+        compression="gzip"
+    )

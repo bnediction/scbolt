@@ -75,20 +75,18 @@ $(eval SMM_MODE := dynamical)				# mode used for estimating the steady-state mod
 
 ## END SCVELO ##
 
-## BEGIN TRAJECTORY INFERENCE ##
+## BEGIN STREAM ##
 
-# scvelo #
+$(eval CLUSTER_NUMBER = 6)					# number of clusters for elastic principal graph
+$(eval LAMBDA_EPG = 0.05)					# lambda parameter used for computing the elastic energy
+$(eval MU_EPG = 0.05)						# mu parameter used for computing the elastic energy
+$(eval ALPHA_EPG = 0.03)					# alpha parameter of the penalized elastic energy
+$(eval EXTEND_EPG := true)					# extend leaves of elastic principal graph by attaching them new nodes
+$(eval EXTEND_PARAMETER := 0.8)				# stream parameter used for extending the leaves (used only if EXTEND_EPG = true)
+$(eval PRUNE_EPG := false)					# prune elastic principal graph by filtering out trivial branches
+$(eval COLLAPSE_PARAMETER := false)			# stream parameter used for prunning the graph (used only if PRUNE_EPG = true)
 
-
-# stream-pseudotime #
-
-CLUSTER_NUMBER = 6
-LAMBDA = 0.05
-MU = 0.05
-# ALPHA = 0.03 # specify in marker-analysis
-EXTEND_LEAF_NODES := true
-EXTEND := 0.8
-PRUNE_GRAPH := false
+## END STREAM ##
 
 # stream-trajectories #
 

@@ -283,7 +283,7 @@ bt.sct.pl.embedding_plot(
         "edgecolor":bt.sct.pl.get_color("black"),
         "shadow":False
     },
-    n_components = 3 if args.embedding_dimension > 2 else 2,
+    n_components=3 if args.embedding_dimension > 2 else 2,
     background_visible=False,
     outfile=Path(f"{os.path.dirname(args.outfile)}/{args.embedding}_leiden.pdf")
 )
