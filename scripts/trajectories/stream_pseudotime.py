@@ -184,7 +184,7 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-label = "UMAP" if args.embedding == "umap" else "t-SNE"
+embedding_label = "UMAP" if args.embedding == "umap" else "t-SNE"
 
 outpath = os.path.dirname(args.outfile)
 if not Path(outpath).exists():
@@ -266,14 +266,14 @@ adata.obs["macrostates"] = adata.obs["macrostates"].astype("category")
 groups = set([args.obs]).union({"kmeans", "macrostates"})
 
 for group in groups:
-    std.print_task(f"plotting elastic principal graph in {label.lower()} space for cluster '{group}'")
-    fig, ax = bt.sct.pl.embedding_plot(
+    std.print_task(f"plotting elastic principal graph in {embedding_label.lower()} space for cluster '{group}'")
+    bt.sct.pl.embedding_plot(
         adata,
         obs=group,
         obsm="X_dr",
-        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(label),
-        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(label),
-        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(label),
+        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
+        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
+        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
         figwidth=6,
         s=2,
         alpha=0.7,
@@ -294,7 +294,7 @@ for group in groups:
         add_labels_to_graph=True,
         n_components=3 if adata.obsm["X_dr"].shape[1] > 2 else 2,
         background_visible=False,
-        outfile=Path(f"{outpath}/{label}_epg_{group}.pdf")
+        outfile=Path(f"{outpath}/{embedding_label}_epg_{group}.pdf")
     )
 
 std.print_task(f"saving pkl-formatted data in {str(args.outfile)}")
