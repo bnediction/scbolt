@@ -249,60 +249,94 @@ $(foreach sample,$(_samples),$(eval $(call dependant_targets_with_integration,$(
 
 ## BEGIN PARAMETERS ##
 
-ifeq ($(NORM_MAD),true)
+ifndef NORM_MAD
+$(error Parameter NORM_MAD not defined)
+else ifeq ($(NORM_MAD),true)
 norm_mad=--consistent-mad
 else ifeq ($(NORM_MAD),false)
 norm_mad=
 else
-$(error NORM_MAD not set to true or false)
+$(error Unsupported value for parameter NORM_MAD (supported values: true, false))
 endif
 
-ifeq ($(FILTER_NON_HVG),true)
+ifndef FILTER_NON_HVG
+$(error Parameter FILTER_NON_HVG not defined)
+else ifeq ($(FILTER_NON_HVG),true)
 filter_non_hvg=--filter-non-hvg
 else ifeq ($(FILTER_NON_HVG),false)
 filter_non_hvg=
 else
-$(error HVG_FILTERING not set to true or false)
+$(error Unsupported value for parameter FILTER_NON_HVG (supported values: true, false))
 endif
 
-ifeq ($(CC_CORRECTION),true)
+ifndef CC_CORRECTION
+$(error Parameter CC_CORRECTION not defined)
+else ifeq ($(CC_CORRECTION),true)
 correction=--correction G2M_score S_score G1_score
 else ifeq ($(CC_CORRECTION),false)
 correction=
 else
-$(error CC_CORRECTION not set to true or false)
+$(error Unsupported value for parameter CC_CORRECTION (supported values: true, false))
 endif
 
-ifeq ($(PCA_ONLY_HVG),true)
+ifndef PCA_ONLY_HVG
+$(error Parameter PCA_ONLY_HVG not defined)
+else ifeq ($(PCA_ONLY_HVG),true)
 pca_only_hvg=--hvg
 else ifeq ($(PCA_ONLY_HVG),false)
 pca_only_hvg=
 else
-$(error PCA_ONLY_HVG not set to true or false)
+$(error Unsupported value for parameter PCA_ONLY_HVG (supported values: true, false))
 endif
 
-ifeq ($(VELOCITY_ONLY_HVG),true)
+ifndef VELOCITY_ONLY_HVG
+$(error Parameter VELOCITY_ONLY_HVG not defined)
+else ifeq ($(VELOCITY_ONLY_HVG),true)
 velocity_only_hvg=--hvg
 else ifeq ($(VELOCITY_ONLY_HVG),false)
 velocity_only_hvg=
 else
-$(error VELOCITY_ONLY_HVG not set to true or false)
+$(error Unsupported value for parameter VELOCITY_ONLY_HVG (supported values: true, false))
 endif
 
-ifeq ($(EXTEND_EPG),true)
+ifndef EXTEND_EPG
+$(error Parameter EXTEND_EPG not defined)
+else ifeq ($(EXTEND_EPG),true)
 extend_epg:=--extend-epg
 else ifeq ($(EXTEND_EPG),false)
 extend_epg:=
 else
-$(error EXTEND_LEAF_NODES not set to true or false)
+$(error Unsupported value for parameter EXTEND_EPG (supported values: true, false))
 endif
 
-ifeq ($(PRUNE_EPG),true)
+ifndef PRUNE_EPG
+$(error Parameter PRUNE_EPG not defined)
+else ifeq ($(PRUNE_EPG),true)
 prune_epg:=--prune-epg
 else ifeq ($(PRUNE_EPG),false)
 prune_epg:=
 else
-$(error PRUNE_GRAPH not set to true or false)
+$(error Unsupported value for parameter PRUNE_EPG (supported values: true, false))
+endif
+
+ifndef BIN_ONLY_HVG
+$(error Parameter BIN_ONLY_HVG not defined)
+else ifeq ($(BIN_ONLY_HVG),true)
+bin_only_hvg=--hvg
+else ifeq ($(BIN_ONLY_HVG),false)
+bin_only_hvg=
+else
+$(error Unsupported value for parameter BIN_ONLY_HVG (supported values: true, false))
+endif
+
+ifndef ZEROES_ARE_ZEROES
+$(error Parameter ZEROES_ARE_ZEROES not defined)
+else ifeq ($(ZEROES_ARE_ZEROES),true)
+zeroes_are_zeroes:=--zeroes-are-zeroes
+else ifeq ($(ZEROES_ARE_ZEROES),false)
+zeroes_are_zeroes:=
+else
+$(error Unsupported value for parameter ZEROES_ARE_ZEROES (supported values: true, false))
 endif
 
 define stream_root
@@ -331,12 +365,6 @@ ifeq ($(BINARIZATION_ONLY_HVG),true)
 BINARIZATION_ONLY_HVG:=--hvg
 else
 BINARIZATION_ONLY_HVG:=
-endif
-
-ifeq ($(ZEROES_ARE_ZEROES),true)
-ZEROES_ARE_ZEROES:=--zeroes_are_zeroes
-else
-ZEROES_ARE_ZEROES:=
 endif
 
 ifeq ($(MINIMIZE_AUTO_LOOPS),true)
@@ -598,7 +626,7 @@ $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 	$(call print_rule,annotation,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python scripts/utils/pipe_its.py $$^ --outfiles $$@ --obs condition --names $(1) --columns leiden
+	python scripts/utils/pipe_its.py $$^ --outfiles $$@ --labels $(1) --obs-label condition --obs leiden
 	$(call print_task,plotting umap with respect to annotated clusters)
 	python fig/plot_embedding.py fig/leiden_umap.json --infile $$@ --outfile $$(@D)/umap_annotation.pdf
 	$$(conda_deactivate)
@@ -690,13 +718,6 @@ $(cotan_$(1)): $(annotation_$(1))
 	python fig/plot_embedding.py fig/macrostates.json --infile $$@ --outfile $$(@D)/cotan_clusters.pdf
 	$$(conda_deactivate)
 
-$(bin_cells_$(1)): $(macrostates_$(1))
-	$(call print_rule,bin-cells,$(1))
-	$$(conda_activate) scboolseq
-	python scripts/binarization/bin_cells.py $$< -o $$(@D) \
-		--cluster leiden --exclude nan --layer log-norm $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES)
-	$$(conda_deactivate)
-
 $(bin_macrostates_$(1)): $(bin_cells_$(1))
 	$(call print_rule,bin-macrostates,$(1))
 	mkdir -p $$(@D)
@@ -759,6 +780,16 @@ $(stream_trajectories_$(1)): $(stream_pseudotime_$(1))
 		--add-legend --add-graph $(IGNORED_NODES_$(call toupper, $(1)))
 	$$(conda_deactivate)
 
+$(bin_cells_$(1)): $(clustering_$(1))
+	$(call print_rule,bin-cells,$(1))
+	mkdir -p $$(@D)
+	$$(conda_activate) scboolseq
+	python scripts/binarization/bin_cells.py $$< --outfile $$@ --bin $$(shell echo $$@ | sed "s/.h5ad/.csv/") --statistics $$(@D)/statistics.csv \
+		--layer log-norm $(bin_only_hvg) --quantile $(UNIMODAL_QUANTILE) $(zeroes_are_zeroes)
+	$(call print_task,plotting umap with respect to binarization percentage)
+	python fig/plot_embedding.py fig/bin_umap.json --infile $$@ --outfile $$(@D)/pct_bin.pdf
+	$$(conda_deactivate)
+
 endef
 
 $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(condition)))
@@ -775,6 +806,7 @@ $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(co
 ifdef LABEL_INTEGRATED
 $(annotation_integrated): $(clustering_integrated)
 	$(call print_rule,annotation,integrated)
+	mkdir -p $(@D)
 	$(conda_activate) preprocess
 	python scripts/clustering/annotation.py $< $@ \
 		--obs leiden --labels $(join $(shell seq 0 1 $$(( $(words $(LABEL_INTEGRATED))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
@@ -784,42 +816,15 @@ $(annotation_integrated): $(clustering_integrated)
 else
 $(annotation_integrated): $(clustering_integrated)
 	$(call print_rule,annotation,integrated)
-	$(call print_error,LABEL_INTEGRATED not defined)
-endif
-
-ifeq ($(INTEGRATED_BINARIZATION),split)
-$(bin_cells_integrated): $(foreach condition,$(conditions),$(bin_cell_$(condition)))
-	$(call print_rule,bin-cells,integrated)
-	$(call print_info,perform binarization using conditions independently)
-	$(conda_activate) preprocess
-	python scripts/utils/csv_concatenation.py $^ -o $@ --suffixes $(addprefix _,$(conditions))
-	$(conda_deactivate)
-else ifeq ($(INTEGRATED_BINARIZATION),merged)
-$(bin_cells_integrated): $(annotation_integrated) $(foreach condition,$(conditions),$(macrostates_$(condition)))
-	$(call print_rule,bin-cells,integrated)
-	$(call print_info,perform binarization using conditions jointly)
-	$(conda_activate) scboolseq
-	python scripts/binarization/bin_cells.py $(filter-out $(annotation_integrated),$^) -o $(dir $@) \
-		--cluster leiden --conditions $(conditions) --exclude nan --layer log-norm $(BINARIZATION_ONLY_HVG) $(ZEROES_ARE_ZEROES)
-	$(conda_deactivate)
-	mv $@ $(@D)/tmp.h5ad
-	$(conda_activate) preprocess
-	python scripts/utils/transfer_info.py $< $(@D)/tmp.h5ad --outfile $@ --obs pct_bin --var distribution --layer bin --index condition
-	rm $(@D)/tmp.h5ad
-	python fig/plot_embedding.py fig/pct_bin.json --infile $@ --outfile $(@D)/pct_bin
-	$(conda_deactivate)
-else
-$(bin_cells_integrated): $(foreach condition,$(conditions),$(bin_cell_$(condition))) $(foreach condition,$(conditions),$(scvelo_$(condition)))
-	$(call print_rule,bin-cells,integrated)
-	$(call print_error,unsupported value for `INTEGRATED_BINARIZATION` \(supported values: split or merged\))
+	$(call print_error,parameter LABEL_INTEGRATED not defined)
 endif
 
 $(bin_macrostates_integrated): $(bin_cells_integrated) $(foreach condition,$(conditions),$(macrostates_$(condition)))
 	$(call print_rule,bin-macrostates,integrated)
 	mkdir -p $(@D)
 	$(conda_activate) preprocess
-	$(call print_info,transferring information from integrated-to-specifics)
-	python scripts/utils/pipe_sti.py $^ --conditions $(conditions) --outfile $(@D)/tmp.h5ad --column macrostates --condition-column condition
+	$(call print_debug,transferring information from integrated dataset to specific datasets)
+	python scripts/utils/pipe_sti.py $^ --outfile $(@D)/tmp.h5ad --labels $(conditions) --obs-label condition --obs macrostates
 	$(call print_info,binarizing macrostates)
 	python scripts/binarization/bin_clusters.py $(@D)/tmp.h5ad $(@D) --condition condition --cluster macrostates --plot-3d
 	rm $(@D)/tmp.h5ad

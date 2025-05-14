@@ -88,6 +88,15 @@ $(eval COLLAPSE_PARAMETER := false)			# stream parameter used for prunning the g
 
 ## END STREAM ##
 
+## BEGIN BIN-CELLS ##
+
+$(eval BIN_ONLY_HVG := false)				# use only highly variable genes for binarizing cells
+$(eval UNIMODAL_QUANTILE := 0.10)			# quantile classifying cells into inactive/active when learnt distribution is unimodal
+$(eval ZEROES_ARE_ZEROES := true)			# binarize zero-values to zero instead of nan when learnt distribution is zero-inflated
+
+## END BIN-CELLS ##
+
+
 # stream-trajectories #
 
 # ROOT_<CONDITION> = 0						# specify which node is the starting point for condition <CONDITION>
@@ -113,16 +122,6 @@ $(eval CELLRANK_METHOD := stability)		# stability, top_n, eigengap or eigengap_c
 EXCLUDE := true
 
 ## END MACROSTATE CHARACTERIZATION ##
-
-## BEGIN BINARIZATION ##
-
-# bin-cells #
-
-$(eval INTEGRATED_BINARIZATION := merged)	# split or merged
-$(eval BINARIZATION_ONLY_HVG := false)		# perform binarization with only highly-variable genes or with all genes
-$(eval ZEROES_ARE_ZEROES := true)			# when zero-inflated is inferred for a gene-related distribution; if its counting with respect to a cell is equal to zero, binarize either to zero or nan
-
-## END BINARIZATION ##
 
 ## BEGIN BOOLEAN NETWORK INFERENCE ##
 

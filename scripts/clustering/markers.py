@@ -69,8 +69,8 @@ parser.add_argument(
 parser.add_argument(
     "--are-log",
     dest="are_log",
-    required=False,
     action="store_true",
+    required=False,
     help="specify whether data are logarithmized"
 )
 

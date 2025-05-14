@@ -16,8 +16,8 @@ parser = argparse.ArgumentParser(
     prog="normalization",
     description=
     """
-    Normalize counts with different operations (standardization
-    with respect to library size, log-transformation, scaling data
+    Normalize counts with different operations (standardization \
+    with respect to library size, log-transformation, scaling data \
     and correction of unwanted effects).
     """,
     usage="python normalization.py <FILE> <FILE> [<args>]"

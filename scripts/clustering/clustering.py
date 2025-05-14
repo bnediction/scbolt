@@ -20,9 +20,9 @@ parser = argparse.ArgumentParser(
     prog="clustering",
     description=
     """
-    Compute principal components, compute closest and shared-nearest neighbors,
-    cluster cells using leiden algorithm and embed the neighborhood graph in
-    umap or t-sne projection, useful for visualizing high-dimensional data
+    Compute principal components, compute closest and shared-nearest neighbors, \
+    cluster cells using leiden algorithm and embed the neighborhood graph in \
+    umap or t-sne projection, useful for visualizing high-dimensional data \
     in a reduced space.
     """,
     usage="python clustering.py <FILE> <FILE> [<args>]"
@@ -107,16 +107,16 @@ parser.add_argument(
 parser.add_argument(
     "--zero-center",
     dest="zero_center",
-    required=False,
     action="store_true",
+    required=False,
     help="if true, compute PCA from covariance matrix, otherwise omit zero-centering variables"
 )
 
 parser.add_argument(
     "--hvg",
     dest="hvg",
-    required=False,
     action="store_true",
+    required=False,
     help="use only highly variable genes for PCA projection"
 )
 

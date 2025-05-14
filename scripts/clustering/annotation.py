@@ -12,7 +12,7 @@ import anndata as ad
 parser = argparse.ArgumentParser(
     prog="annotation",
     description="""
-    Rename labels using user-defined names.
+    Rename labels using user-defined names. \
     Specified value for parameter '--name' must be a sequence where each element has the following syntax: <old_name>:<new_name>
     """,
     usage="python annotation.py [-h] <FILE> <FILE> --obs <LITERAL> --labels <LITERAL:LITERAL [LITERAL:LITERAL ...]>"
@@ -64,7 +64,7 @@ std.print_task(f"loading file {str(args.infile)}")
 adata = ad.read_h5ad(args.infile)
 
 if args.obs not in adata.obs:
-    raise KeyError(f"colum '{args.obs}' not found in adata.obs")
+    raise KeyError(f"column '{args.obs}' not found in adata.obs")
 elif not hasattr(adata.obs[args.obs], "cat"):
     raise ValueError(f"series 'adata.obs[{args.obs}]' does not refer to a categorical variable")
 

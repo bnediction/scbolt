@@ -58,7 +58,7 @@ parser = argparse.ArgumentParser(
     prog="integration",
     description=
     """
-    Compute principal components, compute closest and shared-nearest neighbors,
+    Compute principal components, compute closest and shared-nearest neighbors, \
     cluster cells using leiden algorithm and integrate data in an embedding projection.
     """,
     usage="python integration.py [-h] <FILE...> --outfile <FILE> [<args>]"
@@ -66,8 +66,8 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument(
     dest="infiles",
-    type=lambda x: Path(x).resolve(),
     action=cli.Required_length,
+    type=lambda x: Path(x).resolve(),
     min=2,
     metavar="FILE",
     help="input files storing counts where the first one is considered as reference base (format: h5ad)"
@@ -85,10 +85,10 @@ parser.add_argument(
 parser.add_argument(
     "--labels",
     dest="labels",
-    type=str,
-    required=False,
     action=cli.Required_length,
+    type=str,
     min=2,
+    required=False,
     default=None,
     metavar="LITERAL",
     help="labels characterizing samples (ordered with infiles)"
@@ -170,8 +170,8 @@ parser.add_argument(
 parser.add_argument(
     "--zero-center",
     dest="zero_center",
-    required=False,
     action="store_true",
+    required=False,
     help="if true, compute PCA from covariance matrix, otherwise omit zero-centering variables"
 )
 
@@ -294,9 +294,9 @@ try:
         merge="same",
         uns_merge="same"
     )
-    del adatas
 except:
     raise RuntimeError("anndatas concatenation not working")
+del adatas
 
 if args.integration=="ingest":
 

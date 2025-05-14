@@ -53,8 +53,8 @@ parser = argparse.ArgumentParser(
     prog="filtering",
     description=
     """
-    Calculate metrics (proportions of genes encoding mitocondrial and ribosomal proteins,
-    quality control metrics), assign cell to a cell cycle phase
+    Calculate metrics (proportions of genes encoding mitocondrial and ribosomal proteins, \
+    quality control metrics), assign cell to a cell cycle phase \
     and filter low-quality genes and cells.
     """,
     usage="python filtering.py [-h] <FILE> <FILE> [--marker <FILE>] [<args>]"
@@ -170,8 +170,8 @@ parser.add_argument(
 parser.add_argument(
     "--consistent-mad",
     dest="consistent_mad",
-    required=False,
     action="store_true",
+    required=False,
     help="use normalized mean absolute deviation"
 )
 
@@ -199,8 +199,8 @@ parser.add_argument(
 parser.add_argument(
     "--filter-non-hvg",
     dest="filter_non_hvg",
-    required=False,
     action="store_true",
+    required=False,
     help="filter non-highly variable genes"
 )
 

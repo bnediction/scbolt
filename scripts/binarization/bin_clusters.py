@@ -205,9 +205,12 @@ def cell_to_cluster_binarization(
     return group_df.fillna(0).astype(int)
 
 parser = argparse.ArgumentParser(
-    prog="cluster binarization",
-    description="""compute cluster-related binarization from single-cell sequencing data using voting rule""",
-    usage=""""python macrostate_binarization.py [-h] <FILE...> -o <PATH> -c <LITERAL> [<args>]"""
+    prog="bin_clusters",
+    description=
+    """
+    compute cluster-related binarization from single-cell sequencing data using voting rule
+    """,
+    usage=""""python bin_clusters.py <FILE...> <FILE> -c <LITERAL> [<args>]"""
 )
 
 parser.add_argument(

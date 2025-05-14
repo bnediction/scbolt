@@ -18,7 +18,7 @@ bt.sct.pl.set_default_params()
 parser = argparse.ArgumentParser(
     prog="velocity",
     description="""
-    Computing rna velocities using spliced/unspliced kinetics
+    Compute rna velocities using spliced/unspliced kinetics
     """,
     usage="python velocity.py <FILE> <FILE> [<args>]"
 )
@@ -69,8 +69,8 @@ parser.add_argument(
 parser.add_argument(
     "--hvg",
     dest="hvg",
-    required=False,
     action="store_true",
+    required=False,
     help="use only highly variable genes for estimating rna velocities"
 )
 
