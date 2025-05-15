@@ -134,7 +134,7 @@ scvelo_$(1) = 					$(rna)/$(1)/trajectories/scvelo/scvelo.h5ad
 trajectories_macrostates_$(1) =	$(rna)/$(1)/trajectories/macrostates/trajectories.txt
 cellrank_$(1) = 				$(rna)/$(1)/macrostates/cellrank/macrostates.h5ad
 center_extremity_$(1) = 		$(rna)/$(1)/macrostates/center_extremity/macrostates.h5ad
-cotan_$(1) = 					$(rna)/$(1)/macrostates/cotan/macrostates.h5ad
+cotan_$(1) = 					$(rna)/$(1)/macrostates/cotan/macrostates.h5ad $(rna)/$(1)/macrostates/cotan/macrostates.csv
 bdc_$(1) = 						$(rna)/$(1)/binarization/pairwise_predecessor_scores.csv
 
 endef
@@ -545,8 +545,8 @@ $(fastq_$(1)):
 		$$(call fastq_naming,$$$${tmp_directory},$$$${id},$$$${sample_naming},$$$${lane})
 	done
 	sleep 3
-	mkdir -p $$(@)
-	mv $$$${tmp_directory}/* $$(@)/
+	mkdir -p $$@
+	mv $$$${tmp_directory}/* $$@/
 	files=$$$$(shopt -s nullglob dotglob; echo $$$${tmp_directory}/*)
 	if ! (( $$$${#files} ))
 	then
@@ -606,7 +606,7 @@ $(normalization_$(1)): $(filtering_$(1))
 	$(call print_rule,normalization,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python scripts/preprocessing/normalization.py $$< $$(@) $(correction) --jobs $(JOBS)
+	python scripts/preprocessing/normalization.py $$< $$@ $(correction) --jobs $(JOBS)
 	$$(conda_deactivate)
 
 $(clustering_$(1)): $(normalization_$(1))
@@ -694,37 +694,44 @@ $(center_extremity_$(1)): $(scvelo_$(1))
 	$$(conda_deactivate)
 endif
 
-$(cotan_$(1)): $(annotation_$(1))
+$(cotan_$(1))&: $(annotation_$(1))
 	$(call print_rule,cotan,$(1))
 	mkdir -p $$(@D)
+	tmpdir=$$$$(mktemp -d -t scbridge-XXXXXXXXXX)
 	$$(conda_activate) preprocess
-	tmp_file=$$(@D)/tmp.csv
-	$(call print_debug,converting $$< into $$$${tmp_file})
-	python scripts/utils/adata_conversion.py $$< $$$${tmp_file} --from h5ad --to csv --layer matrix
-	$(call print_debug,transposing $$$${tmp_file} and saving results in $$(@D)/counts.csv)
-	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $$$${tmp_file} > $$(@D)/counts.csv
-	rm $$$${tmp_file}
-	unset tmp_file
+	$(call print_debug,retrieving counts from $$< and saving in $$$${tmpdir}/bcts.csv)
+	python scripts/utils/adata_conversion.py $$< $$$${tmpdir}/bcts.csv --from h5ad --to csv --layer matrix
+	$(call print_debug,transposing $$$${tmpdir}/bcts.csv and saving in $$$${tmpdir}/gcts.csv)
+	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $$$${tmpdir}/bcts.csv > $$$${tmpdir}/gcts.csv
 	$$(conda_deactivate)
 	$$(conda_activate) cotan
-	Rscript scripts/macrostates/cotan_clustering.R --infile $$(@D)/counts.csv --outpath $$(@D) --sep , \
+	Rscript scripts/macrostates/cotan_clustering.R --infile $$$${tmpdir}/gcts.csv --outpath $$(@D) --sep , \
 		--condition $(1) --max-iterations 25 --method strong-merging --jobs $(JOBS)
 	$$(conda_deactivate)
-	sed -i '1 i\,macrostates' $$(@D)/clusters.csv
+	rm -r $$$${tmpdir}
+	unset tmpdir
+	sed -i '1 i\,macrostates' $$(lastword $$(cotan_$(1)))
 	$$(conda_activate) preprocess
 	$(call print_debug,adding cotan clusters to anndata object)
-	python scripts/utils/add_to_adata.py $$< $$@ --obs $$(@D)/clusters.csv --obs-type str --sep ,
+	python scripts/utils/add_to_anndata.py $$< $$(firstword $$(cotan_$(1))) --csv $$(lastword $$(cotan_$(1))) --axis 0 --sep , --type category
 	$(call print_task,plotting umap with respect to cotan clusters)
-	python fig/plot_embedding.py fig/macrostates.json --infile $$@ --outfile $$(@D)/cotan_clusters.pdf
+	python fig/plot_embedding.py fig/macrostates.json --infile $$(firstword $$(cotan_$(1))) --outfile $$(@D)/cotan_clusters.pdf
 	$$(conda_deactivate)
 
-$(bin_macrostates_$(1)): $(bin_cells_$(1))
+$(bin_macrostates_$(1)): $(bin_cells_$(1)) $(lastword $(macrostates_$(1)))
 	$(call print_rule,bin-macrostates,$(1))
 	mkdir -p $$(@D)
+	tmpdir=$$$$(mktemp -d -t scbridge-XXXXXXXXXX)
 	$$(conda_activate) preprocess
-	python scripts/binarization/bin_clusters.py $$< $$(@D) \
-		--cluster macrostates --plot-3d
+	$(call print_debug,adding macrostates to anndata object and savings results in $$$${tmpdir}/mcts.h5ad)
+	python scripts/utils/add_to_anndata.py $$(firstword $$^) $$$${tmpdir}/mcts.h5ad --csv $$(lastword $$^) --axis 0 --sep , --type category
+	python scripts/binarization/bin_clusters.py $$$${tmpdir}/mcts.h5ad $$@ --counts $$(@D)/counts_bin.csv \
+		--layer bin --distribution distribution --cluster macrostates \
+		--nans-threshold $(NANS_THRESHOLD) --bimodal-threshold $(BIMODAL_THRESHOLD) \
+		--zeroinf-threshold $(ZEROINF_THRESHOLD) --unimodal-threshold $(UNIMODAL_THRESHOLD)
 	$$(conda_deactivate)
+	rm -r $$$${tmpdir}
+	unset tmpdir
 
 endef
 
@@ -826,7 +833,7 @@ $(bin_macrostates_integrated): $(bin_cells_integrated) $(foreach condition,$(con
 	$(call print_debug,transferring information from integrated dataset to specific datasets)
 	python scripts/utils/pipe_sti.py $^ --outfile $(@D)/tmp.h5ad --labels $(conditions) --obs-label condition --obs macrostates
 	$(call print_info,binarizing macrostates)
-	python scripts/binarization/bin_clusters.py $(@D)/tmp.h5ad $(@D) --condition condition --cluster macrostates --plot-3d
+	python scripts/binarization/bin_clusters.py $(@D)/tmp.h5ad $(@D) --condition condition --cluster macrostates
 	rm $(@D)/tmp.h5ad
 	$(call print_info,plotting macrostate labels)
 	python fig/plot_embedding.py fig/macrostates.json --infile $(@D)/bin_clusters.h5ad --outfile $(@D)/macrostates

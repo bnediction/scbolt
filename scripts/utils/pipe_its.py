@@ -11,7 +11,8 @@ import anndata as ad
 
 parser = argparse.ArgumentParser(
     prog="pipe_its",
-    description="""
+    description=
+    """
     Send information from integrated 'adata.obs' towards multiple specific 'adata.obs', each one referring to a name. \
     Values passed to parameters '--specifics' and '--names' have to be ordered together. \
     If parameter '--outfiles' is specified, it also have to be specified in the same order as '--specifics' and '--names'.

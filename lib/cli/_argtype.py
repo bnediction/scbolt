@@ -371,3 +371,70 @@ class Required_length(argparse.Action):
         if not self.min <= len(values) <= self.max:
             raise argparse.ArgumentTypeError(self, f"argument {self.dest} requires between {self.min} and {self.max} arguments")
         setattr(namespace, self.dest, values)
+
+class Store_axis(argparse.Action):
+
+    def __init__(
+        self,
+        *args,
+        **kwargs
+    ):
+        kwargs.update({
+            "type": str,
+            "metavar": "AXIS",
+            "choices": ["0", "1", "obs", "var"]
+        })
+        super(Store_axis, self).__init__(*args, **kwargs)
+
+    def __call__(
+        self,
+        parser,
+        namespace,
+        value,
+        option_string=None
+    ):
+        if value == "0":
+            value = "obs"
+        elif value == "1":
+            value = "var"
+        setattr(namespace, self.dest, value)
+
+class Store_type(argparse.Action):
+
+    def __init__(
+        self,
+        *args,
+        **kwargs
+    ):
+
+        kwargs.update({
+            "type": str,
+            "choices": ["str", "int", "float", "complex", "bool", "category"] if "choices" not in kwargs else kwargs["choices"],
+            "metavar": "TYPE"
+        })
+        super(Store_type, self).__init__(*args, **kwargs)
+
+    def __call__(
+        self,
+        parser,
+        namespace,
+        value,
+        option_string=None
+    ):
+
+        if value == "str":
+            value = str
+        elif value == "int":
+            value = int
+        elif value == "float":
+            value = float
+        elif value == "complex":
+            value = complex
+        elif value == "bool":
+            value = bool
+        elif value == "category":
+            pass
+        else:
+            raise argparse.ArgumentError(self, f"invalid value: '{value}'")
+
+        setattr(namespace, self.dest, value)

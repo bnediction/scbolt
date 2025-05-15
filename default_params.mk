@@ -96,6 +96,12 @@ $(eval ZEROES_ARE_ZEROES := true)			# binarize zero-values to zero instead of na
 
 ## END BIN-CELLS ##
 
+## BEGIN BIN-MACROSTATES ##
+
+$(eval NANS_THRESHOLD := 0.3)				# maximum proportion of nan-values in a cluster required for a gene to be binarized
+$(eval BIMODAL_THRESHOLD := 0.67)			# minimum proportion of zero- or one-values against binarized values in a cluster required for a bimodal gene to be binarized
+$(eval ZEROINF_THRESHOLD := 0.5)			# minimum proportion of one-values against binarized values in a cluster required for a zero-inflated gene to be binarized to one, otherwise zero
+$(eval UNIMODAL_THRESHOLD := 0.67)			# minimum proportion of zero- or one-values against binarized values in a cluster required for a unimodal gene to be binarized
 
 # stream-trajectories #
 

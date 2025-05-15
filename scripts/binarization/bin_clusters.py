@@ -152,19 +152,19 @@ class Predict(object):
                     predict_series[cluster] = _value
                 return predict_series
         elif isinstance(data, DataFrame) and isinstance(category, Series):
-            predict_df = DataFrame(index=index)
+            cluster_binf = DataFrame(index=index)
             for gene in data:
                 predict_series = self.__call__(
                     data=data.loc[:,gene],
                     category=category[gene]
                 )
-                predict_df = predict_df.join(predict_series)
-            return predict_df
+                cluster_binf = cluster_binf.join(predict_series)
+            return cluster_binf
         else:
             raise TypeError(f"""`data` and `category` arguments must be either of types respectively {Series} and {str}
             or of types respectively {DataFrame} and {Series}, not {type(data)} and {type(category)}.""")
 
-def cell_to_cluster_binarization(
+def count_binarized_values(
     obs_df: DataFrame,
     columns: List,
     group: str,
@@ -208,23 +208,33 @@ parser = argparse.ArgumentParser(
     prog="bin_clusters",
     description=
     """
-    compute cluster-related binarization from single-cell sequencing data using voting rule
+    count binarized values for each cluster and binarize clusters from binarized single cell data using voting rule.
     """,
-    usage=""""python bin_clusters.py <FILE...> <FILE> -c <LITERAL> [<args>]"""
+    usage=""""python bin_clusters.py <FILE...> <FILE> [--counts <FILE>] --cluster <LITERAL> [<args>]"""
 )
 
 parser.add_argument(
     dest="infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file with binarized layer (h5ad format)"
+    help="input file storing binarized counts and gene distribution-related variable (format: h5ad)"
 )
 
 parser.add_argument(
-    dest="outpath",
+    "outfile",
     type=lambda x: Path(x).resolve(),
-    metavar="PATH",
-    help="output path"
+    metavar="FILE",
+    help="output file storing predicted binarized values (format: csv)"
+)
+
+parser.add_argument(
+    "--counts",
+    dest="counts",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=None,
+    metavar="FILE",
+    help="output file storing counts of binarized values (format: csv)"
 )
 
 parser.add_argument(
@@ -234,17 +244,26 @@ parser.add_argument(
     required=False,
     default="bin",
     metavar="LITERAL",
-    help="layer storing binarized counts (default: bin)"
+    help="layer used corresponding to binarized counts (default: bin)"
+)
+
+parser.add_argument(
+    "--distribution",
+    dest="distribution",
+    type=str,
+    required=False,
+    default="distribution",
+    metavar="LITERAL",
+    help="variable name in 'adata.var' storing gene distributions (default: distribution)"
 )
 
 parser.add_argument(
     "--cluster",
-    dest="groupby",
+    dest="cluster",
     type=str,
     required=True,
-    nargs="+",
     metavar="LITERAL",
-    help="clusters retrieving from adata.obs[`cluster`] used for cluster-related binarization"
+    help="column name in 'adata.obs' distinguishing cell populations (required)"
 )
 
 parser.add_argument(
@@ -258,17 +277,17 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-e", "--exclude",
+    "--exclude",
     dest="exclude",
     type=str,
     required=False,
     nargs="+",
     metavar="LITERAL",
-    help="cluster names to remove for cluster-related binarization"
+    help="cluster names in adata.obs['cluster'] to remove for cluster-related binarization"
 )
 
 parser.add_argument(
-    "-n", "--nans-threshold",
+    "--nans-threshold",
     dest="nans_threshold",
     type=float,
     action=cli.Range,
@@ -276,12 +295,11 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=0.3,
-    help="""set binarized gene value of a cluster to nan if the proportion of nan values
-    in the cluster is above `nans_threshold` (default: 0.3)"""
+    help="maximum proportion of nan-values in a cluster required for a gene to be binarized (default: 0.3)"
 )
 
 parser.add_argument(
-    "-b", "--bimodal-threshold",
+    "--bimodal-threshold",
     dest="bimodal_threshold",
     type=float,
     action=cli.Range,
@@ -289,13 +307,11 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=2/3,
-    help="""for a bimodal gene, set binarized gene value of a cluster to 0 (resp. 1)
-    if the proportion of zero-values (resp. one-values) in the cluster is above `bimodal_threshold`
-    with respect to binarized values (default: 2/3)"""
+    help="minimum proportion of zero- or one-values against binarized values in a cluster required for a bimodal gene to be binarized (default: 2/3)"
 )
 
 parser.add_argument(
-    "-z", "--zeroinf-threshold",
+    "--zeroinf-threshold",
     dest="zeroinf_threshold",
     type=float,
     action=cli.Range,
@@ -303,13 +319,11 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=0.5,
-    help="""for a zero-inflated gene, set binarized gene value of a cluster to 1
-    if the proportion of one-values in the cluster is above `zeroinf_threshold`,
-    otherwise 0 (default: 0.5)"""
+    help="minimum proportion of one-values against binarized values in a cluster required for a zero-inflated gene to be binarized to one, otherwise zero (default: 0.5)"
 )
 
 parser.add_argument(
-    "-u", "--unimodal-threshold",
+    "--unimodal-threshold",
     dest="unimodal_threshold",
     type=float,
     action=cli.Range,
@@ -317,17 +331,18 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=2/3,
-    help="""for a unimodal gene, set binarized gene value of a cluster to 0 (resp. 1)
-    if the proportion of zero-values (resp. one-values) in the cluster is above `unimodal_threshold`
-    with respect to binarized values (default: 2/3)"""
+    help="minimum proportion of zero- or one-values against binarized values in a cluster required for a unimodal gene to be binarized (default: 2/3)"
 )
 
 parser.add_argument(
-    "--plot-3d",
-    dest="plot_3d",
+    "--embedding",
+    dest="embedding",
+    type=str,
     required=False,
-    action="store_true",
-    help="plot figures in three dimensions"
+    default=None,
+    choices=["umap","tsne"],
+    metavar="[umap|tsne]",
+    help="embedding projection used for plotting percentage of cluster-related binarization (default: None)"
 )
 
 args = parser.parse_args()
@@ -339,77 +354,61 @@ predict = Predict(
     args.unimodal_threshold
 )
 
-if not args.outpath.exists():
-    os.makedirs(args.outpath)
+if not Path(os.path.dirname(args.outfile)).exists():
+    os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading data ({str(args.infile)})")
+std.print_task(f"loading file {str(args.infile)}")
 
 adata = ad.read_h5ad(args.infile)
 
-std.print_task("binarizing clusters")
+metadata = [args.cluster, args.condition] if args.condition else [args.cluster]
+convert_metadata = {category: "category" for category in metadata} if isinstance(metadata,list) else "category"
 
-cluster_d = dict()
-predict_d = dict()
-for _group in args.groupby:
-    std.print_info(f"binarizing cluster `{_group}`")
-    metadata = [_group, args.condition] if args.condition else [_group]
-    convert_metadata = {category: "category" for category in metadata} if isinstance(metadata,list) else "category"
-    _cell_df = bt.sct.tl.anndata_to_dataframe(
-        adata=adata,
-        obs=metadata,
-        layer="bin"
-    )
-    cluster_d[_group] = cell_to_cluster_binarization(
-        obs_df=_cell_df,
-        columns=adata.var.index,
-        group=_group,
-        condition = args.condition if args.condition else None,
-        dropna=False
-    )
-    if args.exclude:
-        _index_label_to_drop = list()
-        for _index_label in args.exclude:
-            if _index_label in cluster_d[_group].index.get_level_values(0).unique():
-                _index_label_to_drop.append(_index_label)
-        if _index_label_to_drop:
-            cluster_d[_group] = cluster_d[_group].drop(_index_label_to_drop)
-        del _index_label_to_drop, _index_label
-    predict_d[_group] = predict(cluster_d[_group], adata.var["distribution"])
-    if isinstance(predict_d[_group].index, MultiIndex):
-        predict_d[_group].index = ["_".join(metadata) for metadata in predict_d[_group].index.to_flat_index()]
-        predict_d[_group].index.name = _group
+std.print_debug(f"converting layer '{args.layer}' into dataframe")
+cell_df = bt.sct.tl.anndata_to_dataframe(
+    adata=adata,
+    obs=metadata,
+    layer=args.layer
+)
 
-if args.condition:
-    for _group in args.groupby:
-        std.print_info(f"renaming categories for `{_group}`")
-        adata.obs[_group] = (adata.obs[_group].astype(str) + "_" + adata.obs[args.condition].astype(str)).astype("category")
-        _nans_cat = {"nan_" + condition for condition in adata.obs[args.condition].cat.categories}
-        _nans_cat = [x for x in _nans_cat if x in set(adata.obs[_group].cat.categories)]
-        adata.obs[_group] = adata.obs[_group].cat.remove_categories(_nans_cat)
+std.print_task(f"counting binarized values for each cell population")
+cluster_counts = count_binarized_values(
+    obs_df=cell_df,
+    columns=adata.var.index,
+    group=args.cluster,
+    condition = args.condition if args.condition else None,
+    dropna=False
+)
 
-std.print_task(f"saving data (folder {str(args.outpath)})")
+if args.exclude:
+    clusters_to_remove = set(args.exclude).intersection(set(cluster_counts.index.get_level_values(0).unique()))
+    if clusters_to_remove:
+        std.print_info("removing the following cluster(s): {0}".format(', '.join(f"'{cluster}'" for cluster in clusters_to_remove)))
+        cluster_counts = cluster_counts.drop(clusters_to_remove)
 
-adata.write_h5ad(filename=f"{args.outpath}/bin_clusters.h5ad", compression="gzip")
-for _group in args.groupby:
-    cluster_d[_group].transpose().to_csv(f"{args.outpath}/counting_bin_{_group}.csv", sep=",", index=True)
-    predict_d[_group].transpose().to_csv(f"{args.outpath}/bin_{_group}.csv", sep=",", index=True)
+std.print_task(f"binarizing cell populations with respect to voting rules")
+cluster_bin = predict(cluster_counts, adata.var[args.distribution])
+if isinstance(cluster_bin.index, MultiIndex):
+    cluster_bin.index = ["_".join(metadata) for metadata in cluster_bin.index.to_flat_index()]
+    cluster_bin.index.name = args.cluster
 
-std.print_task("plotting cluster-related binarization in UMAP projection")
-for _group in args.groupby:
-    std.print_info(f"checking cluster homogeneity for `{_group}`")
-    pct_binarized = (predict_d[_group].count(axis=1) / predict_d[_group].shape[1]).to_dict()
-    adata.obs[f"pct_bin_{_group}"] = adata.obs[_group].map(pct_binarized)
-    fig, _ = bt.sct.pl.embedding_plot(
+if args.embedding:
+    embedding_label = "UMAP" if args.embedding == "umap" else "t-SNE"
+    obsm="X_umap" if args.embedding == "umap" else "X_tsne"
+    std.print_task(f"plotting {embedding_label.lower()} with respect to cluster-related binarization percentage")
+    pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
+    adata.obs[f"pct_bin_{args.cluster}"] = adata.obs[args.cluster].map(pct_bin)
+    bt.sct.pl.embedding_plot(
         adata,
-        obs=f"pct_bin_{_group}",
-        obsm="X_umap",
-        xlabel=r"$\mathrm{UMAP_{1}}$",
-        ylabel=r"$\mathrm{UMAP_{2}}$",
-        zlabel=r"$\mathrm{UMAP_{3}}$",
-        add_legend=True,
+        obs=f"pct_bin_{args.cluster}",
+        obsm=obsm,
+        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
+        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
+        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
         figwidth=6,
         s=4,
         alpha=1,
+        add_legend=True,
         lgd_params={
             "title":"pct bin",
             "ncol":1,
@@ -418,23 +417,23 @@ for _group in args.groupby:
             "edgecolor":bt.sct.pl.get_color("black"),
             "shadow":False
         },
-        n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
-        background_visible=False
+        n_components = 3 if adata.obsm[obsm].shape[1] > 2 else 2,
+        background_visible=False,
+        outfile=Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf")
     )
-    plt.savefig(Path(f"{args.outpath}/pct_bin_{_group}.pdf"))
     if args.condition:
-        for _condition in adata.obs[args.condition].cat.categories:
-            fig, _ = bt.sct.pl.embedding_plot(
-                adata[adata.obs[args.condition]==_condition],
-                obs=f"pct_bin_{_group}",
-                obsm="X_umap",
-                xlabel=r"$\mathrm{UMAP_{1}}$",
-                ylabel=r"$\mathrm{UMAP_{2}}$",
-                zlabel=r"$\mathrm{UMAP_{3}}$",
-                add_legend=True,
+        for condition in adata.obs[args.condition].cat.categories:
+            bt.sct.pl.embedding_plot(
+                adata[adata.obs[args.condition]==condition],
+                obs=f"pct_bin_{args.cluster}",
+                obsm=obsm,
+                xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
+                ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
+                zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
                 figwidth=6,
                 s=4,
                 alpha=1,
+                add_legend=True,
                 lgd_params={
                     "title":"pct bin",
                     "ncol":1,
@@ -443,7 +442,22 @@ for _group in args.groupby:
                     "edgecolor":bt.sct.pl.get_color("black"),
                     "shadow":False
                 },
-                n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 and args.plot_3d is True else 2,
-                background_visible=False
+                n_components = 3 if adata.obsm[obsm].shape[1] > 2 else 2,
+                background_visible=False,
+                outfile=Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}_{condition}.pdf")
             )
-            plt.savefig(Path(f"{args.outpath}/pct_bin_{_group}_cond_{_condition}.pdf"))
+
+std.print_task(f"saving predicted binarized values in {str(args.outfile)}")
+cluster_bin.transpose().to_csv(
+    args.outfile,
+    sep=",",
+    index=True
+)
+
+if args.counts:
+    std.print_task(f"saving counts of binarized values in {str(args.counts)}")
+    cluster_counts.to_csv(
+        args.counts,
+        sep=",",
+        index=True
+    )

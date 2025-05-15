@@ -131,6 +131,8 @@ else:
     std.print_info(f"keeping non-highly variable genes")
 
 gene_list = adata.var.index
+
+std.print_debug(f"converting layer '{args.layer}' into dataframe")
 counts_df = bt.sct.tl.anndata_to_dataframe(
     adata,
     layer=args.layer
@@ -144,7 +146,7 @@ scbool = scBoolSeq(
     zeroes_are=0 if args.zeroes_are_zeroes else np.nan
 )
 
-std.print_info("computing statistical estimators")
+std.print_info("computing statistical estimators and estimating parametric distributions")
 with std.disable_print():
     scbool.fit(
         counts_df,

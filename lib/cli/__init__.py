@@ -8,5 +8,7 @@ from ._argtype import (
     Store_prefix,
     Store_dict,
     Store_organism,
-    Required_length
+    Required_length,
+    Store_axis,
+    Store_type
 )
