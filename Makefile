@@ -134,7 +134,6 @@ scvelo_$(1) = 					$(rna)/$(1)/trajectories/scvelo/scvelo.h5ad
 trajectories_macrostates_$(1) =	$(rna)/$(1)/trajectories/macrostates/trajectories.txt
 cellrank_$(1) = 				$(rna)/$(1)/macrostates/cellrank/macrostates.h5ad
 center_extremity_$(1) = 		$(rna)/$(1)/macrostates/center_extremity/macrostates.h5ad
-cotan_$(1) = 					$(rna)/$(1)/macrostates/cotan/macrostates.h5ad $(rna)/$(1)/macrostates/cotan/macrostates.csv
 bdc_$(1) = 						$(rna)/$(1)/binarization/pairwise_predecessor_scores.csv
 
 endef
@@ -149,6 +148,7 @@ goea_mouse_$(1) = 				$(rna)/$(1)/clustering/goea/goea_mouse.xlsx
 annotation_$(1) = 				$(rna)/$(1)/clustering/clusters/annotation.h5ad
 stream_pseudotime_$(1) = 		$(rna)/$(1)/trajectories/stream/pseudotime/stream.h5ad.pkl
 stream_trajectories_$(1) = 		$(rna)/$(1)/trajectories/stream/trajectories/branches.txt
+cotan_$(1) = 					$(rna)/$(1)/macrostates/cotan/macrostates.h5ad $(rna)/$(1)/macrostates/cotan/macrostates.csv
 bin_cells_$(1) = 				$(rna)/$(1)/binarization/cells/bin.h5ad
 model_specification_$(1) = 		$(rna)/$(1)/bonesis/specification_model.txt
 bonesis_filter1_$(1) = 			$(rna)/$(1)/bonesis/filtering/stage1/bootstrap_filter_grn_stage1.txt
@@ -217,7 +217,6 @@ $(eval normalization_target := $(normalization_target) $(normalization_$(1)))
 $(eval scvelo_velocity_target := $(scvelo_velocity_target) $(scvelo_$(1)))
 $(eval cellrank_target := $(cellrank_target) $(cellrank_$(1)))
 $(eval center_extremity_target := $(center_extremity_target) $(center_extremity_$(1)))
-$(eval cotan_target := $(cotan_target) $(cotan_$(1)))
 $(eval macrostates_target := $(macrostates_target) $(macrostates_$(1)))
 $(eval bdc_target := $(bdc_target) $(bdc_$(1)))
 
@@ -232,6 +231,7 @@ $(eval goea_target := $(goea_target) $(goea_basic_$(1)) $(goea_mouse_$(1)))
 $(eval annotation_target := $(annotation_target) $(annotation_$(1)))
 $(eval stream_pseudotime_target := $(stream_pseudotime_target) $(stream_pseudotime_$(1)))
 $(eval stream_trajectories_target := $(stream_trajectories_target) $(stream_trajectories_$(1)))
+$(eval cotan_target := $(cotan_target) $(cotan_$(1)))
 $(eval bin_cells_target := $(bin_cells_target) $(bin_cells_$(1)))
 $(eval bin_macrostates_target := $(bin_macrostates_target) $(bin_macrostates_$(1)))
 $(eval model_specification_target := $(model_specification_target) $(model_specification_$(1)))
@@ -715,7 +715,7 @@ $(cotan_$(1))&: $(annotation_$(1))
 	$(call print_debug,adding cotan clusters to anndata object)
 	python scripts/utils/add_to_anndata.py $$< $$(firstword $$(cotan_$(1))) --csv $$(lastword $$(cotan_$(1))) --axis 0 --sep , --type category
 	$(call print_task,plotting umap with respect to cotan clusters)
-	python fig/plot_embedding.py fig/macrostates.json --infile $$(firstword $$(cotan_$(1))) --outfile $$(@D)/cotan_clusters.pdf
+	python fig/plot_embedding.py fig/macrostates_umap.json --infile $$(firstword $$(cotan_$(1))) --outfile $$(@D)/umap_cotan.pdf
 	$$(conda_deactivate)
 
 $(bin_macrostates_$(1)): $(bin_cells_$(1)) $(lastword $(macrostates_$(1)))
@@ -726,7 +726,7 @@ $(bin_macrostates_$(1)): $(bin_cells_$(1)) $(lastword $(macrostates_$(1)))
 	$(call print_debug,adding macrostates to anndata object and savings results in $$$${tmpdir}/mcts.h5ad)
 	python scripts/utils/add_to_anndata.py $$(firstword $$^) $$$${tmpdir}/mcts.h5ad --csv $$(lastword $$^) --axis 0 --sep , --type category
 	python scripts/binarization/bin_clusters.py $$$${tmpdir}/mcts.h5ad $$@ --counts $$(@D)/counts_bin.csv \
-		--layer bin --distribution distribution --cluster macrostates \
+		--layer bin --distribution distribution --cluster macrostates --embedding umap \
 		--nans-threshold $(NANS_THRESHOLD) --bimodal-threshold $(BIMODAL_THRESHOLD) \
 		--zeroinf-threshold $(ZEROINF_THRESHOLD) --unimodal-threshold $(UNIMODAL_THRESHOLD)
 	$$(conda_deactivate)
@@ -826,18 +826,34 @@ $(annotation_integrated): $(clustering_integrated)
 	$(call print_error,parameter LABEL_INTEGRATED not defined)
 endif
 
-$(bin_macrostates_integrated): $(bin_cells_integrated) $(foreach condition,$(conditions),$(macrostates_$(condition)))
+#$(cotan_integrated)&: $(annotation_integrated) $(foreach condition,$(conditions),$(lastword $(cotan_$(condition))))
+#	$(call print_rule,cotan,integrated)
+#	echo $^
+#	echo $(cotan_integrated)
+#	mkdir -p $(@D)
+#	$(conda_activate) preprocess
+#	$(call print_debug,adding cotan clusters to anndata object)
+#	python scripts/utils/add_to_anndata.py $< $(firstword $(cotan_integrated)) --csv $(filter-out $<, $^) \
+#		--labels $(conditions) --label-column condition --add-prefix macrostates --axis 0 --sep , --type category
+#	python fig/plot_embedding.py fig/macrostates_umap.json --infile $(firstword $(cotan_integrated)) --outfile $(@D)/umap_cotan.pdf
+#	$(conda_deactivate)
+
+$(bin_macrostates_integrated): $(bin_cells_integrated) $(foreach condition,$(conditions),$(lastword $(cotan_$(condition))))
 	$(call print_rule,bin-macrostates,integrated)
 	mkdir -p $(@D)
+	tmpdir=$$(mktemp -d -t scbridge-XXXXXXXXXX)
 	$(conda_activate) preprocess
-	$(call print_debug,transferring information from integrated dataset to specific datasets)
-	python scripts/utils/pipe_sti.py $^ --outfile $(@D)/tmp.h5ad --labels $(conditions) --obs-label condition --obs macrostates
-	$(call print_info,binarizing macrostates)
-	python scripts/binarization/bin_clusters.py $(@D)/tmp.h5ad $(@D) --condition condition --cluster macrostates
-	rm $(@D)/tmp.h5ad
-	$(call print_info,plotting macrostate labels)
-	python fig/plot_embedding.py fig/macrostates.json --infile $(@D)/bin_clusters.h5ad --outfile $(@D)/macrostates
+	$(call print_debug,adding macrostates to anndata object and savings results in $${tmpdir}/mcts.h5ad)
+	python scripts/utils/add_to_anndata.py $(firstword $^) $${tmpdir}/mcts.h5ad --csv $(filter-out $<, $^) \
+		--labels $(conditions) --label-column condition --add-prefix macrostates --axis 0 --sep , --type category
+	python scripts/binarization/bin_clusters.py $${tmpdir}/mcts.h5ad $@ --counts $(@D)/counts_bin.csv \
+		--layer bin --distribution distribution --cluster macrostates --embedding umap \
+		--nans-threshold $(NANS_THRESHOLD) --bimodal-threshold $(BIMODAL_THRESHOLD) \
+		--zeroinf-threshold $(ZEROINF_THRESHOLD) --unimodal-threshold $(UNIMODAL_THRESHOLD)
+	python fig/plot_embedding.py fig/macrostates_umap.json --infile $${tmpdir}/mcts.h5ad --outfile $(@D)/umap_cotan.pdf
 	$(conda_deactivate)
+	rm -r $${tmpdir}
+	unset tmpdir
 
 $(foreach condition,$(conditions),$(eval $(call condition_dependant_rules,$(condition))))
 $(foreach condition,$(conditions_plus_integrated),$(eval $(call condition_plus_integrated_dependant_rules,$(condition))))

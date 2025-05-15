@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser(
     Send information from multiple specific 'adata.obs' towards integrated 'adata.obs', first ones referring to a name. \
     Values passed to parameters '--specifics' and '--names' have to be ordered together.
     """,
-    usage="""python pipe_sti.py [-h] <FILE> <FILE ...> [--outfiles <FILE ...>] --labels <LITERAL ...> --column-label <LITERAL> --obs <LITERAL ...>"""
+    usage="python pipe_sti.py <FILE> <FILE ...> [--outfiles <FILE ...>] --labels <LITERAL ...> --column-label <LITERAL> --obs <LITERAL ...>"
 )
 
 parser.add_argument(
