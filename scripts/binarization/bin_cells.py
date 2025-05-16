@@ -146,7 +146,7 @@ scbool = scBoolSeq(
     zeroes_are=0 if args.zeroes_are_zeroes else np.nan
 )
 
-std.print_info("computing statistical estimators and estimating parametric distributions")
+std.print_info("estimating parametric distributions")
 with std.disable_print():
     scbool.fit(
         counts_df,
