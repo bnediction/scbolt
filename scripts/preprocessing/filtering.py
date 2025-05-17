@@ -57,7 +57,7 @@ parser = argparse.ArgumentParser(
     quality control metrics), assign cell to a cell cycle phase \
     and filter low-quality genes and cells.
     """,
-    usage="python filtering.py [-h] <FILE> <FILE> [--marker <FILE>] [<args>]"
+    usage="python filtering.py <FILE> <FILE> [--marker <FILE>] [<args>]"
 )
 
 parser.add_argument(

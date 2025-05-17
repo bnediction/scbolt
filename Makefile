@@ -29,7 +29,7 @@ _samples := $(subst $(plus),$(space),$(REFERENCES))
 _samples_without_integration := $(subst $(space)integrated,,$(_samples))
 
 export tmpdir:=$(shell mktemp -d -t scbridge-XXXXXXXXXX)
-$(shell { trap 'rm -rf $(tmpdir);' EXIT; tail --pid=$$PPID -f /dev/null; } </dev/null >/dev/null 2>/dev/null &)
+# $(shell { trap 'rm -rf $(tmpdir);' EXIT; tail --pid=$$PPID -f /dev/null; } </dev/null >/dev/null 2>/dev/null &)
 
 ## BEGIN URLS ##
 
@@ -134,13 +134,16 @@ velocyto_$(1) = 				$(rna)/$(1)/counting/velocyto/counts.h5ad
 filtering_$(1) = 				$(rna)/$(1)/preprocessing/filtering/counts.h5ad
 normalization_$(1) = 			$(rna)/$(1)/preprocessing/normalization/counts.h5ad
 scvelo_$(1) = 					$(rna)/$(1)/trajectories/scvelo/scvelo.h5ad
+stream_$(1) =			 		$(rna)/$(1)/macrostates/stream/macrostates.h5ad $(rna)/$(1)/macrostates/stream/macrostates.csv
 cotan_$(1) = 					$(rna)/$(1)/macrostates/cotan/macrostates.h5ad $(rna)/$(1)/macrostates/cotan/macrostates.csv
 cellrank_$(1) = 				$(rna)/$(1)/macrostates/cellrank/macrostates.h5ad
 center_extremity_$(1) = 		$(rna)/$(1)/macrostates/center_extremity/macrostates.h5ad
 trajectories_macrostates_$(1) =	$(rna)/$(1)/trajectories/macrostates/trajectories.txt
 bdc_$(1) = 						$(rna)/$(1)/binarization/pairwise_predecessor_scores.csv
 
-ifeq ($(MACROSTATES_METHOD),cellrank)
+ifeq ($(MACROSTATES_METHOD),stream)
+macrostates_$(1) = 				$$(stream_$(1))
+else ifeq ($(MACROSTATES_METHOD),cellrank)
 macrostates_$(1) = 				$$(cellrank_$(1))
 else ifeq ($(MACROSTATES_METHOD),center-extremity)
 macrostates_$(1) = 				$$(center_extremity_$(1))
@@ -160,8 +163,6 @@ scoring_$(1) = 					$(rna)/$(1)/clustering/scoring/phenotypes.csv
 goea_basic_$(1) = 				$(rna)/$(1)/clustering/goea/goea_basic.xlsx
 goea_mouse_$(1) = 				$(rna)/$(1)/clustering/goea/goea_mouse.xlsx
 annotation_$(1) = 				$(rna)/$(1)/clustering/clusters/annotation.h5ad
-stream_pseudotime_$(1) = 		$(rna)/$(1)/trajectories/stream/pseudotime/stream.h5ad.pkl
-stream_trajectories_$(1) = 		$(rna)/$(1)/trajectories/stream/trajectories/branches.txt
 bin_cells_$(1) = 				$(rna)/$(1)/binarization/cells/bin.h5ad
 model_specification_$(1) = 		$(rna)/$(1)/bonesis/specification_model.txt
 bonesis_filter1_$(1) = 			$(rna)/$(1)/bonesis/filtering/stage1/bootstrap_filter_grn_stage1.txt
@@ -169,7 +170,9 @@ bonesis_filter2_$(1) = 			$(rna)/$(1)/bonesis/filtering/stage2/bootstrap_filter_
 bonesis_inference_min_$(1) = 	$(rna)/$(1)/bonesis/inference/min/one-min.bnet
 bonesis_inference_sub_$(1) = 	$(rna)/$(1)/bonesis/inference/sub/one-sub.bnet
 
-ifeq ($(MACROSTATES_METHOD),cellrank)
+ifeq ($(MACROSTATES_METHOD),stream)
+bin_macrostates_$(1) =		 	$(rna)/$(1)/binarization/cellrank/bin_macrostates.csv
+else ifeq ($(MACROSTATES_METHOD),cellrank)
 bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/cellrank/bin_macrostates.csv
 else ifeq ($(MACROSTATES_METHOD),center-extremity)
 bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/center_extremity/bin_macrostates.csv
@@ -203,8 +206,7 @@ goea_target :=
 annotation_target :=
 scvelo_velocity_target :=
 macrostates_target :=
-stream_pseudotime_target :=
-stream_trajectories_target :=
+stream_target :=
 cellrank_target :=
 center_extremity_target :=
 cotan_target :=
@@ -225,6 +227,7 @@ $(eval velocyto_target := $(velocyto_target) $(velocyto_$(1)))
 $(eval filtering_target := $(filtering_target) $(filtering_$(1)))
 $(eval normalization_target := $(normalization_target) $(normalization_$(1)))
 $(eval scvelo_velocity_target := $(scvelo_velocity_target) $(scvelo_$(1)))
+$(eval stream_target := $(stream_target) $(stream_$(1)))
 $(eval cotan_target := $(cotan_target) $(cotan_$(1)))
 $(eval cellrank_target := $(cellrank_target) $(cellrank_$(1)))
 $(eval center_extremity_target := $(center_extremity_target) $(center_extremity_$(1)))
@@ -240,8 +243,6 @@ $(eval deseq_target := $(deseq_target) $(deseq_$(1)))
 $(eval scoring_target := $(scoring_target) $(scoring_$(1)))
 $(eval goea_target := $(goea_target) $(goea_basic_$(1)) $(goea_mouse_$(1)))
 $(eval annotation_target := $(annotation_target) $(annotation_$(1)))
-$(eval stream_pseudotime_target := $(stream_pseudotime_target) $(stream_pseudotime_$(1)))
-$(eval stream_trajectories_target := $(stream_trajectories_target) $(stream_trajectories_$(1)))
 $(eval bin_cells_target := $(bin_cells_target) $(bin_cells_$(1)))
 $(eval bin_macrostates_target := $(bin_macrostates_target) $(bin_macrostates_$(1)))
 $(eval model_specification_target := $(model_specification_target) $(model_specification_$(1)))
@@ -455,17 +456,15 @@ annotation: $(annotation_target) ## assign names to cell clusters
 
 .PHONY: scvelo
 scvelo: $(scvelo_velocity_target) ## estimate rna velocity with scvelo
-.PHONY: stream-pseudotime
-stream-pseudotime: $(stream_pseudotime_target) ## compute elastic principal graph and pseudotime with stream
-.PHONY: stream-trajectories
-stream-trajectories: $(stream_trajectories_target) ## compute trajectories with stream
 
 ##@ Macrostate characterization
 
+.PHONY: stream
+stream: $(stream_target) ## estimate macrostates using elastic principal graph
 .PHONY: cellrank
 cellrank: $(cellrank_target) ## estimate macrostates with cellrank
 .PHONY: center-extremity
-center-extremity: $(center_extremity_target) ## estimate macrostates with center-extremity method
+center-extremity: $(center_extremity_target) ## estimate macrostates using center-extremity method
 .PHONY: cotan
 cotan: $(cotan_target) ## estimate macrostates with cotan
 .PHONY: macrostates
@@ -704,6 +703,19 @@ $(center_extremity_$(1)): $(scvelo_$(1))
 	$$(conda_deactivate)
 endif
 
+$(stream_$(1))&: $(annotation_$(1))
+	$(call print_rule,stream,$(1))
+	mkdir -p $$(@D)
+	$$(conda_activate) stream
+	python scripts/macrostates/stream_macrostates.py $$< $$(firstword $$(stream_$(1))) \
+		--pkl $$(firstword $$(stream_$(1))).pkl --csv $$(word 2,$$(stream_$(1))) \
+		--embedding umap --obs leiden --cluster-number $(CLUSTER_NUMBER) \
+		--lambda $(LAMBDA_EPG) --mu $(MU_EPG) --alpha $(ALPHA_EPG) \
+		$(extend_epg) $(if $(filter $(EXTEND_EPG),true),--extend-parameter $(EXTEND_PARAMETER),) \
+		$(prune_epg) $(if$(filter $(PRUNE_EPG),true),--collapse-parameter $(COLLAPSE_PARAMETER),) \
+		--jobs $(JOBS)
+	$$(conda_deactivate)
+
 $(cotan_$(1))&: $(annotation_$(1))
 	$(call print_rule,cotan,$(1))
 	mkdir -p $$(@D) $(tmpdir)/$(1)/cotan
@@ -768,27 +780,6 @@ $(goea_mouse_$(1)): $(lastword $(deseq_$(1))) $(go_mouse) $(gene2go)
 	$(call print_rule,goea with go-mouse,$(1))
 	$$(conda_activate) preprocess
 	python scripts/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
-	$$(conda_deactivate)
-
-$(stream_pseudotime_$(1)): $(annotation_$(1))
-	$(call print_rule,stream-pseudotime,$(1))
-	mkdir -p $$(@D)
-	$$(conda_activate) stream
-	python scripts/trajectories/stream_pseudotime.py $$< $$@ --h5ad $$(shell echo $$@ | sed "s/.pkl//") \
-		--embedding umap --obs leiden --cluster-number $(CLUSTER_NUMBER) \
-		--lambda $(LAMBDA_EPG) --mu $(MU_EPG) --alpha $(ALPHA_EPG) \
-		$(extend_epg) $(if $(filter $(EXTEND_EPG),true),--extend-parameter $(EXTEND_PARAMETER),) \
-		$(prune_epg) $(if$(filter $(PRUNE_EPG),true),--collapse-parameter $(COLLAPSE_PARAMETER),) \
-		--jobs $(JOBS)
-	$$(conda_deactivate)
-
-$(stream_trajectories_$(1)): $(stream_pseudotime_$(1))
-	$(call print_rule,stream-trajectories,$(1))
-	$(call print_warning,root can be modified using ROOT_$(call toupper,$(1)) \(current value: $(ROOT_$(call toupper, $(1)))\))
-	$$(conda_activate) stream
-	python scripts/trajectories/stream_trajectories.py $$< $$(@D) --root $(ROOT_$(call toupper, $(1))) \
-		--groups leiden kmeans macrostates \
-		--add-legend --add-graph $(IGNORED_NODES_$(call toupper, $(1)))
 	$$(conda_deactivate)
 
 $(bin_cells_$(1)): $(clustering_$(1))

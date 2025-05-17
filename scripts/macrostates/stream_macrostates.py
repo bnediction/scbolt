@@ -16,6 +16,8 @@ import bonesistools as bt
 from networkx.classes.graph import Graph
 from rpy2.rinterface import ListSexpVector
 
+import matplotlib.pyplot as plt
+
 bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
@@ -39,17 +41,27 @@ parser.add_argument(
     dest="outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing elastic principal graph (format: pkl)"
+    help="output file storing pseudotime and stream macrostates (format: h5ad)"
 )
 
 parser.add_argument(
-    "--h5ad",
-    dest="h5ad",
+    "--pkl",
+    dest="pkl",
     type=lambda x: Path(x).resolve(),
     required=False,
     default=None,
     metavar="FILE",
-    help="output file storing elastic principal graph (format: h5ad)"
+    help="output file storing elastic principal graph (format: pkl)"
+)
+
+parser.add_argument(
+    "--csv",
+    dest="csv",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=None,
+    metavar="FILE",
+    help="output file storing macrostates (format: csv)"
 )
 
 parser.add_argument(
@@ -187,8 +199,8 @@ args = parser.parse_args()
 embedding_label = "UMAP" if args.embedding == "umap" else "t-SNE"
 
 outpath = os.path.dirname(args.outfile)
-if not Path(outpath).exists():
-    os.makedirs(outpath)
+if not Path(f"{outpath}/streamplot").exists():
+    os.makedirs(f"{outpath}/streamplot")
 
 std.print_task(f"loading file {str(args.infile)}")
 adata = ad.read_h5ad(args.infile)
@@ -263,6 +275,10 @@ for node in nodes_mapping.keys():
     adata.obs["macrostates"][_true] = str(nodes_mapping[node])
 adata.obs["macrostates"] = adata.obs["macrostates"].astype("category")
 
+for node in adata.obs["macrostates"].cat.categories:
+    adata.obs[f"{node}_pseudotime"] = adata.obs[f"S{node}_pseudotime"]
+    del adata.obs[f"S{node}_pseudotime"]
+
 groups = set([args.obs]).union({"kmeans", "macrostates"})
 
 for group in groups:
@@ -297,25 +313,46 @@ for group in groups:
         outfile=Path(f"{outpath}/{embedding_label}_epg_{group}.pdf")
     )
 
-std.print_task(f"saving pkl-formatted data in {str(args.outfile)}")
-with std.disable_print():
-    st.write(
+std.print_task("plotting trajectories with respect to pseudotime at density level")
+for root in adata.obs["macrostates"].cat.categories:
+    st.plot_stream(
         adata,
-        file_name=args.outfile
+        root=root,
+        color=[args.obs],
+        log_scale=False,
+        factor_zoomin=100,
+        save_fig=False
     )
+    plt.gca().get_legend().set_title(args.obs)
+    plt.savefig(Path(f"{outpath}/streamplot/streamplot_{group}_root{root}.pdf"))
 
-if args.h5ad:
-    std.print_task(f"saving h5ad-formatted data in {str(args.h5ad)}")
-    del adata.uns["workdir"]
-    for key in list(adata.obs.keys()):
-        if isinstance (adata.obs[key][0], tuple):
-            del adata.obs[key]
-    for key in list(adata.uns.keys()):
-        if isinstance(adata.uns[key], (tuple, Path, Graph, ListSexpVector)):
-            del adata.uns[key]
-        if key.startswith("stream_S"):
-            del adata.uns[key]
-    adata.write_h5ad(
-        filename=args.h5ad,
-        compression="gzip"
+if args.pkl:
+    std.print_task(f"saving pkl-formatted data in {str(args.pkl)}")
+    with std.disable_print():
+        st.write(
+            adata,
+            file_name=args.pkl
+        )
+
+std.print_task(f"saving h5ad-formatted data in {str(args.outfile)}")
+del adata.uns["workdir"]
+for key in list(adata.obs.keys()):
+    if isinstance (adata.obs[key][0], tuple):
+        del adata.obs[key]
+for key in list(adata.uns.keys()):
+    if isinstance(adata.uns[key], (tuple, Path, Graph, ListSexpVector)):
+        del adata.uns[key]
+    if key.startswith("stream_S"):
+        del adata.uns[key]
+adata.write_h5ad(
+    filename=args.outfile,
+    compression="gzip"
+)
+
+if args.csv:
+    std.print_task(f"saving stream macrostates in {str(args.csv)}")
+    adata.obs["macrostates"].to_csv(
+        args.csv,
+        sep=",",
+        index=True
     )
