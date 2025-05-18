@@ -85,8 +85,8 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--hvg",
-    dest="hvg",
+    "--only-hvg",
+    dest="only_hvg",
     action="store_true",
     required=False,
     help="use only pre-computed highly variable genes for binarizing cells"
@@ -120,7 +120,7 @@ if not Path(os.path.dirname(args.outfile)).exists():
 std.print_task(f"loading file {str(args.infile)}")
 adata = ad.read_h5ad(args.infile)
 
-if args.hvg:
+if args.only_hvg:
     std.print_info(f"filtering non-highly variable genes")
     if "highly_variable" in adata.var:
         adata._inplace_subset_var(adata.var.highly_variable)

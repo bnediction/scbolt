@@ -113,8 +113,8 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--hvg",
-    dest="hvg",
+    "--only-hvg",
+    dest="only_hvg",
     action="store_true",
     required=False,
     help="use only highly variable genes for PCA projection"
@@ -200,13 +200,13 @@ if args.layer:
     adata.X = adata.layers[args.layer].copy()
 
 std.print_task(f"computing top {args.pca_dimension} principal components")
-if args.hvg:
+if args.only_hvg:
     std.print_info(f"use only highly variable genes")
 sc.tl.pca(
     adata,
     n_comps=args.pca_dimension,
     zero_center=args.zero_center,
-    use_highly_variable=args.hvg,
+    use_highly_variable=args.only_hvg,
     random_state=np.random.RandomState(args.seed),
     copy=False
 )

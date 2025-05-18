@@ -70,6 +70,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--only-hvg",
+    dest="only_hvg",
+    action="store_true",
+    required=False,
+    help="reduce feature dimension to highly variable genes"
+)
+
+parser.add_argument(
     "--remove-positions",
     dest="remove_positions",
     required=False,
@@ -129,6 +137,12 @@ elif args.__getattribute__("from") == "10x":
     adata = sc.read_10x_mtx(path=args.input)
 
 adata.obs.index = pd.Index(map(lambda barcode: re.sub("[^ATCG]","",re.sub("^.*:","",barcode)), adata.obs.index))
+
+if args.only_hvg:
+    if "highly_variable" in adata.var:
+        adata._inplace_subset_var(adata.var["highly_variable"])
+    else:
+        raise KeyError("column 'highly_variable' not found in adata.var: please use 'sc.pp.highly_variable_genes' before)")
 
 if args.remove_positions:
     for column in ["Chromosome", "Start", "End", "Strand"]:

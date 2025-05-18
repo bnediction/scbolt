@@ -67,8 +67,8 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--hvg",
-    dest="hvg",
+    "--only-hvg",
+    dest="only_hvg",
     action="store_true",
     required=False,
     help="use only highly variable genes for estimating rna velocities"
@@ -141,7 +141,7 @@ with std.disable_print():
         mode="connectivities",
         method="umap",
         use_rep="X_pca",
-        use_highly_variable=args.hvg,
+        use_highly_variable=args.only_hvg,
         copy=False
     )
 
@@ -151,7 +151,7 @@ with std.disable_print():
         adata,
         vkey="velocity",
         mode=args.mode,
-        use_highly_variable=args.hvg,
+        use_highly_variable=args.only_hvg,
         copy=False
     )
 

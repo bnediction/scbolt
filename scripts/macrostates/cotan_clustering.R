@@ -137,15 +137,15 @@ arguments <- list(
               action="store",
               default=25,
               metavar="INT",
-              help="maximum number of re-clustering iterations (default: 25)"
+              help="maximum iteration number for merging clustering (default: 25)"
   ),
   make_option("--method",
               dest="method",
               type="character",
               action="store",
               default="classic",
-              metavar="[classic | soft-merging | strong-merging]",
-              help="clustering method. Merging clusters can be useful to achieve cluster uniformity (default: classic)"
+              metavar="[classic|soft-merging|strong-merging]",
+              help="method for computing cotan clusters (default: classic)"
   ),
   make_option(c("-j", "--jobs"),
               dest="jobs",

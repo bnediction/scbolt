@@ -50,13 +50,13 @@ $(eval SPREAD := 1)							# effective scale of embedded points in umap
 
 ## END CLUSTERING ##
 
-## BEGIN DESEQ ##
+## BEGIN DEA ##
 
 $(eval LOGFC := 0.25)						# minimum log2 fold-change for a gene to be considered as differentially expressed
 $(eval ALPHA := 0.05)						# significance level or probability of rejecting null hypothesis that gene is not differentially expressed
 $(eval CORRECTION := bonferroni)			# method used for correcting the significance level (benjamini-hochberg ou bonferroni)
 
-## END DESEQ ##
+## END DEA ##
 
 ## BEGIN ANNOTATION ##
 
@@ -75,18 +75,32 @@ $(eval SMM_MODE := dynamical)				# mode used for estimating the steady-state mod
 
 ## END SCVELO ##
 
+## BEGIN COTAN ##
+
+$(eval COTAN_METHOD := strong-merging)		# method for computing cotan clusters (classic, soft-merging or strong-merging)
+$(eval COTAN_ONLY_HVG := true)				# use only highly variable genes for estimating cotan macrostates
+$(eval MAX_ITER := 25)						# maximum iteration number for merging clustering
+
+## END COTAN ##
+
 ## BEGIN STREAM ##
 
-$(eval CLUSTER_NUMBER = 6)					# number of clusters for elastic principal graph
-$(eval LAMBDA_EPG = 0.05)					# lambda parameter used for computing the elastic energy
-$(eval MU_EPG = 0.05)						# mu parameter used for computing the elastic energy
-$(eval ALPHA_EPG = 0.03)					# alpha parameter of the penalized elastic energy
+$(eval CLUSTER_NUMBER := 6)					# number of clusters for elastic principal graph
+$(eval LAMBDA_EPG := 0.05)					# lambda parameter used for computing the elastic energy
+$(eval MU_EPG := 0.05)						# mu parameter used for computing the elastic energy
+$(eval ALPHA_EPG := 0.03)					# alpha parameter of the penalized elastic energy
 $(eval EXTEND_EPG := true)					# extend leaves of elastic principal graph by attaching them new nodes
 $(eval EXTEND_PARAMETER := 0.8)				# stream parameter used for extending the leaves (used only if EXTEND_EPG = true)
 $(eval PRUNE_EPG := false)					# prune elastic principal graph by filtering out trivial branches
 $(eval COLLAPSE_PARAMETER := false)			# stream parameter used for prunning the graph (used only if PRUNE_EPG = true)
 
 ## END STREAM ##
+
+## BEGIN MACROSTATES ##
+
+$(eval MACROSTATES_METHOD := cotan)			# cotan, stream, cellrank or center-extremity
+
+## END MACROSTATES ##
 
 ## BEGIN BIN-CELLS ##
 
@@ -103,16 +117,7 @@ $(eval BIMODAL_THRESHOLD := 0.67)			# minimum proportion of zero- or one-values 
 $(eval ZEROINF_THRESHOLD := 0.5)			# minimum proportion of one-values against binarized values in a cluster required for a zero-inflated gene to be binarized to one, otherwise zero
 $(eval UNIMODAL_THRESHOLD := 0.67)			# minimum proportion of zero- or one-values against binarized values in a cluster required for a unimodal gene to be binarized
 
-# stream-trajectories #
-
-# ROOT_<CONDITION> = 0						# specify which node is the starting point for condition <CONDITION>
-# IGNORED_NODES_<CONDITION> =				# specify which nodes to ignore for deciphering trajectories in condition <CONDITION>
-
-## END TRAJECTORY INFERENCE ##
-
-## BEGIN MACROSTATE CHARACTERIZATION ##
-
-$(eval MACROSTATES_METHOD := cotan)			# cellrank, center-extremity or cotan
+## END BIN-MACROSTATES ##
 
 # cellrank #
 

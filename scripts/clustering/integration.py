@@ -176,12 +176,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--hvg",
-    dest="hvg",
+    "--only-hvg",
+    dest="only_hvg",
     type=int,
     required=False,
     default=None,
-    help="if specified, use only top highly variable genes (default: None)"
+    help="use only top highly variable genes for integrating datasets"
 )
 
 parser.add_argument(
@@ -310,8 +310,8 @@ if args.integration=="ingest":
     for label in args.labels:
         adatas[label] = adata[adata.obs["condition"] == label].to_memory()
 
-    if args.hvg:
-        std.print_task(f"computing top {args.hvg} highly variable genes for each dataset")
+    if args.only_hvg:
+        std.print_task(f"computing top {args.only_hvg} highly variable genes for each dataset")
         for label in args.labels:
             sc.pp.highly_variable_genes(
                 adatas[label],
@@ -319,7 +319,7 @@ if args.integration=="ingest":
                 flavor="seurat_v3",
                 span=0.3,
                 n_bins=20,
-                n_top_genes=args.hvg,
+                n_top_genes=args.only_hvg,
                 inplace=True
             )
 
@@ -328,7 +328,7 @@ if args.integration=="ingest":
         adatas[reference],
         n_comps=args.pca_dimension,
         zero_center=args.zero_center,
-        use_highly_variable=(args.hvg is not None),
+        use_highly_variable=(args.only_hvg is not None),
         random_state=np.random.RandomState(args.seed),
         copy=False
     )
@@ -421,15 +421,15 @@ elif args.integration=="bbknn":
 
     std.print_info("integrating data using bbknn")
 
-    if args.hvg:
-        std.print_task(f"computing top {args.hvg} highly variable genes")
+    if args.only_hvg:
+        std.print_task(f"computing top {args.only_hvg} highly variable genes")
         sc.pp.highly_variable_genes(
             adata,
             layer="counts",
             flavor="seurat_v3",
             span=0.3,
             n_bins=20,
-            n_top_genes=args.hvg,
+            n_top_genes=args.only_hvg,
             inplace=True
         )
 
@@ -438,7 +438,7 @@ elif args.integration=="bbknn":
         adata,
         n_comps=args.pca_dimension,
         zero_center=args.zero_center,
-        use_highly_variable=(args.hvg is not None),
+        use_highly_variable=(args.only_hvg is not None),
         random_state=np.random.RandomState(args.seed),
         copy=False
     )
@@ -507,7 +507,7 @@ elif args.integration=="scanorama":
             list(adatas.values()),
             dimred=args.pca_dimension,
             return_dimred=True,
-            hvg=args.hvg
+            hvg=args.only_hvg
         )
 
     std.print_debug(f"concatenating datasets ({' '.join(label for label in args.labels)})")

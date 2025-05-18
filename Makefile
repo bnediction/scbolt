@@ -29,7 +29,7 @@ _samples := $(subst $(plus),$(space),$(REFERENCES))
 _samples_without_integration := $(subst $(space)integrated,,$(_samples))
 
 export tmpdir:=$(shell mktemp -d -t scbridge-XXXXXXXXXX)
-# $(shell { trap 'rm -rf $(tmpdir);' EXIT; tail --pid=$$PPID -f /dev/null; } </dev/null >/dev/null 2>/dev/null &)
+$(shell { trap 'rm -rf $(tmpdir);' EXIT; tail --pid=$$PPID -f /dev/null; } </dev/null >/dev/null 2>/dev/null &)
 
 ## BEGIN URLS ##
 
@@ -158,7 +158,7 @@ endef
 define condition_plus_integrated_dependant_paths
 
 clustering_$(1) = 				$(rna)/$(1)/clustering/clusters/counts.h5ad
-deseq_$(1) = 					$(rna)/$(1)/clustering/deseq/markers.csv $(rna)/$(1)/clustering/deseq/genes.xlsx
+dea_$(1) = 						$(rna)/$(1)/clustering/dea/markers.csv $(rna)/$(1)/clustering/dea/genes.xlsx
 scoring_$(1) = 					$(rna)/$(1)/clustering/scoring/phenotypes.csv
 goea_basic_$(1) = 				$(rna)/$(1)/clustering/goea/goea_basic.xlsx
 goea_mouse_$(1) = 				$(rna)/$(1)/clustering/goea/goea_mouse.xlsx
@@ -200,7 +200,7 @@ h5ad_target :=
 filtering_target :=
 normalization_target :=
 clustering_target :=
-deseq_target :=
+dea_target :=
 scoring_target :=
 goea_target :=
 annotation_target :=
@@ -239,7 +239,7 @@ endef
 define dependant_targets_with_integration
 
 $(eval clustering_target := $(clustering_target) $(clustering_$(1)))
-$(eval deseq_target := $(deseq_target) $(deseq_$(1)))
+$(eval dea_target := $(dea_target) $(dea_$(1)))
 $(eval scoring_target := $(scoring_target) $(scoring_$(1)))
 $(eval goea_target := $(goea_target) $(goea_basic_$(1)) $(goea_mouse_$(1)))
 $(eval annotation_target := $(annotation_target) $(annotation_$(1)))
@@ -293,7 +293,7 @@ endif
 ifndef PCA_ONLY_HVG
 $(error Parameter PCA_ONLY_HVG not defined)
 else ifeq ($(PCA_ONLY_HVG),true)
-pca_only_hvg=--hvg
+pca_only_hvg=--only-hvg
 else ifeq ($(PCA_ONLY_HVG),false)
 pca_only_hvg=
 else
@@ -303,11 +303,21 @@ endif
 ifndef VELOCITY_ONLY_HVG
 $(error Parameter VELOCITY_ONLY_HVG not defined)
 else ifeq ($(VELOCITY_ONLY_HVG),true)
-velocity_only_hvg=--hvg
+velocity_only_hvg=--only-hvg
 else ifeq ($(VELOCITY_ONLY_HVG),false)
 velocity_only_hvg=
 else
 $(error Unsupported value for parameter VELOCITY_ONLY_HVG (supported values: true, false))
+endif
+
+ifndef COTAN_ONLY_HVG
+$(error Parameter COTAN_ONLY_HVG not defined)
+else ifeq ($(COTAN_ONLY_HVG),true)
+cotan_only_hvg=--only-hvg
+else ifeq ($(COTAN_ONLY_HVG),false)
+cotan_only_hvg=
+else
+$(error Unsupported value for parameter COTAN_ONLY_HVG (supported values: true, false))
 endif
 
 ifndef EXTEND_EPG
@@ -333,7 +343,7 @@ endif
 ifndef BIN_ONLY_HVG
 $(error Parameter BIN_ONLY_HVG not defined)
 else ifeq ($(BIN_ONLY_HVG),true)
-bin_only_hvg=--hvg
+bin_only_hvg=--only-hvg
 else ifeq ($(BIN_ONLY_HVG),false)
 bin_only_hvg=
 else
@@ -350,32 +360,12 @@ else
 $(error Unsupported value for parameter ZEROES_ARE_ZEROES (supported values: true, false))
 endif
 
-define stream_root
-ifndef ROOT_$(call toupper,$(1))
-ROOT_$(call toupper,$(1)):=0
-endif
-endef
-$(foreach root,$(_samples),$(eval $(call stream_root,$(root))))
-
-define stream_ignored_nodes
-ifneq ($(IGNORED_NODES_$(call toupper,$(1))),)
-IGNORED_NODES_$(call toupper,$(1)):=--ignore-nodes $(IGNORED_NODES_$(call toupper,$(1)))
-endif
-endef
-$(foreach condition,$(_samples),$(eval $(call stream_ignored_nodes,$(condition))))
-
 ifeq ($(EXCLUDE),true)
 EXCLUDE:=--exclude
 else ifeq ($(EXCLUDE),false)
 EXCLUDE:=
 else
 $(error EXCLUDE not set to true or false)
-endif
-
-ifeq ($(BINARIZATION_ONLY_HVG),true)
-BINARIZATION_ONLY_HVG:=--hvg
-else
-BINARIZATION_ONLY_HVG:=
 endif
 
 ifeq ($(MINIMIZE_AUTO_LOOPS),true)
@@ -443,8 +433,8 @@ normalization: $(normalization_target) ## filtering low quality genes and normal
 
 .PHONY: clustering
 clustering: $(clustering_target) ## perform dimension reduction and cell clustering (and optionally integration)
-.PHONY: deseq
-deseq: $(deseq_target) ## search for markers (differentially expressed genes) between clusters
+.PHONY: dea
+dea: $(dea_target) ## perform differential expression analysis
 .PHONY: scoring
 scoring: $(scoring_target) ## score signature-related phenotypes with respect to cell clusters
 .PHONY: goea
@@ -712,7 +702,7 @@ $(stream_$(1))&: $(annotation_$(1))
 		--embedding umap --obs leiden --cluster-number $(CLUSTER_NUMBER) \
 		--lambda $(LAMBDA_EPG) --mu $(MU_EPG) --alpha $(ALPHA_EPG) \
 		$(extend_epg) $(if $(filter $(EXTEND_EPG),true),--extend-parameter $(EXTEND_PARAMETER),) \
-		$(prune_epg) $(if$(filter $(PRUNE_EPG),true),--collapse-parameter $(COLLAPSE_PARAMETER),) \
+		$(prune_epg) $(if $(filter $(PRUNE_EPG),true),--collapse-parameter $(COLLAPSE_PARAMETER),) \
 		--jobs $(JOBS)
 	$$(conda_deactivate)
 
@@ -721,13 +711,13 @@ $(cotan_$(1))&: $(annotation_$(1))
 	mkdir -p $$(@D) $(tmpdir)/$(1)/cotan
 	$$(conda_activate) preprocess
 	$(call print_debug,retrieving counts from $$< and saving in $(tmpdir)/$(1)/cotan/barcts.csv)
-	python scripts/utils/adata_conversion.py $$< $(tmpdir)/$(1)/cotan/barcts.csv --from h5ad --to csv --layer matrix
+	python scripts/utils/adata_conversion.py $$< $(tmpdir)/$(1)/cotan/barcts.csv --from h5ad --to csv --layer matrix $(cotan_only_hvg)
 	$(call print_debug,transposing $(tmpdir)/$(1)/cotan/barcts.csv and saving in $(tmpdir)/$(1)/cotan/gencts.csv)
 	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $(tmpdir)/$(1)/cotan/barcts.csv > $(tmpdir)/$(1)/cotan/gencts.csv
 	$$(conda_deactivate)
 	$$(conda_activate) cotan
 	Rscript scripts/macrostates/cotan_clustering.R --infile $(tmpdir)/$(1)/cotan/gencts.csv --outpath $$(@D) --sep , \
-		--condition $(1) --max-iterations 25 --method strong-merging --jobs $(JOBS)
+		--condition $(1) --max-iterations $(MAX_ITER) --method $(COTAN_METHOD) --jobs $(JOBS)
 	$$(conda_deactivate)
 	sed -i '1 i\,macrostates' $$(lastword $$(cotan_$(1)))
 	$$(conda_activate) preprocess
@@ -753,30 +743,30 @@ endef
 
 define condition_plus_integrated_dependant_rules
 
-$(deseq_$(1))&: $(clustering_$(1))
-	$(call print_rule,deseq,$(1))
+$(dea_$(1))&: $(clustering_$(1))
+	$(call print_rule,dea,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python scripts/clustering/markers.py $$< $(firstword $(deseq_$(1))) --xlsx $(lastword $(deseq_$(1))) \
+	python scripts/clustering/markers.py $$< $(firstword $(dea_$(1))) --xlsx $(lastword $(dea_$(1))) \
 		--cluster leiden --layer log-norm --are-log \
 		--logfc $(LOGFC) --alpha $(ALPHA) --correction $(CORRECTION)
 	$$(conda_deactivate)
 
-$(scoring_$(1)): $(clustering_$(1)) $(lastword $(signatures)) $(lastword $(deseq_$(1)))
+$(scoring_$(1)): $(clustering_$(1)) $(lastword $(signatures)) $(lastword $(dea_$(1)))
 	$(call print_rule,scoring,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
 	python scripts/clustering/scoring.py $$^ $$@ --cluster leiden --ignore-sheets background
 	$$(conda_deactivate)
 
-$(goea_basic_$(1)): $(lastword $(deseq_$(1))) $(go_basic) $(gene2go)
+$(goea_basic_$(1)): $(lastword $(dea_$(1))) $(go_basic) $(gene2go)
 	$(call print_rule,goea with go-basic,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
 	python scripts/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^) 
 	$$(conda_deactivate)
 
-$(goea_mouse_$(1)): $(lastword $(deseq_$(1))) $(go_mouse) $(gene2go)
+$(goea_mouse_$(1)): $(lastword $(dea_$(1))) $(go_mouse) $(gene2go)
 	$(call print_rule,goea with go-mouse,$(1))
 	$$(conda_activate) preprocess
 	python scripts/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
