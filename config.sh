@@ -77,7 +77,7 @@ then
     conda activate base
 fi
 
-for environment in fastq-dump preprocess scvelo stream scboolseq bonesis bn
+for environment in fastq-dump preprocess scvelo cotan stream scboolseq bonesis bn
 do
     install_env $environment
 done

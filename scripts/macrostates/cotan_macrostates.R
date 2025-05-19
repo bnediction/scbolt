@@ -21,7 +21,7 @@ pkgs.to.load <- c(
 pkgs.to.install <- pkgs.to.load[!(pkgs.to.load %in% installed.packages()[,"Package"])]
 
 if (length(pkgs.to.install)>0) {
-  install.packages(pkgs.to.install)
+  install.packages(pkgs.to.install, repos = "http://cran.us.r-project.org")
 }
 for (pkg in pkgs.to.load) {
   suppressPackageStartupMessages(library(pkg, character.only = TRUE))
@@ -49,6 +49,14 @@ print_result <- function(msg, logfile.name){
 print_info <- function(msg, logfile.name){
   closeAllConnections()
   cat(paste0(datetime.now.POSIXct()," - INFO - ",msg,"\n"))
+  logfile <- file(logfile.name, open="a")
+  sink(logfile, type="output")
+  sink(logfile, type="message")
+}
+
+print_debug <- function(msg, logfile.name){
+  closeAllConnections()
+  cat(paste0(datetime.now.POSIXct()," - DEBUG - ",msg,"\n"))
   logfile <- file(logfile.name, open="a")
   sink(logfile, type="output")
   sink(logfile, type="message")
@@ -211,7 +219,7 @@ logfile.name <- file.path(outpath, "cotan.log")
 logfile <- file(logfile.name, open="wt")
 sink(logfile, type="output")
 sink(logfile, type="message")
-print_info(paste0("storing running cotan-related information in ", logfile.name), logfile.name)
+print_debug(paste0("storing running cotan-related information in ", logfile.name), logfile.name)
 
 dir.create(
   path=outpath,
@@ -235,7 +243,7 @@ cotan <- initializeMetaDataset(
   sampleCondition = args$condition
 )
 
-print_task("preprocessing data", logfile.name)
+print_task("preprocessing counting data", logfile.name)
 
 if (isTRUE(args$drop_mithocondrial)){
   cotan <- addElementToMetaDataset(cotan, tag="remove mithocondrial genes and cells", value=TRUE)
@@ -322,9 +330,11 @@ cotan <- storeGDI(
 )
 
 print_task("clustering cells using cotan algorithm", logfile.name)
-print_warning("this may take some time.", logfile.name)
 
 advanced.GDI.uniformity.checker <- new("AdvancedGDIUniformityCheck")
+
+print_info("searching for uniform clusters", logfile.name)
+print_warning("this may take some time.", logfile.name)
 
 c(split.clusters, split.coex.df) %<-%
   cellsUniformClustering(
@@ -349,6 +359,7 @@ if (args$method == "classic"){
   c(clusters, coex.df) %<-%
     list(split.clusters, split.coex.df)
 } else if (args$method == "soft-merging"){
+  print_info("merging uniform clusters using soft-merging constraint", logfile.name)
   c(clusters, coex.df) %<-%
     mergeUniformCellsClusters(
       cotan,
@@ -368,6 +379,7 @@ if (args$method == "classic"){
     coexDF=coex.df
   )
 } else {
+  print_info("merging uniform clusters using strong-merging constraint", logfile.name)
   GDI.uniformity.checkers.list <- list(
     advanced.GDI.uniformity.checker,
     shiftCheckerThresholds(advanced.GDI.uniformity.checker, 0.01),
@@ -401,29 +413,16 @@ c(summary.data, summary.plot) %<-%
     plotTitle="clustering summary"
   )
 
-print_result("cotan summary\n", logfile.name)
+print_result("cotan summary", logfile.name)
 closeAllConnections()
 summary.data
-sink(logfile ,type = "output")
-sink(logfile, type = "message")
-print_task("plotting principal components and umap with respect to cotan clusters", logfile.name)
-
-c(umap.plot, cells.pca) %<-%
-  cellsUMAPPlot(
-    cotan,
-    clName=if (args$method == "classic") "split" else "merge",
-    dataMethod="LogLikelihood",
-    colors=NULL,
-    numNeighbors=15L,
-    minPointsDist=0.2
-  )
-pdf(file = file.path(outpath, "umap_cotan.pdf"))
-plot(umap.plot)
-dev.off()
 
 print_task(paste0("saving cotan data in ", args$outfile), logfile.name)
 
-saveRDS(cotan, file = file.path(args$outfile))
+saveRDS(
+  cotan,
+  file=file.path(args$outfile)
+)
 
 print_task(paste0("saving clusters related-data in ", args$csv), logfile.name)
 
@@ -436,7 +435,6 @@ write.table(
   sep=","
 )
 
-setLoggingFile("")
 options(parallelly.fork.enable = FALSE)
 
 quit(save="no")

@@ -710,14 +710,14 @@ $(cotan_$(1))&: $(annotation_$(1))
 	$(call print_rule,cotan,$(1))
 	mkdir -p $$(@D) $(tmpdir)/$(1)/cotan
 	$$(conda_activate) preprocess
-	$(call print_debug,retrieving counts from $$< and saving in $(tmpdir)/$(1)/cotan/barcts.csv)
+	$(call print_debug,loading file $$< \(layer 'matrix'\))
 	python scripts/utils/adata_conversion.py $$< $(tmpdir)/$(1)/cotan/barcts.csv --from h5ad --to csv --layer matrix $(cotan_only_hvg)
-	$(call print_debug,transposing $(tmpdir)/$(1)/cotan/barcts.csv and saving in $(tmpdir)/$(1)/cotan/gencts.csv)
+	$(call print_debug,transposing and saving data in $(tmpdir)/$(1)/cotan/gencts.csv)
 	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $(tmpdir)/$(1)/cotan/barcts.csv > $(tmpdir)/$(1)/cotan/gencts.csv
 	$$(conda_deactivate)
 	$$(conda_activate) cotan
 	Rscript scripts/macrostates/cotan_macrostates.R --infile $(tmpdir)/$(1)/cotan/gencts.csv --outfile $$(@D)/cotan.RDS --csv $$(lastword $$(cotan_$(1))) \
-		--sep , --name $(1) --max-iterations $(MAX_ITER) --method $(COTAN_METHOD) --jobs $(JOBS)
+		--sep , --name $(1) --max-iterations $(MAX_ITER) --method $(COTAN_METHOD) --min-ude 0.3 --jobs $(JOBS)
 	$$(conda_deactivate)
 	sed -i '1 i\,macrostates' $$(lastword $$(cotan_$(1)))
 	$$(conda_activate) preprocess
