@@ -20,7 +20,7 @@
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "s": 2,
+        "s": 4,
         "alpha": 1,
         "add_labels": true,
         "add_legend": true,

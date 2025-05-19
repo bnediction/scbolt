@@ -23,10 +23,10 @@ empty :=
 space := $(empty) $(empty)
 
 conditions := $(call tolower, $(CONDITIONS))
-conditions_plus_integrated := $(conditions) integrated
-REFERENCES := $(subst $(space),$(plus),$(conditions_plus_integrated))
-_samples := $(subst $(plus),$(space),$(REFERENCES))
-_samples_without_integration := $(subst $(space)integrated,,$(_samples))
+references := $(conditions) integrated
+REFERENCES := $(subst $(space),$(plus),$(references))
+running_references := $(subst $(plus),$(space),$(REFERENCES))
+running_conditions := $(subst $(space)integrated,,$(running_references))
 
 export tmpdir:=$(shell mktemp -d -t scbridge-XXXXXXXXXX)
 $(shell { trap 'rm -rf $(tmpdir);' EXIT; tail --pid=$$PPID -f /dev/null; } </dev/null >/dev/null 2>/dev/null &)
@@ -126,7 +126,7 @@ gene2go = $(public)/enrichment/gene2go
 $(eval transcriptome := $(public)/genome/$(notdir $(transcriptome_url)))
 transcriptome := $(transcriptome:.tar.gz=)
 
-define condition_dependant_paths
+define find_paths_for_conditions
 
 fastq_$(1) = 					$(rna)/$(1)/fastq
 cellranger_$(1) = 				$(rna)/$(1)/counting/cellranger/$(1).mri.tgz
@@ -155,7 +155,7 @@ endif
 
 endef
 
-define condition_plus_integrated_dependant_paths
+define find_paths_for_references
 
 clustering_$(1) = 				$(rna)/$(1)/clustering/clusters/counts.h5ad
 dea_$(1) = 						$(rna)/$(1)/clustering/dea/markers.csv $(rna)/$(1)/clustering/dea/genes.xlsx
@@ -171,7 +171,7 @@ bonesis_inference_min_$(1) = 	$(rna)/$(1)/bonesis/inference/min/one-min.bnet
 bonesis_inference_sub_$(1) = 	$(rna)/$(1)/bonesis/inference/sub/one-sub.bnet
 
 ifeq ($(MACROSTATES_METHOD),stream)
-bin_macrostates_$(1) =		 	$(rna)/$(1)/binarization/cellrank/bin_macrostates.csv
+bin_macrostates_$(1) =		 	$(rna)/$(1)/binarization/stream/bin_macrostates.csv
 else ifeq ($(MACROSTATES_METHOD),cellrank)
 bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/cellrank/bin_macrostates.csv
 else ifeq ($(MACROSTATES_METHOD),center-extremity)
@@ -184,8 +184,8 @@ endif
 
 endef
 
-$(foreach sample,$(conditions),$(eval $(call condition_dependant_paths,$(sample))))
-$(foreach sample,$(conditions_plus_integrated),$(eval $(call condition_plus_integrated_dependant_paths,$(sample))))
+$(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
+$(foreach reference,$(references),$(eval $(call find_paths_for_references,$(reference))))
 
 NODES_COMPARISON_INTEGRATED = $(RNA_INTEGRATED)/bonesis/inference/min/nodes_intersection.txt
 
@@ -219,7 +219,7 @@ bonesis_filter2_target :=
 bonesis_inference_min_target :=
 bonesis_inference_sub_target :=
 
-define dependant_targets
+define find_targets_for_conditions
 
 $(eval fastq_target := $(fastq_target) $(fastq_$(1)))
 $(eval cellranger_target := $(cellranger_target) $(cellranger_$(1)))
@@ -236,7 +236,7 @@ $(eval bdc_target := $(bdc_target) $(bdc_$(1)))
 
 endef
 
-define dependant_targets_with_integration
+define find_targets_for_references
 
 $(eval clustering_target := $(clustering_target) $(clustering_$(1)))
 $(eval dea_target := $(dea_target) $(dea_$(1)))
@@ -253,8 +253,8 @@ $(eval bonesis_inference_sub_target := $(bonesis_inference_sub_target) $(bonesis
 
 endef
 
-$(foreach sample,$(_samples_without_integration),$(eval $(call dependant_targets,$(sample))))
-$(foreach sample,$(_samples),$(eval $(call dependant_targets_with_integration,$(sample))))
+$(foreach condition,$(running_conditions),$(eval $(call find_targets_for_conditions,$(condition))))
+$(foreach reference,$(running_references),$(eval $(call find_targets_for_references,$(reference))))
 
 ## END TARGETS ##
 
@@ -382,7 +382,7 @@ endif
 
 .PHONY: help
 help: ## display this help and exit
-	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [REFERENCES=<...>] (default:REFERENCES=$(subst $(space),$(plus),$(conditions_plus_integrated)))\n\
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [REFERENCES=<...>] (default:REFERENCES=$(subst $(space),$(plus),$(references)))\n\
 	Semi-automatic pipeline proposing a general methodology for inferring executable models reproducing \
 	the observed cellular dynamics from multiples conditions/experiments, using scRNA-seq sequencing data. \
 	The pipeline is particularly useful when phenotype-related cells are not well characterized \
@@ -528,7 +528,7 @@ $(gene2go):
 	wget --quiet --show-progress --directory-prefix=$(@D) $(gene2go_url)
 	gunzip $@.gz
 
-define condition_dependant_rules
+define compute_rules_for_conditions
 
 $(fastq_$(1)):
 	$(call print_rule,load-fastq,$(1))
@@ -716,8 +716,8 @@ $(cotan_$(1))&: $(annotation_$(1))
 	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $(tmpdir)/$(1)/cotan/barcts.csv > $(tmpdir)/$(1)/cotan/gencts.csv
 	$$(conda_deactivate)
 	$$(conda_activate) cotan
-	Rscript scripts/macrostates/cotan_clustering.R --infile $(tmpdir)/$(1)/cotan/gencts.csv --outpath $$(@D) --sep , \
-		--condition $(1) --max-iterations $(MAX_ITER) --method $(COTAN_METHOD) --jobs $(JOBS)
+	Rscript scripts/macrostates/cotan_macrostates.R --infile $(tmpdir)/$(1)/cotan/gencts.csv --outfile $$(@D)/cotan.RDS --csv $$(lastword $$(cotan_$(1))) \
+		--sep , --name $(1) --max-iterations $(MAX_ITER) --method $(COTAN_METHOD) --jobs $(JOBS)
 	$$(conda_deactivate)
 	sed -i '1 i\,macrostates' $$(lastword $$(cotan_$(1)))
 	$$(conda_activate) preprocess
@@ -741,7 +741,7 @@ $(bin_macrostates_$(1)): $(bin_cells_$(1)) $(lastword $(macrostates_$(1)))
 
 endef
 
-define condition_plus_integrated_dependant_rules
+define compute_rules_for_references
 
 $(dea_$(1))&: $(clustering_$(1))
 	$(call print_rule,dea,$(1))
@@ -811,7 +811,7 @@ $(annotation_integrated): $(clustering_integrated)
 	$(call print_error,parameter LABEL_INTEGRATED not defined)
 endif
 
-$(bin_macrostates_integrated): $(bin_cells_integrated) $(foreach condition,$(conditions),$(lastword $(cotan_$(condition))))
+$(bin_macrostates_integrated): $(bin_cells_integrated) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
 	$(call print_rule,bin-macrostates,integrated)
 	mkdir -p $(@D) $(tmpdir)/integrated/bin
 	$(conda_activate) preprocess
@@ -822,12 +822,12 @@ $(bin_macrostates_integrated): $(bin_cells_integrated) $(foreach condition,$(con
 		--layer bin --distribution distribution --cluster macrostates --embedding umap \
 		--nans-threshold $(NANS_THRESHOLD) --bimodal-threshold $(BIMODAL_THRESHOLD) \
 		--zeroinf-threshold $(ZEROINF_THRESHOLD) --unimodal-threshold $(UNIMODAL_THRESHOLD)
-	$(call print_task,plotting umap with respect to cotan clusters)
-	python fig/plot_embedding.py fig/macrostates_umap.json --infile $(tmpdir)/integrated/bin/mcts.h5ad --outfile $(@D)/umap_cotan.pdf
+	$(call print_task,plotting umap with respect to macrostates)
+	python fig/plot_embedding.py fig/macrostates_umap.json --infile $(tmpdir)/integrated/bin/mcts.h5ad --outfile $(@D)/umap_macrostates.pdf
 	$(conda_deactivate)
 
-$(foreach condition,$(conditions),$(eval $(call condition_dependant_rules,$(condition))))
-$(foreach condition,$(conditions_plus_integrated),$(eval $(call condition_plus_integrated_dependant_rules,$(condition))))
+$(foreach condition,$(conditions),$(eval $(call compute_rules_for_conditions,$(condition))))
+$(foreach reference,$(references),$(eval $(call compute_rules_for_references,$(reference))))
 
 $(BDC_CTRL): $(bin_cell_ctrl)
 	$(call print_rule,Boolean differential calculus (control data))

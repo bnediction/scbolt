@@ -53,7 +53,7 @@ $(eval SPREAD := 1)							# effective scale of embedded points in umap
 ## BEGIN DEA ##
 
 $(eval LOGFC := 0.25)						# minimum log2 fold-change for a gene to be considered as differentially expressed
-$(eval ALPHA := 0.05)						# significance level or probability of rejecting null hypothesis that gene is not differentially expressed
+$(eval ALPHA := 0.05)						# significance level of rejecting null hypothesis that gene is not differentially expressed
 $(eval CORRECTION := bonferroni)			# method used for correcting the significance level (benjamini-hochberg ou bonferroni)
 
 ## END DEA ##
@@ -77,9 +77,9 @@ $(eval SMM_MODE := dynamical)				# mode used for estimating the steady-state mod
 
 ## BEGIN COTAN ##
 
-$(eval COTAN_METHOD := strong-merging)		# method for computing cotan clusters (classic, soft-merging or strong-merging)
+$(eval COTAN_METHOD := soft-merging)		# method for computing cotan clusters (classic, soft-merging or strong-merging)
 $(eval COTAN_ONLY_HVG := true)				# use only highly variable genes for estimating cotan macrostates
-$(eval MAX_ITER := 25)						# maximum iteration number for merging clustering
+$(eval MAX_ITER := 25)						# maximum iteration number for merging clustering: soft-merging and strong-merging merge uniform clusters
 
 ## END COTAN ##
 

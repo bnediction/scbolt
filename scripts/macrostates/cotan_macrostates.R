@@ -6,6 +6,7 @@ options(
 )
 
 pkgs.to.load <- c(
+  "rstan",
   "optparse",
   "COTAN",
   "zeallot",
@@ -29,11 +30,37 @@ for (pkg in pkgs.to.load) {
 datetime.now.POSIXct <- function()
   format(Sys.time(), format='%Y-%m-%d %H:%M:%S')
 
-print_task <- function(x)
-  cat(paste0(datetime.now.POSIXct()," - TASK - ",x,"\n"))
+print_task <- function(msg, logfile.name){
+  closeAllConnections()
+  cat(paste0(datetime.now.POSIXct()," - TASK - ",msg,"\n"))
+  logfile <- file(logfile.name, open="a")
+  sink(logfile, type="output")
+  sink(logfile, type="message")
+}
 
-print_result <- function(x)
-  cat(paste0(datetime.now.POSIXct()," - RESULT - ",x,"\n"))
+print_result <- function(msg, logfile.name){
+  closeAllConnections()
+  cat(paste0(datetime.now.POSIXct()," - RESULT - ",msg,"\n"))
+  logfile <- file(logfile.name, open="a")
+  sink(logfile, type="output")
+  sink(logfile, type="message")
+}
+
+print_info <- function(msg, logfile.name){
+  closeAllConnections()
+  cat(paste0(datetime.now.POSIXct()," - INFO - ",msg,"\n"))
+  logfile <- file(logfile.name, open="a")
+  sink(logfile, type="output")
+  sink(logfile, type="message")
+}
+
+print_warning <- function(msg, logfile.name){
+  closeAllConnections()
+  cat(paste0(datetime.now.POSIXct()," - WARNING - ",msg,"\n"))
+  logfile <- file(logfile.name, open="a")
+  sink(logfile, type="output")
+  sink(logfile, type="message")
+}
 
 is.defined = function(x)
   !is.null(x)
@@ -46,15 +73,22 @@ arguments <- list(
               type="character",
               default=NULL,
               metavar="FILE",
-              help="counting file (csv format)",
+              help="input file storing counts (format: csv, required)",
               ),
-  make_option("--outpath",
-              dest="outpath",
+  make_option("--outfile",
+              dest="outfile",
               type="character",
               default=NULL,
-              metavar="PATH",
-              help="output path"
+              metavar="FILE",
+              help="output file storing cotan object (format: RDS, required)"
               ),
+  make_option("--csv",
+              dest="csv",
+              type="character",
+              default=NULL,
+              metavar="FILE",
+              help="output file storing cotan macrostates (format: csv)"
+  ),
   make_option("--sep",
               dest="sep",
               type="character",
@@ -63,13 +97,13 @@ arguments <- list(
               metavar="CHAR",
               help="field delimiter for csv infile (default: `\\t`)"
               ),
-  make_option("--condition",
-              dest="condition",
+  make_option("--name",
+              dest="name",
               type="character",
               action="store",
-              default="control",
+              default="reference",
               metavar="LITERAL",
-              help="sample condition (default: control)"
+              help="dataset name (default: reference)"
   ),
   make_option("--drop-mithocondrial",
               dest="drop_mithocondrial",
@@ -83,7 +117,7 @@ arguments <- list(
               action="store",
               default=NULL,
               metavar="INT",
-              help="drop cells with too few expressed genes, potentially being dead (default: none)"
+              help="minimum number of expressed genes required for a cell to pass filtering, potentially being dead (default: none)"
   ),
   make_option("--max-expression",
               dest="max_expression",
@@ -91,7 +125,7 @@ arguments <- list(
               action="store",
               default=NULL,
               metavar="INT",
-              help="drop cells with too many expressed genes, potentially being multiplets (default: none)"
+              help="maximum number of expressed genes required for a cell to pass filtering, potentially being multiplets (default: none)"
   ),
   make_option("--min-reads",
               dest="min_reads",
@@ -99,7 +133,7 @@ arguments <- list(
               action="store",
               default=NULL,
               metavar="INT",
-              help="drop cells with too few reads, potentially being dead (default: none)"
+              help="minimum number of reads required for a cell to pass filtering, potentially being dead (default: none)"
   ),
   make_option("--max-reads",
               dest="max_reads",
@@ -107,7 +141,7 @@ arguments <- list(
               action="store",
               default=NULL,
               metavar="INT",
-              help="drop cells with too many reads, potentially being multiplets (default: none)"
+              help="maximum number of reads required for a cell to pass filtering, potentially being multiplets (default: none)"
   ),
   make_option("--mithocondrial-threshold",
               dest="mithocondrial_threshold",
@@ -115,7 +149,7 @@ arguments <- list(
               action="store",
               default=NULL,
               metavar="[0-1]",
-              help="drop cells with too high percentage of mithocondrial genes, potentially being dead (default: none)"
+              help="maximum proportion of expressed genes encoding mithocondrion proteins required for a cell to pass filtering, potentially being dead (default: none)"
   ),
   make_option("--cotan-filtering",
               dest="cotan_filtering",
@@ -129,7 +163,7 @@ arguments <- list(
               action="store",
               default=NULL,
               metavar="[0-1]",
-              help="drop cells with too high percentage of mithocondrial genes, potentially being dead (recommended: 0.3, default: none)"
+              help="minimum UMI detection efficiency (UDE) required for a cell to pass filtering, potentially being dead (recommended: 0.3, default: none)"
   ),
   make_option("--max-iterations",
               dest="max_iterations",
@@ -145,15 +179,15 @@ arguments <- list(
               action="store",
               default="classic",
               metavar="[classic|soft-merging|strong-merging]",
-              help="method for computing cotan clusters (default: classic)"
+              help="method for computing cotan clusters: soft-merging and strong-merging merge uniform clusters (default: classic)"
   ),
-  make_option(c("-j", "--jobs"),
+  make_option("--jobs",
               dest="jobs",
               type="integer",
               action="store",
               default=1,
               metavar="INT",
-              help="number of process to use (default: 1)"
+              help="number of allocated processors (default: 1)"
   )
 )
 
@@ -165,22 +199,27 @@ parser <- OptionParser(
 args <- parse_args(parser)
 
 if (is.null(args$infile)) {
-  stop("`--infile` argument is not specified.")
-} else if (is.null(args$outpath)) {
-  stop("`--outpath` argument is not specified.")
+  stop("option --infile required but not specified")
+} else if (is.null(args$outfile)) {
+  stop("option --outfile required but not specified")
 } else if (args$method %notin% c("classic", "soft-merging", "strong-merging")){
   stop(paste0("`--method` argument can only take one of the following values: 'classic', 'soft-merging', 'strong-merging' (value: ",args$method,")"))
 }
 
+outpath <- dirname(args$outfile)
+logfile.name <- file.path(outpath, "cotan.log")
+logfile <- file(logfile.name, open="wt")
+sink(logfile, type="output")
+sink(logfile, type="message")
+print_info(paste0("storing running cotan-related information in ", logfile.name), logfile.name)
+
 dir.create(
-  path=args$outpath,
+  path=outpath,
   showWarnings=FALSE,
   recursive=TRUE
 )
 
-setLoggingFile(file.path(args$outpath, "cotan.log"))
-
-print_task(paste0("loading file ", args$infile))
+print_task(paste0("loading file ", args$infile), logfile.name)
 
 df <- read.csv(
   args$infile,
@@ -196,7 +235,7 @@ cotan <- initializeMetaDataset(
   sampleCondition = args$condition
 )
 
-print_task("preprocessing data")
+print_task("preprocessing data", logfile.name)
 
 if (isTRUE(args$drop_mithocondrial)){
   cotan <- addElementToMetaDataset(cotan, tag="remove mithocondrial genes and cells", value=TRUE)
@@ -259,7 +298,7 @@ if (isTRUE(args$cotan_filtering)){
   cotan <- addElementToMetaDataset(cotan, tag="cotan filtering", value=FALSE)
 }
 
-print_task("initializing cotan settings")
+print_task("initializing cotan settings", logfile.name)
 
 cotan <- clean(cotan)
 c(pca.plot, pca.data, genes.plot, UDE.plot, nu.plot, zoomed.nu.plot) %<-% cleanPlots(cotan)
@@ -273,7 +312,7 @@ cotan <- proceedToCoex(
   cores=args$jobs,
   device=device,
   saveObj=FALSE,
-  outDir=args$outpath
+  outDir=outpath
 )
 
 global.differentiation.index <- calculateGDI(cotan)
@@ -282,7 +321,8 @@ cotan <- storeGDI(
   genesGDI=global.differentiation.index
 )
 
-print_task("clustering cells using cotan algorithm")
+print_task("clustering cells using cotan algorithm", logfile.name)
+print_warning("this may take some time.", logfile.name)
 
 advanced.GDI.uniformity.checker <- new("AdvancedGDIUniformityCheck")
 
@@ -296,7 +336,7 @@ c(split.clusters, split.coex.df) %<-%
     deviceStr=device,
     cores=args$jobs,
     saveObj=FALSE,
-    outDir=args$outpath
+    outDir=outpath
   )
 cotan <- addClusterization(
   cotan,
@@ -307,7 +347,7 @@ cotan <- addClusterization(
 
 if (args$method == "classic"){
   c(clusters, coex.df) %<-%
-    c(split.clusters, split.coex.df)
+    list(split.clusters, split.coex.df)
 } else if (args$method == "soft-merging"){
   c(clusters, coex.df) %<-%
     mergeUniformCellsClusters(
@@ -318,7 +358,7 @@ if (args$method == "classic"){
       deviceStr=device,
       cores=args$jobs,
       saveObj=FALSE,
-      outDir=args$outpath
+      outDir=outpath
     )
   cotan <- addClusterization(
     cotan,
@@ -344,7 +384,7 @@ if (args$method == "classic"){
       deviceStr=device,
       cores=args$jobs,
       saveObj=FALSE,
-      outDir=args$outpath
+      outDir=outpath
     )
   cotan <- addClusterization(
     cotan,
@@ -361,29 +401,40 @@ c(summary.data, summary.plot) %<-%
     plotTitle="clustering summary"
   )
 
-print_result("cotan summary\n")
+print_result("cotan summary\n", logfile.name)
+closeAllConnections()
 summary.data
-
-print_task("plotting principal components and umap with respect to cotan clusters")
+sink(logfile ,type = "output")
+sink(logfile, type = "message")
+print_task("plotting principal components and umap with respect to cotan clusters", logfile.name)
 
 c(umap.plot, cells.pca) %<-%
   cellsUMAPPlot(
     cotan,
-    clName="merge",
+    clName=if (args$method == "classic") "split" else "merge",
     dataMethod="LogLikelihood",
     colors=NULL,
     numNeighbors=15L,
     minPointsDist=0.2
   )
-pdf(file = file.path(args$outpath, "umap_plot.pdf"))
+pdf(file = file.path(outpath, "umap_cotan.pdf"))
 plot(umap.plot)
 dev.off()
 
-print_task(paste0("saving cotan data in ", args$outpath, "/cotan.RDS"))
-saveRDS(cotan, file = file.path(args$outpath, "cotan.RDS"))
+print_task(paste0("saving cotan data in ", args$outfile), logfile.name)
 
-print_task(paste0("saving clusters related-data in ", args$outpath, "/clusters.csv"))
-write.table(data.frame(clusters), file.path(args$outpath, "clusters.csv"), row.names=TRUE, col.names=FALSE, quote=FALSE, sep=",")
+saveRDS(cotan, file = file.path(args$outfile))
+
+print_task(paste0("saving clusters related-data in ", args$csv), logfile.name)
+
+write.table(
+  data.frame(clusters),
+  file.path(args$csv),
+  row.names=TRUE,
+  col.names=FALSE,
+  quote=FALSE,
+  sep=","
+)
 
 setLoggingFile("")
 options(parallelly.fork.enable = FALSE)
