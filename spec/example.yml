@@ -1,0 +1,10 @@
+states:                       # assign macrostates to state names
+  - state1: macrostate1
+  - state2: macrostate2
+  - state3: macrostate3
+bonesis:                      # dynamic Boolean properties with BoNesis syntax
+  - ~bo.obs('state1') >= bo.fixed(~bo.obs('state2'))
+  - ~bo.obs('state1') >= bo.fixed(~bo.obs('state3'))
+  - ~bo.obs('state2') != ~bo.obs('state3')
+mandatory_genes:
+important_genes:

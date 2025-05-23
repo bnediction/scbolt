@@ -116,6 +116,7 @@ endef
 
 public = data/public
 rna = data/rna
+bonesis = data/bonesis
 
 cc_markers = $(public)/cycle_phases/mouse_cycle_markers.rds
 signatures = $(public)/signatures/geiger.xls $(public)/signatures/chambers.xls $(public)/signatures/signatures.json
@@ -164,11 +165,6 @@ goea_basic_$(1) = 				$(rna)/$(1)/clustering/goea/goea_basic.xlsx
 goea_mouse_$(1) = 				$(rna)/$(1)/clustering/goea/goea_mouse.xlsx
 annotation_$(1) = 				$(rna)/$(1)/clustering/clusters/annotation.h5ad
 bin_cells_$(1) = 				$(rna)/$(1)/binarization/cells/bin.h5ad
-model_specification_$(1) = 		$(rna)/$(1)/bonesis/specification_model.txt
-bonesis_filter1_$(1) = 			$(rna)/$(1)/bonesis/filtering/stage1/bootstrap_filter_grn_stage1.txt
-bonesis_filter2_$(1) = 			$(rna)/$(1)/bonesis/filtering/stage2/bootstrap_filter_grn_stage2.txt
-bonesis_inference_min_$(1) = 	$(rna)/$(1)/bonesis/inference/min/one-min.bnet
-bonesis_inference_sub_$(1) = 	$(rna)/$(1)/bonesis/inference/sub/one-sub.bnet
 
 ifeq ($(MACROSTATES_METHOD),stream)
 bin_macrostates_$(1) =		 	$(rna)/$(1)/binarization/stream/bin_macrostates.csv
@@ -184,10 +180,14 @@ endif
 
 endef
 
+bonesis_model			= $(bonesis)/modeling/bo_model.txt $(bonesis)/modeling/metastates.csv $(bonesis)/modeling/mandatory_genes.txt $(bonesis)/modeling/important_genes.txt
+bonesis_filtering_one	= $(bonesis)/filtering/stage1/stage1.sh	$(bonesis)/filtering/stage1/bootstrap_stage1.txt
+bonesis_filtering_two	= $(bonesis)/filtering/stage2/bootstrap_filter_grn_stage2.txt
+bonesis_inference_min	= $(bonesis)/bn/min/one-min.bnet
+bonesis_inference_sub	= $(bonesis)/bn/sub/one-sub.bnet
+
 $(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call find_paths_for_references,$(reference))))
-
-NODES_COMPARISON_INTEGRATED = $(RNA_INTEGRATED)/bonesis/inference/min/nodes_intersection.txt
 
 ## END PATHS ##
 
@@ -213,11 +213,6 @@ cotan_target :=
 bin_cells_target :=
 bin_macrostates_target :=
 bdc_target :=
-model_specification_target :=
-bonesis_filter1_target :=
-bonesis_filter2_target :=
-bonesis_inference_min_target :=
-bonesis_inference_sub_target :=
 
 define find_targets_for_conditions
 
@@ -245,11 +240,6 @@ $(eval goea_target := $(goea_target) $(goea_basic_$(1)) $(goea_mouse_$(1)))
 $(eval annotation_target := $(annotation_target) $(annotation_$(1)))
 $(eval bin_cells_target := $(bin_cells_target) $(bin_cells_$(1)))
 $(eval bin_macrostates_target := $(bin_macrostates_target) $(bin_macrostates_$(1)))
-$(eval model_specification_target := $(model_specification_target) $(model_specification_$(1)))
-$(eval bonesis_filter1_target := $(bonesis_filter1_target) $(bonesis_filter1_$(1)))
-$(eval bonesis_filter2_target := $(bonesis_filter2_target) $(bonesis_filter2_$(1)))
-$(eval bonesis_inference_min_target := $(bonesis_inference_min_target) $(bonesis_inference_min_$(1)))
-$(eval bonesis_inference_sub_target := $(bonesis_inference_sub_target) $(bonesis_inference_sub_$(1)))
 
 endef
 
@@ -358,6 +348,10 @@ else ifeq ($(ZEROES_ARE_ZEROES),false)
 zeroes_are_zeroes:=
 else
 $(error Unsupported value for parameter ZEROES_ARE_ZEROES (supported values: true, false))
+endif
+
+ifndef MODEL_SPECIFICATION
+$(error Parameter MODEL_SPECIFICATION not defined)
 endif
 
 ifeq ($(EXCLUDE),true)
@@ -471,11 +465,14 @@ bdc: $(bdc_target) ## perform boolean differential calculus analysis
 
 ##@ Boolean network inference
 
-model-specification: $(model_specification_target) ## specify model for bonesis
-bonesis-filter-one: $(bonesis_filter1_target) ## filter genes with Bonesis (stage 1)
-bonesis-filter-two: $(bonesis_filter2_target) ## filter genes with Bonesis (stage 2)
-bonesis-inference-min: $(bonesis_inference_min_target) ## infer Boolean network with Bonesis (minimal solution)
-bonesis-inference-sub: $(bonesis_inference_sub_target) ## infer Boolean network with Bonesis (subset minimal solution)
+.PHONY: modeling
+modeling: $(bonesis_model) ## specify model using BoNesis syntax
+.PHONY: bonesis-filtering-one
+bonesis-filtering-one: $(bonesis_filtering_one) ## filter genes (stage 1) with BoNesis
+.PHONY: bonesis-filtering-two
+bonesis-filtering-two: $(bonesis_filtering_two) ## filter genes (stage 2) with BoNesis
+bonesis-inference-min: $(bonesis_inference_min) ## infer Boolean network with BoNesis (minimal solution)
+bonesis-inference-sub: $(bonesis_inference_sub) ## infer Boolean network with BoNesis (subset minimal solution)
 
 ## END HELP ##
 
@@ -818,12 +815,48 @@ $(bin_macrostates_integrated): $(bin_cells_integrated) $(foreach condition,$(con
 	$(call print_debug,adding macrostates to anndata object and savings results in $(tmpdir)/integrated/bin/mcts.h5ad)
 	python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/mcts.h5ad --csv $(filter-out $<, $^) \
 		--labels $(conditions) --label-column condition --add-prefix macrostates --axis 0 --sep , --type category
-	python scripts/binarization/bin_clusters.py $(tmpdir)/integrated/bin/mcts.h5ad $@ --counts $(@D)/counts_bin.csv \
+	python scripts/binarization/bin_clusters.py $(tmpdir)/integrated/bin/mcts.h5ad $(tmpdir)/integrated/bin/mbin.csv --counts $(@D)/counts_bin.csv \
 		--layer bin --distribution distribution --cluster macrostates --embedding umap \
 		--nans-threshold $(NANS_THRESHOLD) --bimodal-threshold $(BIMODAL_THRESHOLD) \
 		--zeroinf-threshold $(ZEROINF_THRESHOLD) --unimodal-threshold $(UNIMODAL_THRESHOLD)
 	$(call print_task,plotting umap with respect to macrostates)
 	python fig/plot_embedding.py fig/macrostates_umap.json --infile $(tmpdir)/integrated/bin/mcts.h5ad --outfile $(@D)/umap_macrostates.pdf
+	$(conda_deactivate)
+	$(call print_debug,transposing and saving binarized macrostates in $@)
+	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $(tmpdir)/integrated/bin/mbin.csv > $@
+
+$(bonesis_model)&: $(bin_macrostates_integrated)
+	$(call print_rule,modeling)
+	if ! [ -f $(MODEL_SPECIFICATION) ]; then
+		$(call print_error,file $(MODEL_SPECIFICATION) not found \(see documentation for details about command \'modeling\'\))
+	else
+	mkdir -p $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
+	$(conda_activate) bonesis
+	python scripts/inference/specification.py $(MODEL_SPECIFICATION) $< \
+		--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
+		--mandatory-genes $(word 3,$(bonesis_model)) --important-genes $(word 4,$(bonesis_model)) \
+		--organism $(ORGANISM)
+	$(conda_deactivate)
+	fi
+
+$(bonesis_filtering_one)&: $(bonesis_model)
+	$(call print_rule,bonesis-filtering-one)
+	mkdir -p $(dir $(word 1,$(bonesis_filtering_one))) $(dir $(word 2,$(bonesis_filtering_one)))
+	$(conda_activate) bonesis
+	python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
+		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
+		--asp $(word 1,$(bonesis_filtering_one)) --solution $(word 2,$(bonesis_filtering_one)) \
+		--organism $(ORGANISM)
+	$(conda_deactivate)
+
+$(bonesis_filtering_two)&: $(bonesis_model) $(word 2,$(bonesis_filtering_one))
+	$(call print_rule,bonesis-filtering-two)
+	mkdir -p $(dir $(word 1,$(bonesis_filtering_two))) $(dir $(word 2,$(bonesis_filtering_two)))
+	$(conda_activate) bonesis
+	python scripts/inference/bonesis_inference.py filter-stage2 $(word 1,$^) $(word 2,$^) \
+		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
+		--asp $(word 1,$(bonesis_filtering_two)) --solution $(word 2,$(bonesis_filtering_two)) \
+		--filter-grn $(lastword $^) $(MINIMIZE_AUTO_LOOPS) --organism $(ORGANISM)
 	$(conda_deactivate)
 
 $(foreach condition,$(conditions),$(eval $(call compute_rules_for_conditions,$(condition))))
@@ -841,91 +874,7 @@ $(BDC_TREATED): $(bin_cell_treated)
 	python scripts/binarization/differential_analysis.py $< $(@D) --verbose
 	$(conda_deactivate)
 
-$(MODEL_SPECIFICATION_CTRL): $(TRAJECTORIES_MACROSTATES_CTRL)
-	$(call print_rule,model-specification (control data))
-	mkdir -p $(@D)
-	python3 pipeline/inference/bonesis_specification.py $< > $@
-
-$(MODEL_SPECIFICATION_TREATED): $(TRAJECTORIES_MACROSTATES_TREATED)
-	$(call print_rule,model-specification (treated data))
-	mkdir -p $(@D)
-	python3 pipeline/inference/bonesis_specification.py $< > $@
-
-$(model_specification_integrated): $(TRAJECTORIES_MACROSTATES_CTRL) $(TRAJECTORIES_MACROSTATES_TREATED)
-	$(call print_rule,model-specification (integrated data))
-	mkdir -p $(@D)
-	python3 pipeline/inference/bonesis_specification.py $^ --conditions $(conditions) > $@
-
-$(BONESIS_FILTER1_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl)
-	$(call print_rule,Bonesis filtering (control data, stage 1))
-	mkdir -p $(@D)
-	$(conda_activate) bonesis
-	python scripts/inference/bonesis_inference.py filter-stage1 $(@D) \
-		--organism $(ORGANISM) \
-		--model-specification $(firstword $^) \
-		--bin-metastates $(lastword $^) \
-		> $@
-	$(conda_deactivate)
-
-$(BONESIS_FILTER1_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_treated)
-	$(call print_rule,Bonesis filtering (treated data, stage 1))
-	mkdir -p $(@D)
-	$(conda_activate) bonesis
-	python scripts/inference/bonesis_inference.py filter-stage1 $(@D) \
-		--organism $(ORGANISM) \
-		--model-specification $(firstword $^) \
-		--bin-metastates $(lastword $^) \
-		> $@
-	$(conda_deactivate)
-
-$(BONESIS_FILTER1_INTEGRATED): $(model_specification_integrated) $(bin_cells_integrated)
-	$(call print_rule,Bonesis filtering (integrated data, stage 1))
-	mkdir -p $(@D)
-	$(conda_activate) bonesis
-	python scripts/inference/bonesis_inference.py filter-stage1 $(@D) \
-		--organism $(ORGANISM) \
-		--model-specification $(firstword $^) \
-		--bin-metastates $(lastword $^) \
-		> $@
-	$(conda_deactivate)
-
-$(BONESIS_FILTER2_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(BONESIS_FILTER1_CTRL) 
-	$(call print_rule,Bonesis filtering (control data, stage 2))
-	mkdir -p $(@D)
-	$(conda_activate) bonesis
-	python scripts/inference/bonesis_inference.py filter-stage2 $(@D) \
-		--organism $(ORGANISM) \
-		--model-specification $(firstword $^) \
-		--bin-metastates $(word 2, $^) \
-  		--filter-grn $(lastword $^) \
-		$(MINIMIZE_AUTO_LOOPS) > $@
-	$(conda_deactivate)
-
-$(BONESIS_FILTER2_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_treated) $(BONESIS_FILTER1_TREATED) 
-	$(call print_rule,Bonesis filtering (treated data, stage 2))
-	mkdir -p $(@D)
-	$(conda_activate) bonesis
-	python scripts/inference/bonesis_inference.py filter-stage2 $(@D) \
-		--organism $(ORGANISM) \
-		--model-specification $(firstword $^) \
-		--bin-metastates $(word 2, $^) \
-  		--filter-grn $(lastword $^) \
-		$(MINIMIZE_AUTO_LOOPS) > $@
-	$(conda_deactivate)
-
-$(BONESIS_FILTER2_INTEGRATED): $(model_specification_integrated) $(bin_cells_integrated) $(BONESIS_FILTER1_INTEGRATED) 
-	$(call print_rule,Bonesis filtering (integrated data, stage 2))
-	mkdir -p $(@D)
-	$(conda_activate) bonesis
-	python scripts/inference/bonesis_inference.py filter-stage2 $(@D) \
-		--organism $(ORGANISM) \
-		--model-specification $(firstword $^) \
-		--bin-metastates $(word 2, $^) \
-  		--filter-grn $(lastword $^) \
-		$(MINIMIZE_AUTO_LOOPS) > $@
-	$(conda_deactivate)
-
-$(BONESIS_INFERENCE_MIN_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(BONESIS_FILTER2_CTRL)
+$(BONESIS_INFERENCE_MIN_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(bonesis_filtering_two_CTRL)
 	$(call print_rule,Bonesis inference (control data, minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
@@ -938,7 +887,7 @@ $(BONESIS_INFERENCE_MIN_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(BO
 	$(conda_deactivate)
 	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
 
-$(BONESIS_INFERENCE_MIN_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_treated) $(BONESIS_FILTER2_TREATED)
+$(BONESIS_INFERENCE_MIN_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_treated) $(bonesis_filtering_two_TREATED)
 	$(call print_rule,Bonesis inference (treated data, minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
@@ -951,7 +900,7 @@ $(BONESIS_INFERENCE_MIN_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_trea
 	$(conda_deactivate)
 	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
 
-$(BONESIS_INFERENCE_MIN_INTEGRATED): $(model_specification_integrated) $(bin_cells_integrated) $(BONESIS_FILTER2_INTEGRATED)
+$(BONESIS_INFERENCE_MIN_INTEGRATED): $(model) $(bin_cells_integrated) $(bonesis_filtering_two_INTEGRATED)
 	$(call print_rule,Bonesis inference (integrated data, minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
@@ -964,7 +913,7 @@ $(BONESIS_INFERENCE_MIN_INTEGRATED): $(model_specification_integrated) $(bin_cel
 	$(conda_deactivate)
 	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
 
-$(BONESIS_INFERENCE_SUB_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(BONESIS_FILTER2_CTRL)
+$(BONESIS_INFERENCE_SUB_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(bonesis_filtering_two_CTRL)
 	$(call print_rule,Bonesis inference (control data, subset minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
@@ -976,7 +925,7 @@ $(BONESIS_INFERENCE_SUB_CTRL): $(MODEL_SPECIFICATION_CTRL) $(bin_cell_ctrl) $(BO
 	$(conda_deactivate)
 	dot -Tpdf $(@D)/one-sub.dot > $(@D)/one-sub.pdf
 
-$(BONESIS_INFERENCE_SUB_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_treated) $(BONESIS_FILTER2_TREATED)
+$(BONESIS_INFERENCE_SUB_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_treated) $(bonesis_filtering_two_TREATED)
 	$(call print_rule,Bonesis inference (treated data, subset minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
@@ -988,7 +937,7 @@ $(BONESIS_INFERENCE_SUB_TREATED): $(MODEL_SPECIFICATION_TREATED) $(bin_cell_trea
 	$(conda_deactivate)
 	dot -Tpdf $(@D)/one-sub.dot > $(@D)/one-sub.pdf
 
-$(BONESIS_INFERENCE_SUB_INTEGRATED): $(model_specification_integrated) $(bin_cells_integrated) $(BONESIS_FILTER2_INTEGRATED)
+$(BONESIS_INFERENCE_SUB_INTEGRATED): $(model) $(bin_cells_integrated) $(bonesis_filtering_two_INTEGRATED)
 	$(call print_rule,Bonesis inference (integrated data, subset minimal solution))
 	mkdir -p $(@D)
 	$(conda_activate) bonesis

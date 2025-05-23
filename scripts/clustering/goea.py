@@ -85,10 +85,10 @@ parser.add_argument(
 parser.add_argument(
     "--organism",
     dest="organism",
-    choices=["mouse","human","escherichia coli"],
+    choices=["mouse","human","escherichia-coli"],
     default="mouse",
     required=False,
-    metavar="[mouse | human | escherichia coli]",
+    metavar="[mouse|human|escherichia-coli]",
     help="gene-related organism (default: mouse)"
 )
 

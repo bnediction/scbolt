@@ -46,22 +46,22 @@ class Section(object):
     def verbose(self):
         self._verbose = True
 
-def print_task(message:str=None) -> None:
-    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - TASK - {message}", file=sys.stdout)
+def print_task(message:str=None, file=sys.stdout) -> None:
+    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - TASK - {message}", file=file)
     return None
 
-def print_info(message:str=None) -> None:
-    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - INFO - {message}", file=sys.stdout)
+def print_info(message:str=None, file=sys.stdout) -> None:
+    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - INFO - {message}", file=file)
     return None
 
-def print_warning(message:str=None) -> None:
-    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - WARNING - {message}", file=sys.stdout)
+def print_warning(message:str=None, file=sys.stdout) -> None:
+    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - WARNING - {message}", file=file)
     return None
 
-def print_debug(message:str=None) -> None:
-    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - DEBUG - {message}", file=sys.stdout)
+def print_debug(message:str=None, file=sys.stdout) -> None:
+    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - DEBUG - {message}", file=file)
     return None
 
-def print_result(message:str=None) -> None:
-    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - RESULT - {message}", file=sys.stdout)
+def print_result(message:str=None, file=sys.stdout) -> None:
+    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - RESULT - {message}", file=file)
     return None

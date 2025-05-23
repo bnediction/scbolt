@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 
-import sys, os, std
-import cli
+import os, std
+import argparse
 import json
 from pathlib import Path
-from argparse import ArgumentParser
 
 from tqdm import tqdm
 
@@ -14,12 +13,11 @@ import networkx as nx
 import bonesis
 from bonesis.asp_encoding import clingo_encode
 
-from bonesis_model import (
-    bomodel,
-    load_bin
-)
-
 import bonesistools as bt
+
+from utils import get_cfg
+
+bonesis.settings["quiet"] = True
 
 def write_solution(solution, name):
     f = solution[1]
@@ -32,50 +30,51 @@ def write_solution(solution, name):
     ig = f.influence_graph()
     nx.drawing.nx_pydot.write_dot(ig, f"{name}.dot")
 
-parser = ArgumentParser(
-    prog="Boolean network inference",
-    description="""From binarized meta-observations and specified trajectories,
-    infer a Most Permissive Boolean Network""",
-    usage="""python bonesis_inference.py [-h] <ACTION> <FILE> --bin-metastate <FILE> [<args>]"""
+parser = argparse.ArgumentParser(
+    prog="inference",
+    description=
+    """
+    infer Most Permissive Boolean Networks using bonesis paradigm.
+    """,
+    usage="python inference.py [filter-stage1|filter-stage2|one|one-min|one-sub] <FILE> --bin-metastate <FILE> [<args>]"
 )
 
 parser.add_argument(
     "action",
-    metavar="[filter-stage1 | filter-stage2 | one | one-min | one-sub]",
+    metavar="[filter-stage1|filter-stage2|one|one-min|one-sub]",
     choices=["filter-stage1", "filter-stage2", "one", "one-min", "one-sub"]
 )
 
 parser.add_argument(
-    dest="outpath",
+    "model",
     type=lambda x: Path(x).resolve(),
+    metavar="FILE",
+    help="input file containing model specifications in Bonesis langage (txt format)"
+)
+
+parser.add_argument(
+    "metastates",
+    type=lambda x: Path(x).resolve(),
+    metavar="FILE",
+    help="input file storing partially binarized metastates (format: csv)"
+)
+
+parser.add_argument(
+    "--asp",
+    dest="asp",
+    type=lambda x: Path(x).resolve(),
+    required=True,
     metavar="PATH",
-    help="output path"
+    help="output file storing asp command (format: sh)"
 )
 
 parser.add_argument(
-    "--organism",
-    dest="organism",
-    action=cli.Store_organism,
-    default="mouse",
-    required=False,
-)
-
-parser.add_argument(
-    "--bin-metastates",
-    dest="bin_metastates",
+    "--solution",
+    dest="solution",
     type=lambda x: Path(x).resolve(),
     required=True,
-    metavar="FILE",
-    help="file containing partially binarized macrostates (csv format)"
-)
-
-parser.add_argument(
-    "--model-specification",
-    dest="model_specification",
-    type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="FILE",
-    help="file containing model specifications in Bonesis langage (txt format)"
+    metavar="PATH",
+    help="output file storing bonesis solution"
 )
 
 parser.add_argument(
@@ -88,21 +87,21 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--force-nodes",
-    dest="force_nodes",
+    "--mandatory-genes",
+    dest="mandatory_genes",
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="file with node list, each nodes being forced to appear (json/txt format)"
+    help="input file storing mandatory genes, being forced to appear (format: json or txt)"
 )
 
 parser.add_argument(
-    "--important-nodes",
-    dest="important_nodes",
+    "--important-genes",
+    dest="important_genes",
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="file with node list, each nodes being prioritize to appear (json/txt format)"
+    help="input file storing important genes, being prioritize to appear (format: json or txt)"
 )
 
 parser.add_argument(
@@ -119,18 +118,43 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--verbose",
-    dest="verbose",
+    "--sep",
+    dest="sep",
+    type=str,
     required=False,
-    action="store_true"
+    default=",",
+    metavar="CHAR",
+    help="field delimiter for csv format (default: ',')"
+)
+
+parser.add_argument(
+    "--organism",
+    dest="organism",
+    choices=["mouse","human","escherichia-coli"],
+    default="mouse",
+    required=False,
+    metavar="[mouse|human|escherichia-coli]",
+    help="gene-related organism (default: mouse)"
 )
 
 args = parser.parse_args()
 
-if not args.outpath.exists():
-    os.makedirs(args.outpath)
+if args.organism == "escherichia-coli":
+    args.organism = "escherichia coli"
 
-bonesis.settings["quiet"] = not args.verbose
+genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
+
+std.print_task(f"loading partially binarized metastates-related file {str(args.metastates)}")
+
+metastates_df = pd.read_csv(args.metastates, index_col=0, sep=args.sep)
+
+metastates_cfg = get_cfg(
+    metastates_df,
+    axis="index",
+    genesyn=genesyn
+)
+
+std.print_task("initializing bonesis settings")
 
 pkn_options = {
     "canonic": True,
@@ -141,51 +165,55 @@ if args.action.startswith("filter"):
 if args.action == "filter-stage1":
     pkn_options["allow_skipping_nodes"] = True
 
-gene_synonyms = bt.dbs.ncbi.GeneSynonyms()
+grn = bt.dbs.collectri.load_grn(
+    organism=args.organism,
+    gene_synonyms=genesyn
+)
 
-grn = bt.dbs.collectri.load_grn(organism=args.organism, gene_synonyms=gene_synonyms)
 if args.filter_grn:
     with open(args.filter_grn) as fp:
         nodes = [line.strip() for line in fp.readlines()]
     grn = grn.subgraph(nodes)
 
-if args.verbose:
-    print(f"GRN: {len(grn.nodes)} nodes, {len(grn.edges)} edges", file=sys.stderr)
-
-meta_bin = load_bin(args.bin_metastates, gene_synonyms = gene_synonyms)
-
 pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
-bo = bonesis.BoNesis(pkn, meta_bin)
-bomodel(bo, args.model_specification)
+
+bo = bonesis.BoNesis(pkn, metastates_cfg)
+
+with open(args.model, "r") as file:
+    for line in file:
+        eval(line)
 
 if args.action == "filter-stage1":
+
+    std.print_task("filtering genes (stage 1)")
     
     bo.maximize_nodes()
 
-    if args.force_nodes:
+    if args.mandatory_genes:
         try:
-            with open(args.force_nodes) as file:
-                forced_nodes = list(json.load(file).keys())
+            with open(args.mandatory_genes) as file:
+                mandatory_genes = list(json.load(file).keys())
         except:
-            with open(args.force_nodes) as file:
-                forced_nodes = [line.rstrip() for line in file.readlines()]
-        forced_nodes = gene_synonyms.sequence_standardization(forced_nodes)
-        for node in forced_nodes:
-            bo.custom(f"node({clingo_encode(node)}).")
+            with open(args.mandatory_genes) as file:
+                mandatory_genes = [line.rstrip() for line in file.readlines()]
+        mandatory_genes = genesyn.sequence_standardization(mandatory_genes)
+        for gene in mandatory_genes:
+            bo.custom(f"node({clingo_encode(gene)}).")
 
-    if args.important_nodes:
+    if args.important_genes:
         try:
-            with open(args.important_nodes) as file:
-                priority_nodes = list(json.load(file).keys())
+            with open(args.important_genes) as file:
+                important_genes = list(json.load(file).keys())
         except:
-            with open(args.important_nodes) as file:
-                priority_nodes = [line.rstrip() for line in file.readlines()]
-        priority_nodes = gene_synonyms.sequence_standardization(priority_nodes)
-        for node in priority_nodes:
+            with open(args.important_genes) as file:
+                important_genes = [line.rstrip() for line in file.readlines()]
+        important_genes = genesyn.sequence_standardization(important_genes)
+        for node in important_genes:
             bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
 
+    interm_solution_file = Path(f"{os.path.dirname(args.asp)}/stage1.json")
     def interm_solution(nodes):
-        with open(f"{args.outpath}/filter-stage1.json", "w") as file:
+        with open(interm_solution_file, "w") as file:
             json.dump(list(
                 sorted(nodes)),
                 file,
@@ -193,30 +221,19 @@ if args.action == "filter-stage1":
             )
 
     clingo_opt_strategy = args.clingo_opt_strategy or "bb,dec"
-    view = bonesis.NodesView(bo, mode="optN", progress=tqdm,
-                                intermediate_model_cb=interm_solution,
-                                clingo_opt_strategy=clingo_opt_strategy)
-    view.standalone(output_filename=f"{args.outpath}/filter-stage1.sh")
+    view = bonesis.NodesView(
+        bo,
+        mode="optN",
+        intermediate_model_cb=interm_solution,
+        clingo_opt_strategy=clingo_opt_strategy,
+        progress=tqdm
+    )
+    view.standalone(output_filename=args.asp)
     solution = next(iter(view))
-    
-    input_nodes = set()
-    for bin_nodes in bo.data.values():
-        input_nodes.update(bin_nodes.keys())
 
-    with open(f"{args.outpath}/nodes-removed-from-bin-stage1.txt", "w") as file:
-        for node in input_nodes.difference(solution):
+    with open(args.solution, "w") as file:
+        for node in solution:
             file.write(f"{node}\n")
-
-    with open(f"{args.outpath}/nodes-kept-in-bin-stage1.txt", "w") as file:
-        for node in input_nodes.intersection(solution):
-            file.write(f"{node}\n")
-    
-    with open(f"{args.outpath}/nodes-removed-from-pkn-stage1.txt", "w") as file:
-        for node in set(bo.domain.nodes).difference(solution):
-            file.write(f"{node}\n")
-    
-    for node in solution:
-        print(node)
 
 elif args.action == "filter-stage2":
     

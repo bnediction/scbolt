@@ -77,8 +77,8 @@ $(eval SMM_MODE := dynamical)				# mode used for estimating the steady-state mod
 
 ## BEGIN COTAN ##
 
-$(eval COTAN_METHOD := soft-merging)		# method for computing cotan clusters (classic, soft-merging or strong-merging)
-$(eval COTAN_ONLY_HVG := true)				# use only highly variable genes for estimating cotan macrostates
+$(eval COTAN_METHOD := strong-merging)		# method for computing cotan clusters (classic, soft-merging or strong-merging)
+$(eval COTAN_ONLY_HVG := false)				# use only highly variable genes for estimating cotan macrostates
 $(eval MAX_ITER := 25)						# maximum iteration number for merging clustering: soft-merging and strong-merging merge uniform clusters
 
 ## END COTAN ##
@@ -118,6 +118,14 @@ $(eval ZEROINF_THRESHOLD := 0.5)			# minimum proportion of one-values against bi
 $(eval UNIMODAL_THRESHOLD := 0.67)			# minimum proportion of zero- or one-values against binarized values in a cluster required for a unimodal gene to be binarized
 
 ## END BIN-MACROSTATES ##
+
+## BEGIN MODELING ##
+
+$(eval MODEL_SPECIFICATION := spec/spec.yml)	# file storing model specifications for bonesis
+
+## END MODELING ##
+
+
 
 # cellrank #
 
