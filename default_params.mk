@@ -125,7 +125,17 @@ $(eval MODEL_SPECIFICATION := spec/spec.yml)	# file storing model specifications
 
 ## END MODELING ##
 
+## BEGIN BONESIS-FILTERING-TWO ##
 
+$(eval FILTER_MIN_FEEDBACKS := true)		# minimize the number of length-one feedbacks at filtering stage
+
+## END BONESIS-FILTERING-TWO ##
+
+## BEGIN BONESIS-INFERENCE-MIN ##
+
+$(eval INFER_MIN_FEEDBACKS := true)			# minimize the number of length-one feedbacks at inference stage
+
+## END BONESIS-INFERENCE-MIN ##
 
 # cellrank #
 
@@ -133,19 +143,3 @@ $(eval MACROSTATE_SIZE := 100)
 $(eval CELLRANK_METHOD := stability)		# stability, top_n, eigengap or eigengap_coarse
 # INITIAL_STATES_<CONDITION> =				# number of initial states with cellrank for condition <CONDITION>
 # TERMINAL_STATES_<CONDITION> =				# number of terminal states with cellrank for condition <CONDITION>
-
-# center-extremity #
-
-# CENTER_<CONDITION> := <cluster...>		# clusters for which macrostates are deriving by keeping cells closest to the cluster-related barycenter
-# EXTREMITY_<CONDITION> := <cluster...>		# clusters for which macrostates are deriving by keeping cells cells furthest from other cluster-related barycenters
-EXCLUDE := true
-
-## END MACROSTATE CHARACTERIZATION ##
-
-## BEGIN BOOLEAN NETWORK INFERENCE ##
-
-# bonesis-inference #
-
-$(eval MINIMIZE_AUTO_LOOPS := true)			# true or false (minimize the number of auto-loops for inferring Boolean networks)
-
-## END BOOLEAN NETWORK INFERENCE ##

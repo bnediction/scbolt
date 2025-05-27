@@ -196,7 +196,6 @@ dependencies:
       - annotated-types==0.6.0
       - array-api-compat==1.4.1
       - attrs==23.2.0
-      - bonesis==9999
       - certifi==2024.2.2
       - charset-normalizer==3.3.2
       - decoupler==1.6.0

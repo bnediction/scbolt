@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os, std
-import argparse
+import argparse, cli
 import yaml
 from pathlib import Path
 
@@ -18,16 +18,18 @@ parser = argparse.ArgumentParser(
     prog="specification",
     description=
 """
-check whether the bonesis properties are well defined and converting model specifications (format yml) and binarized macrostates (format csv) into three files:
-    - metastates (csv): binarized metastates
-    - properties (txt): dynamic Boolean properties
-    - genes (txt): genes to pass bonesis filtering
+Check whether the bonesis properties are well defined and converting model specifications (format yml) and binarized macrostates (format csv) into four files:
+    - model (txt): dynamic Boolean properties
+    - metastates (csv): partially binarized metastates
+    - mandatory-genes (txt): genes being forced to appear in Boolean network solutions
+    - important-genes (txt): genes being prioritize to appear in Boolean network solutions
 file storing model specifications (format yml) have to contain three keys:
-    - states (association between macrostate names and metastate names)
-    - bonesis (dynamic Boolean properties in bonesis syntax)
-    - genes (gene list to pass bonesis filtering)
+    - states (list of metastate-macrostate name associations)
+    - bonesis (list of dynamic Boolean properties in bonesis syntax)
+    - mandatory_genes (list of genes being forced to appear in Boolean network solutions)
+    - important_genes (list of genes being prioritize to appear in Boolean network solutions)
 """,
-    usage="python specification.py <FILE> <FILE> --metastates <FILE> --properties <FILE> --genes <FILE> [<args>]",
+    usage="python specification.py <FILE> <FILE> --model <FILE> --metastates <FILE> --mandatory-genes <FILE> --important-genes <FILE> [<args>]",
     formatter_class=argparse.RawDescriptionHelpFormatter
 )
 
@@ -93,17 +95,12 @@ parser.add_argument(
 parser.add_argument(
     "--organism",
     dest="organism",
-    choices=["mouse","human","escherichia-coli"],
+    action=cli.Store_organism,
     default="mouse",
-    required=False,
-    metavar="[mouse|human|escherichia-coli]",
-    help="gene-related organism (default: mouse)"
+    required=False
 )
 
 args = parser.parse_args()
-
-if args.organism == "escherichia-coli":
-    args.organism = "escherichia coli"
 
 for outfile in [args.macrostates, args.model, args.mandatory_genes, args.important_genes]:
     if not Path(os.path.dirname(outfile)).exists():
@@ -141,7 +138,7 @@ pkn_options = {
 }
 
 grn = bt.dbs.collectri.load_grn(
-    organism="mouse",
+    organism=args.organism,
     gene_synonyms=genesyn
 )
 

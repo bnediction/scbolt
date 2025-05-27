@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os, std
-import argparse
+import argparse, cli
 import json
 from pathlib import Path
 
@@ -19,15 +19,15 @@ from utils import get_cfg
 
 bonesis.settings["quiet"] = True
 
-def write_solution(solution, name):
-    f = solution[1]
-    f.save(f"{name}.bnet")
+def write_solution(solution, bn_filename, name):
+    bn = solution[1]
+    bn.save(bn_filename)
     df = pd.DataFrame(solution[2])
     df.to_csv(f"{name}.csv")
-    noi = set(f) - set(f.constants())
+    noi = set(bn) - set(bn.constants())
     with open(f"{name}.noi.txt", "w") as fp:
         fp.write("".join([f"{n}\n" for n in noi]))
-    ig = f.influence_graph()
+    ig = bn.influence_graph()
     nx.drawing.nx_pydot.write_dot(ig, f"{name}.dot")
 
 parser = argparse.ArgumentParser(
@@ -107,14 +107,16 @@ parser.add_argument(
 parser.add_argument(
     "--clingo-opt-strategy",
     dest="clingo_opt_strategy",
-    type=str
+    type=str,
+    help="clingo optimization strategy"
 )
 
 parser.add_argument(
-    "--minimize-auto-loops",
-    dest="minimize_auto_loops",
+    "--minimize-feedbacks",
+    dest="minimize_feedbacks",
     required=False,
-    action="store_true"
+    action="store_true",
+    help="minimize the number of length-one feedbacks"
 )
 
 parser.add_argument(
@@ -130,17 +132,12 @@ parser.add_argument(
 parser.add_argument(
     "--organism",
     dest="organism",
-    choices=["mouse","human","escherichia-coli"],
+    action=cli.Store_organism,
     default="mouse",
-    required=False,
-    metavar="[mouse|human|escherichia-coli]",
-    help="gene-related organism (default: mouse)"
+    required=False
 )
 
 args = parser.parse_args()
-
-if args.organism == "escherichia-coli":
-    args.organism = "escherichia coli"
 
 genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
 
@@ -185,100 +182,166 @@ with open(args.model, "r") as file:
 
 if args.action == "filter-stage1":
 
-    std.print_task("filtering genes (stage 1)")
+    std.print_task("filtering genes by maximizing explanatory node number (stage 1)")
     
     bo.maximize_nodes()
 
     if args.mandatory_genes:
-        try:
-            with open(args.mandatory_genes) as file:
-                mandatory_genes = list(json.load(file).keys())
-        except:
-            with open(args.mandatory_genes) as file:
-                mandatory_genes = [line.rstrip() for line in file.readlines()]
+        with open(args.mandatory_genes) as file:
+            mandatory_genes = [line.rstrip() for line in file.readlines()]
         mandatory_genes = genesyn.sequence_standardization(mandatory_genes)
         for gene in mandatory_genes:
             bo.custom(f"node({clingo_encode(gene)}).")
 
     if args.important_genes:
-        try:
-            with open(args.important_genes) as file:
-                important_genes = list(json.load(file).keys())
-        except:
-            with open(args.important_genes) as file:
-                important_genes = [line.rstrip() for line in file.readlines()]
+        with open(args.important_genes) as file:
+            important_genes = [line.rstrip() for line in file.readlines()]
         important_genes = genesyn.sequence_standardization(important_genes)
         for node in important_genes:
             bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
 
-    interm_solution_file = Path(f"{os.path.dirname(args.asp)}/stage1.json")
-    def interm_solution(nodes):
-        with open(interm_solution_file, "w") as file:
+    intermediate_solution_file = Path(f"{os.path.dirname(args.asp)}/stage1.json")
+    def intermediate_solution(nodes):
+        with open(intermediate_solution_file, "w") as file:
             json.dump(list(
                 sorted(nodes)),
                 file,
                 indent=2
             )
 
-    clingo_opt_strategy = args.clingo_opt_strategy or "bb,dec"
     view = bonesis.NodesView(
         bo,
         mode="optN",
-        intermediate_model_cb=interm_solution,
-        clingo_opt_strategy=clingo_opt_strategy,
+        intermediate_model_cb=intermediate_solution,
+        clingo_opt_strategy=args.clingo_opt_strategy or "bb,dec",
         progress=tqdm
     )
     view.standalone(output_filename=args.asp)
+
+    std.print_warning("this may take some time.")
     solution = next(iter(view))
 
     with open(args.solution, "w") as file:
         for node in solution:
             file.write(f"{node}\n")
 
+    nodes_in_data = set()
+    for bin_nodes in bo.data.values():
+        nodes_in_data.update(bin_nodes.keys())
+    nodes_in_domain = set(bo.domain.nodes)
+
+    print("\n")
+    std.print_info(f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]")
+    std.print_info(f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]")
+    std.print_info(f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]")
+
 elif args.action == "filter-stage2":
+
+    std.print_task("filtering genes by maximizing strong constant number (stage 2)")
     
     bo.maximize_strong_constants()
-    if args.minimize_auto_loops:
+    if args.minimize_feedbacks:
         bo.custom("edge(A,A) :- clause(A,_,A,_). #minimize { 1@10000,A: edge(A,A) }.")
 
-    view = bonesis.NonStrongConstantNodesView(bo, mode="optN",
-                                  clingo_opt_strategy="usc",
-                                  clingo_options=["--opt-usc-shrink=inv"])
-    view.standalone(output_filename=f"{args.outpath}/filter-stage2.sh")
+    view = bonesis.NonStrongConstantNodesView(
+        bo,
+        mode="optN",
+        clingo_opt_strategy="usc",
+        clingo_options=["--opt-usc-shrink=inv"],
+        progress=tqdm
+    )
+    view.standalone(output_filename=args.asp)
+
+    std.print_warning("this may take some time.")
     solution = next(iter(view))
-    for node in solution:
-        print(node)
+
+    with open(args.solution, "w") as file:
+        for node in solution:
+            file.write(f"{node}\n")
+    
+    nodes_in_data = set()
+    for bin_nodes in bo.data.values():
+        nodes_in_data.update(bin_nodes.keys())
+    nodes_in_domain = set(bo.domain.nodes)
+
+    print("\n")
+    std.print_info(f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]")
+    std.print_info(f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]")
+    std.print_info(f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]")
 
 elif args.action == "one":
     
-    view = bonesis.InfluenceGraphView(bo, extra=("boolean-network", "configurations"))
+    view = bonesis.InfluenceGraphView(
+        bo,
+        extra=("boolean-network", "configurations")
+    )
+    view.standalone(output_filename=args.asp)
+
+    std.print_warning("this may take some time.")
     solution = next(iter(view))
-    write_solution(solution, f"{args.outpath}/bn-1")
+
+    write_solution(
+        solution,
+        args.solution,
+        f"{os.path.dirname(args.solution)}/one"
+    )
 
 elif args.action == "one-min":
     
     bo.custom("edge(A,B) :- clause(B,_,A,_). #minimize { 1@1,A,B: edge(A,B) }.")
     bo.custom("#maximize { 1@10,N: constant(N) }.")
-    if args.minimize_auto_loops:
+    if args.minimize_feedbacks:
         bo.custom("#minimize { 1@100,A: edge(A,A) }.")
-    view = bonesis.InfluenceGraphView(bo, mode="optN", clingo_opt_strategy="usc",
-                                      extra=("boolean-network",
-                                             "configurations"),
-                                      progress=tqdm)
-    view.standalone(output_filename=f"{args.outpath}/one-min.sh")
+
+    view = bonesis.InfluenceGraphView(
+        bo,
+        mode="optN",
+        clingo_opt_strategy="usc",
+        extra=("boolean-network", "configurations"),
+        progress=tqdm
+    )
+    view.standalone(output_filename=args.asp)
+
+    std.print_warning("this may take some time.")
     solution = next(iter(view))
-    write_solution(solution, f"{args.outpath}/one-min")
+
+    write_solution(
+        solution,
+        args.solution,
+        f"{os.path.dirname(args.solution)}/one-min"
+    )
 
 elif args.action == "one-sub":
     
-    view = bonesis.InfluenceGraphView(bo, solutions="subset-minimal", extra=("boolean-network", "configurations"))
-    view.standalone(output_filename=f"{args.outpath}/one-sub.sh")
-    solution = next(iter(view))
-    write_solution(solution, f"{args.outpath}/one-sub")
+    view = bonesis.InfluenceGraphView(
+        bo,
+        solutions="subset-minimal",
+        extra=("boolean-network", "configurations")
+    )
+    view.standalone(output_filename=args.asp)
 
-elif args.action == "one-sub":
+    std.print_warning("this may take some time.")
+    solution = next(iter(view))
+
+    write_solution(
+        solution,
+        args.solution,
+        f"{os.path.dirname(args.solution)}/one-sub"
+    )
+
+elif args.action == "sub":
     
-    view = bonesis.InfluenceGraphView(bo, solutions="subset-minimal", extra=("boolean-network", "configurations"))
-    view.standalone(output_filename=f"{args.outpath}/one-sub.sh")
+    view = bonesis.InfluenceGraphView(
+        bo,
+        solutions="subset-minimal",
+        extra=("boolean-network", "configurations")
+    )
+    view.standalone(output_filename=args.asp)
+
+    std.print_warning("this may take some time.")
     for i, solution in enumerate(view):
-        write_solution(solution, f"{args.outpath}/sub_{i}")
+        write_solution(
+            solution,
+            f"{os.path.dirname(args.solution)}/sub-{i}.bnet",
+            f"{os.path.dirname(args.solution)}/sub-{i}"
+        )

@@ -90,6 +90,7 @@ logs/
 *tmp/
 todo.*
 *.pdf
+*.yml
 
 ### Related-repository ###
 !.pipeline.png

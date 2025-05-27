@@ -34,7 +34,7 @@ Some steps require biological expertise (aided by decision-making tools):
 
 ### Setup prerequisites
 
-1. Verify that *Make* command-line tool is already installed. If not, please use:
+1. Verify that *GNU Make* (version >= 4.3) command-line tool is already installed. If not, please use:
 ```sh
 apt-get install build-essential
 ```

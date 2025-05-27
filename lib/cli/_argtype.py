@@ -327,12 +327,13 @@ class Store_organism(argparse.Action):
         *args,
         **kwargs
     ):
-        default = kwargs["default"] if "default" in kwargs else "human"
+        default = kwargs["default"] if "default" in kwargs else None
         kwargs.update({
             "type": str,
+            "choices": ["mouse","human","escherichia-coli"],
             "metavar": "ORGANISM",
             "default": default,
-            "help": kwargs["help"] if "help" in kwargs else f"common name or identifier of the organism of interest (default: {default})"
+            "help": kwargs["help"] if "help" in kwargs else f"common name of the organism of interest (default: {default})"
         })
         super(Store_organism, self).__init__(*args, **kwargs)
 
@@ -343,8 +344,9 @@ class Store_organism(argparse.Action):
         value,
         option_string=None
     ):
-        if value.isdigit():
-            value = int(value)
+        
+        if value == "escherichia-coli":
+            value = "escherichia coli"
         setattr(namespace, self.dest, value)
 
 class Required_length(argparse.Action):
