@@ -17,12 +17,3 @@ MIN_DIST_CTRL = prom1
 MAX_DIST_CTRL = rep prom3
 MIN_DIST_TREATED = prom1
 MAX_DIST_TREATED = rep gran2
-
-## cellrank ##
-
-INITIAL_STATES_CTRL := 1
-TERMINAL_STATES_CTRL := 4
-INITIAL_STATES_TREATED := 1
-TERMINAL_STATES_TREATED := 4
-
-## center-extremity ##

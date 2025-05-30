@@ -668,26 +668,6 @@ $(scvelo_$(1)): $(annotation_$(1))
 		$(velocity_only_hvg) --mode $(SMM_MODE) --embedding umap --jobs $(JOBS)
 	$$(conda_deactivate)
 
-ifndef INITIAL_STATES_$(call toupper,$(1))
-$(cellrank_$(1)): $(scvelo_$(1))
-	$(call print_error,INITIAL_STATES_$(call toupper,$(1)) not defined)
-else ifndef TERMINAL_STATES_$(call toupper,$(1))
-$(cellrank_$(1)): $(scvelo_$(1))
-	$(call print_error,TERMINAL_STATES_$(call toupper,$(1)) not defined)
-else
-$(cellrank_$(1)): $(scvelo_$(1))
-	$(call print_rule,cellrank,$(1))
-	mkdir -p $$(@D)
-	$$(conda_activate) cellrank
-	python scripts/macrostates/cellrank.py $$< $$@ \
-		--macrostate-size $(MACROSTATE_SIZE) \
-		--initial-states $(INITIAL_STATES_$(call toupper,$(1))) \
-		--terminal-states $(TERMINAL_STATES_$(call toupper,$(1))) \
-		--method $(CELLRANK_METHOD) \
-		--plot-3d
-	$$(conda_deactivate)
-endif
-
 $(cotan_$(1))&: $(annotation_$(1))
 	$(call print_rule,cotan,$(1))
 	mkdir -p $$(@D) $(tmpdir)/$(1)/cotan
@@ -709,11 +689,21 @@ $(cotan_$(1))&: $(annotation_$(1))
 	python fig/plot_embedding.py fig/macrostates_umap.json --infile $$(firstword $$(cotan_$(1))) --outfile $$(@D)/umap_cotan.pdf
 	$$(conda_deactivate)
 
+$(cellrank_$(1))&: $(scvelo_$(1))
+	$(call print_rule,cellrank,$(1))
+	mkdir -p $$(@D)
+	$$(conda_activate) cellrank
+	python scripts/macrostates/cellrank_macrostates.py $$< $$(firstword $$(cellrank_$(1))) --csv $$(lastword $$(cellrank_$(1))) \
+		--obs leiden --method $(CELLRANK_METHOD) \
+		--states $(STATES) --initial-states $(INITIAL_STATES) --terminal-states $(TERMINAL_STATES) \
+		--stability $(CELLRANK_STABILITY) --alpha $(CELLRANK_ALPHA) --size $(MACROSTATE_SIZE) --seed $(SEED)
+	$$(conda_deactivate)
+
 $(stream_$(1))&: $(annotation_$(1))
 	$(call print_rule,stream,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) stream
-	python scripts/macrostates/stream.py $$< $$(firstword $$(stream_$(1))) \
+	python scripts/macrostates/stream_macrostates.py $$< $$(firstword $$(stream_$(1))) \
 		--pkl $$(firstword $$(stream_$(1))).pkl --csv $$(lastword $$(stream_$(1))) \
 		--embedding umap --obs leiden --cluster-number $(CLUSTER_NUMBER) \
 		--lambda $(LAMBDA_EPG) --mu $(MU_EPG) --alpha $(ALPHA_EPG) \
@@ -730,7 +720,7 @@ $(knnbs_$(1))&: $(annotation_$(1))
 	$(call print_rule,knnbs,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python scripts/macrostates/knnbs.py $$< $$(firstword $$(knnbs_$(1))) --csv $$(lastword $$(knnbs_$(1))) \
+	python scripts/macrostates/knnbs_macrostates.py $$< $$(firstword $$(knnbs_$(1))) --csv $$(lastword $$(knnbs_$(1))) \
 		--obs leiden --obsm $(KNNBS_EMBEDDING) --neighbors $(KNNBS_NEIGHBORS) \
 		$(knnbs_dimension) --metric $(METRIC) --size $(MACROSTATE_SIZE) \
 		--max-distances $(MAX_DIST_$(call toupper,$(1))) --min-distances $(MIN_DIST_$(call toupper,$(1))) \

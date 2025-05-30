@@ -21,13 +21,13 @@ import matplotlib.pyplot as plt
 bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
-    prog="stream pseudotime",
+    prog="stream",
     description=
     """
     Learn elastic principal graph, estimate pseudotime and compute macrostates using STREAM framework. \
     See Chen et al. (2019) <https://www.nature.com/articles/s41467-019-09670-4>.
     """,
-    usage="python stream_pseudotime.py <FILE> <FILE> --obs <LITERAL> [<args>]"
+    usage="python stream_macrostates.py <FILE> <FILE> --obs <LITERAL> [<args>]"
 )
 
 parser.add_argument(

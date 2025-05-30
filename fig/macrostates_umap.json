@@ -16,7 +16,7 @@
         "obs": "macrostates",
         "use_rep": "X_umap",
         "figheight": 6,
-        "figwidth": 10,
+        "figwidth": 8,
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
@@ -27,7 +27,7 @@
         "lgd_params": {
             "title": "macrostates",
             "ncol": "math.ceil(len(adata.obs['macrostates'].astype('category').cat.categories) / 16)",
-            "markerscale": 8,
+            "markerscale": 5,
             "frameon": true,
             "edgecolor": "bt.sct.pl.get_color('black')",
             "shadow": false

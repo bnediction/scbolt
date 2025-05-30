@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser(
     (1) searching for cell manifolds maximizing distances to other clusters' barycenters \
     and (2) searching for cell manifolds minimizing distances to self barycenter
     """,
-    usage="python knnbs.py <FILE> <PATH> [-- center <LITERAL...>] [-- extremity <LITERAL...>] [<args>]"
+    usage="python knnbs_macrostates.py <FILE> <FILE> [--csv <FILE>] --obs <LITERAL> [--max-distances <LITERAL...>] [--min-distances <LITERAL...>] [<args>]"
 )
 
 parser.add_argument(
@@ -105,7 +105,7 @@ parser.add_argument(
     required=False,
     default=50,
     metavar="INT",
-    help="macrostate size (default: 50)"
+    help="number of cells in each macrostate (default: 50)"
 )
 
 parser.add_argument(

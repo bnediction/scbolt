@@ -237,7 +237,7 @@ parser.add_argument(
 parser.add_argument(
     "--seed",
     dest="seed",
-    type=int,
+    type=float,
     required=False,
     default=random.random(),
     metavar="FLOAT",
