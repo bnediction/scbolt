@@ -14,7 +14,7 @@
     ],
     "figure": {
         "obs": "macrostates",
-        "obsm": "X_umap",
+        "use_rep": "X_umap",
         "figheight": 6,
         "figwidth": 10,
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",

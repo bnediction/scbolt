@@ -14,7 +14,7 @@
     ],
     "figure": {
         "obs": "pypairs_cc_prediction",
-        "obsm": "X_umap",
+        "use_rep": "X_umap",
         "figwidth": 6,
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",

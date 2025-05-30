@@ -158,7 +158,7 @@ std.print_task("embedding component plotting")
 fig, _ = bt.sct.pl.embedding_plot(
     adata,
     obs="macrostates_fwd",
-    obsm="X_umap",
+    use_rep="X_umap",
     xlabel=r"$\mathrm{UMAP_{1}}$",
     ylabel=r"$\mathrm{UMAP_{2}}$",
     zlabel=r"$\mathrm{UMAP_{3}}$",
@@ -182,7 +182,7 @@ plt.savefig(Path(f"{os.path.dirname(args.outfile)}/macrostates.pdf"))
 fig, _ = bt.sct.pl.embedding_plot(
     adata,
     obs="init_states_fwd",
-    obsm="X_umap",
+    use_rep="X_umap",
     xlabel=r"$\mathrm{UMAP_{1}}$",
     ylabel=r"$\mathrm{UMAP_{2}}$",
     zlabel=r"$\mathrm{UMAP_{3}}$",
@@ -206,7 +206,7 @@ plt.savefig(Path(f"{os.path.dirname(args.outfile)}/initial_states.pdf"))
 fig, _ = bt.sct.pl.embedding_plot(
     adata,
     obs="term_states_fwd",
-    obsm="X_umap",
+    use_rep="X_umap",
     xlabel=r"$\mathrm{UMAP_{1}}$",
     ylabel=r"$\mathrm{UMAP_{2}}$",
     zlabel=r"$\mathrm{UMAP_{3}}$",

@@ -394,14 +394,14 @@ if isinstance(cluster_bin.index, MultiIndex):
 
 if args.embedding:
     embedding_label = "UMAP" if args.embedding == "umap" else "t-SNE"
-    obsm="X_umap" if args.embedding == "umap" else "X_tsne"
+    use_rep="X_umap" if args.embedding == "umap" else "X_tsne"
     std.print_task(f"plotting {embedding_label.lower()} with respect to cluster-related binarization percentage")
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
     adata.obs[f"pct_bin_{args.cluster}"] = adata.obs[args.cluster].map(pct_bin)
     bt.sct.pl.embedding_plot(
         adata,
         obs=f"pct_bin_{args.cluster}",
-        obsm=obsm,
+        use_rep=use_rep,
         xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
         ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
         zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
@@ -417,7 +417,7 @@ if args.embedding:
             "edgecolor":bt.sct.pl.get_color("black"),
             "shadow":False
         },
-        n_components = 3 if adata.obsm[obsm].shape[1] > 2 else 2,
+        n_components = 3 if adata.obsm[use_rep].shape[1] > 2 else 2,
         background_visible=False,
         outfile=Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf")
     )
@@ -426,7 +426,7 @@ if args.embedding:
             bt.sct.pl.embedding_plot(
                 adata[adata.obs[args.condition]==condition],
                 obs=f"pct_bin_{args.cluster}",
-                obsm=obsm,
+                obsm=use_rep,
                 xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
                 ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
                 zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
@@ -442,7 +442,7 @@ if args.embedding:
                     "edgecolor":bt.sct.pl.get_color("black"),
                     "shadow":False
                 },
-                n_components = 3 if adata.obsm[obsm].shape[1] > 2 else 2,
+                n_components = 3 if adata.obsm[use_rep].shape[1] > 2 else 2,
                 background_visible=False,
                 outfile=Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}_{condition}.pdf")
             )

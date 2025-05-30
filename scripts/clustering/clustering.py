@@ -267,7 +267,7 @@ std.print_info(f"plotting {label.lower()} with respect to leiden-based clusters"
 bt.sct.pl.embedding_plot(
     adata,
     obs="leiden",
-    obsm="X_umap" if args.embedding == "umap" else "X_tsne",
+    use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
     xlabel=r"$\mathrm{{{}_{{1}}}}$".format(label),
     ylabel=r"$\mathrm{{{}_{{2}}}}$".format(label),
     zlabel=r"$\mathrm{{{}_{{3}}}}$".format(label),

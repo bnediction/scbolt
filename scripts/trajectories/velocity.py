@@ -217,7 +217,7 @@ std.print_info(f"plotting velocity pseudotime in {embedding_label.lower()} embed
 bt.sct.pl.embedding_plot(
     adata,
     obs="velocity_pseudotime",
-    obsm="X_umap" if args.embedding == "umap" else "X_tsne",
+    use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
     xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
     ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
     zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
@@ -244,7 +244,7 @@ std.print_info(f"plotting PAGA graph with velocity-directed edges in {embedding_
 fig, ax = bt.sct.pl.embedding_plot(
     adata,
     obs=args.cluster,
-    obsm="X_umap" if args.embedding == "umap" else "X_tsne",
+    use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
     xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
     ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
     zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
@@ -268,7 +268,7 @@ plt.axis("off")
 ax = bt.sct.pl.draw_paga(
     adata=adata,
     obs=args.cluster,
-    obsm="X_umap" if args.embedding == "umap" else "X_tsne",
+    use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
     edges="transitions_confidence",
     threshold=0.01,
     ax=ax,

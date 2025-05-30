@@ -286,7 +286,7 @@ for group in groups:
     bt.sct.pl.embedding_plot(
         adata,
         obs=group,
-        obsm="X_dr",
+        use_rep="X_dr",
         xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
         ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
         zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),

@@ -579,7 +579,7 @@ std.print_info(f"plotting principal components with respect to conditions")
 bt.sct.pl.embedding_plot(
     adata,
     obs="condition",
-    obsm="X_pca" if args.integration != "scanorama" else "X_scanorama",
+    use_rep="X_pca" if args.integration != "scanorama" else "X_scanorama",
     xlabel=r"$\mathrm{PC_{1}}$",
     ylabel=r"$\mathrm{PC_{2}}$",
     figwidth=6,
@@ -604,7 +604,7 @@ for obs in ["condition", "leiden"]:
     bt.sct.pl.embedding_plot(
         adata,
         obs=obs,
-        obsm="X_umap" if args.embedding == "umap" else "X_tsne",
+        use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
         xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
         ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
         zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
