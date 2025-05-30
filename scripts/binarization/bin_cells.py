@@ -181,6 +181,3 @@ if args.statistics:
         sep=",",
         index=True
     )
-
-#with open(Path(f"{args.outpath}/scboolseq.pkl"), "wb") as file:
-#    pickle.dump(scbool, file)

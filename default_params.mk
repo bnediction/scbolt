@@ -133,7 +133,7 @@ $(eval FILTER_MIN_FEEDBACKS := true)		# minimize the number of length-one feedba
 
 ## BEGIN BONESIS-INFERENCE-MIN ##
 
-$(eval INFER_MIN_FEEDBACKS := true)			# minimize the number of length-one feedbacks at inference stage
+$(eval MIN_FEEDBACKS := true)			# minimize the number of length-one feedbacks at inference stage
 
 ## END BONESIS-INFERENCE-MIN ##
 

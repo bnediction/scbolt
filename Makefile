@@ -138,7 +138,7 @@ scvelo_$(1) = 					$(rna)/$(1)/trajectories/scvelo/scvelo.h5ad
 stream_$(1) =			 		$(rna)/$(1)/macrostates/stream/macrostates.h5ad $(rna)/$(1)/macrostates/stream/macrostates.csv
 cotan_$(1) = 					$(rna)/$(1)/macrostates/cotan/macrostates.h5ad $(rna)/$(1)/macrostates/cotan/macrostates.csv
 cellrank_$(1) = 				$(rna)/$(1)/macrostates/cellrank/macrostates.h5ad
-center_extremity_$(1) = 		$(rna)/$(1)/macrostates/center_extremity/macrostates.h5ad
+knnbs_$(1) =			 		$(rna)/$(1)/macrostates/knnbs/macrostates.h5ad
 trajectories_macrostates_$(1) =	$(rna)/$(1)/trajectories/macrostates/trajectories.txt
 bdc_$(1) = 						$(rna)/$(1)/binarization/pairwise_predecessor_scores.csv
 
@@ -146,12 +146,12 @@ ifeq ($(MACROSTATES_METHOD),stream)
 macrostates_$(1) = 				$$(stream_$(1))
 else ifeq ($(MACROSTATES_METHOD),cellrank)
 macrostates_$(1) = 				$$(cellrank_$(1))
-else ifeq ($(MACROSTATES_METHOD),center-extremity)
-macrostates_$(1) = 				$$(center_extremity_$(1))
+else ifeq ($(MACROSTATES_METHOD),knnbs)
+macrostates_$(1) = 				$$(knnbs_$(1))
 else ifeq ($(MACROSTATES_METHOD),cotan)
 macrostates_$(1) = 				$$(cotan_$(1))
 else
-$$(error unsupported value for `MACROSTATES_METHOD` (supported values: cellrank, center-extremity or cotan))
+$$(error unsupported value for `MACROSTATES_METHOD` (supported values: cellrank, knnbs or cotan))
 endif
 
 endef
@@ -170,12 +170,12 @@ ifeq ($(MACROSTATES_METHOD),stream)
 bin_macrostates_$(1) =		 	$(rna)/$(1)/binarization/stream/bin_macrostates.csv
 else ifeq ($(MACROSTATES_METHOD),cellrank)
 bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/cellrank/bin_macrostates.csv
-else ifeq ($(MACROSTATES_METHOD),center-extremity)
-bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/center_extremity/bin_macrostates.csv
+else ifeq ($(MACROSTATES_METHOD),knnbs)
+bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/knnbs/bin_macrostates.csv
 else ifeq ($(MACROSTATES_METHOD),cotan)
 bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/cotan/bin_macrostates.csv
 else
-$$(error unsupported value for `MACROSTATES_METHOD` (supported values: cellrank, center-extremity or cotan))
+$$(error unsupported value for `MACROSTATES_METHOD` (supported values: cellrank, knnbs or cotan))
 endif
 
 endef
@@ -208,7 +208,7 @@ scvelo_velocity_target :=
 macrostates_target :=
 stream_target :=
 cellrank_target :=
-center_extremity_target :=
+knnbs_target :=
 cotan_target :=
 bin_cells_target :=
 bin_macrostates_target :=
@@ -225,7 +225,7 @@ $(eval scvelo_velocity_target := $(scvelo_velocity_target) $(scvelo_$(1)))
 $(eval stream_target := $(stream_target) $(stream_$(1)))
 $(eval cotan_target := $(cotan_target) $(cotan_$(1)))
 $(eval cellrank_target := $(cellrank_target) $(cellrank_$(1)))
-$(eval center_extremity_target := $(center_extremity_target) $(center_extremity_$(1)))
+$(eval knnbs_target := $(knnbs_target) $(knnbs_$(1)))
 $(eval macrostates_target := $(macrostates_target) $(macrostates_$(1)))
 $(eval bdc_target := $(bdc_target) $(bdc_$(1)))
 
@@ -364,14 +364,14 @@ else
 $(error Unsupported value for parameter FILTER_MIN_FEEDBACKS (supported values: true, false))
 endif
 
-ifndef INFER_MIN_FEEDBACKS
-$(error Parameter INFER_MIN_FEEDBACKS not defined)
-else ifeq ($(INFER_MIN_FEEDBACKS),true)
-INFER_MIN_FEEDBACKS:=--minimize-feedbacks
-else ifeq ($(INFER_MIN_FEEDBACKS),false)
-INFER_MIN_FEEDBACKS:=
+ifndef MIN_FEEDBACKS
+$(error Parameter MIN_FEEDBACKS not defined)
+else ifeq ($(MIN_FEEDBACKS),true)
+MIN_FEEDBACKS:=--minimize-feedbacks
+else ifeq ($(MIN_FEEDBACKS),false)
+MIN_FEEDBACKS:=
 else
-$(error Unsupported value for parameter INFER_MIN_FEEDBACKS (supported values: true, false))
+$(error Unsupported value for parameter MIN_FEEDBACKS (supported values: true, false))
 endif
 
 ## END PARAMETERS ##
@@ -453,8 +453,8 @@ scvelo: $(scvelo_velocity_target) ## estimate rna velocity with scvelo
 stream: $(stream_target) ## estimate macrostates using elastic principal graph
 .PHONY: cellrank
 cellrank: $(cellrank_target) ## estimate macrostates with cellrank
-.PHONY: center-extremity
-center-extremity: $(center_extremity_target) ## estimate macrostates using center-extremity method
+.PHONY: knnbs
+knnbs: $(knnbs_target) ## estimate macrostates using k-nearest neighbors-based subclusters algorithm
 .PHONY: cotan
 cotan: $(cotan_target) ## estimate macrostates with cotan
 .PHONY: macrostates
@@ -674,7 +674,7 @@ $(cellrank_$(1)): $(scvelo_$(1))
 	$(call print_rule,cellrank,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) cellrank
-	python scripts/macrostates/cellrank_macrostates.py $$< $$@ \
+	python scripts/macrostates/cellrank.py $$< $$@ \
 		--macrostate-size $(MACROSTATE_SIZE) \
 		--initial-states $(INITIAL_STATES_$(call toupper,$(1))) \
 		--terminal-states $(TERMINAL_STATES_$(call toupper,$(1))) \
@@ -684,14 +684,14 @@ $(cellrank_$(1)): $(scvelo_$(1))
 endif
 
 ifeq ($(or $(CENTER_$(call toupper,$(1))),$(EXTREMITY_$(call toupper,$(1)))),)
-$(center_extremity_$(1)): $(scvelo_$(1))
+$(knnbs_$(1)): $(scvelo_$(1))
 	$(call print_error,CENTER_$(call toupper,$(1)) and EXTREMITY_$(call toupper,$(1)) not defined \(at least one must be defined\))
 else
-$(center_extremity_$(1)): $(scvelo_$(1))
-	$(call print_rule,center-extremity,$(1))
+$(knnbs_$(1)): $(scvelo_$(1))
+	$(call print_rule,knnbs,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
-	python scripts/macrostates/scbridge_macrostates.py $$< $$@ \
+	python scripts/macrostates/knnbs.py $$< $$@ \
 		--obs leiden --obsm X_umap --dimension $(DIM_UMAP) --macrostate-size $(MACROSTATE_SIZE) \
 		--center $(CENTER_$(call toupper,$(1))) --extremity $(EXTREMITY_$(call toupper,$(1))) $(EXCLUDE) \
 		--plot-3d
@@ -702,7 +702,7 @@ $(stream_$(1))&: $(annotation_$(1))
 	$(call print_rule,stream,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) stream
-	python scripts/macrostates/stream_macrostates.py $$< $$(firstword $$(stream_$(1))) \
+	python scripts/macrostates/stream.py $$< $$(firstword $$(stream_$(1))) \
 		--pkl $$(firstword $$(stream_$(1))).pkl --csv $$(word 2,$$(stream_$(1))) \
 		--embedding umap --obs leiden --cluster-number $(CLUSTER_NUMBER) \
 		--lambda $(LAMBDA_EPG) --mu $(MU_EPG) --alpha $(ALPHA_EPG) \
@@ -874,7 +874,7 @@ $(bonesis_inference_min): $(bonesis_model) $(bonesis_filtering_two)
 	python scripts/inference/inference.py one-min $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/bonesis_min.sh --solution $@ \
-		--filter-grn $(lastword $^) $(INFER_MIN_FEEDBACKS) --organism $(ORGANISM)
+		--filter-grn $(lastword $^) $(MIN_FEEDBACKS) --organism $(ORGANISM)
 	$(conda_deactivate)
 	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
 
@@ -885,7 +885,7 @@ $(bonesis_inference_sub): $(bonesis_model) $(bonesis_filtering_two)
 	python scripts/inference/inference.py one-sub $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/bonesis_min.sh --solution $@ \
-		--filter-grn $(lastword $^) $(INFER_MIN_FEEDBACKS) --organism $(ORGANISM)
+		--filter-grn $(lastword $^) $(MIN_FEEDBACKS) --organism $(ORGANISM)
 	$(conda_deactivate)
 	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
 
