@@ -4,7 +4,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import os, std
-import argparse
+import argparse, cli
 from pathlib import Path
 
 import anndata as ad
@@ -16,33 +16,47 @@ parser = argparse.ArgumentParser(
     prog="knnbs",
     description=
     """
-    Compute k-nearest neighbors-based subclusters.
+    Compute cell manifolds using k-nearest neighbors-based subclusters (knnbs) algorithm. \
+    Compute the k-nearest neighbors-based graph using an embedding space, \
+    compute shortest path lengths in the graph and then search for cluster related-cell manifolds \
+    using knnbs algorithm. The subclusters can be computed following two methods: \
+    (1) searching for cell manifolds maximizing distances to other clusters' barycenters \
+    and (2) searching for cell manifolds minimizing distances to self barycenter
     """,
-    usage="python scbridge_macrostates.py <FILE> <PATH> [-- center <LITERAL...>] [-- extremity <LITERAL...>] [<args>]"
+    usage="python knnbs.py <FILE> <PATH> [-- center <LITERAL...>] [-- extremity <LITERAL...>] [<args>]"
 )
 
 parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="preprocessed input file (h5ad format)"
+    help="input file storing counts and clusters (format: h5ad)"
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="preprocessed output file storing 'macrostates' in adata.obs (h5ad format)"
+    help="output file storing knnbs macrostates (format: h5ad)"
+)
+
+parser.add_argument(
+    "--csv",
+    dest="csv",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=None,
+    metavar="FILE",
+    help="output file storing macrostates (format: csv)"
 )
 
 parser.add_argument(
     "--obs",
     dest="obs",
     type=str,
-    required=False,
-    default="cluster",
+    required=True,
     metavar="LITERAL",
-    help="column name in adata.obs distinguishing clusters (default: cluster)"
+    help="column name in adata.obs distinguishing clusters (required)"
 )
 
 parser.add_argument(
@@ -52,7 +66,17 @@ parser.add_argument(
     required=False,
     default="X_umap",
     metavar="LITERAL",
-    help="embedding space used in adata.obsm (default: X_umap)"
+    help="embedding space used in adata.obsm when calculating pairwise distances (default: X_umap)"
+)
+
+parser.add_argument(
+    "--neighbors",
+    dest="neighbors",
+    type=int,
+    required=False,
+    default=20,
+    metavar="INT",
+    help="number of closest neighbors (default: 20)"
 )
 
 parser.add_argument(
@@ -62,7 +86,16 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="INT",
-    help="number of components taken into account in adata.obsm[`obsm`] (default: maximum)"
+    help="number of embedding dimensions used when calculating pairwise distances (default: None)"
+)
+
+parser.add_argument(
+    "--metric",
+    dest="metric",
+    action=cli.Store_metric,
+    required=False,
+    default="euclidean",
+    help="metric used when calculating pairwise distances (default: euclidean)"
 )
 
 parser.add_argument(
@@ -72,93 +105,115 @@ parser.add_argument(
     required=False,
     default=50,
     metavar="INT",
-    help="number of cells in each macrostate (default: 50)"
+    help="macrostate size (default: 50)"
 )
 
-s = "data/rna/ctrl/clustering/clusters/annotation.h5ad /tmp/results --obs leiden --obsm X_umap"
+parser.add_argument(
+    "--method",
+    dest="method",
+    type=str,
+    required=False,
+    choices=["dijkstra", "bellman-ford"],
+    default="dijkstra",
+    metavar="[dijkstra|bellman-ford]",
+    help="method used for computing pairwise shortest path lengths between cells and barycenters (default: dijkstra)"
+)
 
-args = parser.parse_args(s.split())
+parser.add_argument(
+    "--max-distances",
+    dest="max_distances",
+    type=str,
+    required=False,
+    nargs="+",
+    default=None,
+    metavar="LITERAL",
+    help="list of clusters for which macrostates are computed by maximizing distances to other clusters' barycenters (default: None)"
+)
+
+parser.add_argument(
+    "--min-distances",
+    dest="min_distances",
+    type=str,
+    required=False,
+    nargs="+",
+    default=None,
+    metavar="LITERAL",
+    help="list of clusters for which macrostates are computed by minimizing distances to self barycenter (default: None)"
+)
+
+parser.add_argument(
+    "--jobs",
+    dest="jobs",
+    type=int,
+    required=False,
+    default=1,
+    metavar="INT",
+    help="number of allocated processors"
+)
+
+args = parser.parse_args()
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
+std.print_task(f"loading file {str(args.infile)}")
 adata = ad.read_h5ad(args.infile)
+
+if adata.obs[args.obs].dtype.name != "category":
+    adata.obs[args.obs] = adata.obs[args.obs].astype("category")
 
 if args.dimension is None:
     args.dimension = adata.obsm[args.obsm].shape[1]
 
-n_components = None
-metric = "euclidean"
-n_jobs = 10
-metric_kwds = None
-n_neighbors = 10
+if args.max_distances:
+    for cluster in args.max_distances:
+        if cluster not in adata.obs[args.obs].cat.categories:
+            raise argparse.ArgumentError(None, f"cluster {cluster} in argument --max-distances not found in 'adata.obs[{args.obs}]'")
+if args.min_distances:
+    for cluster in args.min_distances:
+        if cluster not in adata.obs[args.obs].cat.categories:
+            raise argparse.ArgumentError(None, f"cluster {cluster} in argument --min-distances not found in 'adata.obs[{args.obs}]'")
 
-### Two methods:
-
-# distances = compute_distances(adata, n_pcs, use_rep, metric, n_jobs)
-# sample_range = np.arange(distances.shape[0])[:, None]
-# sorted_indices = np.argpartition(distances, axis=1)
-# knn_indices = sorted_indices[:, :n_neighbors]
-# weights = distances[sample_range, knn_indices]
-# weighted_adjacency_matrix = np.zeros_like(distances)
-# weighted_adjacency_matrix[knn_indices]
-# for i, _ in enumerate(distances):
-#     row_index = knn_indices[i,:]
-#     weighted_adjacency_matrix[i, row_index] = weights[i,:]
-# neighbors_graph = nx.from_numpy_array(weighted_adjacency_matrix)
-# neighbors_graph[0]
-
+std.print_task("estimating k-nearest neighbors-based subclusters (knnbs)")
 knnbs = bt.sct.tl.Knnbs(
-    n_neighbors=10,
+    n_neighbors=args.neighbors,
     use_rep=args.obsm,
-    n_components=n_components,
-    metric=metric 
+    n_components=args.dimension,
+    metric=args.metric
 )
 
+std.print_info("computing k-nearest neighbors-based graph")
 knnbs.fit(
     adata,
     obs=args.obs,
-    n_jobs=n_jobs
+    n_jobs=args.jobs
 )
 
+std.print_info("computing pairwise shortest path lengths between cells and barycenters")
+std.print_warning("this may take some time.")
 knnbs.shortest_path_lengths(
-    method="dijkstra",
-    n_jobs=n_jobs
+    method=args.method,
+    n_jobs=args.jobs
 )
 
+std.print_info("estimating cluster related-cell manifolds")
 adata.obs["macrostates"] = knnbs.knnbs(
     size=args.size,
-    key="knnbs",
-    subclusters_maximizing_distances=["gran2", "prom2", "prom3", "rep"],
-    subclusters_minimizing_distances=["prom1"]
+    key="macrostates",
+    subclusters_maximizing_distances=args.max_distances,
+    subclusters_minimizing_distances=args.min_distances
 )
 
-# find_cells_maximizing_distances_to_other_barycenters
-# find_farther_cell_manifolds_to_other_barycenters
-# subclusters_maximizing_distances
-# find_closest_cells_to_self_barycenter
-
-fig, _ = bt.sct.pl.embedding_plot(
-    adata,
-    obs="macrostates",
-    obsm="X_umap",
-    xlabel=r"$\mathrm{UMAP_{1}}$",
-    ylabel=r"$\mathrm{UMAP_{2}}$",
-    zlabel=r"$\mathrm{UMAP_{3}}$",
-    add_legend=True,
-    figwidth=6,
-    s=4,
-    alpha=1,
-    lgd_params={
-        "title":"macrostates",
-        "ncol":1,
-        "markerscale":5,
-        "frameon":True,
-        "edgecolor":bt.sct.pl.get_color("black"),
-        "shadow":False
-    },
-    n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 else 2,
-    background_visible=False
+std.print_task(f"saving h5ad-formatted data in {str(args.outfile)}")
+adata.write_h5ad(
+    filename=args.outfile,
+    compression="gzip"
 )
-plt.show()
-plt.savefig(Path(f"{os.path.dirname(args.outfile)}/macrostates.pdf"))
+
+if args.csv:
+    std.print_task(f"saving knnbs macrostates in {str(args.csv)}")
+    adata.obs["macrostates"].to_csv(
+        args.csv,
+        sep=",",
+        index=True
+    )

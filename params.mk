@@ -9,6 +9,14 @@ LABEL_INTEGRATED = prom1 prom2 rep gran1 gran2 prom3 prom1
 
 MAD_DEVIATION = 3 2
 RESOLUTION = 0.45
+MACROSTATES_METHOD = knnbs
+
+## USER-DEFINED PARAMETERS ##
+
+MIN_DIST_CTRL = prom1
+MAX_DIST_CTRL = rep prom3
+MIN_DIST_TREATED = prom1
+MAX_DIST_TREATED = rep gran2
 
 ## cellrank ##
 
@@ -18,8 +26,3 @@ INITIAL_STATES_TREATED := 1
 TERMINAL_STATES_TREATED := 4
 
 ## center-extremity ##
-
-$(eval CENTER_CTRL := Prom1 Prom2)
-$(eval EXTREMITY_CTRL := Rep Prom3)
-$(eval CENTER_TREATED := Prom1 Prom2)
-$(eval EXTREMITY_TREATED := Rep Gran2)

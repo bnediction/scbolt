@@ -10,7 +10,6 @@ from pathlib import Path
 import json
 import pandas as pd
 import anndata as ad
-import scanpy as sc
 import bonesistools as bt
 from anndata import AnnData
 

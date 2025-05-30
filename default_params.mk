@@ -96,9 +96,18 @@ $(eval COLLAPSE_PARAMETER := false)			# stream parameter used for prunning the g
 
 ## END STREAM ##
 
+## BEGIN KNNBS ##
+
+$(eval KNNBS_EMBEDDING := X_umap)			# embedding space used when calculating pairwise distances
+$(eval KNNBS_NEIGHBORS := 20)				# number of closest neighbors
+$(eval KNNBS_DIMENSION := )					# number of embedding dimensions used when calculating pairwise distances
+$(eval MACROSTATE_SIZE := 100)				# macrostate size
+
+## END KNNBS ##
+
 ## BEGIN MACROSTATES ##
 
-$(eval MACROSTATES_METHOD := cotan)			# cotan, stream, cellrank or center-extremity
+$(eval MACROSTATES_METHOD := cotan)			# macrostate method used (knnbs, stream, cotan or cellrank)
 
 ## END MACROSTATES ##
 

@@ -135,23 +135,22 @@ velocyto_$(1) = 				$(rna)/$(1)/counting/velocyto/counts.h5ad
 filtering_$(1) = 				$(rna)/$(1)/preprocessing/filtering/counts.h5ad
 normalization_$(1) = 			$(rna)/$(1)/preprocessing/normalization/counts.h5ad
 scvelo_$(1) = 					$(rna)/$(1)/trajectories/scvelo/scvelo.h5ad
-stream_$(1) =			 		$(rna)/$(1)/macrostates/stream/macrostates.h5ad $(rna)/$(1)/macrostates/stream/macrostates.csv
 cotan_$(1) = 					$(rna)/$(1)/macrostates/cotan/macrostates.h5ad $(rna)/$(1)/macrostates/cotan/macrostates.csv
-cellrank_$(1) = 				$(rna)/$(1)/macrostates/cellrank/macrostates.h5ad
-knnbs_$(1) =			 		$(rna)/$(1)/macrostates/knnbs/macrostates.h5ad
-trajectories_macrostates_$(1) =	$(rna)/$(1)/trajectories/macrostates/trajectories.txt
+cellrank_$(1) = 				$(rna)/$(1)/macrostates/cellrank/macrostates.h5ad $(rna)/$(1)/macrostates/cellrank/macrostates.csv
+stream_$(1) =			 		$(rna)/$(1)/macrostates/stream/macrostates.h5ad $(rna)/$(1)/macrostates/stream/macrostates.csv
+knnbs_$(1) =			 		$(rna)/$(1)/macrostates/knnbs/macrostates.h5ad $(rna)/$(1)/macrostates/knnbs/macrostates.csv
 bdc_$(1) = 						$(rna)/$(1)/binarization/pairwise_predecessor_scores.csv
 
-ifeq ($(MACROSTATES_METHOD),stream)
-macrostates_$(1) = 				$$(stream_$(1))
+ifeq ($(MACROSTATES_METHOD),cotan)
+macrostates_$(1) = 				$$(cotan_$(1))
 else ifeq ($(MACROSTATES_METHOD),cellrank)
 macrostates_$(1) = 				$$(cellrank_$(1))
+else ifeq ($(MACROSTATES_METHOD),stream)
+macrostates_$(1) = 				$$(stream_$(1))
 else ifeq ($(MACROSTATES_METHOD),knnbs)
 macrostates_$(1) = 				$$(knnbs_$(1))
-else ifeq ($(MACROSTATES_METHOD),cotan)
-macrostates_$(1) = 				$$(cotan_$(1))
 else
-$$(error unsupported value for `MACROSTATES_METHOD` (supported values: cellrank, knnbs or cotan))
+$$(error unsupported value for parameter MACROSTATES_METHOD (supported values: cotan, cellrank, stream or knnbs))
 endif
 
 endef
@@ -166,16 +165,16 @@ goea_mouse_$(1) = 				$(rna)/$(1)/clustering/goea/goea_mouse.xlsx
 annotation_$(1) = 				$(rna)/$(1)/clustering/clusters/annotation.h5ad
 bin_cells_$(1) = 				$(rna)/$(1)/binarization/cells/bin.h5ad
 
-ifeq ($(MACROSTATES_METHOD),stream)
-bin_macrostates_$(1) =		 	$(rna)/$(1)/binarization/stream/bin_macrostates.csv
+ifeq ($(MACROSTATES_METHOD),cotan)
+bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/cotan/bin_macrostates.csv
 else ifeq ($(MACROSTATES_METHOD),cellrank)
 bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/cellrank/bin_macrostates.csv
+else ifeq ($(MACROSTATES_METHOD),stream)
+bin_macrostates_$(1) =		 	$(rna)/$(1)/binarization/stream/bin_macrostates.csv
 else ifeq ($(MACROSTATES_METHOD),knnbs)
 bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/knnbs/bin_macrostates.csv
-else ifeq ($(MACROSTATES_METHOD),cotan)
-bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/cotan/bin_macrostates.csv
 else
-$$(error unsupported value for `MACROSTATES_METHOD` (supported values: cellrank, knnbs or cotan))
+$$(error unsupported value for parameter MACROSTATES_METHOD (supported values: cotan, cellrank, stream or knnbs))
 endif
 
 endef
@@ -222,9 +221,9 @@ $(eval velocyto_target := $(velocyto_target) $(velocyto_$(1)))
 $(eval filtering_target := $(filtering_target) $(filtering_$(1)))
 $(eval normalization_target := $(normalization_target) $(normalization_$(1)))
 $(eval scvelo_velocity_target := $(scvelo_velocity_target) $(scvelo_$(1)))
-$(eval stream_target := $(stream_target) $(stream_$(1)))
 $(eval cotan_target := $(cotan_target) $(cotan_$(1)))
 $(eval cellrank_target := $(cellrank_target) $(cellrank_$(1)))
+$(eval stream_target := $(stream_target) $(stream_$(1)))
 $(eval knnbs_target := $(knnbs_target) $(knnbs_$(1)))
 $(eval macrostates_target := $(macrostates_target) $(macrostates_$(1)))
 $(eval bdc_target := $(bdc_target) $(bdc_$(1)))
@@ -328,6 +327,12 @@ else ifeq ($(PRUNE_EPG),false)
 prune_epg:=
 else
 $(error Unsupported value for parameter PRUNE_EPG (supported values: true, false))
+endif
+
+ifeq ($(KNNBS_DIMENSION),)
+knnbs_dimension=
+else
+knnbs_dimension=--dimension $(KNNBS_DIMENSION)
 endif
 
 ifndef BIN_ONLY_HVG
@@ -449,14 +454,14 @@ scvelo: $(scvelo_velocity_target) ## estimate rna velocity with scvelo
 
 ##@ Macrostate characterization
 
+.PHONY: cotan
+cotan: $(cotan_target) ## estimate macrostates using zero counts co-expression
+.PHONY: cellrank
+cellrank: $(cellrank_target) ## estimate macrostates using rna velocities
 .PHONY: stream
 stream: $(stream_target) ## estimate macrostates using elastic principal graph
-.PHONY: cellrank
-cellrank: $(cellrank_target) ## estimate macrostates with cellrank
 .PHONY: knnbs
 knnbs: $(knnbs_target) ## estimate macrostates using k-nearest neighbors-based subclusters algorithm
-.PHONY: cotan
-cotan: $(cotan_target) ## estimate macrostates with cotan
 .PHONY: macrostates
 macrostates: $(macrostates_target) ## estimate macrostates depending on MACROSTATES_METHOD parameter
 
@@ -683,34 +688,6 @@ $(cellrank_$(1)): $(scvelo_$(1))
 	$$(conda_deactivate)
 endif
 
-ifeq ($(or $(CENTER_$(call toupper,$(1))),$(EXTREMITY_$(call toupper,$(1)))),)
-$(knnbs_$(1)): $(scvelo_$(1))
-	$(call print_error,CENTER_$(call toupper,$(1)) and EXTREMITY_$(call toupper,$(1)) not defined \(at least one must be defined\))
-else
-$(knnbs_$(1)): $(scvelo_$(1))
-	$(call print_rule,knnbs,$(1))
-	mkdir -p $$(@D)
-	$$(conda_activate) preprocess
-	python scripts/macrostates/knnbs.py $$< $$@ \
-		--obs leiden --obsm X_umap --dimension $(DIM_UMAP) --macrostate-size $(MACROSTATE_SIZE) \
-		--center $(CENTER_$(call toupper,$(1))) --extremity $(EXTREMITY_$(call toupper,$(1))) $(EXCLUDE) \
-		--plot-3d
-	$$(conda_deactivate)
-endif
-
-$(stream_$(1))&: $(annotation_$(1))
-	$(call print_rule,stream,$(1))
-	mkdir -p $$(@D)
-	$$(conda_activate) stream
-	python scripts/macrostates/stream.py $$< $$(firstword $$(stream_$(1))) \
-		--pkl $$(firstword $$(stream_$(1))).pkl --csv $$(word 2,$$(stream_$(1))) \
-		--embedding umap --obs leiden --cluster-number $(CLUSTER_NUMBER) \
-		--lambda $(LAMBDA_EPG) --mu $(MU_EPG) --alpha $(ALPHA_EPG) \
-		$(extend_epg) $(if $(filter $(EXTEND_EPG),true),--extend-parameter $(EXTEND_PARAMETER),) \
-		$(prune_epg) $(if $(filter $(PRUNE_EPG),true),--collapse-parameter $(COLLAPSE_PARAMETER),) \
-		--jobs $(JOBS)
-	$$(conda_deactivate)
-
 $(cotan_$(1))&: $(annotation_$(1))
 	$(call print_rule,cotan,$(1))
 	mkdir -p $$(@D) $(tmpdir)/$(1)/cotan
@@ -731,6 +708,37 @@ $(cotan_$(1))&: $(annotation_$(1))
 	$(call print_task,plotting umap with respect to cotan clusters)
 	python fig/plot_embedding.py fig/macrostates_umap.json --infile $$(firstword $$(cotan_$(1))) --outfile $$(@D)/umap_cotan.pdf
 	$$(conda_deactivate)
+
+$(stream_$(1))&: $(annotation_$(1))
+	$(call print_rule,stream,$(1))
+	mkdir -p $$(@D)
+	$$(conda_activate) stream
+	python scripts/macrostates/stream.py $$< $$(firstword $$(stream_$(1))) \
+		--pkl $$(firstword $$(stream_$(1))).pkl --csv $$(lastword $$(stream_$(1))) \
+		--embedding umap --obs leiden --cluster-number $(CLUSTER_NUMBER) \
+		--lambda $(LAMBDA_EPG) --mu $(MU_EPG) --alpha $(ALPHA_EPG) \
+		$(extend_epg) $(if $(filter $(EXTEND_EPG),true),--extend-parameter $(EXTEND_PARAMETER),) \
+		$(prune_epg) $(if $(filter $(PRUNE_EPG),true),--collapse-parameter $(COLLAPSE_PARAMETER),) \
+		--jobs $(JOBS)
+	$$(conda_deactivate)
+
+ifeq ($(or $(MIN_DIST_$(call toupper,$(1))),$(MAX_DIST_$(call toupper,$(1)))),)
+$(knnbs_$(1))&: $(annotation_$(1))
+	$(call print_error,parameters MIN_DIST_$(call toupper,$(1)) and MAX_DIST_$(call toupper,$(1)) not defined \(at least one must be defined\))
+else
+$(knnbs_$(1))&: $(annotation_$(1))
+	$(call print_rule,knnbs,$(1))
+	mkdir -p $$(@D)
+	$$(conda_activate) preprocess
+	python scripts/macrostates/knnbs.py $$< $$(firstword $$(knnbs_$(1))) --csv $$(lastword $$(knnbs_$(1))) \
+		--obs leiden --obsm $(KNNBS_EMBEDDING) --neighbors $(KNNBS_NEIGHBORS) \
+		$(knnbs_dimension) --metric $(METRIC) --size $(MACROSTATE_SIZE) \
+		--max-distances $(MAX_DIST_$(call toupper,$(1))) --min-distances $(MIN_DIST_$(call toupper,$(1))) \
+		--jobs $(JOBS)
+	$(call print_task,plotting umap with respect to knnbs clusters)
+	python fig/plot_embedding.py fig/macrostates_umap.json --infile $$(firstword $$(knnbs_$(1))) --outfile $$(@D)/umap_cotan.pdf
+	$$(conda_deactivate)
+endif
 
 $(bin_macrostates_$(1)): $(bin_cells_$(1)) $(lastword $(macrostates_$(1)))
 	$(call print_rule,bin-macrostates,$(1))

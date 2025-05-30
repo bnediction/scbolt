@@ -440,3 +440,57 @@ class Store_type(argparse.Action):
             raise argparse.ArgumentError(self, f"invalid value: '{value}'")
 
         setattr(namespace, self.dest, value)
+
+class Store_metric(argparse.Action):
+
+    def __init__(
+        self,
+        *args,
+        **kwargs
+    ):
+
+        if "choices" in kwargs:
+            choices = kwargs["choices"]
+        else:
+            choices=[
+                "cityblock",
+                "cosine",
+                "euclidean",
+                "l1",
+                "l2",
+                "manhattan",
+                "braycurtis",
+                "canberra",
+                "chebyshev",
+                "correlation",
+                "dice",
+                "hamming",
+                "jaccard",
+                "kulsinski",
+                "mahalanobis",
+                "minkowski",
+                "rogerstanimoto",
+                "russellrao",
+                "seuclidean",
+                "sokalmichener",
+                "sokalsneath",
+                "sqeuclidean",
+                "yule"
+            ]
+        kwargs.update({
+            "type": str,
+            "metavar": "METRIC",
+            "choices": choices,
+            "default": kwargs["default"] if "default" in kwargs else "euclidean",
+            "help": kwargs["help"] if "help" in kwargs else "distance metric"
+        })
+        super(Store_metric, self).__init__(*args, **kwargs)
+
+    def __call__(
+        self,
+        parser,
+        namespace,
+        value,
+        option_string=None
+    ):
+        setattr(namespace, self.dest, value)

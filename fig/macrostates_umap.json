@@ -25,7 +25,7 @@
         "add_labels": true,
         "add_legend": true,
         "lgd_params": {
-            "title": "cotan clusters",
+            "title": "macrostates",
             "ncol": "math.ceil(len(adata.obs['macrostates'].astype('category').cat.categories) / 16)",
             "markerscale": 8,
             "frameon": true,

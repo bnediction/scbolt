@@ -10,5 +10,6 @@ from ._argtype import (
     Store_organism,
     Required_length,
     Store_axis,
-    Store_type
+    Store_type,
+    Store_metric
 )
