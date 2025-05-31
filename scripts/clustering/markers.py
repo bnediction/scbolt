@@ -133,11 +133,13 @@ sc.tl.rank_genes_groups(
     tie_correct=True,
     corr_method=args.correction
 )
-markers = bt.sct.tl.extract_rank_genes_groups(
+
+markers = sc.get.rank_genes_groups_df(
     adata,
-    logfc_keeping=False
+    group=None,
+    pval_cutoff=args.alpha
 )
-markers = markers.loc[markers["adj_pvals"] < args.alpha]
+
 std.print_warning("found inconsistencies between log2 fold-changes derived from seurat::FindAllMarkers and scanpy.rank_gene_groups (see <https://www.biostars.org/p/453129/>)")
 std.print_debug("updating log2 fold-changes")
 markers = bt.sct.tl.update_logfoldchanges(
@@ -166,8 +168,8 @@ if args.xlsx:
             header=False,
             index=False
         )
-        for cluster in markers["clusters"].unique():
-            markers[markers["clusters"] == cluster]["genes"].to_excel(
+        for cluster in markers["group"].unique():
+            markers[markers["group"] == cluster]["names"].to_excel(
                 xlsx_writer,
                 sheet_name=cluster,
                 header=False,

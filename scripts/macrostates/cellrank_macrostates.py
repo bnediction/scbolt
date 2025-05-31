@@ -9,6 +9,7 @@ from pathlib import Path
 
 import math
 import random
+import numpy as np
 
 import anndata as ad
 import cellrank as cr
@@ -173,23 +174,52 @@ with std.disable_print():
         n_cells=args.size
     )
 
-gpcca.predict_initial_states(
-    n_states=args.initial_states,
-    n_cells=args.size
-)
+try:
+    gpcca.predict_initial_states(
+        n_states=args.initial_states,
+        n_cells=args.size
+    )
+    found_initial_states = True
+except ValueError as e:
+    if str(e) == "No macrostates have been selected.":
+        found_initial_states = False
+        std.print_warning("no initial states have been predicted")
+    else:
+        raise
 
-gpcca.predict_terminal_states(
-    method=args.method,
-    n_states=args.terminal_states,
-    stability_threshold=args.stability,
-    alpha=args.alpha,
-    n_cells=args.size,
-    allow_overlap=True
-)
+try:
+    gpcca.predict_terminal_states(
+        method=args.method,
+        n_states=args.terminal_states,
+        stability_threshold=args.stability,
+        alpha=args.alpha,
+        n_cells=args.size,
+        allow_overlap=True
+    )
+    found_terminal = True
+except ValueError as e:
+    if str(e) == "No macrostates have been selected.":
+        found_final_states = False
+        std.print_warning("no final states have been predicted")
+    else:
+        raise
 
-adata.obs["macrostates"] = adata.obs["macrostates_fwd"]; del adata.obs["macrostates_fwd"]
-adata.obs["init_states"] = adata.obs["init_states_fwd"]; del adata.obs["init_states_fwd"]
-adata.obs["final_states"] = adata.obs["term_states_fwd"]; del adata.obs["term_states_fwd"]
+adata.obs["macrostates"] = adata.obs["macrostates_fwd"]
+del adata.obs["macrostates_fwd"]
+
+if found_initial_states is True:
+    adata.obs["init_states"] = adata.obs["init_states_fwd"]
+    del adata.obs["init_states_fwd"]
+else:
+    adata.obs["initial_states"] = np.nan
+    adata.obs["initial_states"] = adata.obs["initial_states"].astype("category")
+
+if found_final_states is True:
+    adata.obs["final_states"] = adata.obs["term_states_fwd"]
+    del adata.obs["term_states_fwd"]
+else:
+    adata.obs["final_states"] = np.nan
+    adata.obs["final_states"] = adata.obs["final_states"].astype("category")
 
 std.print_task("plotting umap with respect to cellrank clusters")
 macrostate_files = {
@@ -199,35 +229,38 @@ macrostate_files = {
 }
 
 for obs, file in macrostate_files.items():
-    bt.sct.pl.embedding_plot(
-        adata,
-        obs=obs,
-        use_rep="X_umap",
-        figheight=6,
-        figwidth=8,
-        xlabel=r"$\mathrm{UMAP_{1}}$",
-        ylabel=r"$\mathrm{UMAP_{2}}$",
-        zlabel=r"$\mathrm{UMAP_{3}}$",
-        s=4,
-        alpha=1,
-        add_labels=True,
-        add_legend=True,
-        lgd_params={
-            "title":obs,
-            "ncol":math.ceil(len(adata.obs[obs].astype("category").cat.categories) / 16),
-            "markerscale":5,
-            "frameon":True,
-            "edgecolor":bt.sct.pl.get_color("black"),
-            "shadow":False
-        },
-        text={
-            "fontsize": 15,
-            "fontweight": "extra bold"
-        },
-        n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 else 2,
-        background_visible=False,
-        outfile=file
-    )
+    if len(adata.obs[obs].cat.categories) > 0:
+        bt.sct.pl.embedding_plot(
+            adata,
+            obs=obs,
+            use_rep="X_umap",
+            figheight=6,
+            figwidth=8,
+            xlabel=r"$\mathrm{UMAP_{1}}$",
+            ylabel=r"$\mathrm{UMAP_{2}}$",
+            zlabel=r"$\mathrm{UMAP_{3}}$",
+            s=4,
+            alpha=1,
+            add_labels=True,
+            add_legend=True,
+            lgd_params={
+                "title":obs,
+                "ncol":math.ceil(len(adata.obs[obs].astype("category").cat.categories) / 16),
+                "markerscale":5,
+                "frameon":True,
+                "edgecolor":bt.sct.pl.get_color("black"),
+                "shadow":False
+            },
+            text={
+                "fontsize": 15,
+                "fontweight": "extra bold"
+            },
+            n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 else 2,
+            background_visible=False,
+            outfile=file
+        )
+    else:
+        std.print_warning(f"no plotting for '{obs}': no state found")
 
 std.print_task(f"saving h5ad-formatted data in {str(args.outfile)}")
 adata.write_h5ad(

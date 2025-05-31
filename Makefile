@@ -167,12 +167,16 @@ bin_cells_$(1) = 				$(rna)/$(1)/binarization/cells/bin.h5ad
 
 ifeq ($(MACROSTATES_METHOD),cotan)
 bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/cotan/bin_macrostates.csv
+dea_binarization_$(1) =			$(rna)/$(1)/binarization/dea/cotan/bin_macrostates.csv
 else ifeq ($(MACROSTATES_METHOD),cellrank)
 bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/cellrank/bin_macrostates.csv
+dea_binarization_$(1) =			$(rna)/$(1)/binarization/dea/cellrank/bin_macrostates.csv
 else ifeq ($(MACROSTATES_METHOD),stream)
 bin_macrostates_$(1) =		 	$(rna)/$(1)/binarization/stream/bin_macrostates.csv
+dea_binarization_$(1) =			$(rna)/$(1)/binarization/dea/stream/bin_macrostates.csv
 else ifeq ($(MACROSTATES_METHOD),knnbs)
 bin_macrostates_$(1) = 			$(rna)/$(1)/binarization/knnbs/bin_macrostates.csv
+dea_binarization_$(1) =			$(rna)/$(1)/binarization/dea/knnbs/bin_macrostates.csv
 else
 $$(error unsupported value for parameter MACROSTATES_METHOD (supported values: cotan, cellrank, stream or knnbs))
 endif
@@ -211,6 +215,7 @@ knnbs_target :=
 cotan_target :=
 bin_cells_target :=
 bin_macrostates_target :=
+dea_binarization_target :=
 bdc_target :=
 
 define find_targets_for_conditions
@@ -239,6 +244,7 @@ $(eval goea_target := $(goea_target) $(goea_basic_$(1)) $(goea_mouse_$(1)))
 $(eval annotation_target := $(annotation_target) $(annotation_$(1)))
 $(eval bin_cells_target := $(bin_cells_target) $(bin_cells_$(1)))
 $(eval bin_macrostates_target := $(bin_macrostates_target) $(bin_macrostates_$(1)))
+$(eval dea_binarization_target := $(dea_binarization_target) $(dea_binarization_$(1)))
 
 endef
 
@@ -327,6 +333,10 @@ else ifeq ($(PRUNE_EPG),false)
 prune_epg:=
 else
 $(error Unsupported value for parameter PRUNE_EPG (supported values: true, false))
+endif
+
+ifneq ($(filter-out pca umap,$(KNNBS_EMBEDDING)),)
+$(error Unsupported value for parameter KNNBS_EMBEDDING (supported values: pca, umap))
 endif
 
 ifeq ($(KNNBS_DIMENSION),)
@@ -459,18 +469,20 @@ cotan: $(cotan_target) ## estimate macrostates using zero counts co-expression
 .PHONY: cellrank
 cellrank: $(cellrank_target) ## estimate macrostates using rna velocities
 .PHONY: stream
-stream: $(stream_target) ## estimate macrostates using elastic principal graph
+stream: $(stream_target) ## compute macrostates using elastic principal graph
 .PHONY: knnbs
-knnbs: $(knnbs_target) ## estimate macrostates using k-nearest neighbors-based subclusters algorithm
+knnbs: $(knnbs_target) ## compute macrostates using k-nearest neighbors-based subclusters algorithm
 .PHONY: macrostates
-macrostates: $(macrostates_target) ## estimate macrostates depending on MACROSTATES_METHOD parameter
+macrostates: $(macrostates_target) ## define macrostates depending on MACROSTATES_METHOD parameter
 
 ##@ Binarization
 
 .PHONY: bin-cells
-bin-cells: $(bin_cells_target) ## binarize cells with scBoolSeq
+bin-cells: $(bin_cells_target) ## binarize cells using scBoolSeq framework
 .PHONY: bin-macrostates
 bin-macrostates: $(bin_macrostates_target) ## binarize macrostates w.r.t. voting rule
+.PHONY: dea-binarization
+dea-binarization: $(dea_binarization_target) ## binarize macrostates using differential expression analysis
 .PHONY: bdc
 bdc: $(bdc_target) ## perform boolean differential calculus analysis
 
@@ -721,12 +733,12 @@ $(knnbs_$(1))&: $(annotation_$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) preprocess
 	python scripts/macrostates/knnbs_macrostates.py $$< $$(firstword $$(knnbs_$(1))) --csv $$(lastword $$(knnbs_$(1))) \
-		--obs leiden --obsm $(KNNBS_EMBEDDING) --neighbors $(KNNBS_NEIGHBORS) \
+		--obs leiden --embedding $(KNNBS_EMBEDDING) --neighbors $(KNNBS_NEIGHBORS) \
 		$(knnbs_dimension) --metric $(METRIC) --size $(MACROSTATE_SIZE) \
 		--max-distances $(MAX_DIST_$(call toupper,$(1))) --min-distances $(MIN_DIST_$(call toupper,$(1))) \
 		--jobs $(JOBS)
 	$(call print_task,plotting umap with respect to knnbs clusters)
-	python fig/plot_embedding.py fig/macrostates_umap.json --infile $$(firstword $$(knnbs_$(1))) --outfile $$(@D)/umap_cotan.pdf
+	python fig/plot_embedding.py fig/macrostates_umap.json --infile $$(firstword $$(knnbs_$(1))) --outfile $$(@D)/umap_knnbs.pdf
 	$$(conda_deactivate)
 endif
 
@@ -740,6 +752,14 @@ $(bin_macrostates_$(1)): $(bin_cells_$(1)) $(lastword $(macrostates_$(1)))
 		--layer bin --distribution distribution --cluster macrostates --embedding umap \
 		--nans-threshold $(NANS_THRESHOLD) --bimodal-threshold $(BIMODAL_THRESHOLD) \
 		--zeroinf-threshold $(ZEROINF_THRESHOLD) --unimodal-threshold $(UNIMODAL_THRESHOLD)
+	$$(conda_deactivate)
+
+$(dea_binarization_$(1)): $(firstword $(macrostates_$(1)))
+	$(call print_rule,bin-macrostates,$(1))
+	$$(conda_activate) preprocess
+	python scripts/binarization/dea_binarization.py $$^ $$@ \
+		--cluster macrostates --layer log-norm --are-log \
+		--logfc $(LOGFC) --alpha $(ALPHA) --correction $(CORRECTION)
 	$$(conda_deactivate)
 
 endef

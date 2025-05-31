@@ -60,23 +60,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--obsm",
-    dest="obsm",
+    "--embedding",
+    dest="embedding",
     type=str,
     required=False,
-    default="X_umap",
-    metavar="LITERAL",
-    help="embedding space used in adata.obsm when calculating pairwise distances (default: X_umap)"
-)
-
-parser.add_argument(
-    "--neighbors",
-    dest="neighbors",
-    type=int,
-    required=False,
-    default=20,
-    metavar="INT",
-    help="number of closest neighbors (default: 20)"
+    default="umap",
+    choices=["pca","umap","tsne"],
+    metavar="[pca|umap|tsne]",
+    help="embedding projection used when calculating pairwise distances (default: umap)"
 )
 
 parser.add_argument(
@@ -96,6 +87,16 @@ parser.add_argument(
     required=False,
     default="euclidean",
     help="metric used when calculating pairwise distances (default: euclidean)"
+)
+
+parser.add_argument(
+    "--neighbors",
+    dest="neighbors",
+    type=int,
+    required=False,
+    default=20,
+    metavar="INT",
+    help="number of closest neighbors for computing k-nearest neighbors graph (default: 20)"
 )
 
 parser.add_argument(
@@ -153,6 +154,13 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+if args.embedding == "pca":
+    embedding = "X_pca"
+elif args.embedding == "umap":
+    embedding = "X_umap"
+elif args.embedding == "tsne":
+    embedding = "X_tsne"
+
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
@@ -163,7 +171,7 @@ if adata.obs[args.obs].dtype.name != "category":
     adata.obs[args.obs] = adata.obs[args.obs].astype("category")
 
 if args.dimension is None:
-    args.dimension = adata.obsm[args.obsm].shape[1]
+    args.dimension = adata.obsm[embedding].shape[1]
 
 if args.max_distances:
     for cluster in args.max_distances:
@@ -177,7 +185,7 @@ if args.min_distances:
 std.print_task("estimating k-nearest neighbors-based subclusters (knnbs)")
 knnbs = bt.sct.tl.Knnbs(
     n_neighbors=args.neighbors,
-    use_rep=args.obsm,
+    use_rep=embedding,
     n_components=args.dimension,
     metric=args.metric
 )

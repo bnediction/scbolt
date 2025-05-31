@@ -75,6 +75,13 @@ $(eval SMM_MODE := dynamical)				# mode used for estimating the steady-state mod
 
 ## END SCVELO ##
 
+## BEGIN MACROSTATES ##
+
+$(eval MACROSTATE_SIZE := 100)				# macrostate size (for cellrank and knnbs)
+$(eval MACROSTATES_METHOD := cotan)			# macrostate method used (knnbs, stream, cotan or cellrank)
+
+## END MACROSTATES ##
+
 ## BEGIN COTAN ##
 
 $(eval COTAN_METHOD := strong-merging)		# method for computing cotan clusters (classic, soft-merging or strong-merging)
@@ -87,8 +94,8 @@ $(eval MAX_ITER := 25)						# maximum iteration number for merging clustering: s
 
 $(eval CELLRANK_METHOD := stability)		# method used to select terminal states (stability, top_n, eigengap or eigengap_coarse)
 $(eval STATES := 10)						# number of cellrank macrostates
-$(eval INITIAL_STATES := 1)					# number of initial macrostates
-$(eval TERMINAL_STATES := 4)				# number of terminal macrostates (used only if CELLRANK_METHOD = top_n)
+$(eval INITIAL_STATES := 5)					# number of initial macrostates
+$(eval TERMINAL_STATES := 5)				# number of terminal macrostates (used only if CELLRANK_METHOD = top_n)
 $(eval CELLRANK_STABILITY := 0.96)			# minimum stability for a state to be selected as a final macrostate
 $(eval CELLRANK_ALPHA := 1.0)				# weight given to the deviation of an eigenvalue from one (used only if CELLRANK_METHOD = eigengap or eigengap_coarse)
 
@@ -109,18 +116,11 @@ $(eval COLLAPSE_PARAMETER := false)			# stream parameter used for prunning the g
 
 ## BEGIN KNNBS ##
 
-$(eval KNNBS_EMBEDDING := X_umap)			# embedding space used when calculating pairwise distances
-$(eval KNNBS_NEIGHBORS := 20)				# number of closest neighbors
+$(eval KNNBS_EMBEDDING := pca)				# embedding space used when calculating pairwise distances (pca or umap)
 $(eval KNNBS_DIMENSION := )					# number of embedding dimensions used when calculating pairwise distances
+$(eval KNNBS_NEIGHBORS := 20)				# number of closest neighbors for k-nearest neighbors graph
 
 ## END KNNBS ##
-
-## BEGIN MACROSTATES ##
-
-$(eval MACROSTATE_SIZE := 100)				# macrostate size (for cellrank and knnbs)
-$(eval MACROSTATES_METHOD := cotan)			# macrostate method used (knnbs, stream, cotan or cellrank)
-
-## END MACROSTATES ##
 
 ## BEGIN BIN-CELLS ##
 
