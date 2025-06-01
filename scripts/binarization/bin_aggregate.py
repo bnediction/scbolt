@@ -20,8 +20,6 @@ import bonesistools as bt
 
 import numpy as np
 
-import matplotlib.pyplot as plt
-
 bt.sct.pl.set_default_params()
 
 class Predict(object):
@@ -205,12 +203,12 @@ def count_binarized_values(
     return group_df.fillna(0).astype(int)
 
 parser = argparse.ArgumentParser(
-    prog="bin_clusters",
+    prog="bin_aggregate",
     description=
     """
     count binarized values for each cluster and binarize clusters from binarized single cell data using voting rule.
     """,
-    usage=""""python bin_clusters.py <FILE...> <FILE> [--counts <FILE>] --cluster <LITERAL> [<args>]"""
+    usage=""""python bin_aggregate.py <FILE...> <FILE> [--counts <FILE>] --cluster <LITERAL> [<args>]"""
 )
 
 parser.add_argument(
@@ -448,7 +446,7 @@ if args.embedding:
             )
 
 std.print_task(f"saving predicted binarized values in {str(args.outfile)}")
-cluster_bin.transpose().to_csv(
+cluster_bin.to_csv(
     args.outfile,
     sep=",",
     index=True

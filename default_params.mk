@@ -139,6 +139,14 @@ $(eval UNIMODAL_THRESHOLD := 0.67)			# minimum proportion of zero- or one-values
 
 ## END BIN-MACROSTATES ##
 
+## BEGIN DEA-BINARIZATION ##
+
+$(eval BIN_LOGFC := 0.5)					# minimum log2 fold-change for a gene to be considered as differentially expressed
+$(eval BIN_ALPHA := 0.05)					# significance level of rejecting null hypothesis that gene is not differentially expressed
+$(eval BIN_CORRECTION := bonferroni)		# method used for correcting the significance level (benjamini-hochberg ou bonferroni)
+
+## END DEA-BINARIZATION ##
+
 ## BEGIN MODELING ##
 
 $(eval MODEL_SPECIFICATION := spec/spec.yml)	# file storing model specifications for bonesis

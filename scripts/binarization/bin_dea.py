@@ -8,20 +8,20 @@ import argparse, cli
 from pathlib import Path
 
 import math
+import numpy as np
 
 import pandas as pd
 import anndata as ad
 import scanpy as sc
 import bonesistools as bt
-from pandas import ExcelWriter
 
 parser = argparse.ArgumentParser(
-    prog="markers",
+    prog="bin_dea",
     description=
     """
-    Search for differentially expressed genes (markers) between clusters.
+    Binarize clusters using differential expression analysis.
     """,
-    usage="python markers.py [-h] <FILE> <FILE> [--xlsx <FILE>] --cluster <LITERAL> [<args>]"
+    usage="python bin_dea.py [-h] <FILE> <FILE> --cluster <LITERAL> [<args>]"
 )
 
 parser.add_argument(
@@ -36,15 +36,6 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
     help="output file storing marker-metric associations (format: csv)"
-)
-
-parser.add_argument(
-    "--xlsx",
-    dest="xlsx",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    metavar="FILE",
-    help="output file storing differentially expressed genes, each spreadsheet being related to a cluster (format: xlsx)"
 )
 
 parser.add_argument(
@@ -109,6 +100,17 @@ parser.add_argument(
     help="method used for correcting the significance level (default: benjamini-hochberg)"
 )
 
+parser.add_argument(
+    "--embedding",
+    dest="embedding",
+    type=str,
+    required=False,
+    default=None,
+    choices=["umap","tsne"],
+    metavar="[umap|tsne]",
+    help="embedding projection used for plotting percentage of cluster-related binarization (default: None)"
+)
+
 args = parser.parse_args()
 
 if not Path(os.path.dirname(args.outfile)).exists():
@@ -123,6 +125,8 @@ if args.layer:
 
 std.print_task("ranking genes for characterizing groups")
 
+adata.obs[args.cluster] = adata.obs[args.cluster].cat.remove_unused_categories()
+
 sc.tl.rank_genes_groups(
     adata=adata,
     groupby=args.cluster,
@@ -134,16 +138,15 @@ sc.tl.rank_genes_groups(
     corr_method=args.correction
 )
 
-markers = sc.get.rank_genes_groups_df(
+dea = sc.get.rank_genes_groups_df(
     adata,
     group=None,
     pval_cutoff=args.alpha
 )
-
 std.print_warning("found inconsistencies between log2 fold-changes derived from seurat::FindAllMarkers and scanpy.rank_gene_groups (see <https://www.biostars.org/p/453129/>)")
 std.print_debug("updating log2 fold-changes")
-markers = bt.sct.tl.update_logfoldchanges(
-    df=markers,
+dea = bt.sct.tl.update_logfoldchanges(
+    df=dea,
     adata=adata,
     layer=args.layer,
     groupby=args.cluster,
@@ -152,26 +155,48 @@ markers = bt.sct.tl.update_logfoldchanges(
     filter_logfoldchanges=lambda x: abs(x) > args.logfc
 )
 
-std.print_task(f"saving data in {str(args.outfile)}")
-markers.to_csv(
-    args.outfile,
-    sep=",",
-    index=False
+cluster_bin = pd.DataFrame(
+    data=np.nan,
+    index=adata.obs[args.cluster].cat.categories,
+    columns=adata.var.index
 )
 
-if args.xlsx:
-    std.print_task(f"saving differentially expressed genes in {str(args.xlsx)}")
-    with ExcelWriter(args.xlsx) as xlsx_writer:
-        pd.DataFrame(adata.var_names).to_excel(
-            xlsx_writer,
-            sheet_name="background",
-            header=False,
-            index=False
-        )
-        for cluster in markers["group"].unique():
-            markers[markers["group"] == cluster]["names"].to_excel(
-                xlsx_writer,
-                sheet_name=cluster,
-                header=False,
-                index=False
-            )
+for row in dea.itertuples():
+    cluster_bin.at[row.group, row.names] = 1 if row.logfoldchanges>0 else 0
+
+if args.embedding:
+    embedding_label = "UMAP" if args.embedding == "umap" else "t-SNE"
+    use_rep="X_umap" if args.embedding == "umap" else "X_tsne"
+    std.print_task(f"plotting {embedding_label.lower()} with respect to cluster-related binarization percentage")
+    pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
+    adata.obs[f"pct_bin_{args.cluster}"] = adata.obs[args.cluster].map(pct_bin)
+    bt.sct.pl.embedding_plot(
+        adata,
+        obs=f"pct_bin_{args.cluster}",
+        use_rep=use_rep,
+        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
+        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
+        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
+        figwidth=6,
+        s=4,
+        alpha=1,
+        add_legend=True,
+        lgd_params={
+            "title":"pct bin",
+            "ncol":1,
+            "markerscale":5,
+            "frameon":True,
+            "edgecolor":bt.sct.pl.get_color("black"),
+            "shadow":False
+        },
+        n_components = 3 if adata.obsm[use_rep].shape[1] > 2 else 2,
+        background_visible=False,
+        outfile=Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf")
+    )
+
+std.print_task(f"saving predicted binarized values in {str(args.outfile)}")
+cluster_bin.to_csv(
+    args.outfile,
+    sep=",",
+    index=True
+)
