@@ -163,9 +163,10 @@ scoring_$(1) = 					$(rna)/$(1)/clustering/scoring/phenotypes.csv
 goea_basic_$(1) = 				$(rna)/$(1)/clustering/goea/goea_basic.xlsx
 goea_mouse_$(1) = 				$(rna)/$(1)/clustering/goea/goea_mouse.xlsx
 annotation_$(1) = 				$(rna)/$(1)/clustering/clusters/annotation.h5ad
-bin_scboolseq_$(1) = 			$(rna)/$(1)/binarization/scboolseq/bin.h5ad
+bin_scboolseq_$(1) = 			$(rna)/$(1)/binarization/scboolseq/bin.h5ad $(rna)/$(1)/binarization/scboolseq/statistics.csv
 bin_aggregate_$(1) = 			$(rna)/$(1)/binarization/aggregate/$(MACROSTATES_METHOD)/bin_macrostates.csv
 bin_dea_$(1) =					$(rna)/$(1)/binarization/dea/$(MACROSTATES_METHOD)/bin_macrostates.csv
+bin_merge_$(1) =				$(rna)/$(1)/binarization/merge/$(MACROSTATES_METHOD)/bin_macrostates.csv
 
 endef
 
@@ -202,6 +203,7 @@ cotan_target :=
 bin_scboolseq_target :=
 bin_aggregate_target :=
 bin_dea_target :=
+bin_merge_target :=
 bdc_target :=
 
 define find_targets_for_conditions
@@ -231,6 +233,7 @@ $(eval annotation_target := $(annotation_target) $(annotation_$(1)))
 $(eval bin_scboolseq_target := $(bin_scboolseq_target) $(bin_scboolseq_$(1)))
 $(eval bin_aggregate_target := $(bin_aggregate_target) $(bin_aggregate_$(1)))
 $(eval bin_dea_target := $(bin_dea_target) $(bin_dea_$(1)))
+$(eval bin_merge_target := $(bin_merge_target) $(bin_merge_$(1)))
 
 endef
 
@@ -463,12 +466,14 @@ macrostates: $(macrostates_target) ## define macrostates depending on MACROSTATE
 
 ##@ Binarization
 
-.PHONY: scboolseq
+.PHONY: bin-scboolseq
 bin-scboolseq: $(bin_scboolseq_target) ## binarize cells using gene specific-distributions
-.PHONY: aggregate
+.PHONY: bin-aggregate
 bin-aggregate: $(bin_aggregate_target) ## binarize macrostates by aggregating binarized cells w.r.t. voting rules
-.PHONY: bindea
+.PHONY: bin-dea
 bin-dea: $(bin_dea_target) ## binarize macrostates using differential expression analysis
+.PHONY: bin-merge
+bin-merge: $(bin_merge_target) ## binarize macrostates by merging scboolseq and dea results
 .PHONY: bdc
 bdc: $(bdc_target) ## perform boolean differential calculus analysis
 
@@ -728,7 +733,7 @@ $(knnbs_$(1))&: $(annotation_$(1))
 	$$(conda_deactivate)
 endif
 
-$(bin_aggregate_$(1)): $(bin_scboolseq_$(1)) $(lastword $(macrostates_$(1)))
+$(bin_aggregate_$(1)): $(firstword $(bin_scboolseq_$(1))) $(lastword $(macrostates_$(1)))
 	$(call print_rule,bin-aggregate,$(1))
 	mkdir -p $$(@D) $(tmpdir)/$(1)/bin/aggr
 	$$(conda_activate) preprocess
@@ -782,14 +787,27 @@ $(goea_mouse_$(1)): $(lastword $(dea_$(1))) $(go_mouse) $(gene2go)
 	python scripts/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
 	$$(conda_deactivate)
 
-$(bin_scboolseq_$(1)): $(clustering_$(1))
+$(bin_scboolseq_$(1))&: $(clustering_$(1))
 	$(call print_rule,bin-scboolseq,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) scboolseq
-	python scripts/binarization/bin_scboolseq.py $$< --outfile $$@ --bin $$(shell echo $$@ | sed "s/.h5ad/.csv/") --statistics $$(@D)/statistics.csv \
+	python scripts/binarization/bin_scboolseq.py $$< --outfile $(firstword $(bin_scboolseq_$(1))) --bin $$(shell echo $$@ | sed "s/.h5ad/.csv/") --statistics $(lastword $(bin_scboolseq_$(1))) \
 		--layer log-norm $(bin_only_hvg) --quantile $(UNIMODAL_QUANTILE) $(zeroes_are_zeroes)
 	$(call print_task,plotting umap with respect to binarization percentage)
-	python fig/plot_embedding.py fig/bin_umap.json --infile $$@ --outfile $$(@D)/pct_bin.pdf
+	python fig/plot_embedding.py fig/bin_umap.json --infile $(firstword $(bin_scboolseq_$(1))) --outfile $$(@D)/pct_bin.pdf
+	$$(conda_deactivate)
+
+$(bin_merge_$(1)): $(bin_aggregate_$(1)) $(lastword $(bin_scboolseq_$(1))) $(bin_dea_$(1))
+	$(call print_rule,bin-merge,$(1))
+	mkdir -p $$(@D) $(tmpdir)/$(1)/bin/merge
+	$(call print_debug,retrieving scboolseq distributions and saving results in $(tmpdir)/$(1)/bin/merge/distributions.csv)
+	col=`head $$(word 2, $$^) -n 1 | sed "s/,/\n/g" | awk -F, '{printf("%d %s\n", NR-1, $$$$0)}' | grep Category | awk '{print $$$$1}'`
+	((col++))
+	cut -f 1,$$$$col -d ',' $$(word 2, $$^) > $(tmpdir)/$(1)/bin/merge/distributions.csv
+	unset col
+	$$(conda_activate) preprocess
+	python scripts/binarization/bin_merge.py --scboolseq $$< $(tmpdir)/$(1)/bin/merge/distributions.csv --dea $$(lastword $$^) \
+		--outfile $$@ --pct-bin $$(@D)/pct_bin.csv
 	$$(conda_deactivate)
 
 endef
@@ -821,7 +839,7 @@ $(annotation_integrated): $(clustering_integrated)
 	$(call print_error,parameter LABEL_INTEGRATED not defined)
 endif
 
-$(bin_aggregate_integrated): $(bin_scboolseq_integrated) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
+$(bin_aggregate_integrated): $(firstword $(bin_scboolseq_integrated)) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
 	$(call print_rule,bin-aggregate,integrated)
 	mkdir -p $(@D) $(tmpdir)/integrated/bin/aggr
 	$(conda_activate) preprocess

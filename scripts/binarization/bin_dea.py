@@ -35,7 +35,7 @@ parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing marker-metric associations (format: csv)"
+    help="output file storing predicted binarized values (format: csv)"
 )
 
 parser.add_argument(
@@ -74,7 +74,7 @@ parser.add_argument(
     max=math.inf,
     required=False,
     default=0.25,
-    help="minimum log2 fold-change for a gene to be considered as differentially expressed (default: 0.25)"
+    help="minimum log2 fold-change in absolute value for a gene to be binarized (default: 0.25)"
 )
 
 parser.add_argument(

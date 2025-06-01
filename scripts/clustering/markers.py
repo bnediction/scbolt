@@ -83,7 +83,7 @@ parser.add_argument(
     max=math.inf,
     required=False,
     default=0.25,
-    help="minimum log2 fold-change for a gene to be considered as differentially expressed (default: 0.25)"
+    help="minimum log2 fold-change in absolute value for a gene to be considered as differentially expressed (default: 0.25)"
 )
 
 parser.add_argument(
@@ -95,7 +95,7 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.05,
-    help="significance level or probability of rejecting null hypothesis that gene is not differentially expressed (default: 0.05)"
+    help="maximum ajusted p-value for a gene to be binarized (default: 0.05)"
 )
 
 parser.add_argument(

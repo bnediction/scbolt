@@ -117,9 +117,9 @@ class Predict(object):
             elif category=="ZeroInf":
                 if nans/total > self.__THRESHOLD.nans:
                     return float("nan")
-                elif ones/not_nans > self.__THRESHOLD.zeroinf:
+                elif ones/total > self.__THRESHOLD.zeroinf:
                     return 1
-                elif zeros/not_nans > self.__THRESHOLD.zeroinf:
+                elif zeros/total > self.__THRESHOLD.zeroinf:
                     return 0
                 else:
                     return float("nan")
@@ -131,7 +131,7 @@ class Predict(object):
                 elif ones/not_nans > self.__THRESHOLD.unimodal:
                     return 1
             else:
-                raise ValueError(f"Category argument must be `Bimodal`, `ZeroInf` or `Unimodal`, not `{category}`.")
+                raise ValueError(f"invalid parameter value for 'category': expected 'Bimodal', 'ZeroInf' or 'Unimodal' but received '{category}'.")
         
         _iterable = (data.index.get_level_values(level).unique() for level in range(data.index.nlevels - 1))
         _names = list(data.index.names)[:-1]
@@ -305,7 +305,7 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=2/3,
-    help="minimum proportion of zero- or one-values against binarized values in a cluster required for a bimodal gene to be binarized (default: 2/3)"
+    help="minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a bimodal gene to be binarized (default: 2/3)"
 )
 
 parser.add_argument(
@@ -317,7 +317,7 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=0.5,
-    help="minimum proportion of one-values against binarized values in a cluster required for a zero-inflated gene to be binarized to one, otherwise zero (default: 0.5)"
+    help="minimum proportion of zero- or one-values w.r.t binarized and nan values in a cluster required for a zero-inflated gene to be binarized (default: 0.5)"
 )
 
 parser.add_argument(
@@ -329,7 +329,7 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=2/3,
-    help="minimum proportion of zero- or one-values against binarized values in a cluster required for a unimodal gene to be binarized (default: 2/3)"
+    help="minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a unimodal gene to be binarized (default: 2/3)"
 )
 
 parser.add_argument(

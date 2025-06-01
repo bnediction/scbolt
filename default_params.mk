@@ -52,7 +52,7 @@ $(eval SPREAD := 1)							# effective scale of embedded points in umap
 
 ## BEGIN DEA ##
 
-$(eval LOGFC := 0.25)						# minimum log2 fold-change for a gene to be considered as differentially expressed
+$(eval LOGFC := 0.25)						# minimum log2 fold-change in absolute value for a gene to be considered as differentially expressed
 $(eval ALPHA := 0.05)						# significance level of rejecting null hypothesis that gene is not differentially expressed
 $(eval CORRECTION := bonferroni)			# method used for correcting the significance level (benjamini-hochberg ou bonferroni)
 
@@ -126,23 +126,23 @@ $(eval KNNBS_NEIGHBORS := 20)				# number of closest neighbors for k-nearest nei
 
 $(eval BIN_ONLY_HVG := false)				# use only highly variable genes for binarizing cells
 $(eval UNIMODAL_QUANTILE := 0.10)			# quantile classifying cells into inactive/active when learnt distribution is unimodal
-$(eval ZEROES_ARE_ZEROES := true)			# binarize zero-values to zero instead of nan when learnt distribution is zero-inflated
+$(eval ZEROES_ARE_ZEROES := false)			# binarize zero-values to zero instead of nan when learnt distribution is zero-inflated
 
 ## END BIN-CELLS ##
 
 ## BEGIN BIN-MACROSTATES ##
 
 $(eval NANS_THRESHOLD := 0.3)				# maximum proportion of nan-values in a cluster required for a gene to be binarized
-$(eval BIMODAL_THRESHOLD := 0.67)			# minimum proportion of zero- or one-values against binarized values in a cluster required for a bimodal gene to be binarized
-$(eval ZEROINF_THRESHOLD := 0.5)			# minimum proportion of one-values against binarized values in a cluster required for a zero-inflated gene to be binarized to one, otherwise zero
-$(eval UNIMODAL_THRESHOLD := 0.67)			# minimum proportion of zero- or one-values against binarized values in a cluster required for a unimodal gene to be binarized
+$(eval BIMODAL_THRESHOLD := 0.67)			# minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a bimodal gene to be binarized
+$(eval ZEROINF_THRESHOLD := 0.5)			# minimum proportion of zero- or one-values w.r.t binarized and nan values in a cluster required for a zero-inflated gene to be binarized
+$(eval UNIMODAL_THRESHOLD := 0.67)			# minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a unimodal gene to be binarized
 
 ## END BIN-MACROSTATES ##
 
 ## BEGIN DEA-BINARIZATION ##
 
-$(eval BIN_LOGFC := 0.5)					# minimum log2 fold-change for a gene to be considered as differentially expressed
-$(eval BIN_ALPHA := 0.05)					# significance level of rejecting null hypothesis that gene is not differentially expressed
+$(eval BIN_LOGFC := 0.5)					# minimum log2 fold-change in absolute value for a gene to be binarized
+$(eval BIN_ALPHA := 0.05)					# maximum ajusted p-value for a gene to be binarized
 $(eval BIN_CORRECTION := bonferroni)		# method used for correcting the significance level (benjamini-hochberg ou bonferroni)
 
 ## END DEA-BINARIZATION ##
@@ -161,6 +161,6 @@ $(eval FILTER_MIN_FEEDBACKS := true)		# minimize the number of length-one feedba
 
 ## BEGIN BONESIS-INFERENCE-MIN ##
 
-$(eval MIN_FEEDBACKS := true)			# minimize the number of length-one feedbacks at inference stage
+$(eval MIN_FEEDBACKS := true)				# minimize the number of length-one feedbacks at inference stage
 
 ## END BONESIS-INFERENCE-MIN ##

@@ -417,5 +417,5 @@ adata.write_h5ad(
     compression="gzip"
 )
 
-std.print_info(f"gene number: [before filtering: {shape['init'][0]}, after filtering: {shape['final'][0]}, removed: {shape['init'][0] - shape['final'][0]}]")
-std.print_info(f"cell number: [before filtering: {shape['init'][1]}, after filtering: {shape['final'][1]}, removed: {shape['init'][1] - shape['final'][1]}]")
+std.print_result(f"gene number: [before filtering: {shape['init'][0]}, after filtering: {shape['final'][0]}, removed: {shape['init'][0] - shape['final'][0]}]")
+std.print_result(f"cell number: [before filtering: {shape['init'][1]}, after filtering: {shape['final'][1]}, removed: {shape['init'][1] - shape['final'][1]}]")
