@@ -65,6 +65,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--filter-genes",
+    dest="filter_genes",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    metavar="FILE",
+    help="input file storing interest genes to pass filtering (if not specified, all genes are considered)"
+)
+
+parser.add_argument(
     "--mandatory-genes",
     dest="mandatory_genes",
     type=lambda x: Path(x).resolve(),
@@ -115,9 +124,33 @@ with open(args.model_specification, "r") as file:
 
 std.print_task(f"loading csv-formatted binarized macrostates file {str(args.macrostates)}")
 
-macrostates_df = pd.read_csv(args.macrostates, index_col=0, sep=args.sep)
+macrostates_df = genesyn.df_standardization(
+    pd.read_csv(args.macrostates, index_col=0, sep=args.sep),
+    axis="columns"
+)
 
 std.print_task(f"getting binarized states")
+
+mandatory_genes = set(specification["mandatory_genes"]) if specification["mandatory_genes"] is not None else set()
+mandatory_genes = genesyn.sequence_standardization(mandatory_genes)
+
+important_genes = set(specification["important_genes"]) if specification["important_genes"] is not None else set()
+important_genes = genesyn.sequence_standardization(important_genes)
+
+if args.filter_genes:
+    std.print_info(f"filtering genes")
+    with open(args.filter_genes) as file:
+        keep_only = {line.strip() for line in file.readlines()}
+    keep_only = genesyn.sequence_standardization(keep_only)
+    if mandatory_genes - keep_only:
+        std.print_debug(f"some mandatory genes are not present in interest genes to pass filtering: keeping them ({list(mandatory_genes - keep_only)})")
+    if important_genes - keep_only:
+        std.print_debug(f"some important genes are not present in interest genes to pass filtering: keeping them ({list(important_genes - keep_only)})")
+    keep_only = keep_only | mandatory_genes | important_genes
+    keep_only_present = keep_only & set(macrostates_df.columns)
+    if keep_only - keep_only_present:
+        std.print_warning(f"some genes are not present in csv-formatted binarized macrostates file: {list(keep_only - keep_only_present)}")
+    macrostates_df = macrostates_df.loc[:,list(keep_only_present)]
 
 macrostates_df = macrostates_df.rename(
     index=dict((v,k) for k,v in specification["states"].items()),
@@ -167,17 +200,11 @@ macrostates_df.to_csv(
 
 std.print_task(f"saving mandatory genes in {args.mandatory_genes}")
 
-mandatory_genes = specification["mandatory_genes"] if specification["mandatory_genes"] is not None else []
-mandatory_genes = genesyn.sequence_standardization(mandatory_genes)
-
 with open(args.mandatory_genes, "w") as file:
     for gene in mandatory_genes:
         file.write(f"{gene}\n")
 
 std.print_task(f"saving important genes in {args.important_genes}")
-
-important_genes = specification["important_genes"] if specification["important_genes"] is not None else []
-important_genes = genesyn.sequence_standardization(important_genes)
 
 with open(args.important_genes, "w") as file:
     for gene in important_genes:

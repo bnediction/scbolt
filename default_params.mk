@@ -124,7 +124,6 @@ $(eval KNNBS_NEIGHBORS := 20)				# number of closest neighbors for k-nearest nei
 
 ## BEGIN BIN-CELLS ##
 
-$(eval BIN_ONLY_HVG := false)				# use only highly variable genes for binarizing cells
 $(eval UNIMODAL_QUANTILE := 0.10)			# quantile classifying cells into inactive/active when learnt distribution is unimodal
 $(eval ZEROES_ARE_ZEROES := false)			# binarize zero-values to zero instead of nan when learnt distribution is zero-inflated
 
@@ -156,6 +155,8 @@ $(eval BIN_METHOD := merge)
 ## BEGIN MODELING ##
 
 $(eval MODEL_SPECIFICATION := spec/spec.yml)	# file storing model specifications for bonesis
+$(eval MODEL_TOP_HVG := )						# use only top 'BONESIS_TOP_HVG' highly variable genes for inferring Boolean Networks (if not specified, keep all genes)
+$(eval MODEL_HVG_METHOD := seurat_v3)			# method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3)
 
 ## END MODELING ##
 

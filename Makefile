@@ -22,6 +22,10 @@ plus := +
 empty :=
 space := $(empty) $(empty)
 
+ifndef CONDITIONS
+$(error Parameter CONDITIONS not defined)
+endif
+
 conditions := $(call tolower, $(CONDITIONS))
 references := $(conditions) integrated
 REFERENCES := $(subst $(space),$(plus),$(references))
@@ -336,16 +340,6 @@ else
 knnbs_dimension=--dimension $(KNNBS_DIMENSION)
 endif
 
-ifndef BIN_ONLY_HVG
-$(error Parameter BIN_ONLY_HVG not defined)
-else ifeq ($(BIN_ONLY_HVG),true)
-bin_only_hvg=--only-hvg
-else ifeq ($(BIN_ONLY_HVG),false)
-bin_only_hvg=
-else
-$(error Unsupported value for parameter BIN_ONLY_HVG (supported values: true, false))
-endif
-
 ifndef ZEROES_ARE_ZEROES
 $(error Parameter ZEROES_ARE_ZEROES not defined)
 else ifeq ($(ZEROES_ARE_ZEROES),true)
@@ -358,6 +352,10 @@ endif
 
 ifndef MODEL_SPECIFICATION
 $(error Parameter MODEL_SPECIFICATION not defined)
+endif
+
+ifneq ($(filter-out seurat_v3 seurat cell_ranger,$(MODEL_HVG_METHOD)),)
+$(error Unsupported value for parameter MODEL_HVG_METHOD (supported values: seurat, cell_ranger or seurat_v3))
 endif
 
 ifndef FILTER_MIN_FEEDBACKS
@@ -464,7 +462,7 @@ stream: $(stream_target) ## compute macrostates using elastic principal graph
 .PHONY: knnbs
 knnbs: $(knnbs_target) ## compute macrostates using k-nearest neighbors-based subclusters algorithm
 .PHONY: macrostates
-macrostates: $(macrostates_target) ## define macrostates depending on MACROSTATES_METHOD parameter
+macrostates: $(macrostates_target) ## define macrostates depending on 'MACROSTATES_METHOD' parameter value
 
 ##@ Binarization
 
@@ -475,11 +473,9 @@ bin-scboolseq: $(bin_scboolseq) ## binarize macrostates by aggregating ScBoolSeq
 .PHONY: bin-dea
 bin-dea: $(bin_dea) ## binarize macrostates using differential expression analysis
 .PHONY: bin-merge
-bin-merge: $(bin_merge) ## binarize macrostates by merging scboolseq and dea results
+bin-merge: $(bin_merge) ## binarize macrostates by merging ScBoolSeq and dea results
 .PHONY: binarization
-binarization: $(bin) ## binarize macrostates depending on BIN_METHOD parameter
-.PHONY: bdc
-bdc: $(bdc_target) ## perform boolean differential calculus analysis
+binarization: $(bin) ## binarize macrostates depending on 'BIN_METHOD' parameter value
 
 ##@ Boolean network inference
 
@@ -598,7 +594,7 @@ $(velocyto_$(1)): $(cellranger_$(1)) $(transcriptome)
 		mv $$(<D)/velocyto/cellranger.loom $$(shell echo $$@ | sed "s/h5ad/loom/")
 		rm -rf $$(<D)/velocyto
 		$$(conda_activate) preprocess
-		$(call print_debug,converting $$(shell echo $$@ | sed "s/h5ad/loom/") into $$@ and standardizing gene names)
+		$(call print_debug,standardizing gene names and converting loom format into h5ad format)
 		python scripts/utils/adata_conversion.py $$(shell echo $$@ | sed "s/h5ad/loom/") $$@ --from loom --to h5ad \
 			--remove-positions \
 			--genename-standardization
@@ -681,7 +677,7 @@ $(cotan_$(1))&: $(annotation_$(1))
 	$$(conda_activate) preprocess
 	$(call print_debug,loading file $$< \(layer 'matrix'\))
 	python scripts/utils/adata_conversion.py $$< $(tmpdir)/$(1)/cotan/barcts.csv --from h5ad --to csv --layer matrix $(cotan_only_hvg)
-	$(call print_debug,transposing and saving data in $(tmpdir)/$(1)/cotan/gencts.csv)
+	$(call print_debug,transposing counts matrix)
 	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $(tmpdir)/$(1)/cotan/barcts.csv > $(tmpdir)/$(1)/cotan/gencts.csv
 	$$(conda_deactivate)
 	$$(conda_activate) cotan
@@ -804,7 +800,7 @@ $(bin_cells)&: $(clustering_integrated)
 	mkdir -p $(@D)
 	$(conda_activate) scboolseq
 	python scripts/binarization/bin_cells_scboolseq.py $< --outfile $(firstword $(bin_cells)) --bin $(shell echo $@ | sed "s/.h5ad/.csv/") --statistics $(lastword $(bin_cells)) \
-		--layer log-norm $(bin_only_hvg) --quantile $(UNIMODAL_QUANTILE) $(zeroes_are_zeroes)
+		--layer log-norm --quantile $(UNIMODAL_QUANTILE) $(zeroes_are_zeroes)
 	$(call print_task,plotting umap with respect to binarization percentage)
 	python fig/plot_embedding.py fig/bin_umap.json --infile $(firstword $(bin_cells)) --outfile $(@D)/pct_bin.pdf
 	$(conda_deactivate)
@@ -844,26 +840,44 @@ $(bin_merge): $(bin_scboolseq) $(lastword $(bin_cells)) $(bin_dea)
 	$(call print_debug,retrieving scboolseq distributions)
 	col=`head $(word 2, $^) -n 1 | sed "s/,/\n/g" | awk -F, '{printf("%d %s\n", NR-1, $$0)}' | grep Category | awk '{print $$1}'`
 	((col++))
-	cut -f 1,$$col -d ',' $(word 2, $^) > $(tmpdir)//bin/merge/distributions.csv
+	cut -f 1,$$col -d ',' $(word 2, $^) > $(tmpdir)/bin/merge/distributions.csv
 	unset col
 	$(conda_activate) preprocess
-	python scripts/binarization/bin_merge.py --scboolseq $< $(tmpdir)//bin/merge/distributions.csv --dea $(lastword $^) \
+	python scripts/binarization/bin_merge.py --scboolseq $< $(tmpdir)/bin/merge/distributions.csv --dea $(lastword $^) \
 		--outfile $@ --pct-bin $(@D)/pct_bin.csv
 	$(conda_deactivate)
 
+ifdef MODEL_TOP_HVG
+$(bonesis_model)&: $(bin) $(clustering_integrated)
+	$(call print_rule,modeling)
+	if ! [ -f $(MODEL_SPECIFICATION) ]; then
+		$(call print_error,file $(MODEL_SPECIFICATION) not found \(see documentation for details about command \'modeling\'\))
+	fi
+		mkdir -p $(tmpdir)/bonesis/hvg $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
+		$(conda_activate) preprocess
+		$(call print_task,estimating top $(MODEL_TOP_HVG) highly variable genes with $(MODEL_HVG_METHOD))
+		python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/hvg/top_genes.txt --hvg $(MODEL_TOP_HVG) --method $(MODEL_HVG_METHOD)
+		$(conda_deactivate)
+		$(conda_activate) bonesis
+		python scripts/inference/specification.py $(MODEL_SPECIFICATION) $< \
+			--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
+			--mandatory-genes $(word 3,$(bonesis_model)) --important-genes $(word 4,$(bonesis_model)) \
+			--filter-genes $(tmpdir)/hvg/top_genes.txt --organism $(ORGANISM)
+		$(conda_deactivate)
+else
 $(bonesis_model)&: $(bin)
 	$(call print_rule,modeling)
 	if ! [ -f $(MODEL_SPECIFICATION) ]; then
 		$(call print_error,file $(MODEL_SPECIFICATION) not found \(see documentation for details about command \'modeling\'\))
-	else
-	mkdir -p $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
-	$(conda_activate) bonesis
-	python scripts/inference/specification.py $(MODEL_SPECIFICATION) $< \
-		--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
-		--mandatory-genes $(word 3,$(bonesis_model)) --important-genes $(word 4,$(bonesis_model)) \
-		--organism $(ORGANISM)
-	$(conda_deactivate)
 	fi
+		mkdir -p $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
+		$(conda_activate) bonesis
+		python scripts/inference/specification.py $(MODEL_SPECIFICATION) $< \
+			--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
+			--mandatory-genes $(word 3,$(bonesis_model)) --important-genes $(word 4,$(bonesis_model)) \
+			--organism $(ORGANISM)
+		$(conda_deactivate)
+endif
 
 $(bonesis_filtering_one): $(bonesis_model)
 	$(call print_rule,bonesis-filtering-one)
