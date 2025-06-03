@@ -134,7 +134,7 @@ $(eval ZEROES_ARE_ZEROES := false)			# binarize zero-values to zero instead of n
 
 $(eval NANS_THRESHOLD := 0.3)				# maximum proportion of nan-values in a cluster required for a gene to be binarized (not applied to zero-inflated genes)
 $(eval BIMODAL_THRESHOLD := 0.7)			# minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a bimodal gene to be binarized
-$(eval ZEROINF_THRESHOLD := 0.7)			# minimum proportion of zero- or one-values w.r.t binarized and nan values in a cluster required for a zero-inflated gene to be binarized
+$(eval ZEROINF_THRESHOLD := 0.6)			# minimum proportion of zero- or one-values w.r.t binarized and nan values in a cluster required for a zero-inflated gene to be binarized
 $(eval UNIMODAL_THRESHOLD := 0.7)			# minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a unimodal gene to be binarized
 
 ## END BIN-SCBOOLSEQ ##

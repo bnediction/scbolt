@@ -43,8 +43,8 @@ class Predict(object):
             raise ValueError(f"`nans_threshold` value ({nans_threshold}) not in range [0-1].")
         elif bimodal_threshold < 0.5 or bimodal_threshold > 1:
             raise ValueError(f"`bimodal_threshold` value ({bimodal_threshold}) not in range [0.5-1].")
-        elif zeroinf_threshold < 0 or zeroinf_threshold > 0.5:
-            raise ValueError(f"`zeroinf_threshold` value ({zeroinf_threshold}) not in range [0-0.5].")
+        elif zeroinf_threshold < 0.5 or zeroinf_threshold > 1:
+            raise ValueError(f"`zeroinf_threshold` value ({zeroinf_threshold}) not in range [0.5-1].")
         elif unimodal_threshold < 0.5 or unimodal_threshold > 1:
             raise ValueError(f"`unimodal_threshold` value ({unimodal_threshold}) not in range [0.5-1].")
         else:

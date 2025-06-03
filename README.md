@@ -71,6 +71,6 @@ Default parameters are available in `default_params.mk` file. To update and over
 
 No license for the moment. Its purpose is only for intern usage.
 
-## Project status
+## Contributors
 
-Ongoing
+* [Théo Roncalli](https://github.com/Theo-Roncalli)

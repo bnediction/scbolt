@@ -851,7 +851,7 @@ $(bin_merge): $(bin_scboolseq) $(lastword $(bin_cells)) $(bin_dea)
 		--outfile $@ --pct-bin $(@D)/pct_bin.csv
 	$(conda_deactivate)
 
-$(bonesis_model)&: $(binarization_integrated)
+$(bonesis_model)&: $(bin)
 	$(call print_rule,modeling)
 	if ! [ -f $(MODEL_SPECIFICATION) ]; then
 		$(call print_error,file $(MODEL_SPECIFICATION) not found \(see documentation for details about command \'modeling\'\))
