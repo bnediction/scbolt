@@ -179,6 +179,16 @@ bonesis_inference_sub	= $(bonesis)/bn/sub/bn_sub.bnet
 $(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call find_paths_for_references,$(reference))))
 
+ifeq ($(BIN_METHOD),scboolseq)
+binarization_integrated = 		$(bin_aggregate_integrated)
+else ifeq ($(BIN_METHOD),dea)
+binarization_integrated = 		$(bin_dea_integrated)
+else ifeq ($(BIN_METHOD),merge)
+binarization_integrated = 		$(bin_merge_integrated)
+else
+$(error unsupported value for parameter BIN_METHOD (supported values: scboolseq, dea, merge))
+endif
+
 ## END PATHS ##
 
 ## BEGIN TARGETS ##
@@ -474,6 +484,8 @@ bin-aggregate: $(bin_aggregate_target) ## binarize macrostates by aggregating bi
 bin-dea: $(bin_dea_target) ## binarize macrostates using differential expression analysis
 .PHONY: bin-merge
 bin-merge: $(bin_merge_target) ## binarize macrostates by merging scboolseq and dea results
+.PHONY: binarization
+binarization: $(binarization_target) ## binarize macrostates depending on BIN_METHOD parameter
 .PHONY: bdc
 bdc: $(bdc_target) ## perform boolean differential calculus analysis
 
@@ -868,7 +880,7 @@ $(bin_dea_integrated): $(clustering_integrated) $(foreach condition,$(conditions
 	python fig/plot_embedding.py fig/macrostates_umap.json --infile $(tmpdir)/integrated/bin/dea/mcts.h5ad --outfile $(@D)/umap_macrostates.pdf
 	$(conda_deactivate)
 
-$(bonesis_model)&: $(bin_aggregate_integrated)
+$(bonesis_model)&: $(binarization_integrated)
 	$(call print_rule,modeling)
 	if ! [ -f $(MODEL_SPECIFICATION) ]; then
 		$(call print_error,file $(MODEL_SPECIFICATION) not found \(see documentation for details about command \'modeling\'\))

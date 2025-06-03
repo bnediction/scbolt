@@ -147,6 +147,12 @@ $(eval BIN_CORRECTION := bonferroni)		# method used for correcting the significa
 
 ## END DEA-BINARIZATION ##
 
+## BEGIN BIN ##
+
+$(eval BIN_METHOD := merge)
+
+## END BIN ##
+
 ## BEGIN MODELING ##
 
 $(eval MODEL_SPECIFICATION := spec/spec.yml)	# file storing model specifications for bonesis
