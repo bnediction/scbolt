@@ -115,9 +115,7 @@ class Predict(object):
                 else:
                     return float("nan")
             elif category=="ZeroInf":
-                if nans/total > self.__THRESHOLD.nans:
-                    return float("nan")
-                elif ones/total > self.__THRESHOLD.zeroinf:
+                if ones/total > self.__THRESHOLD.zeroinf:
                     return 1
                 elif zeros/total > self.__THRESHOLD.zeroinf:
                     return 0
@@ -203,12 +201,12 @@ def count_binarized_values(
     return group_df.fillna(0).astype(int)
 
 parser = argparse.ArgumentParser(
-    prog="bin_aggregate",
+    prog="bin_clusters_scboolseq",
     description=
     """
     count binarized values for each cluster and binarize clusters from binarized single cell data using voting rule.
     """,
-    usage=""""python bin_aggregate.py <FILE...> <FILE> [--counts <FILE>] --cluster <LITERAL> [<args>]"""
+    usage=""""python bin_clusters_scboolseq.py <FILE...> <FILE> [--counts <FILE>] --cluster <LITERAL> [<args>]"""
 )
 
 parser.add_argument(
@@ -293,7 +291,7 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=0.3,
-    help="maximum proportion of nan-values in a cluster required for a gene to be binarized (default: 0.3)"
+    help="maximum proportion of nan-values in a cluster required for a gene to be binarized (not applied to zero-inflated genes, default: 0.3)"
 )
 
 parser.add_argument(

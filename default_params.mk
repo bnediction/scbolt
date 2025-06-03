@@ -130,28 +130,28 @@ $(eval ZEROES_ARE_ZEROES := false)			# binarize zero-values to zero instead of n
 
 ## END BIN-CELLS ##
 
-## BEGIN BIN-MACROSTATES ##
+## BEGIN BIN-SCBOOLSEQ ##
 
-$(eval NANS_THRESHOLD := 0.3)				# maximum proportion of nan-values in a cluster required for a gene to be binarized
-$(eval BIMODAL_THRESHOLD := 0.67)			# minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a bimodal gene to be binarized
-$(eval ZEROINF_THRESHOLD := 0.5)			# minimum proportion of zero- or one-values w.r.t binarized and nan values in a cluster required for a zero-inflated gene to be binarized
-$(eval UNIMODAL_THRESHOLD := 0.67)			# minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a unimodal gene to be binarized
+$(eval NANS_THRESHOLD := 0.3)				# maximum proportion of nan-values in a cluster required for a gene to be binarized (not applied to zero-inflated genes)
+$(eval BIMODAL_THRESHOLD := 0.7)			# minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a bimodal gene to be binarized
+$(eval ZEROINF_THRESHOLD := 0.7)			# minimum proportion of zero- or one-values w.r.t binarized and nan values in a cluster required for a zero-inflated gene to be binarized
+$(eval UNIMODAL_THRESHOLD := 0.7)			# minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a unimodal gene to be binarized
 
-## END BIN-MACROSTATES ##
+## END BIN-SCBOOLSEQ ##
 
-## BEGIN DEA-BINARIZATION ##
+## BEGIN BIN-DEA ##
 
 $(eval BIN_LOGFC := 0.5)					# minimum log2 fold-change in absolute value for a gene to be binarized
 $(eval BIN_ALPHA := 0.05)					# maximum ajusted p-value for a gene to be binarized
 $(eval BIN_CORRECTION := bonferroni)		# method used for correcting the significance level (benjamini-hochberg ou bonferroni)
 
-## END DEA-BINARIZATION ##
+## END BIN-DEA ##
 
-## BEGIN BIN ##
+## BEGIN BINARIZATION ##
 
 $(eval BIN_METHOD := merge)
 
-## END BIN ##
+## END BINARIZATION ##
 
 ## BEGIN MODELING ##
 

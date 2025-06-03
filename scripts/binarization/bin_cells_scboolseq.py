@@ -15,7 +15,7 @@ import numpy as np
 from scboolseq import scBoolSeq
 
 parser = argparse.ArgumentParser(
-    prog="bin_scboolseq",
+    prog="bin_cells_scboolseq",
     description=
     """
     Compute statistical estimators, classify distribution law for each gene \
@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser(
     Counts must be already log-normalized (logarithm transformation on CPM, RPM, TPM or RPKM). \
     See Magaña López et al. (2023) <https://hal.science/hal-04294917/>.
     """,
-    usage=""""python bin_scboolseq.py [-h] <FILE ...> --outfile <FILE> [--bin <FILE>] [--statistics FILE] [<args>]"""
+    usage=""""python bin_cells_scboolseq.py [-h] <FILE ...> --outfile <FILE> [--bin <FILE>] [--statistics FILE] [<args>]"""
 )
 
 parser.add_argument(
