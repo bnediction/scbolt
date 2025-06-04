@@ -350,8 +350,8 @@ else
 $(error Unsupported value for parameter ZEROES_ARE_ZEROES (supported values: true, false))
 endif
 
-ifndef MODEL_FILE
-$(error Parameter MODEL_FILE not defined)
+ifndef YAML_MODEL
+$(error Parameter YAML_MODEL not defined)
 endif
 
 ifneq ($(filter-out seurat_v3 seurat cell_ranger,$(MODEL_HVG_METHOD)),)
@@ -850,8 +850,8 @@ $(bin_merge): $(bin_scboolseq) $(lastword $(bin_cells)) $(bin_dea)
 ifdef MODEL_TOP_HVG
 $(bonesis_model)&: $(bin) $(clustering_integrated)
 	$(call print_rule,modeling)
-	if ! [ -f $(MODEL_FILE) ]; then
-		$(call print_error,file $(MODEL_FILE) not found \(see documentation for details about command \'modeling\'\))
+	if ! [ -f $(YAML_MODEL) ]; then
+		$(call print_error,file $(YAML_MODEL) not found \(see documentation for details about command \'modeling\'\))
 	fi
 		mkdir -p $(tmpdir)/bonesis/hvg $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
 		$(conda_activate) preprocess
@@ -859,7 +859,7 @@ $(bonesis_model)&: $(bin) $(clustering_integrated)
 		python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/hvg/top_genes.txt --hvg $(MODEL_TOP_HVG) --method $(MODEL_HVG_METHOD)
 		$(conda_deactivate)
 		$(conda_activate) bonesis
-		python scripts/inference/specification.py $(MODEL_FILE) $< \
+		python scripts/inference/specification.py $(YAML_MODEL) $< \
 			--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 			--mandatory-genes $(word 3,$(bonesis_model)) --important-genes $(word 4,$(bonesis_model)) \
 			--filter-genes $(tmpdir)/hvg/top_genes.txt --organism $(ORGANISM)
@@ -867,12 +867,12 @@ $(bonesis_model)&: $(bin) $(clustering_integrated)
 else
 $(bonesis_model)&: $(bin)
 	$(call print_rule,modeling)
-	if ! [ -f $(MODEL_FILE) ]; then
-		$(call print_error,file $(MODEL_FILE) not found \(see documentation for details about command \'modeling\'\))
+	if ! [ -f $(YAML_MODEL) ]; then
+		$(call print_error,file $(YAML_MODEL) not found \(see documentation for details about command \'modeling\'\))
 	fi
 		mkdir -p $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
 		$(conda_activate) bonesis
-		python scripts/inference/specification.py $(MODEL_FILE) $< \
+		python scripts/inference/specification.py $(YAML_MODEL) $< \
 			--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 			--mandatory-genes $(word 3,$(bonesis_model)) --important-genes $(word 4,$(bonesis_model)) \
 			--organism $(ORGANISM)
@@ -908,7 +908,10 @@ $(bonesis_inference_min): $(bonesis_model) $(bonesis_filtering_two)
 		--asp $(@D)/bonesis_min.sh --solution $@ \
 		--filter-grn $(lastword $^) $(MIN_FEEDBACKS) --organism $(ORGANISM)
 	$(conda_deactivate)
-	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
+	if [ "$$(which dot)" != "" ];
+	then
+		dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
+	fi
 
 $(bonesis_inference_sub): $(bonesis_model) $(bonesis_filtering_two)
 	$(call print_rule,bonesis-min)
@@ -919,7 +922,10 @@ $(bonesis_inference_sub): $(bonesis_model) $(bonesis_filtering_two)
 		--asp $(@D)/bonesis_min.sh --solution $@ \
 		--filter-grn $(lastword $^) $(MIN_FEEDBACKS) --organism $(ORGANISM)
 	$(conda_deactivate)
-	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
+	if [ "$$(which dot)" != "" ];
+	then
+		dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
+	fi
 
 $(foreach condition,$(conditions),$(eval $(call compute_rules_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call compute_rules_for_references,$(reference))))

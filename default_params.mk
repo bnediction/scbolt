@@ -154,7 +154,7 @@ $(eval BIN_METHOD := merge)
 
 ## BEGIN MODELING ##
 
-$(eval MODEL_FILE := spec/spec.yml)				# file storing model specifications for bonesis
+$(eval YAML_MODEL := spec/spec.yml)				# file storing model specifications for bonesis
 $(eval MODEL_TOP_HVG := )						# use only top 'BONESIS_TOP_HVG' highly variable genes for inferring Boolean Networks (if not specified, keep all genes)
 $(eval MODEL_HVG_METHOD := seurat_v3)			# method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3)
 
