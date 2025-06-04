@@ -200,14 +200,10 @@ if args.action == "filter-stage1":
         for node in important_genes:
             bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
 
-    intermediate_solution_file = Path(f"{os.path.dirname(args.asp)}/stage1.json")
     def intermediate_solution(nodes):
-        with open(intermediate_solution_file, "w") as file:
-            json.dump(list(
-                sorted(nodes)),
-                file,
-                indent=2
-            )
+        with open(args.solution, "w") as file:
+            for node in nodes:
+                file.write(f"{node}\n")
 
     view = bonesis.NodesView(
         bo,

@@ -492,6 +492,13 @@ bonesis-sub: $(bonesis_inference_sub) ## infer Boolean network with BoNesis (sub
 
 ## END HELP ##
 
+.PRECIOUS: $(bonesis_filtering_one) ## preserve target even if make is killed or interrupted
+
+_open_allocated_cpu = $(shell echo $$(($(JOBS) / 2)))
+open_allocated_cpu = $(if $(findstring $(_open_allocated_cpu),0),1,$(_open_allocated_cpu))
+$(bin_cells)&: export OPENBLAS_NUM_THREADS = $(open_allocated_cpu)
+$(bin_cells)&: export OMP_NUM_THREADS = $(open_allocated_cpu)
+
 ## BEGIN RULES ##
 
 $(transcriptome):
