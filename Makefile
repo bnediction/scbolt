@@ -350,8 +350,8 @@ else
 $(error Unsupported value for parameter ZEROES_ARE_ZEROES (supported values: true, false))
 endif
 
-ifndef MODEL_SPECIFICATION
-$(error Parameter MODEL_SPECIFICATION not defined)
+ifndef MODEL_FILE
+$(error Parameter MODEL_FILE not defined)
 endif
 
 ifneq ($(filter-out seurat_v3 seurat cell_ranger,$(MODEL_HVG_METHOD)),)
@@ -850,8 +850,8 @@ $(bin_merge): $(bin_scboolseq) $(lastword $(bin_cells)) $(bin_dea)
 ifdef MODEL_TOP_HVG
 $(bonesis_model)&: $(bin) $(clustering_integrated)
 	$(call print_rule,modeling)
-	if ! [ -f $(MODEL_SPECIFICATION) ]; then
-		$(call print_error,file $(MODEL_SPECIFICATION) not found \(see documentation for details about command \'modeling\'\))
+	if ! [ -f $(MODEL_FILE) ]; then
+		$(call print_error,file $(MODEL_FILE) not found \(see documentation for details about command \'modeling\'\))
 	fi
 		mkdir -p $(tmpdir)/bonesis/hvg $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
 		$(conda_activate) preprocess
@@ -859,7 +859,7 @@ $(bonesis_model)&: $(bin) $(clustering_integrated)
 		python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/hvg/top_genes.txt --hvg $(MODEL_TOP_HVG) --method $(MODEL_HVG_METHOD)
 		$(conda_deactivate)
 		$(conda_activate) bonesis
-		python scripts/inference/specification.py $(MODEL_SPECIFICATION) $< \
+		python scripts/inference/specification.py $(MODEL_FILE) $< \
 			--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 			--mandatory-genes $(word 3,$(bonesis_model)) --important-genes $(word 4,$(bonesis_model)) \
 			--filter-genes $(tmpdir)/hvg/top_genes.txt --organism $(ORGANISM)
@@ -867,12 +867,12 @@ $(bonesis_model)&: $(bin) $(clustering_integrated)
 else
 $(bonesis_model)&: $(bin)
 	$(call print_rule,modeling)
-	if ! [ -f $(MODEL_SPECIFICATION) ]; then
-		$(call print_error,file $(MODEL_SPECIFICATION) not found \(see documentation for details about command \'modeling\'\))
+	if ! [ -f $(MODEL_FILE) ]; then
+		$(call print_error,file $(MODEL_FILE) not found \(see documentation for details about command \'modeling\'\))
 	fi
 		mkdir -p $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
 		$(conda_activate) bonesis
-		python scripts/inference/specification.py $(MODEL_SPECIFICATION) $< \
+		python scripts/inference/specification.py $(MODEL_FILE) $< \
 			--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 			--mandatory-genes $(word 3,$(bonesis_model)) --important-genes $(word 4,$(bonesis_model)) \
 			--organism $(ORGANISM)
