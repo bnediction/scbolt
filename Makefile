@@ -481,14 +481,14 @@ binarization: $(bin) ## binarize macrostates depending on 'BIN_METHOD' parameter
 
 .PHONY: modeling
 modeling: $(bonesis_model) ## specify model using BoNesis syntax
-.PHONY: bonesis-filtering-one
-bonesis-filtering-one: $(bonesis_filtering_one) ## filter genes by maximizing explanatory node number with BoNesis
-.PHONY: bonesis-filtering-two
-bonesis-filtering-two: $(bonesis_filtering_two) ## filter genes by maximizing strong constant number with BoNesis
-.PHONY: bonesis-inference-min
-bonesis-inference-min: $(bonesis_inference_min) ## infer Boolean network with BoNesis (minimal solution)
-.PHONY: bonesis-inference-sub
-bonesis-inference-sub: $(bonesis_inference_sub) ## infer Boolean network with BoNesis (subset minimal solution)
+.PHONY: max-nodes
+max-nodes: $(bonesis_filtering_one) ## filter genes by maximizing explanatory node number with BoNesis
+.PHONY: max-constants
+max-constants: $(bonesis_filtering_two) ## filter genes by maximizing strong constant number with BoNesis
+.PHONY: bonesis-min
+bonesis-min: $(bonesis_inference_min) ## infer Boolean network with BoNesis (minimal solution)
+.PHONY: bonesis-sub
+bonesis-sub: $(bonesis_inference_sub) ## infer Boolean network with BoNesis (subset minimal solution)
 
 ## END HELP ##
 
@@ -502,7 +502,7 @@ $(transcriptome):
 	gunzip $@/genes/genes.gtf.gz
 
 $(cc_markers):
-	$(call print_rule,load-markers)
+	$(call print_rule,load-cc)
 	mkdir -p $(@D)
 	wget --quiet --show-progress -cO $@ $(cell_cycle_url)
 
@@ -880,7 +880,7 @@ $(bonesis_model)&: $(bin)
 endif
 
 $(bonesis_filtering_one): $(bonesis_model)
-	$(call print_rule,bonesis-filtering-one)
+	$(call print_rule,max-nodes)
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
@@ -890,7 +890,7 @@ $(bonesis_filtering_one): $(bonesis_model)
 	$(conda_deactivate)
 
 $(bonesis_filtering_two): $(bonesis_model) $(bonesis_filtering_one)
-	$(call print_rule,bonesis-filtering-two)
+	$(call print_rule,max-constants)
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python scripts/inference/inference.py filter-stage2 $(word 1,$^) $(word 2,$^) \
@@ -900,7 +900,7 @@ $(bonesis_filtering_two): $(bonesis_model) $(bonesis_filtering_one)
 	$(conda_deactivate)
 
 $(bonesis_inference_min): $(bonesis_model) $(bonesis_filtering_two)
-	$(call print_rule,bonesis-inference-min)
+	$(call print_rule,bonesis-min)
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python scripts/inference/inference.py one-min $(word 1,$^) $(word 2,$^) \
@@ -911,7 +911,7 @@ $(bonesis_inference_min): $(bonesis_model) $(bonesis_filtering_two)
 	dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
 
 $(bonesis_inference_sub): $(bonesis_model) $(bonesis_filtering_two)
-	$(call print_rule,bonesis-inference-min)
+	$(call print_rule,bonesis-min)
 	mkdir -p $(@D)
 	$(conda_activate) bonesis
 	python scripts/inference/inference.py one-sub $(word 1,$^) $(word 2,$^) \
