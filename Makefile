@@ -555,25 +555,23 @@ $(fastq_$(1)):
 	$$(conda_activate) fastq-dump
 	sample_naming="$(1)"
 	lane=0
-	tmp_directory=tmp/fastq-$(1)
-	rm -rf $$$${tmp_directory} && mkdir $$$${tmp_directory}
+	rm -rf $(tmpdir)/$(1)/fastq && mkdir $(tmpdir)/$(1)/fastq
 	for id in $$(SRA_$(call toupper, $(1)))
 	do
 		let "lane++"
-		parallel-fastq-dump --sra-id $$$${id} --split-files --readids --origfmt --threads $$(JOBS) --outdir $$$${tmp_directory} --gzip
-		$$(call fastq_naming,$$$${tmp_directory},$$$${id},$$$${sample_naming},$$$${lane})
+		parallel-fastq-dump --sra-id $$$${id} --split-files --readids --origfmt --threads $$(JOBS) --outdir $(tmpdir)/$(1)/fastq --gzip
+		$$(call fastq_naming,$(tmpdir)/$(1)/fastq,$$$${id},$$$${sample_naming},$$$${lane})
 	done
 	sleep 3
 	mkdir -p $$@
-	mv $$$${tmp_directory}/* $$@/
-	files=$$$$(shopt -s nullglob dotglob; echo $$$${tmp_directory}/*)
+	mv $(tmpdir)/$(1)/fastq/* $$@/
+	files=$$$$(shopt -s nullglob dotglob; echo $(tmpdir)/$(1)/fastq/*)
 	if ! (( $$$${#files} ))
 	then
-		rm -rf $$$${tmp_directory}
+		rm -rf $(tmpdir)/$(1)/fastq
 	else
 		$(call print_error,cannot download fastq files: fastq-dump failed)
 	fi
-	unset tmp_directory
 	unset files
 	$$(conda_deactivate)
 
