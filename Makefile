@@ -313,9 +313,9 @@ endif
 ifndef EXTEND_EPG
 $(error Parameter EXTEND_EPG not defined)
 else ifeq ($(EXTEND_EPG),true)
-extend_epg:=--extend-epg
+extend_epg=--extend-epg
 else ifeq ($(EXTEND_EPG),false)
-extend_epg:=
+extend_epg=
 else
 $(error Unsupported value for parameter EXTEND_EPG (supported values: true, false))
 endif
@@ -323,9 +323,9 @@ endif
 ifndef PRUNE_EPG
 $(error Parameter PRUNE_EPG not defined)
 else ifeq ($(PRUNE_EPG),true)
-prune_epg:=--prune-epg
+prune_epg=--prune-epg
 else ifeq ($(PRUNE_EPG),false)
-prune_epg:=
+prune_epg=
 else
 $(error Unsupported value for parameter PRUNE_EPG (supported values: true, false))
 endif
@@ -340,12 +340,19 @@ else
 knnbs_dimension=--dimension $(KNNBS_DIMENSION)
 endif
 
+ifndef JOBS
+$(error Parameter JOBS not defined)
+else
+try_open_allocated_cpu=$(shell echo $$(($(JOBS) / 2)))
+open_allocated_cpu=$(if $(findstring $(try_open_allocated_cpu),0),1,$(try_open_allocated_cpu))
+endif
+
 ifndef ZEROES_ARE_ZEROES
 $(error Parameter ZEROES_ARE_ZEROES not defined)
 else ifeq ($(ZEROES_ARE_ZEROES),true)
-zeroes_are_zeroes:=--zeroes-are-zeroes
+zeroes_are_zeroes=--zeroes-are-zeroes
 else ifeq ($(ZEROES_ARE_ZEROES),false)
-zeroes_are_zeroes:=
+zeroes_are_zeroes=
 else
 $(error Unsupported value for parameter ZEROES_ARE_ZEROES (supported values: true, false))
 endif
@@ -361,9 +368,9 @@ endif
 ifndef FILTER_MIN_FEEDBACKS
 $(error Parameter FILTER_MIN_FEEDBACKS not defined)
 else ifeq ($(FILTER_MIN_FEEDBACKS),true)
-FILTER_MIN_FEEDBACKS:=--minimize-feedbacks
+filter_min_feedbacks:=--minimize-feedbacks
 else ifeq ($(FILTER_MIN_FEEDBACKS),false)
-FILTER_MIN_FEEDBACKS:=
+filter_min_feedbacks:=
 else
 $(error Unsupported value for parameter FILTER_MIN_FEEDBACKS (supported values: true, false))
 endif
@@ -494,8 +501,6 @@ bonesis-sub: $(bonesis_inference_sub) ## infer Boolean network with BoNesis (sub
 
 .PRECIOUS: $(bonesis_filtering_one) ## preserve target even if make is killed or interrupted
 
-_open_allocated_cpu = $(shell echo $$(($(JOBS) / 2)))
-open_allocated_cpu = $(if $(findstring $(_open_allocated_cpu),0),1,$(_open_allocated_cpu))
 $(bin_cells)&: export OPENBLAS_NUM_THREADS = $(open_allocated_cpu)
 $(bin_cells)&: export OMP_NUM_THREADS = $(open_allocated_cpu)
 
@@ -901,7 +906,7 @@ $(bonesis_filtering_two): $(bonesis_model) $(bonesis_filtering_one)
 	python scripts/inference/inference.py filter-stage2 $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/stage2.sh --solution $@ \
-		--filter-grn $(lastword $^) $(FILTER_MIN_FEEDBACKS) --organism $(ORGANISM)
+		--filter-grn $(lastword $^) $(filter_min_feedbacks) --organism $(ORGANISM)
 	$(conda_deactivate)
 
 $(bonesis_inference_min): $(bonesis_model) $(bonesis_filtering_two)
@@ -911,7 +916,7 @@ $(bonesis_inference_min): $(bonesis_model) $(bonesis_filtering_two)
 	python scripts/inference/inference.py one-min $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/bonesis_min.sh --solution $@ \
-		--filter-grn $(lastword $^) $(MIN_FEEDBACKS) --organism $(ORGANISM)
+		--filter-grn $(lastword $^) $(filter_min_feedbacks) --organism $(ORGANISM)
 	$(conda_deactivate)
 	if [ "$$(which dot)" != "" ];
 	then
@@ -925,7 +930,7 @@ $(bonesis_inference_sub): $(bonesis_model) $(bonesis_filtering_two)
 	python scripts/inference/inference.py one-sub $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/bonesis_min.sh --solution $@ \
-		--filter-grn $(lastword $^) $(MIN_FEEDBACKS) --organism $(ORGANISM)
+		--filter-grn $(lastword $^) $(filter_min_feedbacks) --organism $(ORGANISM)
 	$(conda_deactivate)
 	if [ "$$(which dot)" != "" ];
 	then
