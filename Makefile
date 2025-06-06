@@ -250,6 +250,13 @@ $(foreach reference,$(running_references),$(eval $(call find_targets_for_referen
 
 ## BEGIN PARAMETERS ##
 
+ifndef JOBS
+$(error Parameter JOBS not defined)
+else
+try_open_allocated_cpu=$(shell echo $$(($(JOBS) / 2)))
+open_allocated_cpu=$(if $(findstring $(try_open_allocated_cpu),0),1,$(try_open_allocated_cpu))
+endif
+
 ifndef NORM_MAD
 $(error Parameter NORM_MAD not defined)
 else ifeq ($(NORM_MAD),true)
@@ -340,13 +347,6 @@ else
 knnbs_dimension=--dimension $(KNNBS_DIMENSION)
 endif
 
-ifndef JOBS
-$(error Parameter JOBS not defined)
-else
-try_open_allocated_cpu=$(shell echo $$(($(JOBS) / 2)))
-open_allocated_cpu=$(if $(findstring $(try_open_allocated_cpu),0),1,$(try_open_allocated_cpu))
-endif
-
 ifndef ZEROES_ARE_ZEROES
 $(error Parameter ZEROES_ARE_ZEROES not defined)
 else ifeq ($(ZEROES_ARE_ZEROES),true)
@@ -368,9 +368,9 @@ endif
 ifndef FILTER_MIN_FEEDBACKS
 $(error Parameter FILTER_MIN_FEEDBACKS not defined)
 else ifeq ($(FILTER_MIN_FEEDBACKS),true)
-filter_min_feedbacks:=--minimize-feedbacks
+filter_min_feedbacks=--minimize-feedbacks
 else ifeq ($(FILTER_MIN_FEEDBACKS),false)
-filter_min_feedbacks:=
+filter_min_feedbacks=
 else
 $(error Unsupported value for parameter FILTER_MIN_FEEDBACKS (supported values: true, false))
 endif
