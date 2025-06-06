@@ -22,5 +22,5 @@ thus state-change trajectories are inferred. Then binarized meta-states are retr
 which combined to dynamic Boolean properties, allows to infer BNs.
 
 <p align="center">
-<img src="scbridge-workflow.png" alt="sc-bridge workflow" width="700"/>
+<img src="fig/workflow-advanced.png" alt="sc-bridge workflow" width="700"/>
 <p>

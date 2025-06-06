@@ -22,7 +22,9 @@ Sc-bridge (pipeline for Boolean network Reconstruction and Inference from multip
 proposes a general methodology for inferring executable models reproducing *in silico*
 the observed cellular dynamics from multiple conditions/experiments.
 
-<img src=".pipeline.png" alt="boolean network inference pipeline image" width="600"/>
+<p align="center">
+<img src="man/fig/workflow-overview.png" alt="boolean network inference pipeline image" width="700"/>
+<p>
 
 Sc-bridge follows many steps for reconstructing logic models from transcriptomics data.
 Some steps require biological expertise (aided by decision-making tools):
