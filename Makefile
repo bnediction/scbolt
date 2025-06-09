@@ -868,7 +868,7 @@ $(bonesis_model)&: $(bin) $(clustering_integrated)
 		$(call print_task,estimating top $(MODEL_TOP_HVG) highly variable genes with $(MODEL_HVG_METHOD))
 		python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/hvg/top_genes.txt --hvg $(MODEL_TOP_HVG) --method $(MODEL_HVG_METHOD)
 		$(conda_deactivate)
-		$(conda_activate) bonesis
+		$(conda_activate) scbridge-bonesis
 		python scripts/inference/specification.py $(YAML_MODEL) $< \
 			--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 			--mandatory-genes $(word 3,$(bonesis_model)) --important-genes $(word 4,$(bonesis_model)) \
@@ -881,7 +881,7 @@ $(bonesis_model)&: $(bin)
 		$(call print_error,file $(YAML_MODEL) not found \(see documentation for details about command \'modeling\'\))
 	fi
 		mkdir -p $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
-		$(conda_activate) bonesis
+		$(conda_activate) scbridge-bonesis
 		python scripts/inference/specification.py $(YAML_MODEL) $< \
 			--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 			--mandatory-genes $(word 3,$(bonesis_model)) --important-genes $(word 4,$(bonesis_model)) \
@@ -892,7 +892,7 @@ endif
 $(bonesis_filtering_one): $(bonesis_model)
 	$(call print_rule,max-nodes)
 	mkdir -p $(@D)
-	$(conda_activate) bonesis
+	$(conda_activate) scbridge-bonesis
 	python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/stage1.sh --solution $@ \
@@ -902,7 +902,7 @@ $(bonesis_filtering_one): $(bonesis_model)
 $(bonesis_filtering_two): $(bonesis_model) $(bonesis_filtering_one)
 	$(call print_rule,max-constants)
 	mkdir -p $(@D)
-	$(conda_activate) bonesis
+	$(conda_activate) scbridge-bonesis
 	python scripts/inference/inference.py filter-stage2 $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/stage2.sh --solution $@ \
@@ -912,7 +912,7 @@ $(bonesis_filtering_two): $(bonesis_model) $(bonesis_filtering_one)
 $(bonesis_inference_min): $(bonesis_model) $(bonesis_filtering_two)
 	$(call print_rule,bonesis-min)
 	mkdir -p $(@D)
-	$(conda_activate) bonesis
+	$(conda_activate) scbridge-bonesis
 	python scripts/inference/inference.py one-min $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/bonesis_min.sh --solution $@ \
@@ -926,7 +926,7 @@ $(bonesis_inference_min): $(bonesis_model) $(bonesis_filtering_two)
 $(bonesis_inference_sub): $(bonesis_model) $(bonesis_filtering_two)
 	$(call print_rule,bonesis-min)
 	mkdir -p $(@D)
-	$(conda_activate) bonesis
+	$(conda_activate) scbridge-bonesis
 	python scripts/inference/inference.py one-sub $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/bonesis_min.sh --solution $@ \

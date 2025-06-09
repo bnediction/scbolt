@@ -2,7 +2,6 @@
 
 import os, std
 import argparse, cli
-import json
 from pathlib import Path
 
 from tqdm import tqdm
@@ -164,7 +163,7 @@ if args.action == "filter-stage1":
 
 grn = bt.dbs.collectri.load_grn(
     organism=args.organism,
-    gene_synonyms=genesyn
+    genesyn=genesyn
 )
 
 if args.filter_grn:
@@ -189,14 +188,14 @@ if args.action == "filter-stage1":
     if args.mandatory_genes:
         with open(args.mandatory_genes) as file:
             mandatory_genes = [line.rstrip() for line in file.readlines()]
-        mandatory_genes = genesyn.sequence_standardization(mandatory_genes)
+        mandatory_genes = genesyn(mandatory_genes)
         for gene in mandatory_genes:
             bo.custom(f"node({clingo_encode(gene)}).")
 
     if args.important_genes:
         with open(args.important_genes) as file:
             important_genes = [line.rstrip() for line in file.readlines()]
-        important_genes = genesyn.sequence_standardization(important_genes)
+        important_genes = genesyn(important_genes)
         for node in important_genes:
             bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
 

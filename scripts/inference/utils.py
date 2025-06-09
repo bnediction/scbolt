@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from typing import Optional
 from pandas._typing import Axis
 from pandas import DataFrame
 from bonesistools.databases.ncbi import GeneSynonyms
@@ -7,23 +8,23 @@ from bonesistools.databases.ncbi import GeneSynonyms
 def get_cfg(
     df: DataFrame,
     axis: Axis=0,
-    genesyn: GeneSynonyms=None
+    genesyn: Optional[GeneSynonyms] = None
 ) -> dict:
     """
-    Convert configurations instantiated in dataframe into dictionary.
+    Convert configurations from dataframe format into dictionary format.
 
     Parameters
     ----------
-    df
-        DataFrame object
-    axis
-        whether configuration names are df.index (0 or 'index') or df.obs (1 or 'column')
-    gensyn
-        GeneSynonyms object, used for standardizing gene names
+    df: pd.DataFrame
+        DataFrame object.
+    axis: pd.Axis (default: 0)
+        Whether configuration names are df.index (0 or 'index') or df.obs (1 or 'column').
+    gensyn: bt.dbs.ncbi.GeneSynonyms (optional, default: None)
+        GeneSynonyms object used for standardizing gene names.
     
     Returns
     -------
-    return Dict object.
+    Return Dict object.
     """
     
     if axis in [0, "index"]:
@@ -34,7 +35,7 @@ def get_cfg(
         raise ValueError(f"invalid value for 'axis' (got {axis}, expected 'index' or 'column')")
     
     if genesyn is not None and isinstance(genesyn, GeneSynonyms):
-        genesyn.df_standardization(
+        genesyn(
             df,
             axis=0,
             copy=False

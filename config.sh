@@ -51,18 +51,6 @@ install_env() {
     fi
 }
 
-download_ncbi_gi() {
-    if [ ! -f "$1/.mus_musculus_gene_info.tsv" ];
-    then
-        echo -e "downloading NCBI mus musculus gene info file"
-        wget --quiet --show-progress --directory-prefix=$1 ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Mus_musculus.gene_info.gz
-        gunzip --quiet $1/Mus_musculus.gene_info.gz
-        mv $1/Mus_musculus.gene_info $1/.mus_musculus_gene_info.tsv;
-    else
-        echo -e "NCBI mus musculus gene info file already exists"
-    fi
-}
-
 source ${HOME}/anaconda3/etc/profile.d/conda.sh
 
 if conda env list | grep -q "^base";

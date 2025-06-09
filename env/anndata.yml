@@ -178,7 +178,7 @@ dependencies:
   - xz=5.2.6=h166bdaf_0
   - zstd=1.5.5=hfc55251_0
   - pip:
-      - bonesistools==1.1.1
+      - bonesistools==1.1.2
       - charset-normalizer==3.3.2
       - click==8.1.7
       - decoupler==1.8.0

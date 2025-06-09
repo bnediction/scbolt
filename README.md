@@ -9,7 +9,7 @@ mostly due to genome-scale network complexity. In particular, biological mechani
 in therapy-resistant disease are difficult to define, because of chromosal translocations
 and somatic mutations leading to uncommon signaling pathways. Moreover data can come from
 distinct experiments, adding integration-related issues such as batch effects.
-In this context, a semi-automatic software pipeline, named sc-bridge, has been developed, dealing with these difficulties
+In this context, a semi-automatic software pipeline, named scBridge, has been developed, dealing with these difficulties
 for reconstructing executable qualitative models, using single-cell transcriptomics data.
 Its applications are multiple:
 1. predicting cellular fate decision and lineage differentiation
@@ -18,7 +18,7 @@ Its applications are multiple:
 
 ## Method
 
-Sc-bridge (pipeline for Boolean network Reconstruction and Inference from multiple experimental Data in Gene Expression)
+scBridge (pipeline for Boolean network Reconstruction and Inference from multiple experimental Data in Gene Expression)
 proposes a general methodology for inferring executable models reproducing *in silico*
 the observed cellular dynamics from multiple conditions/experiments.
 
@@ -26,7 +26,7 @@ the observed cellular dynamics from multiple conditions/experiments.
 <img src="man/fig/workflow-overview.png" alt="boolean network inference pipeline image" width="700"/>
 <p>
 
-Sc-bridge follows many steps for reconstructing logic models from transcriptomics data.
+scBridge follows many steps for reconstructing logic models from transcriptomics data.
 Some steps require biological expertise (aided by decision-making tools):
 1. cell annotation (unknown cell profile)
 2. macrostate characterization (finding key phenotypic manifolds)

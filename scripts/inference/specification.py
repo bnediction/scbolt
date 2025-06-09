@@ -124,7 +124,7 @@ with open(args.model_specification, "r") as file:
 
 std.print_task(f"loading csv-formatted binarized macrostates file {str(args.macrostates)}")
 
-macrostates_df = genesyn.df_standardization(
+macrostates_df = genesyn(
     pd.read_csv(args.macrostates, index_col=0, sep=args.sep),
     axis="columns"
 )
@@ -132,16 +132,16 @@ macrostates_df = genesyn.df_standardization(
 std.print_task(f"getting binarized states")
 
 mandatory_genes = set(specification["mandatory_genes"]) if specification["mandatory_genes"] is not None else set()
-mandatory_genes = genesyn.sequence_standardization(mandatory_genes)
+mandatory_genes = genesyn(mandatory_genes)
 
 important_genes = set(specification["important_genes"]) if specification["important_genes"] is not None else set()
-important_genes = genesyn.sequence_standardization(important_genes)
+important_genes = genesyn(important_genes)
 
 if args.filter_genes:
     std.print_info(f"filtering genes")
     with open(args.filter_genes) as file:
         keep_only = {line.strip() for line in file.readlines()}
-    keep_only = genesyn.sequence_standardization(keep_only)
+    keep_only = genesyn(keep_only)
     if mandatory_genes - keep_only:
         std.print_debug(f"some mandatory genes are not present in interest genes to pass filtering: keeping them ({list(mandatory_genes - keep_only)})")
     if important_genes - keep_only:
@@ -172,7 +172,7 @@ pkn_options = {
 
 grn = bt.dbs.collectri.load_grn(
     organism=args.organism,
-    gene_synonyms=genesyn
+    genesyn=genesyn
 )
 
 pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
