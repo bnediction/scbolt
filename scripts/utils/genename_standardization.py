@@ -62,21 +62,21 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "input-type",
-    dest="input_type",
+    "--gene-type",
+    dest="gene_type",
     default="genename",
     required=False,
     metavar="[genename | geneid | ensemblid | <database>]",
-    help="input gene alias type (default: genename)"
+    help="gene identifier input format (default: genename)"
 )
 
 parser.add_argument(
-    "--output-type",
-    dest="output_type",
+    "--alias-type",
+    dest="alias_type",
     default="referencename",
     required=False,
     metavar="[referencename | geneid | ensemblid | <database>]",
-    help="output gene alias type (default: referencename)"
+    help="gene identifier output format (default: referencename)"
 )
 
 parser.add_argument(
@@ -114,8 +114,8 @@ elif file_extension == "csv" or file_extension == "tsv":
     output = pd.read_csv(args.infile, index_col=0, sep=args.sep)
     genesynonyms(
         output,
-        input_type=args.input_type,
-        output_type=args.output_type,
+        gene_type=args.input_type,
+        alias_type=args.output_type,
         axis=args.axis,
         copy=False
     )

@@ -246,9 +246,9 @@ if args.marker_infile is None:
     std.print_warning("cannot classify cell cycle phases: marker file not specified")
 else:
     std.print_task(f"classifying cell cycle phases (using file {str(args.marker_infile)})")
-    std.print_debug("parsing R object")
+    std.print_debug("parsing R file")
     parser = rdata.parser.parse_file(args.marker_infile)
-    std.print_debug("converting R object into Python object")
+    std.print_debug("converting R-readable parser into Python-readable parser")
     marker_pairs = rdata.conversion.convert(parser)
     std.print_info("scoring cell cycle phases for each cell")
     marker_pairs = marker_pairs_converter(marker_pairs, "referencename")

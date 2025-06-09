@@ -1,3 +1,5 @@
+[![Make](https://img.shields.io/badge/Make-%3E%3D4.3-red?style=flat)](https://www.gnu.org/software/make)
+
 # Boolean Networks Inference for Explaining Treatment-Resistant Leukemia
 
 ## Introduction

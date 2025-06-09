@@ -606,8 +606,7 @@ $(velocyto_$(1)): $(cellranger_$(1)) $(transcriptome)
 		$$(conda_activate) scbridge-anndata
 		$(call print_debug,standardizing gene names and converting loom format into h5ad format)
 		python scripts/utils/adata_conversion.py $$(shell echo $$@ | sed "s/h5ad/loom/") $$@ --from loom --to h5ad \
-			--remove-positions \
-			--genename-standardization
+			--remove-positions --sort --standardization
 		$$(conda_deactivate)
 	else
 		$(call print_error,cannot run velocyto: file data/public/transcriptome/repeat_msk.gtf does not exist \(please refer to documentation for downloading it\))

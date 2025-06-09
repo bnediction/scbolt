@@ -97,11 +97,19 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--genename-standardization",
-    dest="genename_standardization",
+    "--standardization",
+    dest="standardization",
     required=False,
     action="store_true",
     help="convert gene names by their NCBI reference names"
+)
+
+parser.add_argument(
+    "--sort",
+    dest="sort",
+    required=False,
+    action="store_true",
+    help="sort observations and variables"
 )
 
 parser.add_argument(
@@ -154,16 +162,19 @@ if args.metadata:
     metadata_d = {info[0]: info[1] for info in split(args.metadata)}
     add_metadata(adata, **metadata_d)
 
-if args.genename_standardization:
+if args.standardization:
     adata.var["symbol"] = list(adata.var.index)
-    for alias_type in ["genename","geneid","ensemblid"]:
-        bt.sct.pp.set_ncbi_reference_name(
+    for gene_type in ["genename","geneid","ensemblid"]:
+        bt.sct.pp.convert_gene_identifiers(
             adata,
             axis="var",
-            input_type=alias_type,
+            gene_type=gene_type,
             copy=False
         )
     adata = bt.sct.pp.var_names_merge_duplicates(adata, var_names_column="symbol")
+
+if args.sort:
+    adata = adata[sorted(adata.obs.index),sorted(adata.var.index)].to_memory()
 
 if args.__getattribute__("to") == "h5ad":
     adata.write_h5ad(filename=args.output, compression="gzip" if args.compression else None)
