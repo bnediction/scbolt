@@ -1,4 +1,4 @@
-name: velocyto
+name: scbridge-velocyto
 channels:
   - bioconda
   - conda-forge
@@ -62,4 +62,4 @@ dependencies:
       - pytz==2024.2
       - tzdata==2024.1
       - velocyto==0.17.17
-prefix: /home/roncalli/anaconda3/envs/velocyto
+prefix: ~/anaconda3/envs/velocyto

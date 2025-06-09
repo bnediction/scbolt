@@ -530,7 +530,7 @@ $(word 1,$(signatures)) $(word 2,$(signatures)):
 
 $(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures))
 	$(call print_rule,load-signatures,conversion)
-	$(conda_activate) preprocess
+	$(conda_activate) scbridge-anndata
 	python scripts/utils/load_signatures.py \
 		--list-infile $(firstword $^) \
 		--table-infile $(lastword $^) \
@@ -557,7 +557,7 @@ define compute_rules_for_conditions
 
 $(fastq_$(1)):
 	$(call print_rule,load-fastq,$(1))
-	$$(conda_activate) fastq-dump
+	$$(conda_activate) scbridge-fastq
 	sample_naming="$(1)"
 	lane=0
 	rm -rf $(tmpdir)/$(1)/fastq && mkdir $(tmpdir)/$(1)/fastq
@@ -595,7 +595,7 @@ $(cellranger_$(1)): $(fastq_$(1)) $(transcriptome)
 $(velocyto_$(1)): $(cellranger_$(1)) $(transcriptome)
 	$(call print_rule,velocyto,$(1))
 	if [ -f data/public/transcriptome/repeat_msk.gtf ]; then
-		$$(conda_activate) velocyto
+		$$(conda_activate) scbridge-velocyto
 		velocyto run10x -m data/public/transcriptome/repeat_msk.gtf \
 			--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
 			$$(dir $$(firstword $$^)) $$(lastword $$^)/genes/genes.gtf
@@ -603,7 +603,7 @@ $(velocyto_$(1)): $(cellranger_$(1)) $(transcriptome)
 		mkdir -p $$(@D)
 		mv $$(<D)/velocyto/cellranger.loom $$(shell echo $$@ | sed "s/h5ad/loom/")
 		rm -rf $$(<D)/velocyto
-		$$(conda_activate) preprocess
+		$$(conda_activate) scbridge-anndata
 		$(call print_debug,standardizing gene names and converting loom format into h5ad format)
 		python scripts/utils/adata_conversion.py $$(shell echo $$@ | sed "s/h5ad/loom/") $$@ --from loom --to h5ad \
 			--remove-positions \
@@ -616,7 +616,7 @@ $(velocyto_$(1)): $(cellranger_$(1)) $(transcriptome)
 $(filtering_$(1)): $(velocyto_$(1)) $(cc_markers)
 	$(call print_rule,filtering,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) preprocess
+	$$(conda_activate) scbridge-anndata
 	python scripts/preprocessing/filtering.py $$(firstword $$^) $$@ --marker $$(lastword $$^) \
 		--gene-dropout $(GENE_DROPOUT) --gene-expression $(GENE_EXPRESSION) --gene-counts $(GENE_COUNTS) \
 		--cell-dropout $(CELL_DROPOUT) --cell-expression $(CELL_EXPRESSION) --cell-reads $(CELL_READS) \
@@ -627,14 +627,14 @@ $(filtering_$(1)): $(velocyto_$(1)) $(cc_markers)
 $(normalization_$(1)): $(filtering_$(1))
 	$(call print_rule,normalization,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) preprocess
+	$$(conda_activate) scbridge-anndata
 	python scripts/preprocessing/normalization.py $$< $$@ $(correction) --jobs $(JOBS)
 	$$(conda_deactivate)
 
 $(clustering_$(1)): $(normalization_$(1))
 	$(call print_rule,clustering,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) preprocess
+	$$(conda_activate) scbridge-anndata
 	python scripts/clustering/clustering.py $$< $$@ \
 		--layer correct --adjacency knn --embedding umap \
 		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_CLUSTERING) --embedding-dimension $(DIM_EMBEDDING) \
@@ -647,7 +647,7 @@ ifeq ($(LABELING_FROM_INTEGRATION),true)
 $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 	$(call print_rule,annotation,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) preprocess
+	$$(conda_activate) scbridge-anndata
 	python scripts/utils/pipe_its.py $$^ --outfiles $$@ --labels $(1) --obs-label condition --obs leiden
 	$(call print_task,plotting umap with respect to annotated clusters)
 	python fig/plot_embedding.py fig/leiden_umap.json --infile $$@ --outfile $$(@D)/umap_annotation.pdf
@@ -657,11 +657,11 @@ ifdef LABEL_$(call toupper,$(1))
 $(annotation_$(1)): $(clustering_$(1))
 	$(call print_rule,annotation,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) preprocess
+	$$(conda_activate) scbridge-anndata
 	python scripts/clustering/annotation.py $< $@ \
 		--obs leiden --labels $(join $(shell seq 0 1 $$(( $(words $$(LABEL_$(call toupper,$(1))))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
 	$(call print_task,embedding component plotting)
-	python fig/plot_embedding.py fig/umap_labels.json \
+	python fig/plot_embedding.py fig/leiden_umap.json \
 		--infile $$@ --outfile $$(@D)/umap_labels.pdf
 	$$(conda_deactivate)
 else
@@ -675,7 +675,7 @@ endif
 $(scvelo_$(1)): $(annotation_$(1))
 	$(call print_rule,scvelo,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) scvelo
+	$$(conda_activate) scbridge-scvelo
 	python scripts/trajectories/velocity.py $$< $$@ \
 		--layer counts --cluster leiden --moment-dimension $(DIM_MOMENT) \
 		$(velocity_only_hvg) --mode $(SMM_MODE) --embedding umap --jobs $(JOBS)
@@ -684,18 +684,18 @@ $(scvelo_$(1)): $(annotation_$(1))
 $(cotan_$(1))&: $(annotation_$(1))
 	$(call print_rule,cotan,$(1))
 	mkdir -p $$(@D) $(tmpdir)/$(1)/cotan
-	$$(conda_activate) preprocess
+	$$(conda_activate) scbridge-anndata
 	$(call print_debug,loading file $$< \(layer 'matrix'\))
 	python scripts/utils/adata_conversion.py $$< $(tmpdir)/$(1)/cotan/barcts.csv --from h5ad --to csv --layer matrix $(cotan_only_hvg)
 	$(call print_debug,transposing counts matrix)
 	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $(tmpdir)/$(1)/cotan/barcts.csv > $(tmpdir)/$(1)/cotan/gencts.csv
 	$$(conda_deactivate)
-	$$(conda_activate) cotan
+	$$(conda_activate) scbridge-cotan
 	Rscript scripts/macrostates/cotan_macrostates.R --infile $(tmpdir)/$(1)/cotan/gencts.csv --outfile $$(@D)/cotan.RDS --csv $$(lastword $$(cotan_$(1))) \
 		--sep , --name $(1) --max-iterations $(MAX_ITER) --method $(COTAN_METHOD) --min-ude 0.3 --jobs $(JOBS)
 	$$(conda_deactivate)
 	sed -i '1 i\,macrostates' $$(lastword $$(cotan_$(1)))
-	$$(conda_activate) preprocess
+	$$(conda_activate) scbridge-anndata
 	$(call print_debug,adding cotan clusters to anndata object)
 	python scripts/utils/add_to_anndata.py $$< $$(firstword $$(cotan_$(1))) --csv $$(lastword $$(cotan_$(1))) --axis 0 --sep , --type category
 	$(call print_task,plotting umap with respect to cotan clusters)
@@ -705,7 +705,7 @@ $(cotan_$(1))&: $(annotation_$(1))
 $(cellrank_$(1))&: $(scvelo_$(1))
 	$(call print_rule,cellrank,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) cellrank
+	$$(conda_activate) scbridge-cellrank
 	python scripts/macrostates/cellrank_macrostates.py $$< $$(firstword $$(cellrank_$(1))) --csv $$(lastword $$(cellrank_$(1))) \
 		--obs leiden --method $(CELLRANK_METHOD) \
 		--states $(STATES) --initial-states $(INITIAL_STATES) --terminal-states $(TERMINAL_STATES) \
@@ -715,7 +715,7 @@ $(cellrank_$(1))&: $(scvelo_$(1))
 $(stream_$(1))&: $(annotation_$(1))
 	$(call print_rule,stream,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) stream
+	$$(conda_activate) scbridge-stream
 	python scripts/macrostates/stream_macrostates.py $$< $$(firstword $$(stream_$(1))) \
 		--pkl $$(firstword $$(stream_$(1))).pkl --csv $$(lastword $$(stream_$(1))) \
 		--embedding umap --obs leiden --cluster-number $(CLUSTER_NUMBER) \
@@ -732,7 +732,7 @@ else
 $(knnbs_$(1))&: $(annotation_$(1))
 	$(call print_rule,knnbs,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) preprocess
+	$$(conda_activate) scbridge-anndata
 	python scripts/macrostates/knnbs_macrostates.py $$< $$(firstword $$(knnbs_$(1))) --csv $$(lastword $$(knnbs_$(1))) \
 		--obs leiden --embedding $(KNNBS_EMBEDDING) --neighbors $(KNNBS_NEIGHBORS) \
 		$(knnbs_dimension) --metric $(METRIC) --size $(MACROSTATE_SIZE) \
@@ -750,7 +750,7 @@ define compute_rules_for_references
 $(dea_$(1))&: $(clustering_$(1))
 	$(call print_rule,dea,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) preprocess
+	$$(conda_activate) scbridge-anndata
 	python scripts/clustering/markers.py $$< $(firstword $(dea_$(1))) --xlsx $(lastword $(dea_$(1))) \
 		--cluster leiden --layer log-norm --is-log \
 		--logfc $(LOGFC) --alpha $(ALPHA) --correction $(CORRECTION)
@@ -759,20 +759,20 @@ $(dea_$(1))&: $(clustering_$(1))
 $(scoring_$(1)): $(clustering_$(1)) $(lastword $(signatures)) $(lastword $(dea_$(1)))
 	$(call print_rule,scoring,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) preprocess
+	$$(conda_activate) scbridge-anndata
 	python scripts/clustering/scoring.py $$^ $$@ --cluster leiden --ignore-sheets background
 	$$(conda_deactivate)
 
 $(goea_basic_$(1)): $(lastword $(dea_$(1))) $(go_basic) $(gene2go)
 	$(call print_rule,goea with go-basic,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) preprocess
+	$$(conda_activate) scbridge-anndata
 	python scripts/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^) 
 	$$(conda_deactivate)
 
 $(goea_mouse_$(1)): $(lastword $(dea_$(1))) $(go_mouse) $(gene2go)
 	$(call print_rule,goea with go-mouse,$(1))
-	$$(conda_activate) preprocess
+	$$(conda_activate) scbridge-anndata
 	python scripts/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
 	$$(conda_deactivate)
 
@@ -781,7 +781,7 @@ endef
 $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(condition)))
 	$(call print_rule,clustering,integrated)
 	mkdir -p $(@D)
-	$(conda_activate) preprocess
+	$(conda_activate) scbridge-anndata
 	python scripts/clustering/integration.py $^ --outfile $@ --labels $(conditions) \
 		--layer correct --adjacency knn --integration $(INTEGRATION) --embedding umap \
 		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_CLUSTERING) --embedding-dimension $(DIM_EMBEDDING) \
@@ -793,11 +793,11 @@ ifdef LABEL_INTEGRATED
 $(annotation_integrated): $(clustering_integrated)
 	$(call print_rule,annotation,integrated)
 	mkdir -p $(@D)
-	$(conda_activate) preprocess
+	$(conda_activate) scbridge-anndata
 	python scripts/clustering/annotation.py $< $@ \
 		--obs leiden --labels $(join $(shell seq 0 1 $$(( $(words $(LABEL_INTEGRATED))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
 	$(call print_task,plotting umap with respect to labels)
-	python fig/plot_embedding.py fig/umap_labels.json --infile $@ --outfile $(@D)/umap_labels.pdf
+	python fig/plot_embedding.py fig/leiden_umap.json --infile $@ --outfile $(@D)/umap_labels.pdf
 	$(conda_deactivate)
 else
 $(annotation_integrated): $(clustering_integrated)
@@ -808,7 +808,7 @@ endif
 $(bin_cells)&: $(clustering_integrated)
 	$(call print_rule,bin-cells)
 	mkdir -p $(@D)
-	$(conda_activate) scboolseq
+	$(conda_activate) scbridge-scboolseq
 	python scripts/binarization/bin_cells_scboolseq.py $< --outfile $(firstword $(bin_cells)) --bin $(shell echo $@ | sed "s/.h5ad/.csv/") --statistics $(lastword $(bin_cells)) \
 		--layer log-norm --quantile $(UNIMODAL_QUANTILE) $(zeroes_are_zeroes)
 	$(call print_task,plotting umap with respect to binarization percentage)
@@ -818,7 +818,7 @@ $(bin_cells)&: $(clustering_integrated)
 $(bin_scboolseq): $(firstword $(bin_cells)) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
 	$(call print_rule,bin-scboolseq)
 	mkdir -p $(@D) $(tmpdir)/integrated/bin/aggr
-	$(conda_activate) preprocess
+	$(conda_activate) scbridge-anndata
 	$(call print_debug,adding macrostates to anndata object)
 	python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/aggr/mcts.h5ad --csv $(filter-out $<, $^) \
 		--labels $(conditions) --label-column condition --add-prefix macrostates --axis 0 --sep , --type category
@@ -833,7 +833,7 @@ $(bin_scboolseq): $(firstword $(bin_cells)) $(foreach condition,$(conditions),$(
 $(bin_dea): $(clustering_integrated) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
 	$(call print_rule,bin-dea)
 	mkdir -p $(@D) $(tmpdir)/integrated/bin/dea
-	$(conda_activate) preprocess
+	$(conda_activate) scbridge-anndata
 	$(call print_debug,adding macrostates to anndata object)
 	python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/dea/mcts.h5ad --csv $(filter-out $<, $^) \
 		--labels $(conditions) --label-column condition --add-prefix macrostates --axis 0 --sep , --type category
@@ -852,7 +852,7 @@ $(bin_merge): $(bin_scboolseq) $(lastword $(bin_cells)) $(bin_dea)
 	((col++))
 	cut -f 1,$$col -d ',' $(word 2, $^) > $(tmpdir)/bin/merge/distributions.csv
 	unset col
-	$(conda_activate) preprocess
+	$(conda_activate) scbridge-anndata
 	python scripts/binarization/bin_merge.py --scboolseq $< $(tmpdir)/bin/merge/distributions.csv --dea $(lastword $^) \
 		--outfile $@ --pct-bin $(@D)/pct_bin.csv
 	$(conda_deactivate)
@@ -864,7 +864,7 @@ $(bonesis_model)&: $(bin) $(clustering_integrated)
 		$(call print_error,file $(YAML_MODEL) not found \(see documentation for details about command \'modeling\'\))
 	fi
 		mkdir -p $(tmpdir)/bonesis/hvg $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
-		$(conda_activate) preprocess
+		$(conda_activate) scbridge-anndata
 		$(call print_task,estimating top $(MODEL_TOP_HVG) highly variable genes with $(MODEL_HVG_METHOD))
 		python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/hvg/top_genes.txt --hvg $(MODEL_TOP_HVG) --method $(MODEL_HVG_METHOD)
 		$(conda_deactivate)

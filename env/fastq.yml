@@ -1,4 +1,4 @@
-name: fastq-dump
+name: scbridge-fastq
 channels:
   - bioconda
   - conda-forge
@@ -68,4 +68,4 @@ dependencies:
   - wheel=0.44.0=pyhd8ed1ab_0
   - xz=5.2.6=h166bdaf_0
   - zstd=1.5.6=ha6fb4c9_0
-prefix: ${HOME}/anaconda3/envs/fastq-dump
+prefix: ~/anaconda3/envs/scbridge-fastq

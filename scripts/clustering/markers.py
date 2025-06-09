@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser(
     prog="markers",
     description=
     """
-    Search for differentially expressed genes (markers) between clusters.
+    Search for overexpressed genes (markers) between clusters.
     """,
     usage="python markers.py [-h] <FILE> <FILE> [--xlsx <FILE>] --cluster <LITERAL> [<args>]"
 )
@@ -44,7 +44,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="output file storing differentially expressed genes, each spreadsheet being related to a cluster (format: xlsx)"
+    help="output file storing overexpressed genes, each spreadsheet being related to a cluster (format: xlsx)"
 )
 
 parser.add_argument(
@@ -83,7 +83,7 @@ parser.add_argument(
     max=math.inf,
     required=False,
     default=0.25,
-    help="minimum log2 fold-change in absolute value for a gene to be considered as differentially expressed (default: 0.25)"
+    help="minimum log2 fold-change for a gene to be considered as differentially expressed (default: 0.25)"
 )
 
 parser.add_argument(
@@ -149,7 +149,7 @@ markers = bt.sct.tl.update_logfoldchanges(
     groupby=args.cluster,
     is_log=args.is_log,
     cluster_rebalancing=False,
-    filter_logfoldchanges=lambda x: abs(x) > args.logfc
+    filter_logfoldchanges=lambda x: x > args.logfc
 )
 
 std.print_task(f"saving data in {str(args.outfile)}")

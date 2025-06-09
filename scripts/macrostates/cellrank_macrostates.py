@@ -196,7 +196,7 @@ try:
         n_cells=args.size,
         allow_overlap=True
     )
-    found_terminal = True
+    found_final_states = True
 except ValueError as e:
     if str(e) == "No macrostates have been selected.":
         found_final_states = False

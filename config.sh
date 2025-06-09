@@ -8,21 +8,21 @@ install_env() {
     then
         echo "conda environment '$1' already exists"
         read -p $"Do you want to reinstall conda environment '${1}'? ([y]/n): " choice
-        if [[ "$choice" == "y" || -z "$choice" ]];
+        if [ $choice == "y" || -z $choice ];
         then
             conda remove --name $1 --all --yes
-            conda env create -f ${env_dir}/$1.yml --yes
-            if [[ "$1" != fastq-dump ]];
+            conda env create -f $2 --yes
+            if [ $1 != "scbridge-fastq" ] && [ $1 != "scbridge-velocyto" ];
             then
                 conda develop --name $1 ${lib_dir};
             fi
-            if [[ "$1" == bonesis ]];
+            if [ $1 == "scbridge-bonesis" ];
             then
                 conda activate $1
                 pip install git+https://github.com/bnediction/bonesis.git@a40e7b49274b19aca3eeccb6e468f765153bc53f
                 conda deactivate;
             fi
-            if [[ "$1" == scvelo ]];
+            if [ $1 == "scbridge-scvelo" ];
             then
                 conda activate $1
                 pip install git+https://github.com/theislab/scvelo.git@b2f31b345641efdccd39fbcb8c0beaa0014b4b88
@@ -34,15 +34,15 @@ install_env() {
         fi
     else
         echo "installing conda environment '$1'"
-        conda env create -f ${env_dir}/$1.yml
+        conda env create -f $2
         conda develop --name $1 ${lib_dir};
-        if [[ "$1" == bonesis ]];
+        if [ $1 == "scbridge-bonesis" ];
         then
             conda activate $1
             pip install git+https://github.com/bnediction/bonesistools.git@d4710d937da23b16117ce832e97a41d2a98753e2
             conda deactivate;
         fi
-        if [[ "$1" == scvelo ]];
+        if [ $1 == "scbridge-scvelo" ];
         then
             conda activate $1
             pip install git+https://github.com/theislab/scvelo.git@b2f31b345641efdccd39fbcb8c0beaa0014b4b88
@@ -65,19 +65,13 @@ download_ncbi_gi() {
 
 source ${HOME}/anaconda3/etc/profile.d/conda.sh
 
-if [ -d ${lib_dir}/bonesistools ];
-then
-    echo -e "package 'bonesistools' already cloned.\n"
-else
-    git clone https://github.com/bnediction/bonesistools.git ${lib_dir}/bonesistools
-fi
-
 if conda env list | grep -q "^base";
 then
     conda activate base
 fi
 
-for environment in fastq-dump preprocess scvelo cotan stream scboolseq bonesis bn
+for file in ${env_dir}/*.yml
 do
-    install_env $environment
+    env=scbridge-`basename ${file%.yml}`
+    install_env $env $file
 done

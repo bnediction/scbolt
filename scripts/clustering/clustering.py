@@ -176,7 +176,7 @@ parser.add_argument(
     type=int,
     required=False,
     default=random.random(),
-    metavar="FLOAT",
+    metavar="INT",
     help="random number generator (default: random)"
 )
 

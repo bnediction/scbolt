@@ -1,4 +1,4 @@
-name: stream
+name: scbridge-stream
 channels:
   - bioconda
   - conda-forge
@@ -506,5 +506,6 @@ dependencies:
   - zlib=1.2.13=hd590300_5
   - zstd=1.5.5=hfc55251_0
   - pip:
+      - bonesistools==1.1.1
       - decoupler==1.6.0
-prefix: ${HOME}/anaconda3/envs/stream
+prefix: ~/anaconda3/envs/scbridge-stream

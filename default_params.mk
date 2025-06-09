@@ -52,7 +52,7 @@ $(eval SPREAD := 1)							# effective scale of embedded points in umap
 
 ## BEGIN DEA ##
 
-$(eval LOGFC := 0.25)						# minimum log2 fold-change in absolute value for a gene to be considered as differentially expressed
+$(eval LOGFC := 0.25)						# minimum log2 fold-change for a gene to be considered as differentially expressed
 $(eval ALPHA := 0.05)						# significance level of rejecting null hypothesis that gene is not differentially expressed
 $(eval CORRECTION := bonferroni)			# method used for correcting the significance level (benjamini-hochberg ou bonferroni)
 

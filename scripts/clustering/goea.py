@@ -127,22 +127,22 @@ background_geneset = study_geneset[args.background]
 del study_geneset[args.background]
 
 if args.input_type != annotations_type:
-    std.print_debug(f"standardizing gene alias (from {args.input_type} into {annotations_type})")
+    std.print_debug(f"standardizing gene identifiers ({args.input_type} => {annotations_type})")
 
 for cluster, geneset in study_geneset.items():
-    geneset = genesyn.sequence_standardization(
-        gene_sequence=geneset,
-        input_type=args.input_type,
-        output_type=annotations_type
+    geneset = genesyn(
+        geneset,
+        gene_type=args.input_type,
+        alias_type=annotations_type
     ) if args.input_type != annotations_type else geneset
     geneset = set(map(lambda geneid: int(geneid) if geneid.isnumeric() else None, geneset))
     geneset.discard(None)
     study_geneset[cluster] = geneset
 
-background_geneset = genesyn.sequence_standardization(
-    gene_sequence=background_geneset,
-    input_type=args.input_type,
-    output_type=annotations_type
+background_geneset = genesyn(
+    background_geneset,
+    gene_type=args.input_type,
+    alias_type=annotations_type
 ) if args.input_type != annotations_type else background_geneset
 background_geneset = set(map(lambda geneid: int(geneid) if geneid.isnumeric() else None, background_geneset))
 background_geneset.discard(None)

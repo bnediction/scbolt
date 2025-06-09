@@ -1,5 +1,6 @@
-name: cellrank
+name: scbridge-cellrank
 channels:
+  - bioconda
   - conda-forge
   - defaults
 dependencies:
@@ -187,6 +188,7 @@ dependencies:
   - zstandard=0.23.0=py312hef9b889_1
   - zstd=1.5.6=ha6fb4c9_0
   - pip:
+      - bonesistools==1.1.1
       - cellrank==2.0.6
       - click==8.1.7
       - jinja2==3.0.3
@@ -199,4 +201,4 @@ dependencies:
       - python-utils==3.9.0
       - scipy==1.11.4
       - scvelo==0.3.2
-prefix: {HOME}/anaconda3/envs/cellrank
+prefix: ~/anaconda3/envs/scbridge-cellrank
