@@ -105,11 +105,11 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--zero-center",
-    dest="zero_center",
+    "--lsa",
+    dest="lsa",
     action="store_true",
     required=False,
-    help="if true, compute PCA from covariance matrix, otherwise omit zero-centering variables"
+    help="approximate reduction dimension using truncated SVD (latent semantic analysis) instead of PCA"
 )
 
 parser.add_argument(
@@ -205,7 +205,7 @@ if args.only_hvg:
 sc.tl.pca(
     adata,
     n_comps=args.pca_dimension,
-    zero_center=args.zero_center,
+    zero_center=not args.lsa,
     use_highly_variable=args.only_hvg,
     random_state=np.random.RandomState(args.seed),
     copy=False

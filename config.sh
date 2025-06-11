@@ -8,7 +8,7 @@ install_env() {
     then
         echo "conda environment '$1' already exists"
         read -p $"Do you want to reinstall conda environment '${1}'? ([y]/n): " choice
-        if [ $choice == "y" || -z $choice ];
+        if [[ $choice == "y" || -z $choice ]];
         then
             conda remove --name $1 --all --yes
             conda env create -f $2 --yes

@@ -268,7 +268,7 @@ plt.axis("off")
 ax = bt.sct.pl.draw_paga(
     adata=adata,
     obs=args.cluster,
-    obsm="X_umap" if args.embedding == "umap" else "X_tsne",
+    use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
     edges="transitions_confidence",
     threshold=0.01,
     ax=ax,

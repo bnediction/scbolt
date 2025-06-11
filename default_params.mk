@@ -38,8 +38,8 @@ $(eval CC_CORRECTION := true)				# regress-out cell cycle effects
 ## BEGIN CLUSTERING ##
 
 $(eval INTEGRATION := bbknn)				# integration method used (bbknn, scanorama or ingest)
-$(eval DIM_PCA := 15)						# number of computed principal components
-$(eval DIM_CLUSTERING := 15)				# number of principal components taken into account for clustering cells
+$(eval DIM_PCA := 50)						# number of computed principal components
+$(eval DIM_CLUSTERING := 20)				# number of principal components taken into account for clustering cells
 $(eval DIM_EMBEDDING := 2)					# number of embedding dimensions
 $(eval PCA_ONLY_HVG := true)				# use only highly variable genes for PCA projection
 $(eval NEIGHBORS := 20)						# number of closest neighbors
