@@ -1,6 +1,6 @@
 {
-    "infile": "data/rna/integrated/clustering/clusters/integrated.h5ad",
-    "outfile": "figures/results/umap_conditions_wo_axis",
+    "infile": "data.bak/rna/integrated/clustering/clusters/counts.h5ad",
+    "outfile": "umap_conditions_wo_axis.pdf",
     "modules": [
         {"numpy": "np"},
         {"bonesistools": "bt"}
@@ -27,6 +27,7 @@
         "add_legend": true,
         "lgd_params": {
             "title": "conditions",
+            "loc":"best",
             "ncol": 1,
             "markerscale": 5,
             "frameon": true,

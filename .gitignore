@@ -97,3 +97,4 @@ todo.*
 *.obo
 supplemental/
 bonesistools/
+clustering.sh

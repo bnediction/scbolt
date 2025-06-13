@@ -18,7 +18,7 @@ bt.sct.pl.set_default_params()
 parser = argparse.ArgumentParser(
     prog="velocity",
     description="""
-    Compute rna velocities using spliced/unspliced kinetics
+    Compute rna velocities using spliced/unspliced kinetics.
     """,
     usage="python velocity.py <FILE> <FILE> [<args>]"
 )
