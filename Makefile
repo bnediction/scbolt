@@ -140,6 +140,7 @@ velocyto_$(1) = 				$(rna)/$(1)/counting/velocyto/counts.h5ad
 filtering_$(1) = 				$(rna)/$(1)/preprocessing/filtering/counts.h5ad
 normalization_$(1) = 			$(rna)/$(1)/preprocessing/normalization/counts.h5ad
 scvelo_$(1) = 					$(rna)/$(1)/trajectories/scvelo/scvelo.h5ad
+cytotrace_$(1) = 				$(rna)/$(1)/trajectories/cytotrace/cytotrace.csv
 cotan_$(1) = 					$(rna)/$(1)/macrostates/cotan/macrostates.h5ad $(rna)/$(1)/macrostates/cotan/macrostates.csv
 cellrank_$(1) = 				$(rna)/$(1)/macrostates/cellrank/macrostates.h5ad $(rna)/$(1)/macrostates/cellrank/macrostates.csv
 stream_$(1) =			 		$(rna)/$(1)/macrostates/stream/macrostates.h5ad $(rna)/$(1)/macrostates/stream/macrostates.csv
@@ -210,6 +211,7 @@ scoring_target :=
 goea_target :=
 annotation_target :=
 scvelo_velocity_target :=
+cytotrace_velocity_target :=
 macrostates_target :=
 stream_target :=
 cellrank_target :=
@@ -224,6 +226,7 @@ $(eval velocyto_target := $(velocyto_target) $(velocyto_$(1)))
 $(eval filtering_target := $(filtering_target) $(filtering_$(1)))
 $(eval normalization_target := $(normalization_target) $(normalization_$(1)))
 $(eval scvelo_velocity_target := $(scvelo_velocity_target) $(scvelo_$(1)))
+$(eval cytotrace_velocity_target := $(cytotrace_velocity_target) $(cytotrace_$(1)))
 $(eval cotan_target := $(cotan_target) $(cotan_$(1)))
 $(eval cellrank_target := $(cellrank_target) $(cellrank_$(1)))
 $(eval stream_target := $(stream_target) $(stream_$(1)))
@@ -457,6 +460,8 @@ annotation: $(annotation_target) ## assign names to cell clusters
 
 .PHONY: scvelo
 scvelo: $(scvelo_velocity_target) ## estimate rna velocity with scvelo
+.PHONY: cytotrace
+cytotrace: $(cytotrace_velocity_target) ## estimate cell potencies with CytoTRACE
 
 ##@ Macrostate characterization
 
@@ -678,6 +683,15 @@ $(scvelo_$(1)): $(annotation_$(1))
 	python scripts/trajectories/velocity.py $$< $$@ \
 		--layer counts --cluster leiden --moment-dimension $(DIM_MOMENT) \
 		$(velocity_only_hvg) --mode $(SMM_MODE) --embedding umap --jobs $(JOBS)
+	$$(conda_deactivate)
+
+$(cytotrace_$(1)): $(annotation_$(1))
+	$(call print_rule,cytotrace,$(1))
+	mkdir -p $$(@D)
+	$$(conda_activate) scbridge-cytotrace
+	python scripts/trajectories/potency.py $$< $$(@D) --csv $$(notdir $$@) \
+		--layer counts --cluster leiden --batch-size $(BATCH_SIZE) --smooth-batch-size $(SMOOTH_BATCH_SIZE) \
+		--organism $(ORGANISM) --embedding umap --seed $(SEED) --jobs $(JOBS)
 	$$(conda_deactivate)
 
 $(cotan_$(1))&: $(annotation_$(1))

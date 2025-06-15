@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 bt.sct.pl.set_default_params()
 
 parser_description = """
-compute scores related to cell development potential (lower the score, higher the differentiation potential) and classify cells by their cell potency. \
+compute scores related to cell development potential (lower the score, higher the differentiation potential) and classify cells by their cell potency using CytoTRACE framework. \
 There are six cell potency-based classes:
     - totipotency: ability to divide or differentiate into all cell types
     - pluripotency: ability to differentiate into endoderm, ectoderm or mesoderm
@@ -94,14 +94,6 @@ parser.add_argument(
     required=True,
     metavar="LITERAL",
     help="column name in adata.obs distinguishing clusters"
-)
-
-parser.add_argument(
-    "--only-hvg",
-    dest="only_hvg",
-    action="store_true",
-    required=False,
-    help="use only highly variable genes for estimating cell potencies"
 )
 
 parser.add_argument(
