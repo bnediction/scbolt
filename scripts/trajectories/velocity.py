@@ -18,7 +18,8 @@ bt.sct.pl.set_default_params()
 parser = argparse.ArgumentParser(
     prog="velocity",
     description="""
-    Compute rna velocities using spliced/unspliced kinetics.
+    Compute rna velocities using spliced/unspliced kinetics using scVelo framework. \
+    See Bergen et al. (2020) <https://www.nature.com/articles/s41587-020-0591-3>.
     """,
     usage="python velocity.py <FILE> <FILE> [<args>]"
 )

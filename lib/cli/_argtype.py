@@ -328,9 +328,10 @@ class Store_organism(argparse.Action):
         **kwargs
     ):
         default = kwargs["default"] if "default" in kwargs else None
+        choices = kwargs["choices"] if "choices" in kwargs else ["mouse", "human", "escherichia-coli"]
         kwargs.update({
             "type": str,
-            "choices": ["mouse","human","escherichia-coli"],
+            "choices": choices,
             "metavar": "ORGANISM",
             "default": default,
             "help": kwargs["help"] if "help" in kwargs else f"common name of the organism of interest (default: {default})"
