@@ -255,8 +255,10 @@ potency_df["potency"] = pd.cut(
     include_lowest=True
 )
 
-scores = potency_df["score"].values
-potency_df["normalized_score"] = (scores-min(scores))/(max(scores)-min(scores))
+scores = potency_df["score"].copy().values
+scores -= scores.min()
+scores /= scores.max()
+potency_df["normalized_score"] = scores
 
 if args.csv:
     std.print_task(f"saving predicted cell potencies in {os.path.join(args.outpath, args.csv)}")

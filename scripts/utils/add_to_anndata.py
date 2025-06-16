@@ -129,8 +129,8 @@ parser.add_argument(
     dest="type",
     action=cli.Store_type,
     required=False,
-    default=str,
-    help="dataframe type (expected: str, int, float, complex, bool, category; default: str)"
+    default=None,
+    help="dataframe type (expected: str, int, float, complex, bool, category; default: None)"
 )
 
 args = parser.parse_args()
@@ -162,8 +162,7 @@ if len(args.csv) == 1:
         args.csv[0],
         sep=args.sep,
         index_col=args.index,
-        dtype=args.type
-    )
+    ).astype(args.type)
     if args.axis in [0, "obs"]:
         cols_to_remove = set(adata.obs.columns) & set(df.columns)
         if cols_to_remove:
@@ -192,9 +191,8 @@ else:
         df = pd.read_csv(
             file,
             sep=args.sep,
-            index_col=args.index,
-            dtype=args.type
-        )
+            index_col=args.index
+        ).astype(args.type)
         for col in args.add_prefix:
             df[col] = df[col].apply(lambda x: f"{name}_{x}")
         dfs[name] = df.copy(deep=True)

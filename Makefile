@@ -689,7 +689,7 @@ $(cytotrace_$(1)): $(annotation_$(1))
 	$(call print_rule,cytotrace,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) scbridge-cytotrace
-	python scripts/trajectories/potency.py $$< $$(@D) --csv $$(notdir $$@) \
+	python scripts/trajectories/potency.py $$< $$(@D) --csv $$(notdir $$@) --h5ad $$(basename $$(notdir $$@)).h5ad \
 		--layer counts --cluster leiden --batch-size $(BATCH_SIZE) --smooth-batch-size $(SMOOTH_BATCH_SIZE) \
 		--organism $(ORGANISM) --embedding umap --seed $(SEED) --jobs $(JOBS)
 	$$(conda_deactivate)
@@ -715,12 +715,18 @@ $(cotan_$(1))&: $(annotation_$(1))
 	python fig/plot_embedding.py fig/macrostates_umap.json --infile $$(firstword $$(cotan_$(1))) --outfile $$(@D)/umap_cotan.pdf
 	$$(conda_deactivate)
 
-$(cellrank_$(1))&: $(scvelo_$(1))
+$(cellrank_$(1))&: $(scvelo_$(1)) $(cytotrace_$(1))
 	$(call print_rule,cellrank,$(1))
-	mkdir -p $$(@D)
-	$$(conda_activate) scbridge-cellrank
-	python scripts/macrostates/cellrank_macrostates.py $$< $$(firstword $$(cellrank_$(1))) --csv $$(lastword $$(cellrank_$(1))) \
+	mkdir -p $$(@D) $(tmpdir)/$(1)/cellrank
+	$(call print_debug,adding cytotrace scores to anndata object)
+	awk -F, -v txt="score" 'FNR==1{for(col=1;$$$$col!=txt;col++);next} {print $$$$1 "," $$$$col}' $$(lastword $$^) > $(tmpdir)/$(1)/cellrank/cytotrace_scores.csv
+	sed -i '1 i\,cytotrace_score' $(tmpdir)/$(1)/cellrank/cytotrace_scores.csv
+	$$(conda_activate) scbridge-anndata
+	python scripts/utils/add_to_anndata.py $$(firstword $$^) $(tmpdir)/$(1)/cellrank/kernels.h5ad --csv $(tmpdir)/$(1)/cellrank/cytotrace_scores.csv --axis 0 --sep , --type float
+	$$(conda_deactivate); $$(conda_activate) scbridge-cellrank
+	python scripts/macrostates/cellrank_macrostates.py $(tmpdir)/$(1)/cellrank/kernels.h5ad $$(firstword $$(cellrank_$(1))) --csv $$(lastword $$(cellrank_$(1))) \
 		--obs leiden --method $(CELLRANK_METHOD) \
+		--cytotrace-score cytotrace_score --scvelo-velocity velocity \
 		--states $(STATES) --initial-states $(INITIAL_STATES) --terminal-states $(TERMINAL_STATES) \
 		--stability $(CELLRANK_STABILITY) --alpha $(CELLRANK_ALPHA) --size $(MACROSTATE_SIZE) --seed $(SEED)
 	$$(conda_deactivate)

@@ -63,6 +63,36 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--cytotrace-score",
+    dest="cytotrace_score",
+    type=str,
+    required=False,
+    default=None,
+    metavar="LITERAL",
+    help="column name in adata.obs storing cytotrace cell potency scores (default: None)"
+)
+
+parser.add_argument(
+    "--scvelo-first-moment",
+    dest="scvelo_first_moment",
+    type=str,
+    required=False,
+    default="Ms",
+    metavar="LITERAL",
+    help="layer in adata.layers storing first order moments of spliced counts (default: 'Ms')"
+)
+
+parser.add_argument(
+    "--scvelo-velocity",
+    dest="scvelo_velocity",
+    type=str,
+    required=False,
+    default="velocity",
+    metavar="LITERAL",
+    help="layer in adata.layers storing scvelo velocities (default: 'velocity')"
+)
+
+parser.add_argument(
     "--method",
     dest="method",
     type=str,
@@ -143,6 +173,16 @@ parser.add_argument(
     help="random number generator (default: random)"
 )
 
+parser.add_argument(
+    "--jobs",
+    dest="jobs",
+    type=int,
+    required=False,
+    default=1,
+    metavar="INT",
+    help="number of allocated processors"
+)
+
 args = parser.parse_args()
 
 if not Path(os.path.dirname(args.outfile)).exists():
@@ -154,15 +194,33 @@ adata = ad.read_h5ad(args.infile)
 std.print_task("computing kernels")
 
 std.print_info("computing rna velocity-based kernel")
-velocity_kernel = cr.kernels.VelocityKernel(adata)
+velocity_kernel = cr.kernels.VelocityKernel(
+    adata,
+    xkey=args.scvelo_first_moment,
+    vkey=args.scvelo_velocity
+)
 velocity_kernel.compute_transition_matrix(seed=args.seed)
+
+if args.cytotrace_score:
+    std.print_info("computing cell development potential-based kernel")
+    potency_kernel = cr.kernels.CytoTRACEKernel(adata)
+    scores = adata.obs[args.cytotrace_score].copy()
+    scores -= scores.min()
+    scores /= scores.max()
+    potency_kernel._pseudotime = 1 - scores
+    potency_kernel.compute_transition_matrix(n_jobs=args.jobs)
+else:
+    std.print_warning("cell development potential-based kernel is not computed: please specify argument --cytotrace-score")
 
 std.print_info("computing similarity-based kernel")
 connectivity_kernel = cr.kernels.ConnectivityKernel(adata)
 connectivity_kernel.compute_transition_matrix()
 
 std.print_info("combining kernels")
-combined_kernel = 0.8 * velocity_kernel + 0.2 * connectivity_kernel
+if args.cytotrace_score:
+    combined_kernel = 0.4*velocity_kernel + 0.4*potency_kernel + 0.2*connectivity_kernel
+else:
+    combined_kernel = 0.8*velocity_kernel + 0.2*connectivity_kernel
 
 std.print_task("estimating macrostates using generalized perron cluster cluster analysis (GPCCA)")
 gpcca = cr.estimators.GPCCA(combined_kernel)
