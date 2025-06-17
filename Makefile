@@ -915,7 +915,7 @@ $(bonesis_filtering_one): $(bonesis_model)
 	python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/stage1.sh --solution $@ \
-		--organism $(ORGANISM)
+		--max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
 	$(conda_deactivate)
 
 $(bonesis_filtering_two): $(bonesis_model) $(bonesis_filtering_one)
@@ -925,7 +925,7 @@ $(bonesis_filtering_two): $(bonesis_model) $(bonesis_filtering_one)
 	python scripts/inference/inference.py filter-stage2 $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/stage2.sh --solution $@ \
-		--filter-grn $(lastword $^) $(filter_min_feedbacks) --organism $(ORGANISM)
+		--filter-grn $(lastword $^) $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
 	$(conda_deactivate)
 
 $(bonesis_inference_min): $(bonesis_model) $(bonesis_filtering_two)
@@ -935,7 +935,7 @@ $(bonesis_inference_min): $(bonesis_model) $(bonesis_filtering_two)
 	python scripts/inference/inference.py one-min $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/bonesis_min.sh --solution $@ \
-		--filter-grn $(lastword $^) $(filter_min_feedbacks) --organism $(ORGANISM)
+		--filter-grn $(lastword $^) $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
 	$(conda_deactivate)
 	if [ "$$(which dot)" != "" ];
 	then
@@ -949,7 +949,7 @@ $(bonesis_inference_sub): $(bonesis_model) $(bonesis_filtering_two)
 	python scripts/inference/inference.py one-sub $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/bonesis_min.sh --solution $@ \
-		--filter-grn $(lastword $^) $(filter_min_feedbacks) --organism $(ORGANISM)
+		--filter-grn $(lastword $^) $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
 	$(conda_deactivate)
 	if [ "$$(which dot)" != "" ];
 	then

@@ -180,7 +180,7 @@ bo = bonesis.BoNesis(pkn, macrostates_cfg)
 
 for property in specification["bonesis"]:
     try:
-        eval(property)
+        exec(property)
     except:
         raise RuntimeError(f"invalid dynamic Boolean properties")
 

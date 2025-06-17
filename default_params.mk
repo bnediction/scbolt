@@ -8,17 +8,17 @@ ORGANISM ?= mouse
 CONDITIONS ?= ctrl treated
 
 ## FILTERING ##
-$(eval GENE_DROPOUT ?= 0.999)				# maximum percentage of cell dropout required for a gene to pass filtering
-$(eval GENE_EXPRESSION ?= 0 inf)			# minimum and maximum number of expressed cells required for a gene to pass filtering
-$(eval GENE_COUNTS ?= 0 inf)				# minimum and maximum number of counts required for a gene to pass filtering
-$(eval CELL_DROPOUT ?= 1)					# maximum percentage of gene dropout required for a cell to pass filtering
-$(eval CELL_EXPRESSION ?= 0 inf)			# minimum and maximum number of expressed genes required for a cell to pass filtering
-$(eval CELL_READS ?= 0 inf)					# minimum and maximum number of reads required for a cell to pass filtering
-$(eval MAD_DEVIATION ?= 2 2)				# factor droping cells for which their total reads are smaller or higher than this factor*mean-absolute-deviation with respect to the median
-$(eval NORM_MAD ?= true)					# if true, use normalized mean absolute deviation
-$(eval MT ?= 0.05)							# maximum proportion of expressed genes encoding mitochondrion proteins required for a cell to pass filtering
-$(eval HVG ?= 2000)							# top highly variables genes
-$(eval FILTER_NON_HVG ?= false)				# filter non-highly variable genes
+$(eval GENE_DROPOUT ?= 0.999)               # maximum percentage of cell dropout required for a gene to pass filtering
+$(eval GENE_EXPRESSION ?= 0 inf)            # minimum and maximum number of expressed cells required for a gene to pass filtering
+$(eval GENE_COUNTS ?= 0 inf)                # minimum and maximum number of counts required for a gene to pass filtering
+$(eval CELL_DROPOUT ?= 1)                   # maximum percentage of gene dropout required for a cell to pass filtering
+$(eval CELL_EXPRESSION ?= 0 inf)            # minimum and maximum number of expressed genes required for a cell to pass filtering
+$(eval CELL_READS ?= 0 inf)                 # minimum and maximum number of reads required for a cell to pass filtering
+$(eval MAD_DEVIATION ?= 2 2)                # factor droping cells for which their total reads are smaller or higher than this factor*mean-absolute-deviation with respect to the median
+$(eval NORM_MAD ?= true)                    # if true, use normalized mean absolute deviation
+$(eval MT ?= 0.05)                          # maximum proportion of expressed genes encoding mitochondrion proteins required for a cell to pass filtering
+$(eval HVG ?= 2000)                         # top highly variables genes
+$(eval FILTER_NON_HVG ?= false)             # filter non-highly variable genes
 
 ## NORMALIZATION ##
 $(eval CC_CORRECTION ?= true)				# regress-out cell cycle effects
@@ -105,9 +105,12 @@ $(eval BIN_CORRECTION ?= bonferroni)		# method used for correcting the significa
 $(eval BIN_METHOD ?= merge)
 
 ## BEGIN MODELING ##
-$(eval YAML_MODEL ?= spec/spec.yml)				# file storing model specifications for bonesis
-$(eval MODEL_TOP_HVG ?= )						# use only top 'BONESIS_TOP_HVG' highly variable genes for inferring Boolean Networks (if not specified, keep all genes)
-$(eval MODEL_HVG_METHOD ?= seurat_v3)			# method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3)
+$(eval YAML_MODEL ?= spec/spec.yml)			# file storing model specifications for bonesis
+$(eval MODEL_TOP_HVG ?= )					# use only top 'BONESIS_TOP_HVG' highly variable genes for inferring Boolean Networks (if not specified, keep all genes)
+$(eval MODEL_HVG_METHOD ?= seurat_v3)		# method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3)
+
+## BONESIS ##
+$(eval MAX_CLAUSE ?= 8)						# maximum number of literals/atoms in each propositional formula
 
 ## MAX-CONSTANTS ##
 $(eval FILTER_MIN_FEEDBACKS ?= true)		# minimize the number of length-one feedbacks at filtering stage

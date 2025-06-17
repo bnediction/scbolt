@@ -111,6 +111,16 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--max-clause",
+    dest="max_clause",
+    dest=int,
+    required=False,
+    default=8,
+    action="store_true",
+    help="maximum number of literals/atoms in each propositional formula (default: 8)"
+)
+
+parser.add_argument(
     "--minimize-feedbacks",
     dest="minimize_feedbacks",
     required=False,
@@ -154,7 +164,7 @@ std.print_task("initializing bonesis settings")
 
 pkn_options = {
     "canonic": True,
-    "maxclause": 8,
+    "maxclause": args.max_clause,
 }
 if args.action.startswith("filter"):
     pkn_options["canonic"] = False
@@ -177,7 +187,7 @@ bo = bonesis.BoNesis(pkn, metastates_cfg)
 
 with open(args.model, "r") as file:
     for line in file:
-        eval(line)
+        exec(line)
 
 if args.action == "filter-stage1":
 
