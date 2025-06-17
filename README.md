@@ -7,26 +7,17 @@
 Multi-omics sequencing has opened up new ways of modeling biological processes.
 This last decade, many tools have been developed to analyze these multiscale data;
 however it stills remains a major challenge to characterize data-driven biological models,
-mostly due to genome-scale network complexity. In particular, biological mechanisms involved
-in therapy-resistant disease are difficult to define, because of chromosal translocations
-and somatic mutations leading to uncommon signaling pathways. Moreover data can come from
-distinct experiments, adding integration-related issues such as batch effects.
-In this context, a semi-automatic software pipeline, named scBridge, has been developed, dealing with these difficulties
-for reconstructing executable qualitative models, using single-cell transcriptomics data.
-Its applications are multiple:
-1. predicting cellular fate decision and lineage differentiation
-2. understanding disease-driving signals and finding drug-targets
-3. etc.
-
-## Method
-
-The semi-automatic workflow scBridge (pipeline for Boolean network Reconstruction and Inference
-from multiple experimental Data in Gene Expression) proposes a general methodology for
-inferring logical models reproducing the observed transcriptomic cellular dynamics by using scRNA-seq data as input.
+mostly due to genome-scale network complexity. The semi-automatic workflow scBridge
+(pipeline for Boolean network Reconstruction and Inference from multiple experimental Data
+in Gene Expression) proposes a general methodology for inferring logical models reproducing
+the observed transcriptomic cell dynamics by using scRNA-seq data as input.
 Its implementation in `make` offers a wide range of advanced features for guiding and helping users
 in reconstructing data-driven Boolean networks. Also, scBridge aims to provide an answer to the following challenges:
 * automatize the stages of model reconstruction as much as possible;
-* incorporate multicondition aspect by managing experiment-related factors.
+* incorporate multicondition aspect by managing experiment-related factors;
+* deal with uncommon signaling pathways.
+
+## Method
 
 Pipeline is based on the BoNesis framework, where the synthesis of BNs
 requires a partially defined transition graph and a domain restricting the model search
