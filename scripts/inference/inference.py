@@ -113,10 +113,10 @@ parser.add_argument(
 parser.add_argument(
     "--max-clause",
     dest="max_clause",
-    dest=int,
+    type=int,
     required=False,
     default=8,
-    action="store_true",
+    metavar="INT",
     help="maximum number of literals/atoms in each propositional formula (default: 8)"
 )
 
@@ -163,11 +163,9 @@ metastates_cfg = get_cfg(
 std.print_task("initializing bonesis settings")
 
 pkn_options = {
-    "canonic": True,
+    "canonic": False if args.action.startswith("filter") else True,
     "maxclause": args.max_clause,
 }
-if args.action.startswith("filter"):
-    pkn_options["canonic"] = False
 if args.action == "filter-stage1":
     pkn_options["allow_skipping_nodes"] = True
 

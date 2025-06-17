@@ -20,19 +20,40 @@ Its applications are multiple:
 
 ## Method
 
-scBridge (pipeline for Boolean network Reconstruction and Inference from multiple experimental Data in Gene Expression)
-proposes a general methodology for inferring executable models reproducing *in silico*
-the observed cellular dynamics from multiple conditions/experiments.
+The semi-automatic workflow scBridge (pipeline for Boolean network Reconstruction and Inference
+from multiple experimental Data in Gene Expression) proposes a general methodology for
+inferring logical models reproducing the observed transcriptomic cellular dynamics by using scRNA-seq data as input.
+Its implementation in `make` offers a wide range of advanced features for guiding and helping users
+in reconstructing data-driven Boolean networks. Also, scBridge aims to provide an answer to the following challenges:
+* automatize the stages of model reconstruction as much as possible;
+* incorporate multicondition aspect by managing experiment-related factors.
+
+Pipeline is based on the BoNesis framework, where the synthesis of BNs
+requires a partially defined transition graph and a domain restricting the model search
+space. To achieve these goals, scBridge proposes a guideline made up of many computational
+steps (see Figure below). The first ones are classic methods for the
+feature counting and preprocessing. As scBridge aims to decipher biolgical processes from
+multiple high-throughput sequencing experiments, batch effects are identified and removed for avoiding
+inaccurate analysis. Once condition-related data are integrated, cell profiles have to be defined,
+a major step for characterizing observed biological processes later. It is the first step
+requiring user intervention, but some decision-making tools are provided to help user in this task,
+such as differentia expression analysis (dea), gene ontology enrichment analysis (goea) and signature scoring.
+Nevertheless, cell annotation is often not sufficient to deduce transcriptomic dynamics,
+limiting its application to well-documented processes. Some inference trajectory tools
+can be run to analyze the temporal cell behaviors. Then scBridge searches for key phenotypic manifolds,
+-- called macrostates -- and maps feature counting to Boolean values. Serving
+as Boolean states, user can specify dynamical Boolean properties between those states.
+Using as domain a gene-regulatory network such as Collectri, scBridge can then infer BNs
+satisfying the dynamical properties given by the user.
 
 <p align="center">
-<img src="man/fig/workflow-overview.png" alt="boolean network inference pipeline image" width="700"/>
+<img src="man/fig/workflow-overview.png" alt="scbridge-overview" width="700"/>
 <p>
 
-scBridge follows many steps for reconstructing logic models from transcriptomics data.
-Some steps require biological expertise (aided by decision-making tools):
-1. cell annotation (unknown cell profile)
-2. macrostate characterization (finding key phenotypic manifolds)
-3. model specification (biological process dynamics poorly defined in literature)
+*note:* computational steps are either automated (gray), require some user decisions (red) or help user in decisions (green).
+
+For a proper use of the pipeline, an advanced documentation is provided [here](https://github.com/bnediction/scBridge/tree/main/man).
+User can also find a summary documentation using `make help`.
 
 ## Installation
 
