@@ -43,9 +43,6 @@ satisfying the dynamical properties given by the user.
 
 *note:* computational steps are either automated (gray), require some user decisions (red) or help user in decisions (green).
 
-For a proper use of the pipeline, an advanced documentation is provided [here](https://github.com/bnediction/scBridge/tree/main/man).
-User can also find a summary documentation using `make help`.
-
 ## Installation
 
 ### Setup prerequisites
@@ -65,23 +62,29 @@ apt-get install texlive dvipng texlive-latex-extra texlive-fonts-recommended cm-
 
 Download and configure project as follows:
 ```sh
-git clone https://gitub.u-bordeaux.fr/troncalli/retinoic-acid-resistance-leukemias.git leukemia
-cd leukemia
+git clone https://github.com/bnediction/scBridge.git scbridge
+cd scbridge
 bash config.sh
 ```
 Also, you need to download file containing expressed repetitive elements to mask [here](https://genome.ucsc.edu/cgi-bin/hgTables?hgsid=611454127_NtvlaW6xBSIRYJEBI0iRDEWisITa&clade=mammal&org=&db=mm39&hgta_group=allTracks&hgta_track=rmsk&hgta_table=rmsk&hgta_regionType=genome&position=&hgta_outputType=gff&hgta_outFileName=repeat_msk.gtf) and move it to directory 'data/public/transcriptome/repeat_msk.gtf'.
 
 ## Use
 
-For running the pipeline:
-```sh
-make [SAMPLES=<...>]
-```
-For using specific features, please refer to the documentation available with:
+For a proper use of the pipeline, an advanced documentation is provided [here](https://github.com/bnediction/scBridge/tree/main/man).
+User can also find a summary documentation using:
 ```sh
 make help
 ```
-Default parameters are available in `default_params.mk` file. To update and override parameters, please edit `params.mk` file.
+
+For running a pipeline's command:
+```sh
+make <command>
+``` 
+Default parameters are available in file `default_params.mk`. To update and override parameters, please edit file `params.mk`.
+
+## Bugs
+
+Please report any bugs or ask questions [here](https://github.com/bnediction/bonesistools/issues) or contact contributors directly.
 
 ## License
 
@@ -90,3 +93,5 @@ No license for the moment. Its purpose is only for intern usage.
 ## Contributors
 
 * [Théo Roncalli](https://github.com/Theo-Roncalli)
+* [Loïc Paulevé](https://github.com/pauleve)
+* [Elisabeth Remy](https://github.com/elisaR)
