@@ -47,7 +47,7 @@ Using as domain a gene-regulatory network such as Collectri, scBridge can then i
 satisfying the dynamical properties given by the user.
 
 <p align="center">
-<img src="man/fig/workflow-overview.png" alt="scbridge-overview" width="700"/>
+<img src="man/fig/scbridge-overview.png" alt="scbridge-overview" width="700"/>
 <p>
 
 *note:* computational steps are either automated (gray), require some user decisions (red) or help user in decisions (green).
