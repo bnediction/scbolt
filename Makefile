@@ -180,12 +180,7 @@ bonesis_model =                 $(bonesis)/modeling/bo_model.txt $(bonesis)/mode
 bonesis_weak_stage1 =           $(bonesis)/filtering/weak/stage1.txt
 bonesis_weak_stage2 =           $(bonesis)/filtering/weak/stage2.txt
 bonesis_weak_filtering =        $(bonesis_weak_stage1) $(bonesis_weak_stage2)
-bonesis_strong_stage1 =         $(bonesis)/filtering/strong/genes_stage1.txt
-bonesis_strong_stage2 =         $(bonesis)/filtering/strong/genes_stage2.txt
-bonesis_strong_filtering =      $(bonesis_strong_stage1) $(bonesis_strong_stage2)
-
-bonesis_filtering_one =         $(bonesis)/filtering/stage1/bootstrap_stage1.txt
-bonesis_filtering_two =         $(bonesis)/filtering/stage2/bootstrap_stage2.txt
+bonesis_strong_filtering =      $(bonesis)/filtering/strong/stage1.txt
 bonesis_inference_min =         $(bonesis)/bn/min/bn_min.bnet
 bonesis_inference_sub =         $(bonesis)/bn/sub/bn_sub.bnet
 
@@ -500,15 +495,9 @@ binarization: $(bin) ## binarize macrostates depending on 'BIN_METHOD' parameter
 .PHONY: modeling
 modeling: $(bonesis_model) ## specify model using BoNesis syntax
 .PHONY: weak-filtering
-weak-filtering: $(bonesis_weak_filtering) ## perform gene filtering (stage1 and stage2) by using only weak Boolean dynamical constraints
+weak-filtering: $(bonesis_weak_filtering) ## filter genes by using only weak Boolean dynamical constraints
 .PHONY: strong-filtering
-strong-filtering: $(bonesis_strong_filtering) ## perform gene filtering (stage1 and stage2) by using weak and strong Boolean dynamical constraints
-
-
-.PHONY: max-nodes
-max-nodes: $(bonesis_filtering_one) ## filter genes by maximizing explanatory node number with BoNesis
-.PHONY: max-constants
-max-constants: $(bonesis_filtering_two) ## filter genes by maximizing strong constant number with BoNesis
+strong-filtering: $(bonesis_strong_filtering) ## filter genes by using weak and strong Boolean dynamical constraints
 .PHONY: bonesis-min
 bonesis-min: $(bonesis_inference_min) ## infer Boolean network with BoNesis (minimal solution)
 .PHONY: bonesis-sub
@@ -516,7 +505,10 @@ bonesis-sub: $(bonesis_inference_sub) ## infer Boolean network with BoNesis (sub
 
 ## END HELP ##
 
-.PRECIOUS: $(bonesis_filtering_one) ## preserve target even if make is killed or interrupted
+## preserve target even if make is killed or interrupted
+.PRECIOUS: $(bonesis_weak_stage1)
+.PRECIOUS: $(bonesis_weak_stage2)
+.PRECIOUS: $(bonesis_strong_filtering)
 
 $(bin_cells)&: export OPENBLAS_NUM_THREADS = $(open_allocated_cpu)
 $(bin_cells)&: export OMP_NUM_THREADS = $(open_allocated_cpu)
@@ -938,7 +930,7 @@ $(bonesis_weak_stage1): $(bonesis_model)
 			$(call print_error,user-defined time limit reached \($(TIMEOUT)\): optimal local solution not found)
 		fi
 	else
-		$(call print_info,optimal global solution found)
+		$(call print_debug,optimal global solution found)
 	fi
 
 $(bonesis_weak_stage2): $(bonesis_model) $(bonesis_weak_stage1)
@@ -959,48 +951,29 @@ $(bonesis_weak_stage2): $(bonesis_model) $(bonesis_weak_stage1)
 			$(call print_error,user-defined time limit reached \($(TIMEOUT)\): optimal local solution not found)
 		fi
 	else
-		$(call print_info,optimal global solution found)
+		$(call print_debug,optimal global solution found)
 	fi
 
-$(bonesis_strong_stage1): $(bonesis_model) $(bonesis_weak_stage2)
-	$(call print_rule,strong-filtering \(stage 1\))
+$(bonesis_strong_filtering): $(bonesis_model) $(bonesis_weak_stage2)
+	$(call print_rule,strong-filtering)
 	mkdir -p $(@D)
 	$(conda_activate) scbridge-bonesis
-	python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
-		--mandatory-genes $(lastword $^) --important-genes $(word 4,$^) \
-		--asp $(@D)/stage1.sh --solution $@ \
-		--max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
-	$(conda_deactivate)
-
-$(bonesis_strong_stage2): $(bonesis_model) $(bonesis_strong_stage1)
-	$(call print_rule,strong-filtering \(stage 2\))
-	mkdir -p $(@D)
-	$(conda_activate) scbridge-bonesis
-	python scripts/inference/inference.py filter-stage2 $(word 1,$^) $(word 2,$^) \
-		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
-		--asp $(@D)/stage2.sh --solution $@ \
-		--filter-grn $(lastword $^) $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
-	$(conda_deactivate)
-
-$(bonesis_filtering_one): $(bonesis_model)
-	$(call print_rule,max-nodes)
-	mkdir -p $(@D)
-	$(conda_activate) scbridge-bonesis
-	python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
+	timeout $(TIMEOUT) python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/stage1.sh --solution $@ \
-		--max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+		--filter-grn $(lastword $^) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+	exit_status=$$?
 	$(conda_deactivate)
-
-$(bonesis_filtering_two): $(bonesis_model) $(bonesis_filtering_one)
-	$(call print_rule,max-constants)
-	mkdir -p $(@D)
-	$(conda_activate) scbridge-bonesis
-	python scripts/inference/inference.py filter-stage2 $(word 1,$^) $(word 2,$^) \
-		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
-		--asp $(@D)/stage2.sh --solution $@ \
-		--filter-grn $(lastword $^) $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
-	$(conda_deactivate)
+	if [ $$exit_status -eq 124 ]; then
+		echo -e ''
+		if [ -f $@ ]; then
+			$(call print_debug,user-defined time limit reached \($(TIMEOUT)\): optimal local solution found)
+		else
+			$(call print_error,user-defined time limit reached \($(TIMEOUT)\): optimal local solution not found)
+		fi
+	else
+		$(call print_debug,optimal global solution found)
+	fi
 
 $(bonesis_inference_min): $(bonesis_model) $(bonesis_filtering_two)
 	$(call print_rule,bonesis-min)

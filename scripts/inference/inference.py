@@ -22,8 +22,8 @@ bonesis.settings["quiet"] = True
 class ptqdm(tqdm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.disable = True
         self.file = sys.stdout
+        self.leave = False
 
 def write_solution(solution, bn_filename, name):
     bn = solution[1]
@@ -263,9 +263,9 @@ if args.action == "filter-stage1":
     nodes_in_domain = set(bo.domain.nodes)
 
     print("")
-    std.print_info(f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]")
-    std.print_info(f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]")
-    std.print_info(f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]")
+    std.print_result(f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]")
+    std.print_result(f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]")
+    std.print_result(f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]")
 
 elif args.action == "filter-stage2":
 
@@ -297,9 +297,9 @@ elif args.action == "filter-stage2":
     nodes_in_domain = set(bo.domain.nodes)
 
     print("")
-    std.print_info(f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]")
-    std.print_info(f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]")
-    std.print_info(f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]")
+    std.print_result(f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]")
+    std.print_result(f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]")
+    std.print_result(f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]")
 
 elif args.action == "one":
     
