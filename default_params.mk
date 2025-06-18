@@ -2,6 +2,7 @@
 MEMORY ?= 50
 JOBS ?= 16
 SEED ?= 10
+$(eval TIMEOUT ?= 24h)                      # time limit for each bonesis filtering steps (weak/strong and stage1/stage2)
 
 ## INFORMATION ##
 ORGANISM ?= mouse

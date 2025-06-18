@@ -134,26 +134,26 @@ transcriptome := $(transcriptome:.tar.gz=)
 
 define find_paths_for_conditions
 
-fastq_$(1) = 					$(rna)/$(1)/fastq
-cellranger_$(1) = 				$(rna)/$(1)/counting/cellranger/$(1).mri.tgz
-velocyto_$(1) = 				$(rna)/$(1)/counting/velocyto/counts.h5ad
-filtering_$(1) = 				$(rna)/$(1)/preprocessing/filtering/counts.h5ad
-normalization_$(1) = 			$(rna)/$(1)/preprocessing/normalization/counts.h5ad
-scvelo_$(1) = 					$(rna)/$(1)/trajectories/scvelo/scvelo.h5ad
-cytotrace_$(1) = 				$(rna)/$(1)/trajectories/cytotrace/cytotrace.csv
-cotan_$(1) = 					$(rna)/$(1)/macrostates/cotan/macrostates.h5ad $(rna)/$(1)/macrostates/cotan/macrostates.csv
-cellrank_$(1) = 				$(rna)/$(1)/macrostates/cellrank/macrostates.h5ad $(rna)/$(1)/macrostates/cellrank/macrostates.csv
-stream_$(1) =			 		$(rna)/$(1)/macrostates/stream/macrostates.h5ad $(rna)/$(1)/macrostates/stream/macrostates.csv
-knnbs_$(1) =			 		$(rna)/$(1)/macrostates/knnbs/macrostates.h5ad $(rna)/$(1)/macrostates/knnbs/macrostates.csv
+fastq_$(1) =                    $(rna)/$(1)/fastq
+cellranger_$(1) =               $(rna)/$(1)/counting/cellranger/$(1).mri.tgz
+velocyto_$(1) =                 $(rna)/$(1)/counting/velocyto/counts.h5ad
+filtering_$(1) =                $(rna)/$(1)/preprocessing/filtering/counts.h5ad
+normalization_$(1) =            $(rna)/$(1)/preprocessing/normalization/counts.h5ad
+scvelo_$(1) =                   $(rna)/$(1)/trajectories/scvelo/scvelo.h5ad
+cytotrace_$(1) =                $(rna)/$(1)/trajectories/cytotrace/cytotrace.csv
+cotan_$(1) =                    $(rna)/$(1)/macrostates/cotan/macrostates.h5ad $(rna)/$(1)/macrostates/cotan/macrostates.csv
+cellrank_$(1) =                 $(rna)/$(1)/macrostates/cellrank/macrostates.h5ad $(rna)/$(1)/macrostates/cellrank/macrostates.csv
+stream_$(1) =                   $(rna)/$(1)/macrostates/stream/macrostates.h5ad $(rna)/$(1)/macrostates/stream/macrostates.csv
+knnbs_$(1) =                    $(rna)/$(1)/macrostates/knnbs/macrostates.h5ad $(rna)/$(1)/macrostates/knnbs/macrostates.csv
 
 ifeq ($(MACROSTATES_METHOD),cotan)
-macrostates_$(1) = 				$$(cotan_$(1))
+macrostates_$(1) =              $$(cotan_$(1))
 else ifeq ($(MACROSTATES_METHOD),cellrank)
-macrostates_$(1) = 				$$(cellrank_$(1))
+macrostates_$(1) =              $$(cellrank_$(1))
 else ifeq ($(MACROSTATES_METHOD),stream)
-macrostates_$(1) = 				$$(stream_$(1))
+macrostates_$(1) =              $$(stream_$(1))
 else ifeq ($(MACROSTATES_METHOD),knnbs)
-macrostates_$(1) = 				$$(knnbs_$(1))
+macrostates_$(1) =              $$(knnbs_$(1))
 else
 $$(error unsupported value for parameter MACROSTATES_METHOD (supported values: cotan, cellrank, stream or knnbs))
 endif
@@ -162,25 +162,32 @@ endef
 
 define find_paths_for_references
 
-clustering_$(1) = 				$(rna)/$(1)/clustering/clusters/counts.h5ad
-dea_$(1) = 						$(rna)/$(1)/clustering/dea/markers.csv $(rna)/$(1)/clustering/dea/genes.xlsx
-scoring_$(1) = 					$(rna)/$(1)/clustering/scoring/phenotypes.csv
-goea_basic_$(1) = 				$(rna)/$(1)/clustering/goea/goea_basic.xlsx
-goea_mouse_$(1) = 				$(rna)/$(1)/clustering/goea/goea_mouse.xlsx
-annotation_$(1) = 				$(rna)/$(1)/clustering/clusters/annotation.h5ad
+clustering_$(1) =               $(rna)/$(1)/clustering/clusters/counts.h5ad
+dea_$(1) =                      $(rna)/$(1)/clustering/dea/markers.csv $(rna)/$(1)/clustering/dea/genes.xlsx
+scoring_$(1) =                  $(rna)/$(1)/clustering/scoring/phenotypes.csv
+goea_basic_$(1) =               $(rna)/$(1)/clustering/goea/goea_basic.xlsx
+goea_mouse_$(1) =               $(rna)/$(1)/clustering/goea/goea_mouse.xlsx
+annotation_$(1) =               $(rna)/$(1)/clustering/clusters/annotation.h5ad
 
 endef
 
-bin_cells 				= $(binarization)/cells/bin.h5ad $(binarization)/cells/statistics.csv
-bin_scboolseq 			= $(binarization)/scboolseq/$(MACROSTATES_METHOD)/bin_macrostates.csv
-bin_dea 				= $(binarization)/dea/$(MACROSTATES_METHOD)/bin_macrostates.csv
-bin_merge 				= $(binarization)/merge/$(MACROSTATES_METHOD)/bin_macrostates.csv
+bin_cells =                     $(binarization)/cells/bin.h5ad $(binarization)/cells/statistics.csv
+bin_scboolseq =                 $(binarization)/scboolseq/$(MACROSTATES_METHOD)/bin_macrostates.csv
+bin_dea =                       $(binarization)/dea/$(MACROSTATES_METHOD)/bin_macrostates.csv
+bin_merge =                     $(binarization)/merge/$(MACROSTATES_METHOD)/bin_macrostates.csv
 
-bonesis_model			= $(bonesis)/modeling/bo_model.txt $(bonesis)/modeling/metastates.csv $(bonesis)/modeling/mandatory_genes.txt $(bonesis)/modeling/important_genes.txt
-bonesis_filtering_one	= $(bonesis)/filtering/stage1/bootstrap_stage1.txt
-bonesis_filtering_two	= $(bonesis)/filtering/stage2/bootstrap_stage2.txt
-bonesis_inference_min	= $(bonesis)/bn/min/bn_min.bnet
-bonesis_inference_sub	= $(bonesis)/bn/sub/bn_sub.bnet
+bonesis_model =                 $(bonesis)/modeling/bo_model.txt $(bonesis)/modeling/metastates.csv $(bonesis)/modeling/mandatory_genes.txt $(bonesis)/modeling/important_genes.txt
+bonesis_weak_stage1 =           $(bonesis)/filtering/weak/stage1.txt
+bonesis_weak_stage2 =           $(bonesis)/filtering/weak/stage2.txt
+bonesis_weak_filtering =        $(bonesis_weak_stage1) $(bonesis_weak_stage2)
+bonesis_strong_stage1 =         $(bonesis)/filtering/strong/genes_stage1.txt
+bonesis_strong_stage2 =         $(bonesis)/filtering/strong/genes_stage2.txt
+bonesis_strong_filtering =      $(bonesis_strong_stage1) $(bonesis_strong_stage2)
+
+bonesis_filtering_one =         $(bonesis)/filtering/stage1/bootstrap_stage1.txt
+bonesis_filtering_two =         $(bonesis)/filtering/stage2/bootstrap_stage2.txt
+bonesis_inference_min =         $(bonesis)/bn/min/bn_min.bnet
+bonesis_inference_sub =         $(bonesis)/bn/sub/bn_sub.bnet
 
 $(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call find_paths_for_references,$(reference))))
@@ -397,11 +404,10 @@ endif
 .PHONY: help
 help: ## display this help and exit
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [REFERENCES=<...>] (default:REFERENCES=$(subst $(space),$(plus),$(references)))\n\
-	Semi-automatic pipeline proposing a general methodology for inferring executable models reproducing \
-	the observed cellular dynamics from multiples conditions/experiments, using scRNA-seq sequencing data. \
-	The pipeline is particularly useful when phenotype-related cells are not well characterized \
-	and when studying almost differentiated cells, where biological process are difficult to determine. \
-	Samples can be integrated at the clustering step, in order to annotate cell clusters in control and treated dependently.\n"}/^[a-zA-Z_-]+:.*?##/ \
+	scBridge (pipeline for Boolean network Reconstruction and Inference from multiple experimental Data in Gene Expression) proposes \
+	a general methodology for inferring logical models reproducing the observed transcriptomic cell dynamics by using scRNA-seq data as input. \
+	Its implementation in make offers a wide range of advanced features for guiding and helping users in reconstructing data-driven \
+	Boolean networks.\n"}/^[a-zA-Z_-]+:.*?##/ \
 	{ printf "  $(GREEN)%-22s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BOLD)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Clean
@@ -493,6 +499,12 @@ binarization: $(bin) ## binarize macrostates depending on 'BIN_METHOD' parameter
 
 .PHONY: modeling
 modeling: $(bonesis_model) ## specify model using BoNesis syntax
+.PHONY: weak-filtering
+weak-filtering: $(bonesis_weak_filtering) ## perform gene filtering (stage1 and stage2) by using only weak Boolean dynamical constraints
+.PHONY: strong-filtering
+strong-filtering: $(bonesis_strong_filtering) ## perform gene filtering (stage1 and stage2) by using weak and strong Boolean dynamical constraints
+
+
 .PHONY: max-nodes
 max-nodes: $(bonesis_filtering_one) ## filter genes by maximizing explanatory node number with BoNesis
 .PHONY: max-constants
@@ -907,6 +919,68 @@ $(bonesis_model)&: $(bin)
 			--organism $(ORGANISM)
 		$(conda_deactivate)
 endif
+
+$(bonesis_weak_stage1): $(bonesis_model)
+	$(call print_rule,weak-filtering \(stage 1\))
+	mkdir -p $(@D)
+	$(conda_activate) scbridge-bonesis
+	timeout $(TIMEOUT) python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
+		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
+		--asp $(@D)/stage1.sh --solution $@ \
+		--only-weak-constraints --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+	exit_status=$$?
+	$(conda_deactivate)
+	if [ $$exit_status -eq 124 ]; then
+		echo -e ''
+		if [ -f $@ ]; then
+			$(call print_debug,user-defined time limit reached \($(TIMEOUT)\): optimal local solution found)
+		else
+			$(call print_error,user-defined time limit reached \($(TIMEOUT)\): optimal local solution not found)
+		fi
+	else
+		$(call print_info,optimal global solution found)
+	fi
+
+$(bonesis_weak_stage2): $(bonesis_model) $(bonesis_weak_stage1)
+	$(call print_rule,weak-filtering \(stage 2\))
+	mkdir -p $(@D)
+	$(conda_activate) scbridge-bonesis
+	timeout $(TIMEOUT) python scripts/inference/inference.py filter-stage2 $(word 1,$^) $(word 2,$^) \
+		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
+		--asp $(@D)/stage2.sh --solution $@ \
+		--only-weak-constraints --filter-grn $(lastword $^) $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+	exit_status=$$?
+	$(conda_deactivate)
+	if [ $$exit_status -eq 124 ]; then
+		echo -e ''
+		if [ -f $@ ]; then
+			$(call print_debug,user-defined time limit reached \($(TIMEOUT)\): optimal local solution found)
+		else
+			$(call print_error,user-defined time limit reached \($(TIMEOUT)\): optimal local solution not found)
+		fi
+	else
+		$(call print_info,optimal global solution found)
+	fi
+
+$(bonesis_strong_stage1): $(bonesis_model) $(bonesis_weak_stage2)
+	$(call print_rule,strong-filtering \(stage 1\))
+	mkdir -p $(@D)
+	$(conda_activate) scbridge-bonesis
+	python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
+		--mandatory-genes $(lastword $^) --important-genes $(word 4,$^) \
+		--asp $(@D)/stage1.sh --solution $@ \
+		--max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+	$(conda_deactivate)
+
+$(bonesis_strong_stage2): $(bonesis_model) $(bonesis_strong_stage1)
+	$(call print_rule,strong-filtering \(stage 2\))
+	mkdir -p $(@D)
+	$(conda_activate) scbridge-bonesis
+	python scripts/inference/inference.py filter-stage2 $(word 1,$^) $(word 2,$^) \
+		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
+		--asp $(@D)/stage2.sh --solution $@ \
+		--filter-grn $(lastword $^) $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+	$(conda_deactivate)
 
 $(bonesis_filtering_one): $(bonesis_model)
 	$(call print_rule,max-nodes)

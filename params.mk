@@ -11,6 +11,7 @@ LABEL_INTEGRATED = prom2 rep prom1 prom1 gran1 gran2 prom1 prom3
 
 JOBS = 16
 SEED = 2
+TIMEOUT = 1h
 DIM_CLUSTERING = 15
 MAD_DEVIATION = 3 2
 RESOLUTION := 0.55

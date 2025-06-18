@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import sys
 import os, std
 import argparse, cli
 from pathlib import Path
@@ -18,6 +19,12 @@ from utils import get_cfg
 
 bonesis.settings["quiet"] = True
 
+class ptqdm(tqdm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.disable = True
+        self.file = sys.stdout
+
 def write_solution(solution, bn_filename, name):
     bn = solution[1]
     bn.save(bn_filename)
@@ -28,6 +35,14 @@ def write_solution(solution, bn_filename, name):
         fp.write("".join([f"{n}\n" for n in noi]))
     ig = bn.influence_graph()
     nx.drawing.nx_pydot.write_dot(ig, f"{name}.dot")
+
+def remove_strong_constraints(bo: bonesis.BoNesis):
+    strong_constraint_indices = []
+    for i, bo_property in enumerate(bo.manager.properties):
+        str_property = bo_property[0]
+        if str_property in ["final_nonreach", "all_fixpoints", "allreach"]:
+            strong_constraint_indices.append(i)
+    bo.manager.properties = [bo.manager.properties.copy()[i] for i in range(len(bo.manager.properties)) if i not in strong_constraint_indices]
 
 parser = argparse.ArgumentParser(
     prog="inference",
@@ -104,6 +119,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--only-weak-constraints",
+    dest="only_weak_constraints",
+    required=False,
+    action="store_true",
+    help="filtering optimization only on weak constraints"
+)
+
+parser.add_argument(
     "--clingo-opt-strategy",
     dest="clingo_opt_strategy",
     type=str,
@@ -148,6 +171,9 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+if not args.action.startswith("filter") and args.only_weak_constraints is True:
+    raise argparse.ArgumentError(None, "option --only-weak-constraints not allowed when action is related to inference instead of filtering")
+
 genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
 
 std.print_task(f"loading partially binarized metastates-related file {str(args.metastates)}")
@@ -185,7 +211,10 @@ bo = bonesis.BoNesis(pkn, metastates_cfg)
 
 with open(args.model, "r") as file:
     for line in file:
-        exec(line)
+        exec(line.rstrip('\n'))
+
+if args.only_weak_constraints:
+    remove_strong_constraints(bo)
 
 if args.action == "filter-stage1":
 
@@ -217,7 +246,7 @@ if args.action == "filter-stage1":
         mode="optN",
         intermediate_model_cb=intermediate_solution,
         clingo_opt_strategy=args.clingo_opt_strategy or "bb,dec",
-        progress=tqdm
+        progress=ptqdm
     )
     view.standalone(output_filename=args.asp)
 
@@ -233,7 +262,7 @@ if args.action == "filter-stage1":
         nodes_in_data.update(bin_nodes.keys())
     nodes_in_domain = set(bo.domain.nodes)
 
-    print("\n")
+    print("")
     std.print_info(f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]")
     std.print_info(f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]")
     std.print_info(f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]")
@@ -251,7 +280,7 @@ elif args.action == "filter-stage2":
         mode="optN",
         clingo_opt_strategy="usc",
         clingo_options=["--opt-usc-shrink=inv"],
-        progress=tqdm
+        progress=ptqdm
     )
     view.standalone(output_filename=args.asp)
 
@@ -267,7 +296,7 @@ elif args.action == "filter-stage2":
         nodes_in_data.update(bin_nodes.keys())
     nodes_in_domain = set(bo.domain.nodes)
 
-    print("\n")
+    print("")
     std.print_info(f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]")
     std.print_info(f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]")
     std.print_info(f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]")
@@ -301,7 +330,7 @@ elif args.action == "one-min":
         mode="optN",
         clingo_opt_strategy="usc",
         extra=("boolean-network", "configurations"),
-        progress=tqdm
+        progress=ptqdm
     )
     view.standalone(output_filename=args.asp)
 
