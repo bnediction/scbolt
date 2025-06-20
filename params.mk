@@ -24,4 +24,4 @@ MIN_DIST_CTRL = prom1 prom2
 MAX_DIST_CTRL = rep prom3 gran2
 MIN_DIST_TREATED = prom1 prom2
 MAX_DIST_TREATED = rep gran2
-MAX_CLAUSE = 5
+MAX_CLAUSE = 8

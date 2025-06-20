@@ -41,22 +41,22 @@ satisfying the dynamical properties given by the user.
 <img src="man/fig/scbridge-overview.png" alt="scbridge-overview" width="700"/>
 <p>
 
-*note:* computational steps are either automated (gray), require some user decisions (red) or help user in decisions (green).
+*note:* computational steps can be fully automated (gray), require some user decisions (red) or help user in decisions (green).
 
 ## Installation
 
 ### Setup prerequisites
 
-1. Verify that *GNU Make* (version >= 4.3) command-line tool is already installed. If not, please use:
+1. *GNU Make* (version >= 4.3) command-line tool must be installed. If not, please run:
 ```sh
 apt-get install build-essential
 ```
-2. verify that *latex* markup language is already installed. If not, please use:
+2. *latex* markup language must be installed. If not, please run:
 ```sh
 apt-get install texlive dvipng texlive-latex-extra texlive-fonts-recommended cm-super texlive-extra-utils
 ```
-3. verify that *Anaconda* package manager is already installed. If not, please install and download it [here](https://www.anaconda.com/download/).
-4. verify that *Cell Ranger* bioinformatics tool is already installed. If not, please install it [here](https://www.10xgenomics.com/support/software/cell-ranger/downloads) and add it to your *PATH* environment variable.
+3. *Anaconda* package manager must be available. If not, please download it [here](https://www.anaconda.com/download/) and configure it.
+4. *Cell Ranger* bioinformatics tool must be available. If not, please download it [here](https://www.10xgenomics.com/support/software/cell-ranger/downloads) and add it to your `PATH` environment variable.
 
 ### Configuration
 

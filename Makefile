@@ -984,10 +984,6 @@ $(bonesis_inference_min): $(bonesis_model) $(bonesis_filtering_two)
 		--asp $(@D)/bonesis_min.sh --solution $@ \
 		--filter-grn $(lastword $^) $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
 	$(conda_deactivate)
-	if [ "$$(which dot)" != "" ];
-	then
-		dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
-	fi
 
 $(bonesis_inference_sub): $(bonesis_model) $(bonesis_filtering_two)
 	$(call print_rule,bonesis-min)
@@ -998,10 +994,6 @@ $(bonesis_inference_sub): $(bonesis_model) $(bonesis_filtering_two)
 		--asp $(@D)/bonesis_min.sh --solution $@ \
 		--filter-grn $(lastword $^) $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
 	$(conda_deactivate)
-	if [ "$$(which dot)" != "" ];
-	then
-		dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
-	fi
 
 $(foreach condition,$(conditions),$(eval $(call compute_rules_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call compute_rules_for_references,$(reference))))
