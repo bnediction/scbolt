@@ -177,10 +177,10 @@ bin_dea =                       $(binarization)/dea/$(MACROSTATES_METHOD)/bin_ma
 bin_merge =                     $(binarization)/merge/$(MACROSTATES_METHOD)/bin_macrostates.csv
 
 bonesis_model =                 $(bonesis)/modeling/bo_model.txt $(bonesis)/modeling/metastates.csv $(bonesis)/modeling/mandatory_genes.txt $(bonesis)/modeling/important_genes.txt
-bonesis_weak_stage1 =           $(bonesis)/filtering/weak/stage1.txt
-bonesis_weak_stage2 =           $(bonesis)/filtering/weak/stage2.txt
-bonesis_weak_filtering =        $(bonesis_weak_stage1) $(bonesis_weak_stage2)
-bonesis_strong_filtering =      $(bonesis)/filtering/strong/stage1.txt
+bonesis_soft_stage1 =           $(bonesis)/filtering/soft/stage1.txt
+bonesis_soft_stage2 =           $(bonesis)/filtering/soft/stage2.txt
+bonesis_soft_filtering =        $(bonesis_soft_stage1) $(bonesis_soft_stage2)
+bonesis_hard_filtering =        $(bonesis)/filtering/hard/stage1.txt
 bonesis_inference_min =         $(bonesis)/bn/min/bn_min.bnet
 bonesis_inference_sub =         $(bonesis)/bn/sub/bn_sub.bnet
 
@@ -494,10 +494,10 @@ binarization: $(bin) ## binarize macrostates depending on 'BIN_METHOD' parameter
 
 .PHONY: modeling
 modeling: $(bonesis_model) ## specify model using BoNesis syntax
-.PHONY: weak-filtering
-weak-filtering: $(bonesis_weak_filtering) ## filter genes by using only weak Boolean dynamical constraints
-.PHONY: strong-filtering
-strong-filtering: $(bonesis_strong_filtering) ## filter genes by using weak and strong Boolean dynamical constraints
+.PHONY: soft-filtering
+soft-filtering: $(bonesis_soft_filtering) ## filter genes by using only soft Boolean dynamical constraints
+.PHONY: hard-filtering
+hard-filtering: $(bonesis_hard_filtering) ## filter genes by using soft and hard Boolean dynamical constraints
 .PHONY: bonesis-min
 bonesis-min: $(bonesis_inference_min) ## infer Boolean network with BoNesis (minimal solution)
 .PHONY: bonesis-sub
@@ -506,9 +506,9 @@ bonesis-sub: $(bonesis_inference_sub) ## infer Boolean network with BoNesis (sub
 ## END HELP ##
 
 ## preserve target even if make is killed or interrupted
-.PRECIOUS: $(bonesis_weak_stage1)
-.PRECIOUS: $(bonesis_weak_stage2)
-.PRECIOUS: $(bonesis_strong_filtering)
+.PRECIOUS: $(bonesis_soft_stage1)
+.PRECIOUS: $(bonesis_soft_stage2)
+.PRECIOUS: $(bonesis_hard_filtering)
 
 $(bin_cells)&: export OPENBLAS_NUM_THREADS = $(open_allocated_cpu)
 $(bin_cells)&: export OMP_NUM_THREADS = $(open_allocated_cpu)
@@ -912,14 +912,14 @@ $(bonesis_model)&: $(bin)
 		$(conda_deactivate)
 endif
 
-$(bonesis_weak_stage1): $(bonesis_model)
-	$(call print_rule,weak-filtering \(stage 1\))
+$(bonesis_soft_stage1): $(bonesis_model)
+	$(call print_rule,soft-filtering \(stage 1\))
 	mkdir -p $(@D)
 	$(conda_activate) scbridge-bonesis
 	timeout $(TIMEOUT) python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/stage1.sh --solution $@ \
-		--only-weak-constraints --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+		--only-soft-constraints --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
 	exit_status=$$?
 	$(conda_deactivate)
 	if [ $$exit_status -eq 124 ]; then
@@ -933,14 +933,14 @@ $(bonesis_weak_stage1): $(bonesis_model)
 		$(call print_debug,optimal global solution found)
 	fi
 
-$(bonesis_weak_stage2): $(bonesis_model) $(bonesis_weak_stage1)
-	$(call print_rule,weak-filtering \(stage 2\))
+$(bonesis_soft_stage2): $(bonesis_model) $(bonesis_soft_stage1)
+	$(call print_rule,soft-filtering \(stage 2\))
 	mkdir -p $(@D)
 	$(conda_activate) scbridge-bonesis
 	timeout $(TIMEOUT) python scripts/inference/inference.py filter-stage2 $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/stage2.sh --solution $@ \
-		--only-weak-constraints --filter-grn $(lastword $^) $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+		--only-soft-constraints --filter-grn $(lastword $^) $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
 	exit_status=$$?
 	$(conda_deactivate)
 	if [ $$exit_status -eq 124 ]; then
@@ -954,14 +954,15 @@ $(bonesis_weak_stage2): $(bonesis_model) $(bonesis_weak_stage1)
 		$(call print_debug,optimal global solution found)
 	fi
 
-$(bonesis_strong_filtering): $(bonesis_model) $(bonesis_weak_stage2)
-	$(call print_rule,strong-filtering)
+$(bonesis_hard_filtering): $(bonesis_model) $(bonesis_soft_stage2)
+	$(call print_rule,hard-filtering)
 	mkdir -p $(@D)
 	$(conda_activate) scbridge-bonesis
 	timeout $(TIMEOUT) python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/stage1.sh --solution $@ \
-		--filter-grn $(lastword $^) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+		--filter-grn $(lastword $^) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM) \
+		--clingo-opt-mode $(CLINGO_OPT_MODE) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY)
 	exit_status=$$?
 	$(conda_deactivate)
 	if [ $$exit_status -eq 124 ]; then

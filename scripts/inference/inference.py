@@ -36,13 +36,13 @@ def write_solution(solution, bn_filename, name):
     ig = bn.influence_graph()
     nx.drawing.nx_pydot.write_dot(ig, f"{name}.dot")
 
-def remove_strong_constraints(bo: bonesis.BoNesis):
-    strong_constraint_indices = []
+def remove_hard_constraints(bo: bonesis.BoNesis):
+    hard_constraint_indices = []
     for i, bo_property in enumerate(bo.manager.properties):
         str_property = bo_property[0]
         if str_property in ["final_nonreach", "all_fixpoints", "allreach"]:
-            strong_constraint_indices.append(i)
-    bo.manager.properties = [bo.manager.properties.copy()[i] for i in range(len(bo.manager.properties)) if i not in strong_constraint_indices]
+            hard_constraint_indices.append(i)
+    bo.manager.properties = [bo.manager.properties.copy()[i] for i in range(len(bo.manager.properties)) if i not in hard_constraint_indices]
 
 parser = argparse.ArgumentParser(
     prog="inference",
@@ -119,18 +119,26 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--only-weak-constraints",
-    dest="only_weak_constraints",
+    "--only-soft-constraints",
+    dest="only_soft_constraints",
     required=False,
     action="store_true",
-    help="filtering optimization only on weak constraints"
+    help="filtering optimization only on soft constraints"
+)
+
+parser.add_argument(
+    "--clingo-opt-mode",
+    dest="clingo_opt_mode",
+    action=cli.Clingo_opt_mode,
+    required=False,
+    default="optN"
 )
 
 parser.add_argument(
     "--clingo-opt-strategy",
     dest="clingo_opt_strategy",
-    type=str,
-    help="clingo optimization strategy"
+    action=cli.Clingo_opt_strategy,
+    required=False
 )
 
 parser.add_argument(
@@ -171,8 +179,8 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-if not args.action.startswith("filter") and args.only_weak_constraints is True:
-    raise argparse.ArgumentError(None, "option --only-weak-constraints not allowed when action is related to inference instead of filtering")
+if not args.action.startswith("filter") and args.only_soft_constraints is True:
+    raise argparse.ArgumentError(None, "option --only-soft-constraints not allowed when action is related to inference instead of filtering")
 
 genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
 
@@ -213,8 +221,8 @@ with open(args.model, "r") as file:
     for line in file:
         exec(line.rstrip('\n'))
 
-if args.only_weak_constraints:
-    remove_strong_constraints(bo)
+if args.only_soft_constraints:
+    remove_hard_constraints(bo)
 
 if args.action == "filter-stage1":
 
@@ -243,7 +251,7 @@ if args.action == "filter-stage1":
 
     view = bonesis.NodesView(
         bo,
-        mode="optN",
+        mode=args.clingo_opt_mode,
         intermediate_model_cb=intermediate_solution,
         clingo_opt_strategy=args.clingo_opt_strategy or "bb,dec",
         progress=ptqdm
@@ -277,7 +285,7 @@ elif args.action == "filter-stage2":
 
     view = bonesis.NonStrongConstantNodesView(
         bo,
-        mode="optN",
+        mode=args.clingo_opt_mode,
         clingo_opt_strategy="usc",
         clingo_options=["--opt-usc-shrink=inv"],
         progress=ptqdm
@@ -327,7 +335,7 @@ elif args.action == "one-min":
 
     view = bonesis.InfluenceGraphView(
         bo,
-        mode="optN",
+        mode=args.clingo_opt_mode,
         clingo_opt_strategy="usc",
         extra=("boolean-network", "configurations"),
         progress=ptqdm

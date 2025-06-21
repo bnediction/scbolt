@@ -110,8 +110,12 @@ $(eval YAML_MODEL ?= spec/spec.yml)         # file storing model specifications 
 $(eval MODEL_TOP_HVG ?= )                   # use only top 'BONESIS_TOP_HVG' highly variable genes for inferring Boolean Networks (if not specified, keep all genes)
 $(eval MODEL_HVG_METHOD ?= seurat_v3)       # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3)
 
-## BONESIS ##
+## INFERENCE ##
 $(eval MAX_CLAUSE ?= 8)                     # maximum number of literals/atoms in each propositional formula
+
+## STRONG-FILTERING ##
+$(eval CLINGO_OPT_MODE ?= optN)             # clingo optimization mode for hard filtering
+$(eval CLINGO_OPT_STRATEGY ?= bb,dec)       # clingo optimization strategy for hard filtering
 
 ## MAX-CONSTANTS ##
 $(eval FILTER_MIN_FEEDBACKS ?= true)        # minimize the number of length-one feedbacks at filtering stage

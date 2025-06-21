@@ -480,9 +480,9 @@ class Store_metric(argparse.Action):
             ]
         kwargs.update({
             "type": str,
-            "metavar": "METRIC",
             "choices": choices,
             "default": kwargs["default"] if "default" in kwargs else "euclidean",
+            "metavar": "METRIC",
             "help": kwargs["help"] if "help" in kwargs else "distance metric"
         })
         super(Store_metric, self).__init__(*args, **kwargs)
@@ -494,4 +494,81 @@ class Store_metric(argparse.Action):
         value,
         option_string=None
     ):
+        setattr(namespace, self.dest, value)
+
+class Clingo_opt_mode(argparse.Action):
+
+    def check_opt_mode(self, v):
+        if v in ["opt", "optN", "ignore"]:
+            return None
+        elif v.startswith("enum,"):
+            if v.split("enum,")[1].isdigit():
+                return None
+            else:
+                raise argparse.ArgumentError(self, f"invalid parameter value: 'enum' must be associate to a bound <n>: expected 'enum,<n>' but received {v}")
+        else:
+            raise argparse.ArgumentError(self, f"invalid parameter value: {v}")
+
+    def __init__(
+        self,
+        *args,
+        **kwargs
+    ):
+        if "default" in kwargs:
+            self.check_opt_mode(kwargs["default"])
+            default = kwargs["default"]
+        else:
+            default = None
+        kwargs.update({
+            "type": str,
+            "default": default,
+            "metavar": "[opt | enum,<n> | optN | ignore]",
+            "help": kwargs["help"] if "help" in kwargs else f"clingo optimization mode (default: {default})"
+        })
+        super(Clingo_opt_mode, self).__init__(*args, **kwargs)
+
+    def __call__(
+        self,
+        parser,
+        namespace,
+        value,
+        option_string=None
+    ):
+        self.check_opt_mode(value)
+        setattr(namespace, self.dest, value)
+
+class Clingo_opt_strategy(argparse.Action):
+    
+    def check_opt_strategy(self, v):
+        if v.startswith("bb") or v.startswith("usc"):
+            return None
+        else:
+            raise argparse.ArgumentError(self, f"invalid parameter value: {v}")
+
+    def __init__(
+        self,
+        *args,
+        **kwargs
+    ):
+        if "default" in kwargs:
+            self.check_opt_strategy(kwargs["default"])
+            default = kwargs["default"]
+        else:
+            default = None
+        kwargs.update({
+            "type": str,
+            "default": default,
+            "metavar": "[bb[,<method>] | usc[,<method>]]",
+            "help": kwargs["help"] if "help" in kwargs else f"clingo optimization strategy (default: {default})"
+        })
+        super(Clingo_opt_strategy, self).__init__(*args, **kwargs)
+
+    def __call__(
+        self,
+        parser,
+        namespace,
+        value,
+        option_string=None
+    ):
+        self.check_opt_strategy(value)
         setattr(namespace, self.dest, value)

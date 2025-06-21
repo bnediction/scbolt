@@ -11,5 +11,7 @@ from ._argtype import (
     Required_length,
     Store_axis,
     Store_type,
-    Store_metric
+    Store_metric,
+    Clingo_opt_mode,
+    Clingo_opt_strategy
 )

@@ -25,3 +25,5 @@ MAX_DIST_CTRL = rep prom3 gran2
 MIN_DIST_TREATED = prom1 prom2
 MAX_DIST_TREATED = rep gran2
 MAX_CLAUSE = 8
+CLINGO_OPT_MODE = opt
+# CLINGO_OPT_STRATEGY = bb,hier
