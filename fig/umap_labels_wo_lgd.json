@@ -1,15 +1,15 @@
 {
-    "infile": "data/rna/integration/tables/bbknn_labels.h5ad",
-    "outfile": "figures/results/umap_labels_wo_lgd",
+    "infile": "data/rna/ctrl/clustering/clusters/annotation.h5ad",
+    "outfile": "figures/results/umap_ctrl_wo_lgd.pdf",
     "modules": [
         {"numpy": "np"},
         {"bonesistools": "bt"}
     ],
     "eval": [
-        "colors",
         "xlabel",
         "ylabel",
-        "zlabel"
+        "zlabel",
+        "n_components"
     ],
     "figure": {
         "obs": "leiden",
@@ -19,10 +19,11 @@
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "colors": "bt.sct.pl.LIGHT_COLORS",
         "s": 2,
         "alpha": 1,
-        "n_components": 3,
+        "n_components": "3 if adata.obsm['X_umap'].shape[1] > 2 and args.plot_3d is True else 2",
         "background_visible": false
-    }
+    },
+    "grid": false,
+    "axis": "off"
 }

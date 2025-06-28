@@ -62,7 +62,7 @@ apt-get install texlive dvipng texlive-latex-extra texlive-fonts-recommended cm-
 
 Download and configure project as follows:
 ```sh
-git clone https://github.com/bnediction/scBridge.git scbridge
+git clone https://github.com/bnediction/scbridge.git scbridge
 cd scbridge
 bash config.sh
 ```
@@ -70,7 +70,7 @@ Also, you need to download file containing expressed repetitive elements to mask
 
 ## Use
 
-For a proper use of the pipeline, an advanced documentation is provided [here](https://github.com/bnediction/scBridge/tree/main/man).
+For a proper use of the pipeline, an advanced documentation is provided [here](https://github.com/bnediction/scbridge/tree/main/man).
 User can also find a summary documentation using:
 ```sh
 make help

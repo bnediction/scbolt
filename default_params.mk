@@ -107,8 +107,8 @@ $(eval BIN_METHOD ?= merge)                 # binarization method used (scboolse
 
 ## BEGIN MODELING ##
 $(eval YAML_MODEL ?= spec/spec.yml)         # file storing model specifications for bonesis
-$(eval MODEL_TOP_HVG ?= )                   # use only top 'BONESIS_TOP_HVG' highly variable genes for inferring Boolean Networks (if not specified, keep all genes)
-$(eval MODEL_HVG_METHOD ?= seurat_v3)       # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3)
+$(eval MODEL_HVG_METHOD ?= )                # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3, if not specified, consider all genes)
+$(eval MODEL_TOP_HVG ?= )                   # use only top 'BONESIS_TOP_HVG' highly variable genes for inferring Boolean Networks (if not specified, estimate automatically number of hvg)
 
 ## INFERENCE ##
 $(eval MAX_CLAUSE ?= 8)                     # maximum number of literals/atoms in each propositional formula
@@ -121,4 +121,4 @@ $(eval CLINGO_OPT_STRATEGY ?= bb,dec)       # clingo optimization strategy for h
 $(eval FILTER_MIN_FEEDBACKS ?= true)        # minimize the number of length-one feedbacks at filtering stage
 
 ## BONESIS-MIN ##
-$(eval MIN_FEEDBACKS ?= true)               # minimize the number of length-one feedbacks at inference stage
+$(eval INFER_MIN_FEEDBACKS ?= true)          # minimize the number of length-one feedbacks at inference stage

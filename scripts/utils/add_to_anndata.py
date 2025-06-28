@@ -90,7 +90,7 @@ parser.add_argument(
     type=str,
     nargs="+",
     required=False,
-    default=None,
+    default=[],
     metavar="LITERAL",
     help="column names in dataframe for which the label is added as a prefix (default: None, not allowed when single value passed to option --csv)"
 )

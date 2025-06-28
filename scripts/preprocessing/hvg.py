@@ -38,8 +38,8 @@ parser.add_argument(
     dest="hvg",
     type=int,
     required=False,
-    default=2000,
-    help="number of highly variable genes (default: 2000)"
+    default=None,
+    help="number of highly variable genes (default: None)"
 )
 
 parser.add_argument(
@@ -88,6 +88,16 @@ parser.add_argument(
     help="number of bins for binning the mean gene expression (default: 20)"
 )
 
+parser.add_argument(
+    "--batch",
+    dest="batch",
+    type=str,
+    required=False,
+    default=None,
+    metavar="LITERAL",
+    help="column name in adata.obs distinguishing batches (default: None)"
+)
+
 args = parser.parse_args()
 
 if args.layer is None:
@@ -98,29 +108,36 @@ if not Path(os.path.dirname(args.outfile)).exists():
 
 adata = ad.read_h5ad(f"{args.infile}")
 
-if args.hvg > len(adata.var):
-    std.print_warning("number of hvg is higher than number of genes in 'adata'")
+if args.hvg is not None:
+    if args.hvg > len(adata.var):
+        raise argparse.ArgumentError(f"invalid value for parameter 'hvg': number of hvg ({args.hvg}) is greater than number of genes in adata ({adata.n_vars})")
+
+if "highly_variable" in adata.var:
+    del adata.var["highly_variable"]
+if "highly_variable_rank" in adata.var:
+    del adata.var["highly_variable_rank"]
+if "means" in adata.var:
+    del adata.var["means"]
+if "variances" in adata.var:
+    del adata.var["variances"]
+if "variances_norm" in adata.var:
+    del adata.var["variances_norm"]
+sc.pp.highly_variable_genes(
+    adata,
+    layer=args.layer,
+    flavor=args.method,
+    span=args.span,
+    n_bins=args.bins,
+    n_top_genes=args.hvg,
+    batch_key=args.batch,
+    inplace=True
+)
+if args.method == "seurat_v3":
+    adata._inplace_subset_var(adata.var.highly_variable_rank < args.hvg)
 else:
-    if "highly_variable" in adata.var:
-        del adata.var["highly_variable"]
-    if "highly_variable_rank" in adata.var:
-        del adata.var["highly_variable_rank"]
-    if "means" in adata.var:
-        del adata.var["means"]
-    if "variances" in adata.var:
-        del adata.var["variances"]
-    if "variances_norm" in adata.var:
-        del adata.var["variances_norm"]
-    sc.pp.highly_variable_genes(
-        adata,
-        layer=args.layer,
-        flavor=args.method,
-        span=args.span,
-        n_bins=args.bins,
-        n_top_genes=args.hvg,
-        inplace=True
-    )
     adata._inplace_subset_var(adata.var.highly_variable)
+
+std.print_result(f"{adata.n_vars} highly variable genes selected")
 
 with open(args.outfile, "w") as file:
     for gene in adata.var.index:

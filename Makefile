@@ -370,6 +370,21 @@ ifneq ($(filter-out seurat_v3 seurat cell_ranger,$(MODEL_HVG_METHOD)),)
 $(error Unsupported value for parameter MODEL_HVG_METHOD (supported values: seurat, cell_ranger or seurat_v3))
 endif
 
+ifndef MODEL_HVG_METHOD
+model_layer=
+else ifeq ($(MODEL_HVG_METHOD),seurat)
+model_layer=--layer log-norm
+else ifeq ($(MODEL_HVG_METHOD),cell_ranger)
+model_layer=--layer log-norm
+else ifeq ($(MODEL_HVG_METHOD),seurat_v3)
+model_layer=--layer counts
+ifndef MODEL_TOP_HVG
+$(error parameter MODEL_TOP_HVG is required when parameter MODEL_HVG_METHOD is equal to 'seurat_v3')
+endif
+else
+$(error Unsupported value for parameter MODEL_HVG_METHOD (supported values: seurat, cell_ranger, seurat_v3))
+endif
+
 ifndef FILTER_MIN_FEEDBACKS
 $(error Parameter FILTER_MIN_FEEDBACKS not defined)
 else ifeq ($(FILTER_MIN_FEEDBACKS),true)
@@ -380,14 +395,14 @@ else
 $(error Unsupported value for parameter FILTER_MIN_FEEDBACKS (supported values: true, false))
 endif
 
-ifndef MIN_FEEDBACKS
+ifndef INFER_MIN_FEEDBACKS
 $(error Parameter MIN_FEEDBACKS not defined)
-else ifeq ($(MIN_FEEDBACKS),true)
-MIN_FEEDBACKS:=--minimize-feedbacks
-else ifeq ($(MIN_FEEDBACKS),false)
-MIN_FEEDBACKS:=
+else ifeq ($(INFER_MIN_FEEDBACKS),true)
+infer_min_feedbacks:=--minimize-feedbacks
+else ifeq ($(INFER_MIN_FEEDBACKS),false)
+infer_min_feedbacks:=
 else
-$(error Unsupported value for parameter MIN_FEEDBACKS (supported values: true, false))
+$(error Unsupported value for parameter INFER_MIN_FEEDBACKS (supported values: true, false))
 endif
 
 ## END PARAMETERS ##
@@ -880,7 +895,7 @@ $(bin_merge): $(bin_scboolseq) $(lastword $(bin_cells)) $(bin_dea)
 		--outfile $@ --pct-bin $(@D)/pct_bin.csv
 	$(conda_deactivate)
 
-ifdef MODEL_TOP_HVG
+ifdef MODEL_HVG_METHOD
 $(bonesis_model)&: $(bin) $(clustering_integrated)
 	$(call print_rule,modeling)
 	if ! [ -f $(YAML_MODEL) ]; then
@@ -888,8 +903,9 @@ $(bonesis_model)&: $(bin) $(clustering_integrated)
 	fi
 		mkdir -p $(tmpdir)/bonesis/hvg $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
 		$(conda_activate) scbridge-anndata
-		$(call print_task,estimating top $(MODEL_TOP_HVG) highly variable genes with $(MODEL_HVG_METHOD))
-		python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/hvg/top_genes.txt --hvg $(MODEL_TOP_HVG) --method $(MODEL_HVG_METHOD)
+		$(call print_task,estimating top$(if $(MODEL_TOP_HVG), $(MODEL_TOP_HVG),) highly variable genes with $(MODEL_HVG_METHOD))
+		python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/hvg/top_genes.txt --method $(MODEL_HVG_METHOD) \
+		$(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) --batch condition
 		$(conda_deactivate)
 		$(conda_activate) scbridge-bonesis
 		python scripts/inference/specification.py $(YAML_MODEL) $< \
@@ -976,15 +992,19 @@ $(bonesis_hard_filtering): $(bonesis_model) $(bonesis_soft_stage2)
 		$(call print_debug,optimal global solution found)
 	fi
 
-$(bonesis_inference_min): $(bonesis_model) $(bonesis_filtering_two)
+$(bonesis_inference_min): $(bonesis_model) $(bonesis_hard_filtering)
 	$(call print_rule,bonesis-min)
 	mkdir -p $(@D)
 	$(conda_activate) scbridge-bonesis
 	python scripts/inference/inference.py one-min $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/bonesis_min.sh --solution $@ \
-		--filter-grn $(lastword $^) $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+		--filter-grn $(lastword $^) $(infer_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
 	$(conda_deactivate)
+	if [ "$$(which dot)" != "" ];
+	then
+		dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
+	fi
 
 $(bonesis_inference_sub): $(bonesis_model) $(bonesis_filtering_two)
 	$(call print_rule,bonesis-min)
@@ -993,8 +1013,12 @@ $(bonesis_inference_sub): $(bonesis_model) $(bonesis_filtering_two)
 	python scripts/inference/inference.py one-sub $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/bonesis_min.sh --solution $@ \
-		--filter-grn $(lastword $^) $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+		--filter-grn $(lastword $^) $(infer_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
 	$(conda_deactivate)
+	if [ "$$(which dot)" != "" ];
+	then
+		dot -Tpdf $(@D)/one-sub.dot > $(@D)/one-sub.pdf
+	fi
 
 $(foreach condition,$(conditions),$(eval $(call compute_rules_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call compute_rules_for_references,$(reference))))
