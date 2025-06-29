@@ -25,16 +25,21 @@ class ptqdm(tqdm):
         self.file = sys.stdout
         self.leave = False
 
-def write_solution(solution, bn_filename, name):
+def write_bn_solution(
+    solution,
+    filenames_without_extension,
+    noi_file=True
+):
     bn = solution[1]
-    bn.save(bn_filename)
+    bn.save(f"{filenames_without_extension}.bnet")
     df = pd.DataFrame(solution[2])
-    df.to_csv(f"{name}.csv")
-    noi = set(bn) - set(bn.constants())
-    with open(f"{name}.noi.txt", "w") as fp:
-        fp.write("".join([f"{n}\n" for n in noi]))
+    df.to_csv(f"{filenames_without_extension}.csv")
+    if noi_file is True:
+        noi = set(bn) - set(bn.constants())
+        with open(f"{filenames_without_extension}.noi.txt", "w") as fp:
+            fp.write("".join([f"{n}\n" for n in noi]))
     ig = bn.influence_graph()
-    nx.drawing.nx_pydot.write_dot(ig, f"{name}.dot")
+    nx.drawing.nx_pydot.write_dot(ig, f"{filenames_without_extension}.dot")
 
 def remove_hard_constraints(bo: bonesis.BoNesis):
     hard_constraint_indices = []
@@ -44,26 +49,34 @@ def remove_hard_constraints(bo: bonesis.BoNesis):
             hard_constraint_indices.append(i)
     bo.manager.properties = [bo.manager.properties.copy()[i] for i in range(len(bo.manager.properties)) if i not in hard_constraint_indices]
 
+parser_description = """
+Infer Most Permissive Boolean Networks using bonesis paradigm. \
+Four actions are proposed:
+    - filter-stage1: component selection maximizing variable number while constraining Boolean networks to be compatible with the observations
+    - filter-stage2: component selection deleting strong constants while constraining Boolean networks to be compatible with the observations
+    - one-min: solution of Boolean network minimizing the edge number
+    - all-sub: diverse solutions of Boolean network
+See Chevalier et al. (2024) <https://hal.science/hal-04629083/document>.
+"""
+
 parser = argparse.ArgumentParser(
     prog="inference",
-    description=
-    """
-    infer Most Permissive Boolean Networks using bonesis paradigm.
-    """,
-    usage="python inference.py [filter-stage1|filter-stage2|one|one-min|one-sub] <FILE> --bin-metastate <FILE> [<args>]"
+    description=parser_description,
+    usage="python inference.py [filter-stage1 | filter-stage2 | one-min | all-sub] <FILE> <FILE> [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter
 )
 
 parser.add_argument(
     "action",
-    metavar="[filter-stage1|filter-stage2|one|one-min|one-sub]",
-    choices=["filter-stage1", "filter-stage2", "one", "one-min", "one-sub"]
+    choices=["filter-stage1", "filter-stage2", "one-min", "all-sub"],
+    metavar="[filter-stage1 | filter-stage2 | one-min | all-sub]"
 )
 
 parser.add_argument(
     "model",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file containing model specifications in Bonesis langage (txt format)"
+    help="input file containing model specifications in Bonesis langage (format: txt)"
 )
 
 parser.add_argument(
@@ -87,8 +100,18 @@ parser.add_argument(
     dest="solution",
     type=lambda x: Path(x).resolve(),
     required=True,
-    metavar="PATH",
-    help="output file storing bonesis solution"
+    metavar="FILE | PATH",
+    help="output file storing bonesis solution (format: txt for 'filter-stage1'/'filter-stage2', bnet for 'one-min' or path for 'one-sub')"
+)
+
+parser.add_argument(
+    "--database",
+    dest="database",
+    choices=["collectri", "dorothea"],
+    required=False,
+    default="collectri",
+    metavar="[collectri | dorothea]",
+    help="prior gene regulatory network defining the domain (search space)"
 )
 
 parser.add_argument(
@@ -186,7 +209,7 @@ genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
 
 std.print_task(f"loading partially binarized metastates-related file {str(args.metastates)}")
 
-metastates_df = pd.read_csv(args.metastates, index_col=0, sep=args.sep)
+metastates_df = pd.read_csv(args.metastates, index_col=0, sep=args.sep).fillna(float("nan"))
 
 metastates_cfg = get_cfg(
     metastates_df,
@@ -202,10 +225,16 @@ pkn_options = {
 if args.action == "filter-stage1":
     pkn_options["allow_skipping_nodes"] = True
 
-grn = bt.dbs.collectri.load_grn(
-    organism=args.organism,
-    genesyn=genesyn
-)
+if args.database == "collectri":
+    grn = bt.dbs.omnipath.load_collectri_grn(
+        organism=args.organism,
+        genesyn=genesyn
+    )
+else:
+    grn = bt.dbs.omnipath.load_dorothea_grn(
+        organism=args.organism,
+        genesyn=genesyn
+    )
 
 if args.filter_grn:
     with open(args.filter_grn) as fp:
@@ -225,7 +254,7 @@ if args.only_soft_constraints:
 
 if args.action == "filter-stage1":
 
-    std.print_task("filtering genes by maximizing explanatory nodes (stage 1)")
+    std.print_task("filtering components by maximizing variable number while constraining Boolean networks to be compatible with the observations")
     
     bo.maximize_nodes()
 
@@ -276,7 +305,7 @@ if args.action == "filter-stage1":
 
 elif args.action == "filter-stage2":
 
-    std.print_task("filtering genes by maximizing strong constants (stage 2)")
+    std.print_task("filtering components by deleting strong constants while constraining Boolean networks to be compatible with the observations")
     
     bo.maximize_strong_constants()
     if args.minimize_feedbacks:
@@ -319,13 +348,15 @@ elif args.action == "one":
     std.print_warning("this may take some time.")
     solution = next(iter(view))
 
-    write_solution(
+    write_bn_solution(
         solution,
         args.solution,
         f"{os.path.dirname(args.solution)}/one"
     )
 
 elif args.action == "one-min":
+
+    std.print_task("computing solution of Boolean network minimizing the edge number")
     
     bo.custom("edge(A,B) :- clause(B,_,A,_). #minimize { 1@1,A,B: edge(A,B) }.")
     bo.custom("#maximize { 1@10,N: constant(N) }.")
@@ -344,43 +375,28 @@ elif args.action == "one-min":
     std.print_warning("this may take some time.")
     solution = next(iter(view))
 
-    write_solution(
-        solution,
-        args.solution,
-        f"{os.path.dirname(args.solution)}/one-min"
+    write_bn_solution(
+        solution=solution,
+        filenames_without_extension=f"{os.path.splitext(args.solution)[0]}"
     )
 
-elif args.action == "one-sub":
+elif args.action == "all-sub":
+
+    std.print_task("sampling diverse solutions of Boolean network")
     
     view = bonesis.InfluenceGraphView(
         bo,
         solutions="subset-minimal",
-        extra=("boolean-network", "configurations")
+        extra=("boolean-network", "configurations"),
+        progress=ptqdm
     )
     view.standalone(output_filename=args.asp)
 
     std.print_warning("this may take some time.")
-    solution = next(iter(view))
-
-    write_solution(
-        solution,
-        args.solution,
-        f"{os.path.dirname(args.solution)}/one-sub"
-    )
-
-elif args.action == "sub":
-    
-    view = bonesis.InfluenceGraphView(
-        bo,
-        solutions="subset-minimal",
-        extra=("boolean-network", "configurations")
-    )
-    view.standalone(output_filename=args.asp)
-
-    std.print_warning("this may take some time.")
-    for i, solution in enumerate(view):
-        write_solution(
-            solution,
-            f"{os.path.dirname(args.solution)}/sub-{i}.bnet",
-            f"{os.path.dirname(args.solution)}/sub-{i}"
+    for i, solution in enumerate(tqdm(view)):
+        os.makedirs(f"{args.solution}/{i}")
+        write_bn_solution(
+            solution=solution,
+            filenames_without_extension=f"{args.solution}/{i}/one_sub",
+            noi_file=False
         )

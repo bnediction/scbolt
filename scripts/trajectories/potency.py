@@ -25,14 +25,14 @@ import matplotlib.pyplot as plt
 bt.sct.pl.set_default_params()
 
 parser_description = """
-compute scores related to cell development potential (lower the score, higher the differentiation potential) and classify cells by their cell potency using CytoTRACE framework. \
+Compute scores related to cell development potential (lower the score, higher the differentiation potential) and classify cells by their cell potency using CytoTRACE framework. \
 There are six cell potency-based classes:
     - totipotency: ability to divide or differentiate into all cell types
     - pluripotency: ability to differentiate into endoderm, ectoderm or mesoderm
     - multipotency: ability to differentiate into cell types unrelated from its common path
     - oligopotency: ability to differentiate into a few cell types
     - unipotency: ability to differentiate into one cell type
-    - differentiation: already differentiate into its mature cell type$
+    - differentiation: already differentiate into its mature cell type
 See Kang et al. (2024) <https://doi.org/10.1101/2024.03.19.585637>.
 """
 

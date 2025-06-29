@@ -121,7 +121,7 @@ endef
 public = data/public
 rna = data/rna
 binarization = data/binarization
-bonesis = data/bonesis
+bonesis = data/bonesis$(NUM_TMP)
 
 cc_markers = $(public)/cycle_phases/mouse_cycle_markers.rds
 signatures = $(public)/signatures/geiger.xls $(public)/signatures/chambers.xls $(public)/signatures/signatures.json
@@ -181,8 +181,8 @@ bonesis_soft_stage1 =           $(bonesis)/filtering/soft/stage1.txt
 bonesis_soft_stage2 =           $(bonesis)/filtering/soft/stage2.txt
 bonesis_soft_filtering =        $(bonesis_soft_stage1) $(bonesis_soft_stage2)
 bonesis_hard_filtering =        $(bonesis)/filtering/hard/stage1.txt
-bonesis_inference_min =         $(bonesis)/bn/min/bn_min.bnet
-bonesis_inference_sub =         $(bonesis)/bn/sub/bn_sub.bnet
+bonesis_inference_min =         $(bonesis)/bn/min/one_min.bnet
+bonesis_inference_sub =         $(bonesis)/bn/sub/*/one_sub.bnet
 
 $(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call find_paths_for_references,$(reference))))
@@ -510,13 +510,13 @@ binarization: $(bin) ## binarize macrostates depending on 'BIN_METHOD' parameter
 .PHONY: modeling
 modeling: $(bonesis_model) ## specify model using BoNesis syntax
 .PHONY: soft-filtering
-soft-filtering: $(bonesis_soft_filtering) ## filter genes by using only soft Boolean dynamical constraints
+soft-filtering: $(bonesis_soft_filtering) ## select components by using only soft Boolean dynamical constraints
 .PHONY: hard-filtering
-hard-filtering: $(bonesis_hard_filtering) ## filter genes by using soft and hard Boolean dynamical constraints
+hard-filtering: $(bonesis_hard_filtering) ## select components by using soft and hard Boolean dynamical constraints
 .PHONY: bonesis-min
-bonesis-min: $(bonesis_inference_min) ## infer Boolean network with BoNesis (minimal solution)
+bonesis-min: $(bonesis_inference_min) ## infer Boolean network minimizing the edge number with BoNesis (minimal solution)
 .PHONY: bonesis-sub
-bonesis-sub: $(bonesis_inference_sub) ## infer Boolean network with BoNesis (subset minimal solution)
+bonesis-sub: $(bonesis_inference_sub) ## infer diverse Boolean networks with BoNesis (subset minimal solution)
 
 ## END HELP ##
 
@@ -935,7 +935,7 @@ $(bonesis_soft_stage1): $(bonesis_model)
 	timeout $(TIMEOUT) python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/stage1.sh --solution $@ \
-		--only-soft-constraints --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+		--database $(GRN_DATABASE) --only-soft-constraints --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
 	exit_status=$$?
 	$(conda_deactivate)
 	if [ $$exit_status -eq 124 ]; then
@@ -954,9 +954,8 @@ $(bonesis_soft_stage2): $(bonesis_model) $(bonesis_soft_stage1)
 	mkdir -p $(@D)
 	$(conda_activate) scbridge-bonesis
 	timeout $(TIMEOUT) python scripts/inference/inference.py filter-stage2 $(word 1,$^) $(word 2,$^) \
-		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
-		--asp $(@D)/stage2.sh --solution $@ \
-		--only-soft-constraints --filter-grn $(lastword $^) $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+		--asp $(@D)/stage2.sh --solution $@ --filter-grn $(lastword $^) \
+		--database $(GRN_DATABASE) --only-soft-constraints $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
 	exit_status=$$?
 	$(conda_deactivate)
 	if [ $$exit_status -eq 124 ]; then
@@ -975,9 +974,9 @@ $(bonesis_hard_filtering): $(bonesis_model) $(bonesis_soft_stage2)
 	mkdir -p $(@D)
 	$(conda_activate) scbridge-bonesis
 	timeout $(TIMEOUT) python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
-		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
-		--asp $(@D)/stage1.sh --solution $@ \
-		--filter-grn $(lastword $^) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM) \
+		--mandatory-genes $(word 3,$^) \
+		--asp $(@D)/stage1.sh --solution $@ --filter-grn $(lastword $^) \
+		--database $(GRN_DATABASE) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY)
 	exit_status=$$?
 	$(conda_deactivate)
@@ -998,26 +997,28 @@ $(bonesis_inference_min): $(bonesis_model) $(bonesis_hard_filtering)
 	$(conda_activate) scbridge-bonesis
 	python scripts/inference/inference.py one-min $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
-		--asp $(@D)/bonesis_min.sh --solution $@ \
-		--filter-grn $(lastword $^) $(infer_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+		--asp $(@D)/bonesis_min.sh --solution $@ --filter-grn $(lastword $^) \
+		--database $(GRN_DATABASE) $(infer_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
 	$(conda_deactivate)
 	if [ "$$(which dot)" != "" ];
 	then
-		dot -Tpdf $(@D)/one-min.dot > $(@D)/one-min.pdf
+		dot -Tpdf $(@D)/one_min.dot > $(@D)/one_min.pdf
 	fi
 
-$(bonesis_inference_sub): $(bonesis_model) $(bonesis_filtering_two)
-	$(call print_rule,bonesis-min)
-	mkdir -p $(@D)
+$(bonesis_inference_sub): $(bonesis_model) $(bonesis_hard_filtering)
+	$(call print_rule,bonesis-sub)
+	mkdir -p $(dir $(@D))
 	$(conda_activate) scbridge-bonesis
-	python scripts/inference/inference.py one-sub $(word 1,$^) $(word 2,$^) \
+	python scripts/inference/inference.py all-sub $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
-		--asp $(@D)/bonesis_min.sh --solution $@ \
-		--filter-grn $(lastword $^) $(infer_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+		--asp $(dir $(@D))bonesis_sub.sh --solution $(dir $(@D)) --filter-grn $(lastword $^) \
+		--database $(GRN_DATABASE) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
 	$(conda_deactivate)
 	if [ "$$(which dot)" != "" ];
 	then
-		dot -Tpdf $(@D)/one-sub.dot > $(@D)/one-sub.pdf
+		for file in $@; do
+			dot -Tpdf $${file} > $${file%.dot}.pdf
+		done
 	fi
 
 $(foreach condition,$(conditions),$(eval $(call compute_rules_for_conditions,$(condition))))

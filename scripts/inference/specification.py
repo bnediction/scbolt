@@ -143,13 +143,13 @@ if args.filter_genes:
         keep_only = {line.strip() for line in file.readlines()}
     keep_only = genesyn(keep_only)
     if mandatory_genes - keep_only:
-        std.print_debug(f"some mandatory genes are not present in interest genes to pass filtering: keeping them ({list(mandatory_genes - keep_only)})")
+        std.print_debug("some mandatory genes have been filtered out but are reintegrated: {0}".format(', '.join(f"{gene}" for gene in list(mandatory_genes - keep_only))))
     if important_genes - keep_only:
-        std.print_debug(f"some important genes are not present in interest genes to pass filtering: keeping them ({list(important_genes - keep_only)})")
+        std.print_debug("some important genes have been filtered out but are reintegrated: {0}".format(', '.join(f"{gene}" for gene in list(important_genes - keep_only))))
     keep_only = keep_only | mandatory_genes | important_genes
     keep_only_present = keep_only & set(macrostates_df.columns)
     if keep_only - keep_only_present:
-        std.print_warning(f"some genes are not present in csv-formatted binarized macrostates file: {list(keep_only - keep_only_present)}")
+        std.print_warning("some mandatory and/or important genes are missing in csv-formatted binarized macrostate file: {0}".format(', '.join(f"{gene}" for gene in list(keep_only - keep_only_present))))
     macrostates_df = macrostates_df.loc[:,list(keep_only_present)]
 
 macrostates_df = macrostates_df.rename(
@@ -170,7 +170,7 @@ pkn_options = {
     "maxclause": 8,
 }
 
-grn = bt.dbs.collectri.load_grn(
+grn = bt.dbs.omnipath.load_dorothea_grn(
     organism=args.organism,
     genesyn=genesyn
 )

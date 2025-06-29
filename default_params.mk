@@ -112,6 +112,7 @@ $(eval MODEL_TOP_HVG ?= )                   # use only top 'BONESIS_TOP_HVG' hig
 
 ## INFERENCE ##
 $(eval MAX_CLAUSE ?= 8)                     # maximum number of literals/atoms in each propositional formula
+$(eval GRN_DATABASE ?= collectri)           # prior gene regulatory network defining the domain/search space (collectri, dorothea)
 
 ## STRONG-FILTERING ##
 $(eval CLINGO_OPT_MODE ?= optN)             # clingo optimization mode for hard filtering

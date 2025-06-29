@@ -41,4 +41,4 @@ def get_cfg(
             copy=False
         )
 
-    return {config: genes.dropna().to_dict() for config, genes in df.items()}
+    return {config: genes.to_dict() for config, genes in df.items()}
