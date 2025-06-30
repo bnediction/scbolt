@@ -28,7 +28,8 @@ class ptqdm(tqdm):
 def write_bn_solution(
     solution,
     filenames_without_extension,
-    noi_file=True
+    noi_file=True,
+    draw_ig=True
 ):
     bn = solution[1]
     bn.save(f"{filenames_without_extension}.bnet")
@@ -38,8 +39,10 @@ def write_bn_solution(
         noi = set(bn) - set(bn.constants())
         with open(f"{filenames_without_extension}.noi.txt", "w") as fp:
             fp.write("".join([f"{n}\n" for n in noi]))
-    ig = bn.influence_graph()
-    nx.drawing.nx_pydot.write_dot(ig, f"{filenames_without_extension}.dot")
+    dot = bt.bpy.bn_to_pydot(bn)
+    dot.write_raw(f"{filenames_without_extension}.dot")
+    if draw_ig is True:
+        dot.write_pdf(f"{filenames_without_extension}.pdf")
 
 def remove_hard_constraints(bo: bonesis.BoNesis):
     hard_constraint_indices = []
