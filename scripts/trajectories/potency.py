@@ -166,13 +166,10 @@ np.random.seed(args.seed)
 std.print_task(f"loading file {str(args.infile)}")
 adata = ad.read_h5ad(args.infile)
 
-df = bt.sct.tl.anndata_to_dataframe(
+counts = bt.sct.tl.anndata_to_dataframe(
     adata,
-    obs=args.cluster,
     layer=args.layer
 )
-
-counts, clusters = df.iloc[:,:-1], df.iloc[:,-1]
 
 if counts.max().max() <= 20:
     warnings.warn("Input expression data seem to be log2-transformed. Please provide data as raw counts or CPM/TPM.", stacklevel=1)
@@ -307,7 +304,7 @@ std.print_task(f"plotting boxplot with respect to score")
 fig, ax, _ = bt.sct.pl.boxplot(
     adata,
     obs="cytotrace_score",
-    groupby="leiden",
+    groupby=args.cluster,
     sort="descending",
     showfliers=False,
     showpoints=True

@@ -88,6 +88,8 @@ $(eval KNNBS_DIMENSION ?= )                 # number of embedding dimensions use
 $(eval KNNBS_NEIGHBORS ?= 20)               # number of closest neighbors for k-nearest neighbors graph
 
 ## BIN-CELLS ##
+$(eval SCBOOLSEQ_HVG_METHOD ?= cell_ranger) # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3, if not specified, consider all genes)
+$(eval SCBOOLSEQ_TOP_HVG ?= )               # use only top 'SCBOOLSEQ_TOP_HVG' highly variable genes for binarizing cells (if not specified, estimate automatically number of hvg)
 $(eval UNIMODAL_QUANTILE ?= 0.10)           # quantile classifying cells into inactive/active when learnt distribution is unimodal
 $(eval ZEROES_ARE_ZEROES ?= false)          # binarize zero-values to zero instead of nan when learnt distribution is zero-inflated
 
@@ -122,4 +124,7 @@ $(eval CLINGO_OPT_STRATEGY ?= bb,dec)       # clingo optimization strategy for h
 $(eval FILTER_MIN_FEEDBACKS ?= true)        # minimize the number of length-one feedbacks at filtering stage
 
 ## BONESIS-MIN ##
-$(eval INFER_MIN_FEEDBACKS ?= true)          # minimize the number of length-one feedbacks at inference stage
+$(eval INFER_MIN_FEEDBACKS ?= true)         # minimize the number of length-one feedbacks at inference stage
+
+## BONESIS-SUB ##
+$(eval INFER_LIMIT ?=)          			# number of diverse subset minimal solutions. If not specified, enumerate all subset minimal solutions without diversity

@@ -121,7 +121,7 @@ endef
 public = data/public
 rna = data/rna
 binarization = data/binarization
-bonesis = data/bonesis$(NUM_TMP)
+bonesis = data/bonesis
 
 cc_markers = $(public)/cycle_phases/mouse_cycle_markers.rds
 signatures = $(public)/signatures/geiger.xls $(public)/signatures/chambers.xls $(public)/signatures/signatures.json
@@ -181,8 +181,8 @@ bonesis_soft_stage1 =           $(bonesis)/filtering/soft/stage1.txt
 bonesis_soft_stage2 =           $(bonesis)/filtering/soft/stage2.txt
 bonesis_soft_filtering =        $(bonesis_soft_stage1) $(bonesis_soft_stage2)
 bonesis_hard_filtering =        $(bonesis)/filtering/hard/stage1.txt
-bonesis_inference_min =         $(bonesis)/bn/min/one_min.bnet
-bonesis_inference_sub =         $(bonesis)/bn/sub/*/one_sub.bnet
+bonesis_inference_min =         $(bonesis)/bn/min/min.bnet
+bonesis_inference_sub =         $(bonesis)/bn/sub/_analysis/ig_ensemble.dot.pdf
 
 $(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call find_paths_for_references,$(reference))))
@@ -350,6 +350,21 @@ ifeq ($(KNNBS_DIMENSION),)
 knnbs_dimension=
 else
 knnbs_dimension=--dimension $(KNNBS_DIMENSION)
+endif
+
+ifndef SCBOOLSEQ_HVG_METHOD
+scboolseq_layer=
+else ifeq ($(SCBOOLSEQ_HVG_METHOD),seurat)
+scboolseq_layer=--layer log-norm
+else ifeq ($(SCBOOLSEQ_HVG_METHOD),cell_ranger)
+scboolseq_layer=--layer log-norm
+else ifeq ($(SCBOOLSEQ_HVG_METHOD),seurat_v3)
+scboolseq_layer=--layer counts
+ifndef SCBOOLSEQ_TOP_HVG
+$(error parameter SCBOOLSEQ_TOP_HVG is required when parameter SCBOOLSEQ_HVG_METHOD is equal to 'seurat_v3')
+endif
+else
+$(error Unsupported value for parameter SCBOOLSEQ_HVG_METHOD (supported values: seurat, cell_ranger, seurat_v3))
 endif
 
 ifndef ZEROES_ARE_ZEROES
@@ -524,6 +539,7 @@ bonesis-sub: $(bonesis_inference_sub) ## infer diverse Boolean networks with BoN
 .PRECIOUS: $(bonesis_soft_stage1)
 .PRECIOUS: $(bonesis_soft_stage2)
 .PRECIOUS: $(bonesis_hard_filtering)
+.PRECIOUS: $(dir $(bonesis_inference_sub))
 
 $(bin_cells)&: export OPENBLAS_NUM_THREADS = $(open_allocated_cpu)
 $(bin_cells)&: export OMP_NUM_THREADS = $(open_allocated_cpu)
@@ -843,6 +859,22 @@ $(annotation_integrated): $(clustering_integrated)
 	$(call print_error,parameter LABEL_INTEGRATED not defined)
 endif
 
+ifdef SCBOOLSEQ_HVG_METHOD
+$(bin_cells)&: $(clustering_integrated)
+	$(call print_rule,bin-cells)
+	mkdir -p $(tmpdir)/integrated/cells/hvg $(@D)
+	$(conda_activate) scbridge-anndata
+	$(call print_task,estimating top$(if $(SCBOOLSEQ_TOP_HVG), $(SCBOOLSEQ_TOP_HVG),) highly variable genes with $(SCBOOLSEQ_HVG_METHOD))
+	python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/integrated/cells/hvg/top_genes.txt --method $(MODEL_HVG_METHOD) \
+			$(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) --batch condition
+	$(conda_deactivate)
+	$(conda_activate) scbridge-scboolseq
+	python scripts/binarization/bin_cells_scboolseq.py $< --outfile $(firstword $(bin_cells)) --bin $(shell echo $@ | sed "s/.h5ad/.csv/") --statistics $(lastword $(bin_cells)) \
+		--layer log-norm --quantile $(UNIMODAL_QUANTILE) $(zeroes_are_zeroes) --filter-genes $(tmpdir)/integrated/cells/hvg/top_genes.txt
+	$(call print_task,plotting umap with respect to binarization percentage)
+	python fig/plot_embedding.py fig/bin_umap.json --infile $(firstword $(bin_cells)) --outfile $(@D)/pct_bin.pdf
+	$(conda_deactivate)
+else
 $(bin_cells)&: $(clustering_integrated)
 	$(call print_rule,bin-cells)
 	mkdir -p $(@D)
@@ -852,6 +884,7 @@ $(bin_cells)&: $(clustering_integrated)
 	$(call print_task,plotting umap with respect to binarization percentage)
 	python fig/plot_embedding.py fig/bin_umap.json --infile $(firstword $(bin_cells)) --outfile $(@D)/pct_bin.pdf
 	$(conda_deactivate)
+endif
 
 $(bin_scboolseq): $(firstword $(bin_cells)) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
 	$(call print_rule,bin-scboolseq)
@@ -905,7 +938,7 @@ $(bonesis_model)&: $(bin) $(clustering_integrated)
 		$(conda_activate) scbridge-anndata
 		$(call print_task,estimating top$(if $(MODEL_TOP_HVG), $(MODEL_TOP_HVG),) highly variable genes with $(MODEL_HVG_METHOD))
 		python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/hvg/top_genes.txt --method $(MODEL_HVG_METHOD) \
-		$(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) --batch condition
+			$(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) --batch condition
 		$(conda_deactivate)
 		$(conda_activate) scbridge-bonesis
 		python scripts/inference/specification.py $(YAML_MODEL) $< \
@@ -995,31 +1028,23 @@ $(bonesis_inference_min): $(bonesis_model) $(bonesis_hard_filtering)
 	$(call print_rule,bonesis-min)
 	mkdir -p $(@D)
 	$(conda_activate) scbridge-bonesis
-	python scripts/inference/inference.py one-min $(word 1,$^) $(word 2,$^) \
+	python scripts/inference/inference.py min $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/bonesis_min.sh --solution $@ --filter-grn $(lastword $^) \
-		--database $(GRN_DATABASE) $(infer_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+		--database $(GRN_DATABASE) $(infer_min_feedbacks) --max-clause $(MAX_CLAUSE) \
+		--dot --neato --circo --fdp --sfdp --remove-single-nodes --organism $(ORGANISM)
 	$(conda_deactivate)
-	if [ "$$(which dot)" != "" ];
-	then
-		dot -Tpdf $(@D)/one_min.dot > $(@D)/one_min.pdf
-	fi
 
 $(bonesis_inference_sub): $(bonesis_model) $(bonesis_hard_filtering)
 	$(call print_rule,bonesis-sub)
 	mkdir -p $(dir $(@D))
 	$(conda_activate) scbridge-bonesis
-	python scripts/inference/inference.py all-sub $(word 1,$^) $(word 2,$^) \
+	python scripts/inference/inference.py sub $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(dir $(@D))bonesis_sub.sh --solution $(dir $(@D)) --filter-grn $(lastword $^) \
-		--database $(GRN_DATABASE) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
+		--database $(GRN_DATABASE) --max-clause $(MAX_CLAUSE) $(if $(filter $(INFER_LIMIT),$(INFER_LIMIT)),--limit $(INFER_LIMIT),) \
+		--dot --neato --circo --fdp --sfdp --remove-single-nodes --organism $(ORGANISM) --jobs $(JOBS)
 	$(conda_deactivate)
-	if [ "$$(which dot)" != "" ];
-	then
-		for file in $@; do
-			dot -Tpdf $${file} > $${file%.dot}.pdf
-		done
-	fi
 
 $(foreach condition,$(conditions),$(eval $(call compute_rules_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call compute_rules_for_references,$(reference))))

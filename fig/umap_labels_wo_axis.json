@@ -1,6 +1,6 @@
 {
-    "infile": "data/rna/treated/clustering/clusters/annotation.h5ad",
-    "outfile": "figures/results/umap_treated_wo_axis.pdf",
+    "infile": "data/rna/integrated/clustering/clusters/annotation.h5ad",
+    "outfile": "figures/results/umap_labels_wo_axis.pdf",
     "modules": [
         {"numpy": "np"},
         {"bonesistools": "bt"}

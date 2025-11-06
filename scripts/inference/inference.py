@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from typing import Optional
+
 import sys
 import os, std
 import argparse, cli
@@ -9,8 +11,7 @@ from tqdm import tqdm
 
 import pandas as pd
 
-import networkx as nx
-import bonesis
+import mpbn, bonesis
 from bonesis.asp_encoding import clingo_encode
 
 import bonesistools as bt
@@ -25,24 +26,42 @@ class ptqdm(tqdm):
         self.file = sys.stdout
         self.leave = False
 
-def write_bn_solution(
-    solution,
-    filenames_without_extension,
-    noi_file=True,
-    draw_ig=True
+def write_bn(
+    bn: mpbn.MPBooleanNetwork,
+    bnet: Path,
+    noi: Optional[Path] = None,
+    dot: Optional[Path] = None,
+    neato: Optional[Path] = None,
+    circo: Optional[Path] = None,
+    fdp: Optional[Path] = None,
+    sfdp: Optional[Path] = None,
+    remove_single_nodes: bool = False
 ):
-    bn = solution[1]
-    bn.save(f"{filenames_without_extension}.bnet")
-    df = pd.DataFrame(solution[2])
-    df.to_csv(f"{filenames_without_extension}.csv")
-    if noi_file is True:
-        noi = set(bn) - set(bn.constants())
-        with open(f"{filenames_without_extension}.noi.txt", "w") as fp:
-            fp.write("".join([f"{n}\n" for n in noi]))
-    dot = bt.bpy.bn_to_pydot(bn)
-    dot.write_raw(f"{filenames_without_extension}.dot")
-    if draw_ig is True:
-        dot.write_pdf(f"{filenames_without_extension}.pdf")
+    bn = bn.copy()
+    bn.save(bnet)
+    if noi is not None:
+        noi_set = set(bn) - set(bn.constants())
+        with open(noi, "w") as fp:
+            fp.write("".join([f"{n}\n" for n in noi_set]))
+    if dot is not None or neato is not None or circo is not None or fdp is not None or sfdp is not None:
+        if remove_single_nodes is True:
+            nodes_to_remove = []
+            for node in bn:
+                if bn[node] in [bn.ba.FALSE, bn.ba.TRUE]:
+                    nodes_to_remove.append(node)
+            for node in nodes_to_remove:
+                del bn[node]
+        _dot = bt.bpy.bn_to_pydot(bn)
+        if dot is not None:
+            _dot.write_dot(dot)
+        if neato is not None:
+            _dot.write(neato, prog="neato", format="raw")
+        if circo is not None:
+            _dot.write(circo, prog="circo", format="raw")
+        if fdp is not None:
+            _dot.write(fdp, prog="fdp", format="raw")
+        if sfdp is not None:
+            _dot.write(sfdp, prog="sfdp", format="raw")
 
 def remove_hard_constraints(bo: bonesis.BoNesis):
     hard_constraint_indices = []
@@ -65,14 +84,14 @@ See Chevalier et al. (2024) <https://hal.science/hal-04629083/document>.
 parser = argparse.ArgumentParser(
     prog="inference",
     description=parser_description,
-    usage="python inference.py [filter-stage1 | filter-stage2 | one-min | all-sub] <FILE> <FILE> [<args>]",
+    usage="python inference.py [filter-stage1 | filter-stage2 | one | min | sub] <FILE> <FILE> [<args>]",
     formatter_class=argparse.RawDescriptionHelpFormatter
 )
 
 parser.add_argument(
     "action",
-    choices=["filter-stage1", "filter-stage2", "one-min", "all-sub"],
-    metavar="[filter-stage1 | filter-stage2 | one-min | all-sub]"
+    choices=["filter-stage1", "filter-stage2", "one", "min", "sub"],
+    metavar="[filter-stage1 | filter-stage2 | one | min | sub]"
 )
 
 parser.add_argument(
@@ -104,7 +123,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="FILE | PATH",
-    help="output file storing bonesis solution (format: txt for 'filter-stage1'/'filter-stage2', bnet for 'one-min' or path for 'one-sub')"
+    help="output file storing bonesis solution (format: txt for 'filter-stage1'/'filter-stage2', bnet for 'one' or 'min' and path for 'sub')"
 )
 
 parser.add_argument(
@@ -178,6 +197,16 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--limit",
+    dest="limit",
+    type=int,
+    required=False,
+    default=None,
+    metavar="INT",
+    help="number of diverse subset minimal solutions. If not specified, enumerate all subset minimal solutions without diversity (default: None)"
+)
+
+parser.add_argument(
     "--minimize-feedbacks",
     dest="minimize_feedbacks",
     required=False,
@@ -196,6 +225,54 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--dot",
+    dest="dot",
+    required=False,
+    action="store_true",
+    help="save BN associated-influence graph with dot program"
+)
+
+parser.add_argument(
+    "--neato",
+    dest="neato",
+    required=False,
+    action="store_true",
+    help="save BN associated-influence graph with neato program"
+)
+
+parser.add_argument(
+    "--circo",
+    dest="circo",
+    required=False,
+    action="store_true",
+    help="save BN associated-influence graph with circo program"
+)
+
+parser.add_argument(
+    "--fdp",
+    dest="fdp",
+    required=False,
+    action="store_true",
+    help="save BN associated-influence graph with fdp program"
+)
+
+parser.add_argument(
+    "--sfdp",
+    dest="sfdp",
+    required=False,
+    action="store_true",
+    help="save BN associated-influence graph with sfdp program"
+)
+
+parser.add_argument(
+    "--remove-single-nodes",
+    dest="remove_single_nodes",
+    required=False,
+    action="store_true",
+    help="remove nodes without interaction with another node when printing influence graph"
+)
+
+parser.add_argument(
     "--organism",
     dest="organism",
     action=cli.Store_organism,
@@ -203,10 +280,23 @@ parser.add_argument(
     required=False
 )
 
+parser.add_argument(
+    "--jobs",
+    dest="jobs",
+    type=int,
+    required=False,
+    default=1,
+    metavar="INT",
+    help="number of allocated processors (used only when action == 'sub')"
+)
+
 args = parser.parse_args()
 
 if not args.action.startswith("filter") and args.only_soft_constraints is True:
     raise argparse.ArgumentError(None, "option --only-soft-constraints not allowed when action is related to inference instead of filtering")
+
+if args.action == "sub":
+    bonesis.settings["parallel"] = args.jobs
 
 genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
 
@@ -351,18 +441,22 @@ elif args.action == "one":
     std.print_warning("this may take some time.")
     solution = next(iter(view))
 
-    write_bn_solution(
-        solution,
-        args.solution,
-        f"{os.path.dirname(args.solution)}/one"
+    write_bn(
+        bn=solution[1],
+        bnet=f"{args.solution}.bnet",
+        noi=f"{args.solution}.noi.txt",
+        **{f"{program}": f"{os.path.dirname(args.solution)}/{args.solution.stem}.{program}" if eval(f"args.{program}") else None for program in ["dot", "neato", "circo", "fdp", "sfdp"]},
+        remove_single_nodes = args.remove_single_nodes
     )
+    pd.DataFrame(solution[2]).to_csv(f"{args.solution}.csv")
 
-elif args.action == "one-min":
+elif args.action == "min":
 
     std.print_task("computing solution of Boolean network minimizing the edge number")
-    
+
     bo.custom("edge(A,B) :- clause(B,_,A,_). #minimize { 1@1,A,B: edge(A,B) }.")
     bo.custom("#maximize { 1@10,N: constant(N) }.")
+
     if args.minimize_feedbacks:
         bo.custom("#minimize { 1@100,A: edge(A,A) }.")
 
@@ -378,28 +472,139 @@ elif args.action == "one-min":
     std.print_warning("this may take some time.")
     solution = next(iter(view))
 
-    write_bn_solution(
-        solution=solution,
-        filenames_without_extension=f"{os.path.splitext(args.solution)[0]}"
+    write_bn(
+        bn=solution[1],
+        bnet=f"{args.solution}.bnet",
+        noi=f"{args.solution}.noi.txt",
+        **{f"{program}": f"{os.path.dirname(args.solution)}/{args.solution.stem}.{program}" if eval(f"args.{program}") else None for program in ["dot", "neato", "circo", "fdp", "sfdp"]},
+        remove_single_nodes = args.remove_single_nodes
     )
+    pd.DataFrame(solution[2]).to_csv(f"{args.solution}.csv")
 
-elif args.action == "all-sub":
+elif args.action == "sub":
 
     std.print_task("sampling diverse solutions of Boolean network")
-    
-    view = bonesis.InfluenceGraphView(
-        bo,
-        solutions="subset-minimal",
-        extra=("boolean-network", "configurations"),
-        progress=ptqdm
-    )
+
+    os.makedirs(f"{args.solution}", exist_ok=True)
+
+    if args.limit is None:
+        view = bonesis.InfluenceGraphView(
+            bo,
+            solutions="subset-minimal",
+            extra=("boolean-network", "configurations"),
+            progress=ptqdm
+        )
+    else:
+        view = bonesis.DiverseBooleanNetworksView(
+            bo,
+#            solutions="subset-minimal",
+            extra=("configurations"),
+            limit=args.limit,
+            progress=ptqdm
+        )
     view.standalone(output_filename=args.asp)
 
+    bns = bt.bpy.BooleanNetworkEnsemble(components=nodes)
     std.print_warning("this may take some time.")
     for i, solution in enumerate(tqdm(view)):
+        bns.append(solution[1] if isinstance(view, bonesis.views.InfluenceGraphView) else solution[0])
         os.makedirs(f"{args.solution}/{i}")
-        write_bn_solution(
-            solution=solution,
-            filenames_without_extension=f"{args.solution}/{i}/one_sub",
-            noi_file=False
+        write_bn(
+            bn=solution[1] if isinstance(view, bonesis.views.InfluenceGraphView) else solution[0],
+            bnet=f"{args.solution}.bnet",
+            noi=f"{args.solution}.noi.txt",
+            **{f"{program}": f"{os.path.dirname(args.solution)}/{args.solution.stem}.{program}" if eval(f"args.{program}") else None for program in ["dot", "neato", "circo", "fdp", "sfdp"]},
+            remove_single_nodes = args.remove_single_nodes
         )
+        if isinstance(view, bonesis.views.InfluenceGraphView):
+            pd.DataFrame(solution[2]).to_csv(f"{args.solution}/{i}/metastates.csv")
+        else:
+            pd.DataFrame(solution[1]).to_csv(f"{args.solution}/{i}/metastates.csv")
+
+    std.print_task("analysing ensemble of Boolean networks")
+
+    influences = bns.get_influences()
+
+    import graphviz
+
+    function_number = {component: 0 for component in bns.get_components()}
+
+    if args.remove_single_nodes:
+        transcription_factors = bns.get_transcription_factors()
+        single_nodes = set()
+        for node in bns.get_components():
+            if transcription_factors[node] == {} and influences[node] == {}:
+                single_nodes.add(node)
+        interest_nodes = set(bns.get_components()) - single_nodes
+    else:
+        interest_nodes = set(bns.get_components())
+
+    clauses = bns.get_clauses()
+    function_number = {component: len(set(clauses_per_component)) for component, clauses_per_component in clauses.items()}
+
+    ig_ensemble = graphviz.Digraph(
+        name="Interaction graph ensemble",
+        comment="influence graph aggregation"
+    )
+    ig_ensemble.graph_attr["ratio"] = "0.8"
+    ig_ensemble.graph_attr["overlap"] = "false"
+    ig_ensemble.graph_attr["splines"] = "true"
+
+    for component in interest_nodes:
+    #    if node not in constantes:
+        if function_number[component] == 1:
+            ig_ensemble.node(component, label=f"{component}", fillcolor="darkgoldenrod2", style="rounded,filled,bold", shape="oval", fontcolor="black", fontname="arial bold", fontsize="50pt")
+        elif function_number[component] ==2:
+            ig_ensemble.node(component, label=f"{component}", fillcolor="lightgoldenrod1", style="rounded,filled", shape="oval", fontsize="50pt")
+        elif function_number[component] == 3:
+            ig_ensemble.node(component, label=f"{component}", fillcolor="cornsilk", style="rounded,filled", shape="oval", fontsize="50pt")
+        elif function_number[component] < 10:
+            ig_ensemble.node(component, label=f"{component}", fillcolor="white", style="rounded,filled", shape="oval", fontsize="50pt")
+        else:
+            ig_ensemble.node(component, label=f"{component}", fillcolor="white", style="rounded,filled,dotted", shape="oval", fontsize="50pt")
+    
+    def get_intensity(occurrences, min_intensity: int = 1, max_intensity: int = 10, differentiel_with_max: int = 2):
+        
+        occurrences = sorted(occurrences)
+        inf = occurrences[0]; sup = occurrences[-1]
+        differentiel = max_intensity - min_intensity - differentiel_with_max
+        intensity = {}
+
+        for occurrence in occurrences:
+            intensity[occurrence] = str(round(((occurrence-inf)/(sup-inf)) * differentiel) + inf)
+        intensity[occurrences[-1]] = str(max_intensity)
+
+        return intensity
+
+    occurrences_list = set()
+    for target, sources in influences.items():
+        for source, infl in sources.items():
+            occurrences_list.add(*set(infl.values()))
+    
+    intensity = get_intensity(occurrences_list)
+
+    for source, targets in influences.items():
+        for target, infl in targets.items():
+            for sign, occurrence in infl.items():
+                if sign is True:
+                    ig_ensemble.edge(source, target, label=f"{occurrence}", penwidth=intensity[occurrence], color="darkgreen", fontcolor="darkgreen", fontname="arial bold", fontsize="30pt", arrowsize="2")
+                else:
+                    ig_ensemble.edge(source, target, label=f"{occurrence}", penwidth=intensity[occurrence], color="darkred", fontcolor="darkred", fontname="arial bold", fontsize="30pt", arrowsize="2")
+
+    for program in ["dot", "neato", "circo", "fdp", "sfdp"]:
+        if eval(f"args.{program}"):
+            ig_ensemble.render(
+                filename=f"ig_ensemble.{program}",
+                directory=f"{args.solution}/_analysis",
+                view=False,
+                format="plain",
+                engine=program
+            )
+
+    ig_ensemble.render(
+        filename=f"ig_ensemble.dot",
+        directory=f"{args.solution}/_analysis",
+        view=False,
+        format="pdf",
+        engine="dot"
+    )

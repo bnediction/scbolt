@@ -135,7 +135,7 @@ dependencies:
   - zstd=1.5.6=ha6fb4c9_0
   - pip:
       - attrs==23.2.0
-      - bonesistools==1.1.2
+      - bonesistools==1.1.5
       - charset-normalizer==3.3.2
       - decoupler==1.6.0
       - docrep==0.3.2

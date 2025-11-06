@@ -11,6 +11,7 @@ import anndata as ad
 import bonesistools as bt
 
 import numpy as np
+import pandas as pd
 
 from scboolseq import scBoolSeq
 
@@ -112,6 +113,15 @@ parser.add_argument(
     help="binarize zero-values to zero instead of nan when learnt distribution is zero-inflated"
 )
 
+parser.add_argument(
+    "--filter-genes",
+    dest="filter_genes",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    metavar="FILE",
+    help="input file storing interest genes to pass filtering (if not specified, all genes are considered)"
+)
+
 args = parser.parse_args()
 
 if not Path(os.path.dirname(args.outfile)).exists():
@@ -130,13 +140,16 @@ if args.only_hvg:
 else:
     std.print_info(f"keeping non-highly variable genes")
 
-gene_list = adata.var.index
-
 std.print_debug(f"converting layer '{args.layer}' into dataframe")
 counts_df = bt.sct.tl.anndata_to_dataframe(
     adata,
     layer=args.layer
 )
+
+if args.filter_genes:
+    std.print_info(f"filtering genes")
+    with open(args.filter_genes) as file:
+        counts_df = counts_df[[line.strip() for line in file.readlines()]]
 
 std.print_task("binarizing cells")
 
@@ -156,9 +169,21 @@ with std.disable_print():
 std.print_info("converting counting values into Boolean values")
 with std.disable_print():
     cell_df = scbool.binarize(counts_df)
-    adata.layers["bin"] = cell_df
-    adata.obs["pct_bin"] = (~cell_df.isna()).mean(axis=1)
-    adata.var["distribution"] = scbool.criteria_["Category"]
+    criteria_df = scbool.criteria_.copy()
+for gene in set(adata.var.index) - set(cell_df):
+    cell_df[gene] = np.nan
+    criteria_df.loc[gene] = [*[np.nan]*15, "Discarded"]
+cell_df = cell_df[adata.var.index]
+criteria_df = criteria_df.loc[adata.var.index]
+if not list(cell_df.index) == list(adata.obs.index):
+    raise pd.errors.IndexingError("Index values in 'cell_df' not sorted with observations in 'adata'")
+elif not list(cell_df.columns) == list(adata.var.index):
+    raise pd.errors.IndexingError("Column values in 'cell_df' not sorted with variables in 'adata'")
+elif not list(criteria_df.index) == list(adata.var.index):
+    raise pd.errors.IndexingError("Column values in 'criteria_df' not sorted with variables in 'adata'")
+adata.layers["bin"] = cell_df
+adata.obs["pct_bin"] = (~cell_df.isna()).mean(axis=1)
+adata.var["distribution"] = criteria_df["Category"]
 
 std.print_task(f"saving data in {str(args.outfile)}")
 adata.write_h5ad(
@@ -176,7 +201,7 @@ if args.bin:
 
 if args.statistics:
     std.print_task(f"saving statistical estimators in {str(args.statistics)}")
-    scbool.criteria_.to_csv(
+    criteria_df.to_csv(
         args.statistics,
         sep=",",
         index=True
