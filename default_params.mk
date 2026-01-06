@@ -1,12 +1,17 @@
+$(eval PARAMS ?= user/apl/params.mk)         # user-defined parameter file
+# BE CAREFUL: only parameter PARAMS can be update in this file
+# If user want to update other parameters, they have to be overridden in file located by PARAMS.
+
 ## COMPUTING RESOURCES ##
 MEMORY ?= 50
 JOBS ?= 16
 SEED ?= 10
-$(eval TIMEOUT ?= 24h)                      # time limit for each bonesis filtering steps (weak/strong and stage1/stage2)
+$(eval TIMEOUT ?= 24h)                      # time limit for each bonesis filtering steps (soft 1, soft 2, hard 1)
 
 ## INFORMATION ##
-ORGANISM ?= mouse
-CONDITIONS ?= ctrl treated
+$(eval ORGANISM ?= mouse)                   # organism on which data are made up
+$(eval CONDITIONS ?= ctrl treated)          # experimental conditions
+$(eval RESULTS ?= data/)                    # directory storing results
 
 ## FILTERING ##
 $(eval GENE_DROPOUT ?= 0.999)               # maximum percentage of cell dropout required for a gene to pass filtering
@@ -84,7 +89,7 @@ $(eval COLLAPSE_PARAMETER ?= false)         # stream parameter used for pruning 
 
 ## KNNBS ##
 $(eval KNNBS_EMBEDDING ?= pca)              # embedding space used when calculating pairwise distances (pca or umap)
-$(eval KNNBS_DIMENSION ?= )                 # number of embedding dimensions used when calculating pairwise distances
+$(eval KNNBS_DIMENSION ?=)                  # number of embedding dimensions used when calculating pairwise distances
 $(eval KNNBS_NEIGHBORS ?= 20)               # number of closest neighbors for k-nearest neighbors graph
 
 ## BIN-CELLS ##
@@ -108,9 +113,9 @@ $(eval BIN_CORRECTION ?= bonferroni)        # method used for correcting the sig
 $(eval BIN_METHOD ?= merge)                 # binarization method used (scboolseq, dea or merge)
 
 ## BEGIN MODELING ##
-$(eval YAML_MODEL ?= spec/spec.yml)         # file storing model specifications for bonesis
-$(eval MODEL_HVG_METHOD ?= )                # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3, if not specified, consider all genes)
-$(eval MODEL_TOP_HVG ?= )                   # use only top 'BONESIS_TOP_HVG' highly variable genes for inferring Boolean Networks (if not specified, estimate automatically number of hvg)
+$(eval YAML_MODEL ?= spec.yml)              # file storing model specifications for bonesis
+$(eval MODEL_HVG_METHOD ?=)                 # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3, if not specified, consider all genes)
+$(eval MODEL_TOP_HVG ?=)                    # use only top 'BONESIS_TOP_HVG' highly variable genes for inferring Boolean Networks (if not specified, estimate automatically number of hvg)
 
 ## INFERENCE ##
 $(eval MAX_CLAUSE ?= 8)                     # maximum number of literals/atoms in each propositional formula
@@ -118,7 +123,7 @@ $(eval GRN_DATABASE ?= collectri)           # prior gene regulatory network defi
 
 ## STRONG-FILTERING ##
 $(eval CLINGO_OPT_MODE ?= optN)             # clingo optimization mode for hard filtering
-$(eval CLINGO_OPT_STRATEGY ?= bb,dec)       # clingo optimization strategy for hard filtering
+$(eval CLINGO_OPT_STRATEGY ?= bb,dec)       # clingo optimization strategy for hard filtering (recommended: bb,dec; bb,inc; usc)
 
 ## MAX-CONSTANTS ##
 $(eval FILTER_MIN_FEEDBACKS ?= true)        # minimize the number of length-one feedbacks at filtering stage

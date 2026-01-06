@@ -53,7 +53,7 @@ def write_bn(
                 del bn[node]
         _dot = bt.bpy.bn_to_pydot(bn)
         if dot is not None:
-            _dot.write_dot(dot)
+            _dot.write(dot, prog="dot", format="raw")
         if neato is not None:
             _dot.write(neato, prog="neato", format="raw")
         if circo is not None:
@@ -511,9 +511,9 @@ elif args.action == "sub":
         os.makedirs(f"{args.solution}/{i}")
         write_bn(
             bn=solution[1] if isinstance(view, bonesis.views.InfluenceGraphView) else solution[0],
-            bnet=f"{args.solution}.bnet",
-            noi=f"{args.solution}.noi.txt",
-            **{f"{program}": f"{os.path.dirname(args.solution)}/{args.solution.stem}.{program}" if eval(f"args.{program}") else None for program in ["dot", "neato", "circo", "fdp", "sfdp"]},
+            bnet=f"{args.solution}/{i}/sub.bnet",
+            noi=f"{args.solution}/{i}/.noi.txt",
+            **{f"{program}": f"{args.solution}/{i}/sub.{program}" if eval(f"args.{program}") else None for program in ["dot", "neato", "circo", "fdp", "sfdp"]},
             remove_single_nodes = args.remove_single_nodes
         )
         if isinstance(view, bonesis.views.InfluenceGraphView):

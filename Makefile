@@ -5,9 +5,9 @@
 SHELL = /bin/bash
 MAKEFLAGS += --silent
 DEFAULT_PARAMS = default_params.mk
-PARAMS = params.mk
 
-include $(DEFAULT_PARAMS) $(PARAMS)
+include $(DEFAULT_PARAMS)
+include $(PARAMS)
 
 conda_activate = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
 conda_deactivate = source $$(conda info --base)/etc/profile.d/conda.sh ; conda deactivate ; conda deactivate
@@ -34,6 +34,7 @@ running_conditions := $(subst $(space)integrated,,$(running_references))
 
 export tmpdir:=$(shell mktemp -d -t scbridge-XXXXXXXXXX)
 $(shell { trap 'rm -rf $(tmpdir);' EXIT; tail --pid=$$PPID -f /dev/null; } </dev/null >/dev/null 2>/dev/null &)
+$(shell mkdir -p $(RESULTS))
 
 ## BEGIN URLS ##
 
@@ -119,9 +120,9 @@ endef
 # BEGIN PATHS ##
 
 public = data/public
-rna = data/rna
-binarization = data/binarization
-bonesis = data/bonesis
+rna = $(abspath ${RESULTS}/rna)
+binarization = $(abspath ${RESULTS}/binarization)
+bonesis = $(abspath ${RESULTS}/bonesis)
 
 cc_markers = $(public)/cycle_phases/mouse_cycle_markers.rds
 signatures = $(public)/signatures/geiger.xls $(public)/signatures/chambers.xls $(public)/signatures/signatures.json
@@ -1030,7 +1031,7 @@ $(bonesis_inference_min): $(bonesis_model) $(bonesis_hard_filtering)
 	$(conda_activate) scbridge-bonesis
 	python scripts/inference/inference.py min $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
-		--asp $(@D)/bonesis_min.sh --solution $@ --filter-grn $(lastword $^) \
+		--asp $(@D)/bonesis_min.sh --solution $(basename $@) --filter-grn $(lastword $^) \
 		--database $(GRN_DATABASE) $(infer_min_feedbacks) --max-clause $(MAX_CLAUSE) \
 		--dot --neato --circo --fdp --sfdp --remove-single-nodes --organism $(ORGANISM)
 	$(conda_deactivate)

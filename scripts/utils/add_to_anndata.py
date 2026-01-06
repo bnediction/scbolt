@@ -140,8 +140,10 @@ if len(args.csv) == 1:
         raise argparse.ArgumentError(None, "option --labels not allowed when single value passed to option --csv")
     elif args.label_column is not None:
         raise argparse.ArgumentError(None, "option --label-column not allowed when single value passed to option --csv")
-    if args.add_prefix is not None:
+    if args.add_prefix:
         raise argparse.ArgumentError(None, "option --add-prefix not allowed when single value passed to option --csv")
+    else:
+        args.add_prefix = None
 else:
     if args.labels is None:
         raise argparse.ArgumentError(None, "option --labels required when multiple values passed to option --csv")
@@ -155,7 +157,7 @@ if str(args.infile).endswith("h5ad"):
 elif str(args.infile).endswith("loom"):
     adata = ad.read_loom(filename=args.infile)
 else:
-    raise argparse.ArgumentError("unable to synchronously open infile (required format: h5ad or loom)")
+    raise argparse.ArgumentError(None, "unable to synchronously open infile (required format: h5ad or loom)")
 
 if len(args.csv) == 1:
     df = pd.read_csv(
