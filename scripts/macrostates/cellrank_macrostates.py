@@ -22,7 +22,7 @@ parser = argparse.ArgumentParser(
     description=
     """
     Estimate macrostates using generalized perron cluster cluster analysis (GPCCA)
-    with respect to velocity-based and similarity-based kernels.
+    with respect to velocity, potency and similarity-based kernels.
     See Lange et al. (2022) <https://www.nature.com/articles/s41592-021-01346-6>.
     """,
     usage="python cellrank_macrostates.py <FILE> <FILE> [--csv <FILE>] [<args>]"

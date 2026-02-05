@@ -283,9 +283,9 @@ std.print_task(f"preprocessing counting data")
 
 mad = median_absolute_deviation(np.log(adata.obs.total_counts),consistency=(args.consistent_mad))
 reads = [
-        np.exp(np.median(np.log(adata.obs.total_counts)) - args.mad_deviation[0]*mad),
-        np.exp(np.median(np.log(adata.obs.total_counts)) + args.mad_deviation[1]*mad)
-    ]
+    np.exp(np.median(np.log(adata.obs.total_counts)) - args.mad_deviation[0]*mad),
+    np.exp(np.median(np.log(adata.obs.total_counts)) + args.mad_deviation[1]*mad)
+]
 
 ylim = [0, round(math.ceil(max(adata.obs.total_counts)+1000),-3)]
 fig, ax = plt.subplots(nrows=1, ncols=2)

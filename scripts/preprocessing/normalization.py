@@ -80,7 +80,7 @@ adata = ad.read_h5ad(args.infile)
 if args.layer:
     adata.X = adata.layers[args.layer].copy()
 
-std.print_task(f"normalizing counting data")
+std.print_task(f"normalizing read counts")
 
 std.print_info(f"standardizing counts with respect to library size (layer: norm)")
 adata.layers["norm"] = adata.X.copy()
