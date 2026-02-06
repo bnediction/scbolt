@@ -7,7 +7,8 @@ import subprocess
 import os, std
 from pathlib import Path
 
-import math
+import re
+
 import numpy as np
 
 import pandas as pd
@@ -15,6 +16,8 @@ import anndata as ad
 import bonesistools as bt
 import stream as st
 
+from networkx.classes.graph import Graph
+from rpy2.rinterface import ListSexpVector
 from scipy.sparse import csr_matrix
 
 import matplotlib.pyplot as plt
@@ -26,9 +29,10 @@ class Options:
             self.__dict__[k] = v
 
 opt = Options(
-    path=Path("nestorowa"),
+    path=Path("nestorowa/unique/stream"),
     loess_frac=0.01,
-    hvg=2000
+    hvg=2000,
+    pca_dimension=40
 )
 
 if not opt.path.exists():
@@ -195,7 +199,6 @@ sc.pp.scale(
 )
 
 std.print_task(f"computing top {opt.hvg} highly variable genes (loess_frac={opt.loess_frac})")
-
 adata.X = adata.layers["stream"].copy()
 with std.disable_print():
     st.select_variable_genes(
@@ -206,15 +209,17 @@ with std.disable_print():
     plt.savefig(f"{opt.path}/hvg.pdf", bbox_inches="tight")
     plt.close()
 
+std.print_task(f"computing top {opt.pca_dimension} principal components")
 with std.disable_print():
     st.select_top_principal_components(
         adata,
         feature="var_genes",
         first_pc=True,
-        n_pc=40
+        n_pc=opt.pca_dimension
     )
     plt.close()
 
+std.print_task("computing embedding space using Spectral embedding algorithm")
 with std.disable_print():
     st.dimension_reduction(
         adata,
@@ -225,31 +230,7 @@ with std.disable_print():
         n_jobs=4
     )
 
-std.print_info(f"plotting embedding space with respect to label")
-bt.sct.pl.embedding_plot(
-    adata,
-    obs="label",
-    use_rep="X_se",
-    xlabel=r"$\mathrm{{{}_{{1}}}}$".format("SE"),
-    ylabel=r"$\mathrm{{{}_{{2}}}}$".format("SE"),
-    zlabel=r"$\mathrm{{{}_{{3}}}}$".format("SE"),
-    figwidth=6,
-    s=4,
-    alpha=1,
-    add_legend=True,
-    lgd_params={
-        "title":"clusters",
-        "ncol":1,
-        "markerscale":5,
-        "frameon":True,
-        "edgecolor":bt.sct.pl.get_color("black"),
-        "shadow":False
-    },
-    n_components=3,
-    background_visible=False,
-    outfile=Path(f"{opt.path}/se_label.pdf")
-)
-
+std.print_task("computing embedding space using UMAP algorithm")
 st.plot_visualization_2D(
     adata,
     method="umap",
@@ -259,13 +240,13 @@ st.plot_visualization_2D(
 )
 plt.savefig(f"{opt.path}/umap_label.pdf")
 
+std.print_task("computing elastic principal graph")
 with std.disable_print():
     st.seed_elastic_principal_graph(
         adata,
         clustering="kmeans",
         n_clusters=20
     )
-
     st.elastic_principal_graph(
         adata,
         epg_alpha=0.01,
@@ -278,11 +259,28 @@ with std.disable_print():
         epg_ext_par=0.8
     )
 
+std.print_debug("retrieving stream-based clusters")
 
-std.print_task(f"plotting elastic principal graph in spectral embedding space")
+adata.obs["kmeans"] = adata.obs["kmeans"].transform(lambda x: re.search(r"\d+", x).group()).astype("category")
+
+nodes_mapping = dict()
+for node, attributes in adata.uns["flat_tree"]._node.items():
+    nodes_mapping[node] = attributes["label"]
+
+adata.obs["macrostates"] = np.nan
+adata.obs["macrostates"] = adata.obs["macrostates"].astype("category").cat.add_categories(sorted(nodes_mapping.values()))
+for node in nodes_mapping.keys():
+    _true = adata.obs["node"] == node
+    adata.obs["macrostates"][_true] = str(nodes_mapping[node])
+adata.obs["macrostates"] = adata.obs["macrostates"].astype(str)
+
+std.print_task(f"plotting graphs")
+
+groups = {"label", "macrostates"}
+
 st.plot_dimension_reduction(
     adata,
-    color=["label"],
+    color=groups,
     n_components=3,
     show_graph=True,
     show_text=False
@@ -291,38 +289,60 @@ plt.savefig(Path(f"{opt.path}/se_epg_label.pdf"))
 
 st.plot_stream_sc(
     adata,root="S1",
-    color=["label"],
+    color=groups,
     dist_scale=0.3,
     show_graph=True,
-    show_text=False
+    show_text=True
 )
-plt.savefig(Path(f"{opt.path}/sc_stream_label.pdf"))
+plt.savefig(Path(f"{opt.path}/sc_stream.pdf"))
 
 st.plot_stream(
     adata,
     root="S1",
-    color=["label"]
+    color=groups
 )
+plt.savefig(Path(f"{opt.path}/density_stream.pdf"))
 
-import re
+adata.obs["label"] = adata.obs["label"].astype("category").replace("nan", np.nan)
+adata.obs["macrostates"] = adata.obs["macrostates"].astype("category").replace("nan", np.nan)
+for group in groups:
+    bt.sct.pl.embedding_plot(
+        adata,
+        obs=group,
+        use_rep="X_se",
+        xlabel=r"$\mathrm{{{}_{{1}}}}$".format("SE"),
+        ylabel=r"$\mathrm{{{}_{{2}}}}$".format("SE"),
+        zlabel=r"$\mathrm{{{}_{{3}}}}$".format("SE"),
+        figwidth=6,
+        s=4,
+        alpha=1,
+        add_legend=True,
+        lgd_params={
+            "title":"clusters",
+            "ncol":1,
+            "markerscale":5,
+            "frameon":True,
+            "edgecolor":bt.sct.pl.get_color("black"),
+            "shadow":False
+        },
+        n_components=3,
+        background_visible=False,
+        outfile=Path(f"{opt.path}/se_{group}.pdf")
+    )
 
-std.print_debug("retrieving stream-based clusters")
-
-adata.obs["kmeans"] = adata.obs["kmeans"].transform(lambda x: re.search(r"\d+", x).group()).astype("category")
-
-nodes_mapping = dict()
-for node, attributes in adata.uns["flat_tree"]._node.items():
-    label = re.search(r"\d+", attributes["label"]).group()
-    adata.uns["flat_tree"].nodes[node]["label"] = label
-    nodes_mapping[node] = label
-
-adata.obs["macrostates"] = np.nan
-adata.obs["macrostates"] = adata.obs["macrostates"].astype("category").cat.add_categories(sorted(nodes_mapping.values()))
-for node in nodes_mapping.keys():
-    _true = adata.obs["node"] == node
-    adata.obs["macrostates"][_true] = str(nodes_mapping[node])
-adata.obs["macrostates"] = adata.obs["macrostates"].astype("category")
-
-for node in adata.obs["macrostates"].cat.categories:
-    adata.obs[f"{node}_pseudotime"] = adata.obs[f"S{node}_pseudotime"]
-    del adata.obs[f"S{node}_pseudotime"]
+std.print_task(f"saving h5ad-formatted data in {str(opt.path)}/macrostates.h5ad")
+del adata.uns["workdir"]
+for key in list(adata.obs.keys()):
+    if isinstance (adata.obs[key][0], tuple):
+        del adata.obs[key]
+for key in list(adata.uns.keys()):
+    if isinstance(adata.uns[key], (tuple, Path, Graph, ListSexpVector, pd.Index)):
+        del adata.uns[key]
+    if key.startswith("stream_S"):
+        del adata.uns[key]
+for k in ["top_pcs", "trans_se", "vis_trans_umap", "label_color", "macrostates_color"]:
+    del adata.uns[k]
+adata.write_h5ad(
+    filename=Path(f"{opt.path}/macrostates.h5ad"),
+    compression="gzip"
+)
