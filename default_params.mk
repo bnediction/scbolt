@@ -1,4 +1,4 @@
-$(eval PARAMS ?= user/apl/params.mk)         # user-defined parameter file
+$(eval PARAMS ?= user/nestorowa/params.mk)         # user-defined parameter file
 # BE CAREFUL: only parameter PARAMS can be update in this file
 # If user want to update other parameters, they have to be overridden in file located by PARAMS.
 
@@ -12,6 +12,12 @@ $(eval TIMEOUT ?= 24h)                      # time limit for each bonesis filter
 $(eval ORGANISM ?= mouse)                   # organism on which data are made up
 $(eval CONDITIONS ?= ctrl treated)          # experimental conditions
 $(eval RESULTS ?= data/)                    # directory storing results
+
+## EXTRA PARAMETERS ##
+# Parameters useful when user want to run the pipeline by starting at a specific step, with pre-computed dependencies.
+
+$(eval USE_REP ?= X_umap)                   # Key in adata.obsm used as embedding space
+$(eval OBS ?= label)                        # Column name in adata.obs used as labels.
 
 ## FILTERING ##
 $(eval GENE_DROPOUT ?= 0.999)               # maximum percentage of cell dropout required for a gene to pass filtering
@@ -78,11 +84,13 @@ $(eval CELLRANK_STABILITY ?= 0.96)          # minimum stability for a state to b
 $(eval CELLRANK_ALPHA ?= 1.0)               # weight given to the deviation of an eigenvalue from one (used only if CELLRANK_METHOD = eigengap or eigengap_coarse)
 
 ## STREAM ##
+$(eval CLUSTERING_METHOD ?= kmeans)         # clustering method used for seeding the initial elastic principal graph (kmeans, ap, sc)
 $(eval CLUSTER_NUMBER ?= 6)                 # number of clusters for elastic principal graph
-$(eval LAMBDA_EPG ?= 0.05)                  # lambda parameter used for computing the elastic energy
-$(eval MU_EPG ?= 0.05)                      # mu parameter used for computing the elastic energy
-$(eval ALPHA_EPG ?= 0.03)                   # alpha parameter of the penalized elastic energy
-$(eval EXTEND_EPG ?= true)                  # extend leaves of elastic principal graph by attaching them new nodes
+$(eval ALPHA_EPG ?= 0.03)                   # alpha parameter used for computing elastic energy (penalized spurious branching events)
+$(eval MU_EPG ?= 0.05)                      # mu parameter used for computing elastic energy (penalized the deviation from harmonic embedding)
+$(eval LAMBDA_EPG ?= 0.05)                  # lambda parameter used for computing elastic energy (penalized the total length of edges)
+$(eval EXTEND_EPG ?= true)                  # extend leaves of elastic principal graph by attaching new nodes
+$(eval EXTEND_MODE ?= QuantDists)           # mode used for extending the leaves (used only if EXTEND_EPG = true, value: QuantDists, QuantCentroid, WeigthedCentroid)
 $(eval EXTEND_PARAMETER ?= 0.8)             # stream parameter used for extending the leaves (used only if EXTEND_EPG = true)
 $(eval PRUNE_EPG ?= false)                  # prune elastic principal graph by filtering out trivial branches
 $(eval COLLAPSE_PARAMETER ?= false)         # stream parameter used for pruning the graph (used only if PRUNE_EPG = true)
@@ -94,7 +102,7 @@ $(eval KNNBS_NEIGHBORS ?= 20)               # number of closest neighbors for k-
 
 ## BIN-CELLS ##
 $(eval SCBOOLSEQ_HVG_METHOD ?= cell_ranger) # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3, if not specified, consider all genes)
-$(eval SCBOOLSEQ_TOP_HVG ?= )               # use only top 'SCBOOLSEQ_TOP_HVG' highly variable genes for binarizing cells (if not specified, estimate automatically number of hvg)
+$(eval SCBOOLSEQ_TOP_HVG ?=)                # use only top 'SCBOOLSEQ_TOP_HVG' highly variable genes for binarizing cells (if not specified, estimate automatically number of hvg)
 $(eval UNIMODAL_QUANTILE ?= 0.10)           # quantile classifying cells into inactive/active when learnt distribution is unimodal
 $(eval ZEROES_ARE_ZEROES ?= false)          # binarize zero-values to zero instead of nan when learnt distribution is zero-inflated
 

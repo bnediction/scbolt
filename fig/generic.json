@@ -7,22 +7,18 @@
         "xlabel",
         "ylabel",
         "zlabel",
-        ["lgd_params", "edgecolor"],
-        "n_components"
+        ["lgd_params", "edgecolor"]
     ],
     "figure": {
-        "obs": "leiden",
-        "use_rep": "X_umap",
         "figheight": 5,
         "figwidth": 6,
-        "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
-        "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
-        "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
+        "xlabel": "r'$\\mathrm{dim_{1}}$'",
+        "ylabel": "r'$\\mathrm{dim_{2}}$'",
+        "zlabel": "r'$\\mathrm{dim_{3}}$'",
         "add_legend": true,
         "s": 2,
         "alpha": 1,
         "lgd_params": {
-            "title": "clusters",
             "ncol": 1,
             "markerscale": 5,
             "frameon": true,
@@ -33,7 +29,6 @@
             "fontsize": 12,
             "fontweight": "extra bold"
         },
-        "n_components": "3 if adata.obsm['X_umap'].shape[1] > 2 and args.plot_3d is True else 2",
         "background_visible": false
     }
 }

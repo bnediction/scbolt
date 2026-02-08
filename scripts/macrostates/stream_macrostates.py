@@ -16,8 +16,6 @@ import bonesistools as bt
 from networkx.classes.graph import Graph
 from rpy2.rinterface import ListSexpVector
 
-import matplotlib.pyplot as plt
-
 bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
@@ -65,14 +63,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--embedding",
-    dest="embedding",
+    "--use-rep",
+    dest="use_rep",
     type=str,
     required=False,
-    default="umap",
-    choices=["umap","tsne"],
-    metavar="[umap|tsne]",
-    help="embedding projection (default: umap)"
+    default="X_umap",
+    metavar="LITERAL",
+    help="embedding projection in adata.obsm used for computing elastic principal graph (default: X_umap)"
 )
 
 parser.add_argument(
@@ -82,6 +79,17 @@ parser.add_argument(
     required=True,
     metavar="LITERAL",
     help="column name in adata.obs referring to clusters (default: none)"
+)
+
+parser.add_argument(
+    "--clustering",
+    dest="clustering",
+    type=str,
+    required=False,
+    choices=["kmeans","ap","sc"],
+    default="kmeans",
+    metavar="[kmeans | ap | sc]",
+    help="clustering method used (K-means clustering, affinity propagation, spectral clustering) for seeding the initial elastic principal graph (default: kmeans)"
 )
 
 parser.add_argument(
@@ -95,13 +103,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--lambda",
-    dest="lambda_epg",
+    "--alpha",
+    dest="alpha_epg",
     type=float,
     required=False,
-    default=0.05,
+    default=0.01,
     metavar="FLOAT",
-    help="lambda parameter used for computing the elastic energy (default: 0.05)"
+    help="alpha parameter used for computing elastic energy, penalizing spurious branching events (default: 0.01)"
 )
 
 parser.add_argument(
@@ -111,17 +119,17 @@ parser.add_argument(
     required=False,
     default=0.05,
     metavar="FLOAT",
-    help="mu parameter used for computing the elastic energy (default: 0.05)"
+    help="mu parameter used for computing elastic energy, penalizing the deviation from harmonic embedding (default: 0.05)"
 )
 
 parser.add_argument(
-    "--alpha",
-    dest="alpha_epg",
+    "--lambda",
+    dest="lambda_epg",
     type=float,
     required=False,
-    default=0.01,
+    default=0.05,
     metavar="FLOAT",
-    help="alpha parameter of the penalized elastic energy (default: 0.01)"
+    help="lambda parameter used for computing elastic energy, penalizing the total length of edges (default: 0.05)"
 )
 
 parser.add_argument(
@@ -140,7 +148,7 @@ parser.add_argument(
     choices=["QuantDists","QuantCentroid","WeigthedCentroid"],
     default="QuantDists",
     metavar="[QuantDists | QuantCentroid | WeigthedCentroid]",
-    help="mode used for extending the leaves (used only if --extend, default: QuantDists)"
+    help="mode used for extending the leaves (used only if --extend-epg, default: QuantDists)"
 )
 
 parser.add_argument(
@@ -152,7 +160,7 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.5,
-    help="stream parameter used for extending the leaves (used only if --extend, default: 0.5)"
+    help="stream parameter used for extending the leaves (used only if --extend-epg, default: 0.5)"
 )
 
 parser.add_argument(
@@ -196,7 +204,8 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-embedding_label = "UMAP" if args.embedding == "umap" else "t-SNE"
+if args.use_rep.startswith("X_"):
+   embedding_label = args.use_rep[2:].lower()
 
 outpath = os.path.dirname(args.outfile)
 if not Path(f"{outpath}/streamplot").exists():
@@ -206,22 +215,18 @@ std.print_task(f"loading file {str(args.infile)}")
 adata = ad.read_h5ad(args.infile)
 adata.uns["workdir"] = str(outpath)
 
-if args.embedding == "umap":
-    adata.uns["dr"] = "X_umap"
-    adata.obsm["X_dr"] = adata.obsm["X_umap"].copy()
-else:
-    adata.uns["dr"] = "X_tsne"
-    adata.obsm["X_dr"] = adata.obsm["X_tsne"].copy()
+adata.uns["dr"] = args.use_rep
+adata.obsm["X_dr"] = bt.sct.tl.choose_representation(adata, use_rep=args.use_rep).copy()
 
 adata.obs[args.obs] = adata.obs[args.obs].astype(object)
 
 std.print_task("computing elastic principal graph")
 
-std.print_debug("initializing elastic principal graph")
+std.print_info("initializing elastic principal graph")
 with std.disable_print():
     st.seed_elastic_principal_graph(
         adata,
-        clustering="kmeans",
+        clustering=args.clustering,
         n_clusters=args.cluster_number
     )
 
@@ -264,29 +269,22 @@ adata.obs["kmeans"] = adata.obs["kmeans"].transform(lambda x: re.search(r"\d+", 
 
 nodes_mapping = dict()
 for node, attributes in adata.uns["flat_tree"]._node.items():
-    label = re.search(r"\d+", attributes["label"]).group()
-    adata.uns["flat_tree"].nodes[node]["label"] = label
-    nodes_mapping[node] = label
+    nodes_mapping[node] = attributes["label"]
 
-adata.obs["macrostates"] = np.nan
-adata.obs["macrostates"] = adata.obs["macrostates"].astype("category").cat.add_categories(sorted(nodes_mapping.values()))
+adata.obs["macrostate"] = np.nan
+adata.obs["macrostate"] = adata.obs["macrostate"].astype("category").cat.add_categories(sorted(nodes_mapping.values()))
 for node in nodes_mapping.keys():
     _true = adata.obs["node"] == node
-    adata.obs["macrostates"][_true] = str(nodes_mapping[node])
-adata.obs["macrostates"] = adata.obs["macrostates"].astype("category")
+    adata.obs["macrostate"][_true] = str(nodes_mapping[node])
 
-for node in adata.obs["macrostates"].cat.categories:
-    adata.obs[f"{node}_pseudotime"] = adata.obs[f"S{node}_pseudotime"]
-    del adata.obs[f"S{node}_pseudotime"]
-
-groups = set([args.obs]).union({"kmeans", "macrostates"})
+groups = set([args.obs]).union({"kmeans", "macrostate"})
 
 for group in groups:
-    std.print_task(f"plotting elastic principal graph in {embedding_label.lower()} space for cluster '{group}'")
+    std.print_task(f"plotting elastic principal graph in {embedding_label} space for cluster '{group}'")
     bt.sct.pl.embedding_plot(
         adata,
         obs=group,
-        use_rep="X_dr",
+        use_rep=args.use_rep,
         xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
         ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
         zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
@@ -310,21 +308,37 @@ for group in groups:
         add_labels_to_graph=True,
         n_components=3 if adata.obsm["X_dr"].shape[1] > 2 else 2,
         background_visible=False,
-        outfile=Path(f"{outpath}/{embedding_label}_epg_{group}.pdf")
+        outfile=Path(f"{outpath}/epg_{group}.pdf")
     )
 
+std.print_task("plotting branches in embedding space")
+st.plot_branches(
+    adata,
+    show_text=True,
+    save_fig=Path(f"{outpath}/branches.pdf")
+)
+
 std.print_task("plotting trajectories with respect to pseudotime at density level")
-for root in adata.obs["macrostates"].cat.categories:
+for root in adata.obs["macrostate"].cat.categories:
     st.plot_stream(
         adata,
         root=root,
         color=[args.obs],
         log_scale=False,
         factor_zoomin=100,
-        save_fig=False
+        save_fig=True,
+        fig_path=Path(f"{outpath}/streamplot/{root}/density_streamplot.pdf")
     )
-    plt.gca().get_legend().set_title(args.obs)
-    plt.savefig(Path(f"{outpath}/streamplot/streamplot_{group}_root{root}.pdf"))
+    st.plot_stream_sc(
+        adata,
+        root=root,
+        color=[args.obs],
+        dist_scale=0.3,
+        show_graph=True,
+        show_text=True,
+        save_fig=True,
+        fig_path=Path(f"{outpath}/streamplot/{root}/sc_streamplot_root.pdf")
+    )
 
 if args.pkl:
     std.print_task(f"saving pkl-formatted data in {str(args.pkl)}")
@@ -351,7 +365,7 @@ adata.write_h5ad(
 
 if args.csv:
     std.print_task(f"saving stream macrostates in {str(args.csv)}")
-    adata.obs["macrostates"].to_csv(
+    adata.obs["macrostate"].to_csv(
         args.csv,
         sep=",",
         index=True

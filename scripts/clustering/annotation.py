@@ -42,6 +42,16 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--new-obs",
+    dest="new_obs",
+    type=str,
+    required=False,
+    default=None,
+    metavar="LITERAL",
+    help="if specified, create a new column in adata.obs corresponding to labels"
+)
+
+parser.add_argument(
     "--labels",
     dest="labels",
     action=cli.Store_dict,
@@ -70,7 +80,10 @@ elif not hasattr(adata.obs[args.obs], "cat"):
 
 std.print_task(f"renaming labels for column '{args.obs}' ({dict_to_str})")
 
-adata.obs[args.obs].replace(args.labels, inplace=True)
+if args.new_obs is None:
+    adata.obs[args.obs].replace(args.labels, inplace=True)
+else:
+    adata.obs[args.new_obs] = adata.obs[args.obs].replace(args.labels, inplace=False)
 
 std.print_task(f"saving data in {str(args.outfile)}")
 adata.write_h5ad(

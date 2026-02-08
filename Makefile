@@ -26,6 +26,8 @@ ifndef CONDITIONS
 $(error Parameter CONDITIONS not defined)
 endif
 
+condition_number := $(words $(CONDITIONS))
+
 conditions := $(call tolower, $(CONDITIONS))
 references := $(conditions) integrated
 REFERENCES := $(subst $(space),$(plus),$(references))
@@ -679,8 +681,8 @@ $(clustering_$(1)): $(normalization_$(1))
 		--layer correct --adjacency knn --embedding umap \
 		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_CLUSTERING) --embedding-dimension $(DIM_EMBEDDING) \
 		$(pca_only_hvg) --neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) --min-dist $(MIN_DIST) --spread $(SPREAD) --seed $(SEED)
-	$(call print_task,plotting umap with respect to cell cycle phases)
-	python fig/plot_embedding.py fig/cc_umap.json --infile $$@ --outfile $$(@D)/cc_umap.pdf 
+	$(call print_task,plotting embedding space with respect to cell cycle phases)
+	python fig/plot_embedding.py fig/cc.json --infile $$@ --outfile $$(@D)/cc.pdf --use-rep $(USE_REP)
 	$$(conda_deactivate)
 
 ifeq ($(LABELING_FROM_INTEGRATION),true)
@@ -689,8 +691,8 @@ $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) scbridge-anndata
 	python scripts/utils/pipe_its.py $$^ --outfiles $$@ --labels $(1) --obs-label condition --obs leiden
-	$(call print_task,plotting umap with respect to annotated clusters)
-	python fig/plot_embedding.py fig/leiden_umap.json --infile $$@ --outfile $$(@D)/umap_annotation.pdf
+	$(call print_task,plotting embedding space with respect to labels)
+	python fig/plot_embedding.py fig/generic.json --infile $$@ --outfile $$(@D)/labels.pdf --obs leiden --use-rep $(USE_REP)
 	$$(conda_deactivate)
 else
 ifdef LABEL_$(call toupper,$(1))
@@ -699,10 +701,9 @@ $(annotation_$(1)): $(clustering_$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) scbridge-anndata
 	python scripts/clustering/annotation.py $< $@ \
-		--obs leiden --labels $(join $(shell seq 0 1 $$(( $(words $$(LABEL_$(call toupper,$(1))))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
-	$(call print_task,embedding component plotting)
-	python fig/plot_embedding.py fig/leiden_umap.json \
-		--infile $$@ --outfile $$(@D)/umap_labels.pdf
+		--obs leiden --new-obs $(LABELS) --labels $(join $(shell seq 0 1 $$(( $(words $$(LABEL_$(call toupper,$(1))))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
+	$(call print_task,plotting embedding space with respect to labels)
+	python fig/plot_embedding.py fig/generic.json --infile $$@ --outfile $$(@D)/labels.pdf --obs leiden --use-rep $(USE_REP)
 	$$(conda_deactivate)
 else
 $(annotation_$(1)): $(clustering_$(1))
@@ -747,8 +748,8 @@ $(cotan_$(1))&: $(annotation_$(1))
 	$$(conda_activate) scbridge-anndata
 	$(call print_debug,adding cotan clusters to anndata object)
 	python scripts/utils/add_to_anndata.py $$< $$(firstword $$(cotan_$(1))) --csv $$(lastword $$(cotan_$(1))) --axis 0 --sep , --type category
-	$(call print_task,plotting umap with respect to cotan clusters)
-	python fig/plot_embedding.py fig/macrostates_umap.json --infile $$(firstword $$(cotan_$(1))) --outfile $$(@D)/umap_cotan.pdf
+	$(call print_task,plotting embedding space with respect to cotan clusters)
+	python fig/plot_embedding.py fig/macrostates.json --infile $$(firstword $$(cotan_$(1))) --outfile $$(@D)/umap_cotan.pdf --use-rep $(USE_REP)
 	$$(conda_deactivate)
 
 $(cellrank_$(1))&: $(scvelo_$(1)) $(cytotrace_$(1))
@@ -761,7 +762,7 @@ $(cellrank_$(1))&: $(scvelo_$(1)) $(cytotrace_$(1))
 	python scripts/utils/add_to_anndata.py $$(firstword $$^) $(tmpdir)/$(1)/cellrank/kernels.h5ad --csv $(tmpdir)/$(1)/cellrank/cytotrace_scores.csv --axis 0 --sep , --type float
 	$$(conda_deactivate); $$(conda_activate) scbridge-cellrank
 	python scripts/macrostates/cellrank_macrostates.py $(tmpdir)/$(1)/cellrank/kernels.h5ad $$(firstword $$(cellrank_$(1))) --csv $$(lastword $$(cellrank_$(1))) \
-		--obs leiden --method $(CELLRANK_METHOD) \
+		--obs $(OBS) --method $(CELLRANK_METHOD) \
 		--cytotrace-score cytotrace_score --scvelo-velocity velocity \
 		--states $(STATES) --initial-states $(INITIAL_STATES) --terminal-states $(TERMINAL_STATES) \
 		--stability $(CELLRANK_STABILITY) --alpha $(CELLRANK_ALPHA) --size $(MACROSTATE_SIZE) --seed $(SEED)
@@ -771,11 +772,10 @@ $(stream_$(1))&: $(annotation_$(1))
 	$(call print_rule,stream,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) scbridge-stream
-	python scripts/macrostates/stream_macrostates.py $$< $$(firstword $$(stream_$(1))) \
-		--pkl $$(firstword $$(stream_$(1))).pkl --csv $$(lastword $$(stream_$(1))) \
-		--embedding umap --obs leiden --cluster-number $(CLUSTER_NUMBER) \
-		--lambda $(LAMBDA_EPG) --mu $(MU_EPG) --alpha $(ALPHA_EPG) \
-		$(extend_epg) $(if $(filter $(EXTEND_EPG),true),--extend-parameter $(EXTEND_PARAMETER),) \
+	python scripts/macrostates/stream_macrostates.py $$< $$(firstword $$(stream_$(1))) --csv $$(lastword $$(stream_$(1))) \
+		--use-rep $(USE_REP) --obs $(OBS) --clustering $(CLUSTERING_METHOD) --cluster-number $(CLUSTER_NUMBER) \
+		--alpha $(ALPHA_EPG) --mu $(MU_EPG) --lambda $(LAMBDA_EPG) \
+		$(extend_epg) $(if $(filter $(EXTEND_EPG),true),--extend-mode $(EXTEND_MODE),) $(if $(filter $(EXTEND_EPG),true),--extend-parameter $(EXTEND_PARAMETER),) \
 		$(prune_epg) $(if $(filter $(PRUNE_EPG),true),--collapse-parameter $(COLLAPSE_PARAMETER),) \
 		--jobs $(JOBS)
 	$$(conda_deactivate)
@@ -789,12 +789,12 @@ $(knnbs_$(1))&: $(annotation_$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) scbridge-anndata
 	python scripts/macrostates/knnbs_macrostates.py $$< $$(firstword $$(knnbs_$(1))) --csv $$(lastword $$(knnbs_$(1))) \
-		--obs leiden --embedding $(KNNBS_EMBEDDING) --neighbors $(KNNBS_NEIGHBORS) \
+		--obs $(OBS) --embedding $(KNNBS_EMBEDDING) --neighbors $(KNNBS_NEIGHBORS) \
 		$(knnbs_dimension) --metric $(METRIC) --size $(MACROSTATE_SIZE) \
 		--max-distances $(MAX_DIST_$(call toupper,$(1))) --min-distances $(MIN_DIST_$(call toupper,$(1))) \
 		--jobs $(JOBS)
-	$(call print_task,plotting umap with respect to knnbs clusters)
-	python fig/plot_embedding.py fig/macrostates_umap.json --infile $$(firstword $$(knnbs_$(1))) --outfile $$(@D)/umap_knnbs.pdf
+	$(call print_task,plotting embedding space with respect to knnbs clusters)
+	python fig/plot_embedding.py fig/macrostates.json --infile $$(firstword $$(knnbs_$(1))) --outfile $$(@D)/knnbs.pdf --use-rep $(USE_REP)
 	$$(conda_deactivate)
 endif
 
@@ -850,9 +850,9 @@ $(annotation_integrated): $(clustering_integrated)
 	mkdir -p $(@D)
 	$(conda_activate) scbridge-anndata
 	python scripts/clustering/annotation.py $< $@ \
-		--obs leiden --labels $(join $(shell seq 0 1 $$(( $(words $(LABEL_INTEGRATED))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
-	$(call print_task,plotting umap with respect to labels)
-	python fig/plot_embedding.py fig/leiden_umap.json --infile $@ --outfile $(@D)/umap_labels.pdf
+		--obs leiden --new-obs $(OBS) --labels $(join $(shell seq 0 1 $$(( $(words $(LABEL_INTEGRATED))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
+	$(call print_task,plotting embedding space with respect to labels)
+	python fig/plot_embedding.py fig/generic.json --infile $@ --outfile $(@D)/labels.pdf --obs $(OBS) --use-rep $(USE_REP)
 	$(conda_deactivate)
 else
 $(annotation_integrated): $(clustering_integrated)
@@ -861,29 +861,29 @@ $(annotation_integrated): $(clustering_integrated)
 endif
 
 ifdef SCBOOLSEQ_HVG_METHOD
-$(bin_cells)&: $(clustering_integrated)
+$(bin_cells)&: $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions)))
 	$(call print_rule,bin-cells)
-	mkdir -p $(tmpdir)/integrated/cells/hvg $(@D)
+	mkdir -p $(tmpdir)/bin/cells $(@D)
 	$(conda_activate) scbridge-anndata
 	$(call print_task,estimating top$(if $(SCBOOLSEQ_TOP_HVG), $(SCBOOLSEQ_TOP_HVG),) highly variable genes with $(SCBOOLSEQ_HVG_METHOD))
-	python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/integrated/cells/hvg/top_genes.txt --method $(MODEL_HVG_METHOD) \
-			$(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) --batch condition
+	python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/bin/cells/top_genes.txt --method $(MODEL_HVG_METHOD) \
+	$(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) $(if $(filter-out $(words $(CONDITIONS)),1),--batch condition,)
 	$(conda_deactivate)
 	$(conda_activate) scbridge-scboolseq
 	python scripts/binarization/bin_cells_scboolseq.py $< --outfile $(firstword $(bin_cells)) --bin $(shell echo $@ | sed "s/.h5ad/.csv/") --statistics $(lastword $(bin_cells)) \
-		--layer log-norm --quantile $(UNIMODAL_QUANTILE) $(zeroes_are_zeroes) --filter-genes $(tmpdir)/integrated/cells/hvg/top_genes.txt
-	$(call print_task,plotting umap with respect to binarization percentage)
-	python fig/plot_embedding.py fig/bin_umap.json --infile $(firstword $(bin_cells)) --outfile $(@D)/pct_bin.pdf
+		--layer log-norm --quantile $(UNIMODAL_QUANTILE) $(zeroes_are_zeroes) --filter-genes $(tmpdir)/bin/cells/top_genes.txt
+	$(call print_task,plotting embedding space with respect to binarization percentage)
+	python fig/plot_embedding.py fig/bin.json --infile $(firstword $(bin_cells)) --outfile $(@D)/pct_bin.pdf --use-rep $(USE_REP)
 	$(conda_deactivate)
 else
-$(bin_cells)&: $(clustering_integrated)
+$(bin_cells)&: $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions)))
 	$(call print_rule,bin-cells)
 	mkdir -p $(@D)
 	$(conda_activate) scbridge-scboolseq
 	python scripts/binarization/bin_cells_scboolseq.py $< --outfile $(firstword $(bin_cells)) --bin $(shell echo $@ | sed "s/.h5ad/.csv/") --statistics $(lastword $(bin_cells)) \
 		--layer log-norm --quantile $(UNIMODAL_QUANTILE) $(zeroes_are_zeroes)
-	$(call print_task,plotting umap with respect to binarization percentage)
-	python fig/plot_embedding.py fig/bin_umap.json --infile $(firstword $(bin_cells)) --outfile $(@D)/pct_bin.pdf
+	$(call print_task,plotting embedding space with respect to binarization percentage)
+	python fig/plot_embedding.py fig/bin.json --infile $(firstword $(bin_cells)) --outfile $(@D)/pct_bin.pdf --use-rep $(USE_REP)
 	$(conda_deactivate)
 endif
 
@@ -898,8 +898,8 @@ $(bin_scboolseq): $(firstword $(bin_cells)) $(foreach condition,$(conditions),$(
 		--layer bin --distribution distribution --cluster macrostates --embedding umap \
 		--nans-threshold $(NANS_THRESHOLD) --bimodal-threshold $(BIMODAL_THRESHOLD) \
 		--zeroinf-threshold $(ZEROINF_THRESHOLD) --unimodal-threshold $(UNIMODAL_THRESHOLD)
-	$(call print_task,plotting umap with respect to macrostates)
-	python fig/plot_embedding.py fig/macrostates_umap.json --infile $(tmpdir)/integrated/bin/aggr/mcts.h5ad --outfile $(@D)/umap_macrostates.pdf
+	$(call print_task,plotting embedding space with respect to macrostates)
+	python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/aggr/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
 	$(conda_deactivate)
 
 $(bin_dea): $(clustering_integrated) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
@@ -912,8 +912,8 @@ $(bin_dea): $(clustering_integrated) $(foreach condition,$(conditions),$(lastwor
 	python scripts/binarization/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
 		--cluster macrostates --layer log-norm --is-log --embedding umap \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION)
-	$(call print_task,plotting umap with respect to macrostates)
-	python fig/plot_embedding.py fig/macrostates_umap.json --infile $(tmpdir)/integrated/bin/dea/mcts.h5ad --outfile $(@D)/umap_macrostates.pdf
+	$(call print_task,plotting embedding space with respect to macrostates)
+	python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/dea/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
 	$(conda_deactivate)
 
 $(bin_merge): $(bin_scboolseq) $(lastword $(bin_cells)) $(bin_dea)

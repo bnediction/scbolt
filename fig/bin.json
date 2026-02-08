@@ -9,16 +9,14 @@
         "ylabel",
         "zlabel",
         ["lgd_params", "title"],
-        ["lgd_params", "edgecolor"],
-        "n_components"
+        ["lgd_params", "edgecolor"]
     ],
     "figure": {
         "obs": "pct_bin",
-        "use_rep": "X_umap",
         "figwidth": 6,
-        "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
-        "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
-        "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
+        "xlabel": "r'$\\mathrm{dim_{1}}$'",
+        "ylabel": "r'$\\mathrm{dim_{2}}$'",
+        "zlabel": "r'$\\mathrm{dim_{3}}$'",
         "s": 3,
         "alpha": 1,
         "add_labels": false,
@@ -31,7 +29,6 @@
             "edgecolor": "bt.sct.pl.get_color('black')",
             "shadow": false
         },
-        "n_components": "3 if adata.obsm['X_umap'].shape[1] > 2 else 2",
         "background_visible": false
     },
     "grid": false,

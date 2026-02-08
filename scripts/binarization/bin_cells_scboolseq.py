@@ -86,14 +86,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--only-hvg",
-    dest="only_hvg",
-    action="store_true",
-    required=False,
-    help="use only pre-computed highly variable genes for binarizing cells"
-)
-
-parser.add_argument(
     "--quantile",
     dest="quantile",
     action=cli.Range,
@@ -130,16 +122,6 @@ if not Path(os.path.dirname(args.outfile)).exists():
 std.print_task(f"loading file {str(args.infile)}")
 adata = ad.read_h5ad(args.infile)
 
-if args.only_hvg:
-    std.print_info(f"filtering non-highly variable genes")
-    if "highly_variable" in adata.var:
-        adata._inplace_subset_var(adata.var.highly_variable)
-        del adata.var["highly_variable"]
-    else:
-        raise KeyError(f"column 'highly_variable' not found in adata.var")
-else:
-    std.print_info(f"keeping non-highly variable genes")
-
 std.print_debug(f"converting layer '{args.layer}' into dataframe")
 counts_df = bt.sct.tl.anndata_to_dataframe(
     adata,
@@ -147,7 +129,7 @@ counts_df = bt.sct.tl.anndata_to_dataframe(
 )
 
 if args.filter_genes:
-    std.print_info(f"filtering genes")
+    std.print_info(f"filtering genes by considering only those specified in {args.filter_genes}")
     with open(args.filter_genes) as file:
         counts_df = counts_df[[line.strip() for line in file.readlines()]]
 

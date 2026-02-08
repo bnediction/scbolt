@@ -7,8 +7,6 @@ import subprocess
 import os, std
 from pathlib import Path
 
-import re
-
 import numpy as np
 
 import pandas as pd
@@ -29,7 +27,7 @@ class Options:
             self.__dict__[k] = v
 
 opt = Options(
-    path=Path("nestorowa/unique/stream"),
+    path=Path("nestorowa/rna/unique/clustering/clusters"),
     loess_frac=0.01,
     hvg=2000,
     pca_dimension=40
@@ -151,6 +149,8 @@ bt.sct.pp.standardize_genenames(
     copy=False
 )
 
+adata.var_names_make_unique()
+
 std.print_task("filtering cells and features")
 
 st.cal_qc(
@@ -231,104 +231,15 @@ with std.disable_print():
     )
 
 std.print_task("computing embedding space using UMAP algorithm")
-st.plot_visualization_2D(
-    adata,
-    method="umap",
-    n_neighbors=50,
-    color=["label"],
-    use_precomputed=False
-)
-plt.savefig(f"{opt.path}/umap_label.pdf")
-
-std.print_task("computing elastic principal graph")
 with std.disable_print():
-    st.seed_elastic_principal_graph(
+    st.plot_visualization_2D(
         adata,
-        clustering="kmeans",
-        n_clusters=20
+        method="umap",
+        n_neighbors=50,
+        color=["label"],
+        use_precomputed=False
     )
-    st.elastic_principal_graph(
-        adata,
-        epg_alpha=0.01,
-        epg_mu=0.02,
-        epg_lambda=0.01
-    )
-    st.extend_elastic_principal_graph(
-        adata,
-        epg_ext_mode='WeigthedCentroid',
-        epg_ext_par=0.8
-    )
-
-std.print_debug("retrieving stream-based clusters")
-
-adata.obs["kmeans"] = adata.obs["kmeans"].transform(lambda x: re.search(r"\d+", x).group()).astype("category")
-
-nodes_mapping = dict()
-for node, attributes in adata.uns["flat_tree"]._node.items():
-    nodes_mapping[node] = attributes["label"]
-
-adata.obs["macrostates"] = np.nan
-adata.obs["macrostates"] = adata.obs["macrostates"].astype("category").cat.add_categories(sorted(nodes_mapping.values()))
-for node in nodes_mapping.keys():
-    _true = adata.obs["node"] == node
-    adata.obs["macrostates"][_true] = str(nodes_mapping[node])
-adata.obs["macrostates"] = adata.obs["macrostates"].astype(str)
-
-std.print_task(f"plotting graphs")
-
-groups = {"label", "macrostates"}
-
-st.plot_dimension_reduction(
-    adata,
-    color=groups,
-    n_components=3,
-    show_graph=True,
-    show_text=False
-)
-plt.savefig(Path(f"{opt.path}/se_epg_label.pdf"))
-
-st.plot_stream_sc(
-    adata,root="S1",
-    color=groups,
-    dist_scale=0.3,
-    show_graph=True,
-    show_text=True
-)
-plt.savefig(Path(f"{opt.path}/sc_stream.pdf"))
-
-st.plot_stream(
-    adata,
-    root="S1",
-    color=groups
-)
-plt.savefig(Path(f"{opt.path}/density_stream.pdf"))
-
-adata.obs["label"] = adata.obs["label"].astype("category").replace("nan", np.nan)
-adata.obs["macrostates"] = adata.obs["macrostates"].astype("category").replace("nan", np.nan)
-for group in groups:
-    bt.sct.pl.embedding_plot(
-        adata,
-        obs=group,
-        use_rep="X_se",
-        xlabel=r"$\mathrm{{{}_{{1}}}}$".format("SE"),
-        ylabel=r"$\mathrm{{{}_{{2}}}}$".format("SE"),
-        zlabel=r"$\mathrm{{{}_{{3}}}}$".format("SE"),
-        figwidth=6,
-        s=4,
-        alpha=1,
-        add_legend=True,
-        lgd_params={
-            "title":"clusters",
-            "ncol":1,
-            "markerscale":5,
-            "frameon":True,
-            "edgecolor":bt.sct.pl.get_color("black"),
-            "shadow":False
-        },
-        n_components=3,
-        background_visible=False,
-        outfile=Path(f"{opt.path}/se_{group}.pdf")
-    )
+    plt.savefig(f"{opt.path}/umap_label.pdf")
 
 std.print_task(f"saving h5ad-formatted data in {str(opt.path)}/macrostates.h5ad")
 del adata.uns["workdir"]
@@ -340,9 +251,9 @@ for key in list(adata.uns.keys()):
         del adata.uns[key]
     if key.startswith("stream_S"):
         del adata.uns[key]
-for k in ["top_pcs", "trans_se", "vis_trans_umap", "label_color", "macrostates_color"]:
+for k in ["top_pcs", "trans_se", "vis_trans_umap", "label_color"]:
     del adata.uns[k]
 adata.write_h5ad(
-    filename=Path(f"{opt.path}/macrostates.h5ad"),
+    filename=Path(f"{opt.path}/annotation.h5ad"),
     compression="gzip"
 )

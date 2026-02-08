@@ -65,6 +65,26 @@ parser.add_argument(
     help="path to figure file (including file)"
 )
 
+parser.add_argument(
+    "--obs",
+    dest="obs",
+    type=str,
+    required=False,
+    default=None,
+    metavar="LITERAL",
+    help="Column name in scdata.obs for annotation of observations"
+)
+
+parser.add_argument(
+    "--use-rep",
+    dest="use_rep",
+    type=str,
+    required=False,
+    default=None,
+    metavar="LITERAL",
+    help="embedding projection"
+)
+
 args = parser.parse_args()
 
 with open(args.jsonfile) as file:
@@ -99,6 +119,15 @@ if "modules" in params:
 
 if "eval" in params:
     do_eval(params["eval"], params["figure"])
+
+if args.obs:
+    params["figure"]["obs"] = args.obs
+
+if args.use_rep:
+    params["figure"]["use_rep"] = args.use_rep
+
+if "n_components" not in params["figure"]:
+    params["figure"]["n_components"] = 3 if adata.obsm[params["figure"]["use_rep"]].shape[1] > 2 else 2
 
 fig, ax = sct.pl.embedding_plot(
     adata,
