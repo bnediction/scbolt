@@ -12,7 +12,7 @@
         ["lgd_params", "edgecolor"]
     ],
     "figure": {
-        "obs": "macrostates",
+        "obs": "macrostate",
         "figheight": 6,
         "figwidth": 8,
         "xlabel": "r'$\\mathrm{dim_{1}}$'",
@@ -23,8 +23,8 @@
         "add_labels": true,
         "add_legend": true,
         "lgd_params": {
-            "title": "macrostates",
-            "ncol": "math.ceil(len(adata.obs['macrostates'].astype('category').cat.categories) / 16)",
+            "title": "macrostate",
+            "ncol": "math.ceil(len(adata.obs['macrostate'].astype('category').cat.categories) / 16)",
             "markerscale": 5,
             "frameon": true,
             "edgecolor": "bt.sct.pl.get_color('black')",

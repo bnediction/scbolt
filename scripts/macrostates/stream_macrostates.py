@@ -204,8 +204,7 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-if args.use_rep.startswith("X_"):
-   embedding_label = args.use_rep[2:].lower()
+embedding_label = args.use_rep[2:].lower() if args.use_rep.startswith("X_") else args.use_rep.lower()
 
 outpath = os.path.dirname(args.outfile)
 if not Path(f"{outpath}/streamplot").exists():

@@ -262,7 +262,7 @@ except ValueError as e:
     else:
         raise
 
-adata.obs["macrostates"] = adata.obs["macrostates_fwd"]
+adata.obs["macrostate"] = adata.obs["macrostates_fwd"]
 del adata.obs["macrostates_fwd"]
 
 if found_initial_states is True:
@@ -281,7 +281,7 @@ else:
 
 std.print_task("plotting umap with respect to cellrank clusters")
 macrostate_files = {
-    "macrostates": Path(f"{os.path.dirname(args.outfile)}/umap_cellrank.pdf"),
+    "macrostate": Path(f"{os.path.dirname(args.outfile)}/umap_cellrank.pdf"),
     "init_states": Path(f"{os.path.dirname(args.outfile)}/umap_init_states.pdf"),
     "final_states": Path(f"{os.path.dirname(args.outfile)}/umap_final_states.pdf")
 }
@@ -328,7 +328,7 @@ adata.write_h5ad(
 
 if args.csv:
     std.print_task(f"saving knnbs macrostates in {str(args.csv)}")
-    adata.obs["macrostates"].to_csv(
+    adata.obs["macrostate"].to_csv(
         args.csv,
         sep=",",
         index=True

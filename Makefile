@@ -701,7 +701,7 @@ $(annotation_$(1)): $(clustering_$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) scbridge-anndata
 	python scripts/clustering/annotation.py $< $@ \
-		--obs leiden --new-obs $(LABELS) --labels $(join $(shell seq 0 1 $$(( $(words $$(LABEL_$(call toupper,$(1))))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
+		--obs leiden --new-obs $(OBS) --labels $(join $(shell seq 0 1 $$(( $(words $$(LABEL_$(call toupper,$(1))))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
 	$(call print_task,plotting embedding space with respect to labels)
 	python fig/plot_embedding.py fig/generic.json --infile $$@ --outfile $$(@D)/labels.pdf --obs leiden --use-rep $(USE_REP)
 	$$(conda_deactivate)
@@ -744,7 +744,7 @@ $(cotan_$(1))&: $(annotation_$(1))
 	Rscript scripts/macrostates/cotan_macrostates.R --infile $(tmpdir)/$(1)/cotan/gencts.csv --outfile $$(@D)/cotan.RDS --csv $$(lastword $$(cotan_$(1))) \
 		--sep , --name $(1) --max-iterations $(MAX_ITER) --method $(COTAN_METHOD) --min-ude 0.3 --jobs $(JOBS)
 	$$(conda_deactivate)
-	sed -i '1 i\,macrostates' $$(lastword $$(cotan_$(1)))
+	sed -i '1 i\,macrostate' $$(lastword $$(cotan_$(1)))
 	$$(conda_activate) scbridge-anndata
 	$(call print_debug,adding cotan clusters to anndata object)
 	python scripts/utils/add_to_anndata.py $$< $$(firstword $$(cotan_$(1))) --csv $$(lastword $$(cotan_$(1))) --axis 0 --sep , --type category
@@ -893,24 +893,24 @@ $(bin_scboolseq): $(firstword $(bin_cells)) $(foreach condition,$(conditions),$(
 	$(conda_activate) scbridge-anndata
 	$(call print_debug,adding macrostates to anndata object)
 	python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/aggr/mcts.h5ad --csv $(filter-out $<, $^) \
-		--labels $(conditions) --label-column condition --add-prefix macrostates --axis 0 --sep , --type category
+	$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions) --label-column condition --add-prefix macrostates,) --axis 0 --sep , --type category
 	python scripts/binarization/bin_clusters_scboolseq.py $(tmpdir)/integrated/bin/aggr/mcts.h5ad $@ --counts $(@D)/counts_bin.csv \
-		--layer bin --distribution distribution --cluster macrostates --embedding umap \
+		--layer bin --distribution distribution --cluster macrostate --use-rep $(USE_REP) \
 		--nans-threshold $(NANS_THRESHOLD) --bimodal-threshold $(BIMODAL_THRESHOLD) \
 		--zeroinf-threshold $(ZEROINF_THRESHOLD) --unimodal-threshold $(UNIMODAL_THRESHOLD)
 	$(call print_task,plotting embedding space with respect to macrostates)
 	python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/aggr/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
 	$(conda_deactivate)
 
-$(bin_dea): $(clustering_integrated) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
+$(bin_dea): $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions))) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
 	$(call print_rule,bin-dea)
 	mkdir -p $(@D) $(tmpdir)/integrated/bin/dea
 	$(conda_activate) scbridge-anndata
 	$(call print_debug,adding macrostates to anndata object)
 	python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/dea/mcts.h5ad --csv $(filter-out $<, $^) \
-		--labels $(conditions) --label-column condition --add-prefix macrostates --axis 0 --sep , --type category
+	$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions) --label-column condition --add-prefix macrostates,) --axis 0 --sep , --type category
 	python scripts/binarization/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
-		--cluster macrostates --layer log-norm --is-log --embedding umap \
+		--cluster macrostate --layer log-norm --is-log --use-rep $(USE_REP) \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION)
 	$(call print_task,plotting embedding space with respect to macrostates)
 	python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/dea/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)

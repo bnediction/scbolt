@@ -101,14 +101,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--embedding",
-    dest="embedding",
+    "--use-rep",
+    dest="use_rep",
     type=str,
     required=False,
     default=None,
-    choices=["umap","tsne"],
-    metavar="[umap|tsne]",
-    help="embedding projection used for plotting percentage of cluster-related binarization (default: None)"
+    metavar="LITERAL",
+    help="embedding projection in adata.obsm used for plotting percentage of cluster-related binarization (default: None)"
 )
 
 args = parser.parse_args()
@@ -164,16 +163,15 @@ cluster_bin = pd.DataFrame(
 for row in dea.itertuples():
     cluster_bin.at[row.group, row.names] = 1 if row.logfoldchanges>0 else 0
 
-if args.embedding:
-    embedding_label = "UMAP" if args.embedding == "umap" else "t-SNE"
-    use_rep="X_umap" if args.embedding == "umap" else "X_tsne"
+if args.use_rep:
+    embedding_label = args.use_rep[2:].lower() if args.use_rep.startswith("X_") else args.use_rep.lower()
     std.print_task(f"plotting {embedding_label.lower()} with respect to cluster-related binarization percentage")
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
     adata.obs[f"pct_bin_{args.cluster}"] = adata.obs[args.cluster].map(pct_bin)
     bt.sct.pl.embedding_plot(
         adata,
         obs=f"pct_bin_{args.cluster}",
-        use_rep=use_rep,
+        use_rep=args.use_rep,
         xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
         ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
         zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
@@ -189,7 +187,7 @@ if args.embedding:
             "edgecolor":bt.sct.pl.get_color("black"),
             "shadow":False
         },
-        n_components = 3 if adata.obsm[use_rep].shape[1] > 2 else 2,
+        n_components = 3 if adata.obsm[args.use_rep].shape[1] > 2 else 2,
         background_visible=False,
         outfile=Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf")
     )

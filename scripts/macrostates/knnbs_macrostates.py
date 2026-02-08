@@ -10,8 +10,6 @@ from pathlib import Path
 import anndata as ad
 import bonesistools as bt
 
-import matplotlib.pyplot as plt
-
 parser = argparse.ArgumentParser(
     prog="knnbs",
     description=
@@ -205,9 +203,9 @@ knnbs.shortest_path_lengths(
 )
 
 std.print_info("estimating cluster related-cell manifolds")
-adata.obs["macrostates"] = knnbs.knnbs(
+adata.obs["macrostate"] = knnbs.knnbs(
     size=args.size,
-    key="macrostates",
+    key="macrostate",
     subclusters_maximizing_distances=args.max_distances,
     subclusters_minimizing_distances=args.min_distances
 )
@@ -220,7 +218,7 @@ adata.write_h5ad(
 
 if args.csv:
     std.print_task(f"saving knnbs macrostates in {str(args.csv)}")
-    adata.obs["macrostates"].to_csv(
+    adata.obs["macrostate"].to_csv(
         args.csv,
         sep=",",
         index=True
