@@ -256,6 +256,12 @@ $(foreach reference,$(running_references),$(eval $(call find_targets_for_referen
 
 ## END TARGETS ##
 
+ifeq ($(words $(CONDITIONS)),1)
+batch=
+else
+batch=--batch conditions
+endif
+
 ## BEGIN PARAMETERS ##
 
 ifndef JOBS
@@ -867,7 +873,7 @@ $(bin_cells)&: $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrat
 	$(conda_activate) scbridge-anndata
 	$(call print_task,estimating top$(if $(SCBOOLSEQ_TOP_HVG), $(SCBOOLSEQ_TOP_HVG),) highly variable genes with $(SCBOOLSEQ_HVG_METHOD))
 	python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/bin/cells/top_genes.txt --method $(MODEL_HVG_METHOD) \
-	$(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) $(if $(filter-out $(words $(CONDITIONS)),1),--batch condition,)
+	$(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) $(batch)
 	$(conda_deactivate)
 	$(conda_activate) scbridge-scboolseq
 	python scripts/binarization/bin_cells_scboolseq.py $< --outfile $(firstword $(bin_cells)) --bin $(shell echo $@ | sed "s/.h5ad/.csv/") --statistics $(lastword $(bin_cells)) \
@@ -930,7 +936,7 @@ $(bin_merge): $(bin_scboolseq) $(lastword $(bin_cells)) $(bin_dea)
 	$(conda_deactivate)
 
 ifdef MODEL_HVG_METHOD
-$(bonesis_model)&: $(bin) $(clustering_integrated)
+$(bonesis_model)&: $(bin) $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions)))
 	$(call print_rule,modeling)
 	if ! [ -f $(YAML_MODEL) ]; then
 		$(call print_error,file $(YAML_MODEL) not found \(see documentation for details about command \'modeling\'\))
@@ -939,7 +945,7 @@ $(bonesis_model)&: $(bin) $(clustering_integrated)
 		$(conda_activate) scbridge-anndata
 		$(call print_task,estimating top$(if $(MODEL_TOP_HVG), $(MODEL_TOP_HVG),) highly variable genes with $(MODEL_HVG_METHOD))
 		python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/hvg/top_genes.txt --method $(MODEL_HVG_METHOD) \
-			$(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) --batch condition
+			$(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) $(batch)
 		$(conda_deactivate)
 		$(conda_activate) scbridge-bonesis
 		python scripts/inference/specification.py $(YAML_MODEL) $< \

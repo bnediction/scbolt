@@ -152,10 +152,11 @@ if args.filter_genes:
         std.print_warning("some mandatory and/or important genes are missing in csv-formatted binarized macrostate file: {0}".format(', '.join(f"{gene}" for gene in list(keep_only - keep_only_present))))
     macrostates_df = macrostates_df.loc[:,list(keep_only_present)]
 
-macrostates_df = macrostates_df.rename(
-    index=dict((v,k) for k,v in specification["states"].items()),
-    inplace=False
-).loc[specification["states"].keys()]
+if specification["states"] is not None:
+    macrostates_df = macrostates_df.rename(
+        index=dict((v,k) for k,v in specification["states"].items()),
+        inplace=True
+    )
 
 macrostates_cfg = get_cfg(
     macrostates_df,

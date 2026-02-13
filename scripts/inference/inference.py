@@ -3,9 +3,12 @@
 from typing import Optional
 
 import sys
+import datetime
 import os, std
 import argparse, cli
 from pathlib import Path
+
+import re
 
 from tqdm import tqdm
 
@@ -70,6 +73,12 @@ def remove_hard_constraints(bo: bonesis.BoNesis):
         if str_property in ["final_nonreach", "all_fixpoints", "allreach"]:
             hard_constraint_indices.append(i)
     bo.manager.properties = [bo.manager.properties.copy()[i] for i in range(len(bo.manager.properties)) if i not in hard_constraint_indices]
+
+def dict_to_str(d: dict) -> str:
+    s = ""; add = ""
+    for k, v in d.items():
+        s += f"{add}{k}->{v}"; add = ", "
+        return s
 
 parser_description = """
 Infer Most Permissive Boolean Networks using bonesis paradigm. \
@@ -287,7 +296,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of allocated processors (used only when action == 'sub')"
+    help="number of allocated processors (used only when searching for diverse solutions of Boolean network)"
 )
 
 args = parser.parse_args()
@@ -497,20 +506,32 @@ elif args.action == "sub":
     else:
         view = bonesis.DiverseBooleanNetworksView(
             bo,
-#            solutions="subset-minimal",
             extra=("configurations"),
             limit=args.limit,
             progress=ptqdm
         )
     view.standalone(output_filename=args.asp)
 
+    debug=True
     bns = bt.bpy.BooleanNetworkEnsemble(components=nodes)
     std.print_warning("this may take some time.")
     for i, solution in enumerate(tqdm(view)):
-        bns.append(solution[1] if isinstance(view, bonesis.views.InfluenceGraphView) else solution[0])
+        bn = solution[1] if isinstance(view, bonesis.views.InfluenceGraphView) else solution[0]
+        if debug:
+            name_mapping = dict()
+            for component in bn:
+                if component not in bns.get_components():
+                    name_mapping[component] = re.sub("_", "-", component)
+            if name_mapping:
+                tqdm.write(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - DEBUG - renaming components: {dict_to_str(name_mapping)}")
+            debug = False
+        if name_mapping:
+            for k, v in name_mapping.items():
+                bn.rename(k, v)
+        bns.append(bn)
         os.makedirs(f"{args.solution}/{i}")
         write_bn(
-            bn=solution[1] if isinstance(view, bonesis.views.InfluenceGraphView) else solution[0],
+            bn=bn,
             bnet=f"{args.solution}/{i}/sub.bnet",
             noi=f"{args.solution}/{i}/.noi.txt",
             **{f"{program}": f"{args.solution}/{i}/sub.{program}" if eval(f"args.{program}") else None for program in ["dot", "neato", "circo", "fdp", "sfdp"]},
