@@ -80,7 +80,6 @@ parser.add_argument(
     help="output file storing proportion of binarized values (format: csv)"
 )
 
-
 args = parser.parse_args()
 
 if not Path(os.path.dirname(args.outfile)).exists():

@@ -12,16 +12,15 @@ import numpy as np
 
 import pandas as pd
 import anndata as ad
-import scanpy as sc
 import bonesistools as bt
 
 parser = argparse.ArgumentParser(
-    prog="bin_dea",
+    prog="bin_smirnov",
     description=
     """
-    Binarize clusters using a differential expression analysis based on Wilcoxon rank-sum tests or t-student tests..
+    Binarize clusters using Kolmogorov-Smirnov test.
     """,
-    usage="python bin_dea.py [-h] <FILE> <FILE> --cluster <LITERAL> [<args>]"
+    usage="python bin_ks.py [-h] <FILE> <FILE> --cluster <LITERAL> [<args>]"
 )
 
 parser.add_argument(
@@ -63,17 +62,6 @@ parser.add_argument(
     action="store_true",
     required=False,
     help="specify whether data matrix is logarithmized"
-)
-
-parser.add_argument(
-    "--method",
-    dest="method",
-    type=str,
-    required=False,
-    default="wilcoxon",
-    choices=["t-test", "wilcoxon"],
-    metavar="[t-test|wilcoxon]",
-    help="method used for finding out differential expressed genes between groups (default: wilcoxon)"
 )
 
 parser.add_argument(
@@ -147,29 +135,17 @@ if args.filter_genes:
     with open(args.filter_genes) as file:
         adata = adata[:, [line.strip() for line in file.readlines()]]
 
-std.print_task(f"ranking genes for characterizing groups (method: {args.method})")
-
-adata.obs[args.cluster] = adata.obs[args.cluster].cat.remove_unused_categories()
-
-sc.tl.rank_genes_groups(
-    adata=adata,
-    groupby=args.cluster,
-    use_raw=False,
-    layer=args.layer,
-    reference="rest",
-    method=args.method,
-    tie_correct=True,
-    corr_method=args.correction
-)
-
-dea_df = sc.get.rank_genes_groups_df(
+ks_df = bt.sct.tl.smirnov_tests(
     adata,
-    group=None,
-    pval_cutoff=args.alpha
+    groupby=args.cluster,
+    groups="all",
+    reference="rest",
+    alternative="two-sided",
+    corr_method=args.correction,
+    pval_cutoff=args.alpha,
+    layer=args.layer,
+    copy=True
 )
-
-std.print_warning("found inconsistencies between log2 fold-changes derived from seurat::FindAllMarkers and scanpy.rank_gene_groups (see <https://www.biostars.org/p/453129/>)")
-std.print_debug("updating log2 fold-changes")
 
 logfoldchanges_df = bt.sct.tl.calculate_logfoldchanges(
     adata,
@@ -180,17 +156,14 @@ logfoldchanges_df = bt.sct.tl.calculate_logfoldchanges(
     filter_logfoldchanges=lambda x: abs(x) > args.logfc
 )
 
-dea_df = dea_df.loc[:, dea_df.columns != "logfoldchanges"]
-
-dea_df = pd.merge(
-    dea_df,
+ks_df = pd.merge(
+    ks_df,
     logfoldchanges_df,
     left_on=["names", "group"],
     right_on=["names", "group"],
     how="inner"
 )
-
-std.print_task(f"binarizing cell populations with respect to differential expression analysis results")
+ks_df = ks_df.query("(signs == -1 & logfoldchanges > 0) | (signs == 1 & logfoldchanges < 0)")
 
 cluster_bin = pd.DataFrame(
     data=np.nan,
@@ -198,7 +171,7 @@ cluster_bin = pd.DataFrame(
     columns=adata.var.index
 )
 
-for row in dea_df.itertuples():
+for row in ks_df.itertuples():
     cluster_bin.at[row.group, row.names] = 1 if row.logfoldchanges > 0 else 0
 
 if args.use_rep:
@@ -230,9 +203,9 @@ if args.use_rep:
         outfile=Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf")
     )
 
-std.print_task(f"saving dea results in {os.path.dirname(args.outfile)}/dea_results.csv")
-dea_df.to_csv(
-    Path(f"{os.path.dirname(args.outfile)}/dea_results.csv"),
+std.print_task(f"saving Kolmogorov-Smirnov results in {os.path.dirname(args.outfile)}/ks_results.csv")
+ks_df.to_csv(
+    Path(f"{os.path.dirname(args.outfile)}/ks_results.csv"),
     sep=",",
     index=True
 )

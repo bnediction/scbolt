@@ -13,6 +13,8 @@ import anndata as ad
 import stream as st
 import bonesistools as bt
 
+import matplotlib.pyplot as plt
+
 from networkx.classes.graph import Graph
 from rpy2.rinterface import ListSexpVector
 
@@ -193,6 +195,16 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--size",
+    dest="size",
+    type=int,
+    required=False,
+    default=None,
+    metavar="INT",
+    help="If the number of cells in a macrostate is lower than the threshold, extend macrostate to neighborhood nodes in elastic principal graph (default: None)"
+)
+
+parser.add_argument(
     "--jobs",
     dest="jobs",
     type=int,
@@ -262,19 +274,35 @@ if args.prune_epg:
 else:
     std.print_info("not prunning elastic principal graph by filtering out trivial branches")
 
-std.print_debug("retrieving stream-based clusters")
+std.print_task("retrieving stream-based clusters")
 
 adata.obs["kmeans"] = adata.obs["kmeans"].transform(lambda x: re.search(r"\d+", x).group()).astype("category")
 
-nodes_mapping = dict()
+epg_to_flat = dict()
 for node, attributes in adata.uns["flat_tree"]._node.items():
-    nodes_mapping[node] = attributes["label"]
+    epg_to_flat[node] = attributes["label"]
 
 adata.obs["macrostate"] = np.nan
-adata.obs["macrostate"] = adata.obs["macrostate"].astype("category").cat.add_categories(sorted(nodes_mapping.values()))
-for node in nodes_mapping.keys():
+adata.obs["macrostate"] = adata.obs["macrostate"].astype("category").cat.add_categories(sorted(epg_to_flat.values()))
+for node in epg_to_flat.keys():
     _true = adata.obs["node"] == node
-    adata.obs["macrostate"][_true] = str(nodes_mapping[node])
+    adata.obs["macrostate"][_true] = str(epg_to_flat[node])
+
+if args.size is not None:
+    flat_to_epg = dict((v, k) for k, v in epg_to_flat.items())
+    extension = dict()
+    size = adata.obs["macrostate"].value_counts()
+    for i, v in size.items():
+        if v < args.size:
+            std.print_debug(f"macrostate {i} too small ({v}): extend to neighborhood nodes")
+            _true = adata.obs["node"].isin(list(adata.uns["epg"][flat_to_epg[i]]))
+            adata.obs["macrostate"][_true] = str(i)
+
+info_str = "macrostate size:"
+for i, v in adata.obs["macrostate"].value_counts().sort_index().items():
+    info_str += f" {i}: {v}; "
+info_str = info_str[:-2]
+std.print_info(info_str)
 
 groups = set([args.obs]).union({"kmeans", "macrostate"})
 
@@ -317,7 +345,7 @@ st.plot_branches(
     save_fig=Path(f"{outpath}/branches.pdf")
 )
 
-std.print_task("plotting trajectories with respect to pseudotime at density level")
+std.print_task("plotting trajectories with respect to pseudotime")
 for root in adata.obs["macrostate"].cat.categories:
     st.plot_stream(
         adata,
@@ -325,9 +353,11 @@ for root in adata.obs["macrostate"].cat.categories:
         color=[args.obs],
         log_scale=False,
         factor_zoomin=100,
-        save_fig=True,
-        fig_path=Path(f"{outpath}/streamplot/{root}/density_streamplot.pdf")
+        save_fig=False
     )
+    os.makedirs(Path(f"{outpath}/streamplot/{root}"))
+    plt.savefig(Path(f"{outpath}/streamplot/{root}/density_streamplot.pdf"), bbox_inches="tight")
+    plt.close()
     st.plot_stream_sc(
         adata,
         root=root,
@@ -335,9 +365,10 @@ for root in adata.obs["macrostate"].cat.categories:
         dist_scale=0.3,
         show_graph=True,
         show_text=True,
-        save_fig=True,
-        fig_path=Path(f"{outpath}/streamplot/{root}/sc_streamplot_root.pdf")
+        save_fig=False
     )
+    plt.savefig(Path(f"{outpath}/streamplot/{root}/sc_streamplot.pdf"), bbox_inches="tight")
+    plt.close()
 
 if args.pkl:
     std.print_task(f"saving pkl-formatted data in {str(args.pkl)}")

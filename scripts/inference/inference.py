@@ -450,8 +450,18 @@ elif args.action == "one":
     std.print_warning("this may take some time.")
     solution = next(iter(view))
 
+    name_mapping = dict()
+    bn = solution[1]
+    for component in bn:
+        if component not in nodes:
+            name_mapping[component] = re.sub("_", "-", component)
+    if name_mapping:
+        print(""); std.print_debug(f"renaming components: {dict_to_str(name_mapping)}")
+        for k, v in name_mapping.items():
+            bn.rename(k, v)
+
     write_bn(
-        bn=solution[1],
+        bn=bn,
         bnet=f"{args.solution}.bnet",
         noi=f"{args.solution}.noi.txt",
         **{f"{program}": f"{os.path.dirname(args.solution)}/{args.solution.stem}.{program}" if eval(f"args.{program}") else None for program in ["dot", "neato", "circo", "fdp", "sfdp"]},
@@ -481,8 +491,18 @@ elif args.action == "min":
     std.print_warning("this may take some time.")
     solution = next(iter(view))
 
+    name_mapping = dict()
+    bn = solution[1]
+    for component in bn:
+        if component not in nodes:
+            name_mapping[component] = re.sub("_", "-", component)
+    if name_mapping:
+        print(""); std.print_debug(f"renaming components: {dict_to_str(name_mapping)}")
+        for k, v in name_mapping.items():
+            bn.rename(k, v)
+
     write_bn(
-        bn=solution[1],
+        bn=bn,
         bnet=f"{args.solution}.bnet",
         noi=f"{args.solution}.noi.txt",
         **{f"{program}": f"{os.path.dirname(args.solution)}/{args.solution.stem}.{program}" if eval(f"args.{program}") else None for program in ["dot", "neato", "circo", "fdp", "sfdp"]},

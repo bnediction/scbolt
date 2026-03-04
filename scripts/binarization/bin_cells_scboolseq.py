@@ -137,7 +137,8 @@ std.print_task("binarizing cells")
 
 scbool = scBoolSeq(
     margin_quantile=args.quantile,
-    zeroinf_binarizer="zero_or_not",
+    zeroinf_binarizer="quantile",
+#    zeroinf_binarizer="zero_or_not",
     zeroes_are=0 if args.zeroes_are_zeroes else np.nan
 )
 

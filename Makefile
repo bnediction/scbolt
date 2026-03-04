@@ -26,8 +26,6 @@ ifndef CONDITIONS
 $(error Parameter CONDITIONS not defined)
 endif
 
-condition_number := $(words $(CONDITIONS))
-
 conditions := $(call tolower, $(CONDITIONS))
 references := $(conditions) integrated
 REFERENCES := $(subst $(space),$(plus),$(references))
@@ -149,16 +147,16 @@ cellrank_$(1) =                 $(rna)/$(1)/macrostates/cellrank/macrostates.h5a
 stream_$(1) =                   $(rna)/$(1)/macrostates/stream/macrostates.h5ad $(rna)/$(1)/macrostates/stream/macrostates.csv
 knnbs_$(1) =                    $(rna)/$(1)/macrostates/knnbs/macrostates.h5ad $(rna)/$(1)/macrostates/knnbs/macrostates.csv
 
-ifeq ($(MACROSTATES_METHOD),cotan)
+ifeq ($(MACROSTATE_METHOD),cotan)
 macrostates_$(1) =              $$(cotan_$(1))
-else ifeq ($(MACROSTATES_METHOD),cellrank)
+else ifeq ($(MACROSTATE_METHOD),cellrank)
 macrostates_$(1) =              $$(cellrank_$(1))
-else ifeq ($(MACROSTATES_METHOD),stream)
+else ifeq ($(MACROSTATE_METHOD),stream)
 macrostates_$(1) =              $$(stream_$(1))
-else ifeq ($(MACROSTATES_METHOD),knnbs)
+else ifeq ($(MACROSTATE_METHOD),knnbs)
 macrostates_$(1) =              $$(knnbs_$(1))
 else
-$$(error unsupported value for parameter MACROSTATES_METHOD (supported values: cotan, cellrank, stream or knnbs))
+$$(error unsupported value for parameter MACROSTATE_METHOD (supported values: cotan, cellrank, stream or knnbs))
 endif
 
 endef
@@ -175,9 +173,9 @@ annotation_$(1) =               $(rna)/$(1)/clustering/clusters/annotation.h5ad
 endef
 
 bin_cells =                     $(binarization)/cells/bin.h5ad $(binarization)/cells/statistics.csv
-bin_scboolseq =                 $(binarization)/scboolseq/$(MACROSTATES_METHOD)/bin_macrostates.csv
-bin_dea =                       $(binarization)/dea/$(MACROSTATES_METHOD)/bin_macrostates.csv
-bin_merge =                     $(binarization)/merge/$(MACROSTATES_METHOD)/bin_macrostates.csv
+bin_metacells =                 $(binarization)/scboolseq/$(MACROSTATE_METHOD)/bin_macrostates.csv
+bin_dea =                       $(binarization)/dea/$(MACROSTATE_METHOD)/bin_macrostates.csv
+bin_merge =                     $(binarization)/merge/$(MACROSTATE_METHOD)/bin_macrostates.csv
 
 bonesis_model =                 $(bonesis)/modeling/bo_model.txt $(bonesis)/modeling/metastates.csv $(bonesis)/modeling/mandatory_genes.txt $(bonesis)/modeling/important_genes.txt
 bonesis_soft_stage1 =           $(bonesis)/filtering/soft/stage1.txt
@@ -191,7 +189,7 @@ $(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(cond
 $(foreach reference,$(references),$(eval $(call find_paths_for_references,$(reference))))
 
 ifeq ($(BIN_METHOD),scboolseq)
-bin = 		$(bin_scboolseq)
+bin = 		$(bin_metacells)
 else ifeq ($(BIN_METHOD),dea)
 bin = 		$(bin_dea)
 else ifeq ($(BIN_METHOD),merge)
@@ -386,6 +384,21 @@ else
 $(error Unsupported value for parameter ZEROES_ARE_ZEROES (supported values: true, false))
 endif
 
+ifndef DEA_HVG_METHOD
+dea_layer=
+else ifeq ($(DEA_HVG_METHOD),seurat)
+dea_layer=--layer log-norm
+else ifeq ($(DEA_HVG_METHOD),cell_ranger)
+dea_layer=--layer log-norm
+else ifeq ($(DEA_HVG_METHOD),seurat_v3)
+dea_layer=--layer counts
+ifndef DEA_TOP_HVG
+$(error parameter DEA_TOP_HVG is required when parameter DEA_HVG_METHOD is equal to 'seurat_v3')
+endif
+else
+$(error Unsupported value for parameter DEA_HVG_METHOD (supported values: seurat, cell_ranger, seurat_v3))
+endif
+
 ifndef YAML_MODEL
 $(error Parameter YAML_MODEL not defined)
 endif
@@ -514,14 +527,14 @@ stream: $(stream_target) ## compute macrostates using elastic principal graph
 .PHONY: knnbs
 knnbs: $(knnbs_target) ## compute macrostates using k-nearest neighbors-based subclusters algorithm
 .PHONY: macrostates
-macrostates: $(macrostates_target) ## define macrostates depending on 'MACROSTATES_METHOD' parameter value
+macrostates: $(macrostates_target) ## define macrostates depending on 'MACROSTATE_METHOD' parameter value
 
 ##@ Binarization
 
 .PHONY: bin-cells
 bin-cells: $(bin_cells) ## binarize cells using gene specific-distributions derived from ScBoolSeq
-.PHONY: bin-scboolseq
-bin-scboolseq: $(bin_scboolseq) ## binarize macrostates by aggregating ScBoolSeq binarized cells w.r.t. voting rules
+.PHONY: bin-metacells
+bin-metacells: $(bin_metacells) ## binarize macrostates by aggregating ScBoolSeq binarized cells w.r.t. voting rules
 .PHONY: bin-dea
 bin-dea: $(bin_dea) ## binarize macrostates using differential expression analysis
 .PHONY: bin-merge
@@ -782,8 +795,7 @@ $(stream_$(1))&: $(annotation_$(1))
 		--use-rep $(USE_REP) --obs $(OBS) --clustering $(CLUSTERING_METHOD) --cluster-number $(CLUSTER_NUMBER) \
 		--alpha $(ALPHA_EPG) --mu $(MU_EPG) --lambda $(LAMBDA_EPG) \
 		$(extend_epg) $(if $(filter $(EXTEND_EPG),true),--extend-mode $(EXTEND_MODE),) $(if $(filter $(EXTEND_EPG),true),--extend-parameter $(EXTEND_PARAMETER),) \
-		$(prune_epg) $(if $(filter $(PRUNE_EPG),true),--collapse-parameter $(COLLAPSE_PARAMETER),) \
-		--jobs $(JOBS)
+		$(prune_epg) $(if $(filter $(PRUNE_EPG),true),--collapse-parameter $(COLLAPSE_PARAMETER),) --size $(MACROSTATE_SIZE) --jobs $(JOBS)
 	$$(conda_deactivate)
 
 ifeq ($(or $(MIN_DIST_$(call toupper,$(1))),$(MAX_DIST_$(call toupper,$(1)))),)
@@ -869,7 +881,7 @@ endif
 ifdef SCBOOLSEQ_HVG_METHOD
 $(bin_cells)&: $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions)))
 	$(call print_rule,bin-cells)
-	mkdir -p $(tmpdir)/bin/cells $(@D)
+	mkdir -p $(@D) $(tmpdir)/bin/cells
 	$(conda_activate) scbridge-anndata
 	$(call print_task,estimating top$(if $(SCBOOLSEQ_TOP_HVG), $(SCBOOLSEQ_TOP_HVG),) highly variable genes with $(SCBOOLSEQ_HVG_METHOD))
 	python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/bin/cells/top_genes.txt --method $(MODEL_HVG_METHOD) \
@@ -893,13 +905,13 @@ $(bin_cells)&: $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrat
 	$(conda_deactivate)
 endif
 
-$(bin_scboolseq): $(firstword $(bin_cells)) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
-	$(call print_rule,bin-scboolseq)
+$(bin_metacells): $(firstword $(bin_cells)) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
+	$(call print_rule,bin-metacells)
 	mkdir -p $(@D) $(tmpdir)/integrated/bin/aggr
 	$(conda_activate) scbridge-anndata
 	$(call print_debug,adding macrostates to anndata object)
 	python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/aggr/mcts.h5ad --csv $(filter-out $<, $^) \
-	$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions) --label-column condition --add-prefix macrostates,) --axis 0 --sep , --type category
+	$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions) --label-column condition --add-prefix macrostate,) --axis 0 --sep , --type category
 	python scripts/binarization/bin_clusters_scboolseq.py $(tmpdir)/integrated/bin/aggr/mcts.h5ad $@ --counts $(@D)/counts_bin.csv \
 		--layer bin --distribution distribution --cluster macrostate --use-rep $(USE_REP) \
 		--nans-threshold $(NANS_THRESHOLD) --bimodal-threshold $(BIMODAL_THRESHOLD) \
@@ -908,21 +920,40 @@ $(bin_scboolseq): $(firstword $(bin_cells)) $(foreach condition,$(conditions),$(
 	python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/aggr/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
 	$(conda_deactivate)
 
+ifdef DEA_HVG_METHOD
 $(bin_dea): $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions))) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
 	$(call print_rule,bin-dea)
 	mkdir -p $(@D) $(tmpdir)/integrated/bin/dea
 	$(conda_activate) scbridge-anndata
 	$(call print_debug,adding macrostates to anndata object)
 	python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/dea/mcts.h5ad --csv $(filter-out $<, $^) \
-	$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions) --label-column condition --add-prefix macrostates,) --axis 0 --sep , --type category
+	$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions) --label-column condition --add-prefix macrostate,) --axis 0 --sep , --type category
+	$(call print_task,estimating top$(if $(DEA_TOP_HVG), $(DEA_TOP_HVG),) highly variable genes with $(DEA_HVG_METHOD))
+	python scripts/preprocessing/hvg.py $(firstword $^) $(tmpdir)/bin/dea/top_genes.txt --method $(MODEL_HVG_METHOD) \
+	$(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) $(batch)
 	python scripts/binarization/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
-		--cluster macrostate --layer log-norm --is-log --use-rep $(USE_REP) \
+		--cluster macrostate --layer log-norm --is-log --method wilcoxon --use-rep $(USE_REP) \
+		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION) --filter-genes $(tmpdir)/bin/dea/top_genes.txt
+	$(call print_task,plotting embedding space with respect to macrostates)
+	python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/dea/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
+	$(conda_deactivate)
+else
+$(bin_dea): $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions))) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
+	$(call print_rule,bin-dea)
+	mkdir -p $(@D) $(tmpdir)/integrated/bin/dea
+	$(conda_activate) scbridge-anndata
+	$(call print_debug,adding macrostates to anndata object)
+	python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/dea/mcts.h5ad --csv $(filter-out $<, $^) \
+	$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions) --label-column condition --add-prefix macrostate,) --axis 0 --sep , --type category
+	python scripts/binarization/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
+		--cluster macrostate --layer log-norm --is-log --method wilcoxon --use-rep $(USE_REP) \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION)
 	$(call print_task,plotting embedding space with respect to macrostates)
 	python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/dea/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
 	$(conda_deactivate)
+endif
 
-$(bin_merge): $(bin_scboolseq) $(lastword $(bin_cells)) $(bin_dea)
+$(bin_merge): $(bin_metacells) $(lastword $(bin_cells)) $(bin_dea)
 	$(call print_rule,bin-merge)
 	mkdir -p $(@D) $(tmpdir)/bin/merge
 	$(call print_debug,retrieving scboolseq distributions)

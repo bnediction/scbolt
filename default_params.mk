@@ -67,8 +67,9 @@ $(eval BATCH_SIZE ?= 20000)                 # number of cells to process at once
 $(eval SMOOTH_BATCH_SIZE ?= 1000)           # number of cells to subsample for the smoothing by diffusion step (recommended: 1000)
 
 ## MACROSTATES ##
-$(eval MACROSTATE_SIZE ?= 100)              # macrostate size (for cellrank and knnbs)
-$(eval MACROSTATES_METHOD ?= cotan)         # macrostate method used (knnbs, stream, cotan or cellrank)
+$(eval MACROSTATE_SIZE ?= 100)              # macrostate size (for cellrank, knnbs or stream)
+# For stream: if the number of cells in a macrostate is lower than the threshold, extend macrostate to neighborhood nodes in elastic principal graph
+$(eval MACROSTATE_METHOD ?= cotan)         # macrostate method used (knnbs, stream, cotan or cellrank)
 
 ## COTAN ##
 $(eval COTAN_METHOD ?= strong-merging)      # method for computing cotan clusters (classic, soft-merging or strong-merging)
@@ -104,7 +105,7 @@ $(eval KNNBS_NEIGHBORS ?= 20)               # number of closest neighbors for k-
 $(eval SCBOOLSEQ_HVG_METHOD ?= cell_ranger) # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3, if not specified, consider all genes)
 $(eval SCBOOLSEQ_TOP_HVG ?=)                # use only top 'SCBOOLSEQ_TOP_HVG' highly variable genes for binarizing cells (if not specified, estimate automatically number of hvg)
 $(eval UNIMODAL_QUANTILE ?= 0.10)           # quantile classifying cells into inactive/active when learnt distribution is unimodal
-$(eval ZEROES_ARE_ZEROES ?= false)          # binarize zero-values to zero instead of nan when learnt distribution is zero-inflated
+$(eval ZEROES_ARE_ZEROES ?= true)           # binarize zero-values to zero instead of nan when learnt distribution is zero-inflated
 
 ## BIN-SCBOOLSEQ ##
 $(eval NANS_THRESHOLD ?= 0.3)               # maximum proportion of nan-values in a cluster required for a gene to be binarized (not applied to zero-inflated genes)
@@ -113,9 +114,11 @@ $(eval ZEROINF_THRESHOLD ?= 0.6)            # minimum proportion of zero- or one
 $(eval UNIMODAL_THRESHOLD ?= 0.7)           # minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a unimodal gene to be binarized
 
 ## BIN-DEA ##
+$(eval DEA_HVG_METHOD ?= cell_ranger)       # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3, if not specified, consider all genes)
+$(eval DEA_TOP_HVG ?=)                      # use only top 'DEA_TOP_HVG' highly variable genes for binarizing cells (if not specified, estimate automatically number of hvg)
 $(eval BIN_LOGFC ?= 0.5)                    # minimum log2 fold-change in absolute value for a gene to be binarized
 $(eval BIN_ALPHA ?= 0.05)                   # maximum adjusted p-value for a gene to be binarized
-$(eval BIN_CORRECTION ?= bonferroni)        # method used for correcting the significance level (benjamini-hochberg or bonferroni)
+$(eval BIN_CORRECTION ?= benjamini-hochberg) # method used for correcting the significance level (benjamini-hochberg or bonferroni)
 
 ## BINARIZATION ##
 $(eval BIN_METHOD ?= merge)                 # binarization method used (scboolseq, dea or merge)
