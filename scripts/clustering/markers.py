@@ -134,7 +134,7 @@ sc.tl.rank_genes_groups(
     corr_method=args.correction
 )
 
-markers = sc.get.rank_genes_groups_df(
+markers_df = sc.get.rank_genes_groups_df(
     adata,
     group=None,
     pval_cutoff=args.alpha
@@ -142,18 +142,28 @@ markers = sc.get.rank_genes_groups_df(
 
 std.print_warning("found inconsistencies between log2 fold-changes derived from seurat::FindAllMarkers and scanpy.rank_gene_groups (see <https://www.biostars.org/p/453129/>)")
 std.print_debug("updating log2 fold-changes")
-markers = bt.sct.tl.update_logfoldchanges(
-    df=markers,
-    adata=adata,
-    layer=args.layer,
+logfoldchanges_df = bt.sct.tl.calculate_logfoldchanges(
+    adata,
     groupby=args.cluster,
+    layer=args.layer,
+    column_name="logfoldchanges",
     is_log=args.is_log,
     cluster_rebalancing=False,
     filter_logfoldchanges=lambda x: x > args.logfc
 )
 
+markers_df = markers_df.loc[:, markers_df.columns != "logfoldchanges"]
+
+markers_df = pd.merge(
+    markers_df,
+    logfoldchanges_df,
+    left_on=["names", "group"],
+    right_on=["names", "group"],
+    how="inner"
+)
+
 std.print_task(f"saving data in {str(args.outfile)}")
-markers.to_csv(
+markers_df.to_csv(
     args.outfile,
     sep=",",
     index=False
@@ -168,8 +178,8 @@ if args.xlsx:
             header=False,
             index=False
         )
-        for cluster in markers["group"].unique():
-            markers[markers["group"] == cluster]["names"].to_excel(
+        for cluster in markers_df["group"].unique():
+            markers_df[markers_df["group"] == cluster]["names"].to_excel(
                 xlsx_writer,
                 sheet_name=cluster,
                 header=False,

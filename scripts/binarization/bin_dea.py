@@ -142,6 +142,8 @@ adata = ad.read_h5ad(args.infile)
 if args.layer:
     adata.X = adata.layers[args.layer].copy()
 
+features = list(adata.var_names)
+
 if args.filter_genes:
     std.print_info(f"filtering genes by considering only those specified in {args.filter_genes}")
     with open(args.filter_genes) as file:
@@ -195,7 +197,7 @@ std.print_task(f"binarizing cell populations with respect to differential expres
 cluster_bin = pd.DataFrame(
     data=np.nan,
     index=adata.obs[args.cluster].cat.categories,
-    columns=adata.var.index
+    columns=features
 )
 
 for row in dea_df.itertuples():

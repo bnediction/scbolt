@@ -219,8 +219,7 @@ args = parser.parse_args()
 embedding_label = args.use_rep[2:].lower() if args.use_rep.startswith("X_") else args.use_rep.lower()
 
 outpath = os.path.dirname(args.outfile)
-if not Path(f"{outpath}/streamplot").exists():
-    os.makedirs(f"{outpath}/streamplot")
+os.makedirs(f"{outpath}/streamplot", exist_ok=True)
 
 std.print_task(f"loading file {str(args.infile)}")
 adata = ad.read_h5ad(args.infile)
@@ -355,7 +354,8 @@ for root in adata.obs["macrostate"].cat.categories:
         factor_zoomin=100,
         save_fig=False
     )
-    os.makedirs(Path(f"{outpath}/streamplot/{root}"))
+    plt.title("")
+    os.makedirs(Path(f"{outpath}/streamplot/{root}"), exist_ok=True)
     plt.savefig(Path(f"{outpath}/streamplot/{root}/density_streamplot.pdf"), bbox_inches="tight")
     plt.close()
     st.plot_stream_sc(
@@ -367,6 +367,7 @@ for root in adata.obs["macrostate"].cat.categories:
         show_text=True,
         save_fig=False
     )
+
     plt.savefig(Path(f"{outpath}/streamplot/{root}/sc_streamplot.pdf"), bbox_inches="tight")
     plt.close()
 

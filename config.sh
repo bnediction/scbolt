@@ -19,7 +19,7 @@ install_env() {
             if [ $1 == "scbridge-bonesis" ];
             then
                 conda activate $1
-                pip install git+https://github.com/bnediction/bonesis.git@a40e7b49274b19aca3eeccb6e468f765153bc53f
+                pip install git+https://github.com/bnediction/bonesis.git@8e8f9e80ed912bd4ee5b64e3443102717a3ca673                
                 conda deactivate;
             fi
             if [ $1 == "scbridge-scvelo" ];

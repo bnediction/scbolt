@@ -1,39 +1,48 @@
 states:
   ctrl_promyelocytes: ctrl_prom1
+  ctrl_intermediary: ctrl_prom2
   ctrl_proliferation: ctrl_rep
   ctrl_apoptosis: ctrl_apo
-  ctrl_intermediary: ctrl_prom2
   ctrl_differentiation: ctrl_gran2
   treated_promyelocytes: treated_prom1
+  treated_intermediary: treated_prom2
   treated_proliferation: treated_rep
   treated_differentiation: treated_gran2
-  treated_intermediary: treated_prom2
 bonesis:
+# configurations
+  - ctrl_promyelocytes = ~bo.obs('ctrl_promyelocytes')
+  - ctrl_intermediary = ~bo.obs('ctrl_intermediary')
   - ctrl_proliferation = bo.fixed(~bo.obs('ctrl_proliferation'))
   - ctrl_apoptosis = bo.fixed(~bo.obs('ctrl_apoptosis'))
   - ctrl_differentiation = bo.fixed(~bo.obs('ctrl_differentiation'))
+  - treated_promyelocytes = ~bo.obs('treated_promyelocytes')
+  - treated_intermediary = ~bo.obs('treated_intermediary')
   - treated_proliferation = bo.fixed(~bo.obs('treated_proliferation'))
   - treated_differentiation = bo.fixed(~bo.obs('treated_differentiation'))
+# inequalities
+  - ctrl_promyelocytes != treated_promyelocytes
+  - ctrl_differentiation != treated_differentiation
   - ctrl_proliferation != ctrl_apoptosis
   - ctrl_proliferation != ctrl_differentiation
   - ctrl_apoptosis != ctrl_differentiation
-  - ctrl_differentiation != treated_differentiation
   - treated_proliferation != treated_differentiation
-  - ~bo.obs('ctrl_promyelocytes') != ~bo.obs('treated_promyelocytes')
-  - ~bo.obs('ctrl_promyelocytes') >= ctrl_proliferation
-  - ~bo.obs('ctrl_promyelocytes') >= ~bo.obs('ctrl_intermediary') >= ctrl_apoptosis
-  - ~bo.obs('ctrl_intermediary') >= ctrl_differentiation
-  - ~bo.obs('treated_promyelocytes') >= treated_proliferation
-  - ~bo.obs('treated_promyelocytes') >= ~bo.obs('treated_intermediary') >= treated_differentiation
-  - ~bo.obs('ctrl_intermediary') // ctrl_proliferation
-  - ~bo.obs('ctrl_intermediary') // treated_proliferation
-  - ~bo.obs('ctrl_intermediary') // treated_differentiation
-  - ~bo.obs('treated_intermediary') // ctrl_proliferation
-  - ~bo.obs('treated_intermediary') // treated_proliferation
-  - ~bo.obs('treated_intermediary') // ctrl_apoptosis
-  - ~bo.obs('treated_intermediary') // ctrl_differentiation
-  - ~bo.obs('ctrl_promyelocytes') >> 'fixpoints' ^ {bo.obs('ctrl_apoptosis'), bo.obs('ctrl_proliferation'), bo.obs('ctrl_differentiation')}
-  - ~bo.obs('treated_promyelocytes') >> 'fixpoints' ^ {bo.obs('treated_differentiation'), bo.obs('treated_proliferation')}
+# positive reachability
+  - ctrl_promyelocytes >= ctrl_proliferation
+  - ctrl_promyelocytes >= ctrl_intermediary >= ctrl_apoptosis
+  - ctrl_intermediary >= ctrl_differentiation
+  - treated_promyelocytes >= treated_proliferation
+  - treated_promyelocytes >= treated_intermediary >= treated_differentiation
+# negative reachability
+  - ctrl_intermediary // ctrl_proliferation
+  - ctrl_intermediary // treated_proliferation
+  - ctrl_intermediary // treated_differentiation
+  - treated_intermediary // treated_proliferation
+  - treated_intermediary // ctrl_proliferation
+  - treated_intermediary // ctrl_apoptosis
+  - treated_intermediary // ctrl_differentiation
+# universal constraints
+  - ctrl_promyelocytes >> 'fixpoints' ^ {bo.obs('ctrl_apoptosis'), bo.obs('ctrl_proliferation'), bo.obs('ctrl_differentiation')}
+  - treated_promyelocytes >> 'fixpoints' ^ {bo.obs('treated_differentiation'), bo.obs('treated_proliferation')}
 mandatory_genes:
 important_genes:
 - 'Serpina3d-ps'

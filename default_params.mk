@@ -1,4 +1,4 @@
-$(eval PARAMS ?= user/nestorowa/params.mk)         # user-defined parameter file
+$(eval PARAMS ?= user/apl/params.mk)         # user-defined parameter file
 # BE CAREFUL: only parameter PARAMS can be update in this file
 # If user want to update other parameters, they have to be overridden in file located by PARAMS.
 
@@ -17,7 +17,7 @@ $(eval RESULTS ?= data/)                    # directory storing results
 # Parameters useful when user want to run the pipeline by starting at a specific step, with pre-computed dependencies.
 
 $(eval USE_REP ?= X_umap)                   # Key in adata.obsm used as embedding space
-$(eval OBS ?= label)                        # Column name in adata.obs used as labels.
+$(eval LABEL_COL ?= label)                  # Column name in adata.obs used as labels.
 
 ## FILTERING ##
 $(eval GENE_DROPOUT ?= 0.999)               # maximum percentage of cell dropout required for a gene to pass filtering
@@ -106,6 +106,7 @@ $(eval SCBOOLSEQ_HVG_METHOD ?= cell_ranger) # method used for identifying highly
 $(eval SCBOOLSEQ_TOP_HVG ?=)                # use only top 'SCBOOLSEQ_TOP_HVG' highly variable genes for binarizing cells (if not specified, estimate automatically number of hvg)
 $(eval UNIMODAL_QUANTILE ?= 0.10)           # quantile classifying cells into inactive/active when learnt distribution is unimodal
 $(eval ZEROES_ARE_ZEROES ?= true)           # binarize zero-values to zero instead of nan when learnt distribution is zero-inflated
+# $(eval ZEROINF_BINARIZER ?= quantile)       # method to binarize cells when classified as zero-inflated (value: quantile, zero_or_not)
 
 ## BIN-SCBOOLSEQ ##
 $(eval NANS_THRESHOLD ?= 0.3)               # maximum proportion of nan-values in a cluster required for a gene to be binarized (not applied to zero-inflated genes)
@@ -121,7 +122,7 @@ $(eval BIN_ALPHA ?= 0.05)                   # maximum adjusted p-value for a gen
 $(eval BIN_CORRECTION ?= benjamini-hochberg) # method used for correcting the significance level (benjamini-hochberg or bonferroni)
 
 ## BINARIZATION ##
-$(eval BIN_METHOD ?= merge)                 # binarization method used (scboolseq, dea or merge)
+$(eval BIN_METHOD ?= mixed)                 # binarization method used (scboolseq, dea or mixed)
 
 ## BEGIN MODELING ##
 $(eval YAML_MODEL ?= spec.yml)              # file storing model specifications for bonesis

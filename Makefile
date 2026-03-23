@@ -120,7 +120,7 @@ endef
 # BEGIN PATHS ##
 
 public = data/public
-rna = $(abspath ${RESULTS}/rna)
+counts = $(abspath ${RESULTS}/counts)
 binarization = $(abspath ${RESULTS}/binarization)
 bonesis = $(abspath ${RESULTS}/bonesis)
 
@@ -135,17 +135,17 @@ transcriptome := $(transcriptome:.tar.gz=)
 
 define find_paths_for_conditions
 
-fastq_$(1) =                    $(rna)/$(1)/fastq
-cellranger_$(1) =               $(rna)/$(1)/counting/cellranger/$(1).mri.tgz
-velocyto_$(1) =                 $(rna)/$(1)/counting/velocyto/counts.h5ad
-filtering_$(1) =                $(rna)/$(1)/preprocessing/filtering/counts.h5ad
-normalization_$(1) =            $(rna)/$(1)/preprocessing/normalization/counts.h5ad
-scvelo_$(1) =                   $(rna)/$(1)/trajectories/scvelo/scvelo.h5ad
-cytotrace_$(1) =                $(rna)/$(1)/trajectories/cytotrace/cytotrace.csv
-cotan_$(1) =                    $(rna)/$(1)/macrostates/cotan/macrostates.h5ad $(rna)/$(1)/macrostates/cotan/macrostates.csv
-cellrank_$(1) =                 $(rna)/$(1)/macrostates/cellrank/macrostates.h5ad $(rna)/$(1)/macrostates/cellrank/macrostates.csv
-stream_$(1) =                   $(rna)/$(1)/macrostates/stream/macrostates.h5ad $(rna)/$(1)/macrostates/stream/macrostates.csv
-knnbs_$(1) =                    $(rna)/$(1)/macrostates/knnbs/macrostates.h5ad $(rna)/$(1)/macrostates/knnbs/macrostates.csv
+fastq_$(1) =                    $(counts)/$(1)/fastq
+cellranger_$(1) =               $(counts)/$(1)/counting/cellranger/$(1).mri.tgz
+velocyto_$(1) =                 $(counts)/$(1)/counting/velocyto/counts.h5ad
+filtering_$(1) =                $(counts)/$(1)/preprocessing/filtering/counts.h5ad
+normalization_$(1) =            $(counts)/$(1)/preprocessing/normalization/counts.h5ad
+velocity_$(1) =                 $(counts)/$(1)/trajectories/velocity/velocity.h5ad
+potency_$(1) =                  $(counts)/$(1)/trajectories/potency/potency.csv
+cotan_$(1) =                    $(counts)/$(1)/macrostates/cotan/macrostates.h5ad $(counts)/$(1)/macrostates/cotan/macrostates.csv
+cellrank_$(1) =                 $(counts)/$(1)/macrostates/cellrank/macrostates.h5ad $(counts)/$(1)/macrostates/cellrank/macrostates.csv
+stream_$(1) =                   $(counts)/$(1)/macrostates/stream/macrostates.h5ad $(counts)/$(1)/macrostates/stream/macrostates.csv
+knnbs_$(1) =                    $(counts)/$(1)/macrostates/knnbs/macrostates.h5ad $(counts)/$(1)/macrostates/knnbs/macrostates.csv
 
 ifeq ($(MACROSTATE_METHOD),cotan)
 macrostates_$(1) =              $$(cotan_$(1))
@@ -163,19 +163,19 @@ endef
 
 define find_paths_for_references
 
-clustering_$(1) =               $(rna)/$(1)/clustering/clusters/counts.h5ad
-dea_$(1) =                      $(rna)/$(1)/clustering/dea/markers.csv $(rna)/$(1)/clustering/dea/genes.xlsx
-scoring_$(1) =                  $(rna)/$(1)/clustering/scoring/phenotypes.csv
-goea_basic_$(1) =               $(rna)/$(1)/clustering/goea/goea_basic.xlsx
-goea_mouse_$(1) =               $(rna)/$(1)/clustering/goea/goea_mouse.xlsx
-annotation_$(1) =               $(rna)/$(1)/clustering/clusters/annotation.h5ad
+clustering_$(1) =               $(counts)/$(1)/clustering/clusters/counts.h5ad
+dea_$(1) =                      $(counts)/$(1)/clustering/dea/markers.csv $(counts)/$(1)/clustering/dea/genes.xlsx
+scoring_$(1) =                  $(counts)/$(1)/clustering/scoring/phenotypes.csv
+goea_basic_$(1) =               $(counts)/$(1)/clustering/goea/goea_basic.xlsx
+goea_mouse_$(1) =               $(counts)/$(1)/clustering/goea/goea_mouse.xlsx
+annotation_$(1) =               $(counts)/$(1)/clustering/clusters/annotation.h5ad
 
 endef
 
 bin_cells =                     $(binarization)/cells/bin.h5ad $(binarization)/cells/statistics.csv
 bin_metacells =                 $(binarization)/scboolseq/$(MACROSTATE_METHOD)/bin_macrostates.csv
 bin_dea =                       $(binarization)/dea/$(MACROSTATE_METHOD)/bin_macrostates.csv
-bin_merge =                     $(binarization)/merge/$(MACROSTATE_METHOD)/bin_macrostates.csv
+bin_mixed =                     $(binarization)/mixed/$(MACROSTATE_METHOD)/bin_macrostates.csv
 
 bonesis_model =                 $(bonesis)/modeling/bo_model.txt $(bonesis)/modeling/metastates.csv $(bonesis)/modeling/mandatory_genes.txt $(bonesis)/modeling/important_genes.txt
 bonesis_soft_stage1 =           $(bonesis)/filtering/soft/stage1.txt
@@ -192,10 +192,10 @@ ifeq ($(BIN_METHOD),scboolseq)
 bin = 		$(bin_metacells)
 else ifeq ($(BIN_METHOD),dea)
 bin = 		$(bin_dea)
-else ifeq ($(BIN_METHOD),merge)
-bin = 		$(bin_merge)
+else ifeq ($(BIN_METHOD),mixed)
+bin = 		$(bin_mixed)
 else
-$(error unsupported value for parameter BIN_METHOD (supported values: scboolseq, dea, merge))
+$(error unsupported value for parameter BIN_METHOD (supported values: scboolseq, dea, mixed))
 endif
 
 ## END PATHS ##
@@ -213,8 +213,8 @@ dea_target :=
 scoring_target :=
 goea_target :=
 annotation_target :=
-scvelo_velocity_target :=
-cytotrace_velocity_target :=
+velocity_target :=
+potency_target :=
 macrostates_target :=
 stream_target :=
 cellrank_target :=
@@ -228,8 +228,8 @@ $(eval cellranger_target := $(cellranger_target) $(cellranger_$(1)))
 $(eval velocyto_target := $(velocyto_target) $(velocyto_$(1)))
 $(eval filtering_target := $(filtering_target) $(filtering_$(1)))
 $(eval normalization_target := $(normalization_target) $(normalization_$(1)))
-$(eval scvelo_velocity_target := $(scvelo_velocity_target) $(scvelo_$(1)))
-$(eval cytotrace_velocity_target := $(cytotrace_velocity_target) $(cytotrace_$(1)))
+$(eval velocity_target := $(velocity_target) $(velocity_$(1)))
+$(eval potency_target := $(potency_target) $(potency_$(1)))
 $(eval cotan_target := $(cotan_target) $(cotan_$(1)))
 $(eval cellrank_target := $(cellrank_target) $(cellrank_$(1)))
 $(eval stream_target := $(stream_target) $(stream_$(1)))
@@ -257,7 +257,7 @@ $(foreach reference,$(running_references),$(eval $(call find_targets_for_referen
 ifeq ($(words $(CONDITIONS)),1)
 batch=
 else
-batch=--batch conditions
+batch=--batch condition
 endif
 
 ## BEGIN PARAMETERS ##
@@ -511,10 +511,10 @@ annotation: $(annotation_target) ## assign names to cell clusters
 
 ##@ Trajectory inference
 
-.PHONY: scvelo
-scvelo: $(scvelo_velocity_target) ## estimate rna velocity with scvelo
-.PHONY: cytotrace
-cytotrace: $(cytotrace_velocity_target) ## estimate cell potencies with CytoTRACE
+.PHONY: velocity
+velocity: $(velocity_target) ## estimate rna velocity with scvelo
+.PHONY: potency
+potency: $(potency_target) ## estimate cell potencies with CytoTRACE
 
 ##@ Macrostate characterization
 
@@ -537,8 +537,8 @@ bin-cells: $(bin_cells) ## binarize cells using gene specific-distributions deri
 bin-metacells: $(bin_metacells) ## binarize macrostates by aggregating ScBoolSeq binarized cells w.r.t. voting rules
 .PHONY: bin-dea
 bin-dea: $(bin_dea) ## binarize macrostates using differential expression analysis
-.PHONY: bin-merge
-bin-merge: $(bin_merge) ## binarize macrostates by merging ScBoolSeq and dea results
+.PHONY: bin-mixed
+bin-mixed: $(bin_mixed) ## binarize macrostates by merging ScBoolSeq and dea results
 .PHONY: binarization
 binarization: $(bin) ## binarize macrostates depending on 'BIN_METHOD' parameter value
 
@@ -709,9 +709,9 @@ $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 	$(call print_rule,annotation,$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) scbridge-anndata
-	python scripts/utils/pipe_its.py $$^ --outfiles $$@ --labels $(1) --obs-label condition --obs leiden
+	python scripts/utils/pipe_its.py $$^ --outfiles $$@ --labels $(1) --obs-label condition --obs $(LABEL_COL)
 	$(call print_task,plotting embedding space with respect to labels)
-	python fig/plot_embedding.py fig/generic.json --infile $$@ --outfile $$(@D)/labels.pdf --obs leiden --use-rep $(USE_REP)
+	python fig/plot_embedding.py fig/generic.json --infile $$@ --outfile $$(@D)/labels.pdf --obs $(LABEL_COL) --use-rep $(USE_REP)
 	$$(conda_deactivate)
 else
 ifdef LABEL_$(call toupper,$(1))
@@ -720,7 +720,7 @@ $(annotation_$(1)): $(clustering_$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) scbridge-anndata
 	python scripts/clustering/annotation.py $< $@ \
-		--obs leiden --new-obs $(OBS) --labels $(join $(shell seq 0 1 $$(( $(words $$(LABEL_$(call toupper,$(1))))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
+		--obs leiden --new-obs $(LABEL_COL) --labels $(join $(shell seq 0 1 $$(( $(words $$(LABEL_$(call toupper,$(1))))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
 	$(call print_task,plotting embedding space with respect to labels)
 	python fig/plot_embedding.py fig/generic.json --infile $$@ --outfile $$(@D)/labels.pdf --obs leiden --use-rep $(USE_REP)
 	$$(conda_deactivate)
@@ -732,19 +732,19 @@ $(annotation_$(1)): $(clustering_$(1))
 endif
 endif
 
-$(scvelo_$(1)): $(annotation_$(1))
-	$(call print_rule,scvelo,$(1))
+$(velocity_$(1)): $(annotation_$(1))
+	$(call print_rule,velocity,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) scbridge-scvelo
+	$$(conda_activate) scbridge-velocity
 	python scripts/trajectories/velocity.py $$< $$@ \
 		--layer counts --cluster leiden --moment-dimension $(DIM_MOMENT) \
 		$(velocity_only_hvg) --mode $(SMM_MODE) --embedding umap --jobs $(JOBS)
 	$$(conda_deactivate)
 
-$(cytotrace_$(1)): $(annotation_$(1))
-	$(call print_rule,cytotrace,$(1))
+$(potency_$(1)): $(annotation_$(1))
+	$(call print_rule,potency,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) scbridge-cytotrace
+	$$(conda_activate) scbridge-potency
 	python scripts/trajectories/potency.py $$< $$(@D) --csv $$(notdir $$@) --h5ad $$(basename $$(notdir $$@)).h5ad \
 		--layer counts --cluster leiden --batch-size $(BATCH_SIZE) --smooth-batch-size $(SMOOTH_BATCH_SIZE) \
 		--organism $(ORGANISM) --embedding umap --seed $(SEED) --jobs $(JOBS)
@@ -771,17 +771,17 @@ $(cotan_$(1))&: $(annotation_$(1))
 	python fig/plot_embedding.py fig/macrostates.json --infile $$(firstword $$(cotan_$(1))) --outfile $$(@D)/umap_cotan.pdf --use-rep $(USE_REP)
 	$$(conda_deactivate)
 
-$(cellrank_$(1))&: $(scvelo_$(1)) $(cytotrace_$(1))
+$(cellrank_$(1))&: $(velocity_$(1)) $(potency_$(1))
 	$(call print_rule,cellrank,$(1))
 	mkdir -p $$(@D) $(tmpdir)/$(1)/cellrank
-	$(call print_debug,adding cytotrace scores to anndata object)
-	awk -F, -v txt="score" 'FNR==1{for(col=1;$$$$col!=txt;col++);next} {print $$$$1 "," $$$$col}' $$(lastword $$^) > $(tmpdir)/$(1)/cellrank/cytotrace_scores.csv
-	sed -i '1 i\,cytotrace_score' $(tmpdir)/$(1)/cellrank/cytotrace_scores.csv
+	$(call print_debug,adding potency scores to anndata object)
+	awk -F, -v txt="score" 'FNR==1{for(col=1;$$$$col!=txt;col++);next} {print $$$$1 "," $$$$col}' $$(lastword $$^) > $(tmpdir)/$(1)/cellrank/potency_scores.csv
+	sed -i '1 i\,cytotrace_score' $(tmpdir)/$(1)/cellrank/potency_scores.csv
 	$$(conda_activate) scbridge-anndata
-	python scripts/utils/add_to_anndata.py $$(firstword $$^) $(tmpdir)/$(1)/cellrank/kernels.h5ad --csv $(tmpdir)/$(1)/cellrank/cytotrace_scores.csv --axis 0 --sep , --type float
+	python scripts/utils/add_to_anndata.py $$(firstword $$^) $(tmpdir)/$(1)/cellrank/kernels.h5ad --csv $(tmpdir)/$(1)/cellrank/potency_scores.csv --axis 0 --sep , --type float
 	$$(conda_deactivate); $$(conda_activate) scbridge-cellrank
 	python scripts/macrostates/cellrank_macrostates.py $(tmpdir)/$(1)/cellrank/kernels.h5ad $$(firstword $$(cellrank_$(1))) --csv $$(lastword $$(cellrank_$(1))) \
-		--obs $(OBS) --method $(CELLRANK_METHOD) \
+		--obs $(LABEL_COL) --method $(CELLRANK_METHOD) \
 		--cytotrace-score cytotrace_score --scvelo-velocity velocity \
 		--states $(STATES) --initial-states $(INITIAL_STATES) --terminal-states $(TERMINAL_STATES) \
 		--stability $(CELLRANK_STABILITY) --alpha $(CELLRANK_ALPHA) --size $(MACROSTATE_SIZE) --seed $(SEED)
@@ -792,7 +792,7 @@ $(stream_$(1))&: $(annotation_$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) scbridge-stream
 	python scripts/macrostates/stream_macrostates.py $$< $$(firstword $$(stream_$(1))) --csv $$(lastword $$(stream_$(1))) \
-		--use-rep $(USE_REP) --obs $(OBS) --clustering $(CLUSTERING_METHOD) --cluster-number $(CLUSTER_NUMBER) \
+		--use-rep $(USE_REP) --obs $(LABEL_COL) --clustering $(CLUSTERING_METHOD) --cluster-number $(CLUSTER_NUMBER) \
 		--alpha $(ALPHA_EPG) --mu $(MU_EPG) --lambda $(LAMBDA_EPG) \
 		$(extend_epg) $(if $(filter $(EXTEND_EPG),true),--extend-mode $(EXTEND_MODE),) $(if $(filter $(EXTEND_EPG),true),--extend-parameter $(EXTEND_PARAMETER),) \
 		$(prune_epg) $(if $(filter $(PRUNE_EPG),true),--collapse-parameter $(COLLAPSE_PARAMETER),) --size $(MACROSTATE_SIZE) --jobs $(JOBS)
@@ -807,7 +807,7 @@ $(knnbs_$(1))&: $(annotation_$(1))
 	mkdir -p $$(@D)
 	$$(conda_activate) scbridge-anndata
 	python scripts/macrostates/knnbs_macrostates.py $$< $$(firstword $$(knnbs_$(1))) --csv $$(lastword $$(knnbs_$(1))) \
-		--obs $(OBS) --embedding $(KNNBS_EMBEDDING) --neighbors $(KNNBS_NEIGHBORS) \
+		--obs $(LABEL_COL) --embedding $(KNNBS_EMBEDDING) --neighbors $(KNNBS_NEIGHBORS) \
 		$(knnbs_dimension) --metric $(METRIC) --size $(MACROSTATE_SIZE) \
 		--max-distances $(MAX_DIST_$(call toupper,$(1))) --min-distances $(MIN_DIST_$(call toupper,$(1))) \
 		--jobs $(JOBS)
@@ -868,9 +868,9 @@ $(annotation_integrated): $(clustering_integrated)
 	mkdir -p $(@D)
 	$(conda_activate) scbridge-anndata
 	python scripts/clustering/annotation.py $< $@ \
-		--obs leiden --new-obs $(OBS) --labels $(join $(shell seq 0 1 $$(( $(words $(LABEL_INTEGRATED))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
+		--obs leiden --new-obs $(LABEL_COL) --labels $(join $(shell seq 0 1 $$(( $(words $(LABEL_INTEGRATED))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
 	$(call print_task,plotting embedding space with respect to labels)
-	python fig/plot_embedding.py fig/generic.json --infile $@ --outfile $(@D)/labels.pdf --obs $(OBS) --use-rep $(USE_REP)
+	python fig/plot_embedding.py fig/generic.json --infile $@ --outfile $(@D)/labels.pdf --obs $(LABEL_COL) --use-rep $(USE_REP)
 	$(conda_deactivate)
 else
 $(annotation_integrated): $(clustering_integrated)
@@ -953,16 +953,16 @@ $(bin_dea): $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated)
 	$(conda_deactivate)
 endif
 
-$(bin_merge): $(bin_metacells) $(lastword $(bin_cells)) $(bin_dea)
-	$(call print_rule,bin-merge)
-	mkdir -p $(@D) $(tmpdir)/bin/merge
+$(bin_mixed): $(bin_metacells) $(lastword $(bin_cells)) $(bin_dea)
+	$(call print_rule,bin-mixed)
+	mkdir -p $(@D) $(tmpdir)/bin/mixed
 	$(call print_debug,retrieving scboolseq distributions)
 	col=`head $(word 2, $^) -n 1 | sed "s/,/\n/g" | awk -F, '{printf("%d %s\n", NR-1, $$0)}' | grep Category | awk '{print $$1}'`
 	((col++))
-	cut -f 1,$$col -d ',' $(word 2, $^) > $(tmpdir)/bin/merge/distributions.csv
+	cut -f 1,$$col -d ',' $(word 2, $^) > $(tmpdir)/bin/mixed/distributions.csv
 	unset col
 	$(conda_activate) scbridge-anndata
-	python scripts/binarization/bin_merge.py --scboolseq $< $(tmpdir)/bin/merge/distributions.csv --dea $(lastword $^) \
+	python scripts/binarization/bin_mixed.py --scboolseq $< $(tmpdir)/bin/mixed/distributions.csv --dea $(lastword $^) \
 		--outfile $@ --pct-bin $(@D)/pct_bin.csv
 	$(conda_deactivate)
 

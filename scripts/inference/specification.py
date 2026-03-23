@@ -153,7 +153,7 @@ if args.filter_genes:
     macrostates_df = macrostates_df.loc[:,list(keep_only_present)]
 
 if specification["states"] is not None:
-    macrostates_df = macrostates_df.rename(
+    macrostates_df.rename(
         index=dict((v,k) for k,v in specification["states"].items()),
         inplace=True
     )
