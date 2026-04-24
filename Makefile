@@ -59,30 +59,14 @@ BOLD      = \033[1m
 
 ## BEGIN FUNCTIONS ##
 
-define print_rule
-	$(if $2,echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - RULE - $(1) \(reference: $(2)\),echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - RULE - $(1))
-endef
+log = printf '%s - %s - %s\n' "$$(date '+%Y-%m-%d %H:%M:%S.%3N')" "$(1)" "$(2)"
 
-define print_task
-	echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - TASK - $(1)
-endef
-
-define print_info
-	echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - INFO - $(1)
-endef
-
-define print_warning
-	echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - WARNING - $(1)
-endef
-
-define print_debug
-	echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - DEBUG - $(1)
-endef
-
-define print_error
-	echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - ERROR - $(1)
-	exit 1
-endef
+print_rule    = $(call log,RULE,$(1)$(if $(2), \(reference: $(2)\)))
+print_task    = $(call log,TASK,$(1))
+print_info    = $(call log,INFO,$(1))
+print_warning = $(call log,WARNING,$(1))
+print_debug   = $(call log,DEBUG,$(1))
+print_error   = $(call log,ERROR,$(1)); exit 1
 
 define fastq_naming
 	n_fastq="$$(find $(1) -name "$(2)_[1-4].fastq.gz" -printf '.' | wc -m)"
@@ -664,15 +648,18 @@ $(fastq_$(1)):
 
 $(cellranger_$(1)): $(fastq_$(1)) $(genome_ref)
 	$(call print_rule,cellranger,$(1))
-	mkdir -p $$(@D)
-	cellranger count --id=$(1) \
-		--fastqs=$$(firstword $$^) \
-   		--transcriptome=$$(lastword $$^) \
-   		--create-bam true \
-   		--localcores=$(JOBS) \
-   		--localmem=$(MEMORY)
-	mv $(1)/* $$(@D)
-	rm -rf $(1)
+	mkdir -p $(tmpdir)/cellranger $$(@D)
+	(
+		cd $(tmpdir)/cellranger
+		cellranger count --id=$(1) \
+			--fastqs=$$(realpath $$(firstword $$^)) \
+			--transcriptome=$$(realpath $$(lastword $$^)) \
+			--create-bam true \
+			--localcores=$(JOBS) \
+			--localmem=$(MEMORY)
+	)
+	mv $(tmpdir)/cellranger/$(1)/* $$(@D)
+	rm -rf $(tmpdir)/cellranger/$(1)
 
 $(velocyto_$(1)): $(cellranger_$(1)) $(genome_ref)
 	$(call print_rule,velocyto,$(1))
@@ -951,7 +938,7 @@ $(max_nodes_soft): $(bonesis_model)
 	$(call print_rule,max-nodes-soft)
 	mkdir -p $(@D)
 	set +e; \
-	timeout $(TIMEOUT) conda run -n scbridge-bonesis python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
+	timeout $(TIMEOUT) conda run --no-capture-output -n scbridge-bonesis python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
 		--asp $(@D)/nodes.sh --solution $@ \
 		--database $(GRN_DATABASE) --only-soft-constraints --max-clause $(MAX_CLAUSE) --organism $(ORGANISM); \

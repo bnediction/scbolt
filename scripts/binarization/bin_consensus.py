@@ -34,12 +34,12 @@ def merge(scboolseq_val, dea_val, scboolseq_distribution):
         raise ValueError(f"invalid parameter value for 'category': expected 'Discarded', 'ZeroInf', 'Bimodal' or 'Unimodal' but received '{scboolseq_distribution}'.")
 
 parser = argparse.ArgumentParser(
-    prog="bin_mixed",
+    prog="bin_consensus",
     description=
     """
     Binarize clusters using scboolseq and differential expression analysis results.
     """,
-    usage="python bin_mixed.py [-h] <FILE> <FILE> --cluster <LITERAL> [<args>]"
+    usage="python bin_consensus.py [-h] <FILE> <FILE> --cluster <LITERAL> [<args>]"
 )
 
 parser.add_argument(

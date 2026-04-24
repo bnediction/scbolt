@@ -18,7 +18,7 @@ bonesis:
 # positive reachability
   - ctrl_prom1 >= ctrl_rep
   - ctrl_prom1 >= ctrl_prom2 >= ctrl_neu
-  - ctrl_prom2 >= ctrl_neu
+  - ctrl_prom2 >= ctrl_alt
   - treated_prom1 >= treated_rep
   - treated_prom1 >= treated_prom2 >= treated_neu
 # negative reachability
