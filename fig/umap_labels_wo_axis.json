@@ -1,5 +1,5 @@
 {
-    "infile": "data/rna/integrated/clustering/clusters/annotation.h5ad",
+    "infile": "apl/counts/integrated/clustering/clusters/annotation.h5ad",
     "outfile": "figures/results/umap_labels_wo_axis.pdf",
     "modules": [
         {"numpy": "np"},
@@ -13,7 +13,7 @@
         "n_components"
     ],
     "figure": {
-        "obs": "leiden",
+        "obs": "label",
         "use_rep": "X_umap",
         "figheight": 5,
         "figwidth": 6,

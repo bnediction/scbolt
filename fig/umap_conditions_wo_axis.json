@@ -1,6 +1,6 @@
 {
-    "infile": "data/rna/integrated/clustering/clusters/counts.h5ad",
-    "outfile": "umap_conditions_wo_axis.pdf",
+    "infile": "apl/counts/integrated/clustering/clusters/counts.h5ad",
+    "outfile": "fig/results/umap_conditions_wo_axis.pdf",
     "modules": [
         {"numpy": "np"},
         {"bonesistools": "bt"}

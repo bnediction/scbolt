@@ -1,114 +1,74 @@
 states:
-  ctrl_promyelocytes: ctrl_prom1
-  ctrl_intermediary: ctrl_prom2
-  ctrl_proliferation: ctrl_rep
-  ctrl_apoptosis: ctrl_apo
-  ctrl_differentiation: ctrl_gran2
-  treated_promyelocytes: treated_prom1
-  treated_intermediary: treated_prom2
-  treated_proliferation: treated_rep
-  treated_differentiation: treated_gran2
 bonesis:
 # configurations
-  - ctrl_promyelocytes = ~bo.obs('ctrl_promyelocytes')
-  - ctrl_intermediary = ~bo.obs('ctrl_intermediary')
-  - ctrl_proliferation = bo.fixed(~bo.obs('ctrl_proliferation'))
-  - ctrl_apoptosis = bo.fixed(~bo.obs('ctrl_apoptosis'))
-  - ctrl_differentiation = bo.fixed(~bo.obs('ctrl_differentiation'))
-  - treated_promyelocytes = ~bo.obs('treated_promyelocytes')
-  - treated_intermediary = ~bo.obs('treated_intermediary')
-  - treated_proliferation = bo.fixed(~bo.obs('treated_proliferation'))
-  - treated_differentiation = bo.fixed(~bo.obs('treated_differentiation'))
+  - ctrl_prom1 = ~bo.obs('ctrl_Prom1')
+  - ctrl_prom2 = ~bo.obs('ctrl_Prom2')
+  - ctrl_rep = bo.fixed(bo.obs('ctrl_Rep'))
+  - ctrl_neu = bo.fixed(~bo.obs('ctrl_Neu'))
+  - ctrl_alt = bo.fixed(~bo.obs('ctrl_Alt'))
+  - treated_prom1 = ~bo.obs('treated_Prom1')
+  - treated_prom2 = ~bo.obs('treated_Prom2')
+  - treated_rep = bo.fixed(bo.obs('treated_Rep'))
+  - treated_neu = bo.fixed(~bo.obs('treated_Neu'))
 # inequalities
-  - ctrl_promyelocytes != treated_promyelocytes
-  - ctrl_differentiation != treated_differentiation
-  - ctrl_proliferation != ctrl_apoptosis
-  - ctrl_proliferation != ctrl_differentiation
-  - ctrl_apoptosis != ctrl_differentiation
-  - treated_proliferation != treated_differentiation
+  - ctrl_prom1 != treated_prom1
+  - ctrl_neu != bo.obs('ctrl_Rep')
+  - ctrl_alt != bo.obs('ctrl_Rep')
+  - treated_neu != bo.obs('treated_Rep')
 # positive reachability
-  - ctrl_promyelocytes >= ctrl_proliferation
-  - ctrl_promyelocytes >= ctrl_intermediary >= ctrl_apoptosis
-  - ctrl_intermediary >= ctrl_differentiation
-  - treated_promyelocytes >= treated_proliferation
-  - treated_promyelocytes >= treated_intermediary >= treated_differentiation
+  - ctrl_prom1 >= ctrl_rep
+  - ctrl_prom1 >= ctrl_prom2 >= ctrl_neu
+  - ctrl_prom2 >= ctrl_neu
+  - treated_prom1 >= treated_rep
+  - treated_prom1 >= treated_prom2 >= treated_neu
 # negative reachability
-  - ctrl_intermediary // ctrl_proliferation
-  - ctrl_intermediary // treated_proliferation
-  - ctrl_intermediary // treated_differentiation
-  - treated_intermediary // treated_proliferation
-  - treated_intermediary // ctrl_proliferation
-  - treated_intermediary // ctrl_apoptosis
-  - treated_intermediary // ctrl_differentiation
+  - ctrl_prom2 / ctrl_rep
+  - ctrl_prom2 / treated_rep
+  - treated_prom2 / ctrl_rep
+  - treated_prom2 / treated_rep
+  - ctrl_prom1 / treated_neu
+  - treated_prom1 / ctrl_neu
+  - treated_prom1 / ctrl_alt
 # universal constraints
-  - ctrl_promyelocytes >> 'fixpoints' ^ {bo.obs('ctrl_apoptosis'), bo.obs('ctrl_proliferation'), bo.obs('ctrl_differentiation')}
-  - treated_promyelocytes >> 'fixpoints' ^ {bo.obs('treated_differentiation'), bo.obs('treated_proliferation')}
+  - ctrl_prom1 >> 'fixpoints' ^ {bo.obs('ctrl_Rep'), bo.obs('ctrl_Neu'), bo.obs('ctrl_Alt')}
+  - treated_prom1 >> 'fixpoints' ^ {bo.obs('treated_Rep'), bo.obs('treated_Neu')}
 mandatory_genes:
 important_genes:
-- 'Serpina3d-ps'
-- 'Traf1'
-- 'Gas6'
-- 'Ccne2'
-- 'Gadd45g'
-- 'Ccna2'
-- 'Cdk6'
-- 'Ddit4'
-- 'Skp2'
-- 'Sqstm1'
-- 'Nol3'
-- 'Rarb'
-- 'Cdk7'
-- 'Suz12'
-- 'Ppp1r15a'
-- 'Srgn'
-- 'Tnfrsf18'
-- 'Cdk2'
-- 'Pcna'
-- 'Cebpa'
-- 'Lgals1'
-- 'Zfp36l1'
-- 'Rara'
-- 'Cebpe'
-- 'Phlda1'
-- 'Cdk4'
-- 'Serpina3g'
-- 'Lgals7'
-- 'Ctsh'
-- 'Nfkb1'
-- 'E2f1'
-- 'Ly6g'
-- 'Bax'
-- 'Mdm2'
-- 'Pim1'
-- 'Plk3'
-#  - 'Ezh2'
-#  - 'Nol3'
-#  - 'Rarb'
-#  - 'Runx1'
-#  - 'Zbtb16'
-#  - 'E2f1'
-#  - 'Cdk7'
-#  - 'Ccne2'
-#  - 'Dusp6'
-#  - 'Egr1'
-#  - 'Rb1'
-#  - 'Serpina3d-ps'
-#  - 'Cebpe'
-#  - 'Cdkn1a'
-#  - 'Cdk2'
-#  - 'Skp2'
-#  - 'Cdk4'
-#  - 'Cdk6'
-#  - 'Gata2'
-#  - 'Pou2f1'
-#  - 'Ccnd1'
-#  - 'Ccna2'
-#  - 'Usp37'
-#  - 'Rara'
-#  - 'Mdm2'
-#  - 'Cdkn1b'
-#  - 'Trp53'
-#  - 'Cdkn2d'
-#  - 'Pml'
-#  - 'Cebpa'
-#  - 'Junb'
+  - 'Serpina3d-ps'
+  - 'Traf1'
+  - 'Gas6'
+  - 'Ccne2'
+  - 'Gadd45g'
+  - 'Ccna2'
+  - 'Cdk6'
+  - 'Ddit4'
+  - 'Skp2'
+  - 'Sqstm1'
+  - 'Nol3'
+  - 'Rarb'
+  - 'Cdk7'
+  - 'Suz12'
+  - 'Ppp1r15a'
+  - 'Srgn'
+  - 'Tnfrsf18'
+  - 'Cdk2'
+  - 'Pcna'
+  - 'Cebpa'
+  - 'Lgals1'
+  - 'Zfp36l1'
+  - 'Rara'
+  - 'Cebpe'
+  - 'Phlda1'
+  - 'Cdk4'
+  - 'Serpina3g'
+  - 'Lgals7'
+  - 'Ctsh'
+  - 'Nfkb1'
+  - 'E2f1'
+  - 'Ly6g'
+  - 'Bax'
+  - 'Mdm2'
+  - 'Pim1'
+  - 'Plk3'
+  - 'Ezh2'
+  - 'Trp53'

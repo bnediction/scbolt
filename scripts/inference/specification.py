@@ -164,7 +164,7 @@ macrostates_cfg = get_cfg(
     genesyn=genesyn
 )
 
-std.print_debug("checking dynamic Boolean properties")
+std.print_debug("checking Boolean properties")
 
 pkn_options = {
     "canonic": True,
@@ -183,9 +183,9 @@ for property in specification["bonesis"]:
     try:
         exec(property)
     except:
-        raise RuntimeError(f"invalid dynamic Boolean properties")
+        raise RuntimeError(f"invalid dynamical Boolean properties: {property}")
 
-std.print_task(f"saving dynamic Boolean properties in {args.model}")
+std.print_task(f"saving dynamical Boolean properties in {args.model}")
 
 with open(args.model, "w") as file:
     for property in specification["bonesis"]:

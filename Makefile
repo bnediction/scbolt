@@ -1,16 +1,14 @@
 #!/usr/bin/env make
 
 .ONESHELL:
+.SHELLFLAGS := -eu -o pipefail -c
 
-SHELL = /bin/bash
+SHELL := /bin/bash
 MAKEFLAGS += --silent
 DEFAULT_PARAMS = default_params.mk
 
 include $(DEFAULT_PARAMS)
 include $(PARAMS)
-
-conda_activate = source $$(conda info --base)/etc/profile.d/conda.sh ; conda activate ; conda activate
-conda_deactivate = source $$(conda info --base)/etc/profile.d/conda.sh ; conda deactivate ; conda deactivate
 
 _lower2upper = a:A b:B c:C d:D e:E f:F g:G h:H i:I j:J k:K l:L m:M n:N o:O p:P q:Q r:R s:S t:T u:U v:V w:W x:X y:Y z:Z
 _lower = $(word 1, $(subst :, ,$(word 1,$(1))))
@@ -30,59 +28,59 @@ conditions := $(call tolower, $(CONDITIONS))
 references := $(conditions) integrated
 REFERENCES := $(subst $(space),$(plus),$(references))
 running_references := $(subst $(plus),$(space),$(REFERENCES))
-running_conditions := $(subst $(space)integrated,,$(running_references))
+running_conditions := $(filter-out integrated,$(running_references))
 
-export tmpdir:=$(shell mktemp -d -t scbridge-XXXXXXXXXX)
+results := $(patsubst %/,%,$(RESULTS))
+
+export tmpdir := $(shell mktemp -d -t scbridge-XXXXXXXXXX)
 $(shell { trap 'rm -rf $(tmpdir);' EXIT; tail --pid=$$PPID -f /dev/null; } </dev/null >/dev/null 2>/dev/null &)
-$(shell mkdir -p $(RESULTS))
+$(shell mkdir -p $(results))
 
 ## BEGIN URLS ##
 
-cell_cycle_url = https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
-geiger_url = https://doi.org/10.1371/journal.pbio.2003389.s025
-chambers_url = https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
-transcriptome_url = https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz
-go_basic_url = http://purl.obolibrary.org/obo/go/go-basic.obo
-go_mouse_url = https://current.geneontology.org/ontology/subsets/goslim_mouse.obo
-gene2go_url = ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
+cycle_url := https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
+go_basic_url := http://purl.obolibrary.org/obo/go/go-basic.obo
+geiger_url := https://doi.org/10.1371/journal.pbio.2003389.s025
+chambers_url := https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
+gene2go_url := ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
 
 ## END URLS ##
 
 ## BEGIN COLORS ##
 
-NC = \033[0m
-RED = \033[0;31m
-BOLDRED = \033[1;31m
-GREEN = \033[0;32m
+NC        = \033[0m
+RED       = \033[0;31m
+BOLDRED   = \033[1;31m
+GREEN     = \033[0;32m
 BOLDGREEN = \033[1;32m
-BOLD=\033[1m
+BOLD      = \033[1m
 
 ## END COLORS ##
 
 ## BEGIN FUNCTIONS ##
 
 define print_rule
-	$(if $2,@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - RULE - $(1) \(reference: $(2)\),@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - RULE - $(1))
+	$(if $2,echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - RULE - $(1) \(reference: $(2)\),echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - RULE - $(1))
 endef
 
 define print_task
-	@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - TASK - $(1)
+	echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - TASK - $(1)
 endef
 
 define print_info
-	@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - INFO - $(1)
+	echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - INFO - $(1)
 endef
 
 define print_warning
-	@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - WARNING - $(1)
+	echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - WARNING - $(1)
 endef
 
 define print_debug
-	@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - DEBUG - $(1)
+	echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - DEBUG - $(1)
 endef
 
 define print_error
-	@echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - ERROR - $(1)
+	echo `date "+%Y-%m-%d %H:%M:%S.%3N"` - ERROR - $(1)
 	exit 1
 endef
 
@@ -115,37 +113,54 @@ define fastq_naming
 	fi
 endef
 
+define check_inference_status
+	if [ $$exit_status -eq 124 ]; then \
+		echo -e ''; \
+		if [ -f $@ ]; then \
+			$(call print_warning,user-defined time limit reached \($(TIMEOUT)\): local optimum found); \
+		else \
+			$(call print_error,user-defined time limit reached \($(TIMEOUT)\): no local optimum found); \
+		fi; \
+	elif [ $$exit_status -eq 130 ] || [ $$exit_status -eq 143 ]; then \
+		echo -e ''; \
+		if [ -f $@ ]; then \
+			$(call print_warning,inference interrupted: keeping partial solutions); \
+		else \
+			$(call print_error,inference interrupted: no partial solution found); \
+		fi; \
+	elif [ $$exit_status -ne 0 ]; then \
+		exit $$exit_status; \
+	else \
+		$(call print_debug,global optimum found); \
+	fi
+endef
+
 ## END FUNCTIONS ##
 
-# BEGIN PATHS ##
+## BEGIN PATHS ##
 
-public = data/public
-counts = $(abspath ${RESULTS}/counts)
-binarization = $(abspath ${RESULTS}/binarization)
-bonesis = $(abspath ${RESULTS}/bonesis)
+cc_markers  = public/cycle/mouse_cycle_markers.rds
+signatures  = public/signatures/geiger.xls public/signatures/chambers.xls public/signatures/sig.json
+go_basic    = public/go/go_basic.obo
+go_organism = public/go/goslim_$(ORGANISM).obo
+gene2go     = public/go/gene2go
 
-cc_markers = $(public)/cycle_phases/mouse_cycle_markers.rds
-signatures = $(public)/signatures/geiger.xls $(public)/signatures/chambers.xls $(public)/signatures/signatures.json
-go_basic = $(public)/enrichment/go-basic.obo
-go_mouse = $(public)/enrichment/goslim.obo
-gene2go = $(public)/enrichment/gene2go
-
-$(eval transcriptome := $(public)/genome/$(notdir $(transcriptome_url)))
-transcriptome := $(transcriptome:.tar.gz=)
+$(eval genome_ref := public/ref/$(notdir $(genome_url)))
+genome_ref := $(genome_ref:.tar.gz=)
 
 define find_paths_for_conditions
 
-fastq_$(1) =                    $(counts)/$(1)/fastq
-cellranger_$(1) =               $(counts)/$(1)/counting/cellranger/$(1).mri.tgz
-velocyto_$(1) =                 $(counts)/$(1)/counting/velocyto/counts.h5ad
-filtering_$(1) =                $(counts)/$(1)/preprocessing/filtering/counts.h5ad
-normalization_$(1) =            $(counts)/$(1)/preprocessing/normalization/counts.h5ad
-velocity_$(1) =                 $(counts)/$(1)/trajectories/velocity/velocity.h5ad
-potency_$(1) =                  $(counts)/$(1)/trajectories/potency/potency.csv
-cotan_$(1) =                    $(counts)/$(1)/macrostates/cotan/macrostates.h5ad $(counts)/$(1)/macrostates/cotan/macrostates.csv
-cellrank_$(1) =                 $(counts)/$(1)/macrostates/cellrank/macrostates.h5ad $(counts)/$(1)/macrostates/cellrank/macrostates.csv
-stream_$(1) =                   $(counts)/$(1)/macrostates/stream/macrostates.h5ad $(counts)/$(1)/macrostates/stream/macrostates.csv
-knnbs_$(1) =                    $(counts)/$(1)/macrostates/knnbs/macrostates.h5ad $(counts)/$(1)/macrostates/knnbs/macrostates.csv
+fastq_$(1) =                    $(results)/$(1)/fastq
+cellranger_$(1) =               $(results)/$(1)/count/cellranger/$(1).mri.tgz
+velocyto_$(1) =                 $(results)/$(1)/count/counts.h5ad
+filtering_$(1) =                $(results)/$(1)/prep/filter/counts.h5ad
+normalization_$(1) =            $(results)/$(1)/prep/norm/counts.h5ad
+velocity_$(1) =                 $(results)/$(1)/trajectories/velocity/velocity.h5ad
+potency_$(1) =                  $(results)/$(1)/trajectories/potency/potency.csv
+cotan_$(1) =                    $(results)/$(1)/mstates/cotan/mstates.h5ad    $(results)/$(1)/mstates/cotan/mstates.csv
+cellrank_$(1) =                 $(results)/$(1)/mstates/cellrank/mstates.h5ad $(results)/$(1)/mstates/cellrank/mstates.csv
+stream_$(1) =                   $(results)/$(1)/mstates/stream/mstates.h5ad   $(results)/$(1)/mstates/stream/mstates.csv
+knnbs_$(1) =                    $(results)/$(1)/mstates/knnbs/mstates.h5ad    $(results)/$(1)/mstates/knnbs/mstates.csv
 
 ifeq ($(MACROSTATE_METHOD),cotan)
 macrostates_$(1) =              $$(cotan_$(1))
@@ -156,47 +171,37 @@ macrostates_$(1) =              $$(stream_$(1))
 else ifeq ($(MACROSTATE_METHOD),knnbs)
 macrostates_$(1) =              $$(knnbs_$(1))
 else
-$$(error unsupported value for parameter MACROSTATE_METHOD (supported values: cotan, cellrank, stream or knnbs))
+$$(error unsupported value for parameter MACROSTATE_METHOD (supported values: cotan, cellrank, stream, knnbs))
 endif
 
 endef
 
 define find_paths_for_references
 
-clustering_$(1) =               $(counts)/$(1)/clustering/clusters/counts.h5ad
-dea_$(1) =                      $(counts)/$(1)/clustering/dea/markers.csv $(counts)/$(1)/clustering/dea/genes.xlsx
-scoring_$(1) =                  $(counts)/$(1)/clustering/scoring/phenotypes.csv
-goea_basic_$(1) =               $(counts)/$(1)/clustering/goea/goea_basic.xlsx
-goea_mouse_$(1) =               $(counts)/$(1)/clustering/goea/goea_mouse.xlsx
-annotation_$(1) =               $(counts)/$(1)/clustering/clusters/annotation.h5ad
+clustering_$(1) =               $(results)/$(1)/clust/clust.h5ad
+dea_$(1) =                      $(results)/$(1)/clust/dea/markers.csv         $(results)/$(1)/clust/dea/genes.xlsx
+scoring_$(1) =                  $(results)/$(1)/clust/sig.csv
+goea_basic_$(1) =               $(results)/$(1)/clust/goea/basic.xlsx
+goea_organism_$(1) =            $(results)/$(1)/clust/goea/$(ORGANISM).xlsx
+annotation_$(1) =               $(results)/$(1)/clust/annot.h5ad
 
 endef
 
-bin_cells =                     $(binarization)/cells/bin.h5ad $(binarization)/cells/statistics.csv
-bin_metacells =                 $(binarization)/scboolseq/$(MACROSTATE_METHOD)/bin_macrostates.csv
-bin_dea =                       $(binarization)/dea/$(MACROSTATE_METHOD)/bin_macrostates.csv
-bin_mixed =                     $(binarization)/mixed/$(MACROSTATE_METHOD)/bin_macrostates.csv
+bin_cells =                     $(results)/bin/scboolseq/cell/cells_bin.h5ad  $(results)/bin/scboolseq/cell/cells_stats.csv
+bin_macrostates =               $(results)/bin/scboolseq/macro/$(MACROSTATE_METHOD)/mstates_bin.csv
+bin_dea =                       $(results)/bin/dea/$(MACROSTATE_METHOD)/mstates_bin.csv
+bin_consensus =                 $(results)/bin/consensus/$(MACROSTATE_METHOD)/mstates_bin.csv
 
-bonesis_model =                 $(bonesis)/modeling/bo_model.txt $(bonesis)/modeling/metastates.csv $(bonesis)/modeling/mandatory_genes.txt $(bonesis)/modeling/important_genes.txt
-bonesis_soft_stage1 =           $(bonesis)/filtering/soft/stage1.txt
-bonesis_soft_stage2 =           $(bonesis)/filtering/soft/stage2.txt
-bonesis_soft_filtering =        $(bonesis_soft_stage1) $(bonesis_soft_stage2)
-bonesis_hard_filtering =        $(bonesis)/filtering/hard/stage1.txt
-bonesis_inference_min =         $(bonesis)/bn/min/min.bnet
-bonesis_inference_sub =         $(bonesis)/bn/sub/_analysis/ig_ensemble.dot.pdf
+bonesis_model =                 $(results)/infer/spec/model.bo $(results)/infer/spec/mstates.csv $(results)/infer/spec/mandatory.txt $(results)/infer/spec/important.txt
+max_nodes_soft =                $(results)/infer/genes/soft/nodes/comps.txt
+max_consts_soft =               $(results)/infer/genes/soft/consts/comps.txt
+max_nodes_seed =                $(results)/infer/genes/hard/seed/comps.txt $(results)/infer/genes/hard/seed/__GLOBAL_OPT
+max_nodes_lock =                $(results)/infer/genes/hard/lock/comps.txt
+bn_min =                        $(results)/infer/bn/min/model.bnet
+bn_sub =                        $(results)/infer/bn/sub/_summary/graph.pdf
 
 $(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call find_paths_for_references,$(reference))))
-
-ifeq ($(BIN_METHOD),scboolseq)
-bin = 		$(bin_metacells)
-else ifeq ($(BIN_METHOD),dea)
-bin = 		$(bin_dea)
-else ifeq ($(BIN_METHOD),mixed)
-bin = 		$(bin_mixed)
-else
-$(error unsupported value for parameter BIN_METHOD (supported values: scboolseq, dea, mixed))
-endif
 
 ## END PATHS ##
 
@@ -235,7 +240,6 @@ $(eval cellrank_target := $(cellrank_target) $(cellrank_$(1)))
 $(eval stream_target := $(stream_target) $(stream_$(1)))
 $(eval knnbs_target := $(knnbs_target) $(knnbs_$(1)))
 $(eval macrostates_target := $(macrostates_target) $(macrostates_$(1)))
-$(eval bdc_target := $(bdc_target) $(bdc_$(1)))
 
 endef
 
@@ -244,7 +248,7 @@ define find_targets_for_references
 $(eval clustering_target := $(clustering_target) $(clustering_$(1)))
 $(eval dea_target := $(dea_target) $(dea_$(1)))
 $(eval scoring_target := $(scoring_target) $(scoring_$(1)))
-$(eval goea_target := $(goea_target) $(goea_basic_$(1)) $(goea_mouse_$(1)))
+$(eval goea_target := $(goea_target) $(goea_basic_$(1)) $(goea_organism_$(1)))
 $(eval annotation_target := $(annotation_target) $(annotation_$(1)))
 
 endef
@@ -255,9 +259,9 @@ $(foreach reference,$(running_references),$(eval $(call find_targets_for_referen
 ## END TARGETS ##
 
 ifeq ($(words $(CONDITIONS)),1)
-batch=
+batch =
 else
-batch=--batch condition
+batch = --batch condition
 endif
 
 ## BEGIN PARAMETERS ##
@@ -265,8 +269,8 @@ endif
 ifndef JOBS
 $(error Parameter JOBS not defined)
 else
-try_open_allocated_cpu=$(shell echo $$(($(JOBS) / 2)))
-open_allocated_cpu=$(if $(findstring $(try_open_allocated_cpu),0),1,$(try_open_allocated_cpu))
+try_open_allocated_cpu := $(shell echo $$(($(JOBS) / 2)))
+open_allocated_cpu := $(if $(findstring $(try_open_allocated_cpu),0),1,$(try_open_allocated_cpu))
 endif
 
 ifndef NORM_MAD
@@ -292,7 +296,10 @@ endif
 ifndef CC_CORRECTION
 $(error Parameter CC_CORRECTION not defined)
 else ifeq ($(CC_CORRECTION),true)
-correction=--correction G2M_score S_score G1_score
+  ifneq ($(ORGANISM),mouse)
+    $(error CC_CORRECTION=true is only supported for mouse (current: $(ORGANISM)))
+  endif
+  correction=--correction G2M_score S_score G1_score
 else ifeq ($(CC_CORRECTION),false)
 correction=
 else
@@ -308,6 +315,9 @@ pca_only_hvg=
 else
 $(error Unsupported value for parameter PCA_ONLY_HVG (supported values: true, false))
 endif
+
+label_ids = $(if $(LABEL),$(shell seq 0 1 $$(($(words $(LABEL))-1))))
+label_map = $(join $(label_ids),$(addprefix :,$(LABEL)))
 
 ifndef VELOCITY_ONLY_HVG
 $(error Parameter VELOCITY_ONLY_HVG not defined)
@@ -399,12 +409,22 @@ else
 $(error Unsupported value for parameter DEA_HVG_METHOD (supported values: seurat, cell_ranger, seurat_v3))
 endif
 
+ifeq ($(BIN_METHOD),scboolseq)
+bin = $(bin_macrostates)
+else ifeq ($(BIN_METHOD),dea)
+bin = $(bin_dea)
+else ifeq ($(BIN_METHOD),consensus)
+bin = $(bin_consensus)
+else
+$(error unsupported value for parameter BIN_METHOD (supported values: scboolseq, dea, consensus))
+endif
+
 ifndef YAML_MODEL
 $(error Parameter YAML_MODEL not defined)
 endif
 
 ifneq ($(filter-out seurat_v3 seurat cell_ranger,$(MODEL_HVG_METHOD)),)
-$(error Unsupported value for parameter MODEL_HVG_METHOD (supported values: seurat, cell_ranger or seurat_v3))
+$(error Unsupported value for parameter MODEL_HVG_METHOD (supported values: seurat, cell_ranger, seurat_v3))
 endif
 
 ifndef MODEL_HVG_METHOD
@@ -451,10 +471,9 @@ endif
 .PHONY: help
 help: ## display this help and exit
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [REFERENCES=<...>] (default:REFERENCES=$(subst $(space),$(plus),$(references)))\n\
-	scBridge (pipeline for Boolean network Reconstruction and Inference from multiple experimental Data in Gene Expression) proposes \
-	a general methodology for inferring logical models reproducing the observed transcriptomic cell dynamics by using scRNA-seq data as input. \
-	Its implementation in make offers a wide range of advanced features for guiding and helping users in reconstructing data-driven \
-	Boolean networks.\n"}/^[a-zA-Z_-]+:.*?##/ \
+	scBridge is a semi-automated pipeline for reconstructing data-driven Boolean networks from multi-condition scRNA-seq data. \
+	It combines preprocessing, clustering, trajectory inference, macrostate characterization, binarization, \
+	and BoNesis-based model inference to reproduce observed transcriptomic cell dynamics.\n"}/^[a-zA-Z_-]+:.*?##/ \
 	{ printf "  $(GREEN)%-22s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BOLD)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Clean
@@ -470,115 +489,121 @@ mrproper: ## clear cache and public/private data
 	find . -name "\*.pyc" -delete
 	find . -type d -name "__pycache__" -exec rm -rf "{}" \;
 	find . -type d -name "cache" -exec rm -rf "{}" \;
-	rm -rf $(rna)
-	mkdir $(rna)
-	find $(public)/transcriptome ! -name "repeat_msk.gtf" -type f -exec rm -f "{}" \;
+	test -n "$(results)" && test "$(results)" != "/"
+	rm -rf $(results)
+	mkdir -p $(results)
+	[ ! -d public/transcriptome ] || find public/transcriptome ! -name "repeat_msk.gtf" -type f -exec rm -f "{}" \;
 
 ##@ Download
 
-load-annotations: $(transcriptome) ## download transcriptome-related annotations
-load-fastq: $(fastq_target) ## download fastq files
-load-signatures: $(lastword $(signatures)) ## download signatures and convert it into json file
-load-cc: $(cc_markers) ## download cell cycle phase markers
-load-go: $(go_basic) $(go_mouse) $(gene2go) ## download gene ontology-related files
+load-genome: $(genome_ref) ## download the reference genome
+load-fastq: $(fastq_target) ## download FASTQ files
+load-signatures: $(lastword $(signatures)) ## download phenotype-related signatures
+load-cc: $(cc_markers) ## download cell-cycle markers
+load-go: $(go_basic) $(go_organism) $(gene2go) ## download Gene Ontology resources
 
 ##@ Alignment/Counting
 
 .PHONY: cellranger
-cellranger: $(cellranger_target) ## perform alignment and counting with CellRanger
+cellranger: $(cellranger_target) ## run Cell Ranger for alignment and counting
 .PHONY: velocyto
-velocyto: $(velocyto_target) ## perform spliced/unspliced counting with velocyto
+velocyto: $(velocyto_target) ## run Velocyto for spliced and unspliced counting
 
 ##@ Preprocessing
 
 .PHONY: filtering
-filtering: $(filtering_target) ## filtering low quality cells and assignment of cell cycle phases
+filtering: $(filtering_target) ## filter low-quality cells and genes, and optionally assign cell-cycle phases
 .PHONY: normalization
-normalization: $(normalization_target) ## filtering low quality genes and normalization of counts
+normalization: $(normalization_target) ## normalize counts and optionally correct for cell-cycle effects
 
 ##@ Clustering
 
 .PHONY: clustering
-clustering: $(clustering_target) ## perform dimension reduction and cell clustering (and optionally integration)
+clustering: $(clustering_target) ## cluster cells after dimensionality reduction, with optional integration
 .PHONY: dea
-dea: $(dea_target) ## perform differential expression analysis
+dea: $(dea_target) ## identify cluster-specific upregulated genes for marker detection
 .PHONY: scoring
-scoring: $(scoring_target) ## score signature-related phenotypes with respect to cell clusters
+scoring: $(scoring_target) ## score phenotype-related signatures to support cluster annotation
 .PHONY: goea
-goea: $(goea_target) ## perform gene ontology enrichment analysis
+goea: $(goea_target) ## perform Gene Ontology enrichment analysis to support cluster annotation
 .PHONY: annotation
 annotation: $(annotation_target) ## assign names to cell clusters
 
 ##@ Trajectory inference
 
 .PHONY: velocity
-velocity: $(velocity_target) ## estimate rna velocity with scvelo
+velocity: $(velocity_target) ## estimate RNA velocity to infer cell-state transitions
 .PHONY: potency
-potency: $(potency_target) ## estimate cell potencies with CytoTRACE
+potency: $(potency_target) ## estimate cell differentiation potential
 
 ##@ Macrostate characterization
 
 .PHONY: cotan
-cotan: $(cotan_target) ## estimate macrostates using zero counts co-expression
+cotan: $(cotan_target) ## estimate macrostates from zero-count co-expression
 .PHONY: cellrank
-cellrank: $(cellrank_target) ## estimate macrostates using rna velocities
+cellrank: $(cellrank_target) ## estimate macrostates using similarity-, potency-, and RNA-velocity-based kernels
 .PHONY: stream
-stream: $(stream_target) ## compute macrostates using elastic principal graph
+stream: $(stream_target) ## estimate macrostates using an elastic principal graph
 .PHONY: knnbs
-knnbs: $(knnbs_target) ## compute macrostates using k-nearest neighbors-based subclusters algorithm
+knnbs: $(knnbs_target) ## estimate macrostates using k-nearest-neighbors-based subclustering
 .PHONY: macrostates
-macrostates: $(macrostates_target) ## define macrostates depending on 'MACROSTATE_METHOD' parameter value
+macrostates: $(macrostates_target) ## define groups of cells sharing similar phenotypic profiles according to 'MACROSTATE_METHOD'
 
 ##@ Binarization
 
 .PHONY: bin-cells
-bin-cells: $(bin_cells) ## binarize cells using gene specific-distributions derived from ScBoolSeq
-.PHONY: bin-metacells
-bin-metacells: $(bin_metacells) ## binarize macrostates by aggregating ScBoolSeq binarized cells w.r.t. voting rules
+bin-cells: $(bin_cells) ## binarize cells using gene-specific distributions from ScBoolSeq
+.PHONY: bin-macrostates
+bin-macrostates: $(bin_macrostates) ## binarize macrostates by aggregating ScBoolSeq-binarized cells using voting rules
 .PHONY: bin-dea
 bin-dea: $(bin_dea) ## binarize macrostates using differential expression analysis
-.PHONY: bin-mixed
-bin-mixed: $(bin_mixed) ## binarize macrostates by merging ScBoolSeq and dea results
+.PHONY: bin-consensus
+bin-consensus: $(bin_consensus) ## binarize macrostates by combining ScBoolSeq and DEA results
 .PHONY: binarization
-binarization: $(bin) ## binarize macrostates depending on 'BIN_METHOD' parameter value
+binarization: $(bin) ## derive partially defined Boolean states from macrostates according to 'BIN_METHOD'
 
 ##@ Boolean network inference
 
-.PHONY: modeling
-modeling: $(bonesis_model) ## specify model using BoNesis syntax
-.PHONY: soft-filtering
-soft-filtering: $(bonesis_soft_filtering) ## select components by using only soft Boolean dynamical constraints
-.PHONY: hard-filtering
-hard-filtering: $(bonesis_hard_filtering) ## select components by using soft and hard Boolean dynamical constraints
-.PHONY: bonesis-min
-bonesis-min: $(bonesis_inference_min) ## infer Boolean network minimizing the edge number with BoNesis (minimal solution)
-.PHONY: bonesis-sub
-bonesis-sub: $(bonesis_inference_sub) ## infer diverse Boolean networks with BoNesis (subset minimal solution)
+.PHONY: spec
+spec: $(bonesis_model) ## specify Boolean constraints using the BoNesis language
+.PHONY: max-nodes-soft
+max-nodes-soft: $(max_nodes_soft) ## select components by maximizing explanatory nodes under soft constraints
+.PHONY: max-constants-soft
+max-constants-soft: $(max_consts_soft) ## select components by maximizing strong constants under soft constraints
+.PHONY: max-nodes-seed
+max-nodes-seed: $(max_nodes_seed) ## select components by maximizing explanatory nodes under hard constraints (stage 1)
+.PHONY: max-nodes-lock
+max-nodes-lock: $(max_nodes_lock) ## select components by maximizing explanatory nodes under hard constraints (stage 2)
+.PHONY: bn-min
+bn-min: $(bn_min) ## infer a minimum-edge Boolean network with BoNesis (one minimal solution)
+.PHONY: bn-sub
+bn-sub: $(bn_sub) ## infer diverse Boolean networks with BoNesis (subset of minimal solutions)
 
 ## END HELP ##
 
 ## preserve target even if make is killed or interrupted
-.PRECIOUS: $(bonesis_soft_stage1)
-.PRECIOUS: $(bonesis_soft_stage2)
-.PRECIOUS: $(bonesis_hard_filtering)
-.PRECIOUS: $(dir $(bonesis_inference_sub))
+.PRECIOUS: $(max_nodes_soft)
+.PRECIOUS: $(max_consts_soft)
+.PRECIOUS: $(max_nodes_seed)
+.PRECIOUS: $(max_nodes_lock)
+.PRECIOUS: $(dir $(bn_sub))
 
 $(bin_cells)&: export OPENBLAS_NUM_THREADS = $(open_allocated_cpu)
 $(bin_cells)&: export OMP_NUM_THREADS = $(open_allocated_cpu)
 
 ## BEGIN RULES ##
 
-$(transcriptome):
-	$(call print_rule,load-annotations)
+$(genome_ref):
+	$(call print_rule,load-genome)
 	mkdir -p $(@D)
-	wget --quiet --show-progress --directory-prefix=$(@D) $(transcriptome_url)
+	wget --quiet --show-progress -cO $@.tar.gz $(genome_url)
 	tar -zxvf $@.tar.gz -C $(@D)
-	gunzip $@/genes/genes.gtf.gz
+	[ -f $@/genes/genes.gtf.gz ] && gunzip $@/genes/genes.gtf.gz
 
 $(cc_markers):
 	$(call print_rule,load-cc)
 	mkdir -p $(@D)
-	wget --quiet --show-progress -cO $@ $(cell_cycle_url)
+	wget --quiet --show-progress -cO $@ $(cycle_url)
 
 $(word 1,$(signatures)) $(word 2,$(signatures)):
 	$(eval FILENAME := $(basename $(notdir $@)))
@@ -592,57 +617,52 @@ $(word 1,$(signatures)) $(word 2,$(signatures)):
 
 $(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures))
 	$(call print_rule,load-signatures,conversion)
-	$(conda_activate) scbridge-anndata
-	python scripts/utils/load_signatures.py \
+	conda run -n scbridge-anndata python scripts/utils/load_signatures.py \
 		--list-infile $(firstword $^) \
 		--table-infile $(lastword $^) \
-  		--outfile $@
-	$(conda_deactivate)
+		--outfile $@
 
 $(go_basic):
-	$(call print_rule,load-go \(go-basic\))
+	$(call print_rule,load-go \(go_basic\))
 	mkdir -p $(@D)
 	wget --quiet --show-progress -cO $@ $(go_basic_url)
 
-$(go_mouse):
-	$(call print_rule,load-go \(go-mouse\))
+$(go_organism):
+	$(call print_rule,load-go \(go_$(ORGANISM)\))
 	mkdir -p $(@D)
-	wget --quiet --show-progress -cO $@ $(go_mouse_url)
+	wget --quiet --show-progress -cO $@ $(go_organism_url)
 
 $(gene2go):
 	$(call print_rule,load-go \(gene2go\))
 	mkdir -p $(@D)
 	wget --quiet --show-progress --directory-prefix=$(@D) $(gene2go_url)
-	gunzip $@.gz
+	[ -f $@.gz ] && gunzip $@.gz
 
 define compute_rules_for_conditions
 
 $(fastq_$(1)):
 	$(call print_rule,load-fastq,$(1))
-	$$(conda_activate) scbridge-fastq
 	sample_naming="$(1)"
 	lane=0
-	rm -rf $(tmpdir)/$(1)/fastq && mkdir $(tmpdir)/$(1)/fastq
+	rm -rf $(tmpdir)/$(1)/fastq && mkdir -p $(tmpdir)/$(1)/fastq
 	for id in $$(SRA_$(call toupper, $(1)))
 	do
-		let "lane++"
-		parallel-fastq-dump --sra-id $$$${id} --split-files --readids --origfmt --threads $$(JOBS) --outdir $(tmpdir)/$(1)/fastq --gzip
+		((++lane))
+		conda run -n scbridge-fastq parallel-fastq-dump --sra-id $$$${id} --split-files --readids --origfmt --threads $$(JOBS) --outdir $(tmpdir)/$(1)/fastq --gzip
 		$$(call fastq_naming,$(tmpdir)/$(1)/fastq,$$$${id},$$$${sample_naming},$$$${lane})
 	done
 	sleep 3
 	mkdir -p $$@
-	mv $(tmpdir)/$(1)/fastq/* $$@/
 	files=$$$$(shopt -s nullglob dotglob; echo $(tmpdir)/$(1)/fastq/*)
-	if ! (( $$$${#files} ))
-	then
-		rm -rf $(tmpdir)/$(1)/fastq
-	else
-		$(call print_error,cannot download fastq files: fastq-dump failed)
+	if (( $$$${#files} )); then \
+		mv $$$${files} $$@/; \
+		rm -rf $(tmpdir)/$(1)/fastq; \
+	else \
+		$(call print_error,cannot download fastq files: fastq-dump failed); \
 	fi
 	unset files
-	$$(conda_deactivate)
 
-$(cellranger_$(1)): $(fastq_$(1)) $(transcriptome)
+$(cellranger_$(1)): $(fastq_$(1)) $(genome_ref)
 	$(call print_rule,cellranger,$(1))
 	mkdir -p $$(@D)
 	cellranger count --id=$(1) \
@@ -654,122 +674,86 @@ $(cellranger_$(1)): $(fastq_$(1)) $(transcriptome)
 	mv $(1)/* $$(@D)
 	rm -rf $(1)
 
-$(velocyto_$(1)): $(cellranger_$(1)) $(transcriptome)
+$(velocyto_$(1)): $(cellranger_$(1)) $(genome_ref)
 	$(call print_rule,velocyto,$(1))
-	if [ -f data/public/transcriptome/repeat_msk.gtf ]; then
-		$$(conda_activate) scbridge-velocyto
-		velocyto run10x -m data/public/transcriptome/repeat_msk.gtf \
+	if [ -f public/transcriptome/repeat_msk.gtf ]; then
+		conda run -n scbridge-velocyto velocyto run10x \
+			-m public/transcriptome/repeat_msk.gtf \
 			--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
 			$$(dir $$(firstword $$^)) $$(lastword $$^)/genes/genes.gtf
-		$$(conda_deactivate)
 		mkdir -p $$(@D)
 		mv $$(<D)/velocyto/cellranger.loom $$(shell echo $$@ | sed "s/h5ad/loom/")
 		rm -rf $$(<D)/velocyto
-		$$(conda_activate) scbridge-anndata
 		$(call print_debug,standardizing gene names and converting loom format into h5ad format)
-		python scripts/utils/adata_conversion.py $$(shell echo $$@ | sed "s/h5ad/loom/") $$@ --from loom --to h5ad \
+		conda run -n scbridge-anndata python scripts/utils/adata_conversion.py \
+			$$(shell echo $$@ | sed "s/h5ad/loom/") $$@ --from loom --to h5ad \
 			--remove-positions --sort --standardization
-		$$(conda_deactivate)
 	else
-		$(call print_error,cannot run velocyto: file data/public/transcriptome/repeat_msk.gtf does not exist \(please refer to documentation for downloading it\))
+		$(call print_error,cannot run velocyto: file public/transcriptome/repeat_msk.gtf does not exist \(please refer to documentation for downloading it\))
 	fi
 
-$(filtering_$(1)): $(velocyto_$(1)) $(cc_markers)
+$(filtering_$(1)): $(velocyto_$(1)) $(if $(filter mouse,$(ORGANISM)),$(cc_markers))
 	$(call print_rule,filtering,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) scbridge-anndata
-	python scripts/preprocessing/filtering.py $$(firstword $$^) $$@ --marker $$(lastword $$^) \
+	conda run -n scbridge-anndata python scripts/preprocessing/filtering.py \
+		$$(firstword $$^) $$@ $(if $(filter mouse,$(ORGANISM)),--marker $$(lastword $$^)) \
 		--gene-dropout $(GENE_DROPOUT) --gene-expression $(GENE_EXPRESSION) --gene-counts $(GENE_COUNTS) \
 		--cell-dropout $(CELL_DROPOUT) --cell-expression $(CELL_EXPRESSION) --cell-reads $(CELL_READS) \
 		--mad $(MAD_DEVIATION) $(norm_mad) --mt $(MT) \
 		--hvg $(HVG) $(filter_non_hvg)
-	$$(conda_deactivate)
 
 $(normalization_$(1)): $(filtering_$(1))
 	$(call print_rule,normalization,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) scbridge-anndata
-	python scripts/preprocessing/normalization.py $$< $$@ $(correction) --jobs $(JOBS)
-	$$(conda_deactivate)
+	conda run -n scbridge-anndata python scripts/preprocessing/normalization.py $$< $$@ $(correction) --jobs $(JOBS)
 
 $(clustering_$(1)): $(normalization_$(1))
 	$(call print_rule,clustering,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) scbridge-anndata
-	python scripts/clustering/clustering.py $$< $$@ \
+	conda run -n scbridge-anndata python scripts/clustering/clustering.py $$< $$@ \
 		--layer correct --adjacency knn --embedding umap \
 		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_CLUSTERING) --embedding-dimension $(DIM_EMBEDDING) \
 		$(pca_only_hvg) --neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) --min-dist $(MIN_DIST) --spread $(SPREAD) --seed $(SEED)
-	$(call print_task,plotting embedding space with respect to cell cycle phases)
-	python fig/plot_embedding.py fig/cc.json --infile $$@ --outfile $$(@D)/cc.pdf --use-rep $(USE_REP)
-	$$(conda_deactivate)
+	$(call print_task,plotting embedding space with respect to cell-cycle phases)
+	conda run -n scbridge-anndata python fig/plot_embedding.py fig/cc.json --infile $$@ --outfile $$(@D)/cc.pdf --use-rep $(USE_REP)
 
-ifeq ($(LABELING_FROM_INTEGRATION),true)
 $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 	$(call print_rule,annotation,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) scbridge-anndata
-	python scripts/utils/pipe_its.py $$^ --outfiles $$@ --labels $(1) --obs-label condition --obs $(LABEL_COL)
+	conda run -n scbridge-anndata python scripts/utils/pipe_its.py $$^ --outfiles $$@ --labels $(1) --obs-label condition --obs $(LABEL_COL)
 	$(call print_task,plotting embedding space with respect to labels)
-	python fig/plot_embedding.py fig/generic.json --infile $$@ --outfile $$(@D)/labels.pdf --obs $(LABEL_COL) --use-rep $(USE_REP)
-	$$(conda_deactivate)
-else
-ifdef LABEL_$(call toupper,$(1))
-$(annotation_$(1)): $(clustering_$(1))
-	$(call print_rule,annotation,$(1))
-	mkdir -p $$(@D)
-	$$(conda_activate) scbridge-anndata
-	python scripts/clustering/annotation.py $< $@ \
-		--obs leiden --new-obs $(LABEL_COL) --labels $(join $(shell seq 0 1 $$(( $(words $$(LABEL_$(call toupper,$(1))))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
-	$(call print_task,plotting embedding space with respect to labels)
-	python fig/plot_embedding.py fig/generic.json --infile $$@ --outfile $$(@D)/labels.pdf --obs leiden --use-rep $(USE_REP)
-	$$(conda_deactivate)
-else
-$(annotation_$(1)): $(clustering_$(1))
-	$(call print_rule,annotation,$(1))
-	$(call print_error,LABELING_FROM_INTEGRATION set to false and CLUSTER_LABEL_$(call toupper,$(1)) not defined)
-	exit 1
-endif
-endif
+	conda run -n scbridge-anndata python fig/plot_embedding.py fig/generic.json --infile $$@ --outfile $$(@D)/labels.pdf --obs $(LABEL_COL) --use-rep $(USE_REP)
 
 $(velocity_$(1)): $(annotation_$(1))
 	$(call print_rule,velocity,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) scbridge-velocity
-	python scripts/trajectories/velocity.py $$< $$@ \
+	conda run -n scbridge-velocity python scripts/trajectories/velocity.py $$< $$@ \
 		--layer counts --cluster leiden --moment-dimension $(DIM_MOMENT) \
 		$(velocity_only_hvg) --mode $(SMM_MODE) --embedding umap --jobs $(JOBS)
-	$$(conda_deactivate)
 
 $(potency_$(1)): $(annotation_$(1))
 	$(call print_rule,potency,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) scbridge-potency
-	python scripts/trajectories/potency.py $$< $$(@D) --csv $$(notdir $$@) --h5ad $$(basename $$(notdir $$@)).h5ad \
+	conda run -n scbridge-potency python scripts/trajectories/potency.py $$< $$(@D) \
+		--csv $$(notdir $$@) --h5ad $$(basename $$(notdir $$@)).h5ad \
 		--layer counts --cluster leiden --batch-size $(BATCH_SIZE) --smooth-batch-size $(SMOOTH_BATCH_SIZE) \
 		--organism $(ORGANISM) --embedding umap --seed $(SEED) --jobs $(JOBS)
-	$$(conda_deactivate)
 
 $(cotan_$(1))&: $(annotation_$(1))
 	$(call print_rule,cotan,$(1))
 	mkdir -p $$(@D) $(tmpdir)/$(1)/cotan
-	$$(conda_activate) scbridge-anndata
 	$(call print_debug,loading file $$< \(layer 'matrix'\))
-	python scripts/utils/adata_conversion.py $$< $(tmpdir)/$(1)/cotan/barcts.csv --from h5ad --to csv --layer matrix $(cotan_only_hvg)
+	conda run -n scbridge-anndata python scripts/utils/adata_conversion.py $$< $(tmpdir)/$(1)/cotan/barcts.csv --from h5ad --to csv --layer matrix $(cotan_only_hvg)
 	$(call print_debug,transposing counts matrix)
 	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $(tmpdir)/$(1)/cotan/barcts.csv > $(tmpdir)/$(1)/cotan/gencts.csv
-	$$(conda_deactivate)
-	$$(conda_activate) scbridge-cotan
-	Rscript scripts/macrostates/cotan_macrostates.R --infile $(tmpdir)/$(1)/cotan/gencts.csv --outfile $$(@D)/cotan.RDS --csv $$(lastword $$(cotan_$(1))) \
+	conda run -n scbridge-cotan Rscript scripts/macrostates/cotan_macrostates.R \
+		--infile $(tmpdir)/$(1)/cotan/gencts.csv --outfile $$(@D)/cotan.RDS --csv $$(lastword $$(cotan_$(1))) \
 		--sep , --name $(1) --max-iterations $(MAX_ITER) --method $(COTAN_METHOD) --min-ude 0.3 --jobs $(JOBS)
-	$$(conda_deactivate)
 	sed -i '1 i\,macrostate' $$(lastword $$(cotan_$(1)))
-	$$(conda_activate) scbridge-anndata
 	$(call print_debug,adding cotan clusters to anndata object)
-	python scripts/utils/add_to_anndata.py $$< $$(firstword $$(cotan_$(1))) --csv $$(lastword $$(cotan_$(1))) --axis 0 --sep , --type category
+	conda run -n scbridge-anndata python scripts/utils/add_to_anndata.py $$< $$(firstword $$(cotan_$(1))) --csv $$(lastword $$(cotan_$(1))) --axis 0 --sep , --type category
 	$(call print_task,plotting embedding space with respect to cotan clusters)
-	python fig/plot_embedding.py fig/macrostates.json --infile $$(firstword $$(cotan_$(1))) --outfile $$(@D)/umap_cotan.pdf --use-rep $(USE_REP)
-	$$(conda_deactivate)
+	conda run -n scbridge-anndata python fig/plot_embedding.py fig/macrostates.json --infile $$(firstword $$(cotan_$(1))) --outfile $$(@D)/umap_cotan.pdf --use-rep $(USE_REP)
 
 $(cellrank_$(1))&: $(velocity_$(1)) $(potency_$(1))
 	$(call print_rule,cellrank,$(1))
@@ -777,26 +761,23 @@ $(cellrank_$(1))&: $(velocity_$(1)) $(potency_$(1))
 	$(call print_debug,adding potency scores to anndata object)
 	awk -F, -v txt="score" 'FNR==1{for(col=1;$$$$col!=txt;col++);next} {print $$$$1 "," $$$$col}' $$(lastword $$^) > $(tmpdir)/$(1)/cellrank/potency_scores.csv
 	sed -i '1 i\,cytotrace_score' $(tmpdir)/$(1)/cellrank/potency_scores.csv
-	$$(conda_activate) scbridge-anndata
-	python scripts/utils/add_to_anndata.py $$(firstword $$^) $(tmpdir)/$(1)/cellrank/kernels.h5ad --csv $(tmpdir)/$(1)/cellrank/potency_scores.csv --axis 0 --sep , --type float
-	$$(conda_deactivate); $$(conda_activate) scbridge-cellrank
-	python scripts/macrostates/cellrank_macrostates.py $(tmpdir)/$(1)/cellrank/kernels.h5ad $$(firstword $$(cellrank_$(1))) --csv $$(lastword $$(cellrank_$(1))) \
+	conda run -n scbridge-anndata python scripts/utils/add_to_anndata.py \
+		$$(firstword $$^) $(tmpdir)/$(1)/cellrank/kernels.h5ad --csv $(tmpdir)/$(1)/cellrank/potency_scores.csv --axis 0 --sep , --type float
+	conda run -n scbridge-cellrank python scripts/macrostates/cellrank_macrostates.py \
+		$(tmpdir)/$(1)/cellrank/kernels.h5ad $$(firstword $$(cellrank_$(1))) --csv $$(lastword $$(cellrank_$(1))) \
 		--obs $(LABEL_COL) --method $(CELLRANK_METHOD) \
 		--cytotrace-score cytotrace_score --scvelo-velocity velocity \
 		--states $(STATES) --initial-states $(INITIAL_STATES) --terminal-states $(TERMINAL_STATES) \
 		--stability $(CELLRANK_STABILITY) --alpha $(CELLRANK_ALPHA) --size $(MACROSTATE_SIZE) --seed $(SEED)
-	$$(conda_deactivate)
 
 $(stream_$(1))&: $(annotation_$(1))
 	$(call print_rule,stream,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) scbridge-stream
-	python scripts/macrostates/stream_macrostates.py $$< $$(firstword $$(stream_$(1))) --csv $$(lastword $$(stream_$(1))) \
+	conda run -n scbridge-stream python scripts/macrostates/stream_macrostates.py $$< $$(firstword $$(stream_$(1))) --csv $$(lastword $$(stream_$(1))) \
 		--use-rep $(USE_REP) --obs $(LABEL_COL) --clustering $(CLUSTERING_METHOD) --cluster-number $(CLUSTER_NUMBER) \
 		--alpha $(ALPHA_EPG) --mu $(MU_EPG) --lambda $(LAMBDA_EPG) \
 		$(extend_epg) $(if $(filter $(EXTEND_EPG),true),--extend-mode $(EXTEND_MODE),) $(if $(filter $(EXTEND_EPG),true),--extend-parameter $(EXTEND_PARAMETER),) \
 		$(prune_epg) $(if $(filter $(PRUNE_EPG),true),--collapse-parameter $(COLLAPSE_PARAMETER),) --size $(MACROSTATE_SIZE) --jobs $(JOBS)
-	$$(conda_deactivate)
 
 ifeq ($(or $(MIN_DIST_$(call toupper,$(1))),$(MAX_DIST_$(call toupper,$(1)))),)
 $(knnbs_$(1))&: $(annotation_$(1))
@@ -805,15 +786,13 @@ else
 $(knnbs_$(1))&: $(annotation_$(1))
 	$(call print_rule,knnbs,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) scbridge-anndata
-	python scripts/macrostates/knnbs_macrostates.py $$< $$(firstword $$(knnbs_$(1))) --csv $$(lastword $$(knnbs_$(1))) \
+	conda run -n scbridge-anndata python scripts/macrostates/knnbs_macrostates.py $$< $$(firstword $$(knnbs_$(1))) --csv $$(lastword $$(knnbs_$(1))) \
 		--obs $(LABEL_COL) --embedding $(KNNBS_EMBEDDING) --neighbors $(KNNBS_NEIGHBORS) \
 		$(knnbs_dimension) --metric $(METRIC) --size $(MACROSTATE_SIZE) \
 		--max-distances $(MAX_DIST_$(call toupper,$(1))) --min-distances $(MIN_DIST_$(call toupper,$(1))) \
 		--jobs $(JOBS)
 	$(call print_task,plotting embedding space with respect to knnbs clusters)
-	python fig/plot_embedding.py fig/macrostates.json --infile $$(firstword $$(knnbs_$(1))) --outfile $$(@D)/knnbs.pdf --use-rep $(USE_REP)
-	$$(conda_deactivate)
+	conda run -n scbridge-anndata python fig/plot_embedding.py fig/macrostates.json --infile $$(firstword $$(knnbs_$(1))) --outfile $$(@D)/knnbs.pdf --use-rep $(USE_REP)
 endif
 
 endef
@@ -823,266 +802,215 @@ define compute_rules_for_references
 $(dea_$(1))&: $(clustering_$(1))
 	$(call print_rule,dea,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) scbridge-anndata
-	python scripts/clustering/markers.py $$< $(firstword $(dea_$(1))) --xlsx $(lastword $(dea_$(1))) \
+	conda run -n scbridge-anndata python scripts/clustering/markers.py $$< $(firstword $(dea_$(1))) --xlsx $(lastword $(dea_$(1))) \
 		--cluster leiden --layer log-norm --is-log \
 		--logfc $(LOGFC) --alpha $(ALPHA) --correction $(CORRECTION)
-	$$(conda_deactivate)
 
 $(scoring_$(1)): $(clustering_$(1)) $(lastword $(signatures)) $(lastword $(dea_$(1)))
 	$(call print_rule,scoring,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) scbridge-anndata
-	python scripts/clustering/scoring.py $$^ $$@ --cluster leiden --ignore-sheets background
-	$$(conda_deactivate)
+	conda run -n scbridge-anndata python scripts/clustering/scoring.py $$^ $$@ --cluster leiden --ignore-sheets background
 
 $(goea_basic_$(1)): $(lastword $(dea_$(1))) $(go_basic) $(gene2go)
-	$(call print_rule,goea with go-basic,$(1))
+	$(call print_rule,goea with go_basic,$(1))
 	mkdir -p $$(@D)
-	$$(conda_activate) scbridge-anndata
-	python scripts/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^) 
-	$$(conda_deactivate)
+	conda run -n scbridge-anndata python scripts/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^) 
 
-$(goea_mouse_$(1)): $(lastword $(dea_$(1))) $(go_mouse) $(gene2go)
-	$(call print_rule,goea with go-mouse,$(1))
-	$$(conda_activate) scbridge-anndata
-	python scripts/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
-	$$(conda_deactivate)
+$(goea_organism_$(1)): $(lastword $(dea_$(1))) $(go_organism) $(gene2go)
+	$(call print_rule,goea with go_$(ORGANISM),$(1))
+	mkdir -p $$(@D)
+	conda run -n scbridge-anndata python scripts/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
 
 endef
 
 $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(condition)))
 	$(call print_rule,clustering,integrated)
 	mkdir -p $(@D)
-	$(conda_activate) scbridge-anndata
-	python scripts/clustering/integration.py $^ --outfile $@ --labels $(conditions) \
+	conda run -n scbridge-anndata python scripts/clustering/integration.py $^ --outfile $@ --labels $(conditions) \
 		--layer correct --adjacency knn --integration $(INTEGRATION) --embedding umap \
 		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_CLUSTERING) --embedding-dimension $(DIM_EMBEDDING) \
 		$(if $(filter $(PCA_ONLY_HVG),true),--hvg $(HVG),) --neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) \
 		--min-dist $(MIN_DIST) --spread $(SPREAD) --seed $(SEED) --jobs $(JOBS)
-	$(conda_deactivate)
 
-ifdef LABEL_INTEGRATED
 $(annotation_integrated): $(clustering_integrated)
 	$(call print_rule,annotation,integrated)
+	if [ -z "$(LABEL)" ]; then \
+			$(call print_error,annotation requires LABEL. Review DEA/GOEA/signature outputs, set LABEL in your parameter file, then rerun make annotation or your downstream command); \
+	fi
 	mkdir -p $(@D)
-	$(conda_activate) scbridge-anndata
-	python scripts/clustering/annotation.py $< $@ \
-		--obs leiden --new-obs $(LABEL_COL) --labels $(join $(shell seq 0 1 $$(( $(words $(LABEL_INTEGRATED))-1 ))),$(addprefix :,$(LABEL_INTEGRATED)))
+	conda run -n scbridge-anndata python scripts/clustering/annotation.py $< $@ \
+		--obs leiden --new-obs $(LABEL_COL) --labels $(label_map)
 	$(call print_task,plotting embedding space with respect to labels)
-	python fig/plot_embedding.py fig/generic.json --infile $@ --outfile $(@D)/labels.pdf --obs $(LABEL_COL) --use-rep $(USE_REP)
-	$(conda_deactivate)
-else
-$(annotation_integrated): $(clustering_integrated)
-	$(call print_rule,annotation,integrated)
-	$(call print_error,parameter LABEL_INTEGRATED not defined)
-endif
+	conda run -n scbridge-anndata python fig/plot_embedding.py fig/generic.json --infile $@ --outfile $(@D)/labels.pdf --obs $(LABEL_COL) --use-rep $(USE_REP)
 
 ifdef SCBOOLSEQ_HVG_METHOD
 $(bin_cells)&: $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions)))
 	$(call print_rule,bin-cells)
-	mkdir -p $(@D) $(tmpdir)/bin/cells
-	$(conda_activate) scbridge-anndata
+	mkdir -p $(@D) $(tmpdir)/bin/cell
 	$(call print_task,estimating top$(if $(SCBOOLSEQ_TOP_HVG), $(SCBOOLSEQ_TOP_HVG),) highly variable genes with $(SCBOOLSEQ_HVG_METHOD))
-	python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/bin/cells/top_genes.txt --method $(MODEL_HVG_METHOD) \
-	$(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) $(batch)
-	$(conda_deactivate)
-	$(conda_activate) scbridge-scboolseq
-	python scripts/binarization/bin_cells_scboolseq.py $< --outfile $(firstword $(bin_cells)) --bin $(shell echo $@ | sed "s/.h5ad/.csv/") --statistics $(lastword $(bin_cells)) \
-		--layer log-norm --quantile $(UNIMODAL_QUANTILE) $(zeroes_are_zeroes) --filter-genes $(tmpdir)/bin/cells/top_genes.txt
+	conda run -n scbridge-anndata python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/bin/cell/top_genes.txt \
+		--method $(SCBOOLSEQ_HVG_METHOD) $(scboolseq_layer) $(if $(SCBOOLSEQ_TOP_HVG),--hvg $(SCBOOLSEQ_TOP_HVG),) $(batch)
+	conda run -n scbridge-scboolseq python scripts/binarization/bin_cells_scboolseq.py $< --outfile $(firstword $(bin_cells)) \
+		--bin $(shell echo $@ | sed "s/.h5ad/.csv/") --statistics $(lastword $(bin_cells)) \
+		--layer log-norm --quantile $(UNIMODAL_QUANTILE) $(zeroes_are_zeroes) --filter-genes $(tmpdir)/bin/cell/top_genes.txt
 	$(call print_task,plotting embedding space with respect to binarization percentage)
-	python fig/plot_embedding.py fig/bin.json --infile $(firstword $(bin_cells)) --outfile $(@D)/pct_bin.pdf --use-rep $(USE_REP)
-	$(conda_deactivate)
+	conda run -n scbridge-anndata python fig/plot_embedding.py fig/bin.json --infile $(firstword $(bin_cells)) --outfile $(@D)/pct_bin.pdf --use-rep $(USE_REP)
 else
 $(bin_cells)&: $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions)))
 	$(call print_rule,bin-cells)
 	mkdir -p $(@D)
-	$(conda_activate) scbridge-scboolseq
-	python scripts/binarization/bin_cells_scboolseq.py $< --outfile $(firstword $(bin_cells)) --bin $(shell echo $@ | sed "s/.h5ad/.csv/") --statistics $(lastword $(bin_cells)) \
+	conda run -n scbridge-scboolseq python scripts/binarization/bin_cells_scboolseq.py $< --outfile $(firstword $(bin_cells)) \
+		--bin $(shell echo $@ | sed "s/.h5ad/.csv/") --statistics $(lastword $(bin_cells)) \
 		--layer log-norm --quantile $(UNIMODAL_QUANTILE) $(zeroes_are_zeroes)
 	$(call print_task,plotting embedding space with respect to binarization percentage)
-	python fig/plot_embedding.py fig/bin.json --infile $(firstword $(bin_cells)) --outfile $(@D)/pct_bin.pdf --use-rep $(USE_REP)
-	$(conda_deactivate)
+	conda run -n scbridge-anndata python fig/plot_embedding.py fig/bin.json --infile $(firstword $(bin_cells)) --outfile $(@D)/pct_bin.pdf --use-rep $(USE_REP)
 endif
 
-$(bin_metacells): $(firstword $(bin_cells)) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
-	$(call print_rule,bin-metacells)
+$(bin_macrostates): $(firstword $(bin_cells)) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
+	$(call print_rule,bin-macrostates)
 	mkdir -p $(@D) $(tmpdir)/integrated/bin/aggr
-	$(conda_activate) scbridge-anndata
 	$(call print_debug,adding macrostates to anndata object)
-	python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/aggr/mcts.h5ad --csv $(filter-out $<, $^) \
+	conda run -n scbridge-anndata python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/aggr/mcts.h5ad --csv $(filter-out $<, $^) \
 	$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions) --label-column condition --add-prefix macrostate,) --axis 0 --sep , --type category
-	python scripts/binarization/bin_clusters_scboolseq.py $(tmpdir)/integrated/bin/aggr/mcts.h5ad $@ --counts $(@D)/counts_bin.csv \
+	conda run -n scbridge-anndata python scripts/binarization/bin_clusters_scboolseq.py $(tmpdir)/integrated/bin/aggr/mcts.h5ad $@ --counts $(@D)/counts_bin.csv \
 		--layer bin --distribution distribution --cluster macrostate --use-rep $(USE_REP) \
 		--nans-threshold $(NANS_THRESHOLD) --bimodal-threshold $(BIMODAL_THRESHOLD) \
 		--zeroinf-threshold $(ZEROINF_THRESHOLD) --unimodal-threshold $(UNIMODAL_THRESHOLD)
 	$(call print_task,plotting embedding space with respect to macrostates)
-	python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/aggr/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
-	$(conda_deactivate)
+	conda run -n scbridge-anndata python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/aggr/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
 
 ifdef DEA_HVG_METHOD
 $(bin_dea): $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions))) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
 	$(call print_rule,bin-dea)
 	mkdir -p $(@D) $(tmpdir)/integrated/bin/dea
-	$(conda_activate) scbridge-anndata
 	$(call print_debug,adding macrostates to anndata object)
-	python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/dea/mcts.h5ad --csv $(filter-out $<, $^) \
-	$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions) --label-column condition --add-prefix macrostate,) --axis 0 --sep , --type category
+	conda run -n scbridge-anndata python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/dea/mcts.h5ad --csv $(filter-out $<, $^) \
+		$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions) --label-column condition --add-prefix macrostate,) --axis 0 --sep , --type category
 	$(call print_task,estimating top$(if $(DEA_TOP_HVG), $(DEA_TOP_HVG),) highly variable genes with $(DEA_HVG_METHOD))
-	python scripts/preprocessing/hvg.py $(firstword $^) $(tmpdir)/bin/dea/top_genes.txt --method $(MODEL_HVG_METHOD) \
-	$(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) $(batch)
-	python scripts/binarization/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
+	conda run -n scbridge-anndata python scripts/preprocessing/hvg.py $(firstword $^) $(tmpdir)/bin/dea/top_genes.txt --method $(DEA_HVG_METHOD) \
+		$(dea_layer) $(if $(DEA_TOP_HVG),--hvg $(DEA_TOP_HVG),) $(batch)
+	conda run -n scbridge-anndata python scripts/binarization/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
 		--cluster macrostate --layer log-norm --is-log --method wilcoxon --use-rep $(USE_REP) \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION) --filter-genes $(tmpdir)/bin/dea/top_genes.txt
 	$(call print_task,plotting embedding space with respect to macrostates)
-	python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/dea/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
-	$(conda_deactivate)
+	conda run -n scbridge-anndata python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/dea/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
 else
 $(bin_dea): $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions))) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
 	$(call print_rule,bin-dea)
 	mkdir -p $(@D) $(tmpdir)/integrated/bin/dea
-	$(conda_activate) scbridge-anndata
 	$(call print_debug,adding macrostates to anndata object)
-	python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/dea/mcts.h5ad --csv $(filter-out $<, $^) \
-	$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions) --label-column condition --add-prefix macrostate,) --axis 0 --sep , --type category
-	python scripts/binarization/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
+	conda run -n scbridge-anndata python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/dea/mcts.h5ad --csv $(filter-out $<, $^) \
+		$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions) --label-column condition --add-prefix macrostate,) --axis 0 --sep , --type category
+	conda run -n scbridge-anndata python scripts/binarization/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
 		--cluster macrostate --layer log-norm --is-log --method wilcoxon --use-rep $(USE_REP) \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION)
 	$(call print_task,plotting embedding space with respect to macrostates)
-	python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/dea/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
-	$(conda_deactivate)
+	conda run -n scbridge-anndata python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/dea/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
 endif
 
-$(bin_mixed): $(bin_metacells) $(lastword $(bin_cells)) $(bin_dea)
-	$(call print_rule,bin-mixed)
-	mkdir -p $(@D) $(tmpdir)/bin/mixed
+$(bin_consensus): $(bin_macrostates) $(lastword $(bin_cells)) $(bin_dea)
+	$(call print_rule,bin-consensus)
+	mkdir -p $(@D) $(tmpdir)/bin/consensus
 	$(call print_debug,retrieving scboolseq distributions)
 	col=`head $(word 2, $^) -n 1 | sed "s/,/\n/g" | awk -F, '{printf("%d %s\n", NR-1, $$0)}' | grep Category | awk '{print $$1}'`
 	((col++))
-	cut -f 1,$$col -d ',' $(word 2, $^) > $(tmpdir)/bin/mixed/distributions.csv
+	cut -f 1,$$col -d ',' $(word 2, $^) > $(tmpdir)/bin/consensus/distributions.csv
 	unset col
-	$(conda_activate) scbridge-anndata
-	python scripts/binarization/bin_mixed.py --scboolseq $< $(tmpdir)/bin/mixed/distributions.csv --dea $(lastword $^) \
+	conda run -n scbridge-anndata python scripts/binarization/bin_consensus.py \
+		--scboolseq $< $(tmpdir)/bin/consensus/distributions.csv --dea $(lastword $^) \
 		--outfile $@ --pct-bin $(@D)/pct_bin.csv
-	$(conda_deactivate)
 
 ifdef MODEL_HVG_METHOD
 $(bonesis_model)&: $(bin) $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions)))
-	$(call print_rule,modeling)
+	$(call print_rule,spec)
 	if ! [ -f $(YAML_MODEL) ]; then
-		$(call print_error,file $(YAML_MODEL) not found \(see documentation for details about command \'modeling\'\))
+		$(call print_error,file $(YAML_MODEL) not found \(see documentation for details about command \'spec\'\))
 	fi
 		mkdir -p $(tmpdir)/bonesis/hvg $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
-		$(conda_activate) scbridge-anndata
 		$(call print_task,estimating top$(if $(MODEL_TOP_HVG), $(MODEL_TOP_HVG),) highly variable genes with $(MODEL_HVG_METHOD))
-		python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/hvg/top_genes.txt --method $(MODEL_HVG_METHOD) \
-			$(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) $(batch)
-		$(conda_deactivate)
-		$(conda_activate) scbridge-bonesis
-		python scripts/inference/specification.py $(YAML_MODEL) $< \
+		conda run -n scbridge-anndata python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/bonesis/hvg/top_genes.txt \
+			--method $(MODEL_HVG_METHOD) $(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) $(batch)
+		conda run -n scbridge-bonesis python scripts/inference/specification.py $(YAML_MODEL) $< \
 			--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 			--mandatory-genes $(word 3,$(bonesis_model)) --important-genes $(word 4,$(bonesis_model)) \
-			--filter-genes $(tmpdir)/hvg/top_genes.txt --organism $(ORGANISM)
-		$(conda_deactivate)
+			--filter-genes $(tmpdir)/bonesis/hvg/top_genes.txt --organism $(ORGANISM)
 else
 $(bonesis_model)&: $(bin)
-	$(call print_rule,modeling)
+	$(call print_rule,spec)
 	if ! [ -f $(YAML_MODEL) ]; then
-		$(call print_error,file $(YAML_MODEL) not found \(see documentation for details about command \'modeling\'\))
+		$(call print_error,file $(YAML_MODEL) not found \(see documentation for details about command \'spec\'\))
 	fi
 		mkdir -p $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
-		$(conda_activate) scbridge-bonesis
-		python scripts/inference/specification.py $(YAML_MODEL) $< \
+		conda run -n scbridge-bonesis python scripts/inference/specification.py $(YAML_MODEL) $< \
 			--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 			--mandatory-genes $(word 3,$(bonesis_model)) --important-genes $(word 4,$(bonesis_model)) \
 			--organism $(ORGANISM)
-		$(conda_deactivate)
 endif
 
-$(bonesis_soft_stage1): $(bonesis_model)
-	$(call print_rule,soft-filtering \(stage 1\))
+$(max_nodes_soft): $(bonesis_model)
+	$(call print_rule,max-nodes-soft)
 	mkdir -p $(@D)
-	$(conda_activate) scbridge-bonesis
-	timeout $(TIMEOUT) python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
+	set +e; \
+	timeout $(TIMEOUT) conda run -n scbridge-bonesis python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
-		--asp $(@D)/stage1.sh --solution $@ \
-		--database $(GRN_DATABASE) --only-soft-constraints --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
-	exit_status=$$?
-	$(conda_deactivate)
-	if [ $$exit_status -eq 124 ]; then
-		echo -e ''
-		if [ -f $@ ]; then
-			$(call print_debug,user-defined time limit reached \($(TIMEOUT)\): optimal local solution found)
-		else
-			$(call print_error,user-defined time limit reached \($(TIMEOUT)\): optimal local solution not found)
-		fi
-	else
-		$(call print_debug,optimal global solution found)
-	fi
+		--asp $(@D)/nodes.sh --solution $@ \
+		--database $(GRN_DATABASE) --only-soft-constraints --max-clause $(MAX_CLAUSE) --organism $(ORGANISM); \
+	exit_status=$$?; \
+	set -e; \
+	$(call check_inference_status)
 
-$(bonesis_soft_stage2): $(bonesis_model) $(bonesis_soft_stage1)
-	$(call print_rule,soft-filtering \(stage 2\))
+$(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
+	$(call print_rule,max-consts-soft)
 	mkdir -p $(@D)
-	$(conda_activate) scbridge-bonesis
-	timeout $(TIMEOUT) python scripts/inference/inference.py filter-stage2 $(word 1,$^) $(word 2,$^) \
-		--asp $(@D)/stage2.sh --solution $@ --filter-grn $(lastword $^) \
-		--database $(GRN_DATABASE) --only-soft-constraints $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM)
-	exit_status=$$?
-	$(conda_deactivate)
-	if [ $$exit_status -eq 124 ]; then
-		echo -e ''
-		if [ -f $@ ]; then
-			$(call print_debug,user-defined time limit reached \($(TIMEOUT)\): optimal local solution found)
-		else
-			$(call print_error,user-defined time limit reached \($(TIMEOUT)\): optimal local solution not found)
-		fi
-	else
-		$(call print_debug,optimal global solution found)
-	fi
+	set +e; \
+	timeout $(TIMEOUT) conda run -n scbridge-bonesis python scripts/inference/inference.py filter-stage2 $(word 1,$^) $(word 2,$^) \
+		--asp $(@D)/consts.sh --solution $@ --filter-grn $(lastword $^) \
+		--database $(GRN_DATABASE) --only-soft-constraints $(filter_min_feedbacks) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM); \
+	exit_status=$$?; \
+	set -e; \
+	$(call check_inference_status)
 
-$(bonesis_hard_filtering): $(bonesis_model) $(bonesis_soft_stage2)
-	$(call print_rule,hard-filtering)
+$(max_nodes_seed): $(bonesis_model) $(max_consts_soft)
+	$(call print_rule,max-nodes-seed)
 	mkdir -p $(@D)
-	$(conda_activate) scbridge-bonesis
-	timeout $(TIMEOUT) python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
+	set +e; \
+	timeout $(TIMEOUT) conda run -n scbridge-bonesis python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 3,$^) \
-		--asp $(@D)/stage1.sh --solution $@ --filter-grn $(lastword $^) \
+		--asp $(@D)/seed.sh --solution $@ --filter-grn $(lastword $^) \
 		--database $(GRN_DATABASE) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM) \
-		--clingo-opt-mode $(CLINGO_OPT_MODE) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY)
-	exit_status=$$?
-	$(conda_deactivate)
-	if [ $$exit_status -eq 124 ]; then
-		echo -e ''
-		if [ -f $@ ]; then
-			$(call print_debug,user-defined time limit reached \($(TIMEOUT)\): optimal local solution found)
-		else
-			$(call print_error,user-defined time limit reached \($(TIMEOUT)\): optimal local solution not found)
-		fi
-	else
-		$(call print_debug,optimal global solution found)
-	fi
+		--clingo-opt-mode $(CLINGO_OPT_MODE) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY); \
+	exit_status=$$?; \
+	set -e; \
+	$(call check_inference_status)
 
-$(bonesis_inference_min): $(bonesis_model) $(bonesis_hard_filtering)
-	$(call print_rule,bonesis-min)
+$(max_nodes_lock): $(bonesis_model) $(max_consts_soft)
+	$(call print_rule,max-nodes-lock)
 	mkdir -p $(@D)
-	$(conda_activate) scbridge-bonesis
-	python scripts/inference/inference.py min $(word 1,$^) $(word 2,$^) \
-		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
+	set +e; \
+	timeout $(TIMEOUT) conda run -n scbridge-bonesis python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
+		--mandatory-genes $(word 3,$^) \
+		--asp $(@D)/lock.sh --solution $@ --filter-grn $(lastword $^) \
+		--database $(GRN_DATABASE) --max-clause $(MAX_CLAUSE) --organism $(ORGANISM) \
+		--clingo-opt-mode $(CLINGO_OPT_MODE) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY); \
+	exit_status=$$?; \
+	set -e; \
+	$(call check_inference_status)
+
+$(bn_min): $(bonesis_model) $(max_nodes_seed)
+	$(call print_rule,bn-min)
+	mkdir -p $(@D)
+	conda run -n scbridge-bonesis python scripts/inference/inference.py min $(word 1,$^) $(word 2,$^) \
 		--asp $(@D)/bonesis_min.sh --solution $(basename $@) --filter-grn $(lastword $^) \
 		--database $(GRN_DATABASE) $(infer_min_feedbacks) --max-clause $(MAX_CLAUSE) \
 		--dot --neato --circo --fdp --sfdp --remove-single-nodes --organism $(ORGANISM)
-	$(conda_deactivate)
 
-$(bonesis_inference_sub): $(bonesis_model) $(bonesis_hard_filtering)
-	$(call print_rule,bonesis-sub)
+$(bn_sub): $(bonesis_model) $(max_nodes_seed)
+	$(call print_rule,bn-sub)
 	mkdir -p $(dir $(@D))
-	$(conda_activate) scbridge-bonesis
-	python scripts/inference/inference.py sub $(word 1,$^) $(word 2,$^) \
-		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
+	conda run -n scbridge-bonesis python scripts/inference/inference.py sub $(word 1,$^) $(word 2,$^) \
 		--asp $(dir $(@D))bonesis_sub.sh --solution $(dir $(@D)) --filter-grn $(lastword $^) \
-		--database $(GRN_DATABASE) --max-clause $(MAX_CLAUSE) $(if $(filter $(INFER_LIMIT),$(INFER_LIMIT)),--limit $(INFER_LIMIT),) \
+		--database $(GRN_DATABASE) --max-clause $(MAX_CLAUSE) $(if $(INFER_LIMIT),--limit $(INFER_LIMIT)) \
 		--dot --neato --circo --fdp --sfdp --remove-single-nodes --organism $(ORGANISM) --jobs $(JOBS)
-	$(conda_deactivate)
 
 $(foreach condition,$(conditions),$(eval $(call compute_rules_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call compute_rules_for_references,$(reference))))

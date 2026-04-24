@@ -29,6 +29,18 @@ class ptqdm(tqdm):
         self.file = sys.stdout
         self.leave = False
 
+def write_global_opt(
+    file: Optional[Path],
+    success: bool
+):
+    with open(file, "w") as f:
+        if success is True:
+            f.write("_SUCCESS")
+        elif success is False:
+            f.write("_FAILURE")
+        else:
+            raise TypeError(f"unsupported argument type for 'success': expected {bool} but received {type(success)}")
+
 def write_bn(
     bn: mpbn.MPBooleanNetwork,
     bnet: Path,
@@ -304,8 +316,7 @@ args = parser.parse_args()
 if not args.action.startswith("filter") and args.only_soft_constraints is True:
     raise argparse.ArgumentError(None, "option --only-soft-constraints not allowed when action is related to inference instead of filtering")
 
-if args.action == "sub":
-    bonesis.settings["parallel"] = args.jobs
+bonesis.settings["parallel"] = args.jobs
 
 genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
 
@@ -378,6 +389,11 @@ if args.action == "filter-stage1":
         with open(args.solution, "w") as file:
             for node in nodes:
                 file.write(f"{node}\n")
+    
+    write_global_opt(
+        file=f"{os.path.dirname(args.solution)}/__GLOBAL_OPT",
+        success=False
+    )
 
     view = bonesis.NodesView(
         bo,
@@ -394,6 +410,11 @@ if args.action == "filter-stage1":
     with open(args.solution, "w") as file:
         for node in solution:
             file.write(f"{node}\n")
+    
+    write_global_opt(
+        file=f"{os.path.dirname(args.solution)}/__GLOBAL_OPT",
+        success=True
+    )
 
     nodes_in_data = set()
     for bin_nodes in bo.data.values():
@@ -413,6 +434,11 @@ elif args.action == "filter-stage2":
     if args.minimize_feedbacks:
         bo.custom("edge(A,A) :- clause(A,_,A,_). #minimize { 1@10000,A: edge(A,A) }.")
 
+    write_global_opt(
+        file=f"{os.path.dirname(args.solution)}/__GLOBAL_OPT",
+        success=False
+    )
+
     view = bonesis.NonStrongConstantNodesView(
         bo,
         mode=args.clingo_opt_mode,
@@ -428,6 +454,11 @@ elif args.action == "filter-stage2":
     with open(args.solution, "w") as file:
         for node in solution:
             file.write(f"{node}\n")
+
+    write_global_opt(
+        file=f"{os.path.dirname(args.solution)}/__GLOBAL_OPT",
+        success=True
+    )
     
     nodes_in_data = set()
     for bin_nodes in bo.data.values():
@@ -438,36 +469,6 @@ elif args.action == "filter-stage2":
     std.print_result(f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]")
     std.print_result(f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]")
     std.print_result(f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]")
-
-elif args.action == "one":
-    
-    view = bonesis.InfluenceGraphView(
-        bo,
-        extra=("boolean-network", "configurations")
-    )
-    view.standalone(output_filename=args.asp)
-
-    std.print_warning("this may take some time.")
-    solution = next(iter(view))
-
-    name_mapping = dict()
-    bn = solution[1]
-    for component in bn:
-        if component not in nodes:
-            name_mapping[component] = re.sub("_", "-", component)
-    if name_mapping:
-        print(""); std.print_debug(f"renaming components: {dict_to_str(name_mapping)}")
-        for k, v in name_mapping.items():
-            bn.rename(k, v)
-
-    write_bn(
-        bn=bn,
-        bnet=f"{args.solution}.bnet",
-        noi=f"{args.solution}.noi.txt",
-        **{f"{program}": f"{os.path.dirname(args.solution)}/{args.solution.stem}.{program}" if eval(f"args.{program}") else None for program in ["dot", "neato", "circo", "fdp", "sfdp"]},
-        remove_single_nodes = args.remove_single_nodes
-    )
-    pd.DataFrame(solution[2]).to_csv(f"{args.solution}.csv")
 
 elif args.action == "min":
 
@@ -505,7 +506,7 @@ elif args.action == "min":
         bn=bn,
         bnet=f"{args.solution}.bnet",
         noi=f"{args.solution}.noi.txt",
-        **{f"{program}": f"{os.path.dirname(args.solution)}/{args.solution.stem}.{program}" if eval(f"args.{program}") else None for program in ["dot", "neato", "circo", "fdp", "sfdp"]},
+        **{f"{program}": f"{os.path.dirname(args.solution)}/graph.{program}" if eval(f"args.{program}") else None for program in ["dot", "neato", "circo", "fdp", "sfdp"]},
         remove_single_nodes = args.remove_single_nodes
     )
     pd.DataFrame(solution[2]).to_csv(f"{args.solution}.csv")
@@ -552,9 +553,9 @@ elif args.action == "sub":
         os.makedirs(f"{args.solution}/{i}")
         write_bn(
             bn=bn,
-            bnet=f"{args.solution}/{i}/sub.bnet",
+            bnet=f"{args.solution}/{i}/model.bnet",
             noi=f"{args.solution}/{i}/.noi.txt",
-            **{f"{program}": f"{args.solution}/{i}/sub.{program}" if eval(f"args.{program}") else None for program in ["dot", "neato", "circo", "fdp", "sfdp"]},
+            **{f"{program}": f"{args.solution}/{i}/graph.{program}" if eval(f"args.{program}") else None for program in ["dot", "neato", "circo", "fdp", "sfdp"]},
             remove_single_nodes = args.remove_single_nodes
         )
         if isinstance(view, bonesis.views.InfluenceGraphView):

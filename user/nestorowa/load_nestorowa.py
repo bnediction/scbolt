@@ -21,13 +21,12 @@ from scipy.sparse import csr_matrix
 import matplotlib.pyplot as plt
 
 class Options:
-
     def __init__(self, **kwargs):
         for k,v in kwargs.items():
             self.__dict__[k] = v
 
 opt = Options(
-    path=Path("nestorowa/rna/unique/clustering/clusters"),
+    path=Path("nestorowa/counts/unique/clustering/clusters"),
     loess_frac=0.01,
     hvg=2000,
     pca_dimension=40

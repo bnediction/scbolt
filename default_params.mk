@@ -1,6 +1,8 @@
-$(eval PARAMS ?= user/apl/params.mk)         # user-defined parameter file
-# BE CAREFUL: only parameter PARAMS can be update in this file
-# If user want to update other parameters, they have to be overridden in file located by PARAMS.
+$(eval PARAMS ?= user/apl/params.mk)  # path to user-defined parameter file
+
+# Configuration policy:
+# - PARAMS can be overridden here to point to another parameter file
+# - all other parameters must be defined in the file specified by PARAMS
 
 ## COMPUTING RESOURCES ##
 MEMORY ?= 50
@@ -11,7 +13,11 @@ $(eval TIMEOUT ?= 24h)                      # time limit for each bonesis filter
 ## INFORMATION ##
 $(eval ORGANISM ?= mouse)                   # organism on which data are made up
 $(eval CONDITIONS ?= ctrl treated)          # experimental conditions
-$(eval RESULTS ?= data/)                    # directory storing results
+$(eval RESULTS ?= project/)                 # directory storing outputs
+
+## URL ##
+$(eval genome_url ?= https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz)
+$(eval go_organism_url ?= https://current.geneontology.org/ontology/subsets/goslim_$(ORGANISM).obo)
 
 ## EXTRA PARAMETERS ##
 # Parameters useful when user want to run the pipeline by starting at a specific step, with pre-computed dependencies.
@@ -21,7 +27,7 @@ $(eval LABEL_COL ?= label)                  # Column name in adata.obs used as l
 
 ## FILTERING ##
 $(eval GENE_DROPOUT ?= 0.999)               # maximum percentage of cell dropout required for a gene to pass filtering
-$(eval GENE_EXPRESSION ?= 0 inf)            # minimum and maximum number of expressed cells required for a gene to pass filtering
+$(eval GENE_EXPRESSION ?= 0 inf)            # minimum and maximum number of cells in which they are expressed required for a gene to pass filtering
 $(eval GENE_COUNTS ?= 0 inf)                # minimum and maximum number of counts required for a gene to pass filtering
 $(eval CELL_DROPOUT ?= 1)                   # maximum percentage of gene dropout required for a cell to pass filtering
 $(eval CELL_EXPRESSION ?= 0 inf)            # minimum and maximum number of expressed genes required for a cell to pass filtering
@@ -33,7 +39,7 @@ $(eval HVG ?= 2000)                         # top highly variables genes
 $(eval FILTER_NON_HVG ?= false)             # filter non-highly variable genes
 
 ## NORMALIZATION ##
-$(eval CC_CORRECTION ?= true)               # regress-out cell cycle effects
+$(eval CC_CORRECTION ?= true)               # regress-out cell-cycle effects
 
 ## CLUSTERING ##
 $(eval INTEGRATION ?= bbknn)                # integration method used (bbknn, scanorama or ingest)
@@ -53,9 +59,7 @@ $(eval ALPHA ?= 0.05)                       # significance level of rejecting nu
 $(eval CORRECTION ?= bonferroni)            # method used for correcting the significance level (benjamini-hochberg or bonferroni)
 
 ## ANNOTATION ##
-$(eval LABELING_FROM_INTEGRATION ?= true)   # whether new labels are derived from integrated data only or specified by user for each reference
-# Note: if LABELING_FROM_INTEGRATION is true, then user have to specify LABEL_INTEGRATED only.
-# Otherwise, user have to specify LABEL_<REFERENCE> for each reference
+# User have to specify LABEL.
 
 ## SCVELO ##
 $(eval DIM_MOMENT ?= 15)                    # number of principal components taken into account for estimating moments
@@ -97,7 +101,7 @@ $(eval PRUNE_EPG ?= false)                  # prune elastic principal graph by f
 $(eval COLLAPSE_PARAMETER ?= false)         # stream parameter used for pruning the graph (used only if PRUNE_EPG = true)
 
 ## KNNBS ##
-$(eval KNNBS_EMBEDDING ?= pca)              # embedding space used when calculating pairwise distances (pca or umap)
+$(eval KNNBS_EMBEDDING ?= umap)             # embedding space used when calculating pairwise distances (pca or umap)
 $(eval KNNBS_DIMENSION ?=)                  # number of embedding dimensions used when calculating pairwise distances
 $(eval KNNBS_NEIGHBORS ?= 20)               # number of closest neighbors for k-nearest neighbors graph
 
@@ -111,7 +115,7 @@ $(eval ZEROES_ARE_ZEROES ?= true)           # binarize zero-values to zero inste
 ## BIN-SCBOOLSEQ ##
 $(eval NANS_THRESHOLD ?= 0.3)               # maximum proportion of nan-values in a cluster required for a gene to be binarized (not applied to zero-inflated genes)
 $(eval BIMODAL_THRESHOLD ?= 0.7)            # minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a bimodal gene to be binarized
-$(eval ZEROINF_THRESHOLD ?= 0.6)            # minimum proportion of zero- or one-values w.r.t binarized and nan values in a cluster required for a zero-inflated gene to be binarized
+$(eval ZEROINF_THRESHOLD ?= 0.7)            # minimum proportion of zero- or one-values w.r.t binarized and nan values in a cluster required for a zero-inflated gene to be binarized
 $(eval UNIMODAL_THRESHOLD ?= 0.7)           # minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a unimodal gene to be binarized
 
 ## BIN-DEA ##
@@ -119,10 +123,10 @@ $(eval DEA_HVG_METHOD ?= cell_ranger)       # method used for identifying highly
 $(eval DEA_TOP_HVG ?=)                      # use only top 'DEA_TOP_HVG' highly variable genes for binarizing cells (if not specified, estimate automatically number of hvg)
 $(eval BIN_LOGFC ?= 0.5)                    # minimum log2 fold-change in absolute value for a gene to be binarized
 $(eval BIN_ALPHA ?= 0.05)                   # maximum adjusted p-value for a gene to be binarized
-$(eval BIN_CORRECTION ?= benjamini-hochberg) # method used for correcting the significance level (benjamini-hochberg or bonferroni)
+$(eval BIN_CORRECTION ?= benjamini-hochberg)# method used for correcting the significance level (benjamini-hochberg or bonferroni)
 
 ## BINARIZATION ##
-$(eval BIN_METHOD ?= mixed)                 # binarization method used (scboolseq, dea or mixed)
+$(eval BIN_METHOD ?= consensus)             # binarization method used (scboolseq, dea or consensus)
 
 ## BEGIN MODELING ##
 $(eval YAML_MODEL ?= spec.yml)              # file storing model specifications for bonesis
