@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from typing import Optional
+from typing import Sequence, Optional
 
 import sys
 import datetime
@@ -28,18 +28,6 @@ class ptqdm(tqdm):
         super().__init__(*args, **kwargs)
         self.file = sys.stdout
         self.leave = False
-
-def write_global_opt(
-    file: Optional[Path],
-    success: bool
-):
-    with open(file, "w") as f:
-        if success is True:
-            f.write("_SUCCESS")
-        elif success is False:
-            f.write("_FAILURE")
-        else:
-            raise TypeError(f"unsupported argument type for 'success': expected {bool} but received {type(success)}")
 
 def write_bn(
     bn: mpbn.MPBooleanNetwork,
@@ -78,14 +66,6 @@ def write_bn(
         if sfdp is not None:
             _dot.write(sfdp, prog="sfdp", format="raw")
 
-def remove_hard_constraints(bo: bonesis.BoNesis):
-    hard_constraint_indices = []
-    for i, bo_property in enumerate(bo.manager.properties):
-        str_property = bo_property[0]
-        if str_property in ["final_nonreach", "all_fixpoints", "allreach"]:
-            hard_constraint_indices.append(i)
-    bo.manager.properties = [bo.manager.properties.copy()[i] for i in range(len(bo.manager.properties)) if i not in hard_constraint_indices]
-
 def dict_to_str(d: dict) -> str:
     s = ""; add = ""
     for k, v in d.items():
@@ -93,40 +73,67 @@ def dict_to_str(d: dict) -> str:
         return s
 
 parser_description = """
-Infer Most Permissive Boolean Networks using bonesis paradigm. \
+Infer Most Permissive Boolean Networks (MPBN) using bonesis paradigm. \
 Four actions are proposed:
-    - filter-stage1: component selection maximizing variable number while constraining Boolean networks to be compatible with the observations
-    - filter-stage2: component selection deleting strong constants while constraining Boolean networks to be compatible with the observations
-    - one-min: solution of Boolean network minimizing the edge number
-    - all-sub: diverse solutions of Boolean network
+    - filter-nodes: component selection maximizing variable number while constraining Boolean networks to be compatible with the observations
+    - filter-consts: component selection deleting strong constants while constraining Boolean networks to be compatible with the observations
+    - min: solution of BN minimizing the edge number
+    - sub: diverse solutions of sparsest BNs
 See Chevalier et al. (2024) <https://hal.science/hal-04629083/document>.
 """
 
 parser = argparse.ArgumentParser(
     prog="inference",
     description=parser_description,
-    usage="python inference.py [filter-stage1 | filter-stage2 | one | min | sub] <FILE> <FILE> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter
+    usage="python inference.py [filter-nodes | filter-consts | one | min | sub] <FILE> <FILE> [<args>]",
+    formatter_class=argparse.RawTextHelpFormatter
 )
 
 parser.add_argument(
     "action",
-    choices=["filter-stage1", "filter-stage2", "one", "min", "sub"],
-    metavar="[filter-stage1 | filter-stage2 | one | min | sub]"
+    choices=["filter-nodes", "filter-consts", "one", "min", "sub"],
+    metavar="[filter-nodes | filter-consts | one | min | sub]"
 )
 
 parser.add_argument(
-    "model",
+    "spec",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
     help="input file containing model specifications in Bonesis langage (format: txt)"
 )
 
 parser.add_argument(
-    "metastates",
+    "mstates",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
     help="input file storing partially binarized metastates (format: csv)"
+)
+
+parser.add_argument(
+    "--important-genes",
+    dest="important_genes",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    metavar="FILE",
+    help="input file storing important genes, being prioritize to appear (format: json or txt)"
+)
+
+parser.add_argument(
+    "--mandatory-genes",
+    dest="mandatory_genes",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    metavar="FILE",
+    help="input file storing mandatory genes, being forced to appear (format: json or txt)"
+)
+
+parser.add_argument(
+    "--filter-grn",
+    dest="filter_grn",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    metavar="FILE",
+    help="file with one node per line (txt format)"
 )
 
 parser.add_argument(
@@ -144,7 +151,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="FILE | PATH",
-    help="output file storing bonesis solution (format: txt for 'filter-stage1'/'filter-stage2', bnet for 'one' or 'min' and path for 'sub')"
+    help="output file storing bonesis solution (format: txt for 'filter-nodes'/'filter-consts', bnet for 'one' or 'min' and path for 'sub')"
 )
 
 parser.add_argument(
@@ -158,38 +165,27 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--filter-grn",
-    dest="filter_grn",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    metavar="FILE",
-    help="file with one node per line (txt format)"
+    "--organism",
+    dest="organism",
+    action=cli.Store_organism,
+    default="mouse",
+    required=False
 )
 
 parser.add_argument(
-    "--mandatory-genes",
-    dest="mandatory_genes",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    metavar="FILE",
-    help="input file storing mandatory genes, being forced to appear (format: json or txt)"
+    "--bonesis-mode",
+    dest="bonesis_mode",
+    action=cli.Bonesis_mode
 )
 
 parser.add_argument(
-    "--important-genes",
-    dest="important_genes",
-    type=lambda x: Path(x).resolve(),
+    "--max-clause",
+    dest="max_clause",
+    type=int,
     required=False,
-    metavar="FILE",
-    help="input file storing important genes, being prioritize to appear (format: json or txt)"
-)
-
-parser.add_argument(
-    "--only-soft-constraints",
-    dest="only_soft_constraints",
-    required=False,
-    action="store_true",
-    help="filtering optimization only on soft constraints"
+    default=8,
+    metavar="INT",
+    help="maximum number of literals/atoms in each propositional formula (default: 8)"
 )
 
 parser.add_argument(
@@ -205,16 +201,6 @@ parser.add_argument(
     dest="clingo_opt_strategy",
     action=cli.Clingo_opt_strategy,
     required=False
-)
-
-parser.add_argument(
-    "--max-clause",
-    dest="max_clause",
-    type=int,
-    required=False,
-    default=8,
-    metavar="INT",
-    help="maximum number of literals/atoms in each propositional formula (default: 8)"
 )
 
 parser.add_argument(
@@ -294,14 +280,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--organism",
-    dest="organism",
-    action=cli.Store_organism,
-    default="mouse",
-    required=False
-)
-
-parser.add_argument(
     "--jobs",
     dest="jobs",
     type=int,
@@ -320,12 +298,12 @@ bonesis.settings["parallel"] = args.jobs
 
 genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
 
-std.print_task(f"loading partially binarized metastates-related file {str(args.metastates)}")
+std.print_task(f"loading partially binarized metastates {str(args.mstates)}")
 
-metastates_df = pd.read_csv(args.metastates, index_col=0, sep=args.sep).fillna(float("nan"))
+mstates_df = pd.read_csv(args.mstates, index_col=0, sep=args.sep).fillna(float("nan"))
 
-metastates_cfg = get_cfg(
-    metastates_df,
+mstates_cfg = get_cfg(
+    mstates_df,
     axis="index"
 )
 
@@ -335,7 +313,7 @@ pkn_options = {
     "canonic": False if args.action.startswith("filter") else True,
     "maxclause": args.max_clause,
 }
-if args.action == "filter-stage1":
+if args.action == "filter-nodes":
     pkn_options["allow_skipping_nodes"] = True
 
 if args.database == "collectri":
@@ -356,19 +334,41 @@ if args.filter_grn:
 
 pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
 
-bo = bonesis.BoNesis(pkn, metastates_cfg)
+bo = bonesis.BoNesis(pkn, mstates_cfg)
 
-with open(args.model, "r") as file:
+with open(args.spec, "r") as file:
     for line in file:
         exec(line.rstrip('\n'))
 
-if args.only_soft_constraints:
-    remove_hard_constraints(bo)
+if args.bonesis_mode == "soft":
+    new_constraints = True
+    idx = []
+    for i, bo_property in enumerate(bo.manager.properties):
+        str_property = bo_property[0]
+        if str_property in ["final_nonreach", "nonreach", "all_fixpoints", "allreach"]:
+            idx.append(i)
+    bo.manager.properties = [bo.manager.properties.copy()[i] for i in range(len(bo.manager.properties)) if i not in idx]
+elif args.bonesis_mode == "relaxed":
+    new_constraints = False
+    idx = []
+    for i, bo_property in enumerate(bo.manager.properties):
+        str_property = bo_property[0]
+        if str_property in ["all_fixpoints", "allreach"]:
+            idx.append(i)
+        if str_property in ["final_nonreach", "nonreach"]:
+            new_constraints = True
+    bo.manager.properties = [bo.manager.properties.copy()[i] for i in range(len(bo.manager.properties)) if i not in idx]
+elif args.bonesis_mode == "hard":
+    new_constraints = False
+    for bo_property in bo.manager.properties:
+        str_property = bo_property[0]
+        if str_property in ["all_fixpoints", "allreach"]:
+            new_constraints = True
 
-if args.action == "filter-stage1":
+if args.action == "filter-nodes":
 
     std.print_task("filtering components by maximizing variable number while constraining Boolean networks to be compatible with the observations")
-    
+
     bo.maximize_nodes()
 
     if args.mandatory_genes:
@@ -382,18 +382,13 @@ if args.action == "filter-stage1":
             important_genes = [line.rstrip() for line in file.readlines()]
         for gene in important_genes:
             bo.custom(f"important_node({clingo_encode(gene)}).")
-    
+        
     bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
     
     def intermediate_solution(nodes):
         with open(args.solution, "w") as file:
             for node in nodes:
                 file.write(f"{node}\n")
-    
-    write_global_opt(
-        file=f"{os.path.dirname(args.solution)}/__GLOBAL_OPT",
-        success=False
-    )
 
     view = bonesis.NodesView(
         bo,
@@ -404,40 +399,37 @@ if args.action == "filter-stage1":
     )
     view.standalone(output_filename=args.asp)
 
-    std.print_warning("this may take some time.")
+    if new_constraints == False:
+        std.print_debug("No new constraints added, stopping.", flush=True)
+        with open(args.solution, "w") as file:
+            for node in bo.domain.nodes:
+                file.write(f"{node}\n")
+        sys.exit(0)
+
+    std.print_warning("this may take some time.", flush=True)
     solution = next(iter(view))
 
     with open(args.solution, "w") as file:
         for node in solution:
             file.write(f"{node}\n")
     
-    write_global_opt(
-        file=f"{os.path.dirname(args.solution)}/__GLOBAL_OPT",
-        success=True
-    )
-
     nodes_in_data = set()
     for bin_nodes in bo.data.values():
         nodes_in_data.update(bin_nodes.keys())
     nodes_in_domain = set(bo.domain.nodes)
 
     print("")
-    std.print_result(f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]")
-    std.print_result(f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]")
-    std.print_result(f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]")
+    std.print_result(f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]", flush=True)
+    std.print_result(f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]", flush=True)
+    std.print_result(f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]", flush=True)
 
-elif args.action == "filter-stage2":
+elif args.action == "filter-consts":
 
     std.print_task("filtering components by deleting strong constants while constraining Boolean networks to be compatible with the observations")
     
     bo.maximize_strong_constants()
     if args.minimize_feedbacks:
         bo.custom("edge(A,A) :- clause(A,_,A,_). #minimize { 1@10000,A: edge(A,A) }.")
-
-    write_global_opt(
-        file=f"{os.path.dirname(args.solution)}/__GLOBAL_OPT",
-        success=False
-    )
 
     view = bonesis.NonStrongConstantNodesView(
         bo,
@@ -454,11 +446,6 @@ elif args.action == "filter-stage2":
     with open(args.solution, "w") as file:
         for node in solution:
             file.write(f"{node}\n")
-
-    write_global_opt(
-        file=f"{os.path.dirname(args.solution)}/__GLOBAL_OPT",
-        success=True
-    )
     
     nodes_in_data = set()
     for bin_nodes in bo.data.values():
@@ -559,9 +546,9 @@ elif args.action == "sub":
             remove_single_nodes = args.remove_single_nodes
         )
         if isinstance(view, bonesis.views.InfluenceGraphView):
-            pd.DataFrame(solution[2]).to_csv(f"{args.solution}/{i}/metastates.csv")
+            pd.DataFrame(solution[2]).to_csv(f"{args.solution}/{i}/mstates.csv")
         else:
-            pd.DataFrame(solution[1]).to_csv(f"{args.solution}/{i}/metastates.csv")
+            pd.DataFrame(solution[1]).to_csv(f"{args.solution}/{i}/mstates.csv")
 
     std.print_task("analysing ensemble of Boolean networks")
 

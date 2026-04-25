@@ -128,7 +128,7 @@ $(eval BIN_CORRECTION ?= benjamini-hochberg)# method used for correcting the sig
 ## BINARIZATION ##
 $(eval BIN_METHOD ?= consensus)             # binarization method used (scboolseq, dea or consensus)
 
-## BEGIN MODELING ##
+## SPEC ##
 $(eval YAML_MODEL ?= spec.yml)              # file storing model specifications for bonesis
 $(eval MODEL_HVG_METHOD ?=)                 # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3, if not specified, consider all genes)
 $(eval MODEL_TOP_HVG ?=)                    # use only top 'BONESIS_TOP_HVG' highly variable genes for inferring Boolean Networks (if not specified, estimate automatically number of hvg)
@@ -136,6 +136,32 @@ $(eval MODEL_TOP_HVG ?=)                    # use only top 'BONESIS_TOP_HVG' hig
 ## INFERENCE ##
 $(eval MAX_CLAUSE ?= 8)                     # maximum number of literals/atoms in each propositional formula
 $(eval GRN_DATABASE ?= collectri)           # prior gene regulatory network defining the domain/search space (collectri, dorothea)
+
+## MAX-NODES-SOFT
+$(eval CLINGO_OPT_MODE_SOFT ?= optN)
+$(eval CLINGO_OPT_STRATEGY_SOFT ?= usc)
+$(eval JOBS_SOFT ?= 1)
+$(eval TIMEOUT_SOFT ?= 24h)
+
+## MAX-STRONG-CONSTS
+$(eval CLINGO_OPT_MODE_CONSTS ?= optN)
+$(eval CLINGO_OPT_STRATEGY_CONSTS ?= usc)
+$(eval JOBS_CONSTS ?= 1)
+$(eval TIMEOUT_CONSTS ?= 24h)
+
+## MAX-NODES-RELAXED
+$(eval CLINGO_OPT_MODE_RELAXED ?= optN)
+$(eval CLINGO_OPT_STRATEGY_RELAXED ?= usc)
+$(eval JOBS_RELAXED ?= 1)
+$(eval TIMEOUT_RELAXED ?= 48h)
+
+## MAX-NODES-SEED
+$(eval CLINGO_OPT_MODE_SEED ?= optN)
+$(eval CLINGO_OPT_STRATEGY_SEED ?= bb,dec)
+$(eval JOBS_SEED ?= 1)
+$(eval TIMEOUT_SEED ?= 72h)
+
+
 
 ## STRONG-FILTERING ##
 $(eval CLINGO_OPT_MODE ?= optN)             # clingo optimization mode for hard filtering

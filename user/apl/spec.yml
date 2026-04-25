@@ -32,7 +32,6 @@ bonesis:
 # universal constraints
   - ctrl_prom1 >> 'fixpoints' ^ {bo.obs('ctrl_Rep'), bo.obs('ctrl_Neu'), bo.obs('ctrl_Alt')}
   - treated_prom1 >> 'fixpoints' ^ {bo.obs('treated_Rep'), bo.obs('treated_Neu')}
-mandatory_genes:
 important_genes:
   - 'Serpina3d-ps'
   - 'Traf1'
@@ -72,3 +71,4 @@ important_genes:
   - 'Plk3'
   - 'Ezh2'
   - 'Trp53'
+mandatory_genes:

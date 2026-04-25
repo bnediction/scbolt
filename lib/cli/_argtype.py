@@ -496,6 +496,54 @@ class Store_metric(argparse.Action):
     ):
         setattr(namespace, self.dest, value)
 
+class Bonesis_mode(argparse.Action):
+
+    def check_bonesis_mode(self, v):
+        if v in ["soft", "relaxed", "hard"]:
+            return None
+        else:
+            raise argparse.ArgumentError(self, f"invalid parameter value: {v}")
+
+    def __init__(
+        self,
+        *args,
+        **kwargs
+    ):
+        if "required" in kwargs:
+            required = kwargs["required"]
+        else:
+            required = False
+        if "default" in kwargs:
+            self.check_bonesis_mode(kwargs["default"])
+            default = kwargs["default"]
+        else:
+            default = "hard"
+        help = (
+            "constraints retained for BoNesis\n"
+            "soft: exclude non-reachability and universal constraints\n"
+            "nouniv: exclude universal constraints\n"
+            "hard: all constraints\n"
+            f"default: {default if default else 'None'}"
+        )
+        kwargs.update({
+            "type": str,
+            "required": required,
+            "default": default,
+            "metavar": "[soft | nouniv | hard]",
+            "help": kwargs["help"] if "help" in kwargs else help
+        })
+        super(Bonesis_mode, self).__init__(*args, **kwargs)
+    
+    def __call__(
+        self,
+        parser,
+        namespace,
+        value,
+        option_string=None
+    ):
+        self.check_bonesis_mode(value)
+        setattr(namespace, self.dest, value)
+
 class Clingo_opt_mode(argparse.Action):
 
     def check_opt_mode(self, v):

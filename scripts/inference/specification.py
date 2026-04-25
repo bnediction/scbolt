@@ -21,8 +21,8 @@ parser = argparse.ArgumentParser(
 Check whether the bonesis properties are well defined and converting model specifications (format yml) and binarized macrostates (format csv) into four files:
     - model (txt): dynamic Boolean properties
     - metastates (csv): partially binarized metastates
-    - mandatory-genes (txt): genes being forced to appear in Boolean network solutions
-    - important-genes (txt): genes being prioritize to appear in Boolean network solutions
+    - important-genes (txt): genes being prioritize to appear in BN solutions
+    - mandatory-genes (txt): genes being forced to appear in BN solutions
 file storing model specifications (format yml) have to contain three keys:
     - states (list of metastate-macrostate name associations)
     - bonesis (list of dynamic Boolean properties in bonesis syntax)
@@ -74,21 +74,21 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--mandatory-genes",
-    dest="mandatory_genes",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    metavar="FILE",
-    help="output file storing mandatory genes, being forced to appear (format: json or txt)"
-)
-
-parser.add_argument(
     "--important-genes",
     dest="important_genes",
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
     help="output file storing important genes, being prioritize to appear (format: json or txt)"
+)
+
+parser.add_argument(
+    "--mandatory-genes",
+    dest="mandatory_genes",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    metavar="FILE",
+    help="output file storing mandatory genes, being forced to appear (format: json or txt)"
 )
 
 parser.add_argument(
@@ -131,25 +131,25 @@ macrostates_df = genesyn(
 
 std.print_task(f"getting binarized states")
 
-mandatory_genes = set(specification["mandatory_genes"]) if specification["mandatory_genes"] is not None else set()
-mandatory_genes = genesyn(mandatory_genes)
-
 important_genes = set(specification["important_genes"]) if specification["important_genes"] is not None else set()
 important_genes = genesyn(important_genes)
+
+mandatory_genes = set(specification["mandatory_genes"]) if specification["mandatory_genes"] is not None else set()
+mandatory_genes = genesyn(mandatory_genes)
 
 if args.filter_genes:
     std.print_info(f"filtering genes")
     with open(args.filter_genes) as file:
         keep_only = {line.strip() for line in file.readlines()}
     keep_only = genesyn(keep_only)
-    if mandatory_genes - keep_only:
-        std.print_debug("some mandatory genes have been filtered out but are reintegrated: {0}".format(', '.join(f"{gene}" for gene in list(mandatory_genes - keep_only))))
     if important_genes - keep_only:
         std.print_debug("some important genes have been filtered out but are reintegrated: {0}".format(', '.join(f"{gene}" for gene in list(important_genes - keep_only))))
+    if mandatory_genes - keep_only:
+        std.print_debug("some mandatory genes have been filtered out but are reintegrated: {0}".format(', '.join(f"{gene}" for gene in list(mandatory_genes - keep_only))))
     keep_only = keep_only | mandatory_genes | important_genes
     keep_only_present = keep_only & set(macrostates_df.columns)
     if keep_only - keep_only_present:
-        std.print_warning("some mandatory and/or important genes are missing in csv-formatted binarized macrostate file: {0}".format(', '.join(f"{gene}" for gene in list(keep_only - keep_only_present))))
+        std.print_warning("some important and/or mandatory genes are missing in csv-formatted binarized macrostate file: {0}".format(', '.join(f"{gene}" for gene in list(keep_only - keep_only_present))))
     macrostates_df = macrostates_df.loc[:,list(keep_only_present)]
 
 if specification["states"] is not None:
@@ -199,14 +199,14 @@ macrostates_df.to_csv(
     index=True
 )
 
-std.print_task(f"saving mandatory genes in {args.mandatory_genes}")
-
-with open(args.mandatory_genes, "w") as file:
-    for gene in mandatory_genes:
-        file.write(f"{gene}\n")
-
 std.print_task(f"saving important genes in {args.important_genes}")
 
 with open(args.important_genes, "w") as file:
     for gene in important_genes:
+        file.write(f"{gene}\n")
+
+std.print_task(f"saving mandatory genes in {args.mandatory_genes}")
+
+with open(args.mandatory_genes, "w") as file:
+    for gene in mandatory_genes:
         file.write(f"{gene}\n")
