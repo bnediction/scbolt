@@ -88,18 +88,18 @@ parser.add_argument(
     choices=["mouse","human","escherichia-coli"],
     default="mouse",
     required=False,
-    metavar="[mouse|human|escherichia-coli]",
+    metavar="[mouse | human | escherichia-coli]",
     help="gene-related organism (default: mouse)"
 )
 
 parser.add_argument(
-    "--input-type",
-    dest="input_type",
+    "--gene-type",
+    dest="gene_type",
     type=str,
     required=False,
-    default="genename",
-    metavar="[genename | geneid | ensemblid | <database>]",
-    help="input type for gene stored in infile (default: genename)"
+    default="name",
+    metavar="[name | gene_id | ensembl_id | <database>]",
+    help="input type for gene stored in infile (default: name)"
 )
 
 args = parser.parse_args()
@@ -109,7 +109,7 @@ if args.go is None and args.annotations is None:
 elif args.go is not None and args.annotations is not None:
     raise argparse.ArgumentError("the following arguments cannot be used simultaneously: --go and --annotations")
 else:
-    annotations_type = "geneid" if args.go else "MGI"
+    annotations_type = "gene_id" if args.go else "MGI"
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
@@ -126,25 +126,25 @@ with ExcelFile(args.infile) as file:
 background_geneset = study_geneset[args.background]
 del study_geneset[args.background]
 
-if args.input_type != annotations_type:
-    std.print_debug(f"standardizing gene identifiers ({args.input_type} => {annotations_type})")
+if args.gene_type != annotations_type:
+    std.print_debug(f"standardizing gene identifiers ({args.gene_type} => {annotations_type})")
 
 for cluster, geneset in study_geneset.items():
     geneset = genesyn(
         geneset,
-        gene_type=args.input_type,
-        alias_type=annotations_type
-    ) if args.input_type != annotations_type else geneset
-    geneset = set(map(lambda geneid: int(geneid) if geneid.isnumeric() else None, geneset))
+        input_identifier_type=args.gene_type,
+        output_identifier_type=annotations_type
+    ) if args.gene_type != annotations_type else geneset
+    geneset = set(map(lambda gene_id: int(gene_id) if gene_id.isnumeric() else None, geneset))
     geneset.discard(None)
     study_geneset[cluster] = geneset
 
 background_geneset = genesyn(
     background_geneset,
-    gene_type=args.input_type,
-    alias_type=annotations_type
-) if args.input_type != annotations_type else background_geneset
-background_geneset = set(map(lambda geneid: int(geneid) if geneid.isnumeric() else None, background_geneset))
+    input_identifier_type=args.gene_type,
+    output_identifier_type=annotations_type
+) if args.gene_type != annotations_type else background_geneset
+background_geneset = set(map(lambda gene_id: int(gene_id) if gene_id.isnumeric() else None, background_geneset))
 background_geneset.discard(None)
 
 std.print_task(f"loading gene ontologies from {str(args.go)}")
@@ -183,8 +183,8 @@ with std.disable_print():
         annotations = GafReader(args.annotations)
     associations = annotations.get_ns2assc()
 
-for namespace, geneid2go in associations.items():
-    std.print_info(f"{namespace} {len(geneid2go):,} annotated {args.organism} genes")
+for namespace, gene_id2go in associations.items():
+    std.print_info(f"{namespace} {len(gene_id2go):,} annotated {args.organism} genes")
 
 std.print_task("performing gene ontology enrichment analysis (goea)")
 

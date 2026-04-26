@@ -23,15 +23,15 @@ bt.sct.pl.set_default_params()
 
 pd.DataFrame.iteritems = pd.DataFrame.items
 
-def marker_pairs_converter(ensemblid_marker_pairs, output_type: str="referencename"):
-    """Convert marker pairs from ensemblid into their corresponding alias."""
+def marker_pairs_converter(ensembl_id_marker_pairs, output_identifier_type: str="official_name"):
+    """Convert marker pairs from ensembl_id into their corresponding aliases."""
     genesyn = bt.dbs.ncbi.GeneSynonyms()
     converted_marker_pairs = dict()
-    for cc, pairs in ensemblid_marker_pairs.items():
+    for cc, pairs in ensembl_id_marker_pairs.items():
         cycle_pairs = list()
         for _, (first, second) in pairs.iterrows():
-            first_alias = genesyn.conversion(first, "ensemblid", output_type)
-            second_alias = genesyn.conversion(second, "ensemblid", output_type)
+            first_alias = genesyn.conversion(first, "ensembl_id", output_identifier_type)
+            second_alias = genesyn.conversion(second, "ensembl_id", output_identifier_type)
             cycle_pairs.append([
                 first_alias if first_alias is not None else first,
                 second_alias if second_alias is not None else second
@@ -227,7 +227,7 @@ shape = {"init":adata.shape}
 std.print_task("classifying genes encoding mitocondrial proteins")
 bt.sct.tl.mitochondrial_genes(
     adata,
-    index_type="genename",
+    index_type="name",
     key="mt",
     axis=1,
     copy=False
@@ -236,7 +236,7 @@ bt.sct.tl.mitochondrial_genes(
 std.print_task("classifying genes encoding ribosomal proteins")
 bt.sct.tl.ribosomal_genes(
     adata,
-    index_type="genename",
+    index_type="name",
     key="rps",
     axis=1,
     copy=False
@@ -251,7 +251,7 @@ else:
     std.print_debug("converting R-readable parser into Python-readable parser")
     marker_pairs = rdata.conversion.convert(parser)
     std.print_info("scoring cell cycle phases for each cell")
-    marker_pairs = marker_pairs_converter(marker_pairs, "referencename")
+    marker_pairs = marker_pairs_converter(marker_pairs, "official_name")
     scores = pairs.cyclone(adata, marker_pairs)
     adata.obs.rename(columns={"pypairs_G1": "G1_score", "pypairs_S": "S_score", "pypairs_G2M": "G2M_score"}, inplace=True)
 

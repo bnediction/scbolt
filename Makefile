@@ -61,7 +61,7 @@ BOLD      = \033[1m
 
 log = printf '%s - %s - %s\n' "`date '+%Y-%m-%d %H:%M:%S.%3N'`" "$(1)" "$(2)"
 
-print_rule    = $(call log,RULE,$(1)$(if $(2), \(reference: $(2)\)))
+print_rule    = $(call log,RULE,$(1)$(if $(2), (reference: $(2))))
 print_task    = $(call log,TASK,$(1))
 print_info    = $(call log,INFO,$(1))
 print_warning = $(call log,WARNING,$(1))

@@ -14,7 +14,7 @@ import scanpy as sc
 parser = argparse.ArgumentParser(
     prog="gene name list",
     description="""Retrieve gene names.""",
-    usage="""python genename.py [-h] <FILE> <FILE> [--axis <obs|var> --standardization]"""
+    usage="""python name.py [-h] <FILE> <FILE> [--axis <obs|var> --standardization]"""
 )
 
 parser.add_argument(

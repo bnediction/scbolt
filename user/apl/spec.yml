@@ -33,42 +33,45 @@ bonesis:
   - ctrl_prom1 >> 'fixpoints' ^ {bo.obs('ctrl_Rep'), bo.obs('ctrl_Neu'), bo.obs('ctrl_Alt')}
   - treated_prom1 >> 'fixpoints' ^ {bo.obs('treated_Rep'), bo.obs('treated_Neu')}
 important_genes:
-  - 'Serpina3d-ps'
-  - 'Traf1'
-  - 'Gas6'
-  - 'Ccne2'
-  - 'Gadd45g'
-  - 'Ccna2'
-  - 'Cdk6'
-  - 'Ddit4'
-  - 'Skp2'
-  - 'Sqstm1'
-  - 'Nol3'
-  - 'Rarb'
-  - 'Cdk7'
-  - 'Suz12'
-  - 'Ppp1r15a'
-  - 'Srgn'
-  - 'Tnfrsf18'
-  - 'Cdk2'
-  - 'Pcna'
-  - 'Cebpa'
-  - 'Lgals1'
-  - 'Zfp36l1'
+# granulocytic differentiation
   - 'Rara'
+  - 'Rarb'
   - 'Cebpe'
-  - 'Phlda1'
-  - 'Cdk4'
-  - 'Serpina3g'
-  - 'Lgals7'
-  - 'Ctsh'
-  - 'Nfkb1'
-  - 'E2f1'
-  - 'Ly6g'
-  - 'Bax'
+  - 'Cebpa'
+  - 'Zfp36l1' # Plzf
+  - 'Spi1'
+# proliferation / cell cycle
+  - 'Myc'
+  - 'Skp2'
+  - 'Ccna2'
   - 'Mdm2'
+  - 'E2f1'
+  - 'Ccnd1'
+  - 'Cdk2'
+  - 'Cdk4'
+  - 'Cdk6'
+  - 'Pcna'
   - 'Pim1'
-  - 'Plk3'
+# cell-cycle arrest / tumor suppressors
+  - 'Cdkn2d'
+  - 'Rb1'
+  - 'Cdkn1a'
+  - 'Cdkn1b'
+  - 'Trp53' # Tp53
+  - 'Bax'
+# epigenetic regulation
   - 'Ezh2'
-  - 'Trp53'
+# inflammatory signaling
+  - 'Nfkb1'
+  - 'Traf1'
+# ER stress
+  - 'Ddit4'
+  - 'Ppp1r15a'
+# Eosinophil marker
+  - 'Epx'
+  - 'Alox15'
+# Neutrophil marker
+  - 's100a9'
+# not found: Ccne2, Cak, Suz12, Srgn, Lgals1, Lagls7
+# in Jose: Gata2, Runx1, Pou2f1
 mandatory_genes:

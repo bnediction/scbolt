@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser(
     prog="gene name standardization",
     description="""Convert gene aliases by another aliases.
     By default, convert gene names by their NCBI reference names.""",
-    usage="""python genename_standardization.py [-h] <path> <path> [<args>]"""
+    usage="""python name_standardization.py [-h] <path> <path> [<args>]"""
 )
 
 parser.add_argument(
@@ -63,20 +63,20 @@ parser.add_argument(
 
 parser.add_argument(
     "--gene-type",
-    dest="gene_type",
-    default="genename",
+    dest="input_identifier_type",
+    default="name",
     required=False,
-    metavar="[genename | geneid | ensemblid | <database>]",
-    help="gene identifier input format (default: genename)"
+    metavar="[name | gene_id | ensembl_id | <database>]",
+    help="gene identifier input format (default: name)"
 )
 
 parser.add_argument(
     "--alias-type",
-    dest="alias_type",
-    default="referencename",
+    dest="output_identifier_type",
+    default="official_name",
     required=False,
-    metavar="[referencename | geneid | ensemblid | <database>]",
-    help="gene identifier output format (default: referencename)"
+    metavar="[official_name | gene_id | ensembl_id | <database>]",
+    help="gene identifier output format (default: official_name)"
 )
 
 parser.add_argument(
@@ -114,8 +114,8 @@ elif file_extension == "csv" or file_extension == "tsv":
     output = pd.read_csv(args.infile, index_col=0, sep=args.sep)
     genesynonyms(
         output,
-        gene_type=args.input_type,
-        alias_type=args.output_type,
+        input_identifier_type=args.input_type,
+        output_identifier_type=args.output_type,
         axis=args.axis,
         copy=False
     )

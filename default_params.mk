@@ -156,11 +156,12 @@ $(eval JOBS_RELAXED ?= 1)
 $(eval TIMEOUT_RELAXED ?= 48h)
 
 ## MAX-NODES-SEED
-$(eval CLINGO_OPT_MODE_SEED ?= optN)
-$(eval CLINGO_OPT_STRATEGY_SEED ?= bb,dec)
+$(eval CLINGO_OPT_MODE_SEED ?= opt)
+$(eval CLINGO_OPT_STRATEGY_SEED ?= usc)
 $(eval JOBS_SEED ?= 1)
 $(eval TIMEOUT_SEED ?= 72h)
-
+## Corriger le makefile
+## Il faut que ce timeout soit tj défini.
 
 
 ## STRONG-FILTERING ##

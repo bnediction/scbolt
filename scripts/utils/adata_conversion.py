@@ -164,11 +164,11 @@ if args.metadata:
 
 if args.standardization:
     adata.var["symbol"] = list(adata.var.index)
-    for gene_type in ["genename","geneid","ensemblid"]:
+    for input_identifier_type in ["name", "gene_id", "ensembl_id"]:
         bt.sct.pp.convert_gene_identifiers(
             adata,
             axis="var",
-            gene_type=gene_type,
+            input_identifier_type=input_identifier_type,
             copy=False
         )
     adata = bt.sct.pp.var_names_merge_duplicates(adata, var_names_column="symbol")
