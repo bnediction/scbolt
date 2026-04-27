@@ -50,7 +50,7 @@ $(eval PCA_ONLY_HVG ?= true)                # use only highly variable genes for
 $(eval NEIGHBORS ?= 20)                     # number of closest neighbors
 $(eval METRIC ?= euclidean)                 # metric used for computing closest neighbors and optionally t-sne projection
 $(eval RESOLUTION ?= 0.4)                   # coarseness of the clustering
-$(eval MIN_DIST ?= 0.5)                     # effective minimum distance between embedded points in umap
+$(eval MIN_DIST ?= 0.1)                     # effective minimum distance between embedded points in umap
 $(eval SPREAD ?= 1)                         # effective scale of embedded points in umap
 
 ## DEA ##
@@ -144,6 +144,7 @@ $(eval JOBS_SOFT ?= 1)
 $(eval TIMEOUT_SOFT ?= 24h)
 
 ## MAX-STRONG-CONSTS
+$(eval MIN_SELF_LOOP_CONSTS ?= true)         # minimize the number of length-one feedbacks
 $(eval CLINGO_OPT_MODE_CONSTS ?= optN)
 $(eval CLINGO_OPT_STRATEGY_CONSTS ?= usc)
 $(eval JOBS_CONSTS ?= 1)
@@ -159,20 +160,20 @@ $(eval TIMEOUT_RELAXED ?= 48h)
 $(eval CLINGO_OPT_MODE_SEED ?= opt)
 $(eval CLINGO_OPT_STRATEGY_SEED ?= usc)
 $(eval JOBS_SEED ?= 1)
-$(eval TIMEOUT_SEED ?= 72h)
+$(eval TIMEOUT_SEED ?= 24h)
 ## Corriger le makefile
 ## Il faut que ce timeout soit tj défini.
 
-
-## STRONG-FILTERING ##
-$(eval CLINGO_OPT_MODE ?= optN)             # clingo optimization mode for hard filtering
-$(eval CLINGO_OPT_STRATEGY ?= bb,dec)       # clingo optimization strategy for hard filtering (recommended: bb,dec; bb,inc; usc)
-
-## MAX-CONSTANTS ##
-$(eval FILTER_MIN_FEEDBACKS ?= true)        # minimize the number of length-one feedbacks at filtering stage
+## MAX-NODES-LOCK
+$(eval CLINGO_OPT_MODE_LOCK ?= optN)
+$(eval CLINGO_OPT_STRATEGY_LOCK ?= bb,dec)
+$(eval JOBS_LOCK ?= 1)
+$(eval TIMEOUT_LOCK ?= 72h)
 
 ## BONESIS-MIN ##
-$(eval INFER_MIN_FEEDBACKS ?= true)         # minimize the number of length-one feedbacks at inference stage
+$(eval MIN_SELF_LOOP_INFER ?= true)         # minimize the number of length-one feedbacks at inference stage
+$(eval CLINGO_OPT_MODE_MIN ?= optN)
 
 ## BONESIS-SUB ##
 $(eval INFER_LIMIT ?=)          			# number of diverse subset minimal solutions. If not specified, enumerate all subset minimal solutions without diversity
+$(eval CLINGO_OPT_MODE_MIN ?= optN)

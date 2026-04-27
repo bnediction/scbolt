@@ -103,20 +103,26 @@ define check_inference_status
 	if [ $$exit_status -eq 124 ]; then \
 		echo -e ''; \
 		if [ -f $@ ]; then \
-			$(call print_warning,user-defined time limit reached \($(TIMEOUT)\): local optimum found); \
+			echo "_LOCAL_OPTIMUM" > $(@D)/__SOLUTION; \
+			$(call print_warning,user-defined time limit reached \($(1)\): local optimum found); \
 		else \
-			$(call print_error,user-defined time limit reached \($(TIMEOUT)\): no local optimum found); \
+			echo "_FAILURE" > $(@D)/__SOLUTION; \
+			$(call print_error,user-defined time limit reached \($(1)\): no solution found); \
 		fi; \
 	elif [ $$exit_status -eq 130 ] || [ $$exit_status -eq 143 ]; then \
 		echo -e ''; \
 		if [ -f $@ ]; then \
+			echo "_PARTIAL_SOLUTIONS" > $(@D)/__SOLUTION; \
 			$(call print_warning,inference interrupted: keeping partial solutions); \
 		else \
+			echo "_FAILURE" > $(@D)/__SOLUTION; \
 			$(call print_error,inference interrupted: no partial solution found); \
 		fi; \
 	elif [ $$exit_status -ne 0 ]; then \
+		echo "_FAILURE" > $(@D)/__SOLUTION; \
 		exit $$exit_status; \
 	else \
+		echo "_GLOBAL_OPTIMUM" > $(@D)/__SOLUTION; \
 		$(call print_debug,global optimum found); \
 	fi
 endef
@@ -183,8 +189,7 @@ max_nodes_soft =                $(results)/infer/genes/soft/comps.txt
 max_strong_consts =             $(results)/infer/genes/consts/comps.txt
 max_nodes_relaxed =             $(results)/infer/genes/relaxed/comps.txt
 max_nodes_seed =                $(results)/infer/genes/seed/comps.txt
-
-max_nodes_lock =                $(results)/infer/genes/hard/lock/comps.txt
+max_nodes_lock =                $(results)/infer/genes/lock/comps.txt
 bn_min =                        $(results)/infer/bn/min/model.bnet
 bn_sub =                        $(results)/infer/bn/sub/_summary/graph.pdf
 
@@ -430,24 +435,24 @@ else
 $(error Unsupported value for parameter MODEL_HVG_METHOD (supported values: seurat, cell_ranger, seurat_v3))
 endif
 
-ifndef FILTER_MIN_FEEDBACKS
-$(error Parameter FILTER_MIN_FEEDBACKS not defined)
-else ifeq ($(FILTER_MIN_FEEDBACKS),true)
-filter_min_feedbacks=--minimize-feedbacks
-else ifeq ($(FILTER_MIN_FEEDBACKS),false)
-filter_min_feedbacks=
+ifndef MIN_SELF_LOOP_CONSTS
+$(error Parameter MIN_SELF_LOOP_CONSTS not defined)
+else ifeq ($(MIN_SELF_LOOP_CONSTS),true)
+min_self_loop_consts=--minimize-self-loops
+else ifeq ($(MIN_SELF_LOOP_CONSTS),false)
+min_self_loop_consts=
 else
-$(error Unsupported value for parameter FILTER_MIN_FEEDBACKS (supported values: true, false))
+$(error Unsupported value for parameter MIN_SELF_LOOP_CONSTS (supported values: true, false))
 endif
 
-ifndef INFER_MIN_FEEDBACKS
-$(error Parameter MIN_FEEDBACKS not defined)
-else ifeq ($(INFER_MIN_FEEDBACKS),true)
-infer_min_feedbacks:=--minimize-feedbacks
-else ifeq ($(INFER_MIN_FEEDBACKS),false)
-infer_min_feedbacks:=
+ifndef MIN_SELF_LOOP_INFER
+$(error Parameter MIN_SELF_LOOP_INFER not defined)
+else ifeq ($(MIN_SELF_LOOP_INFER),true)
+min_self_loop_infer:=--minimize-self-loops
+else ifeq ($(MIN_SELF_LOOP_INFER),false)
+min_self_loop_infer:=
 else
-$(error Unsupported value for parameter INFER_MIN_FEEDBACKS (supported values: true, false))
+$(error Unsupported value for parameter MIN_SELF_LOOP_INFER (supported values: true, false))
 endif
 
 ## END PARAMETERS ##
@@ -721,7 +726,7 @@ $(velocity_$(1)): $(annotation_$(1))
 	$(call print_rule,velocity,$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbridge-velocity) python scripts/trajectories/velocity.py $$< $$@ \
-		--layer counts --cluster leiden --moment-dimension $(DIM_MOMENT) \
+		--layer counts --cluster label --moment-dimension $(DIM_MOMENT) \
 		$(velocity_only_hvg) --mode $(SMM_MODE) --embedding umap --jobs $(JOBS)
 
 $(potency_$(1)): $(annotation_$(1))
@@ -729,7 +734,7 @@ $(potency_$(1)): $(annotation_$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbridge-potency) python scripts/trajectories/potency.py $$< $$(@D) \
 		--csv $$(notdir $$@) --h5ad $$(basename $$(notdir $$@)).h5ad \
-		--layer counts --cluster leiden --batch-size $(BATCH_SIZE) --smooth-batch-size $(SMOOTH_BATCH_SIZE) \
+		--layer counts --cluster label --batch-size $(BATCH_SIZE) --smooth-batch-size $(SMOOTH_BATCH_SIZE) \
 		--organism $(ORGANISM) --embedding umap --seed $(SEED) --jobs $(JOBS)
 
 $(cotan_$(1))&: $(annotation_$(1))
@@ -938,6 +943,8 @@ $(bonesis_model)&: $(bin)
 			--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 			--important-genes $(word 3,$(bonesis_model)) --mandatory-genes $(word 4,$(bonesis_model)) \
 			--organism $(ORGANISM)
+		sort -u $(word 3,$(bonesis_model)) -o $(word 3,$(bonesis_model))
+		sort -u $(word 4,$(bonesis_model)) -o $(word 4,$(bonesis_model))
 endif
 
 $(max_nodes_soft): $(bonesis_model)
@@ -946,13 +953,11 @@ $(max_nodes_soft): $(bonesis_model)
 	set +e; \
 	$(if $(filter-out 0,$(TIMEOUT_SOFT)),timeout $(TIMEOUT_SOFT),) $(call conda_run,scbridge-bonesis) python scripts/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --asp $(@D)/nodes.sh --solution $@ \
-		--database $(GRN_DATABASE) --organism $(ORGANISM) \
-		--bonesis-mode soft --max-clause $(MAX_CLAUSE) \
-		--clingo-opt-mode $(CLINGO_OPT_MODE_SOFT) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SOFT) \
-		--jobs $(JOBS_SOFT); \
+		--database $(GRN_DATABASE) --organism $(ORGANISM) --bonesis-mode soft --max-clause $(MAX_CLAUSE) \
+		--clingo-opt-mode $(CLINGO_OPT_MODE_SOFT) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SOFT) --jobs $(JOBS_SOFT); \
 	exit_status=$$?; \
 	set -e; \
-	$(call check_inference_status)
+	$(call check_inference_status, $(TIMEOUT_SOFT))
 
 $(max_strong_consts): $(bonesis_model) $(max_nodes_soft)
 	$(call print_rule,max-strong-consts)
@@ -960,13 +965,11 @@ $(max_strong_consts): $(bonesis_model) $(max_nodes_soft)
 	set +e; \
 	$(if $(filter-out 0,$(TIMEOUT_CONSTS)),timeout $(TIMEOUT_CONSTS),) $(call conda_run,scbridge-bonesis) python scripts/inference/inference.py filter-consts \
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
-		--database $(GRN_DATABASE) --organism $(ORGANISM) \
-		--bonesis-mode soft --max-clause $(MAX_CLAUSE) \
-		--clingo-opt-mode $(CLINGO_OPT_MODE_CONSTS) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_CONSTS) \
-		--jobs $(JOBS_CONSTS); \
+		--database $(GRN_DATABASE) --organism $(ORGANISM) --bonesis-mode soft --max-clause $(MAX_CLAUSE) $(min_self_loop_consts) \
+		--clingo-opt-mode $(CLINGO_OPT_MODE_CONSTS) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_CONSTS) --jobs $(JOBS_CONSTS); \
 	exit_status=$$?; \
 	set -e; \
-	$(call check_inference_status)
+	$(call check_inference_status, $(TIMEOUT_CONSTS))
 
 $(max_nodes_relaxed): $(bonesis_model) $(max_strong_consts)
 	$(call print_rule,max-nodes-relaxed)
@@ -974,13 +977,11 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_strong_consts)
 	set +e; \
 	$(if $(filter-out 0,$(TIMEOUT_RELAXED)),timeout $(TIMEOUT_RELAXED),) $(call conda_run,scbridge-bonesis) python scripts/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
-		--database $(GRN_DATABASE) --organism $(ORGANISM) \
-		--bonesis-mode relaxed --max-clause $(MAX_CLAUSE) \
-		--clingo-opt-mode $(CLINGO_OPT_MODE_RELAXED) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_RELAXED) \
-		--jobs $(JOBS_RELAXED); \
+		--database $(GRN_DATABASE) --organism $(ORGANISM) --bonesis-mode relaxed --max-clause $(MAX_CLAUSE) \
+		--clingo-opt-mode $(CLINGO_OPT_MODE_RELAXED) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_RELAXED) --jobs $(JOBS_RELAXED); \
 	exit_status=$$?; \
 	set -e; \
-	$(call check_inference_status)
+	$(call check_inference_status, $(TIMEOUT_RELAXED))
 
 $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 	$(call print_rule,max-nodes-seed)
@@ -988,44 +989,54 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 	set +e; \
 	$(if $(filter-out 0,$(TIMEOUT_SEED)),timeout $(TIMEOUT_SEED),) $(call conda_run,scbridge-bonesis) python scripts/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
-		--database $(GRN_DATABASE) --organism $(ORGANISM) \
-		--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
-		--clingo-opt-mode $(CLINGO_OPT_MODE_SEED) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SEED) \
-		--jobs $(JOBS_SEED); \
+		--database $(GRN_DATABASE) --organism $(ORGANISM) --bonesis-mode hard --max-clause $(MAX_CLAUSE) \
+		--clingo-opt-mode $(CLINGO_OPT_MODE_SEED) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SEED) --jobs $(JOBS_SEED); \
 	exit_status=$$?; \
 	set -e; \
-	$(call check_inference_status)
+	$(call check_inference_status, $(TIMEOUT_SEED))
 
-
-
-$(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed)
-	$(call print_rule,max-nodes-seed)
+$(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
+	$(call print_rule,max-nodes-lock)
 	mkdir -p $(@D)
-	set +e; \
-	timeout $(TIMEOUT) $(call conda_run,scbridge-bonesis) python scripts/inference/inference.py filter-stage1 $(word 1,$^) $(word 2,$^) \
-		--mandatory-genes $(word 3,$^) --important-genes $(word 4,$^) \
-		--asp $(@D)/nodes.sh --solution $@ --filter-grn $(lastword $^) \
-		--database $(GRN_DATABASE) --mode hard --max-clause $(MAX_CLAUSE) --organism $(ORGANISM) \
-		--clingo-opt-mode $(CLINGO_OPT_MODE) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY); \
-	exit_status=$$?; \
-	set -e; \
-	$(call check_inference_status)
+	if [ -f $(dir $(lastword $^))__SOLUTION ] && [ "$$(cat $(dir $(lastword $^))__SOLUTION)" = "_GLOBAL_OPTIMUM" ]; then \
+		$(call print_debug,solution already globally optimal: skipping lock optimization); \
+		cp $(lastword $^) $@; \
+		echo "_GLOBAL_OPTIMUM" > $(@D)/__SOLUTION; \
+	else \
+		set +e; \
+		cat $(word 4,$^) $(word 6,$^) | sort -u > $(@D)/mandatory.txt; \
+		$(if $(filter-out 0,$(TIMEOUT_LOCK)),timeout $(TIMEOUT_LOCK),) $(call conda_run,scbridge-bonesis) python scripts/inference/inference.py filter-nodes \
+			$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(@D)/mandatory.txt --filter-grn $(word 5,$^) --asp $(@D)/nodes.sh --solution $@ \
+			--database $(GRN_DATABASE) --organism $(ORGANISM) --bonesis-mode hard --max-clause $(MAX_CLAUSE) \
+			--clingo-opt-mode $(CLINGO_OPT_MODE_LOCK) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_LOCK) --jobs $(JOBS_LOCK); \
+		exit_status=$$?; \
+		set -e; \
+		$(call check_inference_status,$(TIMEOUT_LOCK)); \
+	fi
 
 $(bn_min): $(bonesis_model) $(max_nodes_lock)
 	$(call print_rule,bn-min)
 	mkdir -p $(@D)
-	$(call conda_run,scbridge-bonesis) python scripts/inference/inference.py min $(word 1,$^) $(word 2,$^) \
-		--asp $(@D)/bonesis_min.sh --solution $(basename $@) --filter-grn $(lastword $^) \
-		--database $(GRN_DATABASE) $(infer_min_feedbacks) --max-clause $(MAX_CLAUSE) \
-		--dot --neato --circo --fdp --sfdp --remove-single-nodes --organism $(ORGANISM)
+	$(call conda_run,scbridge-bonesis) python scripts/inference/inference.py min \
+		$(word 1,$^) $(word 2,$^) --filter-grn $(lastword $^) --asp $(@D)/min.sh --solution $(basename $@) \
+		--database $(GRN_DATABASE) --organism $(ORGANISM) --max-clause $(MAX_CLAUSE) $(min_self_loop_infer) \
+		--clingo-opt-mode $(CLINGO_OPT_MODE_MIN) --jobs 1 \
+		--dot --neato --circo --fdp --sfdp
+		if command -v dot >/dev/null 2>&1; then
+		    for file in $(@D)/*.dot; do
+		        [ -e "$${file}" ] || continue
+		        dot -Tpdf "$${file}" -o "$${file%.dot}.pdf"
+		    done
+		fi
 
-$(bn_sub): $(bonesis_model) $(max_nodes_seed)
+$(bn_sub): $(bonesis_model) $(max_nodes_lock)
 	$(call print_rule,bn-sub)
 	mkdir -p $(dir $(@D))
-	$(call conda_run,scbridge-bonesis) python scripts/inference/inference.py sub $(word 1,$^) $(word 2,$^) \
-		--asp $(dir $(@D))bonesis_sub.sh --solution $(dir $(@D)) --filter-grn $(lastword $^) \
-		--database $(GRN_DATABASE) --max-clause $(MAX_CLAUSE) $(if $(INFER_LIMIT),--limit $(INFER_LIMIT)) \
-		--dot --neato --circo --fdp --sfdp --remove-single-nodes --organism $(ORGANISM) --jobs $(JOBS)
+	$(call conda_run,scbridge-bonesis) python scripts/inference/inference.py sub \
+		$(word 1,$^) $(word 2,$^) --filter-grn $(lastword $^) --asp $(dir $(patsubst %/,%,$(@D)))min.sh --solution $(dir $(patsubst %/,%,$(@D))) \
+		--database $(GRN_DATABASE) --organism $(ORGANISM) --max-clause $(MAX_CLAUSE) \
+		$(if $(INFER_LIMIT),--limit $(INFER_LIMIT)) --clingo-opt-mode $(CLINGO_OPT_MODE_MIN) --jobs $(JOBS) \
+		--dot --neato --circo --fdp --sfdp --remove-single-nodes
 
 $(foreach condition,$(conditions),$(eval $(call compute_rules_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call compute_rules_for_references,$(reference))))

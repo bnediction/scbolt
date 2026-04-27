@@ -189,6 +189,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--minimize-self-loops",
+    dest="minimize_self_loops",
+    required=False,
+    action="store_true",
+    help="minimize the number of self loops"
+)
+
+parser.add_argument(
     "--clingo-opt-mode",
     dest="clingo_opt_mode",
     action=cli.Clingo_opt_mode,
@@ -211,14 +219,6 @@ parser.add_argument(
     default=None,
     metavar="INT",
     help="number of diverse subset minimal solutions. If not specified, enumerate all subset minimal solutions without diversity (default: None)"
-)
-
-parser.add_argument(
-    "--minimize-feedbacks",
-    dest="minimize_feedbacks",
-    required=False,
-    action="store_true",
-    help="minimize the number of length-one feedbacks"
 )
 
 parser.add_argument(
@@ -291,8 +291,8 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-if not args.action.startswith("filter") and args.only_soft_constraints is True:
-    raise argparse.ArgumentError(None, "option --only-soft-constraints not allowed when action is related to inference instead of filtering")
+if args.bonesis_mode != "hard":
+    std.print_warning(f"some constraints are removed (bonesis mode: {args.bonesis_mode}")
 
 bonesis.settings["parallel"] = args.jobs
 
@@ -428,7 +428,7 @@ elif args.action == "filter-consts":
     std.print_task("filtering components by deleting strong constants while constraining Boolean networks to be compatible with the observations")
     
     bo.maximize_strong_constants()
-    if args.minimize_feedbacks:
+    if args.minimize_self_loops:
         bo.custom("edge(A,A) :- clause(A,_,A,_). #minimize { 1@10000,A: edge(A,A) }.")
 
     view = bonesis.NonStrongConstantNodesView(
@@ -464,7 +464,7 @@ elif args.action == "min":
     bo.custom("edge(A,B) :- clause(B,_,A,_). #minimize { 1@1,A,B: edge(A,B) }.")
     bo.custom("#maximize { 1@10,N: constant(N) }.")
 
-    if args.minimize_feedbacks:
+    if args.minimize_self_loops:
         bo.custom("#minimize { 1@100,A: edge(A,A) }.")
 
     view = bonesis.InfluenceGraphView(
