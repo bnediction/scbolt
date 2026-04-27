@@ -191,7 +191,7 @@ max_nodes_relaxed =             $(results)/infer/genes/relaxed/comps.txt
 max_nodes_seed =                $(results)/infer/genes/seed/comps.txt
 max_nodes_lock =                $(results)/infer/genes/lock/comps.txt
 bn_min =                        $(results)/infer/bn/min/model.bnet
-bn_sub =                        $(results)/infer/bn/sub/_summary/graph.pdf
+bn_sub =                        $(results)/infer/bn/sub/_graph_summary.pdf
 
 $(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call find_paths_for_references,$(reference))))
@@ -1033,7 +1033,7 @@ $(bn_sub): $(bonesis_model) $(max_nodes_lock)
 	$(call print_rule,bn-sub)
 	mkdir -p $(dir $(@D))
 	$(call conda_run,scbridge-bonesis) python scripts/inference/inference.py sub \
-		$(word 1,$^) $(word 2,$^) --filter-grn $(lastword $^) --asp $(dir $(patsubst %/,%,$(@D)))min.sh --solution $(dir $(patsubst %/,%,$(@D))) \
+		$(word 1,$^) $(word 2,$^) --filter-grn $(lastword $^) --asp $(@D)/min.sh --solution $(@D) \
 		--database $(GRN_DATABASE) --organism $(ORGANISM) --max-clause $(MAX_CLAUSE) \
 		$(if $(INFER_LIMIT),--limit $(INFER_LIMIT)) --clingo-opt-mode $(CLINGO_OPT_MODE_MIN) --jobs $(JOBS) \
 		--dot --neato --circo --fdp --sfdp --remove-single-nodes

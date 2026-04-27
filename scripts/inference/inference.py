@@ -623,16 +623,16 @@ elif args.action == "sub":
     for program in ["dot", "neato", "circo", "fdp", "sfdp"]:
         if eval(f"args.{program}"):
             ig_ensemble.render(
-                filename=f"ig_ensemble.{program}",
-                directory=f"{args.solution}/_analysis",
+                filename=f"_graph_summary.{program}",
+                directory=f"{args.solution}",
                 view=False,
                 format="plain",
                 engine=program
             )
 
     ig_ensemble.render(
-        filename=f"ig_ensemble.dot",
-        directory=f"{args.solution}/_analysis",
+        filename=f"_graph_summary.dot",
+        directory=f"{args.solution}",
         view=False,
         format="pdf",
         engine="dot"
