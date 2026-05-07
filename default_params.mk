@@ -107,7 +107,7 @@ $(eval KNNBS_NEIGHBORS ?= 20)               # number of closest neighbors for k-
 
 ## BIN-CELLS ##
 $(eval SCBOOLSEQ_HVG_METHOD ?= cell_ranger) # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3, if not specified, consider all genes)
-$(eval SCBOOLSEQ_TOP_HVG ?=)                # use only top 'SCBOOLSEQ_TOP_HVG' highly variable genes for binarizing cells (if not specified, estimate automatically number of hvg)
+$(eval SCBOOLSEQ_TOP_HVG ?=)                # use only top SCBOOLSEQ_TOP_HVG highly variable genes for binarizing cells (if not specified, estimate automatically number of hvg)
 $(eval UNIMODAL_QUANTILE ?= 0.10)           # quantile classifying cells into inactive/active when learnt distribution is unimodal
 $(eval ZEROES_ARE_ZEROES ?= true)           # binarize zero-values to zero instead of nan when learnt distribution is zero-inflated
 # $(eval ZEROINF_BINARIZER ?= quantile)       # method to binarize cells when classified as zero-inflated (value: quantile, zero_or_not)
@@ -120,18 +120,19 @@ $(eval UNIMODAL_THRESHOLD ?= 0.7)           # minimum proportion of zero- or one
 
 ## BIN-DEA ##
 $(eval DEA_HVG_METHOD ?= cell_ranger)       # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3, if not specified, consider all genes)
-$(eval DEA_TOP_HVG ?=)                      # use only top 'DEA_TOP_HVG' highly variable genes for binarizing cells (if not specified, estimate automatically number of hvg)
+$(eval DEA_TOP_HVG ?=)                      # use only top DEA_TOP_HVG highly variable genes for binarizing cells (if not specified, estimate automatically number of hvg)
 $(eval BIN_LOGFC ?= 0.5)                    # minimum log2 fold-change in absolute value for a gene to be binarized
 $(eval BIN_ALPHA ?= 0.05)                   # maximum adjusted p-value for a gene to be binarized
 $(eval BIN_CORRECTION ?= benjamini-hochberg)# method used for correcting the significance level (benjamini-hochberg or bonferroni)
 
 ## BINARIZATION ##
-$(eval BIN_METHOD ?= consensus)             # binarization method used (scboolseq, dea or consensus)
+$(eval BINARIZATION_FILE ?=)                # optional pre-computed macrostate binarization file; used instead of BIN_METHOD target when defined
+$(eval BIN_METHOD ?= consensus)             # binarization method used when BINARIZATION_FILE is not defined (scboolseq, dea or consensus)
 
 ## SPEC ##
 $(eval YAML_MODEL ?= spec.yml)              # file storing model specifications for bonesis
 $(eval MODEL_HVG_METHOD ?=)                 # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3, if not specified, consider all genes)
-$(eval MODEL_TOP_HVG ?=)                    # use only top 'BONESIS_TOP_HVG' highly variable genes for inferring Boolean Networks (if not specified, estimate automatically number of hvg)
+$(eval MODEL_TOP_HVG ?=)                    # use only top BONESIS_TOP_HVG highly variable genes for inferring Boolean Networks (if not specified, estimate automatically number of hvg)
 
 ## INFERENCE ##
 $(eval MAX_CLAUSE ?= 8)                     # maximum number of literals/atoms in each propositional formula
@@ -165,8 +166,8 @@ $(eval TIMEOUT_SEED ?= 24h)
 ## Il faut que ce timeout soit tj défini.
 
 ## MAX-NODES-LOCK
-$(eval CLINGO_OPT_MODE_LOCK ?= optN)
-$(eval CLINGO_OPT_STRATEGY_LOCK ?= bb,dec)
+$(eval CLINGO_OPT_MODE_LOCK ?= opt)
+$(eval CLINGO_OPT_STRATEGY_LOCK ?= usc)
 $(eval JOBS_LOCK ?= 1)
 $(eval TIMEOUT_LOCK ?= 72h)
 

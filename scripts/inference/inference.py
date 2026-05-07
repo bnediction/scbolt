@@ -292,7 +292,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 if args.bonesis_mode != "hard":
-    std.print_warning(f"some constraints are removed (bonesis mode: {args.bonesis_mode}")
+    std.print_warning(f"some constraints are removed (bonesis mode: {args.bonesis_mode})")
 
 bonesis.settings["parallel"] = args.jobs
 

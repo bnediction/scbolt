@@ -403,14 +403,15 @@ $(error Unsupported value for parameter DEA_HVG_METHOD (supported values: seurat
 endif
 
 ifeq ($(BIN_METHOD),scboolseq)
-bin = $(bin_macrostates)
+default_bin = $(bin_macrostates)
 else ifeq ($(BIN_METHOD),dea)
-bin = $(bin_dea)
+default_bin = $(bin_dea)
 else ifeq ($(BIN_METHOD),consensus)
-bin = $(bin_consensus)
+default_bin = $(bin_consensus)
 else
 $(error unsupported value for parameter BIN_METHOD (supported values: scboolseq, dea, consensus))
 endif
+bin = $(if $(BINARIZATION_FILE),$(BINARIZATION_FILE),$(default_bin))
 
 ifndef YAML_MODEL
 $(error Parameter YAML_MODEL not defined)
@@ -930,8 +931,10 @@ $(bonesis_model)&: $(bin) $(if $(filter-out $(words $(CONDITIONS)),1),$(annotati
 			--method $(MODEL_HVG_METHOD) $(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) $(batch)
 		$(call conda_run,scbridge-bonesis) python scripts/inference/specification.py $(YAML_MODEL) $< \
 			--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
-			--mandatory-genes $(word 3,$(bonesis_model)) --important-genes $(word 4,$(bonesis_model)) \
+			--important-genes $(word 3,$(bonesis_model)) --mandatory-genes $(word 4,$(bonesis_model)) \
 			--filter-genes $(tmpdir)/bonesis/hvg/top_genes.txt --organism $(ORGANISM)
+		sort -u $(word 3,$(bonesis_model)) -o $(word 3,$(bonesis_model))
+		sort -u $(word 4,$(bonesis_model)) -o $(word 4,$(bonesis_model))
 else
 $(bonesis_model)&: $(bin)
 	$(call print_rule,spec)
@@ -964,7 +967,7 @@ $(max_strong_consts): $(bonesis_model) $(max_nodes_soft)
 	mkdir -p $(@D)
 	set +e; \
 	$(if $(filter-out 0,$(TIMEOUT_CONSTS)),timeout $(TIMEOUT_CONSTS),) $(call conda_run,scbridge-bonesis) python scripts/inference/inference.py filter-consts \
-		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
+		$(word 1,$^) $(word 2,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
 		--database $(GRN_DATABASE) --organism $(ORGANISM) --bonesis-mode soft --max-clause $(MAX_CLAUSE) $(min_self_loop_consts) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_CONSTS) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_CONSTS) --jobs $(JOBS_CONSTS); \
 	exit_status=$$?; \
