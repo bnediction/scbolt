@@ -1,4 +1,4 @@
-$(eval PARAMS ?= user/apl/params.mk)  # path to user-defined parameter file
+$(eval PARAMS ?= llc/user/params.mk)  # path to user-defined parameter file
 
 # Configuration policy:
 # - PARAMS can be overridden here to point to another parameter file
@@ -177,4 +177,4 @@ $(eval CLINGO_OPT_MODE_MIN ?= optN)
 
 ## BONESIS-SUB ##
 $(eval INFER_LIMIT ?=)          			# number of diverse subset minimal solutions. If not specified, enumerate all subset minimal solutions without diversity
-$(eval CLINGO_OPT_MODE_MIN ?= optN)
+

@@ -71,8 +71,8 @@ parser.add_argument(
     type=str,
     required=False,
     default="wilcoxon",
-    choices=["t-test", "wilcoxon"],
-    metavar="[t-test|wilcoxon]",
+    choices=["t-test", "t-test-overestim-var", "wilcoxon"],
+    metavar="[t-test| t-test-overestim-var | wilcoxon]",
     help="method used for finding out differential expressed genes between groups (default: wilcoxon)"
 )
 
@@ -131,6 +131,9 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+
+if args.method == "t-test-overestim-var":
+    args.method = "t-test_overestim_var"
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))

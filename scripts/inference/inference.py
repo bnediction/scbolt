@@ -504,20 +504,12 @@ elif args.action == "sub":
 
     os.makedirs(f"{args.solution}", exist_ok=True)
 
-    if args.limit is None:
-        view = bonesis.InfluenceGraphView(
-            bo,
-            solutions="subset-minimal",
-            extra=("boolean-network", "configurations"),
-            progress=ptqdm
-        )
-    else:
-        view = bonesis.DiverseBooleanNetworksView(
-            bo,
-            extra=("configurations"),
-            limit=args.limit,
-            progress=ptqdm
-        )
+    view = bonesis.DiverseBooleanNetworksView(
+        bo,
+        extra=("configurations"),
+        limit=args.limit if args.limit is not None else 0,
+        progress=ptqdm
+    )
     view.standalone(output_filename=args.asp)
 
     debug=True
