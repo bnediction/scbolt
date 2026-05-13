@@ -1,4 +1,4 @@
-name: scbridge-potency
+name: scbolt-potency
 channels:
   - bioconda
   - conda-forge
@@ -426,5 +426,4 @@ dependencies:
   - zlib-ng=2.2.4=h7955e40_0
   - zstd=1.5.7=hb8e6e7a_2
   - pip:
-      - bonesistools==1.1.3
-prefix: ~/anaconda3/envs/scbridge-potency
+      - bonesistools==1.1.6

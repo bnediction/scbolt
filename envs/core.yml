@@ -1,4 +1,4 @@
-name: scbridge-anndata
+name: scbolt-core
 channels:
   - bioconda
   - conda-forge
@@ -182,6 +182,7 @@ dependencies:
       - asttokens==3.0.0
       - beautifulsoup4==4.14.2
       - biodivine-aeon==1.2.5
+      - bonesistools==1.1.6
       - boolean-py==5.0
       - cffi==2.0.0
       - charset-normalizer==3.3.2
@@ -223,4 +224,3 @@ dependencies:
       - urllib3==2.2.1
       - wcwidth==0.2.13
       - xlsxwriter==3.2.0
-prefix: ~/anaconda3/envs/scbridge-anndata

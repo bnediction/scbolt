@@ -26,7 +26,7 @@ class Options:
             self.__dict__[k] = v
 
 opt = Options(
-    path=Path("nestorowa/counts/unique/clustering/clusters"),
+    path=Path("nestorowa/unique/clust"),
     loess_frac=0.01,
     hvg=2000,
     pca_dimension=40
@@ -112,17 +112,23 @@ adata.obs["clusters"] = cluster_ids.cat.rename_categories({k: i for i, k in enum
 
 adata.uns["workdir"] = str(opt.path)
 
-std.print_task("mapping gene ensemblid with their reference name")
+std.print_task("mapping gene Ensembl ids with their official names")
 
-import biomart
+from pybiomart import Server
 
-server = biomart.BiomartServer("http://asia.ensembl.org/biomart/")
-mouse_dataset = server.datasets["mmusculus_gene_ensembl"]
+server = Server(
+    host="www.ensembl.org",
+    path="/biomart/martservice",
+    port=80,
+    use_cache=False
+)
+
+mart = server["ENSEMBL_MART_ENSEMBL"]
+mouse_dataset = mart["mmusculus_gene_ensembl"]
 mouse_attributes = ["ensembl_gene_id", "mgi_symbol", "external_gene_name"]
 
-query = mouse_dataset.search({"attributes": mouse_attributes})
-query = query.raw.data.decode("ascii").split('\n')[:-1]
-ensembl_df = pd.DataFrame([d.split("\t") for d in query], columns=mouse_attributes)
+ensembl_df = mouse_dataset.query(attributes=mouse_attributes)
+ensembl_df.columns = mouse_attributes
 ensembl_df.index = ensembl_df["ensembl_gene_id"]
 ensembl_df.index.name = None
 ensembl_df.drop_duplicates(["mgi_symbol"], keep="first", inplace=True)
@@ -137,12 +143,12 @@ adata.var.index = [ensembl_df.loc[x, "external_gene_name"] if (x in ensembl_df.i
 bt.sct.pp.convert_gene_identifiers(
     adata,
     axis=1,
-    gene_type="ensemblid",
-    alias_type="referencename",
+    input_identifier_type="ensembl_id",
+    output_identifier_type="official_name",
     copy=False
 )
 
-bt.sct.pp.standardize_genenames(
+bt.sct.pp.standardize_gene_identifiers(
     adata,
     axis=1,
     copy=False
@@ -240,7 +246,7 @@ with std.disable_print():
     )
     plt.savefig(f"{opt.path}/umap_label.pdf")
 
-std.print_task(f"saving h5ad-formatted data in {str(opt.path)}/macrostates.h5ad")
+std.print_task(f"saving h5ad-formatted data in {str(opt.path)}/annot.h5ad")
 del adata.uns["workdir"]
 for key in list(adata.obs.keys()):
     if isinstance (adata.obs[key][0], tuple):
@@ -253,6 +259,6 @@ for key in list(adata.uns.keys()):
 for k in ["top_pcs", "trans_se", "vis_trans_umap", "label_color"]:
     del adata.uns[k]
 adata.write_h5ad(
-    filename=Path(f"{opt.path}/annotation.h5ad"),
+    filename=Path(f"{opt.path}/annot.h5ad"),
     compression="gzip"
 )

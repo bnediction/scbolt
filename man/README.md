@@ -22,5 +22,5 @@ thus state-change trajectories are inferred. Then binarized meta-states are retr
 which combined to dynamic Boolean properties, allows to infer BNs.
 
 <p align="center">
-<img src="fig/scbridge-advanced.png" alt="scbridge-advanced" width="700"/>
+<img src="fig/scbolt-advanced.png" alt="scbolt-advanced" width="700"/>
 <p>
