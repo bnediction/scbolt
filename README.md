@@ -1,14 +1,9 @@
-# scBOLT
-
 [![Make](https://img.shields.io/badge/Make-%3E%3D4.3-red?style=flat)](https://www.gnu.org/software/make)
 
-Boolean network inference workflow for multi-condition single-cell transcriptomics.
+# Introduction
 
----
-
-## Introduction
-
-scBOLT (*Boolean network Reconstruction and Inference from multiple experimental Data in Gene Expression*) is a semi-automated workflow for reconstructing Boolean networks from scRNA-seq data.
+`scBOLT` (*BOolean network Learning from multi-condition Transcriptomes*) is a semi-automated workflow built upon the `BoNesis` engine,
+designed to infer an ensemble of sparsest BNs from multi-condition scRNA-seq data.
 
 The pipeline combines:
 
@@ -25,7 +20,7 @@ scBOLT aims to:
 
 ---
 
-## Workflow overview
+# Workflow overview
 
 scBOLT relies on the BoNesis framework, where Boolean network inference is constrained by:
 
@@ -56,9 +51,9 @@ Some stages are fully automated, whereas others intentionally require user inter
 
 ---
 
-## Installation
+# Installation
 
-### Prerequisites
+## Prerequisites
 
 Install the following dependencies:
 
@@ -94,11 +89,12 @@ cd scbolt
 bash config.sh
 ```
 
-Download the repeat masker annotation:
+Download the repeat masker annotation corresponding to your organism from the UCSC Table Browser:
 
-* [https://genome.ucsc.edu/cgi-bin/hgTables?hgsid=611454127_NtvlaW6xBSIRYJEBI0iRDEWisITa&clade=mammal&org=&db=mm39&hgta_group=allTracks&hgta_track=rmsk&hgta_table=rmsk&hgta_regionType=genome&position=&hgta_outputType=gff&hgta_outFileName=repeat_msk.gtf](https://genome.ucsc.edu/cgi-bin/hgTables?hgsid=611454127_NtvlaW6xBSIRYJEBI0iRDEWisITa&clade=mammal&org=&db=mm39&hgta_group=allTracks&hgta_track=rmsk&hgta_table=rmsk&hgta_regionType=genome&position=&hgta_outputType=gff&hgta_outFileName=repeat_msk.gtf)
+- [mouse (`mm39` / `GRCm39`)](https://genome.ucsc.edu/cgi-bin/hgTables?clade=mammal&org=Mouse&db=mm39&hgta_group=allTracks&hgta_track=rmsk&hgta_table=rmsk&hgta_regionType=genome&position=&hgta_outputType=gff)
+- [human (`hg38` / `GRCh38`)](https://genome.ucsc.edu/cgi-bin/hgTables?clade=mammal&org=Human&db=hg38&hgta_group=allTracks&hgta_track=rmsk&hgta_table=rmsk&hgta_regionType=genome&position=&hgta_outputType=gff)
 
-and move it to:
+and save it as:
 
 ```text
 public/transcriptome/repeat_msk.gtf
@@ -106,7 +102,7 @@ public/transcriptome/repeat_msk.gtf
 
 ---
 
-## Usage
+# Usage
 
 Display the pipeline summary:
 
@@ -136,19 +132,19 @@ make config
 Preview commands required to build a target without executing them:
 
 ```sh
-make dry-run TARGET=bn-sub
+make dry-run TARGET=<command>
 ```
 
 Validate Make-level dependencies and configuration for a target:
 
 ```sh
-make validate TARGET=bn-sub
+make validate TARGET=<command>
 ```
 
 Disable persistent logging:
 
 ```sh
-make LOGGING=false bn-sub
+make LOGGING=false <command>
 ```
 
 ---
@@ -163,22 +159,20 @@ man/
 
 ---
 
-## Bug reports
+# Bug reports
 
-Please report bugs or ask questions here:
-
-* [https://github.com/bnediction/bonesistools/issues](https://github.com/bnediction/bonesistools/issues)
+Please report any bugs or ask questions [here](https://github.com/bnediction/scbolt/issues) or contact contributors directly.
 
 ---
 
-## License
+# License
 
 No license currently.
 The project is intended for internal research use.
 
 ---
 
-## Contributors
+# Contributors
 
 * Théo Roncalli — [https://github.com/Theo-Roncalli](https://github.com/Theo-Roncalli)
 * Loïc Paulevé — [https://github.com/pauleve](https://github.com/pauleve)
