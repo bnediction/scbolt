@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from typing import Sequence, Optional
+from typing import Optional
 
 import sys
 import datetime
@@ -23,11 +23,19 @@ from utils import get_cfg
 
 bonesis.settings["quiet"] = True
 
+DISABLE_TQDM = os.getenv("TQDM_DISABLE", "0") == "1"
+TQDM_TO_TTY = os.getenv("TQDM_TO_TTY", "0") == "1"
+
 class ptqdm(tqdm):
     def __init__(self, *args, **kwargs):
+        if TQDM_TO_TTY:
+            kwargs.setdefault("file", open("/dev/tty", "w"))
+        else:
+            kwargs.setdefault("file", sys.stdout)
+
+        kwargs.setdefault("leave", False)
+        kwargs.setdefault("disable", DISABLE_TQDM)
         super().__init__(*args, **kwargs)
-        self.file = sys.stdout
-        self.leave = False
 
 def write_bn(
     bn: mpbn.MPBooleanNetwork,
@@ -418,7 +426,9 @@ if args.action == "filter-nodes":
         nodes_in_data.update(bin_nodes.keys())
     nodes_in_domain = set(bo.domain.nodes)
 
-    print("")
+    if TQDM_TO_TTY:
+        with open("/dev/tty", "w") as tty:
+            print("", file=tty, flush=True)
     std.print_result(f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]", flush=True)
     std.print_result(f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]", flush=True)
     std.print_result(f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]", flush=True)
@@ -452,7 +462,9 @@ elif args.action == "filter-consts":
         nodes_in_data.update(bin_nodes.keys())
     nodes_in_domain = set(bo.domain.nodes)
 
-    print("")
+    if TQDM_TO_TTY:
+        with open("/dev/tty", "w") as tty:
+            print("", file=tty, flush=True)
     std.print_result(f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]")
     std.print_result(f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]")
     std.print_result(f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]")
@@ -515,7 +527,7 @@ elif args.action == "sub":
     debug=True
     bns = bt.bpy.BooleanNetworkEnsemble(components=nodes)
     std.print_warning("this may take some time.")
-    for i, solution in enumerate(tqdm(view)):
+    for i, solution in enumerate(ptqdm(view)):
         bn = solution[1] if isinstance(view, bonesis.views.InfluenceGraphView) else solution[0]
         if debug:
             name_mapping = dict()

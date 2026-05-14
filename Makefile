@@ -70,6 +70,11 @@ print_error   = $(call log,ERROR,$(1)); exit 1
 
 conda_run = conda run --no-capture-output -n $(1)
 
+define run_logged
+	@mkdir -p $(dir $(LOGFILE))
+	@PYTHONUNBUFFERED=1 TQDM_TO_TTY=1 $(MAKE) __$(1) LOGFILE="$(LOGFILE)" 2>&1 | tee -a "$(LOGFILE)"
+endef
+
 define fastq_naming
 	n_fastq="$$(find $(1) -name "$(2)_[1-4].fastq.gz" -printf '.' | wc -m)"
 	if [ $${n_fastq} -eq 0 ]; then \
@@ -490,90 +495,189 @@ mrproper: ## clear cache and public/private data
 
 ##@ Download
 
-load-genome: $(genome_ref) ## download the reference genome
-load-fastq: $(fastq_target) ## download FASTQ files
-load-signatures: $(lastword $(signatures)) ## download phenotype-related signatures
-load-cc: $(cc_markers) ## download cell-cycle markers
-load-go: $(go_basic) $(go_organism) $(gene2go) ## download Gene Ontology resources
+.PHONY: load-genome __load-genome
+load-genome: ## download the reference genome
+	$(call run_logged,load-genome)
+__load-genome: $(genome_ref)
+
+.PHONY: load-fastq __load-fastq
+load-fastq: ## download FASTQ files
+	$(call run_logged,load-fastq)
+__load-fastq: $(fastq_target)
+
+.PHONY: load-signatures __load-signatures
+load-signatures: ## download phenotype-related signatures
+	$(call run_logged,load-signatures)
+__load-signatures: $(lastword $(signatures))
+
+.PHONY: load-cc __load-cc
+load-cc: ## download cell-cycle markers
+	$(call run_logged,load-cc)
+__load-cc: $(cc_markers)
+
+.PHONY: load-go __load-go
+load-go: ## download Gene Ontology resources
+	$(call run_logged,load-go)
+__load-go: $(go_basic) $(go_organism) $(gene2go)
 
 ##@ Alignment/Counting
 
-.PHONY: cellranger
-cellranger: $(cellranger_target) ## run Cell Ranger for alignment and counting
-.PHONY: velocyto
-velocyto: $(velocyto_target) ## run Velocyto for spliced and unspliced counting
+.PHONY: cellranger __cellranger
+cellranger: ## run Cell Ranger for alignment and counting
+	$(call run_logged,cellranger)
+__cellranger: $(cellranger_target)
+
+.PHONY: velocyto __velocyto
+velocyto: ## run Velocyto for spliced and unspliced counting
+	$(call run_logged,velocyto)
+__velocyto: $(velocyto_target)
 
 ##@ Preprocessing
 
-.PHONY: filtering
-filtering: $(filtering_target) ## filter low-quality cells and genes, and optionally assign cell-cycle phases
-.PHONY: normalization
-normalization: $(normalization_target) ## normalize counts and optionally correct for cell-cycle effects
+.PHONY: filtering __filtering
+filtering: ## filter low-quality cells and genes, and optionally assign cell-cycle phases
+	$(call run_logged,filtering)
+__filtering: $(filtering_target)
+
+.PHONY: normalization __normalization
+normalization: ## normalize counts and optionally correct for cell-cycle effects
+	$(call run_logged,normalization)
+__normalization: $(normalization_target)
 
 ##@ Clustering
 
-.PHONY: clustering
-clustering: $(clustering_target) ## cluster cells after dimensionality reduction, with optional integration
-.PHONY: dea
-dea: $(dea_target) ## identify cluster-specific upregulated genes for marker detection
-.PHONY: scoring
-scoring: $(scoring_target) ## score phenotype-related signatures to support cluster annotation
-.PHONY: goea
-goea: $(goea_target) ## perform Gene Ontology enrichment analysis to support cluster annotation
-.PHONY: annotation
-annotation: $(annotation_target) ## assign names to cell clusters
+.PHONY: clustering __clustering
+clustering: ## cluster cells after dimensionality reduction, with optional integration
+	$(call run_logged,clustering)
+__clustering: $(clustering_target)
+
+.PHONY: dea __dea
+dea: ## identify cluster-specific upregulated genes for marker detection
+	$(call run_logged,dea)
+__dea: $(dea_target)
+
+.PHONY: scoring __scoring
+scoring: ## score phenotype-related signatures to support cluster annotation
+	$(call run_logged,scoring)
+__scoring: $(scoring_target)
+
+.PHONY: goea __goea
+goea: ## perform Gene Ontology enrichment analysis to support cluster annotation
+	$(call run_logged,goea)
+__goea: $(goea_target)
+
+.PHONY: annotation __annotation
+annotation: ## assign names to cell clusters
+	$(call run_logged,annotation)
+__annotation: $(annotation_target)
 
 ##@ Trajectory inference
 
-.PHONY: velocity
-velocity: $(velocity_target) ## estimate RNA velocity to infer cell-state transitions
-.PHONY: potency
-potency: $(potency_target) ## estimate cell differentiation potential
+.PHONY: velocity __velocity
+velocity: ## estimate RNA velocity to infer cell-state transitions
+	$(call run_logged,velocity)
+__velocity: $(velocity_target)
+
+.PHONY: potency __potency
+potency: ## estimate cell differentiation potential
+	$(call run_logged,potency)
+__potency: $(potency_target)
 
 ##@ Macrostate characterization
 
-.PHONY: cotan
-cotan: $(cotan_target) ## estimate macrostates from zero-count co-expression
-.PHONY: cellrank
-cellrank: $(cellrank_target) ## estimate macrostates using similarity-, potency-, and RNA-velocity-based kernels
-.PHONY: stream
-stream: $(stream_target) ## estimate macrostates using an elastic principal graph
-.PHONY: knnbs
-knnbs: $(knnbs_target) ## estimate macrostates using k-nearest-neighbors-based subclustering
-.PHONY: macrostates
-macrostates: $(macrostates_target) ## define groups of cells sharing similar phenotypic profiles according to 'MACROSTATE_METHOD'
+.PHONY: cotan __cotan
+cotan: ## estimate macrostates from zero-count co-expression
+	$(call run_logged,cotan)
+__cotan: $(cotan_target)
+
+.PHONY: cellrank __cellrank
+cellrank: ## estimate macrostates using similarity-, potency-, and RNA-velocity-based kernels
+	$(call run_logged,cellrank)
+__cellrank: $(cellrank_target)
+
+.PHONY: stream __stream
+stream: ## estimate macrostates using an elastic principal graph
+	$(call run_logged,stream)
+__stream: $(stream_target)
+
+.PHONY: knnbs __knnbs
+knnbs: ## estimate macrostates using k-nearest-neighbors-based subclustering
+	$(call run_logged,knnbs)
+__knnbs: $(knnbs_target)
+
+.PHONY: macrostates __macrostates
+macrostates: ## define groups of cells sharing similar phenotypic profiles according to 'MACROSTATE_METHOD'
+	$(call run_logged,macrostates)
+__macrostates: $(macrostates_target)
 
 ##@ Binarization
 
-.PHONY: bin-cells
-bin-cells: $(bin_cells) ## binarize cells using gene-specific distributions from ScBoolSeq
-.PHONY: bin-macrostates
-bin-macrostates: $(bin_macrostates) ## binarize macrostates by aggregating ScBoolSeq-binarized cells using voting rules
-.PHONY: bin-dea
-bin-dea: $(bin_dea) ## binarize macrostates using differential expression analysis
-.PHONY: bin-consensus
-bin-consensus: $(bin_consensus) ## binarize macrostates by combining ScBoolSeq and DEA results
-.PHONY: binarization
-binarization: $(bin) ## derive partially defined Boolean states from macrostates according to 'BIN_METHOD'
+.PHONY: bin-cells __bin-cells
+bin-cells: ## binarize cells using gene-specific distributions from ScBoolSeq
+	$(call run_logged,bin-cells)
+__bin-cells: $(bin_cells)
+
+.PHONY: bin-macrostates __bin-macrostates
+bin-macrostates: ## binarize macrostates by aggregating ScBoolSeq-binarized cells using voting rules
+	$(call run_logged,bin-macrostates)
+__bin-macrostates: $(bin_macrostates)
+
+.PHONY: bin-dea __bin-dea
+bin-dea: ## binarize macrostates using differential expression analysis
+	$(call run_logged,bin-dea)
+__bin-dea: $(bin_dea)
+
+.PHONY: bin-consensus __bin-consensus
+bin-consensus: ## binarize macrostates by combining ScBoolSeq and DEA results
+	$(call run_logged,bin-consensus)
+__bin-consensus: $(bin_consensus)
+
+.PHONY: binarization __binarization
+binarization: ## derive partially defined Boolean states from macrostates according to 'BIN_METHOD'
+	$(call run_logged,binarization)
+__binarization: $(bin)
 
 ##@ Boolean network inference
 
-.PHONY: spec
-spec: $(bonesis_model) ## specify Boolean constraints using the BoNesis language
-.PHONY: max-nodes-soft
-max-nodes-soft: $(max_nodes_soft) ## maximise nodes without non-reachability and universal constraints (soft constraints)
-.PHONY: max-consts-soft
-max-consts-soft: $(max_strong_consts) ## maximise strong constants without non-reachability and universal constraints (soft constraints)
-.PHONY: max-nodes-relaxed
-max-nodes-relaxed: $(max_nodes_relaxed) ## maximise nodes without universal constraints (relaxed constraints)
-.PHONY: max-nodes-seed
-max-nodes-seed: $(max_nodes_seed) ## maximise nodes (hard constraints, stage 1)
-.PHONY: max-nodes-lock
-max-nodes-lock: $(max_nodes_lock) ## maximise nodes (hard constraints, stage 2)
-.PHONY: bn-min
-bn-min: $(bn_min) ## infer a minimum-edge Boolean network with BoNesis (one minimal solution)
-.PHONY: bn-sub
-bn-sub: $(bn_sub) ## infer diverse Boolean networks with BoNesis (subset of minimal solutions)
+.PHONY: spec __spec
+spec: ## specify Boolean constraints using the BoNesis language
+	$(call run_logged,spec)
+__spec: $(bonesis_model)
+
+.PHONY: max-nodes-soft __max-nodes-soft
+max-nodes-soft: ## maximise nodes without non-reachability and universal constraints (soft constraints)
+	$(call run_logged,max-nodes-soft)
+__max-nodes-soft: $(max_nodes_soft)
+
+.PHONY: max-consts-soft __max-consts-soft
+max-consts-soft: ## maximise strong constants without non-reachability and universal constraints (soft constraints)
+	$(call run_logged,max-consts-soft)
+__max-consts-soft: $(max_strong_consts)
+
+.PHONY: max-nodes-relaxed __max-nodes-relaxed
+max-nodes-relaxed: ## maximise nodes without universal constraints (relaxed constraints)
+	$(call run_logged,max-nodes-relaxed)
+__max-nodes-relaxed: $(max_nodes_relaxed)
+
+.PHONY: max-nodes-seed __max-nodes-seed
+max-nodes-seed: ## maximise nodes (hard constraints, stage 1)
+	$(call run_logged,max-nodes-seed)
+__max-nodes-seed: $(max_nodes_seed)
+
+.PHONY: max-nodes-lock __max-nodes-lock
+max-nodes-lock: ## maximise nodes (hard constraints, stage 2)
+	$(call run_logged,max-nodes-lock)
+__max-nodes-lock: $(max_nodes_lock)
+
+.PHONY: bn-min __bn-min
+bn-min: ## infer a minimum-edge Boolean network with BoNesis (one minimal solution)
+	$(call run_logged,bn-min)
+__bn-min: $(bn_min)
+
+.PHONY: bn-sub __bn-sub
+bn-sub: ## infer diverse Boolean networks with BoNesis (subset of minimal solutions)
+	$(call run_logged,bn-sub)
+__bn-sub: $(bn_sub)
 
 ## END HELP ##
 

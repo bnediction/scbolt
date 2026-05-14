@@ -8,6 +8,7 @@ $(eval PARAMS ?= llc/user/params.mk)  # path to user-defined parameter file
 MEMORY ?= 50
 JOBS ?= 16
 SEED ?= 10
+LOGFILE ?= $(RESULTS)/logs/$(shell date '+%Y%m%d_%H%M%S').log
 $(eval TIMEOUT ?= 24h)                      # time limit for each bonesis filtering steps (soft 1, soft 2, hard 1)
 
 ## INFORMATION ##
