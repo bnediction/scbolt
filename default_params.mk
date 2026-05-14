@@ -1,4 +1,4 @@
-$(eval PARAMS ?= llc/user/params.mk)  # path to user-defined parameter file
+$(eval PARAMS ?= user/apl/params.mk)  # path to user-defined parameter file
 
 # Configuration policy:
 # - PARAMS can be overridden here to point to another parameter file
