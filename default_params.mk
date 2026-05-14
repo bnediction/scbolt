@@ -8,8 +8,7 @@ $(eval PARAMS ?= llc/user/params.mk)  # path to user-defined parameter file
 MEMORY ?= 50
 JOBS ?= 16
 SEED ?= 10
-LOGFILE ?= $(RESULTS)/logs/$(shell date '+%Y%m%d_%H%M%S').log
-$(eval TIMEOUT ?= 24h)                      # time limit for each bonesis filtering steps (soft 1, soft 2, hard 1)
+LOGGING ?= true
 
 ## INFORMATION ##
 $(eval ORGANISM ?= mouse)                   # organism on which data are made up
@@ -17,8 +16,8 @@ $(eval CONDITIONS ?= ctrl treated)          # experimental conditions
 $(eval RESULTS ?= project/)                 # directory storing outputs
 
 ## URL ##
-$(eval genome_url ?= https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz)
-$(eval go_organism_url ?= https://current.geneontology.org/ontology/subsets/goslim_$(ORGANISM).obo)
+genome_url ?= https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz
+go_organism_url ?= https://current.geneontology.org/ontology/subsets/goslim_$(ORGANISM).obo
 
 ## EXTRA PARAMETERS ##
 # Parameters useful when user want to run the pipeline by starting at a specific step, with pre-computed dependencies.

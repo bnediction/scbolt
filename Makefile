@@ -32,6 +32,8 @@ running_conditions := $(filter-out integrated,$(running_references))
 
 results := $(patsubst %/,%,$(RESULTS))
 
+log_target := $(patsubst __%,%,$(or $(firstword $(MAKECMDGOALS)),default))
+LOGFILE := $(results)/logs/$(shell date '+%Y%m%d_%H%M%S')_$(log_target).log
 export tmpdir := $(shell mktemp -d -t scbolt-XXXXXXXXXX)
 $(shell { trap 'rm -rf $(tmpdir);' EXIT; tail --pid=$$PPID -f /dev/null; } </dev/null >/dev/null 2>/dev/null &)
 $(shell mkdir -p $(results))
@@ -70,10 +72,27 @@ print_error   = $(call log,ERROR,$(1)); exit 1
 
 conda_run = conda run --no-capture-output -n $(1)
 
-define run_logged
-	@mkdir -p $(dir $(LOGFILE))
-	@PYTHONUNBUFFERED=1 TQDM_TO_TTY=1 $(MAKE) __$(1) LOGFILE="$(LOGFILE)" 2>&1 | tee -a "$(LOGFILE)"
-endef
+ifndef LOGGING
+$(error Parameter LOGGING not defined)
+else ifeq ($(LOGGING),true)
+run_logged = \
+	mkdir -p $(dir $(LOGFILE)); \
+	{ \
+		printf 'DATE=%s\n' "`date '+%Y-%m-%d %H:%M:%S'`"; \
+		printf 'TARGET=%s\n' "$(1)"; \
+		printf 'PARAMS=%s\n' "$(PARAMS)"; \
+		printf 'RESULTS=%s\n' "$(RESULTS)"; \
+		printf 'CONDITIONS=%s\n' "$(CONDITIONS)"; \
+		printf 'LOGFILE=%s\n' "$(LOGFILE)"; \
+		printf 'GIT_COMMIT=%s\n' "`git rev-parse HEAD 2>/dev/null || echo unknown`"; \
+		printf '\n'; \
+	} >> "$(LOGFILE)"; \
+	PYTHONUNBUFFERED=1 TQDM_TO_TTY=1 $(MAKE) LOGGING=false __$(1) LOGFILE="$(LOGFILE)" 2>&1 | tee -a "$(LOGFILE)"
+else ifeq ($(LOGGING),false)
+run_logged = $(MAKE) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
+else
+$(error Unsupported value for parameter LOGGING (supported values: true, false))
+endif
 
 define fastq_naming
 	n_fastq="$$(find $(1) -name "$(2)_[1-4].fastq.gz" -printf '.' | wc -m)"
@@ -465,7 +484,7 @@ endif
 
 ## BEGIN HELP ##
 
-##@ Help
+##@ Utilities
 
 .PHONY: help
 help: ## display this help and exit
@@ -474,6 +493,29 @@ help: ## display this help and exit
 	It combines preprocessing, clustering, trajectory inference, macrostate characterization, binarization, \
 	and BoNesis-based model inference to reproduce observed transcriptomic cell dynamics.\n"}/^[a-zA-Z_-]+:.*?##/ \
 	{ printf "  $(GREEN)%-22s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BOLD)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
+.PHONY: config
+config: ## display effective configuration and exit
+	$(eval config_candidates := $(filter A% B% C% D% E% F% G% H% I% J% K% L% M% N% O% P% Q% R% S% T% U% V% W% X% Y% Z%,$(.VARIABLES)))
+	$(eval config_vars := $(sort $(foreach var,$(config_candidates),$(if $(filter file command line override,$(origin $(var))),$(var)))))
+	$(eval config_vars := $(filter-out LOGFILE TARGET DEFAULT_PARAMS MAKEFLAGS MAKEFILE_LIST MAKECMDGOALS SHELL,$(config_vars)))
+	$(foreach var,$(config_vars),$(info $(var)=$($(var))))
+	@:
+
+.PHONY: dry-run
+dry-run: ## display commands required to build TARGET without executing them
+	@if [ -z "$(TARGET)" ]; then \
+		$(call print_error,missing TARGET \(usage: make dry-run TARGET=bn-sub\)); \
+	fi
+	$(MAKE) --dry-run LOGGING=false __$(TARGET) LOGFILE="$(LOGFILE)"
+
+.PHONY: validate
+validate: ## validate Make-level dependencies and configuration required to build TARGET
+	@if [ -z "$(TARGET)" ]; then \
+		$(call print_error,missing TARGET \(usage: make validate TARGET=bn-sub\)); \
+	fi
+	@$(MAKE) --dry-run LOGGING=false __$(TARGET) LOGFILE="$(LOGFILE)" >/dev/null
+	@$(call print_info,configuration successfully validated for target '$(TARGET)')
 
 ##@ Clean
 
