@@ -73,7 +73,7 @@ Download and configure Anaconda:
 
 * [https://www.anaconda.com/download/](https://www.anaconda.com/download/)
 
-Download Cell Ranger and add it to your `PATH`:
+Download Cell Ranger and add it to your `PATH` environment variable:
 
 * [https://www.10xgenomics.com/support/software/cell-ranger/downloads](https://www.10xgenomics.com/support/software/cell-ranger/downloads)
 
@@ -110,10 +110,10 @@ Display the pipeline summary:
 make help
 ```
 
-Run a pipeline command:
+Run a pipeline module:
 
 ```sh
-make <command>
+make <module>
 ```
 
 Default parameters are defined in `default_params.mk`.
@@ -129,22 +129,22 @@ Display effective configuration:
 make config
 ```
 
-Preview commands required to build a target without executing them:
+Preview modules required to build a target without executing them:
 
 ```sh
-make dry-run TARGET=<command>
+make dry-run TARGET=<module>
 ```
 
 Validate Make-level dependencies and configuration for a target:
 
 ```sh
-make validate TARGET=<command>
+make validate TARGET=<module>
 ```
 
 Disable persistent logging:
 
 ```sh
-make LOGGING=false <command>
+make LOGGING=false <module>
 ```
 
 ---
