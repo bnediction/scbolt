@@ -1,0 +1,24 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  makefile:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Make
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Check Makefile syntax
+        run: make --dry-run help >/dev/null
+
+      - name: Check help
+        run: make help >/dev/null
+
+      - name: Check config
+        run: make config >/dev/null

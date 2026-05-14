@@ -93,7 +93,8 @@ todo.*
 *.yml
 
 ### Related-repository ###
-!.pipeline.png
+!.github/
+!.github/workflows/
 *.obo
 supplemental/
 bonesistools/
