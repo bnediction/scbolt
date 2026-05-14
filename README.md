@@ -147,15 +147,7 @@ Disable persistent logging:
 make LOGGING=false <module>
 ```
 
----
-
-## Documentation
-
-Advanced documentation is available in:
-
-```text
-man/
-```
+Advanced documentation is available in `man/`.
 
 ---
 

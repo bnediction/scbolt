@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import os, argparse
@@ -14,7 +15,7 @@ import matplotlib.pyplot as plt
 parser = argparse.ArgumentParser(
     prog="Single-cell gene kde",
     description="""Compute gene-related kernel density distribution from single-cell sequencing data.""",
-    usage="python gene_kde.py <FILE...> -o <PATH> [<args>]"
+    usage="python gene_kde.py <FILE...> -o <PATH> [<args>]",
 )
 
 parser.add_argument(
@@ -22,16 +23,17 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
     nargs="+",
-    help="input file(s) (h5ad format)"
+    help="input file(s) (h5ad format)",
 )
 
 parser.add_argument(
-    "-o", "--outpath",
+    "-o",
+    "--outpath",
     dest="outpath",
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="PATH",
-    help="output path"
+    help="output path",
 )
 
 parser.add_argument(
@@ -41,7 +43,7 @@ parser.add_argument(
     required=True,
     nargs="+",
     metavar="LITERAL",
-    help="genes of interest"
+    help="genes of interest",
 )
 
 parser.add_argument(
@@ -51,7 +53,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer used (if not specified, use adata.X)"
+    help="layer used (if not specified, use adata.X)",
 )
 
 parser.add_argument(
@@ -61,7 +63,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="plot kde for each distinct group in adata.obs (default: None)"
+    help="plot kde for each distinct group in adata.obs (default: None)",
 )
 
 args = parser.parse_args()
@@ -76,13 +78,8 @@ for i in range(len(adatas)):
 
 if len(args.infiles) > 1:
     try:
-        adata = ad.concat(
-            adatas,
-            axis=0,
-            merge="first",
-            uns_merge="same"
-        )
-        adata.obs_names_make_unique() ### handle issue when there are identical barcodes between anndata.
+        adata = ad.concat(adatas, axis=0, merge="first", uns_merge="same")
+        adata.obs_names_make_unique()  ### handle issue when there are identical barcodes between anndata.
     except:
         raise RuntimeError("Anndatas concatenation did not work, aborting")
 else:

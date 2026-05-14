@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import os, std
@@ -19,27 +20,26 @@ bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="cellrank",
-    description=
-    """
+    description="""
     Estimate macrostates using generalized perron cluster cluster analysis (GPCCA)
     with respect to velocity, potency and similarity-based kernels.
     See Lange et al. (2022) <https://www.nature.com/articles/s41592-021-01346-6>.
     """,
-    usage="python cellrank_macrostates.py <FILE> <FILE> [--csv <FILE>] [<args>]"
+    usage="python cellrank_macrostates.py <FILE> <FILE> [--csv <FILE>] [<args>]",
 )
 
 parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing counts and rna velocities (format: h5ad)"
+    help="input file storing counts and rna velocities (format: h5ad)",
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing cellrank macrostates (format: h5ad)"
+    help="output file storing cellrank macrostates (format: h5ad)",
 )
 
 parser.add_argument(
@@ -49,7 +49,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="FILE",
-    help="output file storing macrostates (format: csv)"
+    help="output file storing macrostates (format: csv)",
 )
 
 parser.add_argument(
@@ -59,7 +59,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="column name in adata.obs distinguishing clusters"
+    help="column name in adata.obs distinguishing clusters",
 )
 
 parser.add_argument(
@@ -69,7 +69,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="column name in adata.obs storing cytotrace cell potency scores (default: None)"
+    help="column name in adata.obs storing cytotrace cell potency scores (default: None)",
 )
 
 parser.add_argument(
@@ -79,7 +79,7 @@ parser.add_argument(
     required=False,
     default="Ms",
     metavar="LITERAL",
-    help="layer in adata.layers storing first order moments of spliced counts (default: 'Ms')"
+    help="layer in adata.layers storing first order moments of spliced counts (default: 'Ms')",
 )
 
 parser.add_argument(
@@ -89,7 +89,7 @@ parser.add_argument(
     required=False,
     default="velocity",
     metavar="LITERAL",
-    help="layer in adata.layers storing scvelo velocities (default: 'velocity')"
+    help="layer in adata.layers storing scvelo velocities (default: 'velocity')",
 )
 
 parser.add_argument(
@@ -100,7 +100,7 @@ parser.add_argument(
     default="stability",
     choices=["stability", "top_n", "eigengap", "eigengap_coarse"],
     metavar="[stability|top_n|eigengap|eigengap_coarse]",
-    help="method used to select terminal states (default: stability)"
+    help="method used to select terminal states (default: stability)",
 )
 
 parser.add_argument(
@@ -110,7 +110,7 @@ parser.add_argument(
     required=False,
     default=10,
     metavar="INT",
-    help="number of states (default: 10)"
+    help="number of states (default: 10)",
 )
 
 parser.add_argument(
@@ -120,7 +120,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of initial states (default: 1)"
+    help="number of initial states (default: 1)",
 )
 
 parser.add_argument(
@@ -130,7 +130,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="INT",
-    help="number of terminal states (used when --method value is 'top_n', default: None)"
+    help="number of terminal states (used when --method value is 'top_n', default: None)",
 )
 
 parser.add_argument(
@@ -140,7 +140,7 @@ parser.add_argument(
     required=False,
     default=0.96,
     metavar="FLOAT",
-    help="minimum stability for a state to be selected as a final macrostate (used when --method value is 'stability', default: 0.96)"
+    help="minimum stability for a state to be selected as a final macrostate (used when --method value is 'stability', default: 0.96)",
 )
 
 parser.add_argument(
@@ -150,7 +150,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="FLOAT",
-    help="weight given to the deviation of an eigenvalue from one (only used when --method value is 'eigengap' or 'eigengap_coarse', default: 1)"
+    help="weight given to the deviation of an eigenvalue from one (only used when --method value is 'eigengap' or 'eigengap_coarse', default: 1)",
 )
 
 parser.add_argument(
@@ -160,7 +160,7 @@ parser.add_argument(
     required=False,
     default=50,
     metavar="INT",
-    help="number of cells in each macrostate (default: 50)"
+    help="number of cells in each macrostate (default: 50)",
 )
 
 parser.add_argument(
@@ -170,7 +170,7 @@ parser.add_argument(
     required=False,
     default=random.random(),
     metavar="FLOAT",
-    help="random number generator (default: random)"
+    help="random number generator (default: random)",
 )
 
 parser.add_argument(
@@ -180,7 +180,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of allocated processors"
+    help="number of allocated processors",
 )
 
 args = parser.parse_args()
@@ -195,9 +195,7 @@ std.print_task("computing kernels")
 
 std.print_info("computing rna velocity-based kernel")
 velocity_kernel = cr.kernels.VelocityKernel(
-    adata,
-    xkey=args.scvelo_first_moment,
-    vkey=args.scvelo_velocity
+    adata, xkey=args.scvelo_first_moment, vkey=args.scvelo_velocity
 )
 velocity_kernel.compute_transition_matrix(seed=args.seed)
 
@@ -210,7 +208,9 @@ if args.cytotrace_score:
     potency_kernel._pseudotime = 1 - scores
     potency_kernel.compute_transition_matrix(n_jobs=args.jobs)
 else:
-    std.print_warning("cell development potential-based kernel is not computed: please specify argument --cytotrace-score")
+    std.print_warning(
+        "cell development potential-based kernel is not computed: please specify argument --cytotrace-score"
+    )
 
 std.print_info("computing similarity-based kernel")
 connectivity_kernel = cr.kernels.ConnectivityKernel(adata)
@@ -218,25 +218,22 @@ connectivity_kernel.compute_transition_matrix()
 
 std.print_info("combining kernels")
 if args.cytotrace_score:
-    combined_kernel = 0.4*velocity_kernel + 0.4*potency_kernel + 0.2*connectivity_kernel
+    combined_kernel = (
+        0.4 * velocity_kernel + 0.4 * potency_kernel + 0.2 * connectivity_kernel
+    )
 else:
-    combined_kernel = 0.8*velocity_kernel + 0.2*connectivity_kernel
+    combined_kernel = 0.8 * velocity_kernel + 0.2 * connectivity_kernel
 
-std.print_task("estimating macrostates using generalized perron cluster cluster analysis (GPCCA)")
+std.print_task(
+    "estimating macrostates using generalized perron cluster cluster analysis (GPCCA)"
+)
 gpcca = cr.estimators.GPCCA(combined_kernel)
 
 with std.disable_print():
-    gpcca.fit(
-        cluster_key=args.obs,
-        n_states=args.states,
-        n_cells=args.size
-    )
+    gpcca.fit(cluster_key=args.obs, n_states=args.states, n_cells=args.size)
 
 try:
-    gpcca.predict_initial_states(
-        n_states=args.initial_states,
-        n_cells=args.size
-    )
+    gpcca.predict_initial_states(n_states=args.initial_states, n_cells=args.size)
     found_initial_states = True
 except ValueError as e:
     if str(e) == "No macrostates have been selected.":
@@ -252,7 +249,7 @@ try:
         stability_threshold=args.stability,
         alpha=args.alpha,
         n_cells=args.size,
-        allow_overlap=True
+        allow_overlap=True,
     )
     found_final_states = True
 except ValueError as e:
@@ -283,7 +280,7 @@ std.print_task("plotting umap with respect to cellrank clusters")
 macrostate_files = {
     "macrostate": Path(f"{os.path.dirname(args.outfile)}/umap_cellrank.pdf"),
     "init_states": Path(f"{os.path.dirname(args.outfile)}/umap_init_states.pdf"),
-    "final_states": Path(f"{os.path.dirname(args.outfile)}/umap_final_states.pdf")
+    "final_states": Path(f"{os.path.dirname(args.outfile)}/umap_final_states.pdf"),
 }
 
 for obs, file in macrostate_files.items():
@@ -302,34 +299,26 @@ for obs, file in macrostate_files.items():
             add_labels=True,
             add_legend=True,
             lgd_params={
-                "title":obs,
-                "ncol":math.ceil(len(adata.obs[obs].astype("category").cat.categories) / 16),
-                "markerscale":5,
-                "frameon":True,
-                "edgecolor":bt.sct.pl.get_color("black"),
-                "shadow":False
+                "title": obs,
+                "ncol": math.ceil(
+                    len(adata.obs[obs].astype("category").cat.categories) / 16
+                ),
+                "markerscale": 5,
+                "frameon": True,
+                "edgecolor": bt.sct.pl.get_color("black"),
+                "shadow": False,
             },
-            text={
-                "fontsize": 15,
-                "fontweight": "extra bold"
-            },
-            n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 else 2,
+            text={"fontsize": 15, "fontweight": "extra bold"},
+            n_components=3 if adata.obsm["X_umap"].shape[1] > 2 else 2,
             background_visible=False,
-            outfile=file
+            outfile=file,
         )
     else:
         std.print_warning(f"no plotting for '{obs}': no state found")
 
 std.print_task(f"saving h5ad-formatted data in {str(args.outfile)}")
-adata.write_h5ad(
-    filename=args.outfile,
-    compression="gzip"
-)
+adata.write_h5ad(filename=args.outfile, compression="gzip")
 
 if args.csv:
     std.print_task(f"saving knnbs macrostates in {str(args.csv)}")
-    adata.obs["macrostate"].to_csv(
-        args.csv,
-        sep=",",
-        index=True
-    )
+    adata.obs["macrostate"].to_csv(args.csv, sep=",", index=True)

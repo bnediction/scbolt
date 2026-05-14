@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import os, std
@@ -17,25 +18,24 @@ from pandas import ExcelWriter
 
 parser = argparse.ArgumentParser(
     prog="markers",
-    description=
-    """
+    description="""
     Search for overexpressed genes (markers) between clusters.
     """,
-    usage="python markers.py [-h] <FILE> <FILE> [--xlsx <FILE>] --cluster <LITERAL> [<args>]"
+    usage="python markers.py [-h] <FILE> <FILE> [--xlsx <FILE>] --cluster <LITERAL> [<args>]",
 )
 
 parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing counts (format: h5ad)"
+    help="input file storing counts (format: h5ad)",
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing marker-metric associations (format: csv)"
+    help="output file storing marker-metric associations (format: csv)",
 )
 
 parser.add_argument(
@@ -44,7 +44,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="output file storing overexpressed genes, each spreadsheet being related to a cluster (format: xlsx)"
+    help="output file storing overexpressed genes, each spreadsheet being related to a cluster (format: xlsx)",
 )
 
 parser.add_argument(
@@ -53,7 +53,7 @@ parser.add_argument(
     type=str,
     required=True,
     metavar="LITERAL",
-    help="column name in 'adata.obs' distinguishing cell populations (required)"
+    help="column name in 'adata.obs' distinguishing cell populations (required)",
 )
 
 parser.add_argument(
@@ -63,7 +63,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer used (if not specified, use adata.X; expected logarithmized data)"
+    help="layer used (if not specified, use adata.X; expected logarithmized data)",
 )
 
 parser.add_argument(
@@ -71,7 +71,7 @@ parser.add_argument(
     dest="is_log",
     action="store_true",
     required=False,
-    help="specify whether data matrix is logarithmized"
+    help="specify whether data matrix is logarithmized",
 )
 
 parser.add_argument(
@@ -83,7 +83,7 @@ parser.add_argument(
     max=math.inf,
     required=False,
     default=0.25,
-    help="minimum log2 fold-change for a gene to be considered as differentially expressed (default: 0.25)"
+    help="minimum log2 fold-change for a gene to be considered as differentially expressed (default: 0.25)",
 )
 
 parser.add_argument(
@@ -95,7 +95,7 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.05,
-    help="maximum ajusted p-value for a gene to be binarized (default: 0.05)"
+    help="maximum ajusted p-value for a gene to be binarized (default: 0.05)",
 )
 
 parser.add_argument(
@@ -104,9 +104,9 @@ parser.add_argument(
     type=str,
     required=False,
     default="benjamini-hochberg",
-    choices=["benjamini-hochberg","bonferroni"],
+    choices=["benjamini-hochberg", "bonferroni"],
     metavar="[benjamini-hochberg|bonferroni]",
-    help="method used for correcting the significance level (default: benjamini-hochberg)"
+    help="method used for correcting the significance level (default: benjamini-hochberg)",
 )
 
 args = parser.parse_args()
@@ -131,16 +131,14 @@ sc.tl.rank_genes_groups(
     reference="rest",
     method="wilcoxon",
     tie_correct=True,
-    corr_method=args.correction
+    corr_method=args.correction,
 )
 
-markers_df = sc.get.rank_genes_groups_df(
-    adata,
-    group=None,
-    pval_cutoff=args.alpha
-)
+markers_df = sc.get.rank_genes_groups_df(adata, group=None, pval_cutoff=args.alpha)
 
-std.print_warning("found inconsistencies between log2 fold-changes derived from seurat::FindAllMarkers and scanpy.rank_gene_groups (see <https://www.biostars.org/p/453129/>)")
+std.print_warning(
+    "found inconsistencies between log2 fold-changes derived from seurat::FindAllMarkers and scanpy.rank_gene_groups (see <https://www.biostars.org/p/453129/>)"
+)
 std.print_debug("updating log2 fold-changes")
 logfoldchanges_df = bt.sct.tl.calculate_logfoldchanges(
     adata,
@@ -149,7 +147,7 @@ logfoldchanges_df = bt.sct.tl.calculate_logfoldchanges(
     column_name="logfoldchanges",
     is_log=args.is_log,
     cluster_rebalancing=False,
-    filter_logfoldchanges=lambda x: x > args.logfc
+    filter_logfoldchanges=lambda x: x > args.logfc,
 )
 
 markers_df = markers_df.loc[:, markers_df.columns != "logfoldchanges"]
@@ -159,29 +157,19 @@ markers_df = pd.merge(
     logfoldchanges_df,
     left_on=["names", "group"],
     right_on=["names", "group"],
-    how="inner"
+    how="inner",
 )
 
 std.print_task(f"saving data in {str(args.outfile)}")
-markers_df.to_csv(
-    args.outfile,
-    sep=",",
-    index=False
-)
+markers_df.to_csv(args.outfile, sep=",", index=False)
 
 if args.xlsx:
     std.print_task(f"saving differentially expressed genes in {str(args.xlsx)}")
     with ExcelWriter(args.xlsx) as xlsx_writer:
         pd.DataFrame(adata.var_names).to_excel(
-            xlsx_writer,
-            sheet_name="background",
-            header=False,
-            index=False
+            xlsx_writer, sheet_name="background", header=False, index=False
         )
         for cluster in markers_df["group"].unique():
             markers_df[markers_df["group"] == cluster]["names"].to_excel(
-                xlsx_writer,
-                sheet_name=cluster,
-                header=False,
-                index=False
+                xlsx_writer, sheet_name=cluster, header=False, index=False
             )

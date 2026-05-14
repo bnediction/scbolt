@@ -490,8 +490,9 @@ endif
 help: ## display this help and exit
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [REFERENCES=<...>] (default:REFERENCES=$(subst $(space),$(plus),$(references)))\n\
 	scBOLT is a semi-automated pipeline for Boolean network inference from multi-condition single-cell transcriptomes. \
-	It combines preprocessing, clustering, trajectory inference, macrostate characterization, binarization, \
-	and BoNesis-based model inference to reproduce observed transcriptomic cell dynamics.\n"}/^[a-zA-Z_-]+:.*?##/ \
+	The workflow includes: alignment and preprocessing, integration and clustering, cell annotation, trajectory inference, \
+	macrostate characterization, macrostate binarization, Boolean constraint specification, gene selectionn, \
+	and Boolean network inference.\n"}/^[a-zA-Z_-]+:.*?##/ \
 	{ printf "  $(GREEN)%-22s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BOLD)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 .PHONY: config

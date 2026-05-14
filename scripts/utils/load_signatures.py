@@ -8,14 +8,18 @@ from pathlib import Path
 import bonesistools as bt
 import pandas as pd
 
+
 def file2signatures(file):
     signatures_d = dict()
     for sheetname, signature in file.items():
-        if not sheetname=="Description":
+        if not sheetname == "Description":
             cell_type = sheetname.split(".txt", 1)[0]
-            gene_symbols = [gene for gene in list(signature["Gene Symbol"]) if isinstance(gene, str)]
+            gene_symbols = [
+                gene for gene in list(signature["Gene Symbol"]) if isinstance(gene, str)
+            ]
             signatures_d[cell_type] = gene_symbols
     return signatures_d
+
 
 def df2signatures(df):
     signatures_d = dict()
@@ -24,11 +28,12 @@ def df2signatures(df):
         signatures_d[cell_type] = gene_symbols
     return signatures_d
 
+
 parser = argparse.ArgumentParser(
     prog="Load signatures data",
     description="""Load signatures data from two files,
     one in a table format and the other one in list format.""",
-    usage="python load_signatures.py <args>"
+    usage="python load_signatures.py <args>",
 )
 
 parser.add_argument(
@@ -36,7 +41,7 @@ parser.add_argument(
     dest="table_infile",
     type=lambda x: Path(x).resolve(),
     required=True,
-    help="path to table signatures file"
+    help="path to table signatures file",
 )
 
 parser.add_argument(
@@ -44,7 +49,7 @@ parser.add_argument(
     dest="list_infile",
     type=lambda x: Path(x).resolve(),
     required=True,
-    help="path to list signatures file"
+    help="path to list signatures file",
 )
 
 parser.add_argument(
@@ -52,7 +57,7 @@ parser.add_argument(
     dest="outfile",
     type=lambda x: Path(x).resolve(),
     required=True,
-    help="output file"
+    help="output file",
 )
 
 args = parser.parse_args()
@@ -69,15 +74,14 @@ list_signatures_df.columns = list(list_signatures_df.iloc[0])
 list_signatures_df.drop([0, 1], axis=0, inplace=True)
 list_signatures_d = df2signatures(list_signatures_df)
 
-signatures_d = {
-    **table_signatures_d,
-    **list_signatures_d
-}
+signatures_d = {**table_signatures_d, **list_signatures_d}
 
 genesyn = bt.dbs.ncbi.GeneSynonyms()
 for k, v in signatures_d.items():
     signatures_d[k] = genesyn(v)
-signatures_d = {phenotype: signature for phenotype, signature in signatures_d.items() if signature}
+signatures_d = {
+    phenotype: signature for phenotype, signature in signatures_d.items() if signature
+}
 
 with open(f"{args.outfile}", "w") as file:
     json.dump(signatures_d, file, indent=1)

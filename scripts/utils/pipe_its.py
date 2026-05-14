@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import os, std
@@ -11,20 +12,19 @@ import anndata as ad
 
 parser = argparse.ArgumentParser(
     prog="pipe_its",
-    description=
-    """
+    description="""
     Send information from integrated 'adata.obs' towards multiple specific 'adata.obs', each one referring to a name. \
     Values passed to parameters '--specifics' and '--names' have to be ordered together. \
     If parameter '--outfiles' is specified, it also have to be specified in the same order as '--specifics' and '--names'.
     """,
-    usage="""python pipe_its.py [-h] <FILE> <FILE ...> [--outfiles <FILE ...>] --labels <LITERAL ...> --column-label <LITERAL> --obs <LITERAL ...>"""
+    usage="""python pipe_its.py [-h] <FILE> <FILE ...> [--outfiles <FILE ...>] --labels <LITERAL ...> --column-label <LITERAL> --obs <LITERAL ...>""",
 )
 
 parser.add_argument(
     "integrated",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input integration-based file (format: h5ad)"
+    help="input integration-based file (format: h5ad)",
 )
 
 parser.add_argument(
@@ -32,7 +32,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
     nargs="+",
-    help="input condition-based input file(s) (format: h5ad)"
+    help="input condition-based input file(s) (format: h5ad)",
 )
 
 parser.add_argument(
@@ -43,7 +43,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="FILE",
-    help="condition-based output file(s) (format: h5ad. If not specified, replace input file(s))"
+    help="condition-based output file(s) (format: h5ad. If not specified, replace input file(s))",
 )
 
 parser.add_argument(
@@ -53,7 +53,7 @@ parser.add_argument(
     nargs="+",
     required=True,
     metavar="LITERAL",
-    help="dataset names (ordered with parameter --specifics)"
+    help="dataset names (ordered with parameter --specifics)",
 )
 
 parser.add_argument(
@@ -62,7 +62,7 @@ parser.add_argument(
     type=str,
     required=True,
     metavar="LITERAL",
-    help="column name in integrated 'adata.obs' referring to dataset names"
+    help="column name in integrated 'adata.obs' referring to dataset names",
 )
 
 parser.add_argument(
@@ -73,7 +73,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="column names in integrated 'adata.obs' to transfer (if not specified, transfer all columns)"
+    help="column names in integrated 'adata.obs' to transfer (if not specified, transfer all columns)",
 )
 
 args = parser.parse_args()
@@ -108,18 +108,19 @@ std.print_task("transferring information from integrated dataset to specific dat
 for name, adata in specific_ad.items():
     cols_to_remove = set(args.obs).intersection(set(adata.obs.columns))
     if cols_to_remove:
-        std.print_debug("removing in dataset '{0}' the following column(s): {1}".format(name,', '.join(f"'{cols}'" for cols in cols_to_remove)))
+        std.print_debug(
+            "removing in dataset '{0}' the following column(s): {1}".format(
+                name, ", ".join(f"'{cols}'" for cols in cols_to_remove)
+            )
+        )
         adata.obs = adata.obs.drop(cols_to_remove, axis=1)
     adata.obs = adata.obs.merge(
         right=integrated_ad[integrated_ad.obs[args.obs_label] == name].obs[args.obs],
         how="left",
         left_index=True,
-        right_index=True
+        right_index=True,
     )
 
 for name, outfile in zip(args.labels, args.outfiles):
     std.print_task(f"saving dataset '{name}' in {str(file)}")
-    specific_ad[name].write_h5ad(
-        filename=outfile,
-        compression="gzip"
-    )
+    specific_ad[name].write_h5ad(filename=outfile, compression="gzip")

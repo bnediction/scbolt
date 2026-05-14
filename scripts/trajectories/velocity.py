@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import os, std
@@ -21,21 +22,21 @@ parser = argparse.ArgumentParser(
     Compute rna velocities based on spliced/unspliced kinetics using scVelo framework. \
     See Bergen et al. (2020) <https://www.nature.com/articles/s41587-020-0591-3>.
     """,
-    usage="python velocity.py <FILE> <FILE> [<args>]"
+    usage="python velocity.py <FILE> <FILE> [<args>]",
 )
 
 parser.add_argument(
     dest="infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing pre-computed neighbors, principal and embedding components (format: h5ad)"
+    help="input file storing pre-computed neighbors, principal and embedding components (format: h5ad)",
 )
 
 parser.add_argument(
     dest="outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing velocity (format: h5ad)"
+    help="output file storing velocity (format: h5ad)",
 )
 
 parser.add_argument(
@@ -45,7 +46,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer used (if not specified, use adata.X)"
+    help="layer used (if not specified, use adata.X)",
 )
 
 parser.add_argument(
@@ -54,7 +55,7 @@ parser.add_argument(
     type=str,
     required=True,
     metavar="LITERAL",
-    help="column name in adata.obs distinguishing clusters"
+    help="column name in adata.obs distinguishing clusters",
 )
 
 parser.add_argument(
@@ -64,7 +65,7 @@ parser.add_argument(
     required=False,
     default=15,
     metavar="INT",
-    help="number of principal components taken into account for estimating moments (default: 15)"
+    help="number of principal components taken into account for estimating moments (default: 15)",
 )
 
 parser.add_argument(
@@ -72,7 +73,7 @@ parser.add_argument(
     dest="only_hvg",
     action="store_true",
     required=False,
-    help="use only highly variable genes for estimating rna velocities"
+    help="use only highly variable genes for estimating rna velocities",
 )
 
 parser.add_argument(
@@ -83,7 +84,7 @@ parser.add_argument(
     choices=["deterministic", "stochastic", "dynamical"],
     default="stochastic",
     metavar="[deterministic|stochastic|dynamical]",
-    help="mode used for estimating the steady-state model (default: stochastic)"
+    help="mode used for estimating the steady-state model (default: stochastic)",
 )
 
 parser.add_argument(
@@ -92,9 +93,9 @@ parser.add_argument(
     type=str,
     required=False,
     default="umap",
-    choices=["umap","tsne"],
+    choices=["umap", "tsne"],
     metavar="[umap|tsne]",
-    help="embedding projection used (default: umap)"
+    help="embedding projection used (default: umap)",
 )
 
 parser.add_argument(
@@ -104,7 +105,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of allocated processors"
+    help="number of allocated processors",
 )
 
 args = parser.parse_args()
@@ -122,13 +123,15 @@ if args.layer:
     adata.X = adata.layers[args.layer].copy()
 
 if args.cluster:
-    std.print_info(f"plotting pie chart of spliced/unspliced proportions with respect to cluster '{args.cluster}'")
+    std.print_info(
+        f"plotting pie chart of spliced/unspliced proportions with respect to cluster '{args.cluster}'"
+    )
     scv.pl.proportions(
         adata,
         groupby=args.cluster,
         fontsize=plt.rcParams["font.size"],
-        figsize=(11,5),
-        show=False
+        figsize=(11, 5),
+        show=False,
     )
     plt.savefig(Path(f"{outpath}/proportions.pdf"))
     plt.close()
@@ -143,7 +146,7 @@ with std.disable_print():
         method="umap",
         use_rep="X_pca",
         use_highly_variable=args.only_hvg,
-        copy=False
+        copy=False,
     )
 
 std.print_task(f"estimating rna velocities using {args.mode} mode")
@@ -153,43 +156,36 @@ with std.disable_print():
         vkey="velocity",
         mode=args.mode,
         use_highly_variable=args.only_hvg,
-        copy=False
+        copy=False,
     )
 
 std.print_task("computing velocity graph based on cosine similarities")
 with std.disable_print():
-    scv.tl.velocity_graph(
-        adata,
-        vkey="velocity",
-        copy=False,
-        n_jobs=args.jobs
-    )
+    scv.tl.velocity_graph(adata, vkey="velocity", copy=False, n_jobs=args.jobs)
 
 std.print_task("estimating velocity pseudotime")
 with std.disable_print():
-    scv.tl.velocity_pseudotime(
-        adata,
-        vkey="velocity",
-        use_velocity_graph=True
-    )
+    scv.tl.velocity_pseudotime(adata, vkey="velocity", use_velocity_graph=True)
 
 std.print_task("estimation PAGA graph with velocity-directed edges")
 with std.disable_print():
-    scv.tl.paga(
-        adata,
-        vkey="velocity",
-        groups=args.cluster,
-        copy=False
-    )
+    scv.tl.paga(adata, vkey="velocity", groups=args.cluster, copy=False)
     adata.uns["transitions_confidence"] = adata.uns["paga"]["transitions_confidence"]
 
 std.print_task("plotting trajectory")
 
 embedding_label = "UMAP" if args.embedding == "umap" else "t-SNE"
-adata.uns["colors"] = bt.sct.pl.generate_colormap(color_number=len(adata.obs[args.cluster].cat.categories)).colors
-color_map = {cluster: adata.uns["colors"][idx] for idx, cluster in enumerate(adata.obs[args.cluster].cat.categories)}
+adata.uns["colors"] = bt.sct.pl.generate_colormap(
+    color_number=len(adata.obs[args.cluster].cat.categories)
+).colors
+color_map = {
+    cluster: adata.uns["colors"][idx]
+    for idx, cluster in enumerate(adata.obs[args.cluster].cat.categories)
+}
 
-std.print_info(f"plotting velocity vector fields in {embedding_label.lower()} embedding")
+std.print_info(
+    f"plotting velocity vector fields in {embedding_label.lower()} embedding"
+)
 with std.disable_print():
     ax = scv.pl.velocity_embedding_stream(
         adata,
@@ -201,8 +197,8 @@ with std.disable_print():
         alpha=0.5,
         legend_loc="best",
         legend_fontweight="bold",
-        figsize=(7,4),
-        show=False
+        figsize=(7, 4),
+        show=False,
     )
     for txt in ax.texts:
         txt.set_visible(False)
@@ -227,21 +223,23 @@ bt.sct.pl.embedding_plot(
     alpha=1,
     add_legend=True,
     lgd_params={
-        "title":"pseudotime",
-        "ncol":1,
-        "markerscale":5,
-        "frameon":True,
-        "edgecolor":bt.sct.pl.get_color("black"),
-        "shadow":False
+        "title": "pseudotime",
+        "ncol": 1,
+        "markerscale": 5,
+        "frameon": True,
+        "edgecolor": bt.sct.pl.get_color("black"),
+        "shadow": False,
     },
-    n_components = 3 if adata.obsm["velocity_umap"].shape[1] > 2 else 2,
+    n_components=3 if adata.obsm["velocity_umap"].shape[1] > 2 else 2,
     background_visible=False,
     colorbar_scale=0.3,
     colors="gnuplot",
-    outfile=Path(f"{outpath}/velocity_pseudotime.pdf")
+    outfile=Path(f"{outpath}/velocity_pseudotime.pdf"),
 )
 
-std.print_info(f"plotting PAGA graph with velocity-directed edges in {embedding_label.lower()} embedding")
+std.print_info(
+    f"plotting PAGA graph with velocity-directed edges in {embedding_label.lower()} embedding"
+)
 fig, ax = bt.sct.pl.embedding_plot(
     adata,
     obs=args.cluster,
@@ -254,15 +252,17 @@ fig, ax = bt.sct.pl.embedding_plot(
     alpha=1,
     add_legend=True,
     lgd_params={
-        "title":"clusters",
-        "ncol":1,
-        "markerscale":5,
-        "frameon":True,
-        "edgecolor":bt.sct.pl.get_color("black"),
-        "shadow":False
+        "title": "clusters",
+        "ncol": 1,
+        "markerscale": 5,
+        "frameon": True,
+        "edgecolor": bt.sct.pl.get_color("black"),
+        "shadow": False,
     },
     color=adata.uns["colors"],
-    n_components = 3 if adata.obsm["velocity_umap"].shape[1] > 2 and args.plot_3d is True else 2,
+    n_components=(
+        3 if adata.obsm["velocity_umap"].shape[1] > 2 and args.plot_3d is True else 2
+    ),
     background_visible=False,
 )
 plt.axis("off")
@@ -276,7 +276,7 @@ ax = bt.sct.pl.draw_paga(
     with_labels=False,
     width=2,
     node_size=100,
-    node_color=color_map
+    node_color=color_map,
 )
 plt.savefig(Path(f"{outpath}/paga.pdf"))
 plt.close()
@@ -284,7 +284,4 @@ plt.close()
 std.print_task(f"saving data in {str(args.outfile)}")
 if args.cluster != "clusters":
     del adata.obs["clusters"]
-adata.write_h5ad(
-    filename=args.outfile,
-    compression="gzip"
-)
+adata.write_h5ad(filename=args.outfile, compression="gzip")

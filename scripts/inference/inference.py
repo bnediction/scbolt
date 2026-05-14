@@ -26,6 +26,7 @@ bonesis.settings["quiet"] = True
 DISABLE_TQDM = os.getenv("TQDM_DISABLE", "0") == "1"
 TQDM_TO_TTY = os.getenv("TQDM_TO_TTY", "0") == "1"
 
+
 class ptqdm(tqdm):
     def __init__(self, *args, **kwargs):
         if TQDM_TO_TTY:
@@ -37,6 +38,7 @@ class ptqdm(tqdm):
         kwargs.setdefault("disable", DISABLE_TQDM)
         super().__init__(*args, **kwargs)
 
+
 def write_bn(
     bn: mpbn.MPBooleanNetwork,
     bnet: Path,
@@ -46,7 +48,7 @@ def write_bn(
     circo: Optional[Path] = None,
     fdp: Optional[Path] = None,
     sfdp: Optional[Path] = None,
-    remove_single_nodes: bool = False
+    remove_single_nodes: bool = False,
 ):
     bn = bn.copy()
     bn.save(bnet)
@@ -54,7 +56,13 @@ def write_bn(
         noi_set = set(bn) - set(bn.constants())
         with open(noi, "w") as fp:
             fp.write("".join([f"{n}\n" for n in noi_set]))
-    if dot is not None or neato is not None or circo is not None or fdp is not None or sfdp is not None:
+    if (
+        dot is not None
+        or neato is not None
+        or circo is not None
+        or fdp is not None
+        or sfdp is not None
+    ):
         if remove_single_nodes is True:
             nodes_to_remove = []
             for node in bn:
@@ -74,11 +82,15 @@ def write_bn(
         if sfdp is not None:
             _dot.write(sfdp, prog="sfdp", format="raw")
 
+
 def dict_to_str(d: dict) -> str:
-    s = ""; add = ""
+    s = ""
+    add = ""
     for k, v in d.items():
-        s += f"{add}{k}->{v}"; add = ", "
+        s += f"{add}{k}->{v}"
+        add = ", "
         return s
+
 
 parser_description = """
 Infer Most Permissive Boolean Networks (MPBN) using bonesis paradigm. \
@@ -94,27 +106,27 @@ parser = argparse.ArgumentParser(
     prog="inference",
     description=parser_description,
     usage="python inference.py [filter-nodes | filter-consts | one | min | sub] <FILE> <FILE> [<args>]",
-    formatter_class=argparse.RawTextHelpFormatter
+    formatter_class=argparse.RawTextHelpFormatter,
 )
 
 parser.add_argument(
     "action",
     choices=["filter-nodes", "filter-consts", "one", "min", "sub"],
-    metavar="[filter-nodes | filter-consts | one | min | sub]"
+    metavar="[filter-nodes | filter-consts | one | min | sub]",
 )
 
 parser.add_argument(
     "spec",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file containing model specifications in Bonesis langage (format: txt)"
+    help="input file containing model specifications in Bonesis langage (format: txt)",
 )
 
 parser.add_argument(
     "mstates",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing partially binarized metastates (format: csv)"
+    help="input file storing partially binarized metastates (format: csv)",
 )
 
 parser.add_argument(
@@ -123,7 +135,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="input file storing important genes, being prioritize to appear (format: json or txt)"
+    help="input file storing important genes, being prioritize to appear (format: json or txt)",
 )
 
 parser.add_argument(
@@ -132,7 +144,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="input file storing mandatory genes, being forced to appear (format: json or txt)"
+    help="input file storing mandatory genes, being forced to appear (format: json or txt)",
 )
 
 parser.add_argument(
@@ -141,7 +153,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="file with one node per line (txt format)"
+    help="file with one node per line (txt format)",
 )
 
 parser.add_argument(
@@ -150,7 +162,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="PATH",
-    help="output file storing asp command (format: sh)"
+    help="output file storing asp command (format: sh)",
 )
 
 parser.add_argument(
@@ -159,7 +171,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="FILE | PATH",
-    help="output file storing bonesis solution (format: txt for 'filter-nodes'/'filter-consts', bnet for 'one' or 'min' and path for 'sub')"
+    help="output file storing bonesis solution (format: txt for 'filter-nodes'/'filter-consts', bnet for 'one' or 'min' and path for 'sub')",
 )
 
 parser.add_argument(
@@ -169,7 +181,7 @@ parser.add_argument(
     required=False,
     default="collectri",
     metavar="[collectri | dorothea]",
-    help="prior gene regulatory network defining the domain (search space)"
+    help="prior gene regulatory network defining the domain (search space)",
 )
 
 parser.add_argument(
@@ -177,14 +189,10 @@ parser.add_argument(
     dest="organism",
     action=cli.Store_organism,
     default="mouse",
-    required=False
+    required=False,
 )
 
-parser.add_argument(
-    "--bonesis-mode",
-    dest="bonesis_mode",
-    action=cli.Bonesis_mode
-)
+parser.add_argument("--bonesis-mode", dest="bonesis_mode", action=cli.Bonesis_mode)
 
 parser.add_argument(
     "--max-clause",
@@ -193,7 +201,7 @@ parser.add_argument(
     required=False,
     default=8,
     metavar="INT",
-    help="maximum number of literals/atoms in each propositional formula (default: 8)"
+    help="maximum number of literals/atoms in each propositional formula (default: 8)",
 )
 
 parser.add_argument(
@@ -201,7 +209,7 @@ parser.add_argument(
     dest="minimize_self_loops",
     required=False,
     action="store_true",
-    help="minimize the number of self loops"
+    help="minimize the number of self loops",
 )
 
 parser.add_argument(
@@ -209,14 +217,14 @@ parser.add_argument(
     dest="clingo_opt_mode",
     action=cli.Clingo_opt_mode,
     required=False,
-    default="optN"
+    default="optN",
 )
 
 parser.add_argument(
     "--clingo-opt-strategy",
     dest="clingo_opt_strategy",
     action=cli.Clingo_opt_strategy,
-    required=False
+    required=False,
 )
 
 parser.add_argument(
@@ -226,7 +234,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="INT",
-    help="number of diverse subset minimal solutions. If not specified, enumerate all subset minimal solutions without diversity (default: None)"
+    help="number of diverse subset minimal solutions. If not specified, enumerate all subset minimal solutions without diversity (default: None)",
 )
 
 parser.add_argument(
@@ -236,7 +244,7 @@ parser.add_argument(
     required=False,
     default=",",
     metavar="CHAR",
-    help="field delimiter for csv format (default: ',')"
+    help="field delimiter for csv format (default: ',')",
 )
 
 parser.add_argument(
@@ -244,7 +252,7 @@ parser.add_argument(
     dest="dot",
     required=False,
     action="store_true",
-    help="save BN associated-influence graph with dot program"
+    help="save BN associated-influence graph with dot program",
 )
 
 parser.add_argument(
@@ -252,7 +260,7 @@ parser.add_argument(
     dest="neato",
     required=False,
     action="store_true",
-    help="save BN associated-influence graph with neato program"
+    help="save BN associated-influence graph with neato program",
 )
 
 parser.add_argument(
@@ -260,7 +268,7 @@ parser.add_argument(
     dest="circo",
     required=False,
     action="store_true",
-    help="save BN associated-influence graph with circo program"
+    help="save BN associated-influence graph with circo program",
 )
 
 parser.add_argument(
@@ -268,7 +276,7 @@ parser.add_argument(
     dest="fdp",
     required=False,
     action="store_true",
-    help="save BN associated-influence graph with fdp program"
+    help="save BN associated-influence graph with fdp program",
 )
 
 parser.add_argument(
@@ -276,7 +284,7 @@ parser.add_argument(
     dest="sfdp",
     required=False,
     action="store_true",
-    help="save BN associated-influence graph with sfdp program"
+    help="save BN associated-influence graph with sfdp program",
 )
 
 parser.add_argument(
@@ -284,7 +292,7 @@ parser.add_argument(
     dest="remove_single_nodes",
     required=False,
     action="store_true",
-    help="remove nodes without interaction with another node when printing influence graph"
+    help="remove nodes without interaction with another node when printing influence graph",
 )
 
 parser.add_argument(
@@ -294,13 +302,15 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of allocated processors (used only when searching for diverse solutions of Boolean network)"
+    help="number of allocated processors (used only when searching for diverse solutions of Boolean network)",
 )
 
 args = parser.parse_args()
 
 if args.bonesis_mode != "hard":
-    std.print_warning(f"some constraints are removed (bonesis mode: {args.bonesis_mode})")
+    std.print_warning(
+        f"some constraints are removed (bonesis mode: {args.bonesis_mode})"
+    )
 
 bonesis.settings["parallel"] = args.jobs
 
@@ -310,10 +320,7 @@ std.print_task(f"loading partially binarized metastates {str(args.mstates)}")
 
 mstates_df = pd.read_csv(args.mstates, index_col=0, sep=args.sep).fillna(float("nan"))
 
-mstates_cfg = get_cfg(
-    mstates_df,
-    axis="index"
-)
+mstates_cfg = get_cfg(mstates_df, axis="index")
 
 std.print_task("initializing bonesis settings")
 
@@ -325,15 +332,9 @@ if args.action == "filter-nodes":
     pkn_options["allow_skipping_nodes"] = True
 
 if args.database == "collectri":
-    grn = bt.dbs.omnipath.load_collectri_grn(
-        organism=args.organism,
-        genesyn=genesyn
-    )
+    grn = bt.dbs.omnipath.load_collectri_grn(organism=args.organism, genesyn=genesyn)
 else:
-    grn = bt.dbs.omnipath.load_dorothea_grn(
-        organism=args.organism,
-        genesyn=genesyn
-    )
+    grn = bt.dbs.omnipath.load_dorothea_grn(organism=args.organism, genesyn=genesyn)
 
 if args.filter_grn:
     with open(args.filter_grn) as fp:
@@ -346,7 +347,7 @@ bo = bonesis.BoNesis(pkn, mstates_cfg)
 
 with open(args.spec, "r") as file:
     for line in file:
-        exec(line.rstrip('\n'))
+        exec(line.rstrip("\n"))
 
 if args.bonesis_mode == "soft":
     new_constraints = True
@@ -355,7 +356,11 @@ if args.bonesis_mode == "soft":
         str_property = bo_property[0]
         if str_property in ["final_nonreach", "nonreach", "all_fixpoints", "allreach"]:
             idx.append(i)
-    bo.manager.properties = [bo.manager.properties.copy()[i] for i in range(len(bo.manager.properties)) if i not in idx]
+    bo.manager.properties = [
+        bo.manager.properties.copy()[i]
+        for i in range(len(bo.manager.properties))
+        if i not in idx
+    ]
 elif args.bonesis_mode == "relaxed":
     new_constraints = False
     idx = []
@@ -365,7 +370,11 @@ elif args.bonesis_mode == "relaxed":
             idx.append(i)
         if str_property in ["final_nonreach", "nonreach"]:
             new_constraints = True
-    bo.manager.properties = [bo.manager.properties.copy()[i] for i in range(len(bo.manager.properties)) if i not in idx]
+    bo.manager.properties = [
+        bo.manager.properties.copy()[i]
+        for i in range(len(bo.manager.properties))
+        if i not in idx
+    ]
 elif args.bonesis_mode == "hard":
     new_constraints = False
     for bo_property in bo.manager.properties:
@@ -375,7 +384,9 @@ elif args.bonesis_mode == "hard":
 
 if args.action == "filter-nodes":
 
-    std.print_task("filtering components by maximizing variable number while constraining Boolean networks to be compatible with the observations")
+    std.print_task(
+        "filtering components by maximizing variable number while constraining Boolean networks to be compatible with the observations"
+    )
 
     bo.maximize_nodes()
 
@@ -390,9 +401,9 @@ if args.action == "filter-nodes":
             important_genes = [line.rstrip() for line in file.readlines()]
         for gene in important_genes:
             bo.custom(f"important_node({clingo_encode(gene)}).")
-        
+
     bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
-    
+
     def intermediate_solution(nodes):
         with open(args.solution, "w") as file:
             for node in nodes:
@@ -403,7 +414,7 @@ if args.action == "filter-nodes":
         mode=args.clingo_opt_mode,
         intermediate_model_cb=intermediate_solution,
         clingo_opt_strategy=args.clingo_opt_strategy or "bb,dec",
-        progress=ptqdm
+        progress=ptqdm,
     )
     view.standalone(output_filename=args.asp)
 
@@ -420,7 +431,7 @@ if args.action == "filter-nodes":
     with open(args.solution, "w") as file:
         for node in solution:
             file.write(f"{node}\n")
-    
+
     nodes_in_data = set()
     for bin_nodes in bo.data.values():
         nodes_in_data.update(bin_nodes.keys())
@@ -429,14 +440,25 @@ if args.action == "filter-nodes":
     if TQDM_TO_TTY:
         with open("/dev/tty", "w") as tty:
             print("", file=tty, flush=True)
-    std.print_result(f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]", flush=True)
-    std.print_result(f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]", flush=True)
-    std.print_result(f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]", flush=True)
+    std.print_result(
+        f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]",
+        flush=True,
+    )
+    std.print_result(
+        f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]",
+        flush=True,
+    )
+    std.print_result(
+        f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]",
+        flush=True,
+    )
 
 elif args.action == "filter-consts":
 
-    std.print_task("filtering components by deleting strong constants while constraining Boolean networks to be compatible with the observations")
-    
+    std.print_task(
+        "filtering components by deleting strong constants while constraining Boolean networks to be compatible with the observations"
+    )
+
     bo.maximize_strong_constants()
     if args.minimize_self_loops:
         bo.custom("edge(A,A) :- clause(A,_,A,_). #minimize { 1@10000,A: edge(A,A) }.")
@@ -446,7 +468,7 @@ elif args.action == "filter-consts":
         mode=args.clingo_opt_mode,
         clingo_opt_strategy="usc",
         clingo_options=["--opt-usc-shrink=inv"],
-        progress=ptqdm
+        progress=ptqdm,
     )
     view.standalone(output_filename=args.asp)
 
@@ -456,7 +478,7 @@ elif args.action == "filter-consts":
     with open(args.solution, "w") as file:
         for node in solution:
             file.write(f"{node}\n")
-    
+
     nodes_in_data = set()
     for bin_nodes in bo.data.values():
         nodes_in_data.update(bin_nodes.keys())
@@ -465,9 +487,15 @@ elif args.action == "filter-consts":
     if TQDM_TO_TTY:
         with open("/dev/tty", "w") as tty:
             print("", file=tty, flush=True)
-    std.print_result(f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]")
-    std.print_result(f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]")
-    std.print_result(f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]")
+    std.print_result(
+        f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]"
+    )
+    std.print_result(
+        f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]"
+    )
+    std.print_result(
+        f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]"
+    )
 
 elif args.action == "min":
 
@@ -484,7 +512,7 @@ elif args.action == "min":
         mode=args.clingo_opt_mode,
         clingo_opt_strategy="usc",
         extra=("boolean-network", "configurations"),
-        progress=ptqdm
+        progress=ptqdm,
     )
     view.standalone(output_filename=args.asp)
 
@@ -497,7 +525,8 @@ elif args.action == "min":
         if component not in nodes:
             name_mapping[component] = re.sub("_", "-", component)
     if name_mapping:
-        print(""); std.print_debug(f"renaming components: {dict_to_str(name_mapping)}")
+        print("")
+        std.print_debug(f"renaming components: {dict_to_str(name_mapping)}")
         for k, v in name_mapping.items():
             bn.rename(k, v)
 
@@ -505,8 +534,15 @@ elif args.action == "min":
         bn=bn,
         bnet=f"{args.solution}.bnet",
         noi=f"{args.solution}.noi.txt",
-        **{f"{program}": f"{os.path.dirname(args.solution)}/graph.{program}" if eval(f"args.{program}") else None for program in ["dot", "neato", "circo", "fdp", "sfdp"]},
-        remove_single_nodes = args.remove_single_nodes
+        **{
+            f"{program}": (
+                f"{os.path.dirname(args.solution)}/graph.{program}"
+                if eval(f"args.{program}")
+                else None
+            )
+            for program in ["dot", "neato", "circo", "fdp", "sfdp"]
+        },
+        remove_single_nodes=args.remove_single_nodes,
     )
     pd.DataFrame(solution[2]).to_csv(f"{args.solution}.csv")
 
@@ -520,22 +556,28 @@ elif args.action == "sub":
         bo,
         extra=("configurations"),
         limit=args.limit if args.limit is not None else 0,
-        progress=ptqdm
+        progress=ptqdm,
     )
     view.standalone(output_filename=args.asp)
 
-    debug=True
+    debug = True
     bns = bt.bpy.BooleanNetworkEnsemble(components=nodes)
     std.print_warning("this may take some time.")
     for i, solution in enumerate(ptqdm(view)):
-        bn = solution[1] if isinstance(view, bonesis.views.InfluenceGraphView) else solution[0]
+        bn = (
+            solution[1]
+            if isinstance(view, bonesis.views.InfluenceGraphView)
+            else solution[0]
+        )
         if debug:
             name_mapping = dict()
             for component in bn:
                 if component not in bns.get_components():
                     name_mapping[component] = re.sub("_", "-", component)
             if name_mapping:
-                tqdm.write(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - DEBUG - renaming components: {dict_to_str(name_mapping)}")
+                tqdm.write(
+                    f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - DEBUG - renaming components: {dict_to_str(name_mapping)}"
+                )
             debug = False
         if name_mapping:
             for k, v in name_mapping.items():
@@ -546,8 +588,15 @@ elif args.action == "sub":
             bn=bn,
             bnet=f"{args.solution}/{i}/model.bnet",
             noi=f"{args.solution}/{i}/.noi.txt",
-            **{f"{program}": f"{args.solution}/{i}/graph.{program}" if eval(f"args.{program}") else None for program in ["dot", "neato", "circo", "fdp", "sfdp"]},
-            remove_single_nodes = args.remove_single_nodes
+            **{
+                f"{program}": (
+                    f"{args.solution}/{i}/graph.{program}"
+                    if eval(f"args.{program}")
+                    else None
+                )
+                for program in ["dot", "neato", "circo", "fdp", "sfdp"]
+            },
+            remove_single_nodes=args.remove_single_nodes,
         )
         if isinstance(view, bonesis.views.InfluenceGraphView):
             pd.DataFrame(solution[2]).to_csv(f"{args.solution}/{i}/mstates.csv")
@@ -573,38 +622,85 @@ elif args.action == "sub":
         interest_nodes = set(bns.get_components())
 
     clauses = bns.get_clauses()
-    function_number = {component: len(set(clauses_per_component)) for component, clauses_per_component in clauses.items()}
+    function_number = {
+        component: len(set(clauses_per_component))
+        for component, clauses_per_component in clauses.items()
+    }
 
     ig_ensemble = graphviz.Digraph(
-        name="Interaction graph ensemble",
-        comment="influence graph aggregation"
+        name="Interaction graph ensemble", comment="influence graph aggregation"
     )
     ig_ensemble.graph_attr["ratio"] = "0.8"
     ig_ensemble.graph_attr["overlap"] = "false"
     ig_ensemble.graph_attr["splines"] = "true"
 
     for component in interest_nodes:
-    #    if node not in constantes:
+        #    if node not in constantes:
         if function_number[component] == 1:
-            ig_ensemble.node(component, label=f"{component}", fillcolor="darkgoldenrod2", style="rounded,filled,bold", shape="oval", fontcolor="black", fontname="arial bold", fontsize="50pt")
-        elif function_number[component] ==2:
-            ig_ensemble.node(component, label=f"{component}", fillcolor="lightgoldenrod1", style="rounded,filled", shape="oval", fontsize="50pt")
+            ig_ensemble.node(
+                component,
+                label=f"{component}",
+                fillcolor="darkgoldenrod2",
+                style="rounded,filled,bold",
+                shape="oval",
+                fontcolor="black",
+                fontname="arial bold",
+                fontsize="50pt",
+            )
+        elif function_number[component] == 2:
+            ig_ensemble.node(
+                component,
+                label=f"{component}",
+                fillcolor="lightgoldenrod1",
+                style="rounded,filled",
+                shape="oval",
+                fontsize="50pt",
+            )
         elif function_number[component] == 3:
-            ig_ensemble.node(component, label=f"{component}", fillcolor="cornsilk", style="rounded,filled", shape="oval", fontsize="50pt")
+            ig_ensemble.node(
+                component,
+                label=f"{component}",
+                fillcolor="cornsilk",
+                style="rounded,filled",
+                shape="oval",
+                fontsize="50pt",
+            )
         elif function_number[component] < 10:
-            ig_ensemble.node(component, label=f"{component}", fillcolor="white", style="rounded,filled", shape="oval", fontsize="50pt")
+            ig_ensemble.node(
+                component,
+                label=f"{component}",
+                fillcolor="white",
+                style="rounded,filled",
+                shape="oval",
+                fontsize="50pt",
+            )
         else:
-            ig_ensemble.node(component, label=f"{component}", fillcolor="white", style="rounded,filled,dotted", shape="oval", fontsize="50pt")
-    
-    def get_intensity(occurrences, min_intensity: int = 1, max_intensity: int = 10, differentiel_with_max: int = 2):
-        
+            ig_ensemble.node(
+                component,
+                label=f"{component}",
+                fillcolor="white",
+                style="rounded,filled,dotted",
+                shape="oval",
+                fontsize="50pt",
+            )
+
+    def get_intensity(
+        occurrences,
+        min_intensity: int = 1,
+        max_intensity: int = 10,
+        differentiel_with_max: int = 2,
+    ):
+
         occurrences = sorted(occurrences)
-        inf = occurrences[0]; sup = occurrences[-1]
+        inf = occurrences[0]
+        sup = occurrences[-1]
         differentiel = max_intensity - min_intensity - differentiel_with_max
         intensity = {}
 
         for occurrence in occurrences:
-            intensity[occurrence] = str(round(((occurrence-inf)/(sup-inf)) * differentiel) + inf)
+            intensity[occurrence] = str(
+                round(((occurrence - inf) / (sup - inf)) * differentiel) + inf
+            )
         intensity[occurrences[-1]] = str(max_intensity)
 
         return intensity
@@ -613,16 +709,36 @@ elif args.action == "sub":
     for target, sources in influences.items():
         for source, infl in sources.items():
             occurrences_list.add(*set(infl.values()))
-    
+
     intensity = get_intensity(occurrences_list)
 
     for source, targets in influences.items():
         for target, infl in targets.items():
             for sign, occurrence in infl.items():
                 if sign is True:
-                    ig_ensemble.edge(source, target, label=f"{occurrence}", penwidth=intensity[occurrence], color="darkgreen", fontcolor="darkgreen", fontname="arial bold", fontsize="30pt", arrowsize="2")
+                    ig_ensemble.edge(
+                        source,
+                        target,
+                        label=f"{occurrence}",
+                        penwidth=intensity[occurrence],
+                        color="darkgreen",
+                        fontcolor="darkgreen",
+                        fontname="arial bold",
+                        fontsize="30pt",
+                        arrowsize="2",
+                    )
                 else:
-                    ig_ensemble.edge(source, target, label=f"{occurrence}", penwidth=intensity[occurrence], color="darkred", fontcolor="darkred", fontname="arial bold", fontsize="30pt", arrowsize="2")
+                    ig_ensemble.edge(
+                        source,
+                        target,
+                        label=f"{occurrence}",
+                        penwidth=intensity[occurrence],
+                        color="darkred",
+                        fontcolor="darkred",
+                        fontname="arial bold",
+                        fontsize="30pt",
+                        arrowsize="2",
+                    )
 
     for program in ["dot", "neato", "circo", "fdp", "sfdp"]:
         if eval(f"args.{program}"):
@@ -631,7 +747,7 @@ elif args.action == "sub":
                 directory=f"{args.solution}",
                 view=False,
                 format="plain",
-                engine=program
+                engine=program,
             )
 
     ig_ensemble.render(
@@ -639,5 +755,5 @@ elif args.action == "sub":
         directory=f"{args.solution}",
         view=False,
         format="pdf",
-        engine="dot"
+        engine="dot",
     )

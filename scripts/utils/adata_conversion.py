@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 from pathlib import Path
@@ -22,21 +23,21 @@ parser = argparse.ArgumentParser(
     - barcodes.tsv.gz (information about each cell)
     - features.tsv.gz (information about each gene)""",
     usage="python adata_conversion.py [-h] <PATH|FILE> <PATH|FILE> --from <h5ad|loom|10x> --to <h5ad|loom|csvs> [--metadata <KEY=VALUE ...> <args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
     "input",
     type=lambda x: Path(x).resolve(),
     metavar="PATH|FILE",
-    help="input data directory or file"
+    help="input data directory or file",
 )
 
 parser.add_argument(
     "output",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output data directory or file"
+    help="output data directory or file",
 )
 
 parser.add_argument(
@@ -46,7 +47,7 @@ parser.add_argument(
     choices=["h5ad", "loom", "10x"],
     metavar="[h5ad | loom | 10x]",
     required=True,
-    help="matrix data input format"
+    help="matrix data input format",
 )
 
 parser.add_argument(
@@ -56,7 +57,7 @@ parser.add_argument(
     choices=["h5ad", "loom", "csv", "csvs"],
     metavar="[h5ad | loom | csv | csvs]",
     required=True,
-    help="matrix data input format"
+    help="matrix data input format",
 )
 
 parser.add_argument(
@@ -66,7 +67,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer saved if `--to=csv` (if not specified, save adata.X)"
+    help="layer saved if `--to=csv` (if not specified, save adata.X)",
 )
 
 parser.add_argument(
@@ -74,7 +75,7 @@ parser.add_argument(
     dest="only_hvg",
     action="store_true",
     required=False,
-    help="reduce feature dimension to highly variable genes"
+    help="reduce feature dimension to highly variable genes",
 )
 
 parser.add_argument(
@@ -82,7 +83,7 @@ parser.add_argument(
     dest="remove_positions",
     required=False,
     action="store_true",
-    help="remove chromosome, position on it and strand directions for each gene"
+    help="remove chromosome, position on it and strand directions for each gene",
 )
 
 parser.add_argument(
@@ -93,7 +94,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="KEY=VALUE",
-    help="dataset-related metadata"
+    help="dataset-related metadata",
 )
 
 parser.add_argument(
@@ -101,7 +102,7 @@ parser.add_argument(
     dest="standardization",
     required=False,
     action="store_true",
-    help="convert gene names by their NCBI reference names"
+    help="convert gene names by their NCBI reference names",
 )
 
 parser.add_argument(
@@ -109,7 +110,7 @@ parser.add_argument(
     dest="sort",
     required=False,
     action="store_true",
-    help="sort observations and variables"
+    help="sort observations and variables",
 )
 
 parser.add_argument(
@@ -117,15 +118,14 @@ parser.add_argument(
     dest="compression",
     required=False,
     action="store_true",
-    help="output file compression (if output format is h5ad)"
+    help="output file compression (if output format is h5ad)",
 )
 
-def add_metadata(
-    adata: ad.AnnData,
-    **metadata
-) -> None:
+
+def add_metadata(adata: ad.AnnData, **metadata) -> None:
     for k, v in metadata.items():
         adata.uns[k] = v
+
 
 args = parser.parse_args()
 
@@ -144,13 +144,20 @@ elif args.__getattribute__("from") == "loom":
 elif args.__getattribute__("from") == "10x":
     adata = sc.read_10x_mtx(path=args.input)
 
-adata.obs.index = pd.Index(map(lambda barcode: re.sub("[^ATCG]","",re.sub("^.*:","",barcode)), adata.obs.index))
+adata.obs.index = pd.Index(
+    map(
+        lambda barcode: re.sub("[^ATCG]", "", re.sub("^.*:", "", barcode)),
+        adata.obs.index,
+    )
+)
 
 if args.only_hvg:
     if "highly_variable" in adata.var:
         adata._inplace_subset_var(adata.var["highly_variable"])
     else:
-        raise KeyError("column 'highly_variable' not found in adata.var: please use 'sc.pp.highly_variable_genes' before)")
+        raise KeyError(
+            "column 'highly_variable' not found in adata.var: please use 'sc.pp.highly_variable_genes' before)"
+        )
 
 if args.remove_positions:
     for column in ["Chromosome", "Start", "End", "Strand"]:
@@ -166,42 +173,31 @@ if args.standardization:
     adata.var["symbol"] = list(adata.var.index)
     for input_identifier_type in ["name", "gene_id", "ensembl_id"]:
         bt.sct.pp.convert_gene_identifiers(
-            adata,
-            axis="var",
-            input_identifier_type=input_identifier_type,
-            copy=False
+            adata, axis="var", input_identifier_type=input_identifier_type, copy=False
         )
     adata = bt.sct.pp.var_names_merge_duplicates(adata, var_names_column="symbol")
 
 if args.sort:
-    adata = adata[sorted(adata.obs.index),sorted(adata.var.index)].to_memory()
+    adata = adata[sorted(adata.obs.index), sorted(adata.var.index)].to_memory()
 
 if args.__getattribute__("to") == "h5ad":
-    adata.write_h5ad(filename=args.output, compression="gzip" if args.compression else None)
+    adata.write_h5ad(
+        filename=args.output, compression="gzip" if args.compression else None
+    )
 elif args.__getattribute__("to") == "loom":
     adata.write_loom(filename=args.output, write_obsm_varm=True)
 elif args.__getattribute__("to") == "zarr":
     adata.write_zarr(store=args.output)
 elif args.__getattribute__("to") == "csv":
-    bt.sct.tl.anndata_to_dataframe(
-        adata=adata,
-        layer=args.layer
-    ).to_csv(
-        path_or_buf=args.output,
-        sep=",",
-        index=True
+    bt.sct.tl.anndata_to_dataframe(adata=adata, layer=args.layer).to_csv(
+        path_or_buf=args.output, sep=",", index=True
     )
 elif args.__getattribute__("to") == "csvs":
     adata.write_csvs(dirname=args.output, sep=",")
-    bt.sct.tl.to_csv_or_mtx(
-        adata=adata,
-        filename=Path(f"{args.output}/matrix")
-    )
+    bt.sct.tl.to_csv_or_mtx(adata=adata, filename=Path(f"{args.output}/matrix"))
     if adata.layers.keys():
         os.makedirs(name=Path(f"{args.output}/layers"), exist_ok=True)
         for layer in adata.layers:
             bt.sct.tl.to_csv_or_mtx(
-                adata=adata,
-                filename=Path(f"{args.output}/layers/{layer}"),
-                layer=layer
+                adata=adata, filename=Path(f"{args.output}/layers/{layer}"), layer=layer
             )

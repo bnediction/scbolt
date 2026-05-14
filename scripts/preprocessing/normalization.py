@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import os, std
@@ -14,27 +15,26 @@ import bonesistools as bt
 
 parser = argparse.ArgumentParser(
     prog="normalization",
-    description=
-    """
+    description="""
     Normalize counts with different operations (standardization \
     with respect to library size, log-transformation, scaling data \
     and correction of unwanted effects).
     """,
-    usage="python normalization.py <FILE> <FILE> [<args>]"
+    usage="python normalization.py <FILE> <FILE> [<args>]",
 )
 
 parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing counts (format: h5ad)"
+    help="input file storing counts (format: h5ad)",
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing normalized counts (format: h5ad)"
+    help="output file storing normalized counts (format: h5ad)",
 )
 
 parser.add_argument(
@@ -44,7 +44,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer used (if not specified, use adata.X)"
+    help="layer used (if not specified, use adata.X)",
 )
 
 parser.add_argument(
@@ -55,7 +55,7 @@ parser.add_argument(
     nargs="+",
     default=None,
     metavar="LITERAL",
-    help="unwanted effects to correct (default: None)"
+    help="unwanted effects to correct (default: None)",
 )
 
 parser.add_argument(
@@ -65,7 +65,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of allocated processors"
+    help="number of allocated processors",
 )
 
 args = parser.parse_args()
@@ -84,29 +84,15 @@ std.print_task(f"normalizing read counts")
 
 std.print_info(f"standardizing counts with respect to library size (layer: norm)")
 adata.layers["norm"] = adata.X.copy()
-sc.pp.normalize_total(
-    adata,
-    target_sum=1e4,
-    layer="norm",
-    copy=False
-)
+sc.pp.normalize_total(adata, target_sum=1e4, layer="norm", copy=False)
 
 std.print_info(f"performing log-transformation (layer: log-norm)")
 adata.layers["log-norm"] = adata.layers["norm"].copy()
-sc.pp.log1p(
-    adata,
-    base=np.exp(1),
-    layer="log-norm",
-    copy=False
-)
+sc.pp.log1p(adata, base=np.exp(1), layer="log-norm", copy=False)
 
 std.print_info(f"scaling to unit variance and zero mean (layer: scale)")
 adata.layers["scale"] = adata.layers["log-norm"].copy()
-sc.pp.scale(
-    adata,
-    layer="scale",
-    copy=False
-)
+sc.pp.scale(adata, layer="scale", copy=False)
 
 if args.correction:
     std.print_info(f"correcting unwanted effects (layer: correct)")
@@ -117,19 +103,12 @@ if args.correction:
         layer="correct",
         intercept=False,
         copy=False,
-        n_jobs=args.jobs
+        n_jobs=args.jobs,
     )
-    sc.pp.scale(
-        adata,
-        layer="correct",
-        copy=False
-    )
+    sc.pp.scale(adata, layer="correct", copy=False)
 else:
     std.print_info(f"no specification of unwanted effects")
     adata.layers["correct"] = adata.layers["scale"].copy()
 
 std.print_task(f"saving data in {str(args.outfile)}")
-adata.write_h5ad(
-    filename=args.outfile,
-    compression="gzip"
-)
+adata.write_h5ad(filename=args.outfile, compression="gzip")

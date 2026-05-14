@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import os, std
@@ -13,49 +14,51 @@ import anndata as ad
 import bonesistools as bt
 from anndata import AnnData
 
+
 def multiple_hypergeometric_test(
-    adata: AnnData,
-    signatures: dict,
-    markers: list
+    adata: AnnData, signatures: dict, markers: list
 ) -> dict:
 
-    return {cell_type: bt.sct.tl.hypergeometric_test(adata, signature, markers) for cell_type, signature in signatures.items()}
+    return {
+        cell_type: bt.sct.tl.hypergeometric_test(adata, signature, markers)
+        for cell_type, signature in signatures.items()
+    }
+
 
 parser = argparse.ArgumentParser(
     prog="phenotypes",
-    description=
-    """
+    description="""
     Score signature-related phenotypes with respect to cell clusters.
     """,
-    usage="python phenotypes.py [-h] <FILE> <FILE> <FILE> <FILE> --cluster <LITERAL> [<args>]"
+    usage="python phenotypes.py [-h] <FILE> <FILE> <FILE> <FILE> --cluster <LITERAL> [<args>]",
 )
 
 parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing counts (format: h5ad)"
+    help="input file storing counts (format: h5ad)",
 )
 
 parser.add_argument(
     "signatures",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing phenotype-gene list associations (format: json)"
+    help="input file storing phenotype-gene list associations (format: json)",
 )
 
 parser.add_argument(
     "markers",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing gene sets for each spreadsheet (format: xlsx)"
+    help="input file storing gene sets for each spreadsheet (format: xlsx)",
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing marker-metric associations (format: csv)"
+    help="output file storing marker-metric associations (format: csv)",
 )
 
 parser.add_argument(
@@ -64,7 +67,7 @@ parser.add_argument(
     type=str,
     required=True,
     metavar="LITERAL",
-    help="column name in 'adata.obs' distinguishing cell populations (required)"
+    help="column name in 'adata.obs' distinguishing cell populations (required)",
 )
 
 parser.add_argument(
@@ -75,7 +78,7 @@ parser.add_argument(
     nargs="+",
     default=None,
     metavar="LITERAL",
-    help="spreadsheet names to ignore (default: None)"
+    help="spreadsheet names to ignore (default: None)",
 )
 
 args = parser.parse_args()
@@ -104,7 +107,9 @@ std.print_debug("deleting signature genes not present in AnnData object")
 background = adata.var_names
 for phenotype, genes in signatures.items():
     signatures[phenotype] = {gene for gene in genes if gene in background}
-signatures = {phenotype: signature for phenotype, signature in signatures.items() if signature}
+signatures = {
+    phenotype: signature for phenotype, signature in signatures.items() if signature
+}
 
 std.print_info("estimating hypergeometric distribution-based p-values")
 
@@ -113,13 +118,11 @@ for group in sorted(adata.obs[args.cluster].unique()):
     group_adata = adata[adata.obs[args.cluster] == group]
     group_info = dict()
     group_info["cells"] = group_adata.n_obs
-    group_info["proportion"] = round(group_adata.n_obs/adata.n_obs, ndigits=6)
+    group_info["proportion"] = round(group_adata.n_obs / adata.n_obs, ndigits=6)
     group_info["median_expression"] = group_adata.obs["n_genes_by_counts"].median()
     group_info["median_reads"] = group_adata.obs["total_counts"].median()
     pvalues = multiple_hypergeometric_test(
-        adata=group_adata,
-        signatures=signatures,
-        markers=markers[group]
+        adata=group_adata, signatures=signatures, markers=markers[group]
     )
     group_info.update({k: round(v, ndigits=6) for k, v in pvalues.items()})
     info[group] = group_info

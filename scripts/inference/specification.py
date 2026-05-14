@@ -16,8 +16,7 @@ from utils import get_cfg
 
 parser = argparse.ArgumentParser(
     prog="specification",
-    description=
-"""
+    description="""
 Check whether the bonesis properties are well defined and converting model specifications (format yml) and binarized macrostates (format csv) into four files:
     - model (txt): dynamic Boolean properties
     - metastates (csv): partially binarized metastates
@@ -30,21 +29,21 @@ file storing model specifications (format yml) have to contain three keys:
     - important_genes (list of genes being prioritize to appear in Boolean network solutions)
 """,
     usage="python specification.py <FILE> <FILE> --model <FILE> --metastates <FILE> --mandatory-genes <FILE> --important-genes <FILE> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
     dest="model_specification",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing model specifications for bonesis (format: yml)"
+    help="input file storing model specifications for bonesis (format: yml)",
 )
 
 parser.add_argument(
     "macrostates",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing partially binarized macrostates (format: csv)"
+    help="input file storing partially binarized macrostates (format: csv)",
 )
 
 parser.add_argument(
@@ -52,7 +51,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
     required=True,
-    help="output file storing dynamic Boolean properties (format: txt)"
+    help="output file storing dynamic Boolean properties (format: txt)",
 )
 
 parser.add_argument(
@@ -61,7 +60,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="FILE",
-    help="output file storing partially binarized metastates (format: csv)"
+    help="output file storing partially binarized metastates (format: csv)",
 )
 
 parser.add_argument(
@@ -70,7 +69,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="input file storing interest genes to pass filtering (if not specified, all genes are considered)"
+    help="input file storing interest genes to pass filtering (if not specified, all genes are considered)",
 )
 
 parser.add_argument(
@@ -79,7 +78,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="output file storing important genes, being prioritize to appear (format: json or txt)"
+    help="output file storing important genes, being prioritize to appear (format: json or txt)",
 )
 
 parser.add_argument(
@@ -88,7 +87,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="output file storing mandatory genes, being forced to appear (format: json or txt)"
+    help="output file storing mandatory genes, being forced to appear (format: json or txt)",
 )
 
 parser.add_argument(
@@ -98,7 +97,7 @@ parser.add_argument(
     required=False,
     default=",",
     metavar="CHAR",
-    help="field delimiter for csv format (default: ',')"
+    help="field delimiter for csv format (default: ',')",
 )
 
 parser.add_argument(
@@ -106,35 +105,51 @@ parser.add_argument(
     dest="organism",
     action=cli.Store_organism,
     default="mouse",
-    required=False
+    required=False,
 )
 
 args = parser.parse_args()
 
-for outfile in [args.macrostates, args.model, args.mandatory_genes, args.important_genes]:
+for outfile in [
+    args.macrostates,
+    args.model,
+    args.mandatory_genes,
+    args.important_genes,
+]:
     if not Path(os.path.dirname(outfile)).exists():
         os.makedirs(Path(os.path.dirname(outfile)))
 
 genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
 
-std.print_task(f"loading json-formatted model specification file {str(args.model_specification)}")
+std.print_task(
+    f"loading json-formatted model specification file {str(args.model_specification)}"
+)
 
 with open(args.model_specification, "r") as file:
     specification = yaml.safe_load(file)
 
-std.print_task(f"loading csv-formatted binarized macrostates file {str(args.macrostates)}")
+std.print_task(
+    f"loading csv-formatted binarized macrostates file {str(args.macrostates)}"
+)
 
 macrostates_df = genesyn(
-    pd.read_csv(args.macrostates, index_col=0, sep=args.sep),
-    axis="columns"
+    pd.read_csv(args.macrostates, index_col=0, sep=args.sep), axis="columns"
 )
 
 std.print_task(f"getting binarized states")
 
-important_genes = set(specification["important_genes"]) if specification["important_genes"] is not None else set()
+important_genes = (
+    set(specification["important_genes"])
+    if specification["important_genes"] is not None
+    else set()
+)
 important_genes = genesyn(important_genes)
 
-mandatory_genes = set(specification["mandatory_genes"]) if specification["mandatory_genes"] is not None else set()
+mandatory_genes = (
+    set(specification["mandatory_genes"])
+    if specification["mandatory_genes"] is not None
+    else set()
+)
 mandatory_genes = genesyn(mandatory_genes)
 
 if args.filter_genes:
@@ -143,26 +158,33 @@ if args.filter_genes:
         keep_only = {line.strip() for line in file.readlines()}
     keep_only = genesyn(keep_only)
     if important_genes - keep_only:
-        std.print_debug("some important genes have been filtered out but are reintegrated: {0}".format(', '.join(f"{gene}" for gene in list(important_genes - keep_only))))
+        std.print_debug(
+            "some important genes have been filtered out but are reintegrated: {0}".format(
+                ", ".join(f"{gene}" for gene in list(important_genes - keep_only))
+            )
+        )
     if mandatory_genes - keep_only:
-        std.print_debug("some mandatory genes have been filtered out but are reintegrated: {0}".format(', '.join(f"{gene}" for gene in list(mandatory_genes - keep_only))))
+        std.print_debug(
+            "some mandatory genes have been filtered out but are reintegrated: {0}".format(
+                ", ".join(f"{gene}" for gene in list(mandatory_genes - keep_only))
+            )
+        )
     keep_only = keep_only | mandatory_genes | important_genes
     keep_only_present = keep_only & set(macrostates_df.columns)
     if keep_only - keep_only_present:
-        std.print_warning("some important and/or mandatory genes are missing in csv-formatted binarized macrostate file: {0}".format(', '.join(f"{gene}" for gene in list(keep_only - keep_only_present))))
-    macrostates_df = macrostates_df.loc[:,list(keep_only_present)]
+        std.print_warning(
+            "some important and/or mandatory genes are missing in csv-formatted binarized macrostate file: {0}".format(
+                ", ".join(f"{gene}" for gene in list(keep_only - keep_only_present))
+            )
+        )
+    macrostates_df = macrostates_df.loc[:, list(keep_only_present)]
 
 if specification["states"] is not None:
     macrostates_df.rename(
-        index=dict((v,k) for k,v in specification["states"].items()),
-        inplace=True
+        index=dict((v, k) for k, v in specification["states"].items()), inplace=True
     )
 
-macrostates_cfg = get_cfg(
-    macrostates_df,
-    axis="index",
-    genesyn=genesyn
-)
+macrostates_cfg = get_cfg(macrostates_df, axis="index", genesyn=genesyn)
 
 std.print_debug("checking Boolean properties")
 
@@ -171,10 +193,7 @@ pkn_options = {
     "maxclause": 8,
 }
 
-grn = bt.dbs.omnipath.load_dorothea_grn(
-    organism=args.organism,
-    genesyn=genesyn
-)
+grn = bt.dbs.omnipath.load_dorothea_grn(organism=args.organism, genesyn=genesyn)
 
 pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
 bo = bonesis.BoNesis(pkn, macrostates_cfg)
@@ -193,11 +212,7 @@ with open(args.model, "w") as file:
 
 std.print_task(f"saving binarized metastates in {args.metastates}")
 
-macrostates_df.to_csv(
-    args.metastates,
-    sep=",",
-    index=True
-)
+macrostates_df.to_csv(args.metastates, sep=",", index=True)
 
 std.print_task(f"saving important genes in {args.important_genes}")
 

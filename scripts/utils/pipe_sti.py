@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import os, std
@@ -12,19 +13,18 @@ import bonesistools as bt
 
 parser = argparse.ArgumentParser(
     prog="pipe_sti",
-    description=
-    """
+    description="""
     Send information from multiple specific 'adata.obs' towards integrated 'adata.obs', first ones referring to a name. \
     Values passed to parameters '--specifics' and '--names' have to be ordered together.
     """,
-    usage="python pipe_sti.py <FILE> <FILE ...> [--outfiles <FILE ...>] --labels <LITERAL ...> --column-label <LITERAL> --obs <LITERAL ...>"
+    usage="python pipe_sti.py <FILE> <FILE ...> [--outfiles <FILE ...>] --labels <LITERAL ...> --column-label <LITERAL> --obs <LITERAL ...>",
 )
 
 parser.add_argument(
     "integrated",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input integration-based file (format: h5ad)"
+    help="input integration-based file (format: h5ad)",
 )
 
 parser.add_argument(
@@ -32,7 +32,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
     nargs="+",
-    help="input condition-based input file(s) (format: h5ad)"
+    help="input condition-based input file(s) (format: h5ad)",
 )
 
 parser.add_argument(
@@ -42,7 +42,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="FILE",
-    help="condition-based output file(s) (format: h5ad, if not specified, replace input file)"
+    help="condition-based output file(s) (format: h5ad, if not specified, replace input file)",
 )
 
 parser.add_argument(
@@ -52,7 +52,7 @@ parser.add_argument(
     nargs="+",
     required=True,
     metavar="LITERAL",
-    help="dataset names (ordered with parameter --specifics)"
+    help="dataset names (ordered with parameter --specifics)",
 )
 
 parser.add_argument(
@@ -61,7 +61,7 @@ parser.add_argument(
     type=str,
     required=True,
     metavar="LITERAL",
-    help="column name in integrated 'adata.obs' referring to dataset names"
+    help="column name in integrated 'adata.obs' referring to dataset names",
 )
 
 parser.add_argument(
@@ -72,7 +72,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="column names in integrated 'adata.obs' to transfer (if not specified, transfer all columns)"
+    help="column names in integrated 'adata.obs' to transfer (if not specified, transfer all columns)",
 )
 
 args = parser.parse_args()
@@ -105,7 +105,11 @@ if args.obs is None:
 
 cols_to_remove = set(args.obs).intersection(set(integrated_ad.obs.columns))
 if cols_to_remove:
-    std.print_debug("removing in dataset 'integrated' the following column(s): {1}".format(name,', '.join(f"'{cols}'" for cols in cols_to_remove)))
+    std.print_debug(
+        "removing in dataset 'integrated' the following column(s): {1}".format(
+            name, ", ".join(f"'{cols}'" for cols in cols_to_remove)
+        )
+    )
     integrated_ad.obs = integrated_ad.obs.drop(cols_to_remove, axis=1)
 
 std.print_task("transferring information from specific datasets to integrated datasets")
@@ -115,11 +119,8 @@ bt.sct.pp.transfer_obs_sti(
     obs=args.obs,
     conditions=args.labels,
     condition_colname=args.obs_label,
-    copy=False
+    copy=False,
 )
 
 std.print_task(f"saving dataset 'integrated' in {str(args.outfile)}")
-integrated_ad.write_h5ad(
-    filename=args.outfile,
-    compression="gzip"
-)
+integrated_ad.write_h5ad(filename=args.outfile, compression="gzip")

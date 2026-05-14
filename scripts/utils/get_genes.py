@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import os
@@ -14,21 +15,18 @@ import scanpy as sc
 parser = argparse.ArgumentParser(
     prog="gene name list",
     description="""Retrieve gene names.""",
-    usage="""python name.py [-h] <FILE> <FILE> [--axis <obs|var> --standardization]"""
+    usage="""python name.py [-h] <FILE> <FILE> [--axis <obs|var> --standardization]""",
 )
 
 parser.add_argument(
-    "infile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="h5ad or loom file"
+    "infile", type=lambda x: Path(x).resolve(), metavar="FILE", help="h5ad or loom file"
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="txt file containing list of genes"
+    help="txt file containing list of genes",
 )
 
 parser.add_argument(
@@ -38,7 +36,7 @@ parser.add_argument(
     default="var",
     required=False,
     metavar="[obs|var]",
-    help="axis corresponding to genes (default: obs)"
+    help="axis corresponding to genes (default: obs)",
 )
 
 parser.add_argument(
@@ -46,7 +44,7 @@ parser.add_argument(
     dest="standardization",
     required=False,
     action="store_true",
-    help="standardize gene name with their NCBI reference name"
+    help="standardize gene name with their NCBI reference name",
 )
 
 args = parser.parse_args()

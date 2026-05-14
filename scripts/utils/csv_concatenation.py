@@ -10,7 +10,7 @@ import pandas as pd
 parser = argparse.ArgumentParser(
     prog="Row-wise concatenation",
     description="""csv file concatenation based on rows""",
-    usage="python csv_concatenation.py [-h] <FILE ...> [--suffixes <LITERAL ...>]"
+    usage="python csv_concatenation.py [-h] <FILE ...> [--suffixes <LITERAL ...>]",
 )
 
 parser.add_argument(
@@ -19,17 +19,18 @@ parser.add_argument(
     action=cli.Required_length,
     min=2,
     metavar="FILE",
-    help="input csv files"
+    help="input csv files",
 )
 
 parser.add_argument(
-    "-o", "--outfile",
+    "-o",
+    "--outfile",
     dest="outfile",
     type=lambda x: Path(x).resolve(),
     required=False,
     default="results.csv",
     metavar="FILE",
-    help="output csv file (default: results.csv)"
+    help="output csv file (default: results.csv)",
 )
 
 parser.add_argument(
@@ -38,9 +39,9 @@ parser.add_argument(
     type=str,
     required=False,
     default="row",
-    choices=["row","column"],
+    choices=["row", "column"],
     metavar="[row | column]",
-    help="row- or column-wise concatenation (default: row)"
+    help="row- or column-wise concatenation (default: row)",
 )
 
 parser.add_argument(
@@ -52,7 +53,7 @@ parser.add_argument(
     min=2,
     metavar="LITERAL",
     default=None,
-    help="add suffixes to each labels (row or column, depending on --axis, ordered with csv files)"
+    help="add suffixes to each labels (row or column, depending on --axis, ordered with csv files)",
 )
 
 parser.add_argument(
@@ -62,7 +63,7 @@ parser.add_argument(
     required=False,
     default=",",
     metavar="CHAR",
-    help="field delimiter for csv infiles (default: `,`)"
+    help="field delimiter for csv infiles (default: `,`)",
 )
 
 parser.add_argument(
@@ -70,7 +71,7 @@ parser.add_argument(
     dest="transpose",
     required=False,
     action="store_true",
-    help="transpose rows and columns"
+    help="transpose rows and columns",
 )
 
 args = parser.parse_args()
@@ -79,15 +80,16 @@ dfs = [pd.read_csv(file, index_col=0, sep=args.sep) for file in args.infiles]
 
 if args.suffixes is not None:
     if len(args.infiles) != len(args.suffixes):
-        raise argparse.ArgumentError(None, "infiles and --suffixes require the same number of values")
+        raise argparse.ArgumentError(
+            None, "infiles and --suffixes require the same number of values"
+        )
     else:
         for i in range(len(dfs)):
-            dfs[i] = dfs[i].add_suffix(f"{args.suffixes[i]}", axis=0 if args.axis=="row" else 1)
+            dfs[i] = dfs[i].add_suffix(
+                f"{args.suffixes[i]}", axis=0 if args.axis == "row" else 1
+            )
 
-df = pd.concat(
-    dfs,
-    axis=0 if args.axis=="row" else 1
-)
+df = pd.concat(dfs, axis=0 if args.axis == "row" else 1)
 
 if args.transpose:
     df = df.transpose()
