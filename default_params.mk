@@ -136,7 +136,7 @@ $(eval MODEL_TOP_HVG ?=)                    # use only top BONESIS_TOP_HVG highl
 
 ## INFERENCE ##
 $(eval MAX_CLAUSE ?= 8)                     # maximum number of literals/atoms in each propositional formula
-$(eval GRN_DATABASE ?= collectri)           # prior gene regulatory network defining the domain/search space (collectri, dorothea)
+$(eval PRIOR_KNOWLEDGE ?= collectri)        # prior knowledge defining the domain/search space (collectri, dorothea)
 
 ## MAX-NODES-SOFT
 $(eval CLINGO_OPT_MODE_SOFT ?= optN)

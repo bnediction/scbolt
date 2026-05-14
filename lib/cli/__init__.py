@@ -12,6 +12,7 @@ from ._argtype import (
     Store_axis,
     Store_type,
     Store_metric,
+    Bonesis_domain,
     Bonesis_mode,
     Clingo_opt_mode,
     Clingo_opt_strategy

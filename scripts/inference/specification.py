@@ -91,6 +91,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--domain",
+    dest="domain",
+    action=cli.Bonesis_domain,
+    required=False,
+    default="collectri",
+)
+
+parser.add_argument(
     "--sep",
     dest="sep",
     type=str,
@@ -193,7 +201,21 @@ pkn_options = {
     "maxclause": 8,
 }
 
-grn = bt.dbs.omnipath.load_dorothea_grn(organism=args.organism, genesyn=genesyn)
+if args.domain == "collectri":
+    grn = bt.dbs.omnipath.load_collectri_grn(
+        organism=args.organism,
+        genesyn=genesyn,
+    )
+elif args.domain == "dorothea":
+    grn = bt.dbs.omnipath.load_dorothea_grn(
+        organism=args.organism,
+        genesyn=genesyn,
+    )
+else:
+    grn = bt.grn.read_interaction_graph(
+        infile=args.domain,
+        genesyn=genesyn,
+    )
 
 pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
 bo = bonesis.BoNesis(pkn, macrostates_cfg)

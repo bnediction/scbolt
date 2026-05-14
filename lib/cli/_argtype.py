@@ -4,6 +4,7 @@ from typing import (
     Union,
     Sequence
 )
+from pathlib import Path
 
 import math
 
@@ -619,4 +620,52 @@ class Clingo_opt_strategy(argparse.Action):
         option_string=None
     ):
         self.check_opt_strategy(value)
+        setattr(namespace, self.dest, value)
+
+class Bonesis_domain(argparse.Action):
+
+    VALID_DOMAINS = {"collectri", "dorothea"}
+
+    def check_domain(self, value):
+        if value in self.VALID_DOMAINS:
+            return value
+
+        path = Path(value)
+        if path.is_file():
+            return path
+
+        raise argparse.ArgumentError(
+            self,
+            (
+                f"invalid parameter value: {value} "
+                f"(expected {', '.join(sorted(self.VALID_DOMAINS))} or an existing file path)"
+            ),
+        )
+    
+    def __init__(self, *args, **kwargs):
+        default = kwargs.get("default", "collectri")
+        required = kwargs.get("required", False)
+
+        self.check_domain(default)
+
+        help = (
+            "prior interaction domain defining the Boolean network search space; "
+            "accepted values are 'collectri', 'dorothea', or a custom file path "
+            f"(default: {default})"
+        )
+
+        kwargs.update(
+            {
+                "type": str,
+                "required": required,
+                "default": default,
+                "metavar": "[collectri | dorothea | FILE]",
+                "help": kwargs["help"] if "help" in kwargs else help,
+            }
+        )
+
+        super(Bonesis_domain, self).__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, value, option_string=None):
+        value = self.check_domain(value)
         setattr(namespace, self.dest, value)

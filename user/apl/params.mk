@@ -18,7 +18,6 @@ LABEL = Prom1 Prom2 Rep Cycl Neu Alt
 
 JOBS = 16
 SEED = 15
-TIMEOUT = 100h
 DIM_CLUSTERING = 15
 NEIGHBORS = 20
 MAD_DEVIATION = 3 2
@@ -27,7 +26,7 @@ SPREAD = 2
 RESOLUTION = 0.48
 MACROSTATE_METHOD = knnbs
 ZEROES_ARE_ZEROES = false
-GRN_DATABASE = dorothea
+PRIOR_KNOWLEDGE = dorothea
 # MODEL_HVG_METHOD = cell_ranger
 YAML_MODEL = user/apl/spec.yml
 

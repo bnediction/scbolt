@@ -175,13 +175,11 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--database",
-    dest="database",
-    choices=["collectri", "dorothea"],
+    "--domain",
+    dest="domain",
+    action=cli.Bonesis_domain,
     required=False,
     default="collectri",
-    metavar="[collectri | dorothea]",
-    help="prior gene regulatory network defining the domain (search space)",
 )
 
 parser.add_argument(
@@ -331,10 +329,21 @@ pkn_options = {
 if args.action == "filter-nodes":
     pkn_options["allow_skipping_nodes"] = True
 
-if args.database == "collectri":
-    grn = bt.dbs.omnipath.load_collectri_grn(organism=args.organism, genesyn=genesyn)
+if args.domain == "collectri":
+    grn = bt.dbs.omnipath.load_collectri_grn(
+        organism=args.organism,
+        genesyn=genesyn,
+    )
+elif args.domain == "dorothea":
+    grn = bt.dbs.omnipath.load_dorothea_grn(
+        organism=args.organism,
+        genesyn=genesyn,
+    )
 else:
-    grn = bt.dbs.omnipath.load_dorothea_grn(organism=args.organism, genesyn=genesyn)
+    grn = bt.grn.read_interaction_graph(
+        infile=args.domain,
+        genesyn=genesyn,
+    )
 
 if args.filter_grn:
     with open(args.filter_grn) as fp:

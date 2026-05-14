@@ -16,6 +16,7 @@ _upper = $(word 2, $(subst :, ,$(word 1,$(1))))
 toupper = $(eval _=$1)$(strip $(foreach pair,$(_lower2upper),$(eval _=$(subst $(call _lower,$(pair)),$(call _upper,$(pair)),$_))))$_
 tolower = $(eval _=$1)$(strip $(foreach pair,$(_lower2upper),$(eval _=$(subst $(call _upper,$(pair)),$(call _lower,$(pair)),$_))))$_
 
+comma := ,
 plus := +
 empty :=
 space := $(empty) $(empty)
@@ -446,6 +447,16 @@ endif
 
 ifneq ($(filter-out seurat_v3 seurat cell_ranger,$(MODEL_HVG_METHOD)),)
 $(error Unsupported value for parameter MODEL_HVG_METHOD (supported values: seurat, cell_ranger, seurat_v3))
+endif
+
+known_prior_knowledge = collectri dorothea
+
+ifneq ($(filter $(PRIOR_KNOWLEDGE),$(known_prior_knowledge)),)
+prior_knowledge = $(PRIOR_KNOWLEDGE)
+else ifneq ($(wildcard $(PRIOR_KNOWLEDGE)),)
+prior_knowledge = $(PRIOR_KNOWLEDGE)
+else
+$(error Unsupported value for parameter PRIOR_KNOWLEDGE (supported values: $(subst $(space),$(comma) ,$(strip $(known_prior_knowledge))) or an existing file path))
 endif
 
 ifndef MODEL_HVG_METHOD
@@ -1092,7 +1103,7 @@ $(bonesis_model)&: $(bin) $(if $(filter-out $(words $(CONDITIONS)),1),$(annotati
 	$(call conda_run,scbolt-bonesis) python scripts/inference/specification.py $(YAML_MODEL) $< \
 		--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 		--important-genes $(word 3,$(bonesis_model)) --mandatory-genes $(word 4,$(bonesis_model)) \
-		--filter-genes $(tmpdir)/bonesis/hvg/top_genes.txt --organism $(ORGANISM)
+		--filter-genes $(tmpdir)/bonesis/hvg/top_genes.txt --domain $(PRIOR_KNOWLEDGE) --organism $(ORGANISM)
 	sort -u $(word 3,$(bonesis_model)) -o $(word 3,$(bonesis_model))
 	sort -u $(word 4,$(bonesis_model)) -o $(word 4,$(bonesis_model))
 else
@@ -1103,7 +1114,7 @@ $(bonesis_model)&: $(bin)
 	$(call conda_run,scbolt-bonesis) python scripts/inference/specification.py $(YAML_MODEL) $< \
 		--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 		--important-genes $(word 3,$(bonesis_model)) --mandatory-genes $(word 4,$(bonesis_model)) \
-		--organism $(ORGANISM)
+		--domain $(PRIOR_KNOWLEDGE) --organism $(ORGANISM)
 	sort -u $(word 3,$(bonesis_model)) -o $(word 3,$(bonesis_model))
 	sort -u $(word 4,$(bonesis_model)) -o $(word 4,$(bonesis_model))
 endif
@@ -1114,7 +1125,7 @@ $(max_nodes_soft): $(bonesis_model)
 	set +e; \
 	$(if $(filter-out 0,$(TIMEOUT_SOFT)),timeout $(TIMEOUT_SOFT),) $(call conda_run,scbolt-bonesis) python scripts/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --asp $(@D)/nodes.sh --solution $@ \
-		--database $(GRN_DATABASE) --organism $(ORGANISM) --bonesis-mode soft --max-clause $(MAX_CLAUSE) \
+		--domain $(PRIOR_KNOWLEDGE) --organism $(ORGANISM) --bonesis-mode soft --max-clause $(MAX_CLAUSE) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SOFT) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SOFT) --jobs $(JOBS_SOFT); \
 	exit_status=$$?; \
 	set -e; \
@@ -1126,7 +1137,7 @@ $(max_strong_consts): $(bonesis_model) $(max_nodes_soft)
 	set +e; \
 	$(if $(filter-out 0,$(TIMEOUT_CONSTS)),timeout $(TIMEOUT_CONSTS),) $(call conda_run,scbolt-bonesis) python scripts/inference/inference.py filter-consts \
 		$(word 1,$^) $(word 2,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
-		--database $(GRN_DATABASE) --organism $(ORGANISM) --bonesis-mode soft --max-clause $(MAX_CLAUSE) $(min_self_loop_consts) \
+		--domain $(PRIOR_KNOWLEDGE) --organism $(ORGANISM) --bonesis-mode soft --max-clause $(MAX_CLAUSE) $(min_self_loop_consts) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_CONSTS) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_CONSTS) --jobs $(JOBS_CONSTS); \
 	exit_status=$$?; \
 	set -e; \
@@ -1138,7 +1149,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_strong_consts)
 	set +e; \
 	$(if $(filter-out 0,$(TIMEOUT_RELAXED)),timeout $(TIMEOUT_RELAXED),) $(call conda_run,scbolt-bonesis) python scripts/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
-		--database $(GRN_DATABASE) --organism $(ORGANISM) --bonesis-mode relaxed --max-clause $(MAX_CLAUSE) \
+		--domain $(PRIOR_KNOWLEDGE) --organism $(ORGANISM) --bonesis-mode relaxed --max-clause $(MAX_CLAUSE) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_RELAXED) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_RELAXED) --jobs $(JOBS_RELAXED); \
 	exit_status=$$?; \
 	set -e; \
@@ -1150,7 +1161,7 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 	set +e; \
 	$(if $(filter-out 0,$(TIMEOUT_SEED)),timeout $(TIMEOUT_SEED),) $(call conda_run,scbolt-bonesis) python scripts/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
-		--database $(GRN_DATABASE) --organism $(ORGANISM) --bonesis-mode hard --max-clause $(MAX_CLAUSE) \
+		--domain $(PRIOR_KNOWLEDGE) --organism $(ORGANISM) --bonesis-mode hard --max-clause $(MAX_CLAUSE) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SEED) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SEED) --jobs $(JOBS_SEED); \
 	exit_status=$$?; \
 	set -e; \
@@ -1168,7 +1179,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 		cat $(word 4,$^) $(word 6,$^) | sort -u > $(@D)/mandatory.txt; \
 		$(if $(filter-out 0,$(TIMEOUT_LOCK)),timeout $(TIMEOUT_LOCK),) $(call conda_run,scbolt-bonesis) python scripts/inference/inference.py filter-nodes \
 			$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(@D)/mandatory.txt --filter-grn $(word 5,$^) --asp $(@D)/nodes.sh --solution $@ \
-			--database $(GRN_DATABASE) --organism $(ORGANISM) --bonesis-mode hard --max-clause $(MAX_CLAUSE) \
+			--domain $(PRIOR_KNOWLEDGE) --organism $(ORGANISM) --bonesis-mode hard --max-clause $(MAX_CLAUSE) \
 			--clingo-opt-mode $(CLINGO_OPT_MODE_LOCK) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_LOCK) --jobs $(JOBS_LOCK); \
 		exit_status=$$?; \
 		set -e; \
@@ -1180,7 +1191,7 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock)
 	mkdir -p $(@D)
 	$(call conda_run,scbolt-bonesis) python scripts/inference/inference.py min \
 		$(word 1,$^) $(word 2,$^) --filter-grn $(lastword $^) --asp $(@D)/min.sh --solution $(basename $@) \
-		--database $(GRN_DATABASE) --organism $(ORGANISM) --max-clause $(MAX_CLAUSE) $(min_self_loop_infer) \
+		--domain $(PRIOR_KNOWLEDGE) --organism $(ORGANISM) --max-clause $(MAX_CLAUSE) $(min_self_loop_infer) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_MIN) --jobs 1 \
 		--dot --neato --circo --fdp --sfdp
 		if command -v dot >/dev/null 2>&1; then
@@ -1195,7 +1206,7 @@ $(bn_sub): $(bonesis_model) $(max_nodes_lock)
 	mkdir -p $(dir $(@D))
 	$(call conda_run,scbolt-bonesis) python scripts/inference/inference.py sub \
 		$(word 1,$^) $(word 2,$^) --filter-grn $(lastword $^) --asp $(@D)/min.sh --solution $(@D) \
-		--database $(GRN_DATABASE) --organism $(ORGANISM) --max-clause $(MAX_CLAUSE) \
+		--domain $(PRIOR_KNOWLEDGE) --organism $(ORGANISM) --max-clause $(MAX_CLAUSE) \
 		$(if $(INFER_LIMIT),--limit $(INFER_LIMIT)) --clingo-opt-mode $(CLINGO_OPT_MODE_MIN) --jobs $(JOBS) \
 		--dot --neato --circo --fdp --sfdp --remove-single-nodes
 

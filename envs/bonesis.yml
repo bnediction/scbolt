@@ -255,7 +255,7 @@ dependencies:
   - zlib-ng=2.3.3=hceb46e0_1
   - zstd=1.5.7=hb78ec9c_6
   - pip:
-      - bonesistools==1.1.6
+      - bonesistools==1.1.9
       - anndata==0.10.5.post1
       - annotated-types==0.6.0
       - array-api-compat==1.4.1
