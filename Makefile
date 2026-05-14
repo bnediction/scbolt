@@ -50,12 +50,9 @@ gene2go_url := ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
 
 ## BEGIN COLORS ##
 
-NC        = \033[0m
-RED       = \033[0;31m
-BOLDRED   = \033[1;31m
-GREEN     = \033[0;32m
-BOLDGREEN = \033[1;32m
-BOLD      = \033[1m
+nc        = \033[0m
+green     = \033[0;32m
+bold      = \033[1m
 
 ## END COLORS ##
 
@@ -70,6 +67,10 @@ print_warning = $(call log,WARNING,$(1))
 print_debug   = $(call log,DEBUG,$(1))
 print_error   = $(call log,ERROR,$(1)); exit 1
 
+check_file = [ -n "$(1)" ] || { $(call print_error,required file parameter not defined: $(2)); }; [ -f "$(1)" ] || { $(call print_error,required file not found: $(1)); }
+check_command = command -v $(1) >/dev/null 2>&1 || { $(call print_error,required command not found: $(1)); }
+check_conda_env = conda env list | awk '{print $$1}' | grep -qx "$(1)" || { $(call print_error,required conda environment not found: $(1)); }
+
 conda_run = conda run --no-capture-output -n $(1)
 
 ifndef LOGGING
@@ -80,11 +81,13 @@ run_logged = \
 	{ \
 		printf 'DATE=%s\n' "`date '+%Y-%m-%d %H:%M:%S'`"; \
 		printf 'TARGET=%s\n' "$(1)"; \
-		printf 'PARAMS=%s\n' "$(PARAMS)"; \
 		printf 'RESULTS=%s\n' "$(RESULTS)"; \
+		printf 'PARAMS=%s\n' "$(PARAMS)"; \
+		printf 'SEED=%s\n' "$(SEED)"; \
+		printf 'JOBS=%s\n' "$(JOBS)"; \
 		printf 'CONDITIONS=%s\n' "$(CONDITIONS)"; \
 		printf 'LOGFILE=%s\n' "$(LOGFILE)"; \
-		printf 'GIT_COMMIT=%s\n' "`git rev-parse HEAD 2>/dev/null || echo unknown`"; \
+		printf 'GIT_HASH=%s\n' "`git rev-parse HEAD 2>/dev/null || echo unknown`"; \
 		printf '\n'; \
 	} >> "$(LOGFILE)"; \
 	PYTHONUNBUFFERED=1 TQDM_TO_TTY=1 $(MAKE) LOGGING=false __$(1) LOGFILE="$(LOGFILE)" 2>&1 | tee -a "$(LOGFILE)"
@@ -395,7 +398,7 @@ scboolseq_layer=--layer log-norm
 else ifeq ($(SCBOOLSEQ_HVG_METHOD),seurat_v3)
 scboolseq_layer=--layer counts
 ifndef SCBOOLSEQ_TOP_HVG
-$(error parameter SCBOOLSEQ_TOP_HVG is required when parameter SCBOOLSEQ_HVG_METHOD is equal to 'seurat_v3')
+$(error parameter SCBOOLSEQ_TOP_HVG is required when parameter SCBOOLSEQ_HVG_METHOD is equal to seurat_v3)
 endif
 else
 $(error Unsupported value for parameter SCBOOLSEQ_HVG_METHOD (supported values: seurat, cell_ranger, seurat_v3))
@@ -420,7 +423,7 @@ dea_layer=--layer log-norm
 else ifeq ($(DEA_HVG_METHOD),seurat_v3)
 dea_layer=--layer counts
 ifndef DEA_TOP_HVG
-$(error parameter DEA_TOP_HVG is required when parameter DEA_HVG_METHOD is equal to 'seurat_v3')
+$(error parameter DEA_TOP_HVG is required when parameter DEA_HVG_METHOD is equal to seurat_v3)
 endif
 else
 $(error Unsupported value for parameter DEA_HVG_METHOD (supported values: seurat, cell_ranger, seurat_v3))
@@ -454,7 +457,7 @@ model_layer=--layer log-norm
 else ifeq ($(MODEL_HVG_METHOD),seurat_v3)
 model_layer=--layer counts
 ifndef MODEL_TOP_HVG
-$(error parameter MODEL_TOP_HVG is required when parameter MODEL_HVG_METHOD is equal to 'seurat_v3')
+$(error parameter MODEL_TOP_HVG is required when parameter MODEL_HVG_METHOD is equal to seurat_v3)
 endif
 else
 $(error Unsupported value for parameter MODEL_HVG_METHOD (supported values: seurat, cell_ranger, seurat_v3))
@@ -488,12 +491,12 @@ endif
 
 .PHONY: help
 help: ## display this help and exit
-	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make $(GREEN)<command>$(NC) [REFERENCES=<...>] (default:REFERENCES=$(subst $(space),$(plus),$(references)))\n\
+	@awk 'BEGIN {FS = ":.*##"; printf "usage: make $(green)<module>$(nc) [REFERENCES=<...>] (current value:$(subst $(space),$(plus),$(references)))\n\n\
 	scBOLT is a semi-automated pipeline for Boolean network inference from multi-condition single-cell transcriptomes. \
 	The workflow includes: alignment and preprocessing, integration and clustering, cell annotation, trajectory inference, \
 	macrostate characterization, macrostate binarization, Boolean constraint specification, gene selectionn, \
 	and Boolean network inference.\n"}/^[a-zA-Z_-]+:.*?##/ \
-	{ printf "  $(GREEN)%-22s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BOLD)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	{ printf "  $(green)%-22s$(nc) %s\n", $$1, $$2 } /^##@/ { printf "\n$(bold)%s$(nc)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 .PHONY: config
 config: ## display effective configuration and exit
@@ -503,20 +506,35 @@ config: ## display effective configuration and exit
 	$(foreach var,$(config_vars),$(info $(var)=$($(var))))
 	@:
 
-.PHONY: dry-run
-dry-run: ## display commands required to build TARGET without executing them
+.PHONY: check
+check: ## check Make-level dependencies, configuration and external tools required to build TARGET
 	@if [ -z "$(TARGET)" ]; then \
-		$(call print_error,missing TARGET \(usage: make dry-run TARGET=bn-sub\)); \
+		$(call print_error,missing TARGET \(usage: make check TARGET=<module>\)); \
+	fi
+	@dry_run="$$(mktemp)"; \
+	$(MAKE) --dry-run LOGGING=false __$(TARGET) LOGFILE="$(LOGFILE)" > "$${dry_run}"; \
+	$(call check_command,conda); \
+	for env in $$({ grep -oE 'conda run[^;|&]* -n [^ ]+' "$${dry_run}" || true; } | awk '{print $$NF}' | sort -u); do \
+		$(call check_conda_env,$${env}); \
+	done; \
+	if grep -qE '(^|[[:space:]])cellranger count([[:space:]]|$$)' "$${dry_run}"; then \
+		$(call check_command,cellranger); \
+	fi; \
+	if grep -q 'repeat_msk.gtf' "$${dry_run}"; then \
+		$(call check_file,public/transcriptome/repeat_msk.gtf,repeat_msk.gtf); \
+	fi; \
+	if grep -q 'scripts/inference/specification.py' "$${dry_run}"; then \
+		$(call check_file,$(YAML_MODEL),YAML_MODEL); \
+	fi; \
+	rm -f "$${dry_run}"; \
+	$(call print_debug,configuration and tools successfully checked for target '$(TARGET)')
+
+.PHONY: dry-run
+dry-run: ## display modules required to build TARGET without executing them
+	@if [ -z "$(TARGET)" ]; then \
+		$(call print_error,missing TARGET \(usage: make dry-run TARGET=<module>\)); \
 	fi
 	$(MAKE) --dry-run LOGGING=false __$(TARGET) LOGFILE="$(LOGFILE)"
-
-.PHONY: validate
-validate: ## validate Make-level dependencies and configuration required to build TARGET
-	@if [ -z "$(TARGET)" ]; then \
-		$(call print_error,missing TARGET \(usage: make validate TARGET=bn-sub\)); \
-	fi
-	@$(MAKE) --dry-run LOGGING=false __$(TARGET) LOGFILE="$(LOGFILE)" >/dev/null
-	@$(call print_info,configuration successfully validated for target '$(TARGET)')
 
 ##@ Clean
 
@@ -649,7 +667,7 @@ knnbs: ## estimate macrostates using k-nearest-neighbors-based subclustering
 __knnbs: $(knnbs_target)
 
 .PHONY: macrostates __macrostates
-macrostates: ## define groups of cells sharing similar phenotypic profiles according to 'MACROSTATE_METHOD'
+macrostates: ## define groups of cells sharing similar phenotypic profiles according to MACROSTATE_METHOD
 	$(call run_logged,macrostates)
 __macrostates: $(macrostates_target)
 
@@ -676,7 +694,7 @@ bin-consensus: ## binarize macrostates by combining ScBoolSeq and DEA results
 __bin-consensus: $(bin_consensus)
 
 .PHONY: binarization __binarization
-binarization: ## derive partially defined Boolean states from macrostates according to 'BIN_METHOD'
+binarization: ## derive partially defined Boolean states from macrostates according to BIN_METHOD
 	$(call run_logged,binarization)
 __binarization: $(bin)
 
@@ -822,21 +840,18 @@ $(cellranger_$(1)): $(fastq_$(1)) $(genome_ref)
 
 $(velocyto_$(1)): $(cellranger_$(1)) $(genome_ref)
 	$(call print_rule,velocyto,$(1))
-	if [ -f public/transcriptome/repeat_msk.gtf ]; then
-		$(call conda_run,scbolt-velocyto) velocyto run10x \
-			-m public/transcriptome/repeat_msk.gtf \
-			--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
-			$$(dir $$(firstword $$^)) $$(lastword $$^)/genes/genes.gtf
-		mkdir -p $$(@D)
-		mv $$(<D)/velocyto/cellranger.loom $$(shell echo $$@ | sed "s/h5ad/loom/")
-		rm -rf $$(<D)/velocyto
-		$(call print_debug,standardizing gene names and converting loom format into h5ad format)
-		$(call conda_run,scbolt-core) python scripts/utils/adata_conversion.py \
-			$$(shell echo $$@ | sed "s/h5ad/loom/") $$@ --from loom --to h5ad \
-			--remove-positions --sort --standardization
-	else
-		$(call print_error,cannot run velocyto: file public/transcriptome/repeat_msk.gtf does not exist \(please refer to documentation for downloading it\))
-	fi
+	$(call check_file,public/transcriptome/repeat_msk.gtf,repeat_msk.gtf)
+	$(call conda_run,scbolt-velocyto) velocyto run10x \
+		-m public/transcriptome/repeat_msk.gtf \
+		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
+		$$(dir $$(firstword $$^)) $$(lastword $$^)/genes/genes.gtf
+	mkdir -p $$(@D)
+	mv $$(<D)/velocyto/cellranger.loom $$(shell echo $$@ | sed "s/h5ad/loom/")
+	rm -rf $$(<D)/velocyto
+	$(call print_debug,standardizing gene names and converting loom format into h5ad format)
+	$(call conda_run,scbolt-core) python scripts/utils/adata_conversion.py \
+		$$(shell echo $$@ | sed "s/h5ad/loom/") $$@ --from loom --to h5ad \
+		--remove-positions --sort --standardization
 
 $(filtering_$(1)): $(velocyto_$(1)) $(if $(filter mouse,$(ORGANISM)),$(cc_markers))
 	$(call print_rule,filtering,$(1))
@@ -981,7 +996,7 @@ $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(co
 $(annotation_integrated): $(clustering_integrated)
 	$(call print_rule,annotation,integrated)
 	if [ -z "$(LABEL)" ]; then \
-			$(call print_error,annotation requires LABEL. Review DEA/GOEA/signature outputs, set LABEL in your parameter file, then rerun make annotation or your downstream command); \
+			$(call print_error,annotation requires LABEL. Review DEA/GOEA/signature outputs, set LABEL in your parameter file); \
 	fi
 	mkdir -p $(@D)
 	$(call conda_run,scbolt-core) python scripts/clustering/annotation.py $< $@ \
@@ -1069,32 +1084,28 @@ $(bin_consensus): $(bin_macrostates) $(lastword $(bin_cells)) $(bin_dea)
 ifdef MODEL_HVG_METHOD
 $(bonesis_model)&: $(bin) $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions)))
 	$(call print_rule,spec)
-	if ! [ -f $(YAML_MODEL) ]; then
-		$(call print_error,file $(YAML_MODEL) not found \(see documentation for details about command \'spec\'\))
-	fi
-		mkdir -p $(tmpdir)/bonesis/hvg $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
-		$(call print_task,estimating top$(if $(MODEL_TOP_HVG), $(MODEL_TOP_HVG),) highly variable genes with $(MODEL_HVG_METHOD))
-		$(call conda_run,scbolt-core) python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/bonesis/hvg/top_genes.txt \
-			--method $(MODEL_HVG_METHOD) $(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) $(batch)
-		$(call conda_run,scbolt-bonesis) python scripts/inference/specification.py $(YAML_MODEL) $< \
-			--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
-			--important-genes $(word 3,$(bonesis_model)) --mandatory-genes $(word 4,$(bonesis_model)) \
-			--filter-genes $(tmpdir)/bonesis/hvg/top_genes.txt --organism $(ORGANISM)
-		sort -u $(word 3,$(bonesis_model)) -o $(word 3,$(bonesis_model))
-		sort -u $(word 4,$(bonesis_model)) -o $(word 4,$(bonesis_model))
+	$(call check_file,$(YAML_MODEL),YAML_MODEL)
+	mkdir -p $(tmpdir)/bonesis/hvg $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
+	$(call print_task,estimating top$(if $(MODEL_TOP_HVG), $(MODEL_TOP_HVG),) highly variable genes with $(MODEL_HVG_METHOD))
+	$(call conda_run,scbolt-core) python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/bonesis/hvg/top_genes.txt \
+		--method $(MODEL_HVG_METHOD) $(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) $(batch)
+	$(call conda_run,scbolt-bonesis) python scripts/inference/specification.py $(YAML_MODEL) $< \
+		--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
+		--important-genes $(word 3,$(bonesis_model)) --mandatory-genes $(word 4,$(bonesis_model)) \
+		--filter-genes $(tmpdir)/bonesis/hvg/top_genes.txt --organism $(ORGANISM)
+	sort -u $(word 3,$(bonesis_model)) -o $(word 3,$(bonesis_model))
+	sort -u $(word 4,$(bonesis_model)) -o $(word 4,$(bonesis_model))
 else
 $(bonesis_model)&: $(bin)
 	$(call print_rule,spec)
-	if ! [ -f $(YAML_MODEL) ]; then
-		$(call print_error,file $(YAML_MODEL) not found \(see documentation for details about command \'spec\'\))
-	fi
-		mkdir -p $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
-		$(call conda_run,scbolt-bonesis) python scripts/inference/specification.py $(YAML_MODEL) $< \
-			--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
-			--important-genes $(word 3,$(bonesis_model)) --mandatory-genes $(word 4,$(bonesis_model)) \
-			--organism $(ORGANISM)
-		sort -u $(word 3,$(bonesis_model)) -o $(word 3,$(bonesis_model))
-		sort -u $(word 4,$(bonesis_model)) -o $(word 4,$(bonesis_model))
+	$(call check_file,$(YAML_MODEL),YAML_MODEL)
+	mkdir -p $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
+	$(call conda_run,scbolt-bonesis) python scripts/inference/specification.py $(YAML_MODEL) $< \
+		--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
+		--important-genes $(word 3,$(bonesis_model)) --mandatory-genes $(word 4,$(bonesis_model)) \
+		--organism $(ORGANISM)
+	sort -u $(word 3,$(bonesis_model)) -o $(word 3,$(bonesis_model))
+	sort -u $(word 4,$(bonesis_model)) -o $(word 4,$(bonesis_model))
 endif
 
 $(max_nodes_soft): $(bonesis_model)
