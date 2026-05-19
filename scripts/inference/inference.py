@@ -1,20 +1,19 @@
 #!/usr/bin/env python
 
-from typing import Optional
+from typing import Mapping, Sequence
+from collections import defaultdict
 
 import sys
-import datetime
 import os, std
 import argparse, cli
+import json
 from pathlib import Path
-
-import re
 
 from tqdm import tqdm
 
 import pandas as pd
 
-import mpbn, bonesis
+import bonesis
 from bonesis.asp_encoding import clingo_encode
 
 import bonesistools as bt
@@ -29,68 +28,237 @@ TQDM_TO_TTY = os.getenv("TQDM_TO_TTY", "0") == "1"
 
 class ptqdm(tqdm):
     def __init__(self, *args, **kwargs):
+
+        kwargs.setdefault("ncols", 80)
+        kwargs.setdefault("dynamic_ncols", False)
+        kwargs.setdefault("leave", True)
+        
         if TQDM_TO_TTY:
             kwargs.setdefault("file", open("/dev/tty", "w"))
         else:
             kwargs.setdefault("file", sys.stdout)
 
-        kwargs.setdefault("leave", False)
         kwargs.setdefault("disable", DISABLE_TQDM)
         super().__init__(*args, **kwargs)
 
 
-def write_bn(
-    bn: mpbn.MPBooleanNetwork,
-    bnet: Path,
-    noi: Optional[Path] = None,
-    dot: Optional[Path] = None,
-    neato: Optional[Path] = None,
-    circo: Optional[Path] = None,
-    fdp: Optional[Path] = None,
-    sfdp: Optional[Path] = None,
-    remove_single_nodes: bool = False,
+def get_configuration_predicates(bo) -> dict:
+    """
+    Retrieve the semantic predicate associated with each BoNesis configuration.
+
+    Parameters
+    ----------
+    bo: bonesis.BoNesis
+        BoNesis object storing logical properties and configurations.
+
+    Returns
+    -------
+    dict
+        Mapping from BoNesis configuration keys to their associated semantic
+        predicates.
+    """
+
+    predicates = {}
+
+    for predicate, args, _ in bo.manager.properties:
+        if predicate == "cfg":
+            key = args[0]
+            predicates.setdefault(key, "configuration")
+
+        elif predicate in {"trapspace", "fixpoint"}:
+            managed = args[0]
+            predicates[managed.name] = predicate
+
+    return predicates
+
+def write_noi(bn, outfile):
+    """
+    Write non-constant Boolean network components to a text file.
+
+    Each line of the output file contains the name of a non-constant
+    component of the Boolean network.
+
+    Parameters
+    ----------
+    bn: mpbn.MPBooleanNetwork
+        Boolean network.
+    outfile: str | Path
+        Output text file.
+    """
+    noi_set = set(bn) - set(bn.constants())
+
+    with open(outfile, "w") as fp:
+        fp.write("".join(f"{node}\n" for node in noi_set))
+
+def write_influence_graph(
+    bn,
+    outdir,
+    programs=("dot",),
+    remove_isolated_nodes=False,
 ):
-    bn = bn.copy()
-    bn.save(bnet)
-    if noi is not None:
-        noi_set = set(bn) - set(bn.constants())
-        with open(noi, "w") as fp:
-            fp.write("".join([f"{n}\n" for n in noi_set]))
-    if (
-        dot is not None
-        or neato is not None
-        or circo is not None
-        or fdp is not None
-        or sfdp is not None
-    ):
-        if remove_single_nodes is True:
-            nodes_to_remove = []
-            for node in bn:
-                if bn[node] in [bn.ba.FALSE, bn.ba.TRUE]:
-                    nodes_to_remove.append(node)
-            for node in nodes_to_remove:
+    """
+    Write the Boolean network associated influence graph using Graphviz.
+
+    Parameters
+    ----------
+    bn: mpbn.MPBooleanNetwork
+        Boolean network.
+    outdir: str | Path
+        Output directory.
+    programs: sequence of str, default=("dot",)
+        Graphviz layout programs used to generate the graph.
+        Examples include "dot", "neato", "circo", "fdp" and "sfdp".
+    remove_isolated_nodes: bool, default=False
+        Whether to remove constant components before graph generation.
+    """
+
+    bn = bt.bpy.bn.BooleanNetwork(bn.copy())
+
+    if remove_isolated_nodes:
+        for node in list(bn):
+            if bn[node] in [bn.ba.FALSE, bn.ba.TRUE]:
                 del bn[node]
-        _dot = bt.bpy.bn_to_pydot(bn)
-        if dot is not None:
-            _dot.write(dot, prog="dot", format="raw")
-        if neato is not None:
-            _dot.write(neato, prog="neato", format="raw")
-        if circo is not None:
-            _dot.write(circo, prog="circo", format="raw")
-        if fdp is not None:
-            _dot.write(fdp, prog="fdp", format="raw")
-        if sfdp is not None:
-            _dot.write(sfdp, prog="sfdp", format="raw")
 
+    graph = bn.to_pydot()
 
-def dict_to_str(d: dict) -> str:
-    s = ""
-    add = ""
-    for k, v in d.items():
-        s += f"{add}{k}->{v}"
-        add = ", "
-        return s
+    for program in programs:
+        graph.write(
+            outdir / f"ig.{program}",
+            prog=program,
+            format="raw",
+        )
 
+    return None
+
+def write_configurations(cfgs, outfile):
+    """
+    Write Boolean configurations using the format inferred from the output
+    file extension.
+
+    Supported output formats are:
+    - .cfg : sparse logical configuration format
+    - .csv : tabular representation
+    - .json : structured JSON representation
+
+    Parameters
+    ----------
+    cfgs: Mapping
+        Mapping of configuration names to component-state mappings.
+    outfile: str | Path
+        Output configuration file. The export format is inferred from the
+        file extension.
+
+    Raises
+    ------
+    ValueError
+        If the output file extension is not supported.
+    """
+
+    outfile = Path(outfile)
+    outfile.parent.mkdir(parents=True, exist_ok=True)
+
+    suffix = outfile.suffix
+
+    if suffix == ".cfg":
+
+        with open(outfile, "w") as f:
+            for cfg_name, cfg in cfgs.items():
+                f.write(f"[{cfg_name}]\n")
+
+                for key, value in cfg.items():
+                    if value not in [0, 1, False, True]:
+                        continue
+
+                    f.write(f"{key}={int(value)}\n")
+
+                f.write("\n")
+
+    elif suffix == ".csv":
+
+        csv_cfgs = {
+            cfg_name: {
+                k: (None if v == "*" else v)
+                for k, v in cfg.items()
+            }
+            for cfg_name, cfg in cfgs.items()
+        }
+
+        df = pd.DataFrame(csv_cfgs).astype("Int8")
+        df.to_csv(outfile)
+
+    elif suffix == ".json":
+
+        json_cfgs = {
+            cfg_name: {
+                k: (None if v == "*" else v)
+                for k, v in cfg.items()
+            }
+            for cfg_name, cfg in cfgs.items()
+        }
+
+        with open(outfile, "w") as f:
+            json.dump(json_cfgs, f, indent=4)
+
+    else:
+        raise ValueError(
+            f"unsupported output format: '{suffix}' "
+            "(supported formats: .cfg, .csv, .json)"
+        )
+
+def write_solution(
+    bn,
+    configurations: Mapping,
+    outdir,
+    config_formats: Sequence[str] = ("cfg",),
+    graph_formats: Sequence[str] = (),
+    remove_isolated_nodes: bool = False,
+) -> None:
+    """
+    Write a Boolean network solution and associated outputs.
+
+    Parameters
+    ----------
+    bn: mpbn.MPBooleanNetwork
+        Boolean network solution.
+    configurations: Mapping
+        Mapping of configuration names to component-state mappings.
+    outdir: str | Path
+        Output directory where solution files are written.
+    config_formats: sequence of str, default=("cfg",)
+        Configuration output formats. Supported formats are "cfg", "csv"
+        and "json".
+    graph_formats: sequence of str, default=()
+        Graphviz layout programs used to export the associated influence graph.
+        Examples include "dot", "neato", "circo", "fdp" and "sfdp".
+    remove_isolated_nodes: bool, default=False
+        Whether to remove constant components from exported influence graphs.
+    """
+
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    bn.save(outdir / "model.bnet")
+
+    write_noi(
+        bn,
+        outdir / "noi.txt",
+    )
+
+    for fmt in config_formats:
+        write_configurations(
+            configurations,
+            outdir / f"state.{fmt}",
+        )
+
+    if graph_formats:
+        write_influence_graph(
+            bn,
+            outdir,
+            programs=graph_formats,
+            remove_isolated_nodes=remove_isolated_nodes,
+        )
+
+    return None
 
 parser_description = """
 Infer Most Permissive Boolean Networks (MPBN) using bonesis paradigm. \
@@ -175,6 +343,19 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--config-formats",
+    dest="config_formats",
+    nargs="+",
+    choices=["cfg", "csv", "json"],
+    default=["csv"],
+    metavar="[csv | cfg | json]",
+    help=(
+        "output formats used for exporting Boolean configurations "
+        "(default: csv)"
+    ),
+)
+
+parser.add_argument(
     "--domain",
     dest="domain",
     action=cli.Bonesis_domain,
@@ -246,48 +427,21 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--dot",
-    dest="dot",
-    required=False,
-    action="store_true",
-    help="save BN associated-influence graph with dot program",
+    "--graph-formats",
+    dest="graph_formats",
+    nargs="+",
+    choices=["dot", "neato", "circo", "fdp", "sfdp"],
+    default=[],
+    metavar="[dot | neato | circo | fdp | sfdp]",
+    help=(
+        "graphviz layout programs used for exporting Boolean network "
+        "associated influence graphs"
+    ),
 )
 
 parser.add_argument(
-    "--neato",
-    dest="neato",
-    required=False,
-    action="store_true",
-    help="save BN associated-influence graph with neato program",
-)
-
-parser.add_argument(
-    "--circo",
-    dest="circo",
-    required=False,
-    action="store_true",
-    help="save BN associated-influence graph with circo program",
-)
-
-parser.add_argument(
-    "--fdp",
-    dest="fdp",
-    required=False,
-    action="store_true",
-    help="save BN associated-influence graph with fdp program",
-)
-
-parser.add_argument(
-    "--sfdp",
-    dest="sfdp",
-    required=False,
-    action="store_true",
-    help="save BN associated-influence graph with sfdp program",
-)
-
-parser.add_argument(
-    "--remove-single-nodes",
-    dest="remove_single_nodes",
+    "--remove-isolated-nodes",
+    dest="remove_isolated_nodes",
     required=False,
     action="store_true",
     help="remove nodes without interaction with another node when printing influence graph",
@@ -314,13 +468,13 @@ bonesis.settings["parallel"] = args.jobs
 
 genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
 
-std.print_task(f"loading partially binarized metastates {str(args.mstates)}")
+std.print_task(f"loading partially binarized metastates from {str(args.mstates)}")
 
 mstates_df = pd.read_csv(args.mstates, index_col=0, sep=args.sep).fillna(float("nan"))
 
 mstates_cfg = get_cfg(mstates_df, axis="index")
 
-std.print_task("initializing bonesis settings")
+std.print_task("initializing BoNesis inference settings")
 
 pkn_options = {
     "canonic": False if args.action.startswith("filter") else True,
@@ -349,6 +503,7 @@ if args.filter_grn:
     with open(args.filter_grn) as fp:
         nodes = [line.strip() for line in fp.readlines()]
     grn = grn.subgraph(nodes)
+    del nodes
 
 pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
 
@@ -506,251 +661,291 @@ elif args.action == "filter-consts":
         f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]"
     )
 
-elif args.action == "min":
+else:
 
-    std.print_task("computing solution of Boolean network minimizing the edge number")
-
-    bo.custom("edge(A,B) :- clause(B,_,A,_). #minimize { 1@1,A,B: edge(A,B) }.")
-    bo.custom("#maximize { 1@10,N: constant(N) }.")
-
-    if args.minimize_self_loops:
-        bo.custom("#minimize { 1@100,A: edge(A,A) }.")
-
-    view = bonesis.InfluenceGraphView(
-        bo,
-        mode=args.clingo_opt_mode,
-        clingo_opt_strategy="usc",
-        extra=("boolean-network", "configurations"),
-        progress=ptqdm,
-    )
-    view.standalone(output_filename=args.asp)
-
-    std.print_warning("this may take some time.")
-    solution = next(iter(view))
-
-    name_mapping = dict()
-    bn = solution[1]
-    for component in bn:
-        if component not in nodes:
-            name_mapping[component] = re.sub("_", "-", component)
-    if name_mapping:
-        print("")
-        std.print_debug(f"renaming components: {dict_to_str(name_mapping)}")
-        for k, v in name_mapping.items():
-            bn.rename(k, v)
-
-    write_bn(
-        bn=bn,
-        bnet=f"{args.solution}.bnet",
-        noi=f"{args.solution}.noi.txt",
-        **{
-            f"{program}": (
-                f"{os.path.dirname(args.solution)}/graph.{program}"
-                if eval(f"args.{program}")
-                else None
-            )
-            for program in ["dot", "neato", "circo", "fdp", "sfdp"]
-        },
-        remove_single_nodes=args.remove_single_nodes,
-    )
-    pd.DataFrame(solution[2]).to_csv(f"{args.solution}.csv")
-
-elif args.action == "sub":
-
-    std.print_task("sampling diverse solutions of Boolean network")
-
-    os.makedirs(f"{args.solution}", exist_ok=True)
-
-    view = bonesis.DiverseBooleanNetworksView(
-        bo,
-        extra=("configurations"),
-        limit=args.limit if args.limit is not None else 0,
-        progress=ptqdm,
-    )
-    view.standalone(output_filename=args.asp)
-
-    debug = True
-    bns = bt.bpy.BooleanNetworkEnsemble(components=nodes)
-    std.print_warning("this may take some time.")
-    for i, solution in enumerate(ptqdm(view)):
-        bn = (
-            solution[1]
-            if isinstance(view, bonesis.views.InfluenceGraphView)
-            else solution[0]
-        )
-        if debug:
-            name_mapping = dict()
-            for component in bn:
-                if component not in bns.get_components():
-                    name_mapping[component] = re.sub("_", "-", component)
-            if name_mapping:
-                tqdm.write(
-                    f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - DEBUG - renaming components: {dict_to_str(name_mapping)}"
-                )
-            debug = False
-        if name_mapping:
-            for k, v in name_mapping.items():
-                bn.rename(k, v)
-        bns.append(bn)
-        os.makedirs(f"{args.solution}/{i}")
-        write_bn(
-            bn=bn,
-            bnet=f"{args.solution}/{i}/model.bnet",
-            noi=f"{args.solution}/{i}/.noi.txt",
-            **{
-                f"{program}": (
-                    f"{args.solution}/{i}/graph.{program}"
-                    if eval(f"args.{program}")
-                    else None
-                )
-                for program in ["dot", "neato", "circo", "fdp", "sfdp"]
-            },
-            remove_single_nodes=args.remove_single_nodes,
-        )
-        if isinstance(view, bonesis.views.InfluenceGraphView):
-            pd.DataFrame(solution[2]).to_csv(f"{args.solution}/{i}/mstates.csv")
-        else:
-            pd.DataFrame(solution[1]).to_csv(f"{args.solution}/{i}/mstates.csv")
-
-    std.print_task("analysing ensemble of Boolean networks")
-
-    influences = bns.get_influences()
-
-    import graphviz
-
-    function_number = {component: 0 for component in bns.get_components()}
-
-    if args.remove_single_nodes:
-        transcription_factors = bns.get_transcription_factors()
-        single_nodes = set()
-        for node in bns.get_components():
-            if transcription_factors[node] == {} and influences[node] == {}:
-                single_nodes.add(node)
-        interest_nodes = set(bns.get_components()) - single_nodes
-    else:
-        interest_nodes = set(bns.get_components())
-
-    clauses = bns.get_clauses()
-    function_number = {
-        component: len(set(clauses_per_component))
-        for component, clauses_per_component in clauses.items()
+    normalized_to_original_gene_names = {
+        gene.replace("-", "_"): gene
+        for gene in bo.domain.nodes
+        if "-" in gene
     }
+    if normalized_to_original_gene_names:
+        std.print_debug(
+            "unsupported '-' characters detected in gene names; "
+            "the following gene names will be restored after BoNesis inference: "
+            f"{', '.join(f'{k} -> {v}' for k, v in normalized_to_original_gene_names.items())}"
+        )
 
-    ig_ensemble = graphviz.Digraph(
-        name="Interaction graph ensemble", comment="influence graph aggregation"
-    )
-    ig_ensemble.graph_attr["ratio"] = "0.8"
-    ig_ensemble.graph_attr["overlap"] = "false"
-    ig_ensemble.graph_attr["splines"] = "true"
+    config_predicates = get_configuration_predicates(bo)
+    predicate_configs = defaultdict(list)
+    for config, predicate in config_predicates.items():
+        predicate_configs[predicate].append(config)
+    if "trapspace" in predicate_configs:
+        std.print_debug(
+            "trapspace predicates detected; "
+            "principal trap spaces will be computed for: "
+            f"{', '.join(map(str, predicate_configs['trapspace']))}"
+        )
+    
+    rename_cfgs = {}
+    for predicate, cfg_names in predicate_configs.items():
+        grouped = defaultdict(list)
+        for cfg_name in cfg_names:
+            if isinstance(cfg_name, tuple):
+                grouped[cfg_name[0]].append(cfg_name)
+        for name, tuples in grouped.items():
+            if len(tuples) == 1 and tuples[0][1] == 0:
+                rename_cfgs[tuples[0]] = name
+    if rename_cfgs:
+        std.print_debug(
+            "the following tuple-based configuration names will be simplified: "
+            f"{', '.join(f'{k} -> {v}' for k, v in rename_cfgs.items())}"
+        )
 
-    for component in interest_nodes:
-        #    if node not in constantes:
-        if function_number[component] == 1:
-            ig_ensemble.node(
-                component,
-                label=f"{component}",
-                fillcolor="darkgoldenrod2",
-                style="rounded,filled,bold",
-                shape="oval",
-                fontcolor="black",
-                fontname="arial bold",
-                fontsize="50pt",
-            )
-        elif function_number[component] == 2:
-            ig_ensemble.node(
-                component,
-                label=f"{component}",
-                fillcolor="lightgoldenrod1",
-                style="rounded,filled",
-                shape="oval",
-                fontsize="50pt",
-            )
-        elif function_number[component] == 3:
-            ig_ensemble.node(
-                component,
-                label=f"{component}",
-                fillcolor="cornsilk",
-                style="rounded,filled",
-                shape="oval",
-                fontsize="50pt",
-            )
-        elif function_number[component] < 10:
-            ig_ensemble.node(
-                component,
-                label=f"{component}",
-                fillcolor="white",
-                style="rounded,filled",
-                shape="oval",
-                fontsize="50pt",
+    if args.action == "min":
+
+        std.print_task("computing solution of Boolean network minimizing the edge number")
+
+        bo.custom("edge(A,B) :- clause(B,_,A,_). #minimize { 1@1,A,B: edge(A,B) }.")
+        bo.custom("#maximize { 1@10,N: constant(N) }.")
+
+        if args.minimize_self_loops:
+            bo.custom("#minimize { 1@100,A: edge(A,A) }.")
+
+        view = bonesis.InfluenceGraphView(
+            bo,
+            mode=args.clingo_opt_mode,
+            clingo_opt_strategy="usc",
+            extra=("boolean-network", "configurations"),
+            progress=ptqdm,
+        )
+        view.standalone(output_filename=args.asp)
+
+        std.print_warning("this may take some time.")
+        solution = next(iter(view))
+
+        _, bn, configs = solution
+
+        if normalized_to_original_gene_names:
+            for k, v in normalized_to_original_gene_names.items():
+                bn.rename(k, v)
+                
+        if "trapspace" in predicate_configs:
+            for cfg_name in predicate_configs["trapspace"]:
+                cfg_state = configs[cfg_name]
+                ts = bn.principal_trapspace(cfg_state)
+                ts = {
+                    k: v
+                    for k, v in ts.items()
+                    if v != "*"
+                }
+                configs[cfg_name] = ts
+
+        for _old, _new in rename_cfgs.items():
+            configs[_new] = configs.pop(_old)
+    
+        write_solution(
+            bn=bn,
+            configurations=configs,
+            outdir=args.solution,
+            config_formats=args.config_formats,
+            graph_formats=args.graph_formats,
+            remove_isolated_nodes=args.remove_isolated_nodes
+        )
+
+    elif args.action == "sub":
+
+        if args.limit not in [None, 0]:
+            std.print_task(
+                f"sampling {args.limit} sparsest Boolean network solutions"
             )
         else:
-            ig_ensemble.node(
-                component,
-                label=f"{component}",
-                fillcolor="white",
-                style="rounded,filled,dotted",
-                shape="oval",
-                fontsize="50pt",
+            std.print_task(
+                "sampling sparsest Boolean network solutions"
             )
 
-    def get_intensity(
-        occurrences,
-        min_intensity: int = 1,
-        max_intensity: int = 10,
-        differentiel_with_max: int = 2,
-    ):
+        view = bonesis.DiverseBooleanNetworksView(
+            bo,
+            extra=("configurations",),
+            limit=args.limit if args.limit is not None else 0,
+            progress=ptqdm,
+        )
+        view.standalone(output_filename=args.asp)
 
-        occurrences = sorted(occurrences)
-        inf = occurrences[0]
-        sup = occurrences[-1]
-        differentiel = max_intensity - min_intensity - differentiel_with_max
-        intensity = {}
+        bns = bt.bpy.bn.BooleanNetworkEnsemble(components=bo.domain.nodes)
 
-        for occurrence in occurrences:
-            intensity[occurrence] = str(
-                round(((occurrence - inf) / (sup - inf)) * differentiel) + inf
+        std.print_warning("this may take some time.")
+
+        for i, solution in enumerate(view):
+
+            bn, configs = solution
+
+            if normalized_to_original_gene_names:
+                for k, v in normalized_to_original_gene_names.items():
+                    bn.rename(k, v)
+
+            bns.append(bn)
+
+            if "trapspace" in predicate_configs:
+                for cfg_name in predicate_configs["trapspace"]:
+                    cfg_state = configs[cfg_name]
+                    ts = bn.principal_trapspace(cfg_state)
+                    ts = {
+                        k: v
+                        for k, v in ts.items()
+                        if v != "*"
+                    }
+                    configs[cfg_name] = ts
+
+            for _old, _new in rename_cfgs.items():
+                configs[_new] = configs.pop(_old)
+
+            write_solution(
+                bn=bn,
+                configurations=configs,
+                outdir=args.solution / str(i),
+                config_formats=args.config_formats,
+                graph_formats=args.graph_formats,
+                remove_isolated_nodes=args.remove_isolated_nodes
             )
-        intensity[occurrences[-1]] = str(max_intensity)
 
-        return intensity
+        std.print_task("analysing ensemble of Boolean networks")
 
-    occurrences_list = set()
-    for target, sources in influences.items():
-        for source, infl in sources.items():
-            occurrences_list.add(*set(infl.values()))
+        influences = bns.get_influences()
 
-    intensity = get_intensity(occurrences_list)
+        import graphviz
 
-    for source, targets in influences.items():
-        for target, infl in targets.items():
-            for sign, occurrence in infl.items():
-                if sign is True:
-                    ig_ensemble.edge(
-                        source,
-                        target,
-                        label=f"{occurrence}",
-                        penwidth=intensity[occurrence],
-                        color="darkgreen",
-                        fontcolor="darkgreen",
-                        fontname="arial bold",
-                        fontsize="30pt",
-                        arrowsize="2",
-                    )
-                else:
-                    ig_ensemble.edge(
-                        source,
-                        target,
-                        label=f"{occurrence}",
-                        penwidth=intensity[occurrence],
-                        color="darkred",
-                        fontcolor="darkred",
-                        fontname="arial bold",
-                        fontsize="30pt",
-                        arrowsize="2",
-                    )
+        function_number = {component: 0 for component in bns.get_components()}
 
-    for program in ["dot", "neato", "circo", "fdp", "sfdp"]:
-        if eval(f"args.{program}"):
+        if args.remove_isolated_nodes:
+            transcription_factors = bns.get_transcription_factors()
+            single_nodes = set()
+            for node in bns.get_components():
+                if transcription_factors[node] == {} and influences[node] == {}:
+                    single_nodes.add(node)
+            interest_nodes = set(bns.get_components()) - single_nodes
+        else:
+            interest_nodes = set(bns.get_components())
+
+        clauses = bns.get_clauses()
+        function_number = {
+            component: len(set(clauses_per_component))
+            for component, clauses_per_component in clauses.items()
+        }
+
+        ig_ensemble = graphviz.Digraph(
+            name="Interaction graph ensemble", comment="influence graph aggregation"
+        )
+        ig_ensemble.graph_attr["ratio"] = "0.8"
+        ig_ensemble.graph_attr["overlap"] = "false"
+        ig_ensemble.graph_attr["splines"] = "true"
+
+        for component in interest_nodes:
+            #    if node not in constantes:
+            if function_number[component] == 1:
+                ig_ensemble.node(
+                    component,
+                    label=f"{component}",
+                    fillcolor="darkgoldenrod2",
+                    style="rounded,filled,bold",
+                    shape="oval",
+                    fontcolor="black",
+                    fontname="arial bold",
+                    fontsize="50pt",
+                )
+            elif function_number[component] == 2:
+                ig_ensemble.node(
+                    component,
+                    label=f"{component}",
+                    fillcolor="lightgoldenrod1",
+                    style="rounded,filled",
+                    shape="oval",
+                    fontsize="50pt",
+                )
+            elif function_number[component] == 3:
+                ig_ensemble.node(
+                    component,
+                    label=f"{component}",
+                    fillcolor="cornsilk",
+                    style="rounded,filled",
+                    shape="oval",
+                    fontsize="50pt",
+                )
+            elif function_number[component] < 10:
+                ig_ensemble.node(
+                    component,
+                    label=f"{component}",
+                    fillcolor="white",
+                    style="rounded,filled",
+                    shape="oval",
+                    fontsize="50pt",
+                )
+            else:
+                ig_ensemble.node(
+                    component,
+                    label=f"{component}",
+                    fillcolor="white",
+                    style="rounded,filled,dotted",
+                    shape="oval",
+                    fontsize="50pt",
+                )
+
+        def get_intensity(
+            occurrences,
+            min_intensity: int = 1,
+            max_intensity: int = 10,
+            differentiel_with_max: int = 2,
+        ):
+
+            occurrences = sorted(occurrences)
+            inf = occurrences[0]
+            sup = occurrences[-1]
+            differentiel = max_intensity - min_intensity - differentiel_with_max
+            intensity = {}
+
+            for occurrence in occurrences:
+                intensity[occurrence] = str(
+                    round(((occurrence - inf) / (sup - inf)) * differentiel) + inf
+                )
+            intensity[occurrences[-1]] = str(max_intensity)
+
+            return intensity
+
+        occurrences_list = set()
+        for target, sources in influences.items():
+            for source, infl in sources.items():
+                occurrences_list.add(*set(infl.values()))
+
+        intensity = get_intensity(occurrences_list)
+
+        for source, targets in influences.items():
+            for target, infl in targets.items():
+                for sign, occurrence in infl.items():
+                    if sign is True:
+                        ig_ensemble.edge(
+                            source,
+                            target,
+                            label=f"{occurrence}",
+                            penwidth=intensity[occurrence],
+                            color="darkgreen",
+                            fontcolor="darkgreen",
+                            fontname="arial bold",
+                            fontsize="30pt",
+                            arrowsize="2",
+                        )
+                    else:
+                        ig_ensemble.edge(
+                            source,
+                            target,
+                            label=f"{occurrence}",
+                            penwidth=intensity[occurrence],
+                            color="darkred",
+                            fontcolor="darkred",
+                            fontname="arial bold",
+                            fontsize="30pt",
+                            arrowsize="2",
+                        )
+        
+        for program in args.graph_formats:
             ig_ensemble.render(
                 filename=f"_graph_summary.{program}",
                 directory=f"{args.solution}",
@@ -759,10 +954,10 @@ elif args.action == "sub":
                 engine=program,
             )
 
-    ig_ensemble.render(
-        filename=f"_graph_summary.dot",
-        directory=f"{args.solution}",
-        view=False,
-        format="pdf",
-        engine="dot",
-    )
+        ig_ensemble.render(
+            filename=f"_graph_summary.dot",
+            directory=f"{args.solution}",
+            view=False,
+            format="pdf",
+            engine="dot",
+        )

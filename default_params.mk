@@ -171,10 +171,14 @@ $(eval CLINGO_OPT_STRATEGY_LOCK ?= usc)
 $(eval JOBS_LOCK ?= 1)
 $(eval TIMEOUT_LOCK ?= 72h)
 
+## INFERENCE ##
+$(eval CONFIG_FORMATS = csv cfg)            # output formats used for exporting Boolean configurations (csv, cfg, json)
+
 ## BONESIS-MIN ##
 $(eval MIN_SELF_LOOP_INFER ?= true)         # minimize the number of length-one feedbacks at inference stage
 $(eval CLINGO_OPT_MODE_MIN ?= optN)
 
 ## BONESIS-SUB ##
-$(eval INFER_LIMIT ?=)          			# number of diverse subset minimal solutions. If not specified, enumerate all subset minimal solutions without diversity
+$(eval GRAPH_FORMATS = dot neato circo fdp sfdp) # graphviz layout programs used for exporting Boolean network associated influence graphs
+$(eval INFER_LIMIT ?=)          			     # number of diverse subset minimal solutions. If not specified, enumerate all subset minimal solutions without diversity
 

@@ -155,6 +155,20 @@ define check_inference_status
 	fi
 endef
 
+define check_partial_bn_sub
+@if [ -d "$(bn_sub_dir)" ] && [ ! -f "$(bn_sub_dir)/.done" ]; then \
+	echo "Partial bn-sub outputs detected in $(bn_sub_dir)."; \
+	printf "Remove them and rerun inference? (y/[n]) "; \
+	read ans; \
+	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
+		rm -rf "$(bn_sub_dir)"; \
+	else \
+		echo "Aborted."; \
+		exit 1; \
+	fi; \
+fi
+endef
+
 ## END FUNCTIONS ##
 
 ## BEGIN PATHS ##
@@ -219,7 +233,14 @@ max_nodes_relaxed =             $(results)/infer/genes/relaxed/comps.txt
 max_nodes_seed =                $(results)/infer/genes/seed/comps.txt
 max_nodes_lock =                $(results)/infer/genes/lock/comps.txt
 bn_min =                        $(results)/infer/bn/min/model.bnet
-bn_sub =                        $(results)/infer/bn/sub/_graph_summary.pdf
+
+bn_sub_dir = $(results)/infer/bn/sub
+ifneq ($(filter-out 0,$(strip $(INFER_LIMIT))),)
+bn_sub_indices := $(shell seq 0 $$(($(INFER_LIMIT)-1)))
+bn_sub = $(foreach i,$(bn_sub_indices),$(bn_sub_dir)/$(i)/model.bnet $(bn_sub_dir)/$(i)/state.cfg)
+else
+bn_sub = $(bn_sub_dir)/.done
+endif
 
 $(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call find_paths_for_references,$(reference))))
@@ -1201,14 +1222,24 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock)
 		    done
 		fi
 
-$(bn_sub): $(bonesis_model) $(max_nodes_lock)
+$(bn_sub)&: $(bonesis_model) $(max_nodes_lock)
 	$(call print_rule,bn-sub)
-	mkdir -p $(dir $(@D))
+	$(call check_partial_bn_sub)
+	mkdir -p $(bn_sub_dir)
 	$(call conda_run,scbolt-bonesis) python scripts/inference/inference.py sub \
-		$(word 1,$^) $(word 2,$^) --filter-grn $(lastword $^) --asp $(@D)/min.sh --solution $(@D) \
-		--domain $(PRIOR_KNOWLEDGE) --organism $(ORGANISM) --max-clause $(MAX_CLAUSE) \
-		$(if $(INFER_LIMIT),--limit $(INFER_LIMIT)) --clingo-opt-mode $(CLINGO_OPT_MODE_MIN) --jobs $(JOBS) \
-		--dot --neato --circo --fdp --sfdp --remove-single-nodes
+		$(word 1,$^) $(word 2,$^) \
+		--filter-grn $(lastword $^) \
+		--asp $(bn_sub_dir)/sub.sh \
+		--solution $(bn_sub_dir) \
+		--domain $(PRIOR_KNOWLEDGE) \
+		--organism $(ORGANISM) \
+		--max-clause $(MAX_CLAUSE) \
+		--jobs $(JOBS) \
+		$(if $(strip $(INFER_LIMIT)),--limit $(INFER_LIMIT)) \
+		--config-formats $(CONFIG_FORMATS) \
+		--graph-formats $(GRAPH_FORMATS) \
+		--remove-isolated-nodes
+	touch $(bn_sub_dir)/.done
 
 $(foreach condition,$(conditions),$(eval $(call compute_rules_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call compute_rules_for_references,$(reference))))
