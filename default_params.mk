@@ -178,7 +178,6 @@ $(eval CONFIG_FORMATS = csv cfg)            # output formats used for exporting 
 $(eval MIN_SELF_LOOP_INFER ?= true)         # minimize the number of length-one feedbacks at inference stage
 $(eval CLINGO_OPT_MODE_MIN ?= optN)
 
-## BONESIS-SUB ##
+## BONESIS-DIVERSE ##
 $(eval GRAPH_FORMATS = dot neato circo fdp sfdp) # graphviz layout programs used for exporting Boolean network associated influence graphs
-$(eval INFER_LIMIT ?=)          			     # number of diverse subset minimal solutions. If not specified, enumerate all subset minimal solutions without diversity
-
+$(eval INFER_LIMIT ?=)          			     # number of diverse of diverse sparsest Boolean network solutions. If not specified, enumerate all sparsest solutions without diversity

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from typing import Mapping, Sequence
+from typing import Any, Optional, Mapping, Iterable, Sequence
 from collections import defaultdict
 
 import sys
@@ -29,10 +29,8 @@ TQDM_TO_TTY = os.getenv("TQDM_TO_TTY", "0") == "1"
 class ptqdm(tqdm):
     def __init__(self, *args, **kwargs):
 
-        kwargs.setdefault("ncols", 80)
-        kwargs.setdefault("dynamic_ncols", False)
         kwargs.setdefault("leave", True)
-        
+
         if TQDM_TO_TTY:
             kwargs.setdefault("file", open("/dev/tty", "w"))
         else:
@@ -71,6 +69,7 @@ def get_configuration_predicates(bo) -> dict:
 
     return predicates
 
+
 def write_noi(bn, outfile):
     """
     Write non-constant Boolean network components to a text file.
@@ -89,6 +88,7 @@ def write_noi(bn, outfile):
 
     with open(outfile, "w") as fp:
         fp.write("".join(f"{node}\n" for node in noi_set))
+
 
 def write_influence_graph(
     bn,
@@ -129,6 +129,7 @@ def write_influence_graph(
         )
 
     return None
+
 
 def write_configurations(cfgs, outfile):
     """
@@ -176,10 +177,7 @@ def write_configurations(cfgs, outfile):
     elif suffix == ".csv":
 
         csv_cfgs = {
-            cfg_name: {
-                k: (None if v == "*" else v)
-                for k, v in cfg.items()
-            }
+            cfg_name: {k: (None if v == "*" else v) for k, v in cfg.items()}
             for cfg_name, cfg in cfgs.items()
         }
 
@@ -189,10 +187,7 @@ def write_configurations(cfgs, outfile):
     elif suffix == ".json":
 
         json_cfgs = {
-            cfg_name: {
-                k: (None if v == "*" else v)
-                for k, v in cfg.items()
-            }
+            cfg_name: {k: (None if v == "*" else v) for k, v in cfg.items()}
             for cfg_name, cfg in cfgs.items()
         }
 
@@ -204,6 +199,7 @@ def write_configurations(cfgs, outfile):
             f"unsupported output format: '{suffix}' "
             "(supported formats: .cfg, .csv, .json)"
         )
+
 
 def write_solution(
     bn,
@@ -260,27 +256,136 @@ def write_solution(
 
     return None
 
+def run_bn_view(
+    view: Any,
+    components: Iterable[str],
+    outdir: str | Path,
+    config_formats: Sequence[str],
+    graph_formats: Sequence[str],
+    normalized_to_original_gene_names: Optional[Mapping[str, str]] = None,
+    trapspace_configurations: Optional[Sequence[Any]] = None,
+    rename_cfgs: Optional[Mapping[Any, Any]] = None,
+    remove_isolated_nodes: bool = False,
+) -> bt.bpy.bn.BooleanNetworkEnsemble:
+    """
+    Enumerate, post-process and export Boolean network solutions produced by a
+    BoNesis view.
+
+    The function supports BoNesis views returning either Boolean networks
+    directly or influence graphs with associated Boolean networks. For each
+    solution, it restores original gene names when needed, appends the Boolean
+    network to an ensemble, converts trapspace-associated configurations into
+    principal trap spaces, simplifies tuple-based configuration names, and writes
+    the solution to a numbered output directory.
+
+    Parameters
+    ----------
+    view:
+        BoNesis view enumerating Boolean network solutions.
+    components:
+        Components used to initialize the Boolean network ensemble.
+    outdir:
+        Root output directory where numbered solution folders are written.
+    config_formats:
+        Configuration output formats.
+    graph_formats:
+        Graphviz layout programs used for influence graph export.
+    normalized_to_original_gene_names:
+        Mapping from BoNesis-compatible gene names to original gene names.
+    trapspace_configurations:
+        Names of configurations that should be converted to principal trap
+        spaces.
+    rename_cfgs:
+        Mapping from original configuration names to simplified names.
+    remove_isolated_nodes:
+        Whether isolated nodes should be removed from exported influence graphs.
+
+    Returns
+    -------
+    bt.bpy.bn.BooleanNetworkEnsemble
+        Ensemble containing the exported Boolean network solutions.
+
+    Raises
+    ------
+    TypeError
+        If the view type is not supported.
+    """
+
+    outdir = Path(outdir)
+    normalized_to_original_gene_names = normalized_to_original_gene_names or {}
+    trapspace_configurations = trapspace_configurations or []
+    rename_cfgs = rename_cfgs or {}
+
+    ensemble = bt.bpy.bn.BooleanNetworkEnsemble(components=components)
+
+    for i, solution in enumerate(view):
+
+        if isinstance(view, bonesis.DiverseBooleanNetworksView):
+            bn, configs = solution
+
+        elif isinstance(view, bonesis.InfluenceGraphView):
+            _, bn, configs = solution
+
+        else:
+            raise TypeError(f"unsupported BoNesis view type: {type(view).__name__}")
+
+        for old, new in normalized_to_original_gene_names.items():
+            bn.rename(old, new)
+
+        ensemble.append(bn)
+
+        for cfg_name in trapspace_configurations:
+            cfg_state = configs[cfg_name]
+            ts = bn.principal_trapspace(cfg_state)
+            configs[cfg_name] = {k: v for k, v in ts.items() if v != "*"}
+
+        for old, new in rename_cfgs.items():
+            configs[new] = configs.pop(old)
+
+        write_solution(
+            bn=bn,
+            configurations=configs,
+            outdir=outdir / str(i),
+            config_formats=config_formats,
+            graph_formats=graph_formats,
+            remove_isolated_nodes=remove_isolated_nodes,
+        )
+
+    return ensemble
+
 parser_description = """
-Infer Most Permissive Boolean Networks (MPBN) using bonesis paradigm. \
-Four actions are proposed:
-    - filter-nodes: component selection maximizing variable number while constraining Boolean networks to be compatible with the observations
-    - filter-consts: component selection deleting strong constants while constraining Boolean networks to be compatible with the observations
-    - min: solution of BN minimizing the edge number
-    - sub: diverse solutions of sparsest BNs
-See Chevalier et al. (2024) <https://hal.science/hal-04629083/document>.
+Infer Most Permissive Boolean Networks (MPBNs) using the BoNesis paradigm.
+
+Five actions are proposed:
+    - filter-nodes:
+        component selection maximizing variable number while constraining
+        Boolean networks to satisfy the observations
+    - filter-consts:
+        component selection removing strong constants while constraining
+        Boolean networks to satisfy the observations
+    - min:
+        inference of a Boolean network minimizing the number of interactions
+    - submin:
+        enumeration of Boolean networks associated with subset-minimal
+        influence graphs
+    - diverse:
+        sampling of diverse sparsest Boolean network solutions
+
+See Chevalier et al. (2024):
+https://hal.science/hal-04629083/document
 """
 
 parser = argparse.ArgumentParser(
     prog="inference",
     description=parser_description,
-    usage="python inference.py [filter-nodes | filter-consts | one | min | sub] <FILE> <FILE> [<args>]",
+    usage="python inference.py [filter-nodes | filter-consts | min | submin | diverse] <FILE> <FILE> [<args>]",
     formatter_class=argparse.RawTextHelpFormatter,
 )
 
 parser.add_argument(
     "action",
-    choices=["filter-nodes", "filter-consts", "one", "min", "sub"],
-    metavar="[filter-nodes | filter-consts | one | min | sub]",
+    choices=["filter-nodes", "filter-consts", "min", "submin", "diverse"],
+    metavar="[filter-nodes | filter-consts | min | submin | diverse]",
 )
 
 parser.add_argument(
@@ -349,10 +454,7 @@ parser.add_argument(
     choices=["cfg", "csv", "json"],
     default=["csv"],
     metavar="[csv | cfg | json]",
-    help=(
-        "output formats used for exporting Boolean configurations "
-        "(default: csv)"
-    ),
+    help=("output formats used for exporting Boolean configurations " "(default: csv)"),
 )
 
 parser.add_argument(
@@ -664,9 +766,7 @@ elif args.action == "filter-consts":
 else:
 
     normalized_to_original_gene_names = {
-        gene.replace("-", "_"): gene
-        for gene in bo.domain.nodes
-        if "-" in gene
+        gene.replace("-", "_"): gene for gene in bo.domain.nodes if "-" in gene
     }
     if normalized_to_original_gene_names:
         std.print_debug(
@@ -685,7 +785,7 @@ else:
             "principal trap spaces will be computed for: "
             f"{', '.join(map(str, predicate_configs['trapspace']))}"
         )
-    
+
     rename_cfgs = {}
     for predicate, cfg_names in predicate_configs.items():
         grouped = defaultdict(list)
@@ -703,7 +803,9 @@ else:
 
     if args.action == "min":
 
-        std.print_task("computing solution of Boolean network minimizing the edge number")
+        std.print_task(
+            "computing solution of Boolean network minimizing the edge number"
+        )
 
         bo.custom("edge(A,B) :- clause(B,_,A,_). #minimize { 1@1,A,B: edge(A,B) }.")
         bo.custom("#maximize { 1@10,N: constant(N) }.")
@@ -728,40 +830,66 @@ else:
         if normalized_to_original_gene_names:
             for k, v in normalized_to_original_gene_names.items():
                 bn.rename(k, v)
-                
+
         if "trapspace" in predicate_configs:
             for cfg_name in predicate_configs["trapspace"]:
                 cfg_state = configs[cfg_name]
                 ts = bn.principal_trapspace(cfg_state)
-                ts = {
-                    k: v
-                    for k, v in ts.items()
-                    if v != "*"
-                }
+                ts = {k: v for k, v in ts.items() if v != "*"}
                 configs[cfg_name] = ts
 
         for _old, _new in rename_cfgs.items():
             configs[_new] = configs.pop(_old)
-    
+
         write_solution(
             bn=bn,
             configurations=configs,
             outdir=args.solution,
             config_formats=args.config_formats,
             graph_formats=args.graph_formats,
-            remove_isolated_nodes=args.remove_isolated_nodes
+            remove_isolated_nodes=args.remove_isolated_nodes,
         )
 
-    elif args.action == "sub":
+    elif args.action == "submin":
 
         if args.limit not in [None, 0]:
             std.print_task(
-                f"sampling {args.limit} sparsest Boolean network solutions"
+                f"enumerating {args.limit} subset-minimal Boolean network solutions"
             )
         else:
-            std.print_task(
-                "sampling sparsest Boolean network solutions"
-            )
+            std.print_task("enumerating subset-minimal Boolean network solutions")
+
+        std.print_warning("this may take some time.")
+
+        view = bonesis.InfluenceGraphView(
+            bo,
+            solutions="subset-minimal",
+            extra=("boolean-network", "configurations"),
+            limit=args.limit if args.limit is not None else 0,
+            progress=ptqdm,
+        )
+        view.standalone(output_filename=args.asp)
+
+        bns = run_bn_view(
+            view=view,
+            components=bo.domain.nodes,
+            outdir=args.solution,
+            config_formats=args.config_formats,
+            graph_formats=args.graph_formats,
+            normalized_to_original_gene_names=normalized_to_original_gene_names,
+            trapspace_configurations=predicate_configs.get("trapspace", []),
+            rename_cfgs=rename_cfgs,
+            remove_isolated_nodes=args.remove_isolated_nodes,
+        )
+
+    elif args.action == "diverse":
+
+        if args.limit not in [None, 0]:
+            std.print_task(f"sampling {args.limit} sparsest Boolean network solutions")
+        else:
+            std.print_task("sampling sparsest Boolean network solutions")
+
+        std.print_warning("this may take some time.")
 
         view = bonesis.DiverseBooleanNetworksView(
             bo,
@@ -771,193 +899,169 @@ else:
         )
         view.standalone(output_filename=args.asp)
 
-        bns = bt.bpy.bn.BooleanNetworkEnsemble(components=bo.domain.nodes)
-
-        std.print_warning("this may take some time.")
-
-        for i, solution in enumerate(view):
-
-            bn, configs = solution
-
-            if normalized_to_original_gene_names:
-                for k, v in normalized_to_original_gene_names.items():
-                    bn.rename(k, v)
-
-            bns.append(bn)
-
-            if "trapspace" in predicate_configs:
-                for cfg_name in predicate_configs["trapspace"]:
-                    cfg_state = configs[cfg_name]
-                    ts = bn.principal_trapspace(cfg_state)
-                    ts = {
-                        k: v
-                        for k, v in ts.items()
-                        if v != "*"
-                    }
-                    configs[cfg_name] = ts
-
-            for _old, _new in rename_cfgs.items():
-                configs[_new] = configs.pop(_old)
-
-            write_solution(
-                bn=bn,
-                configurations=configs,
-                outdir=args.solution / str(i),
-                config_formats=args.config_formats,
-                graph_formats=args.graph_formats,
-                remove_isolated_nodes=args.remove_isolated_nodes
-            )
-
-        std.print_task("analysing ensemble of Boolean networks")
-
-        influences = bns.get_influences()
-
-        import graphviz
-
-        function_number = {component: 0 for component in bns.get_components()}
-
-        if args.remove_isolated_nodes:
-            transcription_factors = bns.get_transcription_factors()
-            single_nodes = set()
-            for node in bns.get_components():
-                if transcription_factors[node] == {} and influences[node] == {}:
-                    single_nodes.add(node)
-            interest_nodes = set(bns.get_components()) - single_nodes
-        else:
-            interest_nodes = set(bns.get_components())
-
-        clauses = bns.get_clauses()
-        function_number = {
-            component: len(set(clauses_per_component))
-            for component, clauses_per_component in clauses.items()
-        }
-
-        ig_ensemble = graphviz.Digraph(
-            name="Interaction graph ensemble", comment="influence graph aggregation"
+        bns = run_bn_view(
+            view=view,
+            components=bo.domain.nodes,
+            outdir=args.solution,
+            config_formats=args.config_formats,
+            graph_formats=args.graph_formats,
+            normalized_to_original_gene_names=normalized_to_original_gene_names,
+            trapspace_configurations=predicate_configs.get("trapspace", []),
+            rename_cfgs=rename_cfgs,
+            remove_isolated_nodes=args.remove_isolated_nodes,
         )
-        ig_ensemble.graph_attr["ratio"] = "0.8"
-        ig_ensemble.graph_attr["overlap"] = "false"
-        ig_ensemble.graph_attr["splines"] = "true"
-
-        for component in interest_nodes:
-            #    if node not in constantes:
-            if function_number[component] == 1:
-                ig_ensemble.node(
-                    component,
-                    label=f"{component}",
-                    fillcolor="darkgoldenrod2",
-                    style="rounded,filled,bold",
-                    shape="oval",
-                    fontcolor="black",
-                    fontname="arial bold",
-                    fontsize="50pt",
-                )
-            elif function_number[component] == 2:
-                ig_ensemble.node(
-                    component,
-                    label=f"{component}",
-                    fillcolor="lightgoldenrod1",
-                    style="rounded,filled",
-                    shape="oval",
-                    fontsize="50pt",
-                )
-            elif function_number[component] == 3:
-                ig_ensemble.node(
-                    component,
-                    label=f"{component}",
-                    fillcolor="cornsilk",
-                    style="rounded,filled",
-                    shape="oval",
-                    fontsize="50pt",
-                )
-            elif function_number[component] < 10:
-                ig_ensemble.node(
-                    component,
-                    label=f"{component}",
-                    fillcolor="white",
-                    style="rounded,filled",
-                    shape="oval",
-                    fontsize="50pt",
-                )
-            else:
-                ig_ensemble.node(
-                    component,
-                    label=f"{component}",
-                    fillcolor="white",
-                    style="rounded,filled,dotted",
-                    shape="oval",
-                    fontsize="50pt",
-                )
-
-        def get_intensity(
-            occurrences,
-            min_intensity: int = 1,
-            max_intensity: int = 10,
-            differentiel_with_max: int = 2,
-        ):
-
-            occurrences = sorted(occurrences)
-            inf = occurrences[0]
-            sup = occurrences[-1]
-            differentiel = max_intensity - min_intensity - differentiel_with_max
-            intensity = {}
-
-            for occurrence in occurrences:
-                intensity[occurrence] = str(
-                    round(((occurrence - inf) / (sup - inf)) * differentiel) + inf
-                )
-            intensity[occurrences[-1]] = str(max_intensity)
-
-            return intensity
-
-        occurrences_list = set()
-        for target, sources in influences.items():
-            for source, infl in sources.items():
-                occurrences_list.add(*set(infl.values()))
-
-        intensity = get_intensity(occurrences_list)
-
-        for source, targets in influences.items():
-            for target, infl in targets.items():
-                for sign, occurrence in infl.items():
-                    if sign is True:
-                        ig_ensemble.edge(
-                            source,
-                            target,
-                            label=f"{occurrence}",
-                            penwidth=intensity[occurrence],
-                            color="darkgreen",
-                            fontcolor="darkgreen",
-                            fontname="arial bold",
-                            fontsize="30pt",
-                            arrowsize="2",
-                        )
-                    else:
-                        ig_ensemble.edge(
-                            source,
-                            target,
-                            label=f"{occurrence}",
-                            penwidth=intensity[occurrence],
-                            color="darkred",
-                            fontcolor="darkred",
-                            fontname="arial bold",
-                            fontsize="30pt",
-                            arrowsize="2",
-                        )
-        
-        for program in args.graph_formats:
-            ig_ensemble.render(
-                filename=f"_graph_summary.{program}",
-                directory=f"{args.solution}",
-                view=False,
-                format="plain",
-                engine=program,
-            )
-
-        ig_ensemble.render(
-            filename=f"_graph_summary.dot",
-            directory=f"{args.solution}",
-            view=False,
-            format="pdf",
-            engine="dot",
-        )
+    
+#        std.print_task("analysing ensemble of Boolean networks")
+#
+#        influences = bns.get_influences()
+#
+#        import graphviz
+#
+#        function_number = {component: 0 for component in bns.get_components()}
+#
+#        if args.remove_isolated_nodes:
+#            transcription_factors = bns.get_transcription_factors()
+#            single_nodes = set()
+#            for node in bns.get_components():
+#                if transcription_factors[node] == {} and influences[node] == {}:
+#                    single_nodes.add(node)
+#            interest_nodes = set(bns.get_components()) - single_nodes
+#        else:
+#            interest_nodes = set(bns.get_components())
+#
+#        clauses = bns.get_clauses()
+#        function_number = {
+#            component: len(set(clauses_per_component))
+#            for component, clauses_per_component in clauses.items()
+#        }
+#
+#        ig_ensemble = graphviz.Digraph(
+#            name="Interaction graph ensemble", comment="influence graph aggregation"
+#        )
+#        ig_ensemble.graph_attr["ratio"] = "0.8"
+#        ig_ensemble.graph_attr["overlap"] = "false"
+#        ig_ensemble.graph_attr["splines"] = "true"
+#
+#        for component in interest_nodes:
+#            #    if node not in constantes:
+#            if function_number[component] == 1:
+#                ig_ensemble.node(
+#                    component,
+#                    label=f"{component}",
+#                    fillcolor="darkgoldenrod2",
+#                    style="rounded,filled,bold",
+#                    shape="oval",
+#                    fontcolor="black",
+#                    fontname="arial bold",
+#                    fontsize="50pt",
+#                )
+#            elif function_number[component] == 2:
+#                ig_ensemble.node(
+#                    component,
+#                    label=f"{component}",
+#                    fillcolor="lightgoldenrod1",
+#                    style="rounded,filled",
+#                    shape="oval",
+#                    fontsize="50pt",
+#                )
+#            elif function_number[component] == 3:
+#                ig_ensemble.node(
+#                    component,
+#                    label=f"{component}",
+#                    fillcolor="cornsilk",
+#                    style="rounded,filled",
+#                    shape="oval",
+#                    fontsize="50pt",
+#                )
+#            elif function_number[component] < 10:
+#                ig_ensemble.node(
+#                    component,
+#                    label=f"{component}",
+#                    fillcolor="white",
+#                    style="rounded,filled",
+#                    shape="oval",
+#                    fontsize="50pt",
+#                )
+#            else:
+#                ig_ensemble.node(
+#                    component,
+#                    label=f"{component}",
+#                    fillcolor="white",
+#                    style="rounded,filled,dotted",
+#                    shape="oval",
+#                    fontsize="50pt",
+#                )
+#
+#        def get_intensity(
+#            occurrences,
+#            min_intensity: int = 1,
+#            max_intensity: int = 10,
+#            differentiel_with_max: int = 2,
+#        ):
+#
+#            occurrences = sorted(occurrences)
+#            inf = occurrences[0]
+#            sup = occurrences[-1]
+#            differentiel = max_intensity - min_intensity - differentiel_with_max
+#            intensity = {}
+#
+#            for occurrence in occurrences:
+#                intensity[occurrence] = str(
+#                    round(((occurrence - inf) / (sup - inf)) * differentiel) + inf
+#                )
+#            intensity[occurrences[-1]] = str(max_intensity)
+#
+#            return intensity
+#
+#        occurrences_list = set()
+#        for target, sources in influences.items():
+#            for source, infl in sources.items():
+#                occurrences_list.add(*set(infl.values()))
+#
+#        intensity = get_intensity(occurrences_list)
+#
+#        for source, targets in influences.items():
+#            for target, infl in targets.items():
+#                for sign, occurrence in infl.items():
+#                    if sign is True:
+#                        ig_ensemble.edge(
+#                            source,
+#                            target,
+#                            label=f"{occurrence}",
+#                            penwidth=intensity[occurrence],
+#                            color="darkgreen",
+#                            fontcolor="darkgreen",
+#                            fontname="arial bold",
+#                            fontsize="30pt",
+#                            arrowsize="2",
+#                        )
+#                    else:
+#                        ig_ensemble.edge(
+#                            source,
+#                            target,
+#                            label=f"{occurrence}",
+#                            penwidth=intensity[occurrence],
+#                            color="darkred",
+#                            fontcolor="darkred",
+#                            fontname="arial bold",
+#                            fontsize="30pt",
+#                            arrowsize="2",
+#                        )
+#
+#        for program in args.graph_formats:
+#            ig_ensemble.render(
+#                filename=f"_graph_summary.{program}",
+#                directory=f"{args.solution}",
+#                view=False,
+#                format="plain",
+#                engine=program,
+#            )
+#
+#        ig_ensemble.render(
+#            filename=f"_graph_summary.dot",
+#            directory=f"{args.solution}",
+#            view=False,
+#            format="pdf",
+#            engine="dot",
+#        )
+#

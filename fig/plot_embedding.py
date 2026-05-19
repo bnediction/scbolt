@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import importlib
@@ -16,9 +17,11 @@ import matplotlib.pyplot as plt
 
 sct.pl.set_default_params()
 
+
 def import_module_as(module, alias):
     module = importlib.import_module(module)
     globals()[alias] = module
+
 
 def do_eval(_eval_params, _figure_params):
     if isinstance(_eval_params, str):
@@ -30,19 +33,22 @@ def do_eval(_eval_params, _figure_params):
             elif isinstance(_eval, list):
                 do_eval(_eval[1:], _figure_params[_eval[0]])
             else:
-                raise KeyError("key `eval` in json file must contains only strings and lists")
+                raise KeyError(
+                    "key `eval` in json file must contains only strings and lists"
+                )
+
 
 parser = argparse.ArgumentParser(
     prog="figure plotting",
     description="""plot figure from anndata object""",
-    usage="""python <PATH> [--infile <PATH> --outfile <PATH>]"""
+    usage="""python <PATH> [--infile <PATH> --outfile <PATH>]""",
 )
 
 parser.add_argument(
     dest="jsonfile",
     type=lambda x: Path(x).resolve(),
     metavar="PATH",
-    help="figure parameters based on syntax of anndata.scatterplot"
+    help="figure parameters based on syntax of anndata.scatterplot",
 )
 
 parser.add_argument(
@@ -52,7 +58,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="PATH",
-    help="path to .h5ad file (including file)"
+    help="path to .h5ad file (including file)",
 )
 
 parser.add_argument(
@@ -62,7 +68,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="PATH",
-    help="path to figure file (including file)"
+    help="path to figure file (including file)",
 )
 
 parser.add_argument(
@@ -72,7 +78,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="Column name in scdata.obs for annotation of observations"
+    help="Column name in scdata.obs for annotation of observations",
 )
 
 parser.add_argument(
@@ -82,7 +88,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="embedding projection"
+    help="embedding projection",
 )
 
 args = parser.parse_args()
@@ -95,14 +101,18 @@ if args.infile is not None:
 elif "infile" in params:
     infile = Path(params["infile"])
 else:
-    raise argparse.ArgumentError("infile must be must called with --infile or specified in json file")
+    raise argparse.ArgumentError(
+        "infile must be must called with --infile or specified in json file"
+    )
 
 if args.outfile is not None:
     outfile = args.outfile
 elif "outfile" in params:
     outfile = Path(params["outfile"])
 else:
-    raise argparse.ArgumentError("outfile must be must called with --outfile or specified in json file")
+    raise argparse.ArgumentError(
+        "outfile must be must called with --outfile or specified in json file"
+    )
 
 if not Path(os.path.dirname(outfile)).exists():
     os.makedirs(os.path.dirname(outfile))
@@ -127,12 +137,11 @@ if args.use_rep:
     params["figure"]["use_rep"] = args.use_rep
 
 if "n_components" not in params["figure"]:
-    params["figure"]["n_components"] = 3 if adata.obsm[params["figure"]["use_rep"]].shape[1] > 2 else 2
+    params["figure"]["n_components"] = (
+        3 if adata.obsm[params["figure"]["use_rep"]].shape[1] > 2 else 2
+    )
 
-fig, ax = sct.pl.embedding_plot(
-    adata,
-    **params["figure"]
-)
+fig, ax = sct.pl.embedding_plot(adata, **params["figure"])
 
 sct.pl.set_default_axis(ax)
 if "grid" in params:

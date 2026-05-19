@@ -155,15 +155,19 @@ define check_inference_status
 	fi
 endef
 
-define check_partial_bn_sub
-@if [ -d "$(bn_sub_dir)" ] && [ ! -f "$(bn_sub_dir)/.done" ]; then \
-	echo "Partial bn-sub outputs detected in $(bn_sub_dir)."; \
-	printf "Remove them and rerun inference? (y/[n]) "; \
+define check_partial_bn_outputs
+@if [ -d "$(1)" ] && [ ! -f "$(1)/.done" ]; then \
+	echo "" > /dev/tty; \
+	echo "Detected incomplete outputs for target '$(2)'." > /dev/tty; \
+	echo "Output directory: $(1)" > /dev/tty; \
+	echo "" > /dev/tty; \
+	printf "Remove partial outputs and rerun inference? [y/N] " > /dev/tty; \
 	read ans; \
 	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
-		rm -rf "$(bn_sub_dir)"; \
+		rm -rf "$(1)"; \
+		echo "Partial outputs removed." > /dev/tty; \
 	else \
-		echo "Aborted."; \
+		echo "Inference aborted." > /dev/tty; \
 		exit 1; \
 	fi; \
 fi
@@ -228,18 +232,26 @@ bin_consensus =                 $(results)/bin/consensus/$(MACROSTATE_METHOD)/ms
 
 bonesis_model =                 $(results)/infer/spec/model.bo $(results)/infer/spec/mstates.csv $(results)/infer/spec/important.txt $(results)/infer/spec/mandatory.txt
 max_nodes_soft =                $(results)/infer/genes/soft/comps.txt
-max_strong_consts =             $(results)/infer/genes/consts/comps.txt
+max_soft_consts =               $(results)/infer/genes/consts/comps.txt
 max_nodes_relaxed =             $(results)/infer/genes/relaxed/comps.txt
 max_nodes_seed =                $(results)/infer/genes/seed/comps.txt
 max_nodes_lock =                $(results)/infer/genes/lock/comps.txt
 bn_min =                        $(results)/infer/bn/min/model.bnet
 
-bn_sub_dir = $(results)/infer/bn/sub
+bn_submin_dir = $(results)/infer/bn/submin
 ifneq ($(filter-out 0,$(strip $(INFER_LIMIT))),)
-bn_sub_indices := $(shell seq 0 $$(($(INFER_LIMIT)-1)))
-bn_sub = $(foreach i,$(bn_sub_indices),$(bn_sub_dir)/$(i)/model.bnet $(bn_sub_dir)/$(i)/state.cfg)
+bn_submin_indices := $(shell seq 0 $$(($(INFER_LIMIT)-1)))
+bn_submin = $(foreach i,$(bn_submin_indices),$(bn_submin_dir)/$(i)/model.bnet $(bn_submin_dir)/$(i)/state.cfg)
 else
-bn_sub = $(bn_sub_dir)/.done
+bn_submin = $(bn_submin_dir)/.done
+endif
+
+bn_diverse_dir = $(results)/infer/bn/diverse
+ifneq ($(filter-out 0,$(strip $(INFER_LIMIT))),)
+bn_diverse_indices := $(shell seq 0 $$(($(INFER_LIMIT)-1)))
+bn_diverse = $(foreach i,$(bn_diverse_indices),$(bn_diverse_dir)/$(i)/model.bnet $(bn_diverse_dir)/$(i)/state.cfg)
+else
+bn_diverse = $(bn_diverse_dir)/.done
 endif
 
 $(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
@@ -526,7 +538,7 @@ help: ## display this help and exit
 	@awk 'BEGIN {FS = ":.*##"; printf "usage: make $(green)<module>$(nc) [REFERENCES=<...>] (current value:$(subst $(space),$(plus),$(references)))\n\n\
 	scBOLT is a semi-automated pipeline for Boolean network inference from multi-condition single-cell transcriptomes. \
 	The workflow includes: alignment and preprocessing, integration and clustering, cell annotation, trajectory inference, \
-	macrostate characterization, macrostate binarization, Boolean constraint specification, gene selectionn, \
+	macrostate characterization, macrostate binarization, Boolean constraint specification, gene selection, \
 	and Boolean network inference.\n"}/^[a-zA-Z_-]+:.*?##/ \
 	{ printf "  $(green)%-22s$(nc) %s\n", $$1, $$2 } /^##@/ { printf "\n$(bold)%s$(nc)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
@@ -745,7 +757,7 @@ __max-nodes-soft: $(max_nodes_soft)
 .PHONY: max-consts-soft __max-consts-soft
 max-consts-soft: ## maximise strong constants without non-reachability and universal constraints (soft constraints)
 	$(call run_logged,max-consts-soft)
-__max-consts-soft: $(max_strong_consts)
+__max-consts-soft: $(max_soft_consts)
 
 .PHONY: max-nodes-relaxed __max-nodes-relaxed
 max-nodes-relaxed: ## maximise nodes without universal constraints (relaxed constraints)
@@ -767,19 +779,25 @@ bn-min: ## infer a minimum-edge Boolean network with BoNesis (one minimal soluti
 	$(call run_logged,bn-min)
 __bn-min: $(bn_min)
 
-.PHONY: bn-sub __bn-sub
-bn-sub: ## infer diverse Boolean networks with BoNesis (subset of minimal solutions)
-	$(call run_logged,bn-sub)
-__bn-sub: $(bn_sub)
+.PHONY: bn-submin __bn-submin
+bn-submin: ## enumerate subset-minimal Boolean network solutions
+	$(call run_logged,bn-submin)
+__bn-submin: $(bn_submin)
+
+.PHONY: bn-diverse __bn-diverse
+bn-diverse: ## sampling of diverse sparsest Boolean network solutions
+	$(call run_logged,bn-diverse)
+__bn-diverse: $(bn_diverse)
 
 ## END HELP ##
 
 ## preserve target even if make is killed or interrupted
 .PRECIOUS: $(max_nodes_soft)
-.PRECIOUS: $(max_strong_consts)
+.PRECIOUS: $(max_soft_consts)
 .PRECIOUS: $(max_nodes_seed)
 .PRECIOUS: $(max_nodes_lock)
-.PRECIOUS: $(dir $(bn_sub))
+.PRECIOUS: $(dir $(bn_submin))
+.PRECIOUS: $(dir $(bn_diverse))
 
 $(bin_cells)&: export OPENBLAS_NUM_THREADS = $(open_allocated_cpu)
 $(bin_cells)&: export OMP_NUM_THREADS = $(open_allocated_cpu)
@@ -1152,7 +1170,7 @@ $(max_nodes_soft): $(bonesis_model)
 	set -e; \
 	$(call check_inference_status, $(TIMEOUT_SOFT))
 
-$(max_strong_consts): $(bonesis_model) $(max_nodes_soft)
+$(max_soft_consts): $(bonesis_model) $(max_nodes_soft)
 	$(call print_rule,max-strong-consts)
 	mkdir -p $(@D)
 	set +e; \
@@ -1164,7 +1182,7 @@ $(max_strong_consts): $(bonesis_model) $(max_nodes_soft)
 	set -e; \
 	$(call check_inference_status, $(TIMEOUT_CONSTS))
 
-$(max_nodes_relaxed): $(bonesis_model) $(max_strong_consts)
+$(max_nodes_relaxed): $(bonesis_model) $(max_soft_consts)
 	$(call print_rule,max-nodes-relaxed)
 	mkdir -p $(@D)
 	set +e; \
@@ -1222,15 +1240,15 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock)
 		    done
 		fi
 
-$(bn_sub)&: $(bonesis_model) $(max_nodes_lock)
-	$(call print_rule,bn-sub)
-	$(call check_partial_bn_sub)
-	mkdir -p $(bn_sub_dir)
-	$(call conda_run,scbolt-bonesis) python scripts/inference/inference.py sub \
+$(bn_submin)&: $(bonesis_model) $(max_nodes_lock)
+	$(call print_rule,bn-submin)
+	$(call check_partial_bn_outputs,$(bn_submin_dir),bn-submin)
+	mkdir -p $(bn_submin_dir)
+	$(call conda_run,scbolt-bonesis) python scripts/inference/inference.py submin \
 		$(word 1,$^) $(word 2,$^) \
 		--filter-grn $(lastword $^) \
-		--asp $(bn_sub_dir)/sub.sh \
-		--solution $(bn_sub_dir) \
+		--asp $(bn_submin_dir)/submin.sh \
+		--solution $(bn_submin_dir) \
 		--domain $(PRIOR_KNOWLEDGE) \
 		--organism $(ORGANISM) \
 		--max-clause $(MAX_CLAUSE) \
@@ -1239,7 +1257,26 @@ $(bn_sub)&: $(bonesis_model) $(max_nodes_lock)
 		--config-formats $(CONFIG_FORMATS) \
 		--graph-formats $(GRAPH_FORMATS) \
 		--remove-isolated-nodes
-	touch $(bn_sub_dir)/.done
+	touch $(bn_submin_dir)/.done
+
+$(bn_diverse)&: $(bonesis_model) $(max_nodes_lock)
+	$(call print_rule,bn-diverse)
+	$(call check_partial_bn_outputs,$(bn_diverse_dir),bn-diverse)
+	mkdir -p $(bn_diverse_dir)
+	$(call conda_run,scbolt-bonesis) python scripts/inference/inference.py diverse \
+		$(word 1,$^) $(word 2,$^) \
+		--filter-grn $(lastword $^) \
+		--asp $(bn_diverse_dir)/diverse.sh \
+		--solution $(bn_diverse_dir) \
+		--domain $(PRIOR_KNOWLEDGE) \
+		--organism $(ORGANISM) \
+		--max-clause $(MAX_CLAUSE) \
+		--jobs $(JOBS) \
+		$(if $(strip $(INFER_LIMIT)),--limit $(INFER_LIMIT)) \
+		--config-formats $(CONFIG_FORMATS) \
+		--graph-formats $(GRAPH_FORMATS) \
+		--remove-isolated-nodes
+	touch $(bn_diverse_dir)/.done
 
 $(foreach condition,$(conditions),$(eval $(call compute_rules_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call compute_rules_for_references,$(reference))))
