@@ -7,7 +7,7 @@ warnings.filterwarnings("ignore")
 import importlib
 
 import os, argparse
-import json, pickle
+import json
 from pathlib import Path
 
 import anndata as ad

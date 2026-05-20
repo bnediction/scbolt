@@ -256,6 +256,7 @@ def write_solution(
 
     return None
 
+
 def run_bn_view(
     view: Any,
     components: Iterable[str],
@@ -352,6 +353,7 @@ def run_bn_view(
         )
 
     return ensemble
+
 
 parser_description = """
 Infer Most Permissive Boolean Networks (MPBNs) using the BoNesis paradigm.
@@ -866,7 +868,6 @@ else:
             solutions="subset-minimal",
             extra=("boolean-network", "configurations"),
             limit=args.limit if args.limit is not None else 0,
-            progress=ptqdm,
         )
         view.standalone(output_filename=args.asp)
 
@@ -910,158 +911,17 @@ else:
             rename_cfgs=rename_cfgs,
             remove_isolated_nodes=args.remove_isolated_nodes,
         )
-    
-#        std.print_task("analysing ensemble of Boolean networks")
-#
-#        influences = bns.get_influences()
-#
-#        import graphviz
-#
-#        function_number = {component: 0 for component in bns.get_components()}
-#
-#        if args.remove_isolated_nodes:
-#            transcription_factors = bns.get_transcription_factors()
-#            single_nodes = set()
-#            for node in bns.get_components():
-#                if transcription_factors[node] == {} and influences[node] == {}:
-#                    single_nodes.add(node)
-#            interest_nodes = set(bns.get_components()) - single_nodes
-#        else:
-#            interest_nodes = set(bns.get_components())
-#
-#        clauses = bns.get_clauses()
-#        function_number = {
-#            component: len(set(clauses_per_component))
-#            for component, clauses_per_component in clauses.items()
-#        }
-#
-#        ig_ensemble = graphviz.Digraph(
-#            name="Interaction graph ensemble", comment="influence graph aggregation"
-#        )
-#        ig_ensemble.graph_attr["ratio"] = "0.8"
-#        ig_ensemble.graph_attr["overlap"] = "false"
-#        ig_ensemble.graph_attr["splines"] = "true"
-#
-#        for component in interest_nodes:
-#            #    if node not in constantes:
-#            if function_number[component] == 1:
-#                ig_ensemble.node(
-#                    component,
-#                    label=f"{component}",
-#                    fillcolor="darkgoldenrod2",
-#                    style="rounded,filled,bold",
-#                    shape="oval",
-#                    fontcolor="black",
-#                    fontname="arial bold",
-#                    fontsize="50pt",
-#                )
-#            elif function_number[component] == 2:
-#                ig_ensemble.node(
-#                    component,
-#                    label=f"{component}",
-#                    fillcolor="lightgoldenrod1",
-#                    style="rounded,filled",
-#                    shape="oval",
-#                    fontsize="50pt",
-#                )
-#            elif function_number[component] == 3:
-#                ig_ensemble.node(
-#                    component,
-#                    label=f"{component}",
-#                    fillcolor="cornsilk",
-#                    style="rounded,filled",
-#                    shape="oval",
-#                    fontsize="50pt",
-#                )
-#            elif function_number[component] < 10:
-#                ig_ensemble.node(
-#                    component,
-#                    label=f"{component}",
-#                    fillcolor="white",
-#                    style="rounded,filled",
-#                    shape="oval",
-#                    fontsize="50pt",
-#                )
-#            else:
-#                ig_ensemble.node(
-#                    component,
-#                    label=f"{component}",
-#                    fillcolor="white",
-#                    style="rounded,filled,dotted",
-#                    shape="oval",
-#                    fontsize="50pt",
-#                )
-#
-#        def get_intensity(
-#            occurrences,
-#            min_intensity: int = 1,
-#            max_intensity: int = 10,
-#            differentiel_with_max: int = 2,
-#        ):
-#
-#            occurrences = sorted(occurrences)
-#            inf = occurrences[0]
-#            sup = occurrences[-1]
-#            differentiel = max_intensity - min_intensity - differentiel_with_max
-#            intensity = {}
-#
-#            for occurrence in occurrences:
-#                intensity[occurrence] = str(
-#                    round(((occurrence - inf) / (sup - inf)) * differentiel) + inf
-#                )
-#            intensity[occurrences[-1]] = str(max_intensity)
-#
-#            return intensity
-#
-#        occurrences_list = set()
-#        for target, sources in influences.items():
-#            for source, infl in sources.items():
-#                occurrences_list.add(*set(infl.values()))
-#
-#        intensity = get_intensity(occurrences_list)
-#
-#        for source, targets in influences.items():
-#            for target, infl in targets.items():
-#                for sign, occurrence in infl.items():
-#                    if sign is True:
-#                        ig_ensemble.edge(
-#                            source,
-#                            target,
-#                            label=f"{occurrence}",
-#                            penwidth=intensity[occurrence],
-#                            color="darkgreen",
-#                            fontcolor="darkgreen",
-#                            fontname="arial bold",
-#                            fontsize="30pt",
-#                            arrowsize="2",
-#                        )
-#                    else:
-#                        ig_ensemble.edge(
-#                            source,
-#                            target,
-#                            label=f"{occurrence}",
-#                            penwidth=intensity[occurrence],
-#                            color="darkred",
-#                            fontcolor="darkred",
-#                            fontname="arial bold",
-#                            fontsize="30pt",
-#                            arrowsize="2",
-#                        )
-#
-#        for program in args.graph_formats:
-#            ig_ensemble.render(
-#                filename=f"_graph_summary.{program}",
-#                directory=f"{args.solution}",
-#                view=False,
-#                format="plain",
-#                engine=program,
-#            )
-#
-#        ig_ensemble.render(
-#            filename=f"_graph_summary.dot",
-#            directory=f"{args.solution}",
-#            view=False,
-#            format="pdf",
-#            engine="dot",
-#        )
-#
+
+    if args.action in ["submin", "diverse"]:
+
+        dot = bns.to_pydot(
+            remove_isolated_nodes=True,
+            show_edge_labels=False,
+            node_style="stability",
+        )
+
+        dot.write(
+            Path(args.solution) / "ensemble.pdf",
+            prog="dot",
+            format="pdf",
+        )

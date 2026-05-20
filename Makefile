@@ -232,7 +232,7 @@ bin_consensus =                 $(results)/bin/consensus/$(MACROSTATE_METHOD)/ms
 
 bonesis_model =                 $(results)/infer/spec/model.bo $(results)/infer/spec/mstates.csv $(results)/infer/spec/important.txt $(results)/infer/spec/mandatory.txt
 max_nodes_soft =                $(results)/infer/genes/soft/comps.txt
-max_soft_consts =               $(results)/infer/genes/consts/comps.txt
+max_consts_soft =               $(results)/infer/genes/consts/comps.txt
 max_nodes_relaxed =             $(results)/infer/genes/relaxed/comps.txt
 max_nodes_seed =                $(results)/infer/genes/seed/comps.txt
 max_nodes_lock =                $(results)/infer/genes/lock/comps.txt
@@ -757,7 +757,7 @@ __max-nodes-soft: $(max_nodes_soft)
 .PHONY: max-consts-soft __max-consts-soft
 max-consts-soft: ## maximise strong constants without non-reachability and universal constraints (soft constraints)
 	$(call run_logged,max-consts-soft)
-__max-consts-soft: $(max_soft_consts)
+__max-consts-soft: $(max_consts_soft)
 
 .PHONY: max-nodes-relaxed __max-nodes-relaxed
 max-nodes-relaxed: ## maximise nodes without universal constraints (relaxed constraints)
@@ -793,7 +793,7 @@ __bn-diverse: $(bn_diverse)
 
 ## preserve target even if make is killed or interrupted
 .PRECIOUS: $(max_nodes_soft)
-.PRECIOUS: $(max_soft_consts)
+.PRECIOUS: $(max_consts_soft)
 .PRECIOUS: $(max_nodes_seed)
 .PRECIOUS: $(max_nodes_lock)
 .PRECIOUS: $(dir $(bn_submin))
@@ -1170,7 +1170,7 @@ $(max_nodes_soft): $(bonesis_model)
 	set -e; \
 	$(call check_inference_status, $(TIMEOUT_SOFT))
 
-$(max_soft_consts): $(bonesis_model) $(max_nodes_soft)
+$(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 	$(call print_rule,max-strong-consts)
 	mkdir -p $(@D)
 	set +e; \
@@ -1182,7 +1182,7 @@ $(max_soft_consts): $(bonesis_model) $(max_nodes_soft)
 	set -e; \
 	$(call check_inference_status, $(TIMEOUT_CONSTS))
 
-$(max_nodes_relaxed): $(bonesis_model) $(max_soft_consts)
+$(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 	$(call print_rule,max-nodes-relaxed)
 	mkdir -p $(@D)
 	set +e; \
