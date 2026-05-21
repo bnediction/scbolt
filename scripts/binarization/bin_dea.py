@@ -138,7 +138,7 @@ if args.method == "t-test-overestim-var":
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading file {str(args.infile)}")
+std.print_task(f"loading data from {str(args.infile)}")
 
 adata = ad.read_h5ad(args.infile)
 
@@ -212,9 +212,8 @@ if args.use_rep:
         if args.use_rep.startswith("X_")
         else args.use_rep.lower()
     )
-    std.print_task(
-        f"plotting {embedding_label.lower()} with respect to cluster-related binarization percentage"
-    )
+    pct_bin_plot = Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf")
+    std.print_task(f"plotting binarization summaries in {os.path.relpath(os.path.dirname(args.outfile))}")
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
     adata.obs[f"pct_bin_{args.cluster}"] = adata.obs[args.cluster].map(pct_bin)
     bt.sct.pl.embedding_plot(
@@ -238,10 +237,10 @@ if args.use_rep:
         },
         n_components=3 if adata.obsm[args.use_rep].shape[1] > 2 else 2,
         background_visible=False,
-        outfile=Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf"),
+        outfile=pct_bin_plot,
     )
 
-std.print_task(f"saving dea results in {os.path.dirname(args.outfile)}/dea_results.csv")
+std.print_task(f"saving DEA results in {os.path.dirname(args.outfile)}/dea_results.csv")
 dea_df.to_csv(
     Path(f"{os.path.dirname(args.outfile)}/dea_results.csv"), sep=",", index=True
 )

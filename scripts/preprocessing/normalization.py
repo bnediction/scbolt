@@ -73,7 +73,7 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading file {str(args.infile)}")
+std.print_task(f"loading data from {str(args.infile)}")
 
 adata = ad.read_h5ad(args.infile)
 
@@ -82,20 +82,20 @@ if args.layer:
 
 std.print_task(f"normalizing read counts")
 
-std.print_info(f"standardizing counts with respect to library size (layer: norm)")
+std.print_info("standardizing counts with respect to library size (layer: norm)")
 adata.layers["norm"] = adata.X.copy()
 sc.pp.normalize_total(adata, target_sum=1e4, layer="norm", copy=False)
 
-std.print_info(f"performing log-transformation (layer: log-norm)")
+std.print_info("performing log-transformation (layer: log-norm)")
 adata.layers["log-norm"] = adata.layers["norm"].copy()
 sc.pp.log1p(adata, base=np.exp(1), layer="log-norm", copy=False)
 
-std.print_info(f"scaling to unit variance and zero mean (layer: scale)")
+std.print_info("scaling to unit variance and zero mean (layer: scale)")
 adata.layers["scale"] = adata.layers["log-norm"].copy()
 sc.pp.scale(adata, layer="scale", copy=False)
 
 if args.correction:
-    std.print_info(f"correcting unwanted effects (layer: correct)")
+    std.print_info("correcting unwanted effects (layer: correct)")
     adata.layers["correct"] = adata.layers["log-norm"].copy()
     bt.sct.pp.regress_out(
         adata,
@@ -107,7 +107,7 @@ if args.correction:
     )
     sc.pp.scale(adata, layer="correct", copy=False)
 else:
-    std.print_info(f"no specification of unwanted effects")
+    std.print_info("no unwanted effects specified")
     adata.layers["correct"] = adata.layers["scale"].copy()
 
 std.print_task(f"saving data in {str(args.outfile)}")

@@ -382,7 +382,7 @@ predict = Predict(
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading file {str(args.infile)}")
+std.print_task(f"loading data from {str(args.infile)}")
 
 adata = ad.read_h5ad(args.infile)
 
@@ -393,10 +393,10 @@ convert_metadata = (
     else "category"
 )
 
-std.print_debug(f"converting layer '{args.layer}' into dataframe")
+std.print_info(f"converting layer '{args.layer}' into dataframe")
 cell_df = bt.sct.tl.anndata_to_dataframe(adata=adata, obs=metadata, layer=args.layer)
 
-std.print_task(f"counting binarized values for each cell population")
+std.print_task("counting binarized values for each cell population")
 cluster_counts = count_binarized_values(
     obs_df=cell_df,
     columns=adata.var.index,
@@ -417,7 +417,7 @@ if args.exclude:
         )
         cluster_counts = cluster_counts.drop(clusters_to_remove)
 
-std.print_task(f"binarizing cell populations with respect to voting rules")
+std.print_task("binarizing cell populations with respect to voting rules")
 cluster_bin = predict(cluster_counts, adata.var[args.distribution])
 if isinstance(cluster_bin.index, MultiIndex):
     cluster_bin.index = [
@@ -431,9 +431,7 @@ if args.use_rep:
         if args.use_rep.startswith("X_")
         else args.use_rep.lower()
     )
-    std.print_task(
-        f"plotting {embedding_label} with respect to cluster-related binarization percentage"
-    )
+    std.print_task(f"plotting binarization summaries in {os.path.relpath(os.path.dirname(args.outfile))}")
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
     adata.obs[f"pct_bin_{args.cluster}"] = adata.obs[args.cluster].map(pct_bin)
     bt.sct.pl.embedding_plot(

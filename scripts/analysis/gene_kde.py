@@ -5,6 +5,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import os, argparse
+import std
 from pathlib import Path
 
 import anndata as ad
@@ -71,12 +72,16 @@ args = parser.parse_args()
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
+std.print_task(
+    f"loading data from {', '.join(str(infile) for infile in args.infiles)}"
+)
 adatas = [ad.read_h5ad(infile) for infile in args.infiles]
 
 for i in range(len(adatas)):
     adatas[i].var_names_make_unique()
 
 if len(args.infiles) > 1:
+    std.print_info("concatenating datasets")
     try:
         adata = ad.concat(adatas, axis=0, merge="first", uns_merge="same")
         adata.obs_names_make_unique()  ### handle issue when there are identical barcodes between anndata.
@@ -87,9 +92,10 @@ else:
 
 del adatas
 
+std.print_task(f"plotting gene KDEs in {os.path.relpath(args.outpath)}")
 for gene in args.genes:
     if gene not in adata.var.index:
-        print(f"gene {gene} not found.")
+        std.print_warning(f"gene not found: {gene}")
     else:
         fig, ax = sct.pl.kde_plot(adata, gene, layer=args.layer, obs=args.obs)
         plt.savefig(Path(f"{args.outpath}/{gene}.pdf"))

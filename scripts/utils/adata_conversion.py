@@ -7,6 +7,7 @@ warnings.filterwarnings("ignore")
 from pathlib import Path
 
 import os
+import std
 import argparse
 import re
 
@@ -137,6 +138,9 @@ if args.__getattribute__("to") == "csvs":
 else:
     os.makedirs(name=os.path.dirname(args.output), exist_ok=True)
 
+std.print_task(
+    f"loading data from {str(args.input)}"
+)
 if args.__getattribute__("from") == "h5ad":
     adata = sc.read_h5ad(filename=args.input)
 elif args.__getattribute__("from") == "loom":
@@ -152,6 +156,7 @@ adata.obs.index = pd.Index(
 )
 
 if args.only_hvg:
+    std.print_info("keeping highly variable genes only")
     if "highly_variable" in adata.var:
         adata._inplace_subset_var(adata.var["highly_variable"])
     else:
@@ -170,6 +175,7 @@ if args.metadata:
     add_metadata(adata, **metadata_d)
 
 if args.standardization:
+    std.print_info("standardizing gene names")
     adata.var["symbol"] = list(adata.var.index)
     for input_identifier_type in ["name", "gene_id", "ensembl_id"]:
         bt.sct.pp.convert_gene_identifiers(
@@ -180,6 +186,9 @@ if args.standardization:
 if args.sort:
     adata = adata[sorted(adata.obs.index), sorted(adata.var.index)].to_memory()
 
+std.print_task(
+    f"saving data in {str(args.output)}"
+)
 if args.__getattribute__("to") == "h5ad":
     adata.write_h5ad(
         filename=args.output, compression="gzip" if args.compression else None

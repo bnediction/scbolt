@@ -72,7 +72,7 @@ for k, v in args.labels.items():
     dict_to_str += f"{add}{k}->{v}"
     add = ", "
 
-std.print_task(f"loading file {str(args.infile)}")
+std.print_task(f"loading data from {str(args.infile)}")
 
 adata = ad.read_h5ad(args.infile)
 

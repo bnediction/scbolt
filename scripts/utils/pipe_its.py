@@ -85,12 +85,12 @@ for outfile in args.outfiles:
     if not Path(os.path.dirname(outfile)).exists():
         os.makedirs(Path(os.path.dirname(outfile)))
 
-std.print_task(f"loading dataset 'integrated' ({str(args.integrated)})")
+std.print_task(f"loading dataset 'integrated' from {str(args.integrated)}")
 integrated_ad = ad.read_h5ad(args.integrated)
 
 specific_ad = {}
 for name, file in zip(args.labels, args.specifics):
-    std.print_task(f"loading dataset '{name}' ({str(file)})")
+    std.print_task(f"loading dataset '{name}' from {str(file)}")
     specific_ad[name] = ad.read_h5ad(file)
 
 if args.obs_label not in integrated_ad.obs.columns:

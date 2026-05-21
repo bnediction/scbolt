@@ -164,7 +164,7 @@ if not args.outpath.exists():
 
 np.random.seed(args.seed)
 
-std.print_task(f"loading file {str(args.infile)}")
+std.print_task(f"loading data from {str(args.infile)}")
 adata = ad.read_h5ad(args.infile)
 
 counts = bt.sct.tl.anndata_to_dataframe(adata, layer=args.layer)
@@ -217,11 +217,11 @@ subsamples = np.array_split(subsamples_indices, chunk_number)
 predictions = list()
 results = list()
 
-std.print_task(f"predicting cell potencies")
+std.print_task("predicting cell potencies")
 
 with std.disable_print():
     for idx in range(chunk_number):
-        std.print_info(f"batch {idx+1}")
+        std.print_info(f"processing batch {idx+1}")
         chunked_counts = counts.iloc[subsamples[idx], :]
         smooth_by_knn_df = cytotrace.process_subset(
             idx=idx,
@@ -239,7 +239,7 @@ with std.disable_print():
         )
         predictions.append(smooth_by_knn_df)
 
-std.print_task(f"aggregating batch results")
+std.print_task("aggregating batch results")
 potency_df = pd.concat(predictions, ignore_index=False)
 potency_df = potency_df.loc[original_names]
 ranges = np.linspace(0, 1, 7)
@@ -280,8 +280,9 @@ adata.obs = adata.obs.merge(
 
 embedding_label = "UMAP" if args.embedding == "umap" else "t-SNE"
 use_rep = "X_umap" if args.embedding == "umap" else "X_tsne"
+plot_dir = os.path.relpath(args.outpath)
+std.print_task(f"plotting potency outputs in {plot_dir}")
 for obs in ["score", "normalized_score", "potency"]:
-    std.print_task(f"plotting {embedding_label.lower()} with respect to {obs}")
     bt.sct.pl.embedding_plot(
         adata,
         obs=f"cytotrace_{obs}",
@@ -306,7 +307,6 @@ for obs in ["score", "normalized_score", "potency"]:
         outfile=Path(f"{args.outpath}/umap_cytotrace_{obs}.pdf"),
     )
 
-std.print_task(f"plotting boxplot with respect to score")
 fig, ax, _ = bt.sct.pl.boxplot(
     adata,
     obs="cytotrace_score",
@@ -338,7 +338,6 @@ plt.hlines(
 )
 plt.savefig(Path(f"{args.outpath}/boxplot_cytotrace_score.pdf"))
 
-std.print_task(f"plotting boxplot with respect to normalized score")
 bt.sct.pl.boxplot(
     adata,
     obs="cytotrace_normalized_score",

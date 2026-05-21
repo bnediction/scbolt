@@ -93,12 +93,12 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-std.print_task("loading files")
+std.print_task("loading datasets")
 
-std.print_info(f"loading left dataset ({args.left})")
+std.print_info(f"loading left dataset from {args.left}")
 left_ad = ad.read_h5ad(args.left)
 
-std.print_info(f"loading right dataset ({args.right})")
+std.print_info(f"loading right dataset from {args.right}")
 right_ad = ad.read_h5ad(args.right)
 
 if args.index:
@@ -142,7 +142,7 @@ if args.index:
     left_ad.obs.index = left_ad.obs["_previous_index"]
     left_ad.obs.drop(columns="_previous_index", inplace=True)
 
-std.print_task(f"saving data ({args.outfile})")
+std.print_task(f"saving data in {args.outfile}")
 
 left_ad.write_h5ad(
     filename=args.outfile if args.outfile else args.left,

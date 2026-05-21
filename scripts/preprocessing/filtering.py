@@ -226,18 +226,18 @@ outpath = Path(os.path.dirname(args.outfile))
 if not outpath.exists():
     os.makedirs(outpath)
 
-std.print_task(f"loading file {str(args.infile)}")
+std.print_task(f"loading data from {str(args.infile)}")
 
 adata = ad.read_h5ad(Path(f"{args.infile}").resolve())
 
-std.print_task(f"initializing settings")
+std.print_task("initializing settings")
 
 adata.layers["counts"] = adata.X.copy()
 adata.var_names_make_unique()
 
 shape = {"init": adata.shape}
 
-std.print_task("classifying genes encoding mitocondrial proteins")
+std.print_task("classifying genes encoding mitochondrial proteins")
 bt.sct.tl.mitochondrial_genes(adata, index_type="name", key="mt", axis=1, copy=False)
 
 std.print_task("classifying genes encoding ribosomal proteins")
@@ -249,9 +249,9 @@ else:
     std.print_task(
         f"classifying cell cycle phases (using file {str(args.marker_infile)})"
     )
-    std.print_debug("parsing R file")
+    std.print_info("parsing R marker file")
     parser = rdata.parser.parse_file(args.marker_infile)
-    std.print_debug("converting R-readable parser into Python-readable parser")
+    std.print_info("converting R marker data to Python objects")
     marker_pairs = rdata.conversion.convert(parser)
     std.print_info("scoring cell cycle phases for each cell")
     marker_pairs = marker_pairs_converter(marker_pairs, "official_name")
@@ -274,7 +274,8 @@ sc.pp.calculate_qc_metrics(
     inplace=True,
 )
 
-std.print_info("plotting violin plots before filtering")
+raw_plot = outpath / "raw-data.pdf"
+std.print_info(f"plotting QC summaries in {os.path.relpath(outpath)}")
 ax = sc.pl.violin(
     adata=adata,
     keys=["n_genes_by_counts", "total_counts", "pct_counts_mt", "pct_counts_rps"],
@@ -294,10 +295,10 @@ for i, title in zip(
     ],
 ):
     ax.axes[0, i].set_title(title)
-plt.savefig(f"{outpath}/raw-data.pdf")
+plt.savefig(raw_plot)
 plt.close()
 
-std.print_task(f"preprocessing counting data")
+std.print_task("preprocessing count data")
 
 mad = median_absolute_deviation(
     np.log(adata.obs.total_counts), consistency=(args.consistent_mad)
@@ -323,7 +324,7 @@ ax[0].axhline(reads[1], linewidth=1.5, linestyle="--", color=bt.sct.pl.get_color
 ax[0].set_ylim(ylim)
 ax[0].set(title="raw")
 
-std.print_info(f"filtering low-quality genes")
+std.print_info("filtering low-quality genes")
 
 bt.sct.pp.filter_var(
     adata, "pct_dropout_by_counts", lambda x: (x <= 1e2 * args.gene_dropout)
@@ -341,7 +342,7 @@ bt.sct.pp.filter_var(
     lambda x: (x >= args.gene_counts[0]) & (x < args.gene_counts[1]),
 )
 
-std.print_info(f"filtering low-quality cells")
+std.print_info("filtering low-quality cells")
 
 bt.sct.pp.filter_obs(
     adata, "n_genes_by_counts", lambda x: (x >= (1 - args.cell_dropout) * adata.n_vars)
@@ -381,8 +382,6 @@ else:
     std.print_info(f"keeping non-highly variable genes")
 
 shape["final"] = adata.shape
-
-std.print_task("plotting violin plots and bar charts")
 
 sc.pl.violin(
     adata=adata,

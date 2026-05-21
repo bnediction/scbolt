@@ -219,7 +219,7 @@ logfile.name <- file.path(outpath, "cotan.log")
 logfile <- file(logfile.name, open="wt")
 sink(logfile, type="output")
 sink(logfile, type="message")
-print_debug(paste0("storing running cotan-related information in ", logfile.name), logfile.name)
+print_debug(paste0("storing running COTAN-related information in ", logfile.name), logfile.name)
 
 dir.create(
   path=outpath,
@@ -243,7 +243,7 @@ cotan <- initializeMetaDataset(
   sampleCondition = args$condition
 )
 
-print_task("preprocessing counting data", logfile.name)
+print_task("preprocessing count data", logfile.name)
 
 if (isTRUE(args$drop_mithocondrial)){
   cotan <- addElementToMetaDataset(cotan, tag="remove mithocondrial genes and cells", value=TRUE)
@@ -306,7 +306,7 @@ if (isTRUE(args$cotan_filtering)){
   cotan <- addElementToMetaDataset(cotan, tag="cotan filtering", value=FALSE)
 }
 
-print_task("initializing cotan settings", logfile.name)
+print_task("initializing COTAN settings", logfile.name)
 
 cotan <- clean(cotan)
 c(pca.plot, pca.data, genes.plot, UDE.plot, nu.plot, zoomed.nu.plot) %<-% cleanPlots(cotan)
@@ -329,7 +329,7 @@ cotan <- storeGDI(
   genesGDI=global.differentiation.index
 )
 
-print_task("clustering cells using cotan algorithm", logfile.name)
+print_task("clustering cells using COTAN algorithm", logfile.name)
 
 advanced.GDI.uniformity.checker <- new("AdvancedGDIUniformityCheck")
 
@@ -413,18 +413,18 @@ c(summary.data, summary.plot) %<-%
     plotTitle="clustering summary"
   )
 
-print_result("cotan summary", logfile.name)
+print_result("COTAN summary", logfile.name)
 closeAllConnections()
 summary.data
 
-print_task(paste0("saving cotan data in ", args$outfile), logfile.name)
+print_task(paste0("saving COTAN data in ", args$outfile), logfile.name)
 
 saveRDS(
   cotan,
   file=file.path(args$outfile)
 )
 
-print_task(paste0("saving clusters related-data in ", args$csv), logfile.name)
+print_task(paste0("saving cluster-related data in ", args$csv), logfile.name)
 
 write.table(
   data.frame(clusters),

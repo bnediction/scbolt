@@ -229,7 +229,7 @@ embedding_label = (
 outpath = os.path.dirname(args.outfile)
 os.makedirs(f"{outpath}/streamplot", exist_ok=True)
 
-std.print_task(f"loading file {str(args.infile)}")
+std.print_task(f"loading data from {str(args.infile)}")
 adata = ad.read_h5ad(args.infile)
 adata.uns["workdir"] = str(outpath)
 
@@ -266,7 +266,7 @@ else:
     std.print_info("not extending leaves of elastic principal graph")
 
 if args.prune_epg:
-    std.print_info("prunning elastic principal graph by filtering out trivial branches")
+    std.print_info("pruning elastic principal graph by filtering out trivial branches")
     with std.disable_print():
         st.prune_elastic_principal_graph(
             adata,
@@ -321,10 +321,9 @@ std.print_info(info_str)
 
 groups = set([args.obs]).union({"kmeans", "macrostate"})
 
+std.print_task(f"plotting STREAM outputs in {os.path.relpath(outpath)}")
 for group in groups:
-    std.print_task(
-        f"plotting elastic principal graph in {embedding_label} space for cluster '{group}'"
-    )
+    epg_plot = Path(f"{outpath}/epg_{group}.pdf")
     bt.sct.pl.embedding_plot(
         adata,
         obs=group,
@@ -349,13 +348,12 @@ for group in groups:
         add_labels_to_graph=True,
         n_components=3 if adata.obsm["X_dr"].shape[1] > 2 else 2,
         background_visible=False,
-        outfile=Path(f"{outpath}/epg_{group}.pdf"),
+        outfile=epg_plot,
     )
 
-std.print_task("plotting branches in embedding space")
-st.plot_branches(adata, show_text=True, save_fig=Path(f"{outpath}/branches.pdf"))
+branches_plot = Path(f"{outpath}/branches.pdf")
+st.plot_branches(adata, show_text=True, save_fig=branches_plot)
 
-std.print_task("plotting trajectories with respect to pseudotime")
 for root in adata.obs["macrostate"].cat.categories:
     st.plot_stream(
         adata,
@@ -387,11 +385,11 @@ for root in adata.obs["macrostate"].cat.categories:
     plt.close()
 
 if args.pkl:
-    std.print_task(f"saving pkl-formatted data in {str(args.pkl)}")
+    std.print_task(f"saving STREAM object in {str(args.pkl)}")
     with std.disable_print():
         st.write(adata, file_name=args.pkl)
 
-std.print_task(f"saving h5ad-formatted data in {str(args.outfile)}")
+std.print_task(f"saving AnnData object in {str(args.outfile)}")
 del adata.uns["workdir"]
 for key in list(adata.obs.keys()):
     if isinstance(adata.obs[key][0], tuple):

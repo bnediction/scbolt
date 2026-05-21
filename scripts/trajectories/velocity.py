@@ -114,7 +114,7 @@ outpath = os.path.dirname(args.outfile)
 if not Path(outpath).exists():
     os.makedirs(outpath)
 
-std.print_task(f"loading file {str(args.infile)}")
+std.print_task(f"loading data from {str(args.infile)}")
 adata = ad.read_h5ad(args.infile)
 
 adata.obs["clusters"] = adata.obs[args.cluster]
@@ -122,10 +122,10 @@ adata.obs["clusters"] = adata.obs[args.cluster]
 if args.layer:
     adata.X = adata.layers[args.layer].copy()
 
+plot_dir = Path(outpath)
+std.print_task(f"plotting velocity outputs in {os.path.relpath(plot_dir)}")
+
 if args.cluster:
-    std.print_info(
-        f"plotting pie chart of spliced/unspliced proportions with respect to cluster '{args.cluster}'"
-    )
     scv.pl.proportions(
         adata,
         groupby=args.cluster,
@@ -149,7 +149,7 @@ with std.disable_print():
         copy=False,
     )
 
-std.print_task(f"estimating rna velocities using {args.mode} mode")
+std.print_task(f"estimating RNA velocities using {args.mode} mode")
 with std.disable_print():
     scv.tl.velocity(
         adata,
@@ -167,12 +167,10 @@ std.print_task("estimating velocity pseudotime")
 with std.disable_print():
     scv.tl.velocity_pseudotime(adata, vkey="velocity", use_velocity_graph=True)
 
-std.print_task("estimation PAGA graph with velocity-directed edges")
+std.print_task("estimating PAGA graph with velocity-directed edges")
 with std.disable_print():
     scv.tl.paga(adata, vkey="velocity", groups=args.cluster, copy=False)
     adata.uns["transitions_confidence"] = adata.uns["paga"]["transitions_confidence"]
-
-std.print_task("plotting trajectory")
 
 embedding_label = "UMAP" if args.embedding == "umap" else "t-SNE"
 adata.uns["colors"] = bt.sct.pl.generate_colormap(
@@ -183,9 +181,6 @@ color_map = {
     for idx, cluster in enumerate(adata.obs[args.cluster].cat.categories)
 }
 
-std.print_info(
-    f"plotting velocity vector fields in {embedding_label.lower()} embedding"
-)
 with std.disable_print():
     ax = scv.pl.velocity_embedding_stream(
         adata,
@@ -210,7 +205,6 @@ with std.disable_print():
         plt.savefig(Path(f"{outpath}/stream_plot.png"))
     plt.close()
 
-std.print_info(f"plotting velocity pseudotime in {embedding_label.lower()} embedding")
 bt.sct.pl.embedding_plot(
     adata,
     obs="velocity_pseudotime",
@@ -237,9 +231,6 @@ bt.sct.pl.embedding_plot(
     outfile=Path(f"{outpath}/velocity_pseudotime.pdf"),
 )
 
-std.print_info(
-    f"plotting PAGA graph with velocity-directed edges in {embedding_label.lower()} embedding"
-)
 fig, ax = bt.sct.pl.embedding_plot(
     adata,
     obs=args.cluster,

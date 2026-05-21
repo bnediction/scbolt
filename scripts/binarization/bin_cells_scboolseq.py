@@ -119,10 +119,10 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading file {str(args.infile)}")
+std.print_task(f"loading data from {str(args.infile)}")
 adata = ad.read_h5ad(args.infile)
 
-std.print_debug(f"converting layer '{args.layer}' into dataframe")
+std.print_info(f"converting layer '{args.layer}' into dataframe")
 counts_df = bt.sct.tl.anndata_to_dataframe(adata, layer=args.layer)
 
 if args.filter_genes:
@@ -170,7 +170,7 @@ adata.layers["bin"] = cell_df
 adata.obs["pct_bin"] = (~cell_df.isna()).mean(axis=1)
 adata.var["distribution"] = criteria_df["Category"]
 
-std.print_task(f"saving data in {str(args.outfile)}")
+std.print_task(f"saving AnnData object in {str(args.outfile)}")
 adata.write_h5ad(filename=args.outfile, compression="gzip")
 
 if args.bin:

@@ -70,6 +70,59 @@ def get_configuration_predicates(bo) -> dict:
     return predicates
 
 
+def get_node_sets(bo) -> tuple[set, set]:
+    nodes_in_data = set()
+    for bin_nodes in bo.data.values():
+        nodes_in_data.update(bin_nodes.keys())
+    return nodes_in_data, set(bo.domain.nodes)
+
+
+def print_node_reference(nodes_in_data, nodes_in_domain, **kwargs):
+    std.print_info(
+        f"node reference: data={len(nodes_in_data)}, domain={len(nodes_in_domain)}",
+        **kwargs,
+    )
+
+
+def format_node_coverage(name, kept, total):
+    removed = total - kept
+    pct = 0 if total == 0 else 100 * kept / total
+    return f"{name}: kept={kept}/{total} ({pct:.1f}%), removed={removed}"
+
+
+def print_node_solution(solution, nodes_in_data, nodes_in_domain, **kwargs):
+    solution = set(solution)
+    std.print_result(f"solution: nodes={len(solution)}", **kwargs)
+    std.print_result(format_node_coverage("data", len(nodes_in_data & solution), len(nodes_in_data)), **kwargs)
+    std.print_result(format_node_coverage("domain", len(nodes_in_domain & solution), len(nodes_in_domain)), **kwargs)
+
+
+def clear_tqdm_line():
+    if TQDM_TO_TTY:
+        with open("/dev/tty", "w") as tty:
+            print("", file=tty, flush=True)
+
+
+def load_prior_network(domain, organism, genesyn):
+    if domain == "collectri":
+        std.print_info(f"loading CollecTRI prior network (organism: {organism})")
+        return bt.dbs.omnipath.load_collectri_grn(
+            organism=organism,
+            genesyn=genesyn,
+        )
+    if domain == "dorothea":
+        std.print_info(f"loading DoRothEA prior network (organism: {organism})")
+        return bt.dbs.omnipath.load_dorothea_grn(
+            organism=organism,
+            genesyn=genesyn,
+        )
+    std.print_info(f"loading custom prior network ({domain})")
+    return bt.grn.read_interaction_graph(
+        infile=domain,
+        genesyn=genesyn,
+    )
+
+
 def write_noi(bn, outfile):
     """
     Write non-constant Boolean network components to a text file.
@@ -565,7 +618,7 @@ args = parser.parse_args()
 
 if args.bonesis_mode != "hard":
     std.print_warning(
-        f"some constraints are removed (bonesis mode: {args.bonesis_mode})"
+        f"some constraints will be removed (bonesis mode: {args.bonesis_mode})"
     )
 
 bonesis.settings["parallel"] = args.jobs
@@ -587,23 +640,10 @@ pkn_options = {
 if args.action == "filter-nodes":
     pkn_options["allow_skipping_nodes"] = True
 
-if args.domain == "collectri":
-    grn = bt.dbs.omnipath.load_collectri_grn(
-        organism=args.organism,
-        genesyn=genesyn,
-    )
-elif args.domain == "dorothea":
-    grn = bt.dbs.omnipath.load_dorothea_grn(
-        organism=args.organism,
-        genesyn=genesyn,
-    )
-else:
-    grn = bt.grn.read_interaction_graph(
-        infile=args.domain,
-        genesyn=genesyn,
-    )
+grn = load_prior_network(args.domain, args.organism, genesyn)
 
 if args.filter_grn:
+    std.print_info(f"filtering prior network with selected genes ({args.filter_grn})")
     with open(args.filter_grn) as fp:
         nodes = [line.strip() for line in fp.readlines()]
     grn = grn.subgraph(nodes)
@@ -685,14 +725,16 @@ if args.action == "filter-nodes":
         progress=ptqdm,
     )
     view.standalone(output_filename=args.asp)
+    nodes_in_data, nodes_in_domain = get_node_sets(bo)
 
     if new_constraints == False:
-        std.print_debug("No new constraints added, stopping.", flush=True)
+        std.print_info("no new constraints added; stopping", flush=True)
         with open(args.solution, "w") as file:
             for node in bo.domain.nodes:
                 file.write(f"{node}\n")
         sys.exit(0)
 
+    print_node_reference(nodes_in_data, nodes_in_domain, flush=True)
     std.print_warning("this may take some time.", flush=True)
     solution = next(iter(view))
 
@@ -700,26 +742,8 @@ if args.action == "filter-nodes":
         for node in solution:
             file.write(f"{node}\n")
 
-    nodes_in_data = set()
-    for bin_nodes in bo.data.values():
-        nodes_in_data.update(bin_nodes.keys())
-    nodes_in_domain = set(bo.domain.nodes)
-
-    if TQDM_TO_TTY:
-        with open("/dev/tty", "w") as tty:
-            print("", file=tty, flush=True)
-    std.print_result(
-        f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]",
-        flush=True,
-    )
-    std.print_result(
-        f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]",
-        flush=True,
-    )
-    std.print_result(
-        f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]",
-        flush=True,
-    )
+    clear_tqdm_line()
+    print_node_solution(solution, nodes_in_data, nodes_in_domain, flush=True)
 
 elif args.action == "filter-consts":
 
@@ -740,6 +764,8 @@ elif args.action == "filter-consts":
     )
     view.standalone(output_filename=args.asp)
 
+    nodes_in_data, nodes_in_domain = get_node_sets(bo)
+    print_node_reference(nodes_in_data, nodes_in_domain)
     std.print_warning("this may take some time.")
     solution = next(iter(view))
 
@@ -747,23 +773,8 @@ elif args.action == "filter-consts":
         for node in solution:
             file.write(f"{node}\n")
 
-    nodes_in_data = set()
-    for bin_nodes in bo.data.values():
-        nodes_in_data.update(bin_nodes.keys())
-    nodes_in_domain = set(bo.domain.nodes)
-
-    if TQDM_TO_TTY:
-        with open("/dev/tty", "w") as tty:
-            print("", file=tty, flush=True)
-    std.print_result(
-        f"node number: [data: {len(nodes_in_data)}, domain: {len(nodes_in_domain)}, solution: {len(solution)}]"
-    )
-    std.print_result(
-        f"node number: [kept in data: {len(nodes_in_data & solution)}, removed in data: {len(nodes_in_data - solution)}]"
-    )
-    std.print_result(
-        f"node number: [kept in domain: {len(nodes_in_domain & solution)}, removed in domain: {len(nodes_in_domain - solution)}]"
-    )
+    clear_tqdm_line()
+    print_node_solution(solution, nodes_in_data, nodes_in_domain)
 
 else:
 
@@ -824,6 +835,7 @@ else:
         )
         view.standalone(output_filename=args.asp)
 
+        print_node_reference(*get_node_sets(bo))
         std.print_warning("this may take some time.")
         solution = next(iter(view))
 
@@ -861,6 +873,7 @@ else:
         else:
             std.print_task("enumerating subset-minimal Boolean network solutions")
 
+        print_node_reference(*get_node_sets(bo))
         std.print_warning("this may take some time.")
 
         view = bonesis.InfluenceGraphView(
@@ -890,6 +903,7 @@ else:
         else:
             std.print_task("sampling sparsest Boolean network solutions")
 
+        print_node_reference(*get_node_sets(bo))
         std.print_warning("this may take some time.")
 
         view = bonesis.DiverseBooleanNetworksView(

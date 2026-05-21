@@ -192,7 +192,7 @@ label = "UMAP" if args.embedding == "umap" else "t-SNE"
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading file {str(args.infile)}")
+std.print_task(f"loading data from {str(args.infile)}")
 
 adata = ad.read_h5ad(args.infile)
 
@@ -201,7 +201,7 @@ if args.layer:
 
 std.print_task(f"computing top {args.pca_dimension} principal components")
 if args.only_hvg:
-    std.print_info(f"use only highly variable genes")
+    std.print_info("using only highly variable genes")
 sc.tl.pca(
     adata,
     n_comps=args.pca_dimension,
@@ -230,7 +230,7 @@ bt.sct.tl.shared_neighbors(
     adata, snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
 )
 
-std.print_task("clustering cells using leiden algorithm")
+std.print_task("clustering cells using Leiden algorithm")
 sc.tl.leiden(
     adata,
     neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
@@ -266,7 +266,8 @@ elif args.embedding == "tsne":
         copy=False,
     )
 
-std.print_info(f"plotting {label.lower()} with respect to leiden-based clusters")
+embedding_plot = Path(f"{os.path.dirname(args.outfile)}/{args.embedding}_leiden.pdf")
+std.print_info(f"plotting embeddings in {os.path.relpath(os.path.dirname(args.outfile))}")
 bt.sct.pl.embedding_plot(
     adata,
     obs="leiden",
@@ -288,7 +289,7 @@ bt.sct.pl.embedding_plot(
     },
     n_components=3 if args.embedding_dimension > 2 else 2,
     background_visible=False,
-    outfile=Path(f"{os.path.dirname(args.outfile)}/{args.embedding}_leiden.pdf"),
+    outfile=embedding_plot,
 )
 
 std.print_task(f"saving data in {str(args.outfile)}")

@@ -91,6 +91,8 @@ logs/
 todo.*
 *.pdf
 *.yml
+!envs/
+!envs/*.yml
 
 ### Related-repository ###
 !.github/

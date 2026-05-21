@@ -180,7 +180,7 @@ if args.base <= 1:
 nexponential_fun = lambda base, radius: 1 / base ** np.arange(0, radius)
 bdc = bt.bpy.BooleanDifferentialCalculus()
 
-std.print_task(f"data loading")
+std.print_task(f"loading data from {str(args.infile)}")
 
 meta_bin = pd.read_csv(args.infile, index_col=0).transpose()
 
@@ -200,9 +200,9 @@ std.print_info(
     f"dataframe: {len(gene_set_before_cleaning)} genes; {len(gene_set_before_cleaning)- len(gene_set)}/{len(gene_set_before_cleaning)} genes removed (no matching with grn genes)"
 )
 
-std.print_task("successors checking")
+std.print_task("checking successors")
 
-std.print_info("path extraction using depth-first extraction algorithm")
+std.print_info("extracting paths using depth-first search")
 interaction_scores = bt.grn.scoring(
     graph=grn,
     weights=nexponential_fun(base=args.base, radius=args.radius),
@@ -210,7 +210,7 @@ interaction_scores = bt.grn.scoring(
     gene_set=gene_set,
 )
 
-std.print_info("sign likelihood between gene pairwise")
+std.print_info("estimating pairwise gene sign likelihood")
 interaction_signs = sign_likelihood(
     interaction_scores=interaction_scores,
     gene_set=gene_set,
@@ -222,7 +222,7 @@ interaction_signs = sign_likelihood(
 with open(f"{args.outpath}/sign_likelihood.json", "w") as outfile:
     json.dump(interaction_signs, outfile)
 
-std.print_info("Predecessor test using differential boolean calculus")
+std.print_info("testing predecessors using differential Boolean calculus")
 
 score_matrix = OrderedDict({condition: {} for condition in meta_bin.index})
 for c1, c2 in itertools.product(meta_bin.index, repeat=2):
@@ -248,9 +248,9 @@ for source, targets in interaction_signs.items():
 
 score_df = pd.DataFrame.from_dict(score_matrix, orient="index")
 
-std.print_task("data saving")
+std.print_task(f"saving data in {str(args.outpath)}")
 
 score_df.to_csv(f"{args.outpath}/pairwise_predecessor_scores.csv", sep=",", index=True)
 
-std.print_info("pairwise scores:")
+std.print_result("pairwise scores:")
 print(f"\n{score_df}\n")

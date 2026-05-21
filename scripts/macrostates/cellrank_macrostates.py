@@ -188,12 +188,12 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading file {str(args.infile)}")
+std.print_task(f"loading data from {str(args.infile)}")
 adata = ad.read_h5ad(args.infile)
 
 std.print_task("computing kernels")
 
-std.print_info("computing rna velocity-based kernel")
+std.print_info("computing RNA velocity-based kernel")
 velocity_kernel = cr.kernels.VelocityKernel(
     adata, xkey=args.scvelo_first_moment, vkey=args.scvelo_velocity
 )
@@ -276,11 +276,12 @@ else:
     adata.obs["final_states"] = np.nan
     adata.obs["final_states"] = adata.obs["final_states"].astype("category")
 
-std.print_task("plotting umap with respect to cellrank clusters")
+cellrank_plot_dir = Path(os.path.dirname(args.outfile))
+std.print_task(f"plotting CellRank outputs in {os.path.relpath(cellrank_plot_dir)}")
 macrostate_files = {
-    "macrostate": Path(f"{os.path.dirname(args.outfile)}/umap_cellrank.pdf"),
-    "init_states": Path(f"{os.path.dirname(args.outfile)}/umap_init_states.pdf"),
-    "final_states": Path(f"{os.path.dirname(args.outfile)}/umap_final_states.pdf"),
+    "macrostate": cellrank_plot_dir / "umap_cellrank.pdf",
+    "init_states": cellrank_plot_dir / "umap_init_states.pdf",
+    "final_states": cellrank_plot_dir / "umap_final_states.pdf",
 }
 
 for obs, file in macrostate_files.items():
@@ -316,9 +317,9 @@ for obs, file in macrostate_files.items():
     else:
         std.print_warning(f"no plotting for '{obs}': no state found")
 
-std.print_task(f"saving h5ad-formatted data in {str(args.outfile)}")
+std.print_task(f"saving AnnData object in {str(args.outfile)}")
 adata.write_h5ad(filename=args.outfile, compression="gzip")
 
 if args.csv:
-    std.print_task(f"saving knnbs macrostates in {str(args.csv)}")
+    std.print_task(f"saving KNNbs macrostates in {str(args.csv)}")
     adata.obs["macrostate"].to_csv(args.csv, sep=",", index=True)

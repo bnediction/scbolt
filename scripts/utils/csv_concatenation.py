@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import std
 from pathlib import Path
 
 import argparse, cli
@@ -76,6 +77,7 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+std.print_task(f"loading data from {', '.join(str(file) for file in args.infiles)}")
 dfs = [pd.read_csv(file, index_col=0, sep=args.sep) for file in args.infiles]
 
 if args.suffixes is not None:
@@ -89,6 +91,7 @@ if args.suffixes is not None:
                 f"{args.suffixes[i]}", axis=0 if args.axis == "row" else 1
             )
 
+std.print_task(f"concatenating dataframes by {args.axis}")
 df = pd.concat(dfs, axis=0 if args.axis == "row" else 1)
 
 if args.transpose:
@@ -97,4 +100,5 @@ if args.transpose:
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(os.path.dirname(args.outfile))
 
+std.print_task(f"saving concatenated data in {str(args.outfile)}")
 df.to_csv(args.outfile, sep=args.sep)

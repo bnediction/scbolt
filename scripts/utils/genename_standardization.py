@@ -3,6 +3,7 @@
 import warnings
 
 import os
+import std
 import argparse
 from pathlib import Path
 
@@ -101,6 +102,10 @@ file_extension = str(args.infile).split(".")[-1]
 
 genesynonyms = GeneSynonyms(organism=args.organism)
 
+std.print_task(f"loading gene data from {str(args.infile)}")
+std.print_info(
+    f"standardizing gene identifiers ({args.input_identifier_type} => {args.output_identifier_type})"
+)
 if file_extension == "txt":
     with open(args.infile, "r") as file:
         gene_list = [line.replace("\n", "") for line in file]
@@ -122,3 +127,5 @@ elif file_extension == "csv" or file_extension == "tsv":
     output.to_csv(args.outfile, sep=args.sep)
 else:
     raise IOError(f"incorrect format (txt, csv or tsv format expected)")
+
+std.print_task(f"saving standardized gene data in {str(args.outfile)}")

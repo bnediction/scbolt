@@ -5,6 +5,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import os
+import std
 import argparse
 from pathlib import Path
 
@@ -52,6 +53,7 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(os.path.dirname(args.outfile))
 
+std.print_task(f"loading data from {str(args.infile)}")
 if str(args.infile).endswith(".h5ad"):
     adata = sc.read_h5ad(args.infile)
 elif str(args.infile).endswith(".loom"):
@@ -65,8 +67,10 @@ else:
     gene_list = list(adata.var.index)
 
 if args.standardization:
+    std.print_info("standardizing gene names")
     gene_list = GeneSynonyms()(gene_list)
 
+std.print_task(f"saving gene list in {str(args.outfile)}")
 with open(args.outfile, "w") as file:
     for gene in gene_list:
         file.write(f"{gene}\n")

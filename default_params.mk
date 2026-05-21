@@ -178,11 +178,14 @@ $(eval MODEL_TOP_HVG ?=)                    # top HVGs for model genes
 
 ## INFERENCE ##
 # PRIOR_KNOWLEDGE values: collectri, dorothea, or an existing file path.
+# DOROTHEA_API values: current, legacy. Used only when PRIOR_KNOWLEDGE=dorothea.
+# current loads DoRothEA in scbolt-bonesis; legacy first exports a CSV file.
 # Clingo opt modes: opt, optN, ignore, enum,<n>.
 # Clingo opt strategies: bb[,<method>] or usc[,<method>].
 # TIMEOUT_* values are passed to GNU timeout; empty means no timeout.
 $(eval MAX_CLAUSE ?= 8)                     # maximum literals per propositional formula
 $(eval PRIOR_KNOWLEDGE ?= collectri)        # prior GRN domain
+$(eval DOROTHEA_API ?= current)             # DoRothEA API source
 
 ## MAX-NODES-SOFT ##
 $(eval CLINGO_OPT_MODE_SOFT ?= optN)        # Clingo optimization mode

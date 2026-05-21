@@ -203,7 +203,7 @@ with std.disable_print():
 for namespace, gene_id2go in associations.items():
     std.print_info(f"{namespace} {len(gene_id2go):,} annotated {args.organism} genes")
 
-std.print_task("performing gene ontology enrichment analysis (goea)")
+std.print_task("performing gene ontology enrichment analysis (GOEA)")
 
 goea = GOEnrichmentStudyNS(
     pop=background_geneset,
@@ -221,7 +221,7 @@ for cluster, geneset in study_geneset.items():
         result for result in _goea_all_results if result.p_fdr_bh < 0.05
     ]
     if not _goea_significant_results:
-        std.print_warning(f"no enrichment results for cluster {cluster}")
+        std.print_warning(f"no GOEA enrichment results for cluster {cluster}")
     else:
         std.print_result(
             f"{len(_goea_significant_results)} enrichment results for cluster {cluster}"

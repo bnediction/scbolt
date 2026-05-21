@@ -14,6 +14,27 @@ bonesis.settings["quiet"] = True
 
 from utils import get_cfg
 
+
+def load_prior_network(domain, organism, genesyn):
+    if domain == "collectri":
+        std.print_info(f"loading CollecTRI prior network (organism: {organism})")
+        return bt.dbs.omnipath.load_collectri_grn(
+            organism=organism,
+            genesyn=genesyn,
+        )
+    if domain == "dorothea":
+        std.print_info(f"loading DoRothEA prior network (organism: {organism})")
+        return bt.dbs.omnipath.load_dorothea_grn(
+            organism=organism,
+            genesyn=genesyn,
+        )
+    std.print_info(f"loading custom prior network ({domain})")
+    return bt.grn.read_interaction_graph(
+        infile=domain,
+        genesyn=genesyn,
+    )
+
+
 parser = argparse.ArgumentParser(
     prog="specification",
     description="""
@@ -144,7 +165,7 @@ macrostates_df = genesyn(
     pd.read_csv(args.macrostates, index_col=0, sep=args.sep), axis="columns"
 )
 
-std.print_task(f"getting binarized states")
+std.print_task("getting binarized states")
 
 important_genes = (
     set(specification["important_genes"])
@@ -161,7 +182,7 @@ mandatory_genes = (
 mandatory_genes = genesyn(mandatory_genes)
 
 if args.filter_genes:
-    std.print_info(f"filtering genes")
+    std.print_info("filtering genes")
     with open(args.filter_genes) as file:
         keep_only = {line.strip() for line in file.readlines()}
     keep_only = genesyn(keep_only)
@@ -194,29 +215,13 @@ if specification["states"] is not None:
 
 macrostates_cfg = get_cfg(macrostates_df, axis="index", genesyn=genesyn)
 
-std.print_debug("checking Boolean properties")
+std.print_info("checking Boolean properties")
 
+grn = load_prior_network(args.domain, args.organism, genesyn)
 pkn_options = {
     "canonic": True,
     "maxclause": 8,
 }
-
-if args.domain == "collectri":
-    grn = bt.dbs.omnipath.load_collectri_grn(
-        organism=args.organism,
-        genesyn=genesyn,
-    )
-elif args.domain == "dorothea":
-    grn = bt.dbs.omnipath.load_dorothea_grn(
-        organism=args.organism,
-        genesyn=genesyn,
-    )
-else:
-    grn = bt.grn.read_interaction_graph(
-        infile=args.domain,
-        genesyn=genesyn,
-    )
-
 pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
 bo = bonesis.BoNesis(pkn, macrostates_cfg)
 

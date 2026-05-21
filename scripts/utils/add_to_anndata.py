@@ -167,6 +167,7 @@ else:
             "option --label-column required when multiple values passed to option --csv",
         )
 
+std.print_task(f"loading AnnData object from {str(args.infile)}")
 if str(args.infile).endswith("h5ad"):
     adata = ad.read_h5ad(filename=args.infile)
 elif str(args.infile).endswith("loom"):
@@ -177,6 +178,7 @@ else:
     )
 
 if len(args.csv) == 1:
+    std.print_task(f"loading tabular annotation from {str(args.csv[0])}")
     df = pd.read_csv(
         args.csv[0],
         sep=args.sep,
@@ -198,7 +200,7 @@ if len(args.csv) == 1:
         cols_to_remove = set(adata.var.columns) & set(df.columns)
         if cols_to_remove:
             std.print_debug(
-                "removing in 'adata.var' the following column(s): {1}".format(
+                "removing in 'adata.var' the following column(s): {0}".format(
                     ", ".join(f"'{cols}'" for cols in cols_to_remove)
                 )
             )
@@ -207,6 +209,9 @@ if len(args.csv) == 1:
             right=df, how="left", left_index=True, right_index=True
         )
 else:
+    std.print_task(
+        f"loading tabular annotations from {', '.join(str(file) for file in args.csv)}"
+    )
     dfs = dict()
     for name, file in zip(args.labels, args.csv):
         df = pd.read_csv(file, sep=args.sep, index_col=args.index).astype(args.type)
@@ -256,6 +261,7 @@ else:
     else:
         adata.var = adata_df
 
+std.print_task(f"saving AnnData object in {str(args.outfile)}")
 if str(args.outfile).endswith("h5ad"):
     adata.write_h5ad(filename=args.outfile, compression="gzip")
 elif str(args.outfile).endswith("loom"):

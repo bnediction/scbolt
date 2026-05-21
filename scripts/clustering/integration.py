@@ -275,11 +275,11 @@ if not args.labels:
     args.labels = ["reference"]
     args.labels.extend([f"interest_{i}" for i in range(1, len(args.infiles))])
 
-std.print_task(f"loading files")
+std.print_task("loading datasets")
 
 adatas = []
 for infile, label in zip(args.infiles, args.labels):
-    std.print_info(f"loading dataset '{label}' ({str(infile)})")
+    std.print_info(f"loading dataset '{label}' from {str(infile)}")
     adatas.append(ad.read_h5ad(infile))
 
 for adata in adatas:
@@ -307,9 +307,9 @@ if args.integration == "ingest":
     std.print_info("integrating data using ingest")
 
     reference = args.labels[0]
-    std.print_debug(f"considering as reference: {reference}")
+    std.print_info(f"using reference dataset: {reference}")
 
-    std.print_debug(f"splitting datasets ({' '.join(label for label in args.labels)})")
+    std.print_info(f"splitting datasets ({' '.join(label for label in args.labels)})")
     adatas = dict()
     for label in args.labels:
         adatas[label] = adata[adata.obs["condition"] == label].to_memory()
@@ -421,7 +421,7 @@ if args.integration == "ingest":
         adata, snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
     )
 
-    std.print_task("clustering cells using leiden algorithm (dataset: integrated)")
+    std.print_task("clustering cells using Leiden algorithm (dataset: integrated)")
     sc.tl.leiden(
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
@@ -433,7 +433,7 @@ if args.integration == "ingest":
 
 elif args.integration == "bbknn":
 
-    std.print_info("integrating data using bbknn")
+    std.print_info("integrating data using BBKNN")
 
     if args.hvg:
         std.print_task(f"computing top {args.hvg} highly variable genes")
@@ -472,7 +472,7 @@ elif args.integration == "bbknn":
             copy=False,
         )
 
-    std.print_task("clustering cells using leiden algorithm")
+    std.print_task("clustering cells using Leiden algorithm")
     sc.tl.leiden(
         adata,
         neighbors_key="neighbors",
@@ -514,7 +514,7 @@ elif args.integration == "scanorama":
 
     std.print_info("integrating data using scanorama")
 
-    std.print_debug(f"splitting datasets ({' '.join(label for label in args.labels)})")
+    std.print_info(f"splitting datasets ({' '.join(label for label in args.labels)})")
     adatas = dict()
     for label in args.labels:
         adatas[label] = adata[adata.obs["condition"] == label].to_memory()
@@ -562,7 +562,7 @@ elif args.integration == "scanorama":
         adata, snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
     )
 
-    std.print_task("clustering cells using leiden algorithm")
+    std.print_task("clustering cells using Leiden algorithm")
     sc.tl.leiden(
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
@@ -600,7 +600,8 @@ elif args.integration == "scanorama":
             copy=False,
         )
 
-std.print_info(f"plotting principal components with respect to conditions")
+pc_plot = Path(f"{os.path.dirname(args.outfile)}/pc_condition.pdf")
+std.print_info(f"plotting embeddings in {os.path.relpath(os.path.dirname(args.outfile))}")
 bt.sct.pl.embedding_plot(
     adata,
     obs="condition",
@@ -621,13 +622,11 @@ bt.sct.pl.embedding_plot(
     },
     n_components=2,
     background_visible=False,
-    outfile=Path(f"{os.path.dirname(args.outfile)}/pc_condition.pdf"),
+    outfile=pc_plot,
 )
 
 for obs in ["condition", "leiden"]:
-    std.print_info(
-        f"plotting {embedding_label.lower()} with respect to {'conditions' if obs=='condition' else 'leiden-based clusters'}"
-    )
+    embedding_plot = Path(f"{os.path.dirname(args.outfile)}/{args.embedding}_{obs}.pdf")
     bt.sct.pl.embedding_plot(
         adata,
         obs=obs,
@@ -649,7 +648,7 @@ for obs in ["condition", "leiden"]:
         },
         n_components=3 if args.embedding_dimension > 2 else 2,
         background_visible=False,
-        outfile=Path(f"{os.path.dirname(args.outfile)}/{args.embedding}_{obs}.pdf"),
+        outfile=embedding_plot,
     )
 
 std.print_task(f"saving data in {str(args.outfile)}")
