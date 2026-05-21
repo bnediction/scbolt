@@ -5,20 +5,90 @@ on:
   pull_request:
 
 jobs:
-  makefile:
+  make-help:
+    name: Make help
     runs-on: ubuntu-22.04
-
     steps:
       - uses: actions/checkout@v6
+      - run: make help >/dev/null
 
-      - name: Install Make
-        run: sudo apt-get update && sudo apt-get install -y build-essential
+  make-config:
+    name: Make config
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - run: make config >/dev/null
 
-      - name: Check Makefile syntax
-        run: make --dry-run help >/dev/null
+  python-compile:
+    name: Python compileall
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m compileall lib scripts fig
 
-      - name: Check help
-        run: make help >/dev/null
+  dry-run-knnbs:
+    name: Dry-run knnbs
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - run: make --always-make --dry-run LOGGING=false __knnbs >/dev/null
 
-      - name: Check config
-        run: make config >/dev/null
+  dry-run-seed:
+    name: Dry-run max-nodes-seed
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - run: make --always-make --dry-run LOGGING=false __max-nodes-seed >/dev/null
+
+  check-knnbs:
+    name: Check knnbs
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - run: make check TARGET=knnbs __check_externals__=false
+
+  check-seed:
+    name: Check max-nodes-seed
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - run: make check TARGET=max-nodes-seed __check_externals__=false
+
+  diagnostic-knnbs:
+    name: Diagnostic missing knnbs parameters
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check complete diagnostic output
+        run: |
+          set +e
+          output="$(make check TARGET=knnbs __check_externals__=false LABEL= KNNBS_CENTRALITY_CTRL= KNNBS_PERIPHERY_CTRL= KNNBS_CENTRALITY_TREATED= KNNBS_PERIPHERY_TREATED= 2>&1)"
+          status="$?"
+          set -e
+          printf '%s\n' "$output"
+          test "$status" -ne 0
+          grep -q "required parameter not defined: LABEL" <<< "$output"
+          grep -q "required parameter not defined: KNNBS_CENTRALITY_CTRL or KNNBS_PERIPHERY_CTRL" <<< "$output"
+          grep -q "required parameter not defined: KNNBS_CENTRALITY_TREATED or KNNBS_PERIPHERY_TREATED" <<< "$output"
+          grep -q "check failed for target 'knnbs'" <<< "$output"
+
+  diagnostic-seed:
+    name: Diagnostic missing seed inputs
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check complete diagnostic output
+        run: |
+          set +e
+          output="$(make check TARGET=max-nodes-seed __check_externals__=false TIMEOUT_SEED= LABEL= YAML_MODEL=missing.yml 2>&1)"
+          status="$?"
+          set -e
+          printf '%s\n' "$output"
+          test "$status" -ne 0
+          grep -q "required file not found: missing.yml" <<< "$output"
+          grep -q "required parameter not defined: TIMEOUT_SEED" <<< "$output"
+          grep -q "required parameter not defined: LABEL" <<< "$output"
+          grep -q "check failed for target 'max-nodes-seed'" <<< "$output"

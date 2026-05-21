@@ -16,12 +16,6 @@ install_env() {
             then
                 conda develop --name $1 ${lib_dir};
             fi
-            if [ $1 == "scbolt-bonesis" ];
-            then
-                conda activate $1
-                pip install git+https://github.com/bnediction/bonesis.git@8e8f9e80ed912bd4ee5b64e3443102717a3ca673                
-                conda deactivate;
-            fi
             if [ $1 == "scbolt-velocity" ];
             then
                 conda activate $1

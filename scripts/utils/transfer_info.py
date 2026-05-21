@@ -11,6 +11,15 @@ from pathlib import Path
 import anndata as ad
 import bonesistools as bt
 
+def make_composite_obs_index(adata, keys, sep="|"):
+    adata.obs["_previous_index"] = adata.obs.index.astype(str)
+
+    adata.obs.index = (
+        adata.obs[["_previous_index", *keys]]
+        .astype(str)
+        .agg(sep.join, axis=1)
+    )
+
 parser = argparse.ArgumentParser(
     prog="info transfer",
     description="""send information (obs, var, layers) from one dataset (right) towards another dataset (left)""",
@@ -88,43 +97,54 @@ std.print_task("loading files")
 
 std.print_info(f"loading left dataset ({args.left})")
 left_ad = ad.read_h5ad(args.left)
+
 std.print_info(f"loading right dataset ({args.right})")
 right_ad = ad.read_h5ad(args.right)
 
 if args.index:
-    std.print_task("setting index")
+    std.print_task("setting composite observation index")
+
     for adata in [left_ad, right_ad]:
-        bt.sct.pp.set_index(adata=adata, keys=args.index, axis=0, copy=False)
+        make_composite_obs_index(adata, args.index)
 
 if args.obs:
     std.print_task(f"transferring observations ({', '.join(map(str, args.obs))})")
+
     right_ad.obs = right_ad.obs.loc[:, args.obs]
     bt.sct.pp.merge(left_ad=left_ad, right_ad=right_ad, axis="obs", copy=False)
+
 else:
     std.print_info("transferring observations not performed")
 
 if args.var:
     std.print_task(f"transferring variables ({', '.join(map(str, args.var))})")
+
     right_ad.var = right_ad.var.loc[:, args.var]
     bt.sct.pp.merge(left_ad=left_ad, right_ad=right_ad, axis="var", copy=False)
+
 else:
     std.print_info("transferring variables not performed")
 
 if args.layers:
     std.print_task(f"transferring layers ({', '.join(map(str, args.layers))})")
+
     bt.sct.pp.transfer_layer(
-        left_ad=left_ad, right_ad=right_ad, layers=args.layers, copy=False
+        left_ad=left_ad,
+        right_ad=right_ad,
+        layers=args.layers,
+        copy=False,
     )
+
 else:
     std.print_info("transferring layers not performed")
 
 if args.index:
-    for idx, name in enumerate(args.index, start=1):
-        left_ad.obs[name] = left_ad.obs.index.str.get(idx)
-    left_ad.obs.index = left_ad.obs.index.str.get(0)
+    left_ad.obs.index = left_ad.obs["_previous_index"]
+    left_ad.obs.drop(columns="_previous_index", inplace=True)
 
 std.print_task(f"saving data ({args.outfile})")
 
 left_ad.write_h5ad(
-    filename=args.outfile if args.outfile else args.left, compression="gzip"
+    filename=args.outfile if args.outfile else args.left,
+    compression="gzip",
 )

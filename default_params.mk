@@ -1,183 +1,230 @@
-$(eval PARAMS ?= user/apl/params.mk)  # path to user-defined parameter file
+$(eval PARAMS ?= user/apl/params.mk)  # user parameter file
 
 # Configuration policy:
 # - PARAMS can be overridden here to point to another parameter file
 # - all other parameters must be defined in the file specified by PARAMS
+# - target-specific parameters may stay undefined until their target is requested
+# - Boolean parameters use true or false
+# - min/max ranges use two values: <min> <max>; use inf/-inf for open bounds
 
 ## COMPUTING RESOURCES ##
+# MEMORY is in GB. LOGGING=true persists command output in log files.
 MEMORY ?= 50
 JOBS ?= 16
 SEED ?= 10
 LOGGING ?= true
 
 ## INFORMATION ##
-$(eval ORGANISM ?= mouse)                   # organism on which data are made up
+# ORGANISM values: mouse, human, escherichia-coli.
+$(eval ORGANISM ?= mouse)                   # organism used for gene resources
 $(eval CONDITIONS ?= ctrl treated)          # experimental conditions
-$(eval RESULTS ?= project/)                 # directory storing outputs
+$(eval RESULTS ?= project/)                 # output directory
 
-## URL ##
+## URLS ##
 genome_url ?= https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz
 go_organism_url ?= https://current.geneontology.org/ontology/subsets/goslim_$(ORGANISM).obo
 
 ## EXTRA PARAMETERS ##
-# Parameters useful when user want to run the pipeline by starting at a specific step, with pre-computed dependencies.
-
-$(eval USE_REP ?= X_umap)                   # Key in adata.obsm used as embedding space
-$(eval LABEL_COL ?= label)                  # Column name in adata.obs used as labels.
+# Useful when starting from user-provided or precomputed upstream analyses.
+# BINARIZATION_FILE overrides the binarization target when set.
+# USE_REP must name an embedding in adata.obsm, usually created by clustering.
+# LABEL_COL is created by annotation, copied per condition, and used by downstream macrostate methods.
+$(eval BINARIZATION_FILE ?=)                # precomputed macrostate binarization
+$(eval USE_REP ?= X_umap)                   # embedding key in adata.obsm
+$(eval LABEL_COL ?= label)                  # annotated cell-type column in adata.obs
 
 ## FILTERING ##
-$(eval GENE_DROPOUT ?= 0.999)               # maximum percentage of cell dropout required for a gene to pass filtering
-$(eval GENE_EXPRESSION ?= 0 inf)            # minimum and maximum number of cells in which they are expressed required for a gene to pass filtering
-$(eval GENE_COUNTS ?= 0 inf)                # minimum and maximum number of counts required for a gene to pass filtering
-$(eval CELL_DROPOUT ?= 1)                   # maximum percentage of gene dropout required for a cell to pass filtering
+# Dropout and MT thresholds are fractions in [0,1].
+# *_EXPRESSION, *_COUNTS, and *_READS are non-negative min/max ranges.
+# MAD_DEVIATION defines lower and upper factors for discarding cells 
+# whose log-total reads deviate from the median by more than the corresponding MAD-scaled threshold.
+$(eval GENE_DROPOUT ?= 0.999)               # maximum gene dropout fraction required for a gene to pass filtering
+$(eval GENE_EXPRESSION ?= 0 inf)            # minimum and maximum number of cells expressing a gene required for it to pass filtering
+$(eval GENE_COUNTS ?= 0 inf)                # minimum and maximum total counts required for a gene to pass filtering
+$(eval CELL_DROPOUT ?= 1)                   # maximum gene dropout fraction required for a cell to pass filtering
 $(eval CELL_EXPRESSION ?= 0 inf)            # minimum and maximum number of expressed genes required for a cell to pass filtering
-$(eval CELL_READS ?= 0 inf)                 # minimum and maximum number of reads required for a cell to pass filtering
-$(eval MAD_DEVIATION ?= 2 2)                # factor droping cells for which their total reads are smaller or higher than this factor*mean-absolute-deviation with respect to the median
-$(eval NORM_MAD ?= true)                    # if true, use normalized mean absolute deviation
-$(eval MT ?= 0.05)                          # maximum proportion of expressed genes encoding mitochondrion proteins required for a cell to pass filtering
-$(eval HVG ?= 2000)                         # top highly variables genes
-$(eval FILTER_NON_HVG ?= false)             # filter non-highly variable genes
+$(eval CELL_READS ?= 0 inf)                 # minimum and maximum total reads required for a cell to pass filtering
+$(eval MAD_DEVIATION ?= 2 2)                # lower/upper MAD factors around median log-total reads
+$(eval NORM_MAD ?= true)                    # use Gaussian-consistent MAD scaling
+$(eval MT ?= 0.05)                          # maximum mitochondrial count fraction required for a cell to pass filtering
+$(eval HVG ?= 2000)                         # number of highly variable genes
+$(eval FILTER_NON_HVG ?= false)             # keep only highly variable genes
 
 ## NORMALIZATION ##
-$(eval CC_CORRECTION ?= true)               # regress-out cell-cycle effects
+# CC_CORRECTION=true is supported only for ORGANISM=mouse.
+$(eval CC_CORRECTION ?= true)               # regress out cell-cycle effects
 
 ## CLUSTERING ##
-$(eval INTEGRATION ?= bbknn)                # integration method used (bbknn, scanorama or ingest)
-$(eval DIM_PCA ?= 50)                       # number of computed principal components
-$(eval DIM_CLUSTERING ?= 20)                # number of principal components taken into account for clustering cells
+# INTEGRATION values: bbknn, scanorama, ingest.
+$(eval INTEGRATION ?= bbknn)                # integration method
+$(eval DIM_PCA ?= 50)                       # number of PCA components
+$(eval DIM_CLUSTERING ?= 20)                # PCA components used for clustering
 $(eval DIM_EMBEDDING ?= 2)                  # number of embedding dimensions
-$(eval PCA_ONLY_HVG ?= true)                # use only highly variable genes for PCA projection
-$(eval NEIGHBORS ?= 20)                     # number of closest neighbors
-$(eval METRIC ?= euclidean)                 # metric used for computing closest neighbors and optionally t-sne projection
-$(eval RESOLUTION ?= 0.4)                   # coarseness of the clustering
-$(eval MIN_DIST ?= 0.1)                     # effective minimum distance between embedded points in umap
-$(eval SPREAD ?= 1)                         # effective scale of embedded points in umap
+$(eval PCA_ONLY_HVG ?= true)                # use only HVGs for PCA projection
+$(eval NEIGHBORS ?= 20)                     # number of nearest neighbors
+$(eval METRIC ?= euclidean)                 # distance metric for neighbors and optionally t-SNE projection
+$(eval RESOLUTION ?= 0.4)                   # Leiden clustering resolution
+$(eval MIN_DIST ?= 0.1)                     # UMAP minimum distance
+$(eval SPREAD ?= 1)                         # UMAP spread
 
 ## DEA ##
-$(eval LOGFC ?= 0.25)                       # minimum log2 fold-change for a gene to be considered as differentially expressed
-$(eval ALPHA ?= 0.05)                       # significance level of rejecting null hypothesis that gene is not differentially expressed
-$(eval CORRECTION ?= bonferroni)            # method used for correcting the significance level (benjamini-hochberg or bonferroni)
+# LOGFC is non-negative.
+# CORRECTION values: benjamini-hochberg, bonferroni.
+# ALPHA is an adjusted p-value threshold in [0,1].
+$(eval LOGFC ?= 0.25)                       # minimum absolute log2 fold-change for differential expression
+$(eval CORRECTION ?= bonferroni)            # p-value correction method
+$(eval ALPHA ?= 0.05)                       # adjusted p-value threshold
 
 ## ANNOTATION ##
-# User have to specify LABEL.
+# LABEL must be defined before annotation; values map clusters 0..n to biological labels.
 
-## SCVELO ##
-$(eval DIM_MOMENT ?= 15)                    # number of principal components taken into account for estimating moments
-$(eval VELOCITY_ONLY_HVG ?= true)           # use only highly variable genes for estimating rna velocities
-$(eval SMM_MODE ?= dynamical)               # mode used for estimating the steady-state model (deterministic, stochastic or dynamical)								
+## VELOCITY ##
+# SMM_MODE values: deterministic, stochastic, dynamical.
+$(eval DIM_MOMENT ?= 15)                    # PCA components used to estimate moments
+$(eval VELOCITY_ONLY_HVG ?= true)           # use only HVGs for RNA velocity
+$(eval SMM_MODE ?= dynamical)               # scVelo mode
 
 ## CYTOTRACE ##
-$(eval BATCH_SIZE ?= 20000)                 # number of cells to process at once for the pipeline steps (recommended: 20000)
-$(eval SMOOTH_BATCH_SIZE ?= 1000)           # number of cells to subsample for the smoothing by diffusion step (recommended: 1000)
+# CytoTRACE supports ORGANISM=mouse or ORGANISM=human.
+$(eval BATCH_SIZE ?= 20000)                 # cells processed per batch
+$(eval SMOOTH_BATCH_SIZE ?= 1000)           # cells subsampled for diffusion smoothing
 
 ## MACROSTATES ##
-$(eval MACROSTATE_SIZE ?= 100)              # macrostate size (for cellrank, knnbs or stream)
-# For stream: if the number of cells in a macrostate is lower than the threshold, extend macrostate to neighborhood nodes in elastic principal graph
-$(eval MACROSTATE_METHOD ?= cotan)         # macrostate method used (knnbs, stream, cotan or cellrank)
+# MACROSTATE_METHOD values: knnbs, stream, cotan, cellrank.
+# For stream, if the number of cells assigned to a macrostate is lower than MACROSTATE_SIZE, the macrostate is extended to neighbouring nodes in the elastic principal graph.
+$(eval MACROSTATE_SIZE ?= 100)              # target macrostate size
+$(eval MACROSTATE_METHOD ?= cotan)          # macrostate method
 
 ## COTAN ##
-$(eval COTAN_METHOD ?= strong-merging)      # method for computing cotan clusters (classic, soft-merging or strong-merging)
-$(eval COTAN_ONLY_HVG ?= false)             # use only highly variable genes for estimating cotan macrostates
-$(eval MAX_ITER ?= 25)                      # maximum iteration number for merging clustering: soft-merging and strong-merging merge uniform clusters
+# COTAN_METHOD values: classic, soft-merging, strong-merging.
+$(eval COTAN_METHOD ?= strong-merging)      # COTAN method
+$(eval COTAN_ONLY_HVG ?= false)             # use only HVGs for COTAN macrostates
+$(eval MAX_ITER ?= 25)                      # maximum COTAN merging iterations
 
 ## CELLRANK ##
-$(eval CELLRANK_METHOD ?= stability)        # method used to select terminal states (stability, top_n, eigengap or eigengap_coarse)
-$(eval STATES ?= 10)                        # number of cellrank macrostates
+# CELLRANK_METHOD values: stability, top_n, eigengap, eigengap_coarse.
+$(eval CELLRANK_METHOD ?= stability)        # terminal-state method
+$(eval STATES ?= 10)                        # number of CellRank macrostates
 $(eval INITIAL_STATES ?= 5)                 # number of initial macrostates
-$(eval TERMINAL_STATES ?= 5)                # number of terminal macrostates (used only if CELLRANK_METHOD = top_n)
-$(eval CELLRANK_STABILITY ?= 0.96)          # minimum stability for a state to be selected as a final macrostate
-$(eval CELLRANK_ALPHA ?= 1.0)               # weight given to the deviation of an eigenvalue from one (used only if CELLRANK_METHOD = eigengap or eigengap_coarse)
+$(eval TERMINAL_STATES ?= 5)                # terminal macrostates for top_n
+$(eval CELLRANK_STABILITY ?= 0.96)          # minimum stability for terminal states
+$(eval CELLRANK_ALPHA ?= 1.0)               # eigengap weighting parameter
 
 ## STREAM ##
-$(eval CLUSTERING_METHOD ?= kmeans)         # clustering method used for seeding the initial elastic principal graph (kmeans, ap, sc)
-$(eval CLUSTER_NUMBER ?= 6)                 # number of clusters for elastic principal graph
-$(eval ALPHA_EPG ?= 0.03)                   # alpha parameter used for computing elastic energy (penalized spurious branching events)
-$(eval MU_EPG ?= 0.05)                      # mu parameter used for computing elastic energy (penalized the deviation from harmonic embedding)
-$(eval LAMBDA_EPG ?= 0.05)                  # lambda parameter used for computing elastic energy (penalized the total length of edges)
-$(eval EXTEND_EPG ?= true)                  # extend leaves of elastic principal graph by attaching new nodes
-$(eval EXTEND_MODE ?= QuantDists)           # mode used for extending the leaves (used only if EXTEND_EPG = true, value: QuantDists, QuantCentroid, WeigthedCentroid)
-$(eval EXTEND_PARAMETER ?= 0.8)             # stream parameter used for extending the leaves (used only if EXTEND_EPG = true)
-$(eval PRUNE_EPG ?= false)                  # prune elastic principal graph by filtering out trivial branches
-$(eval COLLAPSE_PARAMETER ?= false)         # stream parameter used for pruning the graph (used only if PRUNE_EPG = true)
+# CLUSTERING_METHOD values: kmeans, ap, sc.
+# EXTEND_MODE values: QuantDists, QuantCentroid, WeigthedCentroid.
+# EXTEND_PARAMETER is a fraction in [0,1].
+# COLLAPSE_PARAMETER must be a float when PRUNE_EPG=true.
+$(eval CLUSTERING_METHOD ?= kmeans)         # EPG seed clustering
+$(eval CLUSTER_NUMBER ?= 6)                 # EPG seed cluster number
+$(eval ALPHA_EPG ?= 0.03)                   # branch penalty
+$(eval MU_EPG ?= 0.05)                      # harmonic embedding penalty
+$(eval LAMBDA_EPG ?= 0.05)                  # edge-length penalty
+$(eval EXTEND_EPG ?= true)                  # extend EPG leaf nodes
+$(eval EXTEND_MODE ?= QuantDists)           # extension mode
+$(eval EXTEND_PARAMETER ?= 0.8)             # extension parameter
+$(eval PRUNE_EPG ?= false)                  # prune trivial branches
+$(eval COLLAPSE_PARAMETER ?= false)         # pruning collapse parameter
 
 ## KNNBS ##
-$(eval KNNBS_EMBEDDING ?= umap)             # embedding space used when calculating pairwise distances (pca or umap)
-$(eval KNNBS_DIMENSION ?=)                  # number of embedding dimensions used when calculating pairwise distances
-$(eval KNNBS_NEIGHBORS ?= 20)               # number of closest neighbors for k-nearest neighbors graph
+# KNNBS_EMBEDDING values supported by the Makefile: pca, umap.
+# Each condition needs KNNBS_CENTRALITY_<CONDITION>, KNNBS_PERIPHERY_<CONDITION>, or both.
+# CENTRALITY minimizes distances to the cluster's own barycenter.
+# PERIPHERY maximizes distances to other clusters' barycenters.
+$(eval KNNBS_EMBEDDING ?= umap)             # embedding used for distances
+$(eval KNNBS_DIMENSION ?=)                  # embedding dimensions used for distances
+$(eval KNNBS_NEIGHBORS ?= 20)               # KNN graph neighbor number
 
 ## BIN-CELLS ##
-$(eval SCBOOLSEQ_HVG_METHOD ?= cell_ranger) # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3, if not specified, consider all genes)
-$(eval SCBOOLSEQ_TOP_HVG ?=)                # use only top SCBOOLSEQ_TOP_HVG highly variable genes for binarizing cells (if not specified, estimate automatically number of hvg)
-$(eval UNIMODAL_QUANTILE ?= 0.10)           # quantile classifying cells into inactive/active when learnt distribution is unimodal
-$(eval ZEROES_ARE_ZEROES ?= true)           # binarize zero-values to zero instead of nan when learnt distribution is zero-inflated
-# $(eval ZEROINF_BINARIZER ?= quantile)       # method to binarize cells when classified as zero-inflated (value: quantile, zero_or_not)
+# HVG methods: seurat, cell_ranger, seurat_v3.
+# If SCBOOLSEQ_TOP_HVG is not specified, the number of HVGs is estimated automatically, except when SCBOOLSEQ_HVG_METHOD=seurat_v3 where it is required.
+$(eval SCBOOLSEQ_HVG_METHOD ?= cell_ranger) # HVG method for cell binarization
+$(eval SCBOOLSEQ_TOP_HVG ?=)                # top HVGs for cell binarization
+$(eval UNIMODAL_QUANTILE ?= 0.10)           # quantile threshold for unimodal genes
+$(eval ZEROES_ARE_ZEROES ?= true)           # set zero-inflated zeroes to 0
 
 ## BIN-SCBOOLSEQ ##
-$(eval NANS_THRESHOLD ?= 0.3)               # maximum proportion of nan-values in a cluster required for a gene to be binarized (not applied to zero-inflated genes)
-$(eval BIMODAL_THRESHOLD ?= 0.7)            # minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a bimodal gene to be binarized
-$(eval ZEROINF_THRESHOLD ?= 0.7)            # minimum proportion of zero- or one-values w.r.t binarized and nan values in a cluster required for a zero-inflated gene to be binarized
-$(eval UNIMODAL_THRESHOLD ?= 0.7)           # minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a unimodal gene to be binarized
+# NANS_THRESHOLD is in [0,1]. Other vote thresholds are in [0.5,1].
+$(eval NANS_THRESHOLD ?= 0.3)               # maximum NaN fraction per macrostate, not applied to zero-inflated genes
+$(eval BIMODAL_THRESHOLD ?= 0.7)            # minimum vote fraction for bimodal genes
+$(eval ZEROINF_THRESHOLD ?= 0.7)            # minimum vote fraction for zero-inflated genes
+$(eval UNIMODAL_THRESHOLD ?= 0.7)           # minimum vote fraction for unimodal genes
 
 ## BIN-DEA ##
-$(eval DEA_HVG_METHOD ?= cell_ranger)       # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3, if not specified, consider all genes)
-$(eval DEA_TOP_HVG ?=)                      # use only top DEA_TOP_HVG highly variable genes for binarizing cells (if not specified, estimate automatically number of hvg)
-$(eval BIN_LOGFC ?= 0.5)                    # minimum log2 fold-change in absolute value for a gene to be binarized
-$(eval BIN_ALPHA ?= 0.05)                   # maximum adjusted p-value for a gene to be binarized
-$(eval BIN_CORRECTION ?= benjamini-hochberg)# method used for correcting the significance level (benjamini-hochberg or bonferroni)
+# HVG methods: seurat, cell_ranger, seurat_v3.
+# If DEA_TOP_HVG is not specified, the number of HVGs is estimated automatically, except when DEA_HVG_METHOD=seurat_v3 where it is required.
+# BIN_LOGFC is non-negative.
+# BIN_CORRECTION values: benjamini-hochberg, bonferroni.
+# BIN_ALPHA is an adjusted p-value threshold in [0,1].
+$(eval DEA_HVG_METHOD ?= cell_ranger)       # HVG method for DEA binarization
+$(eval DEA_TOP_HVG ?=)                      # top HVGs for DEA binarization
+$(eval BIN_LOGFC ?= 0.5)                    # minimum absolute log2 fold-change for binarization
+$(eval BIN_CORRECTION ?= benjamini-hochberg)# p-value correction method
+$(eval BIN_ALPHA ?= 0.05)                   # adjusted p-value threshold
 
 ## BINARIZATION ##
-$(eval BINARIZATION_FILE ?=)                # optional pre-computed macrostate binarization file; used instead of BIN_METHOD target when defined
-$(eval BIN_METHOD ?= consensus)             # binarization method used when BINARIZATION_FILE is not defined (scboolseq, dea or consensus)
+# BIN_METHOD values: scboolseq, dea, consensus.
+# BINARIZATION_FILE overrides BIN_METHOD when set.
+# Consensus keeps compatible scBoolSeq/DEA states and leaves conflicts undefined.
+$(eval BIN_METHOD ?= consensus)             # binarization method
 
 ## SPEC ##
-$(eval YAML_MODEL ?= spec.yml)              # file storing model specifications for bonesis
-$(eval MODEL_HVG_METHOD ?=)                 # method used for identifying highly variable genes (seurat, cell_ranger or seurat_v3, if not specified, consider all genes)
-$(eval MODEL_TOP_HVG ?=)                    # use only top BONESIS_TOP_HVG highly variable genes for inferring Boolean Networks (if not specified, estimate automatically number of hvg)
+# HVG methods: empty, seurat, cell_ranger, seurat_v3.
+# MODEL_TOP_HVG is required when MODEL_HVG_METHOD=seurat_v3.
+# YAML_MODEL stores manual BoNesis constraints; spec checks their syntax.
+$(eval YAML_MODEL ?= spec.yml)              # BoNesis model specification file
+$(eval MODEL_HVG_METHOD ?=)                 # HVG method for model genes
+$(eval MODEL_TOP_HVG ?=)                    # top HVGs for model genes
 
 ## INFERENCE ##
-$(eval MAX_CLAUSE ?= 8)                     # maximum number of literals/atoms in each propositional formula
-$(eval PRIOR_KNOWLEDGE ?= collectri)        # prior knowledge defining the domain/search space (collectri, dorothea)
+# PRIOR_KNOWLEDGE values: collectri, dorothea, or an existing file path.
+# Clingo opt modes: opt, optN, ignore, enum,<n>.
+# Clingo opt strategies: bb[,<method>] or usc[,<method>].
+# TIMEOUT_* values are passed to GNU timeout; empty means no timeout.
+$(eval MAX_CLAUSE ?= 8)                     # maximum literals per propositional formula
+$(eval PRIOR_KNOWLEDGE ?= collectri)        # prior GRN domain
 
-## MAX-NODES-SOFT
-$(eval CLINGO_OPT_MODE_SOFT ?= optN)
-$(eval CLINGO_OPT_STRATEGY_SOFT ?= usc)
-$(eval JOBS_SOFT ?= 1)
-$(eval TIMEOUT_SOFT ?= 24h)
+## MAX-NODES-SOFT ##
+$(eval CLINGO_OPT_MODE_SOFT ?= optN)        # Clingo optimization mode
+$(eval CLINGO_OPT_STRATEGY_SOFT ?= usc)     # Clingo optimization strategy
+$(eval JOBS_SOFT ?= 1)                      # solver jobs
+$(eval TIMEOUT_SOFT ?=)                     # timeout
 
-## MAX-STRONG-CONSTS
-$(eval MIN_SELF_LOOP_CONSTS ?= true)         # minimize the number of length-one feedbacks
-$(eval CLINGO_OPT_MODE_CONSTS ?= optN)
-$(eval CLINGO_OPT_STRATEGY_CONSTS ?= usc)
-$(eval JOBS_CONSTS ?= 1)
-$(eval TIMEOUT_CONSTS ?= 24h)
+## MAX-CONSTS-SOFT ##
+$(eval MIN_SELF_LOOP_CONSTS ?= true)        # minimize one-node feedbacks
+$(eval CLINGO_OPT_MODE_CONSTS ?= optN)      # Clingo optimization mode
+$(eval CLINGO_OPT_STRATEGY_CONSTS ?= usc)   # Clingo optimization strategy
+$(eval JOBS_CONSTS ?= 1)                    # solver jobs
+$(eval TIMEOUT_CONSTS ?= 24h)               # timeout
 
-## MAX-NODES-RELAXED
-$(eval CLINGO_OPT_MODE_RELAXED ?= optN)
-$(eval CLINGO_OPT_STRATEGY_RELAXED ?= usc)
-$(eval JOBS_RELAXED ?= 1)
-$(eval TIMEOUT_RELAXED ?= 48h)
+## MAX-NODES-RELAXED ##
+$(eval CLINGO_OPT_MODE_RELAXED ?= optN)     # Clingo optimization mode
+$(eval CLINGO_OPT_STRATEGY_RELAXED ?= usc)  # Clingo optimization strategy
+$(eval JOBS_RELAXED ?= 1)                   # solver jobs
+$(eval TIMEOUT_RELAXED ?= 48h)              # timeout
 
-## MAX-NODES-SEED
-$(eval CLINGO_OPT_MODE_SEED ?= opt)
-$(eval CLINGO_OPT_STRATEGY_SEED ?= usc)
-$(eval JOBS_SEED ?= 1)
-$(eval TIMEOUT_SEED ?= 24h)
-## Corriger le makefile
-## Il faut que ce timeout soit tj défini.
+## MAX-NODES-SEED ##
+# TIMEOUT_SEED is required when max-nodes-seed is reached.
+$(eval CLINGO_OPT_MODE_SEED ?= opt)         # Clingo optimization mode
+$(eval CLINGO_OPT_STRATEGY_SEED ?= usc)     # Clingo optimization strategy
+$(eval JOBS_SEED ?= 1)                      # solver jobs
+$(eval TIMEOUT_SEED ?= 24h)                 # timeout
 
-## MAX-NODES-LOCK
-$(eval CLINGO_OPT_MODE_LOCK ?= opt)
-$(eval CLINGO_OPT_STRATEGY_LOCK ?= usc)
-$(eval JOBS_LOCK ?= 1)
-$(eval TIMEOUT_LOCK ?= 72h)
+## MAX-NODES-LOCK ##
+$(eval CLINGO_OPT_MODE_LOCK ?= opt)         # Clingo optimization mode
+$(eval CLINGO_OPT_STRATEGY_LOCK ?= usc)     # Clingo optimization strategy
+$(eval JOBS_LOCK ?= 1)                      # solver jobs
+$(eval TIMEOUT_LOCK ?= 72h)                 # timeout
 
-## INFERENCE ##
-$(eval CONFIG_FORMATS = csv cfg)            # output formats used for exporting Boolean configurations (csv, cfg, json)
+## OUTPUTS ##
+# CONFIG_FORMATS values: csv, cfg, json.
+# GRAPH_FORMATS values: dot, neato, circo, fdp, sfdp.
+$(eval CONFIG_FORMATS = csv cfg)            # configuration output formats
+$(eval GRAPH_FORMATS = dot neato circo fdp sfdp) # Graphviz layouts to export
 
 ## BONESIS-MIN ##
-$(eval MIN_SELF_LOOP_INFER ?= true)         # minimize the number of length-one feedbacks at inference stage
-$(eval CLINGO_OPT_MODE_MIN ?= optN)
+$(eval MIN_SELF_LOOP_INFER ?= true)         # minimize one-node feedbacks at inference stage
+$(eval CLINGO_OPT_MODE_MIN ?= optN)         # Clingo optimization mode
 
-## BONESIS-DIVERSE ##
-$(eval GRAPH_FORMATS = dot neato circo fdp sfdp) # graphviz layout programs used for exporting Boolean network associated influence graphs
-$(eval INFER_LIMIT ?=)          			     # number of diverse of diverse sparsest Boolean network solutions. If not specified, enumerate all sparsest solutions without diversity
+## BONESIS-DIVERSE / BONESIS-SUBMIN ##
+$(eval INFER_LIMIT ?=)                      # number of diverse sparsest or subset-minimal BN solutions; if empty, enumerate all available solutions according to the selected inference target

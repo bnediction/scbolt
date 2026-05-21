@@ -139,7 +139,7 @@ make dry-run TARGET=<module>
 Validate Make-level dependencies and configuration for a target:
 
 ```sh
-make validate TARGET=<module>
+make check TARGET=<module>
 ```
 
 Disable persistent logging:

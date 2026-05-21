@@ -17,11 +17,11 @@ parser = argparse.ArgumentParser(
     Compute cell manifolds using k-nearest neighbors-based subclusters (knnbs) algorithm. \
     Compute the k-nearest neighbors-based graph using an embedding space, \
     compute shortest path lengths in the graph and then search for cluster related-cell manifolds \
-    using knnbs algorithm. The subclusters can be computed following two methods: \
-    (1) searching for cell manifolds maximizing distances to other clusters' barycenters \
-    and (2) searching for cell manifolds minimizing distances to self barycenter
+    using knnbs algorithm. The subclusters can be computed following two strategies: \
+    (1) a centrality-based strategy, minimizing distances to the cluster's own barycenter \
+    and (2) a periphery-based strategy, maximizing distances to other clusters' barycenters
     """,
-    usage="python knnbs_macrostates.py <FILE> <FILE> [--csv <FILE>] --obs <LITERAL> [--max-distances <LITERAL...>] [--min-distances <LITERAL...>] [<args>]",
+    usage="python knnbs_macrostates.py <FILE> <FILE> [--csv <FILE>] --obs <LITERAL> [--centrality <LITERAL...>] [--periphery <LITERAL...>] [<args>]",
 )
 
 parser.add_argument(
@@ -119,25 +119,25 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--max-distances",
-    dest="max_distances",
+    "--centrality",
+    dest="centrality",
     type=str,
     required=False,
     nargs="+",
     default=None,
     metavar="LITERAL",
-    help="list of clusters for which macrostates are computed by maximizing distances to other clusters' barycenters (default: None)",
+    help="cluster labels refined using the centrality-based strategy, minimizing distances to their own barycenter (default: None)",
 )
 
 parser.add_argument(
-    "--min-distances",
-    dest="min_distances",
+    "--periphery",
+    dest="periphery",
     type=str,
     required=False,
     nargs="+",
     default=None,
     metavar="LITERAL",
-    help="list of clusters for which macrostates are computed by minimizing distances to self barycenter (default: None)",
+    help="cluster labels refined using the periphery-based strategy, maximizing distances to other clusters' barycenters (default: None)",
 )
 
 parser.add_argument(
@@ -171,19 +171,19 @@ if adata.obs[args.obs].dtype.name != "category":
 if args.dimension is None:
     args.dimension = adata.obsm[embedding].shape[1]
 
-if args.max_distances:
-    for cluster in args.max_distances:
+if args.periphery:
+    for cluster in args.periphery:
         if cluster not in adata.obs[args.obs].cat.categories:
             raise argparse.ArgumentError(
                 None,
-                f"cluster {cluster} in argument --max-distances not found in 'adata.obs[{args.obs}]'",
+                f"cluster {cluster} in argument --periphery not found in 'adata.obs[{args.obs}]'",
             )
-if args.min_distances:
-    for cluster in args.min_distances:
+if args.centrality:
+    for cluster in args.centrality:
         if cluster not in adata.obs[args.obs].cat.categories:
             raise argparse.ArgumentError(
                 None,
-                f"cluster {cluster} in argument --min-distances not found in 'adata.obs[{args.obs}]'",
+                f"cluster {cluster} in argument --centrality not found in 'adata.obs[{args.obs}]'",
             )
 
 std.print_task("estimating k-nearest neighbors-based subclusters (knnbs)")
@@ -205,8 +205,8 @@ std.print_info("estimating cluster related-cell manifolds")
 adata.obs["macrostate"] = knnbs.knnbs(
     size=args.size,
     key="macrostate",
-    subclusters_maximizing_distances=args.max_distances,
-    subclusters_minimizing_distances=args.min_distances,
+    subclusters_maximizing_distances=args.periphery,
+    subclusters_minimizing_distances=args.centrality,
 )
 
 std.print_task(f"saving h5ad-formatted data in {str(args.outfile)}")
