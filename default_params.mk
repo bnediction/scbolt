@@ -179,6 +179,7 @@ $(eval MODEL_TOP_HVG ?=)                    # top HVGs for model genes
 ## INFERENCE ##
 # PRIOR_KNOWLEDGE values: collectri, dorothea, or an existing file path.
 # DOROTHEA_API values: current, legacy. Used only when PRIOR_KNOWLEDGE=dorothea.
+# DOROTHEA_LEVELS values: A, B, C, D. Used only with current DoRothEA API.
 # current loads DoRothEA in scbolt-bonesis; legacy first exports a CSV file.
 # Clingo opt modes: opt, optN, ignore, enum,<n>.
 # Clingo opt strategies: bb[,<method>] or usc[,<method>].
@@ -186,6 +187,7 @@ $(eval MODEL_TOP_HVG ?=)                    # top HVGs for model genes
 $(eval MAX_CLAUSE ?= 8)                     # maximum literals per propositional formula
 $(eval PRIOR_KNOWLEDGE ?= collectri)        # prior GRN domain
 $(eval DOROTHEA_API ?= current)             # DoRothEA API source
+$(eval DOROTHEA_LEVELS ?= A B C)            # DoRothEA confidence levels
 
 ## MAX-NODES-SOFT ##
 $(eval CLINGO_OPT_MODE_SOFT ?= optN)        # Clingo optimization mode

@@ -15,7 +15,7 @@ bonesis.settings["quiet"] = True
 from utils import get_cfg
 
 
-def load_prior_network(domain, organism, genesyn):
+def load_prior_network(domain, organism, genesyn, dorothea_levels=None):
     if domain == "collectri":
         std.print_info(f"loading CollecTRI prior network (organism: {organism})")
         return bt.dbs.omnipath.load_collectri_grn(
@@ -23,13 +23,17 @@ def load_prior_network(domain, organism, genesyn):
             genesyn=genesyn,
         )
     if domain == "dorothea":
-        std.print_info(f"loading DoRothEA prior network (organism: {organism})")
+        std.print_info(
+            f"loading DoRothEA prior network "
+            f"(organism: {organism}, levels: {', '.join(dorothea_levels)})"
+        )
         return bt.dbs.omnipath.load_dorothea_grn(
             organism=organism,
+            levels=dorothea_levels,
             genesyn=genesyn,
         )
     std.print_info(f"loading custom prior network ({domain})")
-    return bt.grn.read_interaction_graph(
+    return bt.bpy.ig.read_interaction_graph(
         infile=domain,
         genesyn=genesyn,
     )
@@ -137,6 +141,16 @@ parser.add_argument(
     required=False,
 )
 
+parser.add_argument(
+    "--dorothea-levels",
+    dest="dorothea_levels",
+    nargs="+",
+    choices=["A", "B", "C", "D"],
+    default=["A", "B", "C"],
+    metavar="[A | B | C | D]",
+    help="DoRothEA confidence levels used when --domain dorothea (default: A B C)",
+)
+
 args = parser.parse_args()
 
 for outfile in [
@@ -217,7 +231,7 @@ macrostates_cfg = get_cfg(macrostates_df, axis="index", genesyn=genesyn)
 
 std.print_info("checking Boolean properties")
 
-grn = load_prior_network(args.domain, args.organism, genesyn)
+grn = load_prior_network(args.domain, args.organism, genesyn, args.dorothea_levels)
 pkn_options = {
     "canonic": True,
     "maxclause": 8,

@@ -31,13 +31,21 @@ class ptqdm(tqdm):
 
         kwargs.setdefault("leave", True)
 
+        self._scbolt_tqdm_file = None
         if TQDM_TO_TTY:
-            kwargs.setdefault("file", open("/dev/tty", "w"))
+            self._scbolt_tqdm_file = open("/dev/tty", "w")
+            kwargs.setdefault("file", self._scbolt_tqdm_file)
         else:
             kwargs.setdefault("file", sys.stdout)
 
         kwargs.setdefault("disable", DISABLE_TQDM)
         super().__init__(*args, **kwargs)
+
+    def close(self):
+        super().close()
+        if self._scbolt_tqdm_file is not None:
+            self._scbolt_tqdm_file.close()
+            self._scbolt_tqdm_file = None
 
 
 def get_configuration_predicates(bo) -> dict:
@@ -70,16 +78,17 @@ def get_configuration_predicates(bo) -> dict:
     return predicates
 
 
-def get_node_sets(bo) -> tuple[set, set]:
+def get_node_sets(bo) -> tuple[set, set, int]:
     nodes_in_data = set()
     for bin_nodes in bo.data.values():
         nodes_in_data.update(bin_nodes.keys())
-    return nodes_in_data, set(bo.domain.nodes)
+    return nodes_in_data, set(bo.domain.nodes), bo.domain.number_of_edges()
 
 
-def print_node_reference(nodes_in_data, nodes_in_domain, **kwargs):
+def print_node_reference(nodes_in_data, nodes_in_domain, domain_edges, **kwargs):
     std.print_info(
-        f"node reference: data={len(nodes_in_data)}, domain={len(nodes_in_domain)}",
+        f"input graph: data nodes={len(nodes_in_data)}, "
+        f"domain nodes={len(nodes_in_domain)}, domain edges={domain_edges}",
         **kwargs,
     )
 
@@ -97,13 +106,25 @@ def print_node_solution(solution, nodes_in_data, nodes_in_domain, **kwargs):
     std.print_result(format_node_coverage("domain", len(nodes_in_domain & solution), len(nodes_in_domain)), **kwargs)
 
 
-def clear_tqdm_line():
-    if TQDM_TO_TTY:
-        with open("/dev/tty", "w") as tty:
-            print("", file=tty, flush=True)
+def close_progress(view, leave=None):
+    progressbar = getattr(view, "_progressbar", None)
+    if progressbar is not None:
+        if leave is not None:
+            progressbar.leave = leave
+        progressbar.close()
 
 
-def load_prior_network(domain, organism, genesyn):
+def next_solution(view):
+    try:
+        solution = next(iter(view))
+    except KeyboardInterrupt:
+        close_progress(view)
+        raise
+    close_progress(view)
+    return solution
+
+
+def load_prior_network(domain, organism, genesyn, dorothea_levels=None):
     if domain == "collectri":
         std.print_info(f"loading CollecTRI prior network (organism: {organism})")
         return bt.dbs.omnipath.load_collectri_grn(
@@ -111,13 +132,17 @@ def load_prior_network(domain, organism, genesyn):
             genesyn=genesyn,
         )
     if domain == "dorothea":
-        std.print_info(f"loading DoRothEA prior network (organism: {organism})")
+        std.print_info(
+            f"loading DoRothEA prior network "
+            f"(organism: {organism}, levels: {', '.join(dorothea_levels)})"
+        )
         return bt.dbs.omnipath.load_dorothea_grn(
             organism=organism,
+            levels=dorothea_levels,
             genesyn=genesyn,
         )
     std.print_info(f"loading custom prior network ({domain})")
-    return bt.grn.read_interaction_graph(
+    return bt.bpy.ig.read_interaction_graph(
         infile=domain,
         genesyn=genesyn,
     )
@@ -372,38 +397,44 @@ def run_bn_view(
 
     ensemble = bt.bpy.bn.BooleanNetworkEnsemble(components=components)
 
-    for i, solution in enumerate(view):
+    try:
+        for i, solution in enumerate(view):
 
-        if isinstance(view, bonesis.DiverseBooleanNetworksView):
-            bn, configs = solution
+            if isinstance(view, bonesis.DiverseBooleanNetworksView):
+                bn, configs = solution
 
-        elif isinstance(view, bonesis.InfluenceGraphView):
-            _, bn, configs = solution
+            elif isinstance(view, bonesis.InfluenceGraphView):
+                _, bn, configs = solution
 
-        else:
-            raise TypeError(f"unsupported BoNesis view type: {type(view).__name__}")
+            else:
+                raise TypeError(f"unsupported BoNesis view type: {type(view).__name__}")
 
-        for old, new in normalized_to_original_gene_names.items():
-            bn.rename(old, new)
+            for old, new in normalized_to_original_gene_names.items():
+                bn.rename(old, new)
 
-        ensemble.append(bn)
+            ensemble.append(bn)
 
-        for cfg_name in trapspace_configurations:
-            cfg_state = configs[cfg_name]
-            ts = bn.principal_trapspace(cfg_state)
-            configs[cfg_name] = {k: v for k, v in ts.items() if v != "*"}
+            for cfg_name in trapspace_configurations:
+                cfg_state = configs[cfg_name]
+                ts = bn.principal_trapspace(cfg_state)
+                configs[cfg_name] = {k: v for k, v in ts.items() if v != "*"}
 
-        for old, new in rename_cfgs.items():
-            configs[new] = configs.pop(old)
+            for old, new in rename_cfgs.items():
+                configs[new] = configs.pop(old)
 
-        write_solution(
-            bn=bn,
-            configurations=configs,
-            outdir=outdir / str(i),
-            config_formats=config_formats,
-            graph_formats=graph_formats,
-            remove_isolated_nodes=remove_isolated_nodes,
-        )
+            write_solution(
+                bn=bn,
+                configurations=configs,
+                outdir=outdir / str(i),
+                config_formats=config_formats,
+                graph_formats=graph_formats,
+                remove_isolated_nodes=remove_isolated_nodes,
+            )
+    except KeyboardInterrupt:
+        close_progress(view)
+        raise
+    else:
+        close_progress(view)
 
     return ensemble
 
@@ -528,6 +559,16 @@ parser.add_argument(
     required=False,
 )
 
+parser.add_argument(
+    "--dorothea-levels",
+    dest="dorothea_levels",
+    nargs="+",
+    choices=["A", "B", "C", "D"],
+    default=["A", "B", "C"],
+    metavar="[A | B | C | D]",
+    help="DoRothEA confidence levels used when --domain dorothea (default: A B C)",
+)
+
 parser.add_argument("--bonesis-mode", dest="bonesis_mode", action=cli.Bonesis_mode)
 
 parser.add_argument(
@@ -618,7 +659,7 @@ args = parser.parse_args()
 
 if args.bonesis_mode != "hard":
     std.print_warning(
-        f"some constraints will be removed (bonesis mode: {args.bonesis_mode})"
+        f"some constraints are removed (bonesis mode: {args.bonesis_mode})"
     )
 
 bonesis.settings["parallel"] = args.jobs
@@ -640,7 +681,7 @@ pkn_options = {
 if args.action == "filter-nodes":
     pkn_options["allow_skipping_nodes"] = True
 
-grn = load_prior_network(args.domain, args.organism, genesyn)
+grn = load_prior_network(args.domain, args.organism, genesyn, args.dorothea_levels)
 
 if args.filter_grn:
     std.print_info(f"filtering prior network with selected genes ({args.filter_grn})")
@@ -725,7 +766,7 @@ if args.action == "filter-nodes":
         progress=ptqdm,
     )
     view.standalone(output_filename=args.asp)
-    nodes_in_data, nodes_in_domain = get_node_sets(bo)
+    nodes_in_data, nodes_in_domain, domain_edges = get_node_sets(bo)
 
     if new_constraints == False:
         std.print_info("no new constraints added; stopping", flush=True)
@@ -734,15 +775,14 @@ if args.action == "filter-nodes":
                 file.write(f"{node}\n")
         sys.exit(0)
 
-    print_node_reference(nodes_in_data, nodes_in_domain, flush=True)
+    print_node_reference(nodes_in_data, nodes_in_domain, domain_edges, flush=True)
     std.print_warning("this may take some time.", flush=True)
-    solution = next(iter(view))
+    solution = next_solution(view)
 
     with open(args.solution, "w") as file:
         for node in solution:
             file.write(f"{node}\n")
 
-    clear_tqdm_line()
     print_node_solution(solution, nodes_in_data, nodes_in_domain, flush=True)
 
 elif args.action == "filter-consts":
@@ -764,16 +804,15 @@ elif args.action == "filter-consts":
     )
     view.standalone(output_filename=args.asp)
 
-    nodes_in_data, nodes_in_domain = get_node_sets(bo)
-    print_node_reference(nodes_in_data, nodes_in_domain)
+    nodes_in_data, nodes_in_domain, domain_edges = get_node_sets(bo)
+    print_node_reference(nodes_in_data, nodes_in_domain, domain_edges)
     std.print_warning("this may take some time.")
-    solution = next(iter(view))
+    solution = next_solution(view)
 
     with open(args.solution, "w") as file:
         for node in solution:
             file.write(f"{node}\n")
 
-    clear_tqdm_line()
     print_node_solution(solution, nodes_in_data, nodes_in_domain)
 
 else:
@@ -837,7 +876,7 @@ else:
 
         print_node_reference(*get_node_sets(bo))
         std.print_warning("this may take some time.")
-        solution = next(iter(view))
+        solution = next_solution(view)
 
         _, bn, configs = solution
 

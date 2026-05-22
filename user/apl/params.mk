@@ -26,7 +26,10 @@ SPREAD = 2
 RESOLUTION = 0.48
 MACROSTATE_METHOD = knnbs
 ZEROES_ARE_ZEROES = false
+
 PRIOR_KNOWLEDGE = dorothea
+DOROTHEA_API = current
+DOROTHEA_LEVELS = A
 # MODEL_HVG_METHOD = cell_ranger
 YAML_MODEL = user/apl/spec.yml
 
