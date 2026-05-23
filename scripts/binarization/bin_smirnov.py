@@ -17,10 +17,9 @@ import bonesistools as bt
 
 parser = argparse.ArgumentParser(
     prog="bin_smirnov",
-    description="""
-    Binarize clusters using Kolmogorov-Smirnov test.
-    """,
-    usage="python bin_ks.py [-h] <FILE> <FILE> --cluster <LITERAL> [<args>]",
+    description="Binarize clusters using Kolmogorov-Smirnov tests.",
+    usage="python bin_smirnov.py [-h] <FILE> <FILE> --cluster <LITERAL> [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -53,7 +52,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer used (if not specified, use adata.X; expected logarithmized data)",
+    help="layer used (if not specified, use adata.X; expected log-normalized data)",
 )
 
 parser.add_argument(
@@ -61,7 +60,7 @@ parser.add_argument(
     dest="is_log",
     action="store_true",
     required=False,
-    help="specify whether data matrix is logarithmized",
+    help="specify whether the data matrix is log-normalized",
 )
 
 parser.add_argument(
@@ -85,7 +84,7 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.05,
-    help="significance level or probability of rejecting null hypothesis that gene is not differentially expressed (default: 0.05)",
+    help="significance threshold for rejecting the null hypothesis that a gene is not differentially expressed (default: 0.05)",
 )
 
 parser.add_argument(
@@ -95,7 +94,7 @@ parser.add_argument(
     required=False,
     default="benjamini-hochberg",
     choices=["benjamini-hochberg", "bonferroni"],
-    metavar="[benjamini-hochberg|bonferroni]",
+    metavar="[benjamini-hochberg | bonferroni]",
     help="method used for correcting the significance level (default: benjamini-hochberg)",
 )
 

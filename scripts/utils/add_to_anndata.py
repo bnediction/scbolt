@@ -32,25 +32,26 @@ def generate_unique_index_name(dfs: Union[pd.DataFrame]) -> str:
 
 parser = argparse.ArgumentParser(
     prog="add_to_anndata",
-    description="""
-    Add csv/tsv file content to h5ad file. The content can be added either \
-    to 'adata.obs' or 'adata.var', depending on value passed to option --axis.
-    """,
+    description=(
+        "Add CSV/TSV file content to an AnnData file. The content can be added "
+        "either to 'adata.obs' or 'adata.var', depending on --axis."
+    ),
     usage="python add_to_anndata.py <FILE> <FILE> --csv <FILE> [--axis <AXIS>] [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file (format: loom, h5ad)",
+    help="input file (format: h5ad or loom)",
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file (format: loom, h5ad)",
+    help="output file (format: h5ad or loom)",
 )
 
 parser.add_argument(
@@ -59,7 +60,8 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     nargs="+",
     required=True,
-    help="file(s) whose content is added to 'adata' (format: csv, tsv)",
+    metavar="FILE",
+    help="file(s) whose content is added to AnnData (format: CSV or TSV)",
 )
 
 parser.add_argument(
@@ -71,7 +73,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="labels related to each dataset (ordered with passed values in --csv, required when multiple infiles)",
+    help="dataset labels ordered with --csv values (required when multiple files are passed to --csv)",
 )
 
 parser.add_argument(
@@ -81,7 +83,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="column name such as adata.obs['LITERAL'] distinguishes samples (default: None, required when multiple infiles)",
+    help="column name in adata.obs distinguishing samples (required when multiple files are passed to --csv, default: None)",
 )
 
 parser.add_argument(
@@ -92,7 +94,7 @@ parser.add_argument(
     required=False,
     default=[],
     metavar="LITERAL",
-    help="column names in dataframe for which the label is added as a prefix (default: None, not allowed when single value passed to option --csv)",
+    help="dataframe columns whose values receive the dataset label as prefix (not allowed with a single --csv file, default: None)",
 )
 
 parser.add_argument(
@@ -101,7 +103,7 @@ parser.add_argument(
     action=cli.Store_axis,
     required=False,
     default="0",
-    help="axis in 'adata' where csv/tsv file content is added",
+    help="AnnData axis where CSV/TSV content is added (0/obs or 1/var, default: obs)",
 )
 
 parser.add_argument(
@@ -111,7 +113,7 @@ parser.add_argument(
     required=False,
     default=",",
     metavar="CHAR",
-    help="field delimiter for csv format (default: ',')",
+    help="field delimiter for CSV/TSV files (default: ',')",
 )
 
 parser.add_argument(
@@ -121,7 +123,7 @@ parser.add_argument(
     required=False,
     default=0,
     metavar="INT",
-    help="column index in csv/tsv file referring to features or barcodes (defaut: 0)",
+    help="column index in CSV/TSV files referring to features or barcodes (default: 0)",
 )
 
 parser.add_argument(
@@ -130,7 +132,7 @@ parser.add_argument(
     action=cli.Store_type,
     required=False,
     default=None,
-    help="dataframe type (expected: str, int, float, complex, bool, category; default: None)",
+    help="dataframe value type (expected: str, int, float, complex, bool, category; default: None)",
 )
 
 args = parser.parse_args()

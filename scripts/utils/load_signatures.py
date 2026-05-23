@@ -31,10 +31,11 @@ def df2signatures(df):
 
 
 parser = argparse.ArgumentParser(
-    prog="Load signatures data",
+    prog="load_signatures",
     description="""Load signatures data from two files,
     one in a table format and the other one in list format.""",
-    usage="python load_signatures.py <args>",
+    usage="python load_signatures.py --table-infile <FILE> --list-infile <FILE> --outfile <FILE>",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -42,7 +43,8 @@ parser.add_argument(
     dest="table_infile",
     type=lambda x: Path(x).resolve(),
     required=True,
-    help="path to table signatures file",
+    metavar="FILE",
+    help="input file storing table signatures (format: xlsx)",
 )
 
 parser.add_argument(
@@ -50,7 +52,8 @@ parser.add_argument(
     dest="list_infile",
     type=lambda x: Path(x).resolve(),
     required=True,
-    help="path to list signatures file",
+    metavar="FILE",
+    help="input file storing list signatures (format: xlsx)",
 )
 
 parser.add_argument(
@@ -58,7 +61,8 @@ parser.add_argument(
     dest="outfile",
     type=lambda x: Path(x).resolve(),
     required=True,
-    help="output file",
+    metavar="FILE",
+    help="output file storing signatures (format: json)",
 )
 
 args = parser.parse_args()

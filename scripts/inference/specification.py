@@ -41,17 +41,17 @@ def load_prior_network(domain, organism, genesyn, dorothea_levels=None):
 
 parser = argparse.ArgumentParser(
     prog="specification",
-    description="""
-Check whether the bonesis properties are well defined and converting model specifications (format yml) and binarized macrostates (format csv) into four files:
+    description="""Check whether BoNesis properties are well defined and convert model specifications (format: yml) and binarized macrostates (format: csv) into four files:
     - model (txt): dynamic Boolean properties
     - metastates (csv): partially binarized metastates
-    - important-genes (txt): genes being prioritize to appear in BN solutions
-    - mandatory-genes (txt): genes being forced to appear in BN solutions
-file storing model specifications (format yml) have to contain three keys:
+    - important-genes (txt): genes prioritized to appear in Boolean network solutions
+    - mandatory-genes (txt): genes forced to appear in Boolean network solutions
+
+The model specification file (format: yml) must contain four keys:
     - states (list of metastate-macrostate name associations)
-    - bonesis (list of dynamic Boolean properties in bonesis syntax)
-    - mandatory_genes (list of genes being forced to appear in Boolean network solutions)
-    - important_genes (list of genes being prioritize to appear in Boolean network solutions)
+    - bonesis (list of dynamic Boolean properties in BoNesis syntax)
+    - mandatory_genes (list of genes forced to appear in Boolean network solutions)
+    - important_genes (list of genes prioritized to appear in Boolean network solutions)
 """,
     usage="python specification.py <FILE> <FILE> --model <FILE> --metastates <FILE> --mandatory-genes <FILE> --important-genes <FILE> [<args>]",
     formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -61,7 +61,7 @@ parser.add_argument(
     dest="model_specification",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing model specifications for bonesis (format: yml)",
+    help="input file storing model specifications for BoNesis (format: yml)",
 )
 
 parser.add_argument(
@@ -94,7 +94,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="input file storing interest genes to pass filtering (if not specified, all genes are considered)",
+    help="input file storing genes of interest to pass filtering (if not specified, all genes are considered)",
 )
 
 parser.add_argument(
@@ -103,7 +103,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="output file storing important genes, being prioritize to appear (format: json or txt)",
+    help="output file storing important genes prioritized to appear (format: json or txt)",
 )
 
 parser.add_argument(
@@ -112,7 +112,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="output file storing mandatory genes, being forced to appear (format: json or txt)",
+    help="output file storing mandatory genes forced to appear (format: json or txt)",
 )
 
 parser.add_argument(

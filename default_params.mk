@@ -183,11 +183,16 @@ $(eval MODEL_TOP_HVG ?=)                    # top HVGs for model genes
 # current loads DoRothEA in scbolt-bonesis; legacy first exports a CSV file.
 # Clingo opt modes: opt, optN, ignore, enum,<n>.
 # Clingo opt strategies: bb[,<method>] or usc[,<method>].
+# Diagnostic opt modes: ignore tests satisfiability, enum,1 tests first-solution latency, optN tracks progressive improvements.
+# Diagnostic opt strategy: bb,dec tests whether usc is blocking.
+# CANONIC_FILTER controls filter-nodes/filter-consts; CANONIC_INFER controls min/submin/diverse.
 # TIMEOUT_* values are passed to GNU timeout; empty means no timeout.
 $(eval MAX_CLAUSE ?= 8)                     # maximum literals per propositional formula
 $(eval PRIOR_KNOWLEDGE ?= collectri)        # prior GRN domain
 $(eval DOROTHEA_API ?= current)             # DoRothEA API source
 $(eval DOROTHEA_LEVELS ?= A B C)            # DoRothEA confidence levels
+$(eval CANONIC_FILTER ?= false)             # canonical logical function representation during filtering
+$(eval CANONIC_INFER ?= true)               # canonical logical function representation during BN inference
 
 ## MAX-NODES-SOFT ##
 $(eval CLINGO_OPT_MODE_SOFT ?= optN)        # Clingo optimization mode

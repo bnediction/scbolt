@@ -18,13 +18,15 @@ from scboolseq import scBoolSeq
 
 parser = argparse.ArgumentParser(
     prog="bin_cells_scboolseq",
-    description="""
-    Compute statistical estimators, classify distribution law for each gene \
-    and binarize cell counts using scBoolSeq framework. \
-    Counts must be already log-normalized (logarithm transformation on CPM, RPM, TPM or RPKM). \
-    See Magaña López et al. (2023) <https://hal.science/hal-04294917/>.
-    """,
-    usage=""""python bin_cells_scboolseq.py [-h] <FILE ...> --outfile <FILE> [--bin <FILE>] [--statistics FILE] [<args>]""",
+    description=(
+        "Compute statistical estimators, classify the distribution law for each gene "
+        "and binarize cell counts using the scBoolSeq framework.\n"
+        "Counts must already be log-normalized (logarithm transformation on CPM, "
+        "RPM, TPM or RPKM).\n"
+        "See Magaña López et al. (2023) <https://hal.science/hal-04294917/>."
+    ),
+    usage="python bin_cells_scboolseq.py [-h] <FILE> --outfile <FILE> [--bin <FILE>] [--statistics <FILE>] [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -72,7 +74,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="labels related to each dataset (ordered with h5ad files, required when multiple infiles)",
+    help="dataset labels (default: None)",
 )
 
 parser.add_argument(
@@ -82,7 +84,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer used corresponding to log-normalized counts (if not specified, use adata.X)",
+    help="layer storing log-normalized counts (if not specified, use adata.X)",
 )
 
 parser.add_argument(
@@ -94,7 +96,7 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.10,
-    help="quantile classifying cells into inactive/active when learnt distribution is unimodal (default: 0.10)",
+    help="quantile used to classify cells as inactive/active when learned distribution is unimodal (default: 0.10)",
 )
 
 parser.add_argument(
@@ -102,7 +104,7 @@ parser.add_argument(
     dest="zeroes_are_zeroes",
     required=False,
     action="store_true",
-    help="binarize zero-values to zero instead of nan when learnt distribution is zero-inflated",
+    help="binarize zero values to zero instead of NaN when learned distribution is zero-inflated",
 )
 
 parser.add_argument(

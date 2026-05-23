@@ -14,20 +14,24 @@ from bonesistools.databases.ncbi import GeneSynonyms
 import scanpy as sc
 
 parser = argparse.ArgumentParser(
-    prog="gene name list",
+    prog="get_genes",
     description="""Retrieve gene names.""",
-    usage="""python name.py [-h] <FILE> <FILE> [--axis <obs|var> --standardization]""",
+    usage="""python get_genes.py [-h] <FILE> <FILE> [--axis <obs | var>] [--standardization]""",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
-    "infile", type=lambda x: Path(x).resolve(), metavar="FILE", help="h5ad or loom file"
+    "infile",
+    type=lambda x: Path(x).resolve(),
+    metavar="FILE",
+    help="input file storing AnnData object (format: h5ad or loom)",
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="txt file containing list of genes",
+    help="output file storing gene names (format: txt)",
 )
 
 parser.add_argument(
@@ -36,8 +40,8 @@ parser.add_argument(
     choices=["obs", "var"],
     default="var",
     required=False,
-    metavar="[obs|var]",
-    help="axis corresponding to genes (default: obs)",
+    metavar="[obs | var]",
+    help="axis corresponding to genes (default: var)",
 )
 
 parser.add_argument(
@@ -45,7 +49,7 @@ parser.add_argument(
     dest="standardization",
     required=False,
     action="store_true",
-    help="standardize gene name with their NCBI reference name",
+    help="standardize gene names with their NCBI reference names",
 )
 
 args = parser.parse_args()

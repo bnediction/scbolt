@@ -15,12 +15,12 @@ import bonesistools as bt
 
 parser = argparse.ArgumentParser(
     prog="normalization",
-    description="""
-    Normalize counts with different operations (standardization \
-    with respect to library size, log-transformation, scaling data \
-    and correction of unwanted effects).
-    """,
+    description=(
+        "Normalize counts with different operations: standardization w.r.t. "
+        "library size, log-transformation, scaling and correction of unwanted effects."
+    ),
     usage="python normalization.py <FILE> <FILE> [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -65,7 +65,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of allocated processors",
+    help="number of allocated processors (default: 1)",
 )
 
 args = parser.parse_args()

@@ -25,8 +25,8 @@ import matplotlib.pyplot as plt
 
 bt.sct.pl.set_default_params()
 
-parser_description = """
-Compute scores related to cell development potential (lower the score, higher the differentiation potential) and classify cells by their cell potency using CytoTRACE framework. \
+parser_description = """Compute scores related to cell development potential (lower the score, higher the differentiation potential) and classify cells by their cell potency using the CytoTRACE framework.
+
 There are six cell potency-based classes:
     - totipotency: ability to divide or differentiate into all cell types
     - pluripotency: ability to differentiate into endoderm, ectoderm or mesoderm
@@ -34,6 +34,7 @@ There are six cell potency-based classes:
     - oligopotency: ability to differentiate into a few cell types
     - unipotency: ability to differentiate into one cell type
     - differentiation: already differentiated into its mature cell type
+
 See Kang et al. (2024) <https://doi.org/10.1101/2024.03.19.585637>.
 """
 
@@ -114,7 +115,7 @@ parser.add_argument(
     required=False,
     default=1000,
     metavar="INT",
-    help="number of cells to subsample for the smoothing by diffusion step (recommended: 1000)",
+    help="number of cells to subsample for the smoothing by diffusion step (recommended/default: 1000)",
 )
 
 parser.add_argument(
@@ -133,7 +134,7 @@ parser.add_argument(
     required=False,
     default="umap",
     choices=["umap", "tsne"],
-    metavar="[umap|tsne]",
+    metavar="[umap | tsne]",
     help="embedding projection used (default: umap)",
 )
 
@@ -144,7 +145,7 @@ parser.add_argument(
     required=False,
     default=random.randint(0, 1e9),
     metavar="INT",
-    help="random number generator (default: random)",
+    help="random seed (default: random)",
 )
 
 parser.add_argument(
@@ -154,7 +155,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of allocated processors",
+    help="number of allocated processors (default: 1)",
 )
 
 args = parser.parse_args()

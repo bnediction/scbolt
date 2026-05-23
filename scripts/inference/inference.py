@@ -93,6 +93,14 @@ def print_node_reference(nodes_in_data, nodes_in_domain, domain_edges, **kwargs)
     )
 
 
+def print_clingo_optimization(mode, strategy, max_clause, canonic, **kwargs):
+    std.print_info(
+        f"optimization options: clingo mode={mode}, "
+        f"clingo strategy={strategy}, max clauses={max_clause}, canonic={canonic}",
+        **kwargs,
+    )
+
+
 def format_node_coverage(name, kept, total):
     removed = total - kept
     pct = 0 if total == 0 else 100 * kept / total
@@ -439,8 +447,7 @@ def run_bn_view(
     return ensemble
 
 
-parser_description = """
-Infer Most Permissive Boolean Networks (MPBNs) using the BoNesis paradigm.
+parser_description = """Infer Most Permissive Boolean Networks (MPBNs) using the BoNesis paradigm.
 
 Five actions are proposed:
     - filter-nodes:
@@ -465,20 +472,21 @@ parser = argparse.ArgumentParser(
     prog="inference",
     description=parser_description,
     usage="python inference.py [filter-nodes | filter-consts | min | submin | diverse] <FILE> <FILE> [<args>]",
-    formatter_class=argparse.RawTextHelpFormatter,
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
     "action",
     choices=["filter-nodes", "filter-consts", "min", "submin", "diverse"],
     metavar="[filter-nodes | filter-consts | min | submin | diverse]",
+    help="BoNesis inference action to run",
 )
 
 parser.add_argument(
     "spec",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file containing model specifications in Bonesis langage (format: txt)",
+    help="input file containing model specifications in BoNesis language (format: txt)",
 )
 
 parser.add_argument(
@@ -494,7 +502,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="input file storing important genes, being prioritize to appear (format: json or txt)",
+    help="input file storing important genes prioritized to appear (format: json or txt)",
 )
 
 parser.add_argument(
@@ -503,7 +511,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="input file storing mandatory genes, being forced to appear (format: json or txt)",
+    help="input file storing mandatory genes forced to appear (format: json or txt)",
 )
 
 parser.add_argument(
@@ -521,7 +529,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="PATH",
-    help="output file storing asp command (format: sh)",
+    help="output file storing ASP program/command (format: sh)",
 )
 
 parser.add_argument(
@@ -530,7 +538,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="FILE | PATH",
-    help="output file storing bonesis solution (format: txt for 'filter-nodes'/'filter-consts', bnet for 'one' or 'min' and path for 'sub')",
+    help="output storing BoNesis solution (txt for filter-nodes/filter-consts, directory for min/submin/diverse)",
 )
 
 parser.add_argument(
@@ -579,6 +587,15 @@ parser.add_argument(
     default=8,
     metavar="INT",
     help="maximum number of literals/atoms in each propositional formula (default: 8)",
+)
+
+parser.add_argument(
+    "--canonic",
+    dest="canonic",
+    action=cli.Store_boolean,
+    required=False,
+    default=None,
+    help="use canonical logical function representation (default: false for filter-nodes/filter-consts; true for min/submin/diverse)",
 )
 
 parser.add_argument(
@@ -632,8 +649,8 @@ parser.add_argument(
     default=[],
     metavar="[dot | neato | circo | fdp | sfdp]",
     help=(
-        "graphviz layout programs used for exporting Boolean network "
-        "associated influence graphs"
+        "Graphviz layout programs used for exporting Boolean network "
+        "associated influence graphs (default: none)"
     ),
 )
 
@@ -652,7 +669,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of allocated processors (used only when searching for diverse solutions of Boolean network)",
+    help="number of allocated processors used when searching for diverse Boolean network solutions (default: 1)",
 )
 
 args = parser.parse_args()
@@ -674,8 +691,12 @@ mstates_cfg = get_cfg(mstates_df, axis="index")
 
 std.print_task("initializing BoNesis inference settings")
 
+canonic = args.canonic
+if canonic is None:
+    canonic = False if args.action.startswith("filter") else True
+
 pkn_options = {
-    "canonic": False if args.action.startswith("filter") else True,
+    "canonic": canonic,
     "maxclause": args.max_clause,
 }
 if args.action == "filter-nodes":
@@ -758,11 +779,12 @@ if args.action == "filter-nodes":
             for node in nodes:
                 file.write(f"{node}\n")
 
+    clingo_opt_strategy = args.clingo_opt_strategy or "bb,dec"
     view = bonesis.NodesView(
         bo,
         mode=args.clingo_opt_mode,
         intermediate_model_cb=intermediate_solution,
-        clingo_opt_strategy=args.clingo_opt_strategy or "bb,dec",
+        clingo_opt_strategy=clingo_opt_strategy,
         progress=ptqdm,
     )
     view.standalone(output_filename=args.asp)
@@ -776,6 +798,9 @@ if args.action == "filter-nodes":
         sys.exit(0)
 
     print_node_reference(nodes_in_data, nodes_in_domain, domain_edges, flush=True)
+    print_clingo_optimization(
+        args.clingo_opt_mode, clingo_opt_strategy, args.max_clause, canonic, flush=True
+    )
     std.print_warning("this may take some time.", flush=True)
     solution = next_solution(view)
 
@@ -795,10 +820,11 @@ elif args.action == "filter-consts":
     if args.minimize_self_loops:
         bo.custom("edge(A,A) :- clause(A,_,A,_). #minimize { 1@10000,A: edge(A,A) }.")
 
+    clingo_opt_strategy = "usc"
     view = bonesis.NonStrongConstantNodesView(
         bo,
         mode=args.clingo_opt_mode,
-        clingo_opt_strategy="usc",
+        clingo_opt_strategy=clingo_opt_strategy,
         clingo_options=["--opt-usc-shrink=inv"],
         progress=ptqdm,
     )
@@ -806,6 +832,7 @@ elif args.action == "filter-consts":
 
     nodes_in_data, nodes_in_domain, domain_edges = get_node_sets(bo)
     print_node_reference(nodes_in_data, nodes_in_domain, domain_edges)
+    print_clingo_optimization(args.clingo_opt_mode, clingo_opt_strategy, args.max_clause, canonic)
     std.print_warning("this may take some time.")
     solution = next_solution(view)
 
@@ -865,16 +892,18 @@ else:
         if args.minimize_self_loops:
             bo.custom("#minimize { 1@100,A: edge(A,A) }.")
 
+        clingo_opt_strategy = "usc"
         view = bonesis.InfluenceGraphView(
             bo,
             mode=args.clingo_opt_mode,
-            clingo_opt_strategy="usc",
+            clingo_opt_strategy=clingo_opt_strategy,
             extra=("boolean-network", "configurations"),
             progress=ptqdm,
         )
         view.standalone(output_filename=args.asp)
 
         print_node_reference(*get_node_sets(bo))
+        print_clingo_optimization(args.clingo_opt_mode, clingo_opt_strategy, args.max_clause, canonic)
         std.print_warning("this may take some time.")
         solution = next_solution(view)
 

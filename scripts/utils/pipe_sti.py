@@ -13,18 +13,20 @@ import bonesistools as bt
 
 parser = argparse.ArgumentParser(
     prog="pipe_sti",
-    description="""
-    Send information from multiple specific 'adata.obs' towards integrated 'adata.obs', first ones referring to a name. \
-    Values passed to parameters '--specifics' and '--names' have to be ordered together.
-    """,
-    usage="python pipe_sti.py <FILE> <FILE ...> [--outfiles <FILE ...>] --labels <LITERAL ...> --column-label <LITERAL> --obs <LITERAL ...>",
+    description=(
+        "Transfer columns from multiple specific adata.obs tables to an integrated "
+        "adata.obs.\n"
+        "Values passed to --specifics and --labels must be ordered together."
+    ),
+    usage="python pipe_sti.py [-h] <FILE> <FILE ...> [--outfile <FILE>] --labels <LITERAL ...> --obs-label <LITERAL> [--obs <LITERAL ...>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
     "integrated",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input integration-based file (format: h5ad)",
+    help="input integrated dataset (format: h5ad)",
 )
 
 parser.add_argument(
@@ -32,7 +34,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
     nargs="+",
-    help="input condition-based input file(s) (format: h5ad)",
+    help="input specific dataset(s) (format: h5ad)",
 )
 
 parser.add_argument(
@@ -42,7 +44,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="FILE",
-    help="condition-based output file(s) (format: h5ad, if not specified, replace input file)",
+    help="output integrated dataset (format: h5ad; if not specified, replace input file)",
 )
 
 parser.add_argument(
@@ -52,7 +54,7 @@ parser.add_argument(
     nargs="+",
     required=True,
     metavar="LITERAL",
-    help="dataset names (ordered with parameter --specifics)",
+    help="dataset labels ordered with --specifics",
 )
 
 parser.add_argument(
@@ -61,7 +63,7 @@ parser.add_argument(
     type=str,
     required=True,
     metavar="LITERAL",
-    help="column name in integrated 'adata.obs' referring to dataset names",
+    help="column name in integrated adata.obs referring to dataset labels",
 )
 
 parser.add_argument(
@@ -72,7 +74,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="column names in integrated 'adata.obs' to transfer (if not specified, transfer all columns)",
+    help="column names in specific adata.obs tables to transfer (if not specified, transfer all columns)",
 )
 
 args = parser.parse_args()

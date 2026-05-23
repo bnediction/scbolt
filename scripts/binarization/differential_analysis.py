@@ -106,20 +106,24 @@ def sign_likelihood(
 
 
 parser = argparse.ArgumentParser(
-    prog="computation of inter-cluster velocities",
-    description="""compute velocity between cluster with respect to binarized meta-observations""",
-    usage=""""python velocity.py [-h] -i <PATH> <PATH> [<args>]""",
+    prog="differential_analysis",
+    description="""Compute pairwise inter-cluster predecessor scores from binarized meta-observations.""",
+    usage="python differential_analysis.py [-h] <FILE> <PATH> [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
-    metavar="PATH",
-    help="infile in csv format",
+    metavar="FILE",
+    help="input file storing binarized meta-observations (format: csv)",
 )
 
 parser.add_argument(
-    dest="outpath", type=lambda x: Path(x).resolve(), metavar="PATH", help="output path"
+    dest="outpath",
+    type=lambda x: Path(x).resolve(),
+    metavar="PATH",
+    help="output directory storing sign likelihood and pairwise predecessor scores",
 )
 
 parser.add_argument(
@@ -140,7 +144,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="minimum number of paths for gene pairwise required for considering a gene as being a source (default: 3)",
+    help="minimum number of paths required to consider a gene pair as source-target candidates (default: 1)",
 )
 
 parser.add_argument(
@@ -162,7 +166,7 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=0.75,
-    help="percentage of the maximum path score above which the path score must be for being consider as source-target gene pairwise (default: 0.75)",
+    help="relative path-score threshold required to consider a source-target gene pair (default: 0.75)",
 )
 
 parser.add_argument(
@@ -170,7 +174,7 @@ parser.add_argument(
     dest="enable_loop",
     required=False,
     action="store_true",
-    help="allow a gene pairwise to be mutually influenced by the other one",
+    help="allow mutual influences between genes in a pair",
 )
 
 args = parser.parse_args()

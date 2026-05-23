@@ -14,9 +14,10 @@ from bonesistools import anndatatools as sct
 import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser(
-    prog="Single-cell gene kde",
-    description="""Compute gene-related kernel density distribution from single-cell sequencing data.""",
-    usage="python gene_kde.py <FILE...> -o <PATH> [<args>]",
+    prog="gene_kde",
+    description="""Compute gene-related kernel density estimates from single-cell sequencing data.""",
+    usage="python gene_kde.py <FILE ...> -o <PATH> [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -24,7 +25,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
     nargs="+",
-    help="input file(s) (h5ad format)",
+    help="input file(s) storing counts (format: h5ad)",
 )
 
 parser.add_argument(
@@ -34,7 +35,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="PATH",
-    help="output path",
+    help="output directory storing KDE plots",
 )
 
 parser.add_argument(
@@ -44,7 +45,7 @@ parser.add_argument(
     required=True,
     nargs="+",
     metavar="LITERAL",
-    help="genes of interest",
+    help="gene names for which KDE plots are generated",
 )
 
 parser.add_argument(
@@ -64,7 +65,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="plot kde for each distinct group in adata.obs (default: None)",
+    help="plot KDE for each distinct group in adata.obs (default: None)",
 )
 
 args = parser.parse_args()

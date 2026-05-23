@@ -63,12 +63,13 @@ def median_absolute_deviation(x, consistency=False):
 
 parser = argparse.ArgumentParser(
     prog="filtering",
-    description="""
-    Calculate metrics (proportions of genes encoding mitocondrial and ribosomal proteins, \
-    quality control metrics), assign cell to a cell cycle phase \
-    and filter low-quality genes and cells.
-    """,
+    description=(
+        "Calculate metrics (proportions of genes encoding mitochondrial and "
+        "ribosomal proteins, quality control metrics), assign cells to a cell "
+        "cycle phase and filter low-quality genes and cells."
+    ),
     usage="python filtering.py <FILE> <FILE> [--marker <FILE>] [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -82,7 +83,7 @@ parser.add_argument(
     dest="outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing counts before filtering (format: h5ad)",
+    help="output file storing filtered counts (format: h5ad)",
 )
 
 parser.add_argument(
@@ -175,7 +176,7 @@ parser.add_argument(
     required=False,
     default=[math.inf, math.inf],
     metavar="FLOAT",
-    help="factor droping cells for which their total reads are smaller or higher than this factor*mean-absolute-deviation with respect to the median (default: [inf,inf])",
+    help="MAD factors used to drop cells with total reads below or above median +/- factor*MAD (default: [inf, inf])",
 )
 
 parser.add_argument(
@@ -183,7 +184,7 @@ parser.add_argument(
     dest="consistent_mad",
     action="store_true",
     required=False,
-    help="use normalized mean absolute deviation",
+    help="use normalized median absolute deviation",
 )
 
 parser.add_argument(
@@ -195,7 +196,7 @@ parser.add_argument(
     max=1,
     required=False,
     default=1,
-    help="maximum proportion of expressed genes encoding mithocondrion proteins required for a cell to pass filtering (default: 1)",
+    help="maximum proportion of mitochondrial gene expression required for a cell to pass filtering (default: 1)",
 )
 
 parser.add_argument(
@@ -204,6 +205,7 @@ parser.add_argument(
     type=int,
     required=False,
     default=2000,
+    metavar="INT",
     help="number of highly variable genes (default: 2000)",
 )
 

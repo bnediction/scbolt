@@ -19,13 +19,13 @@ bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="clustering",
-    description="""
-    Compute principal components, compute closest and shared-nearest neighbors, \
-    cluster cells using leiden algorithm and embed the neighborhood graph in \
-    umap or t-sne projection, useful for visualizing high-dimensional data \
-    in a reduced space.
-    """,
+    description=(
+        "Compute principal components, compute closest and shared-nearest "
+        "neighbors, cluster cells using the Leiden algorithm and embed the "
+        "neighborhood graph in UMAP or t-SNE projection."
+    ),
     usage="python clustering.py <FILE> <FILE> [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -59,8 +59,8 @@ parser.add_argument(
     required=False,
     default="knn",
     choices=["knn", "snn"],
-    metavar="[knn|snn]",
-    help="neighbors connectivities used for leiden clustering (default: knn)",
+    metavar="[knn | snn]",
+    help="neighbor connectivities used for Leiden clustering (default: knn)",
 )
 
 parser.add_argument(
@@ -70,7 +70,7 @@ parser.add_argument(
     required=False,
     default="umap",
     choices=["umap", "tsne"],
-    metavar="[umap|tsne]",
+    metavar="[umap | tsne]",
     help="embedding projection (default: umap)",
 )
 
@@ -137,7 +137,7 @@ parser.add_argument(
     required=False,
     default="euclidean",
     metavar="METRIC",
-    help="metric used for computing closest neighbors and optionally t-sne projection (default: euclidean)",
+    help="metric used for computing closest neighbors and optionally t-SNE projection (default: euclidean)",
 )
 
 parser.add_argument(
@@ -157,7 +157,7 @@ parser.add_argument(
     required=False,
     default=0.5,
     metavar="FLOAT",
-    help="effective minimum distance between embedded points in umap (default: 0.5)",
+    help="effective minimum distance between embedded points in UMAP (default: 0.5)",
 )
 
 parser.add_argument(
@@ -167,7 +167,7 @@ parser.add_argument(
     required=False,
     default=1.0,
     metavar="FLOAT",
-    help="effective scale of embedded points in umap (default: 1.0)",
+    help="effective scale of embedded points in UMAP (default: 1.0)",
 )
 
 parser.add_argument(
@@ -177,7 +177,7 @@ parser.add_argument(
     required=False,
     default=random.random(),
     metavar="INT",
-    help="random number generator (default: random)",
+    help="random seed (default: random)",
 )
 
 args = parser.parse_args()

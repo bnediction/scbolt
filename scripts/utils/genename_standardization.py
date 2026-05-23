@@ -12,24 +12,25 @@ from bonesistools.databases.ncbi import GeneSynonyms
 import pandas as pd
 
 parser = argparse.ArgumentParser(
-    prog="gene name standardization",
-    description="""Convert gene aliases by another aliases.
-    By default, convert gene names by their NCBI reference names.""",
-    usage="""python name_standardization.py [-h] <path> <path> [<args>]""",
+    prog="genename_standardization",
+    description="""Convert gene aliases to another identifier type.
+    By default, convert gene names to their NCBI reference names.""",
+    usage="""python genename_standardization.py [-h] <PATH> <PATH> [<args>]""",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="PATH",
-    help="infile in txt, csv or tsv format",
+    help="input file storing gene identifiers (format: txt, csv or tsv)",
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="PATH",
-    help="outfile in same format as infile",
+    help="output file storing standardized gene identifiers (same format as input file)",
 )
 
 parser.add_argument(
@@ -40,7 +41,7 @@ parser.add_argument(
     default=",",
     required=False,
     metavar="CHAR",
-    help="field delimiter for the outfile if extension infile is csv or tsv (default: `,`)",
+    help="field delimiter for CSV/TSV files (default: ',')",
 )
 
 parser.add_argument(
@@ -50,7 +51,7 @@ parser.add_argument(
     default="index",
     required=False,
     metavar="[index | columns]",
-    help="axis to change in dataframe instance if infile format is csv or tsv (default: index)",
+    help="dataframe axis to standardize when input format is CSV or TSV (default: index)",
 )
 
 parser.add_argument(
@@ -87,7 +88,7 @@ parser.add_argument(
     dest="quiet",
     required=False,
     action="store_true",
-    help="hidden information about running programm",
+    help="hide runtime warnings",
 )
 
 args = parser.parse_args()

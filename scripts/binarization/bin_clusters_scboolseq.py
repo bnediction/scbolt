@@ -233,17 +233,19 @@ def count_binarized_values(
 
 parser = argparse.ArgumentParser(
     prog="bin_clusters_scboolseq",
-    description="""
-    count binarized values for each cluster and binarize clusters from binarized single cell data using voting rule.
-    """,
-    usage=""""python bin_clusters_scboolseq.py <FILE...> <FILE> [--counts <FILE>] --cluster <LITERAL> [<args>]""",
+    description=(
+        "Count binarized values for each cluster and binarize clusters from "
+        "binarized single-cell data using a voting rule."
+    ),
+    usage="python bin_clusters_scboolseq.py [-h] <FILE> <FILE> [--counts <FILE>] --cluster <LITERAL> [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
     dest="infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing binarized counts and gene distribution-related variable (format: h5ad)",
+    help="input file storing binarized counts and gene distributions (format: h5ad)",
 )
 
 parser.add_argument(
@@ -270,7 +272,7 @@ parser.add_argument(
     required=False,
     default="bin",
     metavar="LITERAL",
-    help="layer used corresponding to binarized counts (default: bin)",
+    help="layer storing binarized counts (default: bin)",
 )
 
 parser.add_argument(
@@ -299,7 +301,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="column name such as adata.obs[`LITERAL`] distinguishes samples (default: None)",
+    help="column name in adata.obs distinguishing samples (default: None)",
 )
 
 parser.add_argument(
@@ -309,7 +311,7 @@ parser.add_argument(
     required=False,
     nargs="+",
     metavar="LITERAL",
-    help="cluster names in adata.obs['cluster'] to remove for cluster-related binarization",
+    help="cluster labels to remove before cluster-level binarization",
 )
 
 parser.add_argument(
@@ -321,7 +323,7 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=0.3,
-    help="maximum proportion of nan-values in a cluster required for a gene to be binarized (not applied to zero-inflated genes, default: 0.3)",
+    help="maximum proportion of NaN values allowed in a cluster for a gene to be binarized (not applied to zero-inflated genes, default: 0.3)",
 )
 
 parser.add_argument(
@@ -333,7 +335,7 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=2 / 3,
-    help="minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a bimodal gene to be binarized (default: 2/3)",
+    help="minimum proportion of zero or one values w.r.t. binarized values required for a bimodal gene to be binarized (default: 2/3)",
 )
 
 parser.add_argument(
@@ -345,7 +347,7 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=0.5,
-    help="minimum proportion of zero- or one-values w.r.t binarized and nan values in a cluster required for a zero-inflated gene to be binarized (default: 0.5)",
+    help="minimum proportion of zero or one values w.r.t. binarized and NaN values required for a zero-inflated gene to be binarized (default: 0.5)",
 )
 
 parser.add_argument(
@@ -357,7 +359,7 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=2 / 3,
-    help="minimum proportion of zero- or one-values w.r.t binarized values in a cluster required for a unimodal gene to be binarized (default: 2/3)",
+    help="minimum proportion of zero or one values w.r.t. binarized values required for a unimodal gene to be binarized (default: 2/3)",
 )
 
 parser.add_argument(

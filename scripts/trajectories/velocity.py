@@ -18,18 +18,20 @@ bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="velocity",
-    description="""
-    Compute rna velocities based on spliced/unspliced kinetics using scVelo framework. \
-    See Bergen et al. (2020) <https://www.nature.com/articles/s41587-020-0591-3>.
-    """,
+    description=(
+        "Compute RNA velocities based on spliced/unspliced kinetics using the "
+        "scVelo framework.\n"
+        "See Bergen et al. (2020) <https://www.nature.com/articles/s41587-020-0591-3>."
+    ),
     usage="python velocity.py <FILE> <FILE> [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
     dest="infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing pre-computed neighbors, principal and embedding components (format: h5ad)",
+    help="input file storing precomputed neighbors, principal components and embeddings (format: h5ad)",
 )
 
 parser.add_argument(
@@ -73,7 +75,7 @@ parser.add_argument(
     dest="only_hvg",
     action="store_true",
     required=False,
-    help="use only highly variable genes for estimating rna velocities",
+    help="use only highly variable genes for estimating RNA velocities",
 )
 
 parser.add_argument(
@@ -83,7 +85,7 @@ parser.add_argument(
     required=False,
     choices=["deterministic", "stochastic", "dynamical"],
     default="stochastic",
-    metavar="[deterministic|stochastic|dynamical]",
+    metavar="[deterministic | stochastic | dynamical]",
     help="mode used for estimating the steady-state model (default: stochastic)",
 )
 
@@ -94,7 +96,7 @@ parser.add_argument(
     required=False,
     default="umap",
     choices=["umap", "tsne"],
-    metavar="[umap|tsne]",
+    metavar="[umap | tsne]",
     help="embedding projection used (default: umap)",
 )
 
@@ -105,7 +107,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of allocated processors",
+    help="number of allocated processors (default: 1)",
 )
 
 args = parser.parse_args()

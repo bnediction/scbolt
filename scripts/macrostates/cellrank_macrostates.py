@@ -20,26 +20,27 @@ bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="cellrank",
-    description="""
-    Estimate macrostates using generalized perron cluster cluster analysis (GPCCA)
-    with respect to velocity, potency and similarity-based kernels.
-    See Lange et al. (2022) <https://www.nature.com/articles/s41592-021-01346-6>.
-    """,
+    description=(
+        "Estimate macrostates using Generalized Perron Cluster Cluster Analysis "
+        "(GPCCA) w.r.t. velocity, potency and similarity-based kernels.\n"
+        "See Lange et al. (2022) <https://www.nature.com/articles/s41592-021-01346-6>."
+    ),
     usage="python cellrank_macrostates.py <FILE> <FILE> [--csv <FILE>] [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing counts and rna velocities (format: h5ad)",
+    help="input file storing counts and RNA velocities (format: h5ad)",
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing cellrank macrostates (format: h5ad)",
+    help="output file storing CellRank macrostates (format: h5ad)",
 )
 
 parser.add_argument(
@@ -69,7 +70,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="column name in adata.obs storing cytotrace cell potency scores (default: None)",
+    help="column name in adata.obs storing CytoTRACE cell potency scores (default: None)",
 )
 
 parser.add_argument(
@@ -89,7 +90,7 @@ parser.add_argument(
     required=False,
     default="velocity",
     metavar="LITERAL",
-    help="layer in adata.layers storing scvelo velocities (default: 'velocity')",
+    help="layer in adata.layers storing scVelo velocities (default: 'velocity')",
 )
 
 parser.add_argument(
@@ -99,7 +100,7 @@ parser.add_argument(
     required=False,
     default="stability",
     choices=["stability", "top_n", "eigengap", "eigengap_coarse"],
-    metavar="[stability|top_n|eigengap|eigengap_coarse]",
+    metavar="[stability | top_n | eigengap | eigengap_coarse]",
     help="method used to select terminal states (default: stability)",
 )
 
@@ -170,7 +171,7 @@ parser.add_argument(
     required=False,
     default=random.random(),
     metavar="FLOAT",
-    help="random number generator (default: random)",
+    help="random seed (default: random)",
 )
 
 parser.add_argument(
@@ -180,7 +181,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of allocated processors",
+    help="number of allocated processors (default: 1)",
 )
 
 args = parser.parse_args()

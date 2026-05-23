@@ -13,15 +13,18 @@ import bonesistools as bt
 
 parser = argparse.ArgumentParser(
     prog="knnbs",
-    description="""
-    Compute cell manifolds using k-nearest neighbors-based subclusters (knnbs) algorithm. \
-    Compute the k-nearest neighbors-based graph using an embedding space, \
-    compute shortest path lengths in the graph and then search for cluster related-cell manifolds \
-    using knnbs algorithm. The subclusters can be computed following two strategies: \
-    (1) a centrality-based strategy, minimizing distances to the cluster's own barycenter \
-    and (2) a periphery-based strategy, maximizing distances to other clusters' barycenters
-    """,
-    usage="python knnbs_macrostates.py <FILE> <FILE> [--csv <FILE>] --obs <LITERAL> [--centrality <LITERAL...>] [--periphery <LITERAL...>] [<args>]",
+    description=(
+        "Compute cell manifolds using the k-nearest neighbors-based subclusters "
+        "(KNNBS) algorithm.\n"
+        "Compute the k-nearest neighbors graph using an embedding space, compute "
+        "shortest path lengths in the graph and then search for cluster-related "
+        "cell manifolds.\n"
+        "Subclusters can be computed with two strategies: centrality, minimizing "
+        "distances to the cluster's own barycenter; and periphery, maximizing "
+        "distances to other clusters' barycenters."
+    ),
+    usage="python knnbs_macrostates.py <FILE> <FILE> [--csv <FILE>] --obs <LITERAL> [--centrality <LITERAL ...>] [--periphery <LITERAL ...>] [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -35,7 +38,7 @@ parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing knnbs macrostates (format: h5ad)",
+    help="output file storing KNNBS macrostates (format: h5ad)",
 )
 
 parser.add_argument(
@@ -64,7 +67,7 @@ parser.add_argument(
     required=False,
     default="umap",
     choices=["pca", "umap", "tsne"],
-    metavar="[pca|umap|tsne]",
+    metavar="[pca | umap | tsne]",
     help="embedding projection used when calculating pairwise distances (default: umap)",
 )
 
@@ -94,7 +97,7 @@ parser.add_argument(
     required=False,
     default=20,
     metavar="INT",
-    help="number of closest neighbors for computing k-nearest neighbors graph (default: 20)",
+    help="number of closest neighbors used to compute the k-nearest neighbors graph (default: 20)",
 )
 
 parser.add_argument(
@@ -114,7 +117,7 @@ parser.add_argument(
     required=False,
     choices=["dijkstra", "bellman-ford"],
     default="dijkstra",
-    metavar="[dijkstra|bellman-ford]",
+    metavar="[dijkstra | bellman-ford]",
     help="method used for computing pairwise shortest path lengths between cells and barycenters (default: dijkstra)",
 )
 
@@ -147,7 +150,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of allocated processors",
+    help="number of allocated processors (default: 1)",
 )
 
 args = parser.parse_args()

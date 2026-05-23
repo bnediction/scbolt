@@ -13,10 +13,9 @@ import scanpy as sc
 
 parser = argparse.ArgumentParser(
     prog="hvg",
-    description="""
-    Estimate top highly variable genes.
-    """,
+    description="Estimate top highly variable genes.",
     usage="python hvg.py <FILE> <FILE> [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -39,7 +38,8 @@ parser.add_argument(
     type=int,
     required=False,
     default=None,
-    help="number of highly variable genes (default: None)",
+    metavar="INT",
+    help="number of highly variable genes to select (default: None)",
 )
 
 parser.add_argument(
@@ -49,7 +49,7 @@ parser.add_argument(
     required=False,
     default="seurat_v3",
     choices=["seurat", "cell_ranger", "seurat_v3"],
-    metavar="[seurat|cell_ranger|seurat_v3]",
+    metavar="[seurat | cell_ranger | seurat_v3]",
     help="method used for identifying highly variable genes (default: seurat_v3)",
 )
 
@@ -61,7 +61,7 @@ parser.add_argument(
     default=None,
     metavar="LITERAL",
     help="""
-    layer used (expects counting data when method='seurat_v3', otherwise logarithmized data. \
+    layer used (expects counting data when method='seurat_v3', otherwise log-normalized data; \
     if not specified, use layer 'counts' with method='seurat_v3', otherwise layer 'log-norm')
     """,
 )
@@ -75,7 +75,7 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.3,
-    help="fraction of cells used when estimating the variance in the loess model (used only if method='Seurat_v3', default: 0.3)",
+    help="fraction of cells used when estimating the variance in the loess model (used only if method='seurat_v3', default: 0.3)",
 )
 
 parser.add_argument(
@@ -84,6 +84,7 @@ parser.add_argument(
     type=float,
     required=False,
     default=20,
+    metavar="INT",
     help="number of bins for binning the mean gene expression (default: 20)",
 )
 

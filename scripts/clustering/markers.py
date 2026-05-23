@@ -18,10 +18,9 @@ from pandas import ExcelWriter
 
 parser = argparse.ArgumentParser(
     prog="markers",
-    description="""
-    Search for overexpressed genes (markers) between clusters.
-    """,
+    description="Search for overexpressed genes (markers) between clusters.",
     usage="python markers.py [-h] <FILE> <FILE> [--xlsx <FILE>] --cluster <LITERAL> [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -44,7 +43,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="output file storing overexpressed genes, each spreadsheet being related to a cluster (format: xlsx)",
+    help="output file storing overexpressed genes, each worksheet corresponding to a cluster (format: xlsx)",
 )
 
 parser.add_argument(
@@ -63,7 +62,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer used (if not specified, use adata.X; expected logarithmized data)",
+    help="layer used (if not specified, use adata.X; expected log-normalized data)",
 )
 
 parser.add_argument(
@@ -71,7 +70,7 @@ parser.add_argument(
     dest="is_log",
     action="store_true",
     required=False,
-    help="specify whether data matrix is logarithmized",
+    help="specify whether the data matrix is log-normalized",
 )
 
 parser.add_argument(
@@ -95,7 +94,7 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.05,
-    help="maximum ajusted p-value for a gene to be binarized (default: 0.05)",
+    help="maximum adjusted p-value for a marker gene (default: 0.05)",
 )
 
 parser.add_argument(
@@ -105,7 +104,7 @@ parser.add_argument(
     required=False,
     default="benjamini-hochberg",
     choices=["benjamini-hochberg", "bonferroni"],
-    metavar="[benjamini-hochberg|bonferroni]",
+    metavar="[benjamini-hochberg | bonferroni]",
     help="method used for correcting the significance level (default: benjamini-hochberg)",
 )
 

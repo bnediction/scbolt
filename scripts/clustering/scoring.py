@@ -26,11 +26,10 @@ def multiple_hypergeometric_test(
 
 
 parser = argparse.ArgumentParser(
-    prog="phenotypes",
-    description="""
-    Score signature-related phenotypes with respect to cell clusters.
-    """,
-    usage="python phenotypes.py [-h] <FILE> <FILE> <FILE> <FILE> --cluster <LITERAL> [<args>]",
+    prog="scoring",
+    description="Score signature-related phenotypes with respect to cell clusters.",
+    usage="python scoring.py [-h] <FILE> <FILE> <FILE> <FILE> --cluster <LITERAL> [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -58,7 +57,7 @@ parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing marker-metric associations (format: csv)",
+    help="output file storing signature-score associations (format: csv)",
 )
 
 parser.add_argument(

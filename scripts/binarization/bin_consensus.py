@@ -40,10 +40,12 @@ def merge(scboolseq_val, dea_val, scboolseq_distribution):
 
 parser = argparse.ArgumentParser(
     prog="bin_consensus",
-    description="""
-    Binarize clusters using scboolseq and differential expression analysis results.
-    """,
-    usage="python bin_consensus.py [-h] <FILE> <FILE> --cluster <LITERAL> [<args>]",
+    description=(
+        "Binarize clusters by combining scBoolSeq and differential expression "
+        "analysis results."
+    ),
+    usage="python bin_consensus.py [-h] --scboolseq <FILE> <FILE> --dea <FILE> --outfile <FILE> [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -53,7 +55,7 @@ parser.add_argument(
     nargs=2,
     required=True,
     metavar="FILE",
-    help="input files storing scboolseq results, first one corresponding to binarized clusters and second one to gene-specific distributions (required)",
+    help="input files storing scBoolSeq results: binarized clusters then gene-specific distributions (required)",
 )
 
 parser.add_argument(
@@ -62,7 +64,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="FILE",
-    help="input file storing dea results (required)",
+    help="input file storing DEA results (required)",
 )
 
 parser.add_argument(

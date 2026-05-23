@@ -165,7 +165,7 @@ class Str_or_min_and_max(argparse.Action):
         kwargs.update({
             "nargs":"+",
             "type":str,
-            "metavar":f"INT|LITERAL" if self.to_type==int else "FLOAT|LITERAL"
+            "metavar": f"INT | LITERAL" if self.to_type == int else "FLOAT | LITERAL"
         })
         if "default" not in kwargs:
             kwargs["default"] = [self.min, self.max]
@@ -385,7 +385,7 @@ class Store_axis(argparse.Action):
     ):
         kwargs.update({
             "type": str,
-            "metavar": "AXIS",
+            "metavar": "[0 | 1 | obs | var]",
             "choices": ["0", "1", "obs", "var"]
         })
         super(Store_axis, self).__init__(*args, **kwargs)
@@ -522,7 +522,7 @@ class Bonesis_mode(argparse.Action):
         help = (
             "constraints retained for BoNesis\n"
             "soft: exclude non-reachability and universal constraints\n"
-            "nouniv: exclude universal constraints\n"
+            "relaxed: exclude universal constraints\n"
             "hard: all constraints\n"
             f"default: {default if default else 'None'}"
         )
@@ -530,7 +530,7 @@ class Bonesis_mode(argparse.Action):
             "type": str,
             "required": required,
             "default": default,
-            "metavar": "[soft | nouniv | hard]",
+            "metavar": "[soft | relaxed | hard]",
             "help": kwargs["help"] if "help" in kwargs else help
         })
         super(Bonesis_mode, self).__init__(*args, **kwargs)
@@ -547,32 +547,22 @@ class Bonesis_mode(argparse.Action):
 
 class Clingo_opt_mode(argparse.Action):
 
-    def check_opt_mode(self, v):
-        if v in ["opt", "optN", "ignore"]:
-            return None
-        elif v.startswith("enum,"):
-            if v.split("enum,")[1].isdigit():
-                return None
-            else:
-                raise argparse.ArgumentError(self, f"invalid parameter value: 'enum' must be associate to a bound <n>: expected 'enum,<n>' but received {v}")
-        else:
-            raise argparse.ArgumentError(self, f"invalid parameter value: {v}")
+    VALID_MODES = ("opt", "optN", "ignore")
+    ENUM_PREFIX = "enum,"
 
     def __init__(
         self,
         *args,
         **kwargs
     ):
-        if "default" in kwargs:
-            self.check_opt_mode(kwargs["default"])
-            default = kwargs["default"]
-        else:
-            default = None
+        default = kwargs.get("default", None)
+        if default is not None:
+            self._check_opt_mode(default)
         kwargs.update({
             "type": str,
             "default": default,
-            "metavar": "[opt | enum,<n> | optN | ignore]",
-            "help": kwargs["help"] if "help" in kwargs else f"clingo optimization mode (default: {default})"
+            "metavar": "[opt | optN | ignore | enum,<n>]",
+            "help": kwargs["help"] if "help" in kwargs else f"clingo optimization mode: opt, optN, ignore, or enum,<n> (e.g. enum,1; default: {default})"
         })
         super(Clingo_opt_mode, self).__init__(*args, **kwargs)
 
@@ -583,8 +573,24 @@ class Clingo_opt_mode(argparse.Action):
         value,
         option_string=None
     ):
-        self.check_opt_mode(value)
+        self._check_opt_mode(value)
         setattr(namespace, self.dest, value)
+
+    def _check_opt_mode(self, value):
+        if value in self.VALID_MODES:
+            return None
+        if value.startswith(self.ENUM_PREFIX):
+            bound = value.removeprefix(self.ENUM_PREFIX)
+            if bound.isdigit():
+                return None
+            raise argparse.ArgumentError(
+                self,
+                f"invalid parameter value: expected 'enum,<n>' but received {value}"
+            )
+        raise argparse.ArgumentError(
+            self,
+            f"invalid parameter value: expected opt, optN, ignore, or enum,<n> but received {value}"
+        )
 
 class Clingo_opt_strategy(argparse.Action):
     

@@ -20,11 +20,10 @@ from goatools.anno.genetogo_reader import Gene2GoReader
 from goatools.goea.go_enrichment_ns import GOEnrichmentStudyNS
 
 parser = argparse.ArgumentParser(
-    prog="Gene enrichment analysis",
-    description="""
-    Perform gene ontology enrichment analysis.
-    """,
-    usage="python enrichment.py [-h] <FILE> <FILE> --background <LITERAL> --go <FILE> --<gene2go|annotations> <FILE>",
+    prog="goea",
+    description="Perform Gene Ontology enrichment analysis.",
+    usage="python goea.py [-h] <FILE> <FILE> --background <LITERAL> --go <FILE> (--gene2go <FILE> | --annotations <FILE>) [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -56,7 +55,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="FILE",
-    help="file containing DAG with HPO terms (format: obo)",
+    help="input file containing the Gene Ontology DAG (format: obo)",
 )
 
 parser.add_argument(
@@ -66,7 +65,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="FILE",
-    help="file containing annotations of genes-to-HPO terms (format: annotation.tab, cannot be used with argument --gene2go)",
+    help="input file containing gene-to-GO annotations (format: annotation.tab; cannot be used with --gene2go)",
 )
 
 parser.add_argument(
@@ -76,7 +75,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="FILE",
-    help="file containing NCBI gene-to-GO terms (format: gene2go, cannot be used with argument --annotations)",
+    help="input file containing NCBI gene-to-GO annotations (format: gene2go; cannot be used with --annotations)",
 )
 
 parser.add_argument(
@@ -96,7 +95,7 @@ parser.add_argument(
     required=False,
     default="name",
     metavar="[name | gene_id | ensembl_id | <database>]",
-    help="input type for gene stored in infile (default: name)",
+    help="gene identifier input format in infile (default: name)",
 )
 
 args = parser.parse_args()

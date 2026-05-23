@@ -12,11 +12,12 @@ import anndata as ad
 
 parser = argparse.ArgumentParser(
     prog="annotation",
-    description="""
-    Rename labels using user-defined names. \
-    Specified value for parameter '--name' must be a sequence where each element has the following syntax: <old_name>:<new_name>
-    """,
+    description=(
+        "Rename labels using user-defined names.\n"
+        "Values passed to --labels must follow the syntax <old_name>:<new_name>."
+    ),
     usage="python annotation.py [-h] <FILE> <FILE> --obs <LITERAL> --labels <LITERAL:LITERAL [LITERAL:LITERAL ...]>",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -29,8 +30,8 @@ parser.add_argument(
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
-    metavar="PATH",
-    help="input file storing counts with new labels (format: h5ad)",
+    metavar="FILE",
+    help="output file storing counts with renamed labels (format: h5ad)",
 )
 
 parser.add_argument(
@@ -49,7 +50,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="if specified, create a new column in adata.obs corresponding to labels",
+    help="if specified, create a new adata.obs column storing renamed labels",
 )
 
 parser.add_argument(
@@ -58,7 +59,7 @@ parser.add_argument(
     action=cli.Store_dict,
     nargs="+",
     required=True,
-    help="mapping between old and new names",
+    help="mapping between old and new labels",
 )
 
 args = parser.parse_args()

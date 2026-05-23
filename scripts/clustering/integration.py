@@ -59,11 +59,13 @@ def clean_adata(
 
 parser = argparse.ArgumentParser(
     prog="integration",
-    description="""
-    Compute principal components, compute closest and shared-nearest neighbors, \
-    cluster cells using leiden algorithm and integrate data in an embedding projection.
-    """,
-    usage="python integration.py [-h] <FILE...> --outfile <FILE> [<args>]",
+    description=(
+        "Compute principal components, compute closest and shared-nearest "
+        "neighbors, cluster cells using the Leiden algorithm and integrate data "
+        "in an embedding projection."
+    ),
+    usage="python integration.py [-h] <FILE ...> --outfile <FILE> [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -72,7 +74,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     min=2,
     metavar="FILE",
-    help="input files storing counts where the first one is considered as reference base (format: h5ad)",
+    help="input files storing counts; the first one is used as reference (format: h5ad)",
 )
 
 parser.add_argument(
@@ -81,7 +83,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="FILE",
-    help="integrated file (format: h5ad)",
+    help="output file storing integrated data (format: h5ad)",
 )
 
 parser.add_argument(
@@ -93,7 +95,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="labels characterizing samples (ordered with infiles)",
+    help="sample labels ordered with input files",
 )
 
 parser.add_argument(
@@ -113,8 +115,8 @@ parser.add_argument(
     required=False,
     default="knn",
     choices=["knn", "snn"],
-    metavar="[knn|snn]",
-    help="neighbors connectivities used for leiden clustering (default: knn)",
+    metavar="[knn | snn]",
+    help="neighbor connectivities used for Leiden clustering (default: knn)",
 )
 
 parser.add_argument(
@@ -124,7 +126,7 @@ parser.add_argument(
     required=False,
     default="bbknn",
     choices=["bbknn", "ingest", "scanorama"],
-    metavar="[bbknn|ingest|scanorama]",
+    metavar="[bbknn | ingest | scanorama]",
     help="integration method used (default: bbknn)",
 )
 
@@ -135,7 +137,7 @@ parser.add_argument(
     required=False,
     default="umap",
     choices=["umap", "tsne"],
-    metavar="[umap|tsne]",
+    metavar="[umap | tsne]",
     help="embedding projection (default: umap)",
 )
 
@@ -183,6 +185,7 @@ parser.add_argument(
     type=int,
     required=False,
     default=None,
+    metavar="INT",
     help="number of highly variable genes (default: None)",
 )
 
@@ -203,7 +206,7 @@ parser.add_argument(
     required=False,
     default="euclidean",
     metavar="METRIC",
-    help="metric used for computing closest neighbors and optionally t-sne projection (default: euclidean)",
+    help="metric used for computing closest neighbors and optionally t-SNE projection (default: euclidean)",
 )
 
 parser.add_argument(
@@ -223,7 +226,7 @@ parser.add_argument(
     required=False,
     default=0.5,
     metavar="FLOAT",
-    help="effective minimum distance between embedded points in umap (default: 0.5)",
+    help="effective minimum distance between embedded points in UMAP (default: 0.5)",
 )
 
 parser.add_argument(
@@ -233,7 +236,7 @@ parser.add_argument(
     required=False,
     default=1.0,
     metavar="FLOAT",
-    help="effective scale of embedded points in umap (default: 1.0)",
+    help="effective scale of embedded points in UMAP (default: 1.0)",
 )
 
 parser.add_argument(
@@ -243,7 +246,7 @@ parser.add_argument(
     required=False,
     default=random.randint(0, 1e9),
     metavar="INT",
-    help="random number generator (default: random)",
+    help="random seed (default: random)",
 )
 
 parser.add_argument(
@@ -253,7 +256,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of allocated processors",
+    help="number of allocated processors (default: 1)",
 )
 
 args = parser.parse_args()

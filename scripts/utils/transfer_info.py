@@ -21,23 +21,24 @@ def make_composite_obs_index(adata, keys, sep="|"):
     )
 
 parser = argparse.ArgumentParser(
-    prog="info transfer",
-    description="""send information (obs, var, layers) from one dataset (right) towards another dataset (left)""",
-    usage="""python transfer_info.py [-h] <FILE> <FILE> --outfile <FILE> --conditions <[LITERAL ...]> --columns <COLUMN [COLUMN ...]> [OPTIONS]""",
+    prog="transfer_info",
+    description="""Transfer observations, variables and layers from a right dataset to a left dataset.""",
+    usage="""python transfer_info.py [-h] <FILE> <FILE> [--outfile <FILE>] [--obs <LITERAL ...>] [--var <LITERAL ...>] [--layers <LITERAL ...>] [<args>]""",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
     "left",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="left-sided file (format: h5ad)",
+    help="input left dataset receiving information (format: h5ad)",
 )
 
 parser.add_argument(
     "right",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="right-sided file (format: h5ad)",
+    help="input right dataset providing information (format: h5ad)",
 )
 
 parser.add_argument(
@@ -47,7 +48,7 @@ parser.add_argument(
     required=False,
     metavar="FILE",
     default=None,
-    help="output file (format: h5ad, if not specified, replace left-sided file)",
+    help="output file storing updated left dataset (format: h5ad; if not specified, replace left file)",
 )
 
 parser.add_argument(
@@ -56,7 +57,7 @@ parser.add_argument(
     required=False,
     nargs="+",
     metavar="LITERAL",
-    help="name of the columns in right-sided adata.obs sent to left-sided adata",
+    help="column names in right adata.obs transferred to left adata.obs",
 )
 
 parser.add_argument(
@@ -66,7 +67,7 @@ parser.add_argument(
     nargs="+",
     default=None,
     metavar="LITERAL",
-    help="name of the columns in right-sided adata.var sent to left-sided adata",
+    help="column names in right adata.var transferred to left adata.var",
 )
 
 parser.add_argument(
@@ -77,7 +78,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="name of the layers in right-sided adata.var sent to left-sided adata",
+    help="layer names in right adata.layers transferred to left adata.layers",
 )
 
 parser.add_argument(
@@ -88,7 +89,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="name of the columns in [left|right] adata.obs used as index with initial index (useful when identical barcodes in index, default: None)",
+    help="adata.obs columns appended to the initial index for matching duplicated barcodes (default: None)",
 )
 
 args = parser.parse_args()

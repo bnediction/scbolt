@@ -20,6 +20,7 @@ parser = argparse.ArgumentParser(
     prog="load_dorothea_legacy",
     description="Download DoRothEA through decoupler.get_dorothea and export a signed interaction graph.",
     usage="python load_dorothea_legacy.py --organism <ORGANISM> --outfile <FILE>",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -27,6 +28,7 @@ parser.add_argument(
     dest="organism",
     default="mouse",
     required=False,
+    metavar="ORGANISM",
     help="organism passed to decoupler.get_dorothea (default: mouse)",
 )
 
@@ -36,7 +38,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="FILE",
-    help="output CSV file with source, target and sign columns",
+    help="output file storing source, target and sign columns (format: csv)",
 )
 
 args = parser.parse_args()

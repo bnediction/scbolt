@@ -80,6 +80,8 @@ check_conda_env_diagnostic = conda env list | awk '{print $$1}' | grep -qx "$(1)
 check_parameter_diagnostic = [ -n "$(strip $(1))" ] || { $(call report_check_error,required parameter not defined: $(2)); }
 knnbs_centrality = $(KNNBS_CENTRALITY_$(call toupper,$(1)))
 knnbs_periphery = $(KNNBS_PERIPHERY_$(call toupper,$(1)))
+log_parameters = $(foreach var,$(strip $(1)),printf '%s=%s\n' '$(var)' "$($(var))"; )
+target_log_parameters = $(strip $(target_params_$(1)))
 
 conda_run = conda run --no-capture-output -n $(1)
 inference_timeout = $(if $(filter-out 0,$(strip $(1))),timeout --foreground $(strip $(1)),)
@@ -90,16 +92,22 @@ else ifeq ($(LOGGING),true)
 run_logged = \
 	mkdir -p $(dir $(LOGFILE)); \
 	{ \
+		printf '%s\n' '[RUN]'; \
 		printf 'DATE=%s\n' "`date '+%Y-%m-%d %H:%M:%S'`"; \
 		printf 'TARGET=%s\n' "$(1)"; \
 		printf 'RESULTS=%s\n' "$(RESULTS)"; \
 		printf 'PARAMS=%s\n' "$(PARAMS)"; \
-		printf 'SEED=%s\n' "$(SEED)"; \
-		printf 'JOBS=%s\n' "$(JOBS)"; \
-		printf 'CONDITIONS=%s\n' "$(CONDITIONS)"; \
 		printf 'LOGFILE=%s\n' "$(LOGFILE)"; \
 		printf 'GIT_HASH=%s\n' "`git rev-parse HEAD 2>/dev/null || echo unknown`"; \
 		printf '\n'; \
+		printf '%s\n' '[CONTEXT]'; \
+		printf 'SEED=%s\n' "$(SEED)"; \
+		printf 'JOBS=%s\n' "$(JOBS)"; \
+		printf 'CONDITIONS=%s\n' "$(CONDITIONS)"; \
+		printf 'REFERENCES=%s\n' "$(REFERENCES)"; \
+		printf '\n'; \
+		$(if $(call target_log_parameters,$(1)),printf '%s\n' '[CONFIGURATION]'; $(call log_parameters,$(call target_log_parameters,$(1))) printf '\n';) \
+		printf '%s\n' '[OUTPUT]'; \
 	} >> "$(LOGFILE)"; \
 	PYTHONUNBUFFERED=1 TQDM_TO_TTY=1 $(MAKE) LOGGING=false __$(1) LOGFILE="$(LOGFILE)" 2>&1 | tee -a "$(LOGFILE)"
 else ifeq ($(LOGGING),false)
@@ -527,6 +535,7 @@ else
 $(error Unsupported value for parameter PRIOR_KNOWLEDGE (supported values: $(subst $(space),$(comma) ,$(strip $(known_prior_knowledge))) or an existing file path))
 endif
 dorothea_levels_arg = $(if $(filter dorothea,$(prior_knowledge)),$(if $(strip $(DOROTHEA_LEVELS)),--dorothea-levels $(DOROTHEA_LEVELS)))
+prior_knowledge_params = PRIOR_KNOWLEDGE $(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),DOROTHEA_API $(if $(filter current,$(DOROTHEA_API)),DOROTHEA_LEVELS))
 
 ifndef MODEL_HVG_METHOD
 model_layer=
@@ -562,6 +571,51 @@ min_self_loop_infer:=
 else
 $(error Unsupported value for parameter MIN_SELF_LOOP_INFER (supported values: true, false))
 endif
+
+ifndef CANONIC_FILTER
+$(error Parameter CANONIC_FILTER not defined)
+else ifeq ($(CANONIC_FILTER),true)
+else ifeq ($(CANONIC_FILTER),false)
+else
+$(error Unsupported value for parameter CANONIC_FILTER (supported values: true, false))
+endif
+
+ifndef CANONIC_INFER
+$(error Parameter CANONIC_INFER not defined)
+else ifeq ($(CANONIC_INFER),true)
+else ifeq ($(CANONIC_INFER),false)
+else
+$(error Unsupported value for parameter CANONIC_INFER (supported values: true, false))
+endif
+
+target_params_load-dorothea = ORGANISM
+target_params_cellranger = MEMORY
+target_params_filtering = GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS CELL_DROPOUT CELL_EXPRESSION CELL_READS MAD_DEVIATION NORM_MAD MT HVG FILTER_NON_HVG
+target_params_normalization = CC_CORRECTION
+target_params_clustering = INTEGRATION DIM_PCA DIM_CLUSTERING DIM_EMBEDDING PCA_ONLY_HVG NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD
+target_params_dea = LOGFC CORRECTION ALPHA
+target_params_annotation = LABEL
+target_params_velocity = DIM_MOMENT VELOCITY_ONLY_HVG SMM_MODE
+target_params_potency = BATCH_SIZE SMOOTH_BATCH_SIZE
+target_params_cotan = MACROSTATE_SIZE COTAN_METHOD COTAN_ONLY_HVG MAX_ITER
+target_params_cellrank = MACROSTATE_SIZE CELLRANK_METHOD STATES INITIAL_STATES TERMINAL_STATES CELLRANK_STABILITY CELLRANK_ALPHA
+target_params_stream = MACROSTATE_SIZE CLUSTERING_METHOD CLUSTER_NUMBER ALPHA_EPG MU_EPG LAMBDA_EPG EXTEND_EPG EXTEND_MODE EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER
+target_params_knnbs = MACROSTATE_SIZE KNNBS_EMBEDDING KNNBS_DIMENSION KNNBS_NEIGHBORS
+target_params_macrostates = MACROSTATE_METHOD MACROSTATE_SIZE
+target_params_bin-cells = SCBOOLSEQ_HVG_METHOD SCBOOLSEQ_TOP_HVG UNIMODAL_QUANTILE ZEROES_ARE_ZEROES
+target_params_bin-macrostates = NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD
+target_params_bin-dea = DEA_HVG_METHOD DEA_TOP_HVG BIN_LOGFC BIN_CORRECTION BIN_ALPHA
+target_params_bin-consensus = NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD DEA_HVG_METHOD DEA_TOP_HVG BIN_LOGFC BIN_CORRECTION BIN_ALPHA
+target_params_binarization = BIN_METHOD BINARIZATION_FILE
+target_params_spec = YAML_MODEL MODEL_HVG_METHOD MODEL_TOP_HVG $(prior_knowledge_params)
+target_params_max-nodes-soft = $(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT JOBS_SOFT TIMEOUT_SOFT
+target_params_max-consts-soft = $(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER MIN_SELF_LOOP_CONSTS CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS JOBS_CONSTS TIMEOUT_CONSTS
+target_params_max-nodes-relaxed = $(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED JOBS_RELAXED TIMEOUT_RELAXED
+target_params_max-nodes-seed = $(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED JOBS_SEED TIMEOUT_SEED
+target_params_max-nodes-lock = $(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK JOBS_LOCK TIMEOUT_LOCK
+target_params_bn-min = $(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER MIN_SELF_LOOP_INFER CLINGO_OPT_MODE_MIN GRAPH_FORMATS
+target_params_bn-submin = $(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
+target_params_bn-diverse = $(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 
 ## END PARAMETERS ##
 
@@ -1239,6 +1293,7 @@ $(max_nodes_soft): $(bonesis_model)
 	$(call inference_timeout,$(TIMEOUT_SOFT)) $(call conda_run,scbolt-bonesis) python scripts/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --asp $(@D)/nodes.sh --solution $@ \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --bonesis-mode soft --max-clause $(MAX_CLAUSE) \
+		--canonic $(CANONIC_FILTER) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SOFT) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SOFT) --jobs $(JOBS_SOFT); \
 	exit_status=$$?; \
 	set -e; \
@@ -1251,6 +1306,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 	$(call inference_timeout,$(TIMEOUT_CONSTS)) $(call conda_run,scbolt-bonesis) python scripts/inference/inference.py filter-consts \
 		$(word 1,$^) $(word 2,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --bonesis-mode soft --max-clause $(MAX_CLAUSE) $(min_self_loop_consts) \
+		--canonic $(CANONIC_FILTER) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_CONSTS) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_CONSTS) --jobs $(JOBS_CONSTS); \
 	exit_status=$$?; \
 	set -e; \
@@ -1263,6 +1319,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 	$(call inference_timeout,$(TIMEOUT_RELAXED)) $(call conda_run,scbolt-bonesis) python scripts/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --bonesis-mode relaxed --max-clause $(MAX_CLAUSE) \
+		--canonic $(CANONIC_FILTER) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_RELAXED) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_RELAXED) --jobs $(JOBS_RELAXED); \
 	exit_status=$$?; \
 	set -e; \
@@ -1276,6 +1333,7 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 	$(call inference_timeout,$(TIMEOUT_SEED)) $(call conda_run,scbolt-bonesis) python scripts/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --bonesis-mode hard --max-clause $(MAX_CLAUSE) \
+		--canonic $(CANONIC_FILTER) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SEED) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SEED) --jobs $(JOBS_SEED); \
 	exit_status=$$?; \
 	set -e; \
@@ -1294,6 +1352,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 		$(call inference_timeout,$(TIMEOUT_LOCK)) $(call conda_run,scbolt-bonesis) python scripts/inference/inference.py filter-nodes \
 			$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(@D)/mandatory.txt --filter-grn $(word 5,$^) --asp $(@D)/nodes.sh --solution $@ \
 			--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --bonesis-mode hard --max-clause $(MAX_CLAUSE) \
+			--canonic $(CANONIC_FILTER) \
 			--clingo-opt-mode $(CLINGO_OPT_MODE_LOCK) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_LOCK) --jobs $(JOBS_LOCK); \
 		exit_status=$$?; \
 		set -e; \
@@ -1306,6 +1365,7 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock)
 	$(call conda_run,scbolt-bonesis) python scripts/inference/inference.py min \
 		$(word 1,$^) $(word 2,$^) --filter-grn $(lastword $^) --asp $(@D)/min.sh --solution $(basename $@) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --max-clause $(MAX_CLAUSE) $(min_self_loop_infer) \
+		--canonic $(CANONIC_INFER) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_MIN) --jobs 1 \
 		--graph-formats $(GRAPH_FORMATS)
 		if command -v dot >/dev/null 2>&1; then
@@ -1328,6 +1388,7 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock)
 		--organism $(ORGANISM) \
 		$(dorothea_levels_arg) \
 		--max-clause $(MAX_CLAUSE) \
+		--canonic $(CANONIC_INFER) \
 		--jobs $(JOBS) \
 		$(if $(strip $(INFER_LIMIT)),--limit $(INFER_LIMIT)) \
 		--config-formats $(CONFIG_FORMATS) \
@@ -1348,6 +1409,7 @@ $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock)
 		--organism $(ORGANISM) \
 		$(dorothea_levels_arg) \
 		--max-clause $(MAX_CLAUSE) \
+		--canonic $(CANONIC_INFER) \
 		--jobs $(JOBS) \
 		$(if $(strip $(INFER_LIMIT)),--limit $(INFER_LIMIT)) \
 		--config-formats $(CONFIG_FORMATS) \

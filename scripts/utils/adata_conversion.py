@@ -17,28 +17,28 @@ import scanpy as sc
 import bonesistools as bt
 
 parser = argparse.ArgumentParser(
-    prog="Convert single-omics counting file format",
+    prog="adata_conversion",
     description="""Convert single-omics counting data into the desired format.
     In case of 10x sparse matrix format, it is a directory containing three files:
-    - matrix.mtx.gz (sparse matrix in the Market Exchange MEX format) -- also named coordinate list format, which corresponds to compressed reordered sparse counting data)
+    - matrix.mtx.gz (sparse matrix in the Market Exchange MEX format, also named coordinate list format)
     - barcodes.tsv.gz (information about each cell)
     - features.tsv.gz (information about each gene)""",
-    usage="python adata_conversion.py [-h] <PATH|FILE> <PATH|FILE> --from <h5ad|loom|10x> --to <h5ad|loom|csvs> [--metadata <KEY=VALUE ...> <args>]",
+    usage="python adata_conversion.py [-h] <PATH | FILE> <PATH | FILE> --from <h5ad | loom | 10x> --to <h5ad | loom | csv | csvs> [--metadata <KEY=VALUE ...>] [<args>]",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
     "input",
     type=lambda x: Path(x).resolve(),
-    metavar="PATH|FILE",
-    help="input data directory or file",
+    metavar="PATH | FILE",
+    help="input data directory or file, depending on --from",
 )
 
 parser.add_argument(
     "output",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output data directory or file",
+    help="output data directory or file, depending on --to",
 )
 
 parser.add_argument(
@@ -58,7 +58,7 @@ parser.add_argument(
     choices=["h5ad", "loom", "csv", "csvs"],
     metavar="[h5ad | loom | csv | csvs]",
     required=True,
-    help="matrix data input format",
+    help="matrix data output format",
 )
 
 parser.add_argument(
@@ -68,7 +68,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer saved if `--to=csv` (if not specified, save adata.X)",
+    help="layer saved when --to csv (if not specified, save adata.X)",
 )
 
 parser.add_argument(

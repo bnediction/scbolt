@@ -9,9 +9,10 @@ import argparse, cli
 import pandas as pd
 
 parser = argparse.ArgumentParser(
-    prog="Row-wise concatenation",
-    description="""csv file concatenation based on rows""",
-    usage="python csv_concatenation.py [-h] <FILE ...> [--suffixes <LITERAL ...>]",
+    prog="csv_concatenation",
+    description="""Concatenate CSV files by rows or columns.""",
+    usage="python csv_concatenation.py [-h] <FILE ...> [-o <FILE>] [--axis <row | column>] [--suffixes <LITERAL ...>] [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -20,7 +21,7 @@ parser.add_argument(
     action=cli.Required_length,
     min=2,
     metavar="FILE",
-    help="input csv files",
+    help="input files storing tabular data (format: csv)",
 )
 
 parser.add_argument(
@@ -31,7 +32,7 @@ parser.add_argument(
     required=False,
     default="results.csv",
     metavar="FILE",
-    help="output csv file (default: results.csv)",
+    help="output CSV file (default: results.csv)",
 )
 
 parser.add_argument(
@@ -54,7 +55,7 @@ parser.add_argument(
     min=2,
     metavar="LITERAL",
     default=None,
-    help="add suffixes to each labels (row or column, depending on --axis, ordered with csv files)",
+    help="suffixes added to row or column labels, ordered with input CSV files",
 )
 
 parser.add_argument(
@@ -64,7 +65,7 @@ parser.add_argument(
     required=False,
     default=",",
     metavar="CHAR",
-    help="field delimiter for csv infiles (default: `,`)",
+    help="field delimiter for input CSV files (default: ',')",
 )
 
 parser.add_argument(

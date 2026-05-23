@@ -23,11 +23,13 @@ bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
     prog="stream",
-    description="""
-    Learn elastic principal graph, estimate pseudotime and compute macrostates using STREAM framework. \
-    See Chen et al. (2019) <https://www.nature.com/articles/s41467-019-09670-4>.
-    """,
+    description=(
+        "Learn elastic principal graph, estimate pseudotime and compute macrostates "
+        "using the STREAM framework.\n"
+        "See Chen et al. (2019) <https://www.nature.com/articles/s41467-019-09670-4>."
+    ),
     usage="python stream_macrostates.py <FILE> <FILE> --obs <LITERAL> [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
 parser.add_argument(
@@ -139,7 +141,7 @@ parser.add_argument(
     dest="extend_epg",
     required=False,
     action="store_true",
-    help="extend leaves of elastic principal graph by attaching them new nodes",
+    help="extend leaves of the elastic principal graph by attaching new nodes",
 )
 
 parser.add_argument(
@@ -150,7 +152,7 @@ parser.add_argument(
     choices=["QuantDists", "QuantCentroid", "WeigthedCentroid"],
     default="QuantDists",
     metavar="[QuantDists | QuantCentroid | WeigthedCentroid]",
-    help="mode used for extending the leaves (used only if --extend-epg, default: QuantDists)",
+    help="mode used to extend leaves (used only if --extend-epg, default: QuantDists)",
 )
 
 parser.add_argument(
@@ -162,7 +164,7 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.5,
-    help="stream parameter used for extending the leaves (used only if --extend-epg, default: 0.5)",
+    help="STREAM parameter used to extend leaves (used only if --extend-epg, default: 0.5)",
 )
 
 parser.add_argument(
@@ -187,7 +189,7 @@ parser.add_argument(
     ],
     default="PointNumber",
     metavar="[PointNumber | PointNumber_Extrema | PointNumber_Leaves | EdgesNumber | EdgesLength]",
-    help="mode used for prunning the graph (used only if --prune-graph, default: PointNumber)",
+    help="mode used to prune the graph (used only if --prune-epg, default: PointNumber)",
 )
 
 parser.add_argument(
@@ -197,7 +199,7 @@ parser.add_argument(
     required=False,
     default=5,
     metavar="FLOAT",
-    help="stream parameter used for prunning the graph (used only if --prune-graph, default: 5)",
+    help="STREAM parameter used to prune the graph (used only if --prune-epg, default: 5)",
 )
 
 parser.add_argument(
@@ -207,7 +209,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="INT",
-    help="If the number of cells in a macrostate is lower than the threshold, extend macrostate to neighborhood nodes in elastic principal graph (default: None)",
+    help="minimum number of cells per macrostate; smaller macrostates are extended to neighboring elastic principal graph nodes (default: None)",
 )
 
 parser.add_argument(
@@ -217,7 +219,7 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="number of allocated processors",
+    help="number of allocated processors (default: 1)",
 )
 
 args = parser.parse_args()

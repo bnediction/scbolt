@@ -88,14 +88,14 @@ arguments <- list(
               type="character",
               default=NULL,
               metavar="FILE",
-              help="output file storing cotan object (format: RDS, required)"
+              help="output file storing COTAN object (format: RDS, required)"
               ),
   make_option("--csv",
               dest="csv",
               type="character",
               default=NULL,
               metavar="FILE",
-              help="output file storing cotan macrostates (format: csv)"
+              help="output file storing COTAN macrostates (format: csv)"
   ),
   make_option("--sep",
               dest="sep",
@@ -103,7 +103,7 @@ arguments <- list(
               action="store",
               default="\t",
               metavar="CHAR",
-              help="field delimiter for csv infile (default: `\\t`)"
+              help="field delimiter for input CSV file (default: `\\t`)"
               ),
   make_option("--name",
               dest="name",
@@ -117,7 +117,7 @@ arguments <- list(
               dest="drop_mithocondrial",
               action="store_true",
               default=FALSE,
-              help="drop mithocondrial genes (default: false)"
+              help="drop mitochondrial genes (default: false)"
   ),
   make_option("--min-expression",
               dest="min_expression",
@@ -157,7 +157,7 @@ arguments <- list(
               action="store",
               default=NULL,
               metavar="[0-1]",
-              help="maximum proportion of expressed genes encoding mithocondrion proteins required for a cell to pass filtering, potentially being dead (default: none)"
+              help="maximum proportion of mitochondrial gene expression required for a cell to pass filtering, potentially being dead (default: none)"
   ),
   make_option("--cotan-filtering",
               dest="cotan_filtering",
@@ -186,7 +186,7 @@ arguments <- list(
               type="character",
               action="store",
               default="classic",
-              metavar="[classic|soft-merging|strong-merging]",
+              metavar="[classic | soft-merging | strong-merging]",
               help="method for computing cotan clusters: soft-merging and strong-merging merge uniform clusters (default: classic)"
   ),
   make_option("--jobs",
