@@ -604,7 +604,9 @@ elif args.integration == "scanorama":
         )
 
 pc_plot = Path(f"{os.path.dirname(args.outfile)}/pc_condition.pdf")
-std.print_info(f"plotting embeddings in {os.path.relpath(os.path.dirname(args.outfile))}")
+std.print_info(
+    f"plotting embeddings in {os.path.relpath(os.path.dirname(args.outfile))}"
+)
 bt.sct.pl.embedding_plot(
     adata,
     obs="condition",

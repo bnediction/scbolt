@@ -46,7 +46,9 @@ args = parser.parse_args()
 if args.outfile.parent:
     os.makedirs(args.outfile.parent, exist_ok=True)
 
-std.print_task(f"loading DoRothEA with decoupler.get_dorothea (organism: {args.organism})")
+std.print_task(
+    f"loading DoRothEA with decoupler.get_dorothea (organism: {args.organism})"
+)
 
 try:
     import decoupler as dc
@@ -69,7 +71,9 @@ sign_column = get_sign_column(dorothea)
 dorothea = dorothea[["source", "target", sign_column]].rename(
     columns={sign_column: "sign"}
 )
-dorothea["sign"] = pd.to_numeric(dorothea["sign"]).map(lambda sign: -1 if sign < 0 else 1)
+dorothea["sign"] = pd.to_numeric(dorothea["sign"]).map(
+    lambda sign: -1 if sign < 0 else 1
+)
 dorothea = dorothea.drop_duplicates().sort_values(["source", "target", "sign"])
 
 std.print_result(f"interactions: {len(dorothea)}")

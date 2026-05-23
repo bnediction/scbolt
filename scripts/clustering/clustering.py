@@ -267,7 +267,9 @@ elif args.embedding == "tsne":
     )
 
 embedding_plot = Path(f"{os.path.dirname(args.outfile)}/{args.embedding}_leiden.pdf")
-std.print_info(f"plotting embeddings in {os.path.relpath(os.path.dirname(args.outfile))}")
+std.print_info(
+    f"plotting embeddings in {os.path.relpath(os.path.dirname(args.outfile))}"
+)
 bt.sct.pl.embedding_plot(
     adata,
     obs="leiden",

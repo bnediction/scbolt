@@ -11,14 +11,14 @@ from pathlib import Path
 import anndata as ad
 import bonesistools as bt
 
+
 def make_composite_obs_index(adata, keys, sep="|"):
     adata.obs["_previous_index"] = adata.obs.index.astype(str)
 
     adata.obs.index = (
-        adata.obs[["_previous_index", *keys]]
-        .astype(str)
-        .agg(sep.join, axis=1)
+        adata.obs[["_previous_index", *keys]].astype(str).agg(sep.join, axis=1)
     )
+
 
 parser = argparse.ArgumentParser(
     prog="transfer_info",

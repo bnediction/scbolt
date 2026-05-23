@@ -608,11 +608,11 @@ target_params_bin-dea = DEA_HVG_METHOD DEA_TOP_HVG BIN_LOGFC BIN_CORRECTION BIN_
 target_params_bin-consensus = NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD DEA_HVG_METHOD DEA_TOP_HVG BIN_LOGFC BIN_CORRECTION BIN_ALPHA
 target_params_binarization = BIN_METHOD BINARIZATION_FILE
 target_params_spec = YAML_MODEL MODEL_HVG_METHOD MODEL_TOP_HVG $(prior_knowledge_params)
-target_params_max-nodes-soft = $(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT JOBS_SOFT TIMEOUT_SOFT
-target_params_max-consts-soft = $(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER MIN_SELF_LOOP_CONSTS CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS JOBS_CONSTS TIMEOUT_CONSTS
-target_params_max-nodes-relaxed = $(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED JOBS_RELAXED TIMEOUT_RELAXED
-target_params_max-nodes-seed = $(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED JOBS_SEED TIMEOUT_SEED
-target_params_max-nodes-lock = $(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK JOBS_LOCK TIMEOUT_LOCK
+target_params_max-nodes-soft = $(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER CLINGO_CONFIG_SOFT CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT JOBS_SOFT TIMEOUT_SOFT
+target_params_max-consts-soft = $(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER MIN_SELF_LOOP_CONSTS CLINGO_CONFIG_CONSTS CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS JOBS_CONSTS TIMEOUT_CONSTS
+target_params_max-nodes-relaxed = $(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER CLINGO_CONFIG_RELAXED CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED JOBS_RELAXED TIMEOUT_RELAXED
+target_params_max-nodes-seed = $(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER CLINGO_CONFIG_SEED CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED JOBS_SEED TIMEOUT_SEED
+target_params_max-nodes-lock = $(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER CLINGO_CONFIG_LOCK CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK JOBS_LOCK TIMEOUT_LOCK
 target_params_bn-min = $(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER MIN_SELF_LOOP_INFER CLINGO_OPT_MODE_MIN GRAPH_FORMATS
 target_params_bn-submin = $(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 target_params_bn-diverse = $(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
@@ -1294,6 +1294,7 @@ $(max_nodes_soft): $(bonesis_model)
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --asp $(@D)/nodes.sh --solution $@ \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --bonesis-mode soft --max-clause $(MAX_CLAUSE) \
 		--canonic $(CANONIC_FILTER) \
+		$(if $(strip $(CLINGO_CONFIG_SOFT)),--clingo-configuration $(CLINGO_CONFIG_SOFT)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SOFT) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SOFT) --jobs $(JOBS_SOFT); \
 	exit_status=$$?; \
 	set -e; \
@@ -1307,6 +1308,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 		$(word 1,$^) $(word 2,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --bonesis-mode soft --max-clause $(MAX_CLAUSE) $(min_self_loop_consts) \
 		--canonic $(CANONIC_FILTER) \
+		$(if $(strip $(CLINGO_CONFIG_CONSTS)),--clingo-configuration $(CLINGO_CONFIG_CONSTS)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_CONSTS) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_CONSTS) --jobs $(JOBS_CONSTS); \
 	exit_status=$$?; \
 	set -e; \
@@ -1320,6 +1322,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --bonesis-mode relaxed --max-clause $(MAX_CLAUSE) \
 		--canonic $(CANONIC_FILTER) \
+		$(if $(strip $(CLINGO_CONFIG_RELAXED)),--clingo-configuration $(CLINGO_CONFIG_RELAXED)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_RELAXED) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_RELAXED) --jobs $(JOBS_RELAXED); \
 	exit_status=$$?; \
 	set -e; \
@@ -1334,6 +1337,7 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --bonesis-mode hard --max-clause $(MAX_CLAUSE) \
 		--canonic $(CANONIC_FILTER) \
+		$(if $(strip $(CLINGO_CONFIG_SEED)),--clingo-configuration $(CLINGO_CONFIG_SEED)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SEED) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SEED) --jobs $(JOBS_SEED); \
 	exit_status=$$?; \
 	set -e; \
@@ -1353,6 +1357,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 			$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(@D)/mandatory.txt --filter-grn $(word 5,$^) --asp $(@D)/nodes.sh --solution $@ \
 			--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --bonesis-mode hard --max-clause $(MAX_CLAUSE) \
 			--canonic $(CANONIC_FILTER) \
+			$(if $(strip $(CLINGO_CONFIG_LOCK)),--clingo-configuration $(CLINGO_CONFIG_LOCK)) \
 			--clingo-opt-mode $(CLINGO_OPT_MODE_LOCK) --clingo-opt-strategy $(CLINGO_OPT_STRATEGY_LOCK) --jobs $(JOBS_LOCK); \
 		exit_status=$$?; \
 		set -e; \

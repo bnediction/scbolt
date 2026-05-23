@@ -15,6 +15,7 @@ import pandas as pd
 
 import bonesis
 from bonesis.asp_encoding import clingo_encode
+from mpbn import MPBooleanNetwork
 
 import bonesistools as bt
 
@@ -31,10 +32,10 @@ class ptqdm(tqdm):
 
         kwargs.setdefault("leave", True)
 
-        self._scbolt_tqdm_file = None
+        self._tqdm_file = None
         if TQDM_TO_TTY:
-            self._scbolt_tqdm_file = open("/dev/tty", "w")
-            kwargs.setdefault("file", self._scbolt_tqdm_file)
+            self._tqdm_file = open("/dev/tty", "w")
+            kwargs.setdefault("file", self._tqdm_file)
         else:
             kwargs.setdefault("file", sys.stdout)
 
@@ -43,9 +44,9 @@ class ptqdm(tqdm):
 
     def close(self):
         super().close()
-        if self._scbolt_tqdm_file is not None:
-            self._scbolt_tqdm_file.close()
-            self._scbolt_tqdm_file = None
+        if self._tqdm_file is not None:
+            self._tqdm_file.close()
+            self._tqdm_file = None
 
 
 def get_configuration_predicates(bo) -> dict:
@@ -93,12 +94,44 @@ def print_node_reference(nodes_in_data, nodes_in_domain, domain_edges, **kwargs)
     )
 
 
-def print_clingo_optimization(mode, strategy, max_clause, canonic, **kwargs):
-    std.print_info(
-        f"optimization options: clingo mode={mode}, "
-        f"clingo strategy={strategy}, max clauses={max_clause}, canonic={canonic}",
-        **kwargs,
+def print_clingo_optimization(
+    mode, strategy, max_clause, canonic, configuration=None, **kwargs
+):
+    options = []
+    if configuration is not None:
+        options.append(f"clingo config={configuration}")
+    options.extend(
+        [
+            f"clingo mode={mode}",
+            f"clingo strategy={strategy if mode != 'ignore' else 'unused'}",
+            f"max clauses={max_clause}",
+            f"canonic={canonic}",
+        ]
     )
+    std.print_info(f"optimization options: {', '.join(options)}", **kwargs)
+
+
+def get_clingo_options(configuration=None, *extra_options):
+    options = []
+    if configuration:
+        options.append(f"--configuration={configuration}")
+    options.extend(extra_options)
+    return options
+
+
+def get_filter_clingo_options(mode, strategy, configuration=None, *extra_options):
+    options = get_clingo_options(configuration)
+    if mode == "opt":
+        options.extend(["--opt-mode=opt", f"--opt-strategy={strategy}"])
+    elif mode == "ignore":
+        options.append("--opt-mode=ignore")
+    options.extend(extra_options)
+    return options
+
+
+def get_filter_clingo_settings(mode, strategy, configuration=None, *extra_options):
+    options = get_filter_clingo_options(mode, strategy, configuration, *extra_options)
+    return {"clingo_options": options} if options else {}
 
 
 def format_node_coverage(name, kept, total):
@@ -110,8 +143,16 @@ def format_node_coverage(name, kept, total):
 def print_node_solution(solution, nodes_in_data, nodes_in_domain, **kwargs):
     solution = set(solution)
     std.print_result(f"solution: nodes={len(solution)}", **kwargs)
-    std.print_result(format_node_coverage("data", len(nodes_in_data & solution), len(nodes_in_data)), **kwargs)
-    std.print_result(format_node_coverage("domain", len(nodes_in_domain & solution), len(nodes_in_domain)), **kwargs)
+    std.print_result(
+        format_node_coverage("data", len(nodes_in_data & solution), len(nodes_in_data)),
+        **kwargs,
+    )
+    std.print_result(
+        format_node_coverage(
+            "domain", len(nodes_in_domain & solution), len(nodes_in_domain)
+        ),
+        **kwargs,
+    )
 
 
 def close_progress(view, leave=None):
@@ -125,11 +166,49 @@ def close_progress(view, leave=None):
 def next_solution(view):
     try:
         solution = next(iter(view))
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, RuntimeError):
         close_progress(view)
         raise
     close_progress(view)
     return solution
+
+
+# Workaround for bonesis.NodesView in mode="opt":
+# clingo may find and write the optimal intermediate model, but the final
+# model parsing can fail with RuntimeError/double free. This view returns
+# the last intermediate model directly instead of reparsing the final one.
+class SafeNodesView(bonesis.NodesView):
+    def __next__(self):
+        if self.mode != "opt" or not self.callback_intermediate_model:
+            return super().__next__()
+
+        if self.limit and self._counter >= self.limit:
+            if hasattr(self, "_solve_handler"):
+                self._solve_handler.cancel()
+            raise StopIteration
+
+        self.cur_model = next(self._iterator)
+        self._progress_tick()
+        pmodel = self.parse_model(self.cur_model)
+        self.callback_intermediate_model(pmodel)
+
+        try:
+            while True:
+                self.cur_model = next(self._iterator)
+                self._progress_tick()
+                pmodel = self.parse_model(self.cur_model)
+                self.callback_intermediate_model(pmodel)
+        except StopIteration:
+            if self.progress:
+                self._progressbar.close()
+
+        for func in self.filters:
+            if not func(pmodel):
+                print(f"Skipping solution not verifying {func.__name__}")
+                return next(self)
+
+        self._counter += 1
+        return pmodel
 
 
 def load_prior_network(domain, organism, genesyn, dorothea_levels=None):
@@ -156,7 +235,7 @@ def load_prior_network(domain, organism, genesyn, dorothea_levels=None):
     )
 
 
-def write_noi(bn, outfile):
+def write_noi(bn: MPBooleanNetwork, outfile):
     """
     Write non-constant Boolean network components to a text file.
 
@@ -176,8 +255,13 @@ def write_noi(bn, outfile):
         fp.write("".join(f"{node}\n" for node in noi_set))
 
 
+def to_bonesistools_boolean_network(bn: MPBooleanNetwork) -> bt.bpy.bn.BooleanNetwork:
+    """Adapt MPBN only for bonesistools graph export APIs."""
+    return bt.bpy.bn.BooleanNetwork(bn.copy())
+
+
 def write_influence_graph(
-    bn,
+    bn: MPBooleanNetwork,
     outdir,
     programs=("dot",),
     remove_isolated_nodes=False,
@@ -198,14 +282,14 @@ def write_influence_graph(
         Whether to remove constant components before graph generation.
     """
 
-    bn = bt.bpy.bn.BooleanNetwork(bn.copy())
+    graph_bn = to_bonesistools_boolean_network(bn)
 
     if remove_isolated_nodes:
-        for node in list(bn):
-            if bn[node] in [bn.ba.FALSE, bn.ba.TRUE]:
-                del bn[node]
+        for node in list(graph_bn):
+            if graph_bn[node] in [graph_bn.ba.FALSE, graph_bn.ba.TRUE]:
+                del graph_bn[node]
 
-    graph = bn.to_pydot()
+    graph = graph_bn.to_pydot()
 
     for program in programs:
         graph.write(
@@ -288,7 +372,7 @@ def write_configurations(cfgs, outfile):
 
 
 def write_solution(
-    bn,
+    bn: MPBooleanNetwork,
     configurations: Mapping,
     outdir,
     config_formats: Sequence[str] = ("cfg",),
@@ -343,9 +427,32 @@ def write_solution(
     return None
 
 
+def write_ensemble_influence_graph(
+    bns: Sequence[MPBooleanNetwork],
+    components: Iterable[str],
+    outfile: str | Path,
+) -> None:
+    ensemble = bt.bpy.bn.BooleanNetworkEnsemble(components=components)
+    for bn in bns:
+        ensemble.append(to_bonesistools_boolean_network(bn))
+
+    dot = ensemble.to_pydot(
+        remove_isolated_nodes=True,
+        show_edge_labels=False,
+        node_style="stability",
+    )
+
+    dot.write(
+        outfile,
+        prog="dot",
+        format="pdf",
+    )
+
+    return None
+
+
 def run_bn_view(
     view: Any,
-    components: Iterable[str],
     outdir: str | Path,
     config_formats: Sequence[str],
     graph_formats: Sequence[str],
@@ -353,7 +460,7 @@ def run_bn_view(
     trapspace_configurations: Optional[Sequence[Any]] = None,
     rename_cfgs: Optional[Mapping[Any, Any]] = None,
     remove_isolated_nodes: bool = False,
-) -> bt.bpy.bn.BooleanNetworkEnsemble:
+) -> list[MPBooleanNetwork]:
     """
     Enumerate, post-process and export Boolean network solutions produced by a
     BoNesis view.
@@ -361,16 +468,14 @@ def run_bn_view(
     The function supports BoNesis views returning either Boolean networks
     directly or influence graphs with associated Boolean networks. For each
     solution, it restores original gene names when needed, appends the Boolean
-    network to an ensemble, converts trapspace-associated configurations into
-    principal trap spaces, simplifies tuple-based configuration names, and writes
-    the solution to a numbered output directory.
+    network to the returned list, converts trapspace-associated configurations
+    into principal trap spaces, simplifies tuple-based configuration names, and
+    writes the solution to a numbered output directory.
 
     Parameters
     ----------
     view:
         BoNesis view enumerating Boolean network solutions.
-    components:
-        Components used to initialize the Boolean network ensemble.
     outdir:
         Root output directory where numbered solution folders are written.
     config_formats:
@@ -389,8 +494,8 @@ def run_bn_view(
 
     Returns
     -------
-    bt.bpy.bn.BooleanNetworkEnsemble
-        Ensemble containing the exported Boolean network solutions.
+    list[MPBooleanNetwork]
+        Exported Boolean network solutions.
 
     Raises
     ------
@@ -403,7 +508,7 @@ def run_bn_view(
     trapspace_configurations = trapspace_configurations or []
     rename_cfgs = rename_cfgs or {}
 
-    ensemble = bt.bpy.bn.BooleanNetworkEnsemble(components=components)
+    bns = []
 
     try:
         for i, solution in enumerate(view):
@@ -420,7 +525,7 @@ def run_bn_view(
             for old, new in normalized_to_original_gene_names.items():
                 bn.rename(old, new)
 
-            ensemble.append(bn)
+            bns.append(bn)
 
             for cfg_name in trapspace_configurations:
                 cfg_state = configs[cfg_name]
@@ -444,7 +549,7 @@ def run_bn_view(
     else:
         close_progress(view)
 
-    return ensemble
+    return bns
 
 
 parser_description = """Infer Most Permissive Boolean Networks (MPBNs) using the BoNesis paradigm.
@@ -607,6 +712,16 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--clingo-configuration",
+    dest="clingo_configuration",
+    type=str,
+    required=False,
+    default=None,
+    metavar="[auto | frumpy | jumpy | tweety | handy | crafty | trendy | many | FILE]",
+    help="clingo default configuration passed as --configuration for filter-nodes/filter-consts; if not specified, BoNesis/Clingo defaults are used",
+)
+
+parser.add_argument(
     "--clingo-opt-mode",
     dest="clingo_opt_mode",
     action=cli.Clingo_opt_mode,
@@ -673,6 +788,11 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+
+if args.action.startswith("filter") and args.clingo_opt_mode.startswith("enum,"):
+    parser.error(
+        "--clingo-opt-mode enum,<n> is not supported for filter-nodes/filter-consts"
+    )
 
 if args.bonesis_mode != "hard":
     std.print_warning(
@@ -780,12 +900,17 @@ if args.action == "filter-nodes":
                 file.write(f"{node}\n")
 
     clingo_opt_strategy = args.clingo_opt_strategy or "bb,dec"
-    view = bonesis.NodesView(
+    view = SafeNodesView(
         bo,
         mode=args.clingo_opt_mode,
         intermediate_model_cb=intermediate_solution,
         clingo_opt_strategy=clingo_opt_strategy,
         progress=ptqdm,
+        **get_filter_clingo_settings(
+            args.clingo_opt_mode,
+            clingo_opt_strategy,
+            args.clingo_configuration,
+        ),
     )
     view.standalone(output_filename=args.asp)
     nodes_in_data, nodes_in_domain, domain_edges = get_node_sets(bo)
@@ -799,10 +924,28 @@ if args.action == "filter-nodes":
 
     print_node_reference(nodes_in_data, nodes_in_domain, domain_edges, flush=True)
     print_clingo_optimization(
-        args.clingo_opt_mode, clingo_opt_strategy, args.max_clause, canonic, flush=True
+        args.clingo_opt_mode,
+        clingo_opt_strategy,
+        args.max_clause,
+        canonic,
+        configuration=args.clingo_configuration or "auto",
+        flush=True,
     )
     std.print_warning("this may take some time.", flush=True)
-    solution = next_solution(view)
+    try:
+        solution = next_solution(view)
+    except RuntimeError:
+        if not args.solution.exists() or args.solution.stat().st_size == 0:
+            raise
+        with open(args.solution) as file:
+            solution = [line.rstrip() for line in file if line.rstrip()]
+        if not solution:
+            raise
+        std.print_debug(
+            "final model parsing failed; using the last intermediate solution. "
+            "This may be a partial/non-certified optimum.",
+            flush=True,
+        )
 
     with open(args.solution, "w") as file:
         for node in solution:
@@ -825,14 +968,25 @@ elif args.action == "filter-consts":
         bo,
         mode=args.clingo_opt_mode,
         clingo_opt_strategy=clingo_opt_strategy,
-        clingo_options=["--opt-usc-shrink=inv"],
         progress=ptqdm,
+        **get_filter_clingo_settings(
+            args.clingo_opt_mode,
+            clingo_opt_strategy,
+            args.clingo_configuration,
+            "--opt-usc-shrink=inv",
+        ),
     )
     view.standalone(output_filename=args.asp)
 
     nodes_in_data, nodes_in_domain, domain_edges = get_node_sets(bo)
     print_node_reference(nodes_in_data, nodes_in_domain, domain_edges)
-    print_clingo_optimization(args.clingo_opt_mode, clingo_opt_strategy, args.max_clause, canonic)
+    print_clingo_optimization(
+        args.clingo_opt_mode,
+        clingo_opt_strategy,
+        args.max_clause,
+        canonic,
+        configuration=args.clingo_configuration or "auto",
+    )
     std.print_warning("this may take some time.")
     solution = next_solution(view)
 
@@ -903,7 +1057,9 @@ else:
         view.standalone(output_filename=args.asp)
 
         print_node_reference(*get_node_sets(bo))
-        print_clingo_optimization(args.clingo_opt_mode, clingo_opt_strategy, args.max_clause, canonic)
+        print_clingo_optimization(
+            args.clingo_opt_mode, clingo_opt_strategy, args.max_clause, canonic
+        )
         std.print_warning("this may take some time.")
         solution = next_solution(view)
 
@@ -954,7 +1110,6 @@ else:
 
         bns = run_bn_view(
             view=view,
-            components=bo.domain.nodes,
             outdir=args.solution,
             config_formats=args.config_formats,
             graph_formats=args.graph_formats,
@@ -984,7 +1139,6 @@ else:
 
         bns = run_bn_view(
             view=view,
-            components=bo.domain.nodes,
             outdir=args.solution,
             config_formats=args.config_formats,
             graph_formats=args.graph_formats,
@@ -995,15 +1149,8 @@ else:
         )
 
     if args.action in ["submin", "diverse"]:
-
-        dot = bns.to_pydot(
-            remove_isolated_nodes=True,
-            show_edge_labels=False,
-            node_style="stability",
-        )
-
-        dot.write(
-            Path(args.solution) / "ensemble.pdf",
-            prog="dot",
-            format="pdf",
+        write_ensemble_influence_graph(
+            bns=bns,
+            components=bo.domain.nodes,
+            outfile=Path(args.solution) / "ensemble.pdf",
         )

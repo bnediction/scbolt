@@ -28,9 +28,9 @@ MACROSTATE_METHOD = knnbs
 ZEROES_ARE_ZEROES = false
 
 PRIOR_KNOWLEDGE = dorothea
-DOROTHEA_API = current
+DOROTHEA_API = legacy
 DOROTHEA_LEVELS = A
-# MODEL_HVG_METHOD = cell_ranger
+MODEL_HVG_METHOD = cell_ranger
 YAML_MODEL = user/apl/spec.yml
 
 ## USER-DEFINED PARAMETERS ##

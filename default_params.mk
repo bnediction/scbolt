@@ -181,9 +181,10 @@ $(eval MODEL_TOP_HVG ?=)                    # top HVGs for model genes
 # DOROTHEA_API values: current, legacy. Used only when PRIOR_KNOWLEDGE=dorothea.
 # DOROTHEA_LEVELS values: A, B, C, D. Used only with current DoRothEA API.
 # current loads DoRothEA in scbolt-bonesis; legacy first exports a CSV file.
-# Clingo opt modes: opt, optN, ignore, enum,<n>.
+# Clingo filter configs: auto, frumpy, jumpy, tweety, handy, crafty, trendy, many, or file path.
+# Clingo filter opt modes: opt, optN, ignore.
 # Clingo opt strategies: bb[,<method>] or usc[,<method>].
-# Diagnostic opt modes: ignore tests satisfiability, enum,1 tests first-solution latency, optN tracks progressive improvements.
+# Diagnostic opt modes: ignore tests satisfiability, optN tracks progressive improvements.
 # Diagnostic opt strategy: bb,dec tests whether usc is blocking.
 # CANONIC_FILTER controls filter-nodes/filter-consts; CANONIC_INFER controls min/submin/diverse.
 # TIMEOUT_* values are passed to GNU timeout; empty means no timeout.
@@ -195,6 +196,7 @@ $(eval CANONIC_FILTER ?= false)             # canonical logical function represe
 $(eval CANONIC_INFER ?= true)               # canonical logical function representation during BN inference
 
 ## MAX-NODES-SOFT ##
+$(eval CLINGO_CONFIG_SOFT ?=)               # Clingo default configuration
 $(eval CLINGO_OPT_MODE_SOFT ?= optN)        # Clingo optimization mode
 $(eval CLINGO_OPT_STRATEGY_SOFT ?= usc)     # Clingo optimization strategy
 $(eval JOBS_SOFT ?= 1)                      # solver jobs
@@ -202,12 +204,14 @@ $(eval TIMEOUT_SOFT ?=)                     # timeout
 
 ## MAX-CONSTS-SOFT ##
 $(eval MIN_SELF_LOOP_CONSTS ?= true)        # minimize one-node feedbacks
+$(eval CLINGO_CONFIG_CONSTS ?=)             # Clingo default configuration
 $(eval CLINGO_OPT_MODE_CONSTS ?= optN)      # Clingo optimization mode
 $(eval CLINGO_OPT_STRATEGY_CONSTS ?= usc)   # Clingo optimization strategy
 $(eval JOBS_CONSTS ?= 1)                    # solver jobs
 $(eval TIMEOUT_CONSTS ?= 24h)               # timeout
 
 ## MAX-NODES-RELAXED ##
+$(eval CLINGO_CONFIG_RELAXED ?=)            # Clingo default configuration
 $(eval CLINGO_OPT_MODE_RELAXED ?= optN)     # Clingo optimization mode
 $(eval CLINGO_OPT_STRATEGY_RELAXED ?= usc)  # Clingo optimization strategy
 $(eval JOBS_RELAXED ?= 1)                   # solver jobs
@@ -215,12 +219,14 @@ $(eval TIMEOUT_RELAXED ?= 48h)              # timeout
 
 ## MAX-NODES-SEED ##
 # TIMEOUT_SEED is required when max-nodes-seed is reached.
+$(eval CLINGO_CONFIG_SEED ?=)               # Clingo default configuration
 $(eval CLINGO_OPT_MODE_SEED ?= opt)         # Clingo optimization mode
 $(eval CLINGO_OPT_STRATEGY_SEED ?= usc)     # Clingo optimization strategy
 $(eval JOBS_SEED ?= 1)                      # solver jobs
 $(eval TIMEOUT_SEED ?= 24h)                 # timeout
 
 ## MAX-NODES-LOCK ##
+$(eval CLINGO_CONFIG_LOCK ?=)               # Clingo default configuration
 $(eval CLINGO_OPT_MODE_LOCK ?= opt)         # Clingo optimization mode
 $(eval CLINGO_OPT_STRATEGY_LOCK ?= usc)     # Clingo optimization strategy
 $(eval JOBS_LOCK ?= 1)                      # solver jobs
@@ -237,4 +243,5 @@ $(eval MIN_SELF_LOOP_INFER ?= true)         # minimize one-node feedbacks at inf
 $(eval CLINGO_OPT_MODE_MIN ?= optN)         # Clingo optimization mode
 
 ## BONESIS-DIVERSE / BONESIS-SUBMIN ##
-$(eval INFER_LIMIT ?=)                      # number of diverse sparsest or subset-minimal BN solutions; if empty, enumerate all available solutions according to the selected inference target
+$(eval INFER_LIMIT ?=)                      # number of diverse sparsest or subset-minimal BN solutions
+                                            # if empty, enumerate all available solutions according to the selected inference target

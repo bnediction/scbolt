@@ -181,7 +181,9 @@ if args.use_rep:
         if args.use_rep.startswith("X_")
         else args.use_rep.lower()
     )
-    std.print_task(f"plotting binarization summaries in {os.path.relpath(os.path.dirname(args.outfile))}")
+    std.print_task(
+        f"plotting binarization summaries in {os.path.relpath(os.path.dirname(args.outfile))}"
+    )
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
     adata.obs[f"pct_bin_{args.cluster}"] = adata.obs[args.cluster].map(pct_bin)
     bt.sct.pl.embedding_plot(
