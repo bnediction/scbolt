@@ -15,11 +15,13 @@ class Range(argparse.Action):
     
     def __init__(
         self,
-        min: Union[float, int] = -math.inf,
-        max: Union[float, int] = math.inf,
+        min: Union[float, int, None] = None,
+        max: Union[float, int, None] = None,
         *args,
         **kwargs
     ):
+        min = -math.inf if min is None else min
+        max = math.inf if max is None else max
 
         if min > max:
             raise argparse.ArgumentError(
