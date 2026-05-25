@@ -96,23 +96,23 @@ for name, file in zip(args.labels, args.specifics):
 if args.obs_label not in integrated_ad.obs.columns:
     raise KeyError(f"column '{args.obs_label}' not found in integrated_ad.obs")
 
+if args.obs is None:
+    args.obs = list(integrated_ad.obs.columns)
+    args.obs.remove(args.obs_label)
+
 for column in args.obs:
     for name, adata in specific_ad.items():
         if column not in adata.obs:
             raise KeyError(f"column `{column}` not found in dataset '{name}'")
 
-if args.obs is None:
-    args.obs = list(integrated_ad.obs.columns)
-    args.obs.remove(args.obs_label)
-
 cols_to_remove = set(args.obs).intersection(set(integrated_ad.obs.columns))
 if cols_to_remove:
     std.print_debug(
-        "removing in dataset 'integrated' the following column(s): {1}".format(
-            name, ", ".join(f"'{cols}'" for cols in cols_to_remove)
+        "removing in dataset 'integrated' the following column(s): {0}".format(
+            ", ".join(f"'{cols}'" for cols in cols_to_remove)
         )
     )
-    integrated_ad.obs = integrated_ad.obs.drop(cols_to_remove, axis=1)
+    integrated_ad.obs = integrated_ad.obs.drop(list(cols_to_remove), axis=1)
 
 std.print_task("transferring information from specific datasets to integrated datasets")
 bt.sct.pp.transfer_obs_sti(

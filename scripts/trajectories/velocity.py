@@ -110,6 +110,14 @@ parser.add_argument(
     help="number of allocated processors (default: 1)",
 )
 
+parser.add_argument(
+    "--plot-3d",
+    dest="plot_3d",
+    required=False,
+    action="store_true",
+    help="plot 3D embeddings when available",
+)
+
 args = parser.parse_args()
 
 outpath = os.path.dirname(args.outfile)

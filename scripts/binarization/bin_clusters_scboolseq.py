@@ -4,14 +4,14 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-from typing import Optional, Union, List
+from typing import Optional, Sequence, Union, cast
 from collections import namedtuple
 
 import os, std
 import argparse, cli
 from pathlib import Path
 
-from pandas import DataFrame, Series, MultiIndex
+from pandas import DataFrame, Index, Series, MultiIndex
 import anndata as ad
 import bonesistools as bt
 
@@ -148,10 +148,10 @@ class Predict(object):
                     f"invalid parameter value for 'category': expected 'Bimodal', 'ZeroInf' or 'Unimodal' but received '{category}'."
                 )
 
-        _iterable = (
+        _iterable = [
             data.index.get_level_values(level).unique()
             for level in range(data.index.nlevels - 1)
-        )
+        ]
         _names = list(data.index.names)[:-1]
         index = MultiIndex.from_product(_iterable, names=_names)
         if index.nlevels == 1:
@@ -173,7 +173,8 @@ class Predict(object):
             cluster_binf = DataFrame(index=index)
             for gene in data:
                 predict_series = self.__call__(
-                    data=data.loc[:, gene], category=category[gene]
+                    data=data.loc[:, gene],
+                    category=cast(str, category[gene]),
                 )
                 cluster_binf = cluster_binf.join(predict_series)
             return cluster_binf
@@ -186,7 +187,7 @@ class Predict(object):
 
 def count_binarized_values(
     obs_df: DataFrame,
-    columns: List,
+    columns: Sequence[str],
     group: str,
     condition: Optional[str] = None,
     dropna: bool = False,
@@ -401,7 +402,7 @@ cell_df = bt.sct.tl.anndata_to_dataframe(adata=adata, obs=metadata, layer=args.l
 std.print_task("counting binarized values for each cell population")
 cluster_counts = count_binarized_values(
     obs_df=cell_df,
-    columns=adata.var.index,
+    columns=list(map(str, adata.var.index)),
     group=args.cluster,
     condition=args.condition if args.condition else None,
     dropna=False,
@@ -417,15 +418,18 @@ if args.exclude:
                 ", ".join(f"'{cluster}'" for cluster in clusters_to_remove)
             )
         )
-        cluster_counts = cluster_counts.drop(clusters_to_remove)
+        cluster_counts = cluster_counts.drop(list(clusters_to_remove))
 
 std.print_task("binarizing cell populations with respect to voting rules")
-cluster_bin = predict(cluster_counts, adata.var[args.distribution])
+cluster_bin = cast(
+    DataFrame,
+    predict(cluster_counts, cast(Series, adata.var[args.distribution])),
+)
 if isinstance(cluster_bin.index, MultiIndex):
-    cluster_bin.index = [
-        "_".join(metadata) for metadata in cluster_bin.index.to_flat_index()
-    ]
-    cluster_bin.index.name = args.cluster
+    cluster_bin.index = Index(
+        ["_".join(metadata) for metadata in cluster_bin.index.to_flat_index()],
+        name=args.cluster,
+    )
 
 if args.use_rep:
     embedding_label = (
@@ -466,7 +470,7 @@ if args.use_rep:
             bt.sct.pl.embedding_plot(
                 adata[adata.obs[args.condition] == condition],
                 obs=f"pct_bin_{args.cluster}",
-                obsm=args.use_rep,
+                use_rep=args.use_rep,
                 xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
                 ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
                 zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),

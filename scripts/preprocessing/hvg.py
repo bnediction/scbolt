@@ -110,7 +110,7 @@ adata = ad.read_h5ad(f"{args.infile}")
 
 if args.hvg is not None:
     if args.hvg > len(adata.var):
-        raise argparse.ArgumentError(
+        raise ValueError(
             f"invalid value for parameter 'hvg': number of hvg ({args.hvg}) is greater than number of genes in adata ({adata.n_vars})"
         )
 

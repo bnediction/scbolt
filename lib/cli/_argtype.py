@@ -2,7 +2,8 @@
 
 from typing import (
     Union,
-    Sequence
+    Sequence,
+    cast,
 )
 from pathlib import Path
 
@@ -14,8 +15,8 @@ class Range(argparse.Action):
     
     def __init__(
         self,
-        min=None,
-        max=None,
+        min: Union[float, int] = -math.inf,
+        max: Union[float, int] = math.inf,
         *args,
         **kwargs
     ):
@@ -88,6 +89,7 @@ class Min_and_max(argparse.Action):
         values,
         option_string=None
     ):
+        values = cast(Sequence[str], values)
         
         def convert(self, value):
             if value.lower() == "none":
@@ -178,6 +180,7 @@ class Str_or_min_and_max(argparse.Action):
         values,
         option_string=None
     ):
+        values = cast(Sequence[str], values)
             
         def convert(self, value):
             if value.lower() == "none":
@@ -314,6 +317,7 @@ class Store_dict(argparse.Action):
         values,
         option_string=None
     ):
+        values = cast(Sequence[str], values)
         setattr(namespace, self.dest, dict())
         for element in values:
             k, v = element.split(self.sep)
@@ -356,7 +360,7 @@ class Required_length(argparse.Action):
     def __init__(
         self,
         min: int=0,
-        max: int=math.inf,
+        max: Union[int, float]=math.inf,
         *args,
         **kwargs
     ):
@@ -372,6 +376,7 @@ class Required_length(argparse.Action):
         values,
         option_string=None
     ):
+        values = cast(Sequence[object], values)
         if not self.min <= len(values) <= self.max:
             raise argparse.ArgumentTypeError(self, f"argument {self.dest} requires between {self.min} and {self.max} arguments")
         setattr(namespace, self.dest, values)
@@ -561,8 +566,8 @@ class Clingo_opt_mode(argparse.Action):
         kwargs.update({
             "type": str,
             "default": default,
-            "metavar": "[opt | optN | ignore | enum,<n>]",
-            "help": kwargs["help"] if "help" in kwargs else f"clingo optimization mode: opt, optN, ignore, or enum,<n> (e.g. enum,1; default: {default})"
+            "metavar": "[opt | optN | ignore | enum,<bound>[,<bound>...]]",
+            "help": kwargs["help"] if "help" in kwargs else f"clingo optimization mode: opt, optN, ignore, or enum,<bound>[,<bound>...] (default: {default})"
         })
         super(Clingo_opt_mode, self).__init__(*args, **kwargs)
 
@@ -580,17 +585,24 @@ class Clingo_opt_mode(argparse.Action):
         if value in self.VALID_MODES:
             return None
         if value.startswith(self.ENUM_PREFIX):
-            bound = value.removeprefix(self.ENUM_PREFIX)
-            if bound.isdigit():
+            bounds = value.removeprefix(self.ENUM_PREFIX).split(",")
+            if bounds and all(self._is_int(bound) for bound in bounds):
                 return None
             raise argparse.ArgumentError(
                 self,
-                f"invalid parameter value: expected 'enum,<n>' but received {value}"
+                f"invalid parameter value: expected enum,<bound>[,<bound>...] but received {value}"
             )
         raise argparse.ArgumentError(
             self,
-            f"invalid parameter value: expected opt, optN, ignore, or enum,<n> but received {value}"
+            f"invalid parameter value: expected opt, optN, ignore, or enum,<bound>[,<bound>...] but received {value}"
         )
+
+    def _is_int(self, value):
+        try:
+            int(value)
+        except ValueError:
+            return False
+        return True
 
 class Clingo_opt_strategy(argparse.Action):
     
@@ -627,6 +639,80 @@ class Clingo_opt_strategy(argparse.Action):
     ):
         self.check_opt_strategy(value)
         setattr(namespace, self.dest, value)
+
+class Clingo_parallel_mode(argparse.Action):
+
+    VALID_MODES = ("compete", "split")
+    MIN_THREADS = 1
+    MAX_THREADS = 64
+
+    def __init__(
+        self,
+        *args,
+        **kwargs
+    ):
+        default = kwargs.get("default", "1")
+        if default is not None:
+            default = self._normalize_parallel_mode(default)
+        kwargs.update({
+            "type": str,
+            "default": default,
+            "metavar": "INT",
+            "help": kwargs["help"] if "help" in kwargs else f"number of Clingo jobs (default: {default})",
+        })
+        super(Clingo_parallel_mode, self).__init__(*args, **kwargs)
+
+    def __call__(
+        self,
+        parser,
+        namespace,
+        value,
+        option_string=None
+    ):
+        setattr(namespace, self.dest, self._normalize_parallel_mode(value))
+
+    def _normalize_parallel_mode(self, value):
+        value = str(value).strip()
+        parts = value.split(",")
+
+        if len(parts) == 1:
+            return str(self._check_threads(parts[0]))
+
+        if len(parts) == 2:
+            threads = self._check_threads(parts[0])
+            mode = parts[1].strip().lower()
+            if mode in self.VALID_MODES:
+                return f"{threads},{mode}"
+            raise argparse.ArgumentError(
+                self,
+                f"invalid parameter value: expected split or compete but received {parts[1]}"
+            )
+
+        raise argparse.ArgumentError(
+            self,
+            f"invalid parameter value: expected INT or INT,<mode> but received {value}"
+        )
+
+    def _check_threads(self, value):
+        value = value.strip()
+        try:
+            threads = int(value)
+        except ValueError:
+            raise argparse.ArgumentError(
+                self,
+                f"invalid parameter value: expected an integer but received {value}"
+            )
+
+        if self.MIN_THREADS <= threads <= self.MAX_THREADS:
+            return threads
+
+        raise argparse.ArgumentError(
+            self,
+            (
+                f"invalid parameter value: expected an integer between "
+                f"{self.MIN_THREADS} and {self.MAX_THREADS} but received {threads}"
+            )
+        )
 
 class Bonesis_domain(argparse.Action):
 

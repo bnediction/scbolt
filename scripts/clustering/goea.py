@@ -100,16 +100,16 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-if args.go is None and args.annotations is None:
-    raise argparse.ArgumentError(
-        "one of the following arguments is required: --go or --annotations"
+if args.gene2go is None and args.annotations is None:
+    raise ValueError(
+        "one of the following arguments is required: --gene2go or --annotations"
     )
-elif args.go is not None and args.annotations is not None:
-    raise argparse.ArgumentError(
-        "the following arguments cannot be used simultaneously: --go and --annotations"
+elif args.gene2go is not None and args.annotations is not None:
+    raise ValueError(
+        "the following arguments cannot be used simultaneously: --gene2go and --annotations"
     )
 else:
-    annotations_type = "gene_id" if args.go else "MGI"
+    annotations_type = "gene_id" if args.gene2go else "MGI"
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
@@ -164,11 +164,15 @@ background_geneset = set(
 )
 background_geneset.discard(None)
 
-std.print_task(f"loading gene ontologies from {str(args.go)}")
+go_file = args.go
+if go_file is None:
+    raise ValueError("argument --go is required")
 
-go_dag = GODag(obo_file=args.go, prt=open(os.devnull, "w"))
+std.print_task(f"loading gene ontologies from {str(go_file)}")
 
-with open(args.go, "r") as go_reader:
+go_dag = GODag(obo_file=go_file, prt=open(os.devnull, "w"))
+
+with open(go_file, "r") as go_reader:
     go_definitions = dict()
     for line in go_reader:
         if re.search("^id: GO:[0-9]{7}", line):
@@ -250,7 +254,7 @@ with ExcelWriter(args.outfile) as xlsx_writer:
                 column_names[idx_definition],
             )
             goea_results = goea_results[column_names]
-            goea_results.sort_values(by="p_fdr_bh", axis=0, ascending=True)
+            goea_results = goea_results.sort_values(by="p_fdr_bh", ascending=True)
             goea_results.to_excel(xlsx_writer, sheet_name=cluster)
             os.remove(xlsx_infile)
         else:

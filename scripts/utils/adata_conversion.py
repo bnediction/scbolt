@@ -130,21 +130,26 @@ def add_metadata(adata: ad.AnnData, **metadata) -> None:
 
 args = parser.parse_args()
 
-if args.__getattribute__("from") == args.__getattribute__("to"):
-    raise argparse.ArgumentError("Argument --from and --to must be different")
+from_format = getattr(args, "from")
+to_format = getattr(args, "to")
 
-if args.__getattribute__("to") == "csvs":
+if from_format == to_format:
+    raise ValueError("Argument --from and --to must be different")
+
+if to_format == "csvs":
     os.makedirs(name=args.output, exist_ok=True)
 else:
     os.makedirs(name=os.path.dirname(args.output), exist_ok=True)
 
 std.print_task(f"loading data from {str(args.input)}")
-if args.__getattribute__("from") == "h5ad":
+if from_format == "h5ad":
     adata = sc.read_h5ad(filename=args.input)
-elif args.__getattribute__("from") == "loom":
+elif from_format == "loom":
     adata = sc.read_loom(filename=args.input)
-elif args.__getattribute__("from") == "10x":
+elif from_format == "10x":
     adata = sc.read_10x_mtx(path=args.input)
+else:
+    raise ValueError(f"unsupported input format: {from_format}")
 
 adata.obs.index = pd.Index(
     map(
@@ -185,19 +190,19 @@ if args.sort:
     adata = adata[sorted(adata.obs.index), sorted(adata.var.index)].to_memory()
 
 std.print_task(f"saving data in {str(args.output)}")
-if args.__getattribute__("to") == "h5ad":
+if to_format == "h5ad":
     adata.write_h5ad(
         filename=args.output, compression="gzip" if args.compression else None
     )
-elif args.__getattribute__("to") == "loom":
+elif to_format == "loom":
     adata.write_loom(filename=args.output, write_obsm_varm=True)
-elif args.__getattribute__("to") == "zarr":
+elif to_format == "zarr":
     adata.write_zarr(store=args.output)
-elif args.__getattribute__("to") == "csv":
+elif to_format == "csv":
     bt.sct.tl.anndata_to_dataframe(adata=adata, layer=args.layer).to_csv(
         path_or_buf=args.output, sep=",", index=True
     )
-elif args.__getattribute__("to") == "csvs":
+elif to_format == "csvs":
     adata.write_csvs(dirname=args.output, sep=",")
     bt.sct.tl.to_csv_or_mtx(adata=adata, filename=Path(f"{args.output}/matrix"))
     if adata.layers.keys():
@@ -206,3 +211,5 @@ elif args.__getattribute__("to") == "csvs":
             bt.sct.tl.to_csv_or_mtx(
                 adata=adata, filename=Path(f"{args.output}/layers/{layer}"), layer=layer
             )
+else:
+    raise ValueError(f"unsupported output format: {to_format}")

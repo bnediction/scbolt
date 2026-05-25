@@ -3,6 +3,7 @@
 import os, std
 import argparse, cli
 import yaml
+from typing import Optional, Sequence, cast
 from pathlib import Path
 
 import pandas as pd
@@ -15,7 +16,12 @@ bonesis.settings["quiet"] = True
 from utils import get_cfg
 
 
-def load_prior_network(domain, organism, genesyn, dorothea_levels=None):
+def load_prior_network(
+    domain,
+    organism,
+    genesyn,
+    dorothea_levels: Optional[Sequence[str]] = None,
+):
     if domain == "collectri":
         std.print_info(f"loading CollecTRI prior network (organism: {organism})")
         return bt.dbs.omnipath.load_collectri_grn(
@@ -23,13 +29,14 @@ def load_prior_network(domain, organism, genesyn, dorothea_levels=None):
             genesyn=genesyn,
         )
     if domain == "dorothea":
+        levels = cast(list[str], dorothea_levels)
         std.print_info(
             f"loading DoRothEA prior network "
-            f"(organism: {organism}, levels: {', '.join(dorothea_levels)})"
+            f"(organism: {organism}, levels: {', '.join(levels)})"
         )
         return bt.dbs.omnipath.load_dorothea_grn(
             organism=organism,
-            levels=dorothea_levels,
+            levels=levels,
             genesyn=genesyn,
         )
     std.print_info(f"loading custom prior network ({domain})")

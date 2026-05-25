@@ -4,7 +4,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-from typing import Optional, Union, Sequence
+from typing import Iterable, Optional, Sequence
 from collections import OrderedDict
 
 import std
@@ -22,7 +22,9 @@ import networkx as nx
 
 
 def collectri_to_grn(
-    collectri: pd.DataFrame, sign_label: str = "weight", remove_pmid: bool = False
+    collectri: pd.DataFrame,
+    sign_label: Optional[str] = "weight",
+    remove_pmid: bool = False,
 ) -> nx.MultiDiGraph:
     if sign_label is not None:
         collectri = collectri.rename(columns={sign_label: "sign"})
@@ -39,7 +41,7 @@ def collectri_to_grn(
 
 def gene_removal(
     df: pd.DataFrame, graph: nx.Graph, copy: bool = True
-) -> Union[pd.DataFrame, None]:
+) -> Optional[pd.DataFrame]:
     df = df.copy() if copy is True else df
     genes_to_remove = list()
     for gene in df.columns:
@@ -51,7 +53,7 @@ def gene_removal(
 
 def sign_likelihood(
     interaction_scores: dict,
-    gene_set: Optional[Sequence[str]] = None,
+    gene_set: Optional[Iterable[str]] = None,
     minimum_path_number: int = 3,
     relative_threshold: float = 0.75,
     enable_loop: bool = False,
@@ -62,13 +64,13 @@ def sign_likelihood(
             "`relative_threshold` must be between 0 and 1: `relative_threshold` = {relative_threshold}"
         )
     if gene_set is None:
-        gene_set = set(interaction_scores.keys())
+        selected_genes = set(interaction_scores.keys())
     else:
-        gene_set = set(gene_set).intersection(set(interaction_scores.keys()))
+        selected_genes = set(gene_set).intersection(set(interaction_scores.keys()))
 
-    interaction_signs = {gene: dict() for gene in gene_set}
+    interaction_signs = {gene: dict() for gene in selected_genes}
 
-    for u, v in itertools.combinations(gene_set, 2):
+    for u, v in itertools.combinations(selected_genes, 2):
 
         from_u = interaction_scores[u][v]
         from_v = interaction_scores[v][u]
@@ -93,7 +95,7 @@ def sign_likelihood(
         if enable_loop is True:
             if _is_source[0] is True:
                 interaction_signs[u][v] = _sign[0]
-            if _is_source is True:
+            if _is_source[1] is True:
                 interaction_signs[v][u] = _sign[1]
         else:
             if _is_source[0] ^ _is_source[1]:
@@ -179,7 +181,7 @@ parser.add_argument(
 
 args = parser.parse_args()
 if args.base <= 1:
-    raise argparse.ArgumentError("incorrect value for `base` argument : {args.base}")
+    raise ValueError(f"incorrect value for `base` argument : {args.base}")
 
 nexponential_fun = lambda base, radius: 1 / base ** np.arange(0, radius)
 bdc = bt.bpy.BooleanDifferentialCalculus()

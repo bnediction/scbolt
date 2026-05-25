@@ -15,5 +15,6 @@ from ._argtype import (
     Bonesis_domain,
     Bonesis_mode,
     Clingo_opt_mode,
-    Clingo_opt_strategy
+    Clingo_opt_strategy,
+    Clingo_parallel_mode
 )

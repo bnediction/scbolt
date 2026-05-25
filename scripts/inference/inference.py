@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from typing import Any, Optional, Mapping, Iterable, Sequence
+from typing import Any, Optional, Mapping, Iterable, Sequence, cast
 from collections import defaultdict
 
 import sys
@@ -95,15 +95,22 @@ def print_node_reference(nodes_in_data, nodes_in_domain, domain_edges, **kwargs)
 
 
 def print_clingo_optimization(
-    mode, strategy, max_clause, canonic, configuration=None, **kwargs
+    mode, strategy, max_clause, canonic, configuration=None, jobs=None, **kwargs
 ):
     options = []
+    strategy = "unused" if mode == "ignore" or mode.startswith("enum,") else strategy
     if configuration is not None:
         options.append(f"clingo config={configuration}")
     options.extend(
         [
             f"clingo mode={mode}",
-            f"clingo strategy={strategy if mode != 'ignore' else 'unused'}",
+            f"clingo strategy={strategy}",
+        ]
+    )
+    if jobs is not None:
+        options.append(f"clingo jobs={jobs}")
+    options.extend(
+        [
             f"max clauses={max_clause}",
             f"canonic={canonic}",
         ]
@@ -115,22 +122,35 @@ def get_clingo_options(configuration=None, *extra_options):
     options = []
     if configuration:
         options.append(f"--configuration={configuration}")
-    options.extend(extra_options)
+    options.extend(option for option in extra_options if option)
     return options
+
+
+def get_clingo_parallel_mode(value):
+    if "," in value:
+        return None, f"--parallel-mode={value}"
+    return int(value), None
 
 
 def get_filter_clingo_options(mode, strategy, configuration=None, *extra_options):
     options = get_clingo_options(configuration)
     if mode == "opt":
         options.extend(["--opt-mode=opt", f"--opt-strategy={strategy}"])
+    elif mode.startswith("enum,"):
+        options.append(f"--opt-mode={mode}")
     elif mode == "ignore":
         options.append("--opt-mode=ignore")
-    options.extend(extra_options)
+    options.extend(option for option in extra_options if option)
     return options
 
 
 def get_filter_clingo_settings(mode, strategy, configuration=None, *extra_options):
     options = get_filter_clingo_options(mode, strategy, configuration, *extra_options)
+    return {"clingo_options": options} if options else {}
+
+
+def get_clingo_settings(*extra_options):
+    options = get_clingo_options(None, *extra_options)
     return {"clingo_options": options} if options else {}
 
 
@@ -211,21 +231,27 @@ class SafeNodesView(bonesis.NodesView):
         return pmodel
 
 
-def load_prior_network(domain, organism, genesyn, dorothea_levels=None):
+def load_prior_network(
+    domain,
+    organism,
+    genesyn,
+    dorothea_levels: Optional[Sequence[str]] = None,
+):
     if domain == "collectri":
         std.print_info(f"loading CollecTRI prior network (organism: {organism})")
         return bt.dbs.omnipath.load_collectri_grn(
             organism=organism,
             genesyn=genesyn,
-        )
+    )
     if domain == "dorothea":
+        levels = cast(list[str], dorothea_levels)
         std.print_info(
             f"loading DoRothEA prior network "
-            f"(organism: {organism}, levels: {', '.join(dorothea_levels)})"
+            f"(organism: {organism}, levels: {', '.join(levels)})"
         )
         return bt.dbs.omnipath.load_dorothea_grn(
             organism=organism,
-            levels=dorothea_levels,
+            levels=levels,
             genesyn=genesyn,
         )
     std.print_info(f"loading custom prior network ({domain})")
@@ -443,7 +469,7 @@ def write_ensemble_influence_graph(
     )
 
     dot.write(
-        outfile,
+        str(outfile),
         prog="dot",
         format="pdf",
     )
@@ -780,26 +806,22 @@ parser.add_argument(
 parser.add_argument(
     "--jobs",
     dest="jobs",
-    type=int,
+    action=cli.Clingo_parallel_mode,
     required=False,
-    default=1,
+    default="1",
     metavar="INT",
-    help="number of allocated processors used when searching for diverse Boolean network solutions (default: 1)",
+    help="number of Clingo jobs (default: 1)",
 )
 
 args = parser.parse_args()
-
-if args.action.startswith("filter") and args.clingo_opt_mode.startswith("enum,"):
-    parser.error(
-        "--clingo-opt-mode enum,<n> is not supported for filter-nodes/filter-consts"
-    )
 
 if args.bonesis_mode != "hard":
     std.print_warning(
         f"some constraints are removed (bonesis mode: {args.bonesis_mode})"
     )
 
-bonesis.settings["parallel"] = args.jobs
+clingo_parallel_jobs, clingo_parallel_option = get_clingo_parallel_mode(args.jobs)
+bonesis.settings["parallel"] = clingo_parallel_jobs
 
 genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
 
@@ -875,7 +897,7 @@ elif args.bonesis_mode == "hard":
 if args.action == "filter-nodes":
 
     std.print_task(
-        "filtering components by maximizing variable number while constraining Boolean networks to be compatible with the observations"
+        "maximizing satisfiable nodes under dynamical constraints"
     )
 
     bo.maximize_nodes()
@@ -910,6 +932,7 @@ if args.action == "filter-nodes":
             args.clingo_opt_mode,
             clingo_opt_strategy,
             args.clingo_configuration,
+            clingo_parallel_option,
         ),
     )
     view.standalone(output_filename=args.asp)
@@ -929,6 +952,7 @@ if args.action == "filter-nodes":
         args.max_clause,
         canonic,
         configuration=args.clingo_configuration or "auto",
+        jobs=args.jobs,
         flush=True,
     )
     std.print_warning("this may take some time.", flush=True)
@@ -956,7 +980,7 @@ if args.action == "filter-nodes":
 elif args.action == "filter-consts":
 
     std.print_task(
-        "filtering components by deleting strong constants while constraining Boolean networks to be compatible with the observations"
+        "maximizing strong constants under dynamical constraints"
     )
 
     bo.maximize_strong_constants()
@@ -974,6 +998,7 @@ elif args.action == "filter-consts":
             clingo_opt_strategy,
             args.clingo_configuration,
             "--opt-usc-shrink=inv",
+            clingo_parallel_option,
         ),
     )
     view.standalone(output_filename=args.asp)
@@ -986,6 +1011,7 @@ elif args.action == "filter-consts":
         args.max_clause,
         canonic,
         configuration=args.clingo_configuration or "auto",
+        jobs=args.jobs,
     )
     std.print_warning("this may take some time.")
     solution = next_solution(view)
@@ -1053,12 +1079,17 @@ else:
             clingo_opt_strategy=clingo_opt_strategy,
             extra=("boolean-network", "configurations"),
             progress=ptqdm,
+            **get_clingo_settings(clingo_parallel_option),
         )
         view.standalone(output_filename=args.asp)
 
         print_node_reference(*get_node_sets(bo))
         print_clingo_optimization(
-            args.clingo_opt_mode, clingo_opt_strategy, args.max_clause, canonic
+            args.clingo_opt_mode,
+            clingo_opt_strategy,
+            args.max_clause,
+            canonic,
+            jobs=args.jobs,
         )
         std.print_warning("this may take some time.")
         solution = next_solution(view)
@@ -1105,6 +1136,7 @@ else:
             solutions="subset-minimal",
             extra=("boolean-network", "configurations"),
             limit=args.limit if args.limit is not None else 0,
+            **get_clingo_settings(clingo_parallel_option),
         )
         view.standalone(output_filename=args.asp)
 
@@ -1134,6 +1166,7 @@ else:
             extra=("configurations",),
             limit=args.limit if args.limit is not None else 0,
             progress=ptqdm,
+            **get_clingo_settings(clingo_parallel_option),
         )
         view.standalone(output_filename=args.asp)
 

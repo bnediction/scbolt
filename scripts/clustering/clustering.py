@@ -183,7 +183,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 if args.pca_dimension < args.clustering_dimension:
-    raise argparse.ArgumentError(
+    raise ValueError(
         f"invalid values for arguments: 'pca-dimension' > 'clustering-dimension' not satisfied (pca-dimension: {args.pca_dimension}, clustering-dimension: {args.clustering_dimension})"
     )
 

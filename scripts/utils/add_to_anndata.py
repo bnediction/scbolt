@@ -4,7 +4,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-from typing import Union
+from typing import Sequence, Union, cast
 from pathlib import Path
 
 import std
@@ -17,7 +17,7 @@ PathLike = Union[str, Path]
 category = pd.Categorical
 
 
-def generate_unique_index_name(dfs: Union[pd.DataFrame]) -> str:
+def generate_unique_index_name(dfs: Union[pd.DataFrame, Sequence[pd.DataFrame]]) -> str:
     dfs = [dfs] if isinstance(dfs, pd.DataFrame) else dfs
     column_names = set()
     for df in dfs:
@@ -168,6 +168,8 @@ else:
             None,
             "option --label-column required when multiple values passed to option --csv",
         )
+    labels = cast(Sequence[str], args.labels)
+    label_column = cast(str, args.label_column)
 
 std.print_task(f"loading AnnData object from {str(args.infile)}")
 if str(args.infile).endswith("h5ad"):
@@ -194,7 +196,7 @@ if len(args.csv) == 1:
                     ", ".join(f"'{cols}'" for cols in cols_to_remove)
                 )
             )
-            adata.obs = adata.obs.drop(cols_to_remove, axis=1)
+            adata.obs = adata.obs.drop(list(cols_to_remove), axis=1)
         adata.obs = adata.obs.merge(
             right=df, how="left", left_index=True, right_index=True
         )
@@ -206,7 +208,7 @@ if len(args.csv) == 1:
                     ", ".join(f"'{cols}'" for cols in cols_to_remove)
                 )
             )
-            adata.var = adata.var.drop(cols_to_remove, axis=1)
+            adata.var = adata.var.drop(list(cols_to_remove), axis=1)
         adata.var = adata.var.merge(
             right=df, how="left", left_index=True, right_index=True
         )
@@ -215,19 +217,20 @@ else:
         f"loading tabular annotations from {', '.join(str(file) for file in args.csv)}"
     )
     dfs = dict()
-    for name, file in zip(args.labels, args.csv):
+    add_prefix = args.add_prefix or []
+    for name, file in zip(labels, args.csv):
         df = pd.read_csv(file, sep=args.sep, index_col=args.index).astype(args.type)
-        for col in args.add_prefix:
+        for col in add_prefix:
             df[col] = df[col].apply(lambda x: f"{name}_{x}")
         dfs[name] = df.copy(deep=True)
-        for name, df in dfs.items():
-            df[args.label_column] = name
-        csv_df = pd.concat(dfs.values(), axis=0)
+    for name, df in dfs.items():
+        df[label_column] = name
+    csv_df = pd.concat(dfs.values(), axis=0)
     del df, dfs
     if args.axis in [0, "obs"]:
         adata_df = adata.obs.copy()
         cols_to_remove = set(adata_df.columns) & set(csv_df.columns) - set(
-            [args.label_column]
+            [label_column]
         )
         if cols_to_remove:
             std.print_debug(
@@ -235,11 +238,11 @@ else:
                     ", ".join(f"'{cols}'" for cols in cols_to_remove)
                 )
             )
-            adata_df = adata_df.drop(cols_to_remove, axis=1)
+            adata_df = adata_df.drop(list(cols_to_remove), axis=1)
     else:
         adata_df = adata.var.copy()
         cols_to_remove = set(adata_df.columns) & set(csv_df.columns) - set(
-            [args.label_column]
+            [label_column]
         )
         if cols_to_remove:
             std.print_debug(
@@ -247,16 +250,16 @@ else:
                     ", ".join(f"'{cols}'" for cols in cols_to_remove)
                 )
             )
-            adata_df = adata_df.drop(cols_to_remove, axis=1)
+            adata_df = adata_df.drop(list(cols_to_remove), axis=1)
     index_name = generate_unique_index_name([csv_df, adata_df])
     csv_df[index_name] = csv_df.index
-    csv_df.set_index([index_name, args.label_column], inplace=True)
+    csv_df.set_index([index_name, label_column], inplace=True)
     adata_df[index_name] = adata_df.index
-    adata_df.set_index([index_name, args.label_column], inplace=True)
+    adata_df.set_index([index_name, label_column], inplace=True)
     adata_df = adata_df.merge(
         right=csv_df, how="left", left_index=True, right_index=True
     )
-    adata_df.reset_index(level=(args.label_column,), inplace=True)
+    adata_df.reset_index(level=(label_column,), inplace=True)
     adata_df.index.name = None
     if args.axis in [0, "obs"]:
         adata.obs = adata_df
@@ -270,5 +273,5 @@ elif str(args.outfile).endswith("loom"):
     adata.write_loom(filename=args.outfile, write_obsm_varm=True)
 else:
     raise argparse.ArgumentError(
-        "unable to synchronously create outfile (required format: h5ad or loom)"
+        None, "unable to synchronously create outfile (required format: h5ad or loom)"
     )

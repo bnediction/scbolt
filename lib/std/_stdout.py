@@ -4,6 +4,7 @@ import os, io, sys
 import contextlib
 
 import datetime
+from typing import Optional
 
 @contextlib.contextmanager
 def disable_print(disable: bool=True):
@@ -46,22 +47,22 @@ class Section(object):
     def verbose(self):
         self._verbose = True
 
-def print_task(message:str=None, file=sys.stdout, flush=True) -> None:
+def print_task(message: Optional[str]=None, file=sys.stdout, flush=True) -> None:
     print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - TASK - {message}", file=file, flush=flush)
     return None
 
-def print_info(message:str=None, file=sys.stdout, flush=True) -> None:
+def print_info(message: Optional[str]=None, file=sys.stdout, flush=True) -> None:
     print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - INFO - {message}", file=file, flush=flush)
     return None
 
-def print_warning(message:str=None, file=sys.stdout, flush=True) -> None:
+def print_warning(message: Optional[str]=None, file=sys.stdout, flush=True) -> None:
     print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - WARNING - {message}", file=file, flush=flush)
     return None
 
-def print_debug(message:str=None, file=sys.stdout, flush=True) -> None:
+def print_debug(message: Optional[str]=None, file=sys.stdout, flush=True) -> None:
     print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - DEBUG - {message}", file=file, flush=flush)
     return None
 
-def print_result(message:str=None, file=sys.stdout, flush=True) -> None:
+def print_result(message: Optional[str]=None, file=sys.stdout, flush=True) -> None:
     print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - RESULT - {message}", file=file, flush=flush)
     return None

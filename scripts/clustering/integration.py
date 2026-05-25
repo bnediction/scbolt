@@ -8,7 +8,7 @@ import os, std
 import argparse, cli
 from pathlib import Path
 
-from typing import Sequence, Union
+from typing import Optional, Sequence
 from anndata import AnnData
 
 import random
@@ -25,10 +25,10 @@ bt.sct.pl.set_default_params()
 @bt.sct.anndata_checker
 def clean_adata(
     adata: AnnData,
-    obs: Sequence[str] = None,
-    var: Sequence[str] = None,
+    obs: Optional[Sequence[str]] = None,
+    var: Optional[Sequence[str]] = None,
     copy: bool = False,
-) -> Union[AnnData, None]:
+) -> Optional[AnnData]:
 
     adata = adata.copy() if copy else adata
 
@@ -244,7 +244,7 @@ parser.add_argument(
     dest="seed",
     type=int,
     required=False,
-    default=random.randint(0, 1e9),
+    default=random.randint(0, 1_000_000_000),
     metavar="INT",
     help="random seed (default: random)",
 )
@@ -262,7 +262,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 if args.pca_dimension < args.clustering_dimension:
-    raise argparse.ArgumentError(
+    raise ValueError(
         f"invalid values for arguments: 'pca-dimension' > 'clustering-dimension' not satisfied (pca-dimension: {args.pca_dimension}, clustering-dimension: {args.clustering_dimension})"
     )
 

@@ -99,13 +99,13 @@ for name, file in zip(args.labels, args.specifics):
 if args.obs_label not in integrated_ad.obs.columns:
     raise KeyError(f"column '{args.obs_label}' not found in integrated_ad.obs")
 
-for column in args.obs:
-    if column not in integrated_ad.obs:
-        raise KeyError(f"column `{column}` not found in dataset 'integrated'")
-
 if args.obs is None:
     args.obs = list(integrated_ad.obs.columns)
     args.obs.remove(args.obs_label)
+
+for column in args.obs:
+    if column not in integrated_ad.obs:
+        raise KeyError(f"column `{column}` not found in dataset 'integrated'")
 
 std.print_task("transferring information from integrated dataset to specific datasets")
 for name, adata in specific_ad.items():
@@ -116,7 +116,7 @@ for name, adata in specific_ad.items():
                 name, ", ".join(f"'{cols}'" for cols in cols_to_remove)
             )
         )
-        adata.obs = adata.obs.drop(cols_to_remove, axis=1)
+        adata.obs = adata.obs.drop(list(cols_to_remove), axis=1)
     adata.obs = adata.obs.merge(
         right=integrated_ad[integrated_ad.obs[args.obs_label] == name].obs[args.obs],
         how="left",
@@ -125,5 +125,5 @@ for name, adata in specific_ad.items():
     )
 
 for name, outfile in zip(args.labels, args.outfiles):
-    std.print_task(f"saving dataset '{name}' in {str(file)}")
+    std.print_task(f"saving dataset '{name}' in {str(outfile)}")
     specific_ad[name].write_h5ad(filename=outfile, compression="gzip")

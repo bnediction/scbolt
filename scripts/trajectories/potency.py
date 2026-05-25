@@ -143,7 +143,7 @@ parser.add_argument(
     dest="seed",
     type=int,
     required=False,
-    default=random.randint(0, 1e9),
+    default=random.randint(0, 1_000_000_000),
     metavar="INT",
     help="random seed (default: random)",
 )

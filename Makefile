@@ -5,11 +5,40 @@
 
 SHELL := /bin/bash
 MAKEFLAGS += --silent
-DEFAULT_PARAMS = default_params.mk
 __check_externals__ ?= true
 
+launch_dir := $(CURDIR)
+makefile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
+scbolt_root := $(patsubst %/,%,$(dir $(makefile_path)))
+lib_dir := $(scbolt_root)/lib
+scripts_dir := $(scbolt_root)/scripts
+fig_dir := $(scbolt_root)/fig
+public_dir := $(scbolt_root)/public
+override DEFAULT_PARAMS := $(scbolt_root)/default_params.mk
+
+strip_trailing_slash = $(if $(filter /,$(strip $(1))),/,$(patsubst %/,%,$(strip $(1))))
+is_absolute_path = $(filter /%,$(strip $(1)))
+resolve_path_from = $(call strip_trailing_slash,$(if $(call is_absolute_path,$(1)),$(1),$(abspath $(strip $(2))/$(strip $(1)))))
+resolve_optional_path_from = $(if $(strip $(1)),$(call resolve_path_from,$(1),$(2)))
+
 include $(DEFAULT_PARAMS)
+
+params_base := $(if $(filter command line,$(origin PARAMS)),$(launch_dir),$(scbolt_root))
+override PARAMS := $(call resolve_path_from,$(PARAMS),$(params_base))
+params_dir := $(call strip_trailing_slash,$(dir $(PARAMS)))
+
 include $(PARAMS)
+
+path_origin_base = $(if $(filter command line,$(origin $(1))),$(launch_dir),$(params_dir))
+resolve_user_path_var = $(eval override $(1) := $(call resolve_optional_path_from,$($(1)),$(call path_origin_base,$(1))))
+clingo_named_configs := auto frumpy jumpy tweety handy crafty trendy many
+resolve_clingo_config = $(if $(strip $($(1))),$(if $(filter $(strip $($(1))),$(clingo_named_configs)),,$(call resolve_user_path_var,$(1))))
+
+$(call resolve_user_path_var,RESULTS)
+$(call resolve_user_path_var,YAML_MODEL)
+$(call resolve_user_path_var,BINARIZATION_FILE)
+$(if $(filter $(strip $(PRIOR_KNOWLEDGE)),collectri dorothea),,$(call resolve_user_path_var,PRIOR_KNOWLEDGE))
+$(foreach var,CLINGO_CONFIG_SOFT CLINGO_CONFIG_CONSTS CLINGO_CONFIG_RELAXED CLINGO_CONFIG_SEED CLINGO_CONFIG_LOCK,$(call resolve_clingo_config,$(var)))
 
 _lower2upper = a:A b:B c:C d:D e:E f:F g:G h:H i:I j:J k:K l:L m:M n:N o:O p:P q:Q r:R s:S t:T u:U v:V w:W x:X y:Y z:Z
 _lower = $(word 1, $(subst :, ,$(word 1,$(1))))
@@ -83,7 +112,7 @@ knnbs_periphery = $(KNNBS_PERIPHERY_$(call toupper,$(1)))
 log_parameters = $(foreach var,$(strip $(1)),printf '%s=%s\n' '$(var)' "$($(var))"; )
 target_log_parameters = $(strip $(target_params_$(1)))
 
-conda_run = conda run --no-capture-output -n $(1)
+conda_run = PYTHONPATH="$(lib_dir)$(if $(PYTHONPATH),:$(PYTHONPATH))" conda run --no-capture-output -n $(1)
 inference_timeout = $(if $(filter-out 0,$(strip $(1))),timeout --foreground $(strip $(1)),)
 
 ifndef LOGGING
@@ -109,9 +138,9 @@ run_logged = \
 		$(if $(call target_log_parameters,$(1)),printf '%s\n' '[CONFIGURATION]'; $(call log_parameters,$(call target_log_parameters,$(1))) printf '\n';) \
 		printf '%s\n' '[OUTPUT]'; \
 	} >> "$(LOGFILE)"; \
-	PYTHONUNBUFFERED=1 TQDM_TO_TTY=1 $(MAKE) LOGGING=false __$(1) LOGFILE="$(LOGFILE)" 2>&1 | tee -a "$(LOGFILE)"
+	PYTHONUNBUFFERED=1 TQDM_TO_TTY=1 $(MAKE) -f "$(makefile_path)" LOGGING=false __$(1) LOGFILE="$(LOGFILE)" 2>&1 | tee -a "$(LOGFILE)"
 else ifeq ($(LOGGING),false)
-run_logged = $(MAKE) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
+run_logged = $(MAKE) -f "$(makefile_path)" LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
 else
 $(error Unsupported value for parameter LOGGING (supported values: true, false))
 endif
@@ -196,14 +225,14 @@ endef
 
 ## BEGIN PATHS ##
 
-cc_markers  = public/cycle/mouse_cycle_markers.rds
-signatures  = public/signatures/geiger.xls public/signatures/chambers.xls public/signatures/sig.json
-go_basic    = public/go/go_basic.obo
-go_organism = public/go/goslim_$(ORGANISM).obo
-gene2go     = public/go/gene2go
-dorothea_legacy = public/omnipath/dorothea_legacy_$(ORGANISM).csv
+cc_markers  = $(public_dir)/cycle/mouse_cycle_markers.rds
+signatures  = $(public_dir)/signatures/geiger.xls $(public_dir)/signatures/chambers.xls $(public_dir)/signatures/sig.json
+go_basic    = $(public_dir)/go/go_basic.obo
+go_organism = $(public_dir)/go/goslim_$(ORGANISM).obo
+gene2go     = $(public_dir)/go/gene2go
+dorothea_legacy = $(public_dir)/omnipath/dorothea_legacy_$(ORGANISM).csv
 
-$(eval genome_ref := public/ref/$(notdir $(genome_url)))
+$(eval genome_ref := $(public_dir)/ref/$(notdir $(genome_url)))
 genome_ref := $(genome_ref:.tar.gz=)
 
 define find_paths_for_conditions
@@ -647,7 +676,7 @@ check: ## check Make-level dependencies, configuration and external tools requir
 	fi
 	@dry_run="$$(mktemp)"; \
 	missing=0; \
-	$(MAKE) --always-make --dry-run LOGGING=false __$(TARGET) LOGFILE="$(LOGFILE)" > "$${dry_run}"; \
+	$(MAKE) -f "$(makefile_path)" --always-make --dry-run LOGGING=false __$(TARGET) LOGFILE="$(LOGFILE)" > "$${dry_run}"; \
 	if [ "$(__check_externals__)" = "true" ]; then \
 		$(call check_command_diagnostic,conda); \
 		for env in $$({ grep -oE 'conda run[^;|&]* -n [^ ]+' "$${dry_run}" || true; } | awk '{print $$NF}' | sort -u); do \
@@ -657,7 +686,7 @@ check: ## check Make-level dependencies, configuration and external tools requir
 			$(call check_command_diagnostic,cellranger); \
 		fi; \
 		if grep -q 'repeat_msk.gtf' "$${dry_run}"; then \
-			$(call check_file_diagnostic,public/transcriptome/repeat_msk.gtf,repeat_msk.gtf); \
+			$(call check_file_diagnostic,$(public_dir)/transcriptome/repeat_msk.gtf,repeat_msk.gtf); \
 		fi; \
 	fi; \
 	if grep -q 'scripts/inference/specification.py' "$${dry_run}"; then \
@@ -692,7 +721,7 @@ dry-run: ## display modules required to build TARGET without executing them
 	@if [ -z "$(TARGET)" ]; then \
 		$(call print_error,missing TARGET \(usage: make dry-run TARGET=<module>\)); \
 	fi
-	$(MAKE) --dry-run LOGGING=false __$(TARGET) LOGFILE="$(LOGFILE)"
+	$(MAKE) -f "$(makefile_path)" --dry-run LOGGING=false __$(TARGET) LOGFILE="$(LOGFILE)"
 
 ##@ Clean
 
@@ -710,7 +739,7 @@ mrproper: ## clear cache and public/private data
 	test -n "$(results)" && test "$(results)" != "/"
 	rm -rf $(results)
 	mkdir -p $(results)
-	[ ! -d public/transcriptome ] || find public/transcriptome ! -name "repeat_msk.gtf" -type f -exec rm -f "{}" \;
+	[ ! -d $(public_dir)/transcriptome ] || find $(public_dir)/transcriptome ! -name "repeat_msk.gtf" -type f -exec rm -f "{}" \;
 
 ##@ Download
 
@@ -947,7 +976,7 @@ $(word 1,$(signatures)) $(word 2,$(signatures)):
 
 $(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures))
 	$(call print_rule,load-signatures,conversion)
-	$(call conda_run,scbolt-core) python scripts/utils/load_signatures.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/load_signatures.py \
 		--list-infile $(firstword $^) \
 		--table-infile $(lastword $^) \
 		--outfile $@
@@ -971,7 +1000,7 @@ $(gene2go):
 $(dorothea_legacy):
 	$(call print_rule,load-dorothea)
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-decoupler-legacy) python scripts/utils/load_dorothea_legacy.py \
+	$(call conda_run,scbolt-decoupler-legacy) python $(scripts_dir)/utils/load_dorothea_legacy.py \
 		--organism $(ORGANISM) \
 		--outfile $@
 
@@ -1017,23 +1046,23 @@ $(cellranger_$(1)): $(fastq_$(1)) $(genome_ref)
 
 $(velocyto_$(1)): $(cellranger_$(1)) $(genome_ref)
 	$(call print_rule,velocyto,$(1))
-	$(call check_file,public/transcriptome/repeat_msk.gtf,repeat_msk.gtf)
+	$(call check_file,$(public_dir)/transcriptome/repeat_msk.gtf,repeat_msk.gtf)
 	$(call conda_run,scbolt-velocyto) velocyto run10x \
-		-m public/transcriptome/repeat_msk.gtf \
+		-m $(public_dir)/transcriptome/repeat_msk.gtf \
 		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
 		$$(dir $$(firstword $$^)) $$(lastword $$^)/genes/genes.gtf
 	mkdir -p $$(@D)
 	mv $$(<D)/velocyto/cellranger.loom $$(shell echo $$@ | sed "s/h5ad/loom/")
 	rm -rf $$(<D)/velocyto
 	$(call print_debug,standardizing gene names and converting loom to h5ad)
-	$(call conda_run,scbolt-core) python scripts/utils/adata_conversion.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/adata_conversion.py \
 		$$(shell echo $$@ | sed "s/h5ad/loom/") $$@ --from loom --to h5ad \
 		--remove-positions --sort --standardization
 
 $(filtering_$(1)): $(velocyto_$(1)) $(if $(filter mouse,$(ORGANISM)),$(cc_markers))
 	$(call print_rule,filtering,$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python scripts/preprocessing/filtering.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/preprocessing/filtering.py \
 		$$(firstword $$^) $$@ $(if $(filter mouse,$(ORGANISM)),--marker $$(lastword $$^)) \
 		--gene-dropout $(GENE_DROPOUT) --gene-expression $(GENE_EXPRESSION) --gene-counts $(GENE_COUNTS) \
 		--cell-dropout $(CELL_DROPOUT) --cell-expression $(CELL_EXPRESSION) --cell-reads $(CELL_READS) \
@@ -1043,36 +1072,36 @@ $(filtering_$(1)): $(velocyto_$(1)) $(if $(filter mouse,$(ORGANISM)),$(cc_marker
 $(normalization_$(1)): $(filtering_$(1))
 	$(call print_rule,normalization,$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python scripts/preprocessing/normalization.py $$< $$@ $(correction) --jobs $(JOBS)
+	$(call conda_run,scbolt-core) python $(scripts_dir)/preprocessing/normalization.py $$< $$@ $(correction) --jobs $(JOBS)
 
 $(clustering_$(1)): $(normalization_$(1))
 	$(call print_rule,clustering,$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python scripts/clustering/clustering.py $$< $$@ \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clustering/clustering.py $$< $$@ \
 		--layer correct --adjacency knn --embedding umap \
 		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_CLUSTERING) --embedding-dimension $(DIM_EMBEDDING) \
 		$(pca_only_hvg) --neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) --min-dist $(MIN_DIST) --spread $(SPREAD) --seed $(SEED)
 	$(call print_task,plotting embedding colored by cell-cycle phase)
-	$(call conda_run,scbolt-core) python fig/plot_embedding.py fig/cc.json --infile $$@ --outfile $$(@D)/cc.pdf --use-rep $(USE_REP)
+	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/cc.json --infile $$@ --outfile $$(@D)/cc.pdf --use-rep $(USE_REP)
 
 $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 	$(call print_rule,annotation,$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python scripts/utils/pipe_its.py $$^ --outfiles $$@ --labels $(1) --obs-label condition --obs $(LABEL_COL)
+	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/pipe_its.py $$^ --outfiles $$@ --labels $(1) --obs-label condition --obs $(LABEL_COL)
 	$(call print_task,plotting embedding colored by labels)
-	$(call conda_run,scbolt-core) python fig/plot_embedding.py fig/generic.json --infile $$@ --outfile $$(@D)/labels.pdf --obs $(LABEL_COL) --use-rep $(USE_REP)
+	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/generic.json --infile $$@ --outfile $$(@D)/labels.pdf --obs $(LABEL_COL) --use-rep $(USE_REP)
 
 $(velocity_$(1)): $(annotation_$(1))
 	$(call print_rule,velocity,$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-velocity) python scripts/trajectories/velocity.py $$< $$@ \
+	$(call conda_run,scbolt-velocity) python $(scripts_dir)/trajectories/velocity.py $$< $$@ \
 		--layer counts --cluster label --moment-dimension $(DIM_MOMENT) \
 		$(velocity_only_hvg) --mode $(SMM_MODE) --embedding umap --jobs $(JOBS)
 
 $(potency_$(1)): $(annotation_$(1))
 	$(call print_rule,potency,$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-potency) python scripts/trajectories/potency.py $$< $$(@D) \
+	$(call conda_run,scbolt-potency) python $(scripts_dir)/trajectories/potency.py $$< $$(@D) \
 		--csv $$(notdir $$@) --h5ad $$(basename $$(notdir $$@)).h5ad \
 		--layer counts --cluster label --batch-size $(BATCH_SIZE) --smooth-batch-size $(SMOOTH_BATCH_SIZE) \
 		--organism $(ORGANISM) --embedding umap --seed $(SEED) --jobs $(JOBS)
@@ -1081,17 +1110,17 @@ $(cotan_$(1))&: $(annotation_$(1))
 	$(call print_rule,cotan,$(1))
 	mkdir -p $$(@D) $(tmpdir)/$(1)/cotan
 	$(call print_debug,loading file $$< \(layer 'matrix'\))
-	$(call conda_run,scbolt-core) python scripts/utils/adata_conversion.py $$< $(tmpdir)/$(1)/cotan/barcts.csv --from h5ad --to csv --layer matrix $(cotan_only_hvg)
+	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/adata_conversion.py $$< $(tmpdir)/$(1)/cotan/barcts.csv --from h5ad --to csv --layer matrix $(cotan_only_hvg)
 	$(call print_debug,transposing counts matrix)
 	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' < $(tmpdir)/$(1)/cotan/barcts.csv > $(tmpdir)/$(1)/cotan/gencts.csv
-	$(call conda_run,scbolt-cotan) Rscript scripts/macrostates/cotan_macrostates.R \
+	$(call conda_run,scbolt-cotan) Rscript $(scripts_dir)/macrostates/cotan_macrostates.R \
 		--infile $(tmpdir)/$(1)/cotan/gencts.csv --outfile $$(@D)/cotan.RDS --csv $$(lastword $$(cotan_$(1))) \
 		--sep , --name $(1) --max-iterations $(MAX_ITER) --method $(COTAN_METHOD) --min-ude 0.3 --jobs $(JOBS)
 	sed -i '1 i\,macrostate' $$(lastword $$(cotan_$(1)))
 	$(call print_debug,adding cotan macrostates to AnnData)
-	$(call conda_run,scbolt-core) python scripts/utils/add_to_anndata.py $$< $$(firstword $$(cotan_$(1))) --csv $$(lastword $$(cotan_$(1))) --axis 0 --sep , --type category
+	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/add_to_anndata.py $$< $$(firstword $$(cotan_$(1))) --csv $$(lastword $$(cotan_$(1))) --axis 0 --sep , --type category
 	$(call print_task,plotting embedding colored by cotan macrostates)
-	$(call conda_run,scbolt-core) python fig/plot_embedding.py fig/macrostates.json --infile $$(firstword $$(cotan_$(1))) --outfile $$(@D)/umap_cotan.pdf --use-rep $(USE_REP)
+	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/macrostates.json --infile $$(firstword $$(cotan_$(1))) --outfile $$(@D)/umap_cotan.pdf --use-rep $(USE_REP)
 
 $(cellrank_$(1))&: $(velocity_$(1)) $(potency_$(1))
 	$(call print_rule,cellrank,$(1))
@@ -1099,9 +1128,9 @@ $(cellrank_$(1))&: $(velocity_$(1)) $(potency_$(1))
 	$(call print_debug,adding potency scores to AnnData)
 	awk -F, -v txt="score" 'FNR==1{for(col=1;$$$$col!=txt;col++);next} {print $$$$1 "," $$$$col}' $$(lastword $$^) > $(tmpdir)/$(1)/cellrank/potency_scores.csv
 	sed -i '1 i\,cytotrace_score' $(tmpdir)/$(1)/cellrank/potency_scores.csv
-	$(call conda_run,scbolt-core) python scripts/utils/add_to_anndata.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/add_to_anndata.py \
 		$$(firstword $$^) $(tmpdir)/$(1)/cellrank/kernels.h5ad --csv $(tmpdir)/$(1)/cellrank/potency_scores.csv --axis 0 --sep , --type float
-	$(call conda_run,scbolt-cellrank) python scripts/macrostates/cellrank_macrostates.py \
+	$(call conda_run,scbolt-cellrank) python $(scripts_dir)/macrostates/cellrank_macrostates.py \
 		$(tmpdir)/$(1)/cellrank/kernels.h5ad $$(firstword $$(cellrank_$(1))) --csv $$(lastword $$(cellrank_$(1))) \
 		--obs $(LABEL_COL) --method $(CELLRANK_METHOD) \
 		--cytotrace-score cytotrace_score --scvelo-velocity velocity \
@@ -1111,7 +1140,7 @@ $(cellrank_$(1))&: $(velocity_$(1)) $(potency_$(1))
 $(stream_$(1))&: $(annotation_$(1))
 	$(call print_rule,stream,$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-stream) python scripts/macrostates/stream_macrostates.py $$< $$(firstword $$(stream_$(1))) --csv $$(lastword $$(stream_$(1))) \
+	$(call conda_run,scbolt-stream) python $(scripts_dir)/macrostates/stream_macrostates.py $$< $$(firstword $$(stream_$(1))) --csv $$(lastword $$(stream_$(1))) \
 		--use-rep $(USE_REP) --obs $(LABEL_COL) --clustering $(CLUSTERING_METHOD) --cluster-number $(CLUSTER_NUMBER) \
 		--alpha $(ALPHA_EPG) --mu $(MU_EPG) --lambda $(LAMBDA_EPG) \
 		$(extend_epg) $(if $(filter $(EXTEND_EPG),true),--extend-mode $(EXTEND_MODE),) $(if $(filter $(EXTEND_EPG),true),--extend-parameter $(EXTEND_PARAMETER),) \
@@ -1124,14 +1153,14 @@ else
 $(knnbs_$(1))&: $(annotation_$(1))
 	$(call print_rule,knnbs,$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python scripts/macrostates/knnbs_macrostates.py $$< $$(firstword $$(knnbs_$(1))) --csv $$(lastword $$(knnbs_$(1))) \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/macrostates/knnbs_macrostates.py $$< $$(firstword $$(knnbs_$(1))) --csv $$(lastword $$(knnbs_$(1))) \
 		--obs $(LABEL_COL) --embedding $(KNNBS_EMBEDDING) --neighbors $(KNNBS_NEIGHBORS) \
 		$(knnbs_dimension) --metric $(METRIC) --size $(MACROSTATE_SIZE) \
 		$(if $(call knnbs_centrality,$(1)),--centrality $(call knnbs_centrality,$(1)),) \
 		$(if $(call knnbs_periphery,$(1)),--periphery $(call knnbs_periphery,$(1)),) \
 		--jobs $(JOBS)
 	$(call print_task,plotting embedding colored by knnbs macrostates)
-	$(call conda_run,scbolt-core) python fig/plot_embedding.py fig/macrostates.json --infile $$(firstword $$(knnbs_$(1))) --outfile $$(@D)/knnbs.pdf --use-rep $(USE_REP)
+	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/macrostates.json --infile $$(firstword $$(knnbs_$(1))) --outfile $$(@D)/knnbs.pdf --use-rep $(USE_REP)
 endif
 
 endef
@@ -1141,31 +1170,31 @@ define compute_rules_for_references
 $(dea_$(1))&: $(clustering_$(1))
 	$(call print_rule,dea,$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python scripts/clustering/markers.py $$< $(firstword $(dea_$(1))) --xlsx $(lastword $(dea_$(1))) \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clustering/markers.py $$< $(firstword $(dea_$(1))) --xlsx $(lastword $(dea_$(1))) \
 		--cluster leiden --layer log-norm --is-log \
 		--logfc $(LOGFC) --alpha $(ALPHA) --correction $(CORRECTION)
 
 $(scoring_$(1)): $(clustering_$(1)) $(lastword $(signatures)) $(lastword $(dea_$(1)))
 	$(call print_rule,scoring,$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python scripts/clustering/scoring.py $$^ $$@ --cluster leiden --ignore-sheets background
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clustering/scoring.py $$^ $$@ --cluster leiden --ignore-sheets background
 
 $(goea_basic_$(1)): $(lastword $(dea_$(1))) $(go_basic) $(gene2go)
 	$(call print_rule,goea,go_basic/$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python scripts/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^) 
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
 
 $(goea_organism_$(1)): $(lastword $(dea_$(1))) $(go_organism) $(gene2go)
 	$(call print_rule,goea,go_$(ORGANISM)/$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python scripts/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clustering/goea.py $$< $$@ --background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
 
 endef
 
 $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(condition)))
 	$(call print_rule,clustering,integrated)
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-core) python scripts/clustering/integration.py $^ --outfile $@ --labels $(conditions) \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clustering/integration.py $^ --outfile $@ --labels $(conditions) \
 		--layer correct --adjacency knn --integration $(INTEGRATION) --embedding umap \
 		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_CLUSTERING) --embedding-dimension $(DIM_EMBEDDING) \
 		$(if $(filter $(PCA_ONLY_HVG),true),--hvg $(HVG),) --neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) \
@@ -1177,74 +1206,74 @@ $(annotation_integrated): $(clustering_integrated)
 			$(call print_error,required parameter not defined: LABEL \(needed by target 'annotation'\). Review DEA/GOEA/signature outputs and set LABEL in your parameter file); \
 	fi
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-core) python scripts/clustering/annotation.py $< $@ \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clustering/annotation.py $< $@ \
 		--obs leiden --new-obs $(LABEL_COL) --labels $(label_map)
 	$(call print_task,plotting embedding colored by labels)
-	$(call conda_run,scbolt-core) python fig/plot_embedding.py fig/generic.json --infile $@ --outfile $(@D)/labels.pdf --obs $(LABEL_COL) --use-rep $(USE_REP)
+	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/generic.json --infile $@ --outfile $(@D)/labels.pdf --obs $(LABEL_COL) --use-rep $(USE_REP)
 
 ifdef SCBOOLSEQ_HVG_METHOD
 $(bin_cells)&: $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions)))
 	$(call print_rule,bin-cells)
 	mkdir -p $(@D) $(tmpdir)/bin/cell
 	$(call print_task,estimating top$(if $(SCBOOLSEQ_TOP_HVG), $(SCBOOLSEQ_TOP_HVG),) highly variable genes with $(SCBOOLSEQ_HVG_METHOD))
-	$(call conda_run,scbolt-core) python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/bin/cell/top_genes.txt \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/preprocessing/hvg.py $(lastword $^) $(tmpdir)/bin/cell/top_genes.txt \
 		--method $(SCBOOLSEQ_HVG_METHOD) $(scboolseq_layer) $(if $(SCBOOLSEQ_TOP_HVG),--hvg $(SCBOOLSEQ_TOP_HVG),) $(batch)
-	$(call conda_run,scbolt-scboolseq) python scripts/binarization/bin_cells_scboolseq.py $< --outfile $(firstword $(bin_cells)) \
+	$(call conda_run,scbolt-scboolseq) python $(scripts_dir)/binarization/bin_cells_scboolseq.py $< --outfile $(firstword $(bin_cells)) \
 		--bin $(shell echo $@ | sed "s/.h5ad/.csv/") --statistics $(lastword $(bin_cells)) \
 		--layer log-norm --quantile $(UNIMODAL_QUANTILE) $(zeroes_are_zeroes) --filter-genes $(tmpdir)/bin/cell/top_genes.txt
 	$(call print_task,plotting embedding colored by binarization percentage)
-	$(call conda_run,scbolt-core) python fig/plot_embedding.py fig/bin.json --infile $(firstword $(bin_cells)) --outfile $(@D)/pct_bin.pdf --use-rep $(USE_REP)
+	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/bin.json --infile $(firstword $(bin_cells)) --outfile $(@D)/pct_bin.pdf --use-rep $(USE_REP)
 else
 $(bin_cells)&: $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions)))
 	$(call print_rule,bin-cells)
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-scboolseq) python scripts/binarization/bin_cells_scboolseq.py $< --outfile $(firstword $(bin_cells)) \
+	$(call conda_run,scbolt-scboolseq) python $(scripts_dir)/binarization/bin_cells_scboolseq.py $< --outfile $(firstword $(bin_cells)) \
 		--bin $(shell echo $@ | sed "s/.h5ad/.csv/") --statistics $(lastword $(bin_cells)) \
 		--layer log-norm --quantile $(UNIMODAL_QUANTILE) $(zeroes_are_zeroes)
 	$(call print_task,plotting embedding colored by binarization percentage)
-	$(call conda_run,scbolt-core) python fig/plot_embedding.py fig/bin.json --infile $(firstword $(bin_cells)) --outfile $(@D)/pct_bin.pdf --use-rep $(USE_REP)
+	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/bin.json --infile $(firstword $(bin_cells)) --outfile $(@D)/pct_bin.pdf --use-rep $(USE_REP)
 endif
 
 $(bin_macrostates): $(firstword $(bin_cells)) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
 	$(call print_rule,bin-macrostates)
 	mkdir -p $(@D) $(tmpdir)/integrated/bin/aggr
 	$(call print_debug,adding macrostates to AnnData)
-	$(call conda_run,scbolt-core) python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/aggr/mcts.h5ad --csv $(filter-out $<, $^) \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/aggr/mcts.h5ad --csv $(filter-out $<, $^) \
 	$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions) --label-column condition --add-prefix macrostate,) --axis 0 --sep , --type category
-	$(call conda_run,scbolt-core) python scripts/binarization/bin_clusters_scboolseq.py $(tmpdir)/integrated/bin/aggr/mcts.h5ad $@ --counts $(@D)/counts_bin.csv \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/binarization/bin_clusters_scboolseq.py $(tmpdir)/integrated/bin/aggr/mcts.h5ad $@ --counts $(@D)/counts_bin.csv \
 		--layer bin --distribution distribution --cluster macrostate --use-rep $(USE_REP) \
 		--nans-threshold $(NANS_THRESHOLD) --bimodal-threshold $(BIMODAL_THRESHOLD) \
 		--zeroinf-threshold $(ZEROINF_THRESHOLD) --unimodal-threshold $(UNIMODAL_THRESHOLD)
 	$(call print_task,plotting embedding colored by macrostates)
-	$(call conda_run,scbolt-core) python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/aggr/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
+	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/macrostates.json --infile $(tmpdir)/integrated/bin/aggr/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
 
 ifdef DEA_HVG_METHOD
 $(bin_dea): $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions))) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
 	$(call print_rule,bin-dea)
 	mkdir -p $(@D) $(tmpdir)/integrated/bin/dea
 	$(call print_debug,adding macrostates to AnnData)
-	$(call conda_run,scbolt-core) python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/dea/mcts.h5ad --csv $(filter-out $<, $^) \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/dea/mcts.h5ad --csv $(filter-out $<, $^) \
 		$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions) --label-column condition --add-prefix macrostate,) --axis 0 --sep , --type category
 	$(call print_task,estimating top$(if $(DEA_TOP_HVG), $(DEA_TOP_HVG),) highly variable genes with $(DEA_HVG_METHOD))
-	$(call conda_run,scbolt-core) python scripts/preprocessing/hvg.py $(firstword $^) $(tmpdir)/bin/dea/top_genes.txt --method $(DEA_HVG_METHOD) \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/preprocessing/hvg.py $(firstword $^) $(tmpdir)/bin/dea/top_genes.txt --method $(DEA_HVG_METHOD) \
 		$(dea_layer) $(if $(DEA_TOP_HVG),--hvg $(DEA_TOP_HVG),) $(batch)
-	$(call conda_run,scbolt-core) python scripts/binarization/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/binarization/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
 		--cluster macrostate --layer log-norm --is-log --method wilcoxon --use-rep $(USE_REP) \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION) --filter-genes $(tmpdir)/bin/dea/top_genes.txt
 	$(call print_task,plotting embedding colored by macrostates)
-	$(call conda_run,scbolt-core) python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/dea/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
+	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/macrostates.json --infile $(tmpdir)/integrated/bin/dea/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
 else
 $(bin_dea): $(if $(filter-out $(words $(CONDITIONS)),1),$(annotation_integrated),$(annotation_$(conditions))) $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
 	$(call print_rule,bin-dea)
 	mkdir -p $(@D) $(tmpdir)/integrated/bin/dea
 	$(call print_debug,adding macrostates to AnnData)
-	$(call conda_run,scbolt-core) python scripts/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/dea/mcts.h5ad --csv $(filter-out $<, $^) \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/add_to_anndata.py $(firstword $^) $(tmpdir)/integrated/bin/dea/mcts.h5ad --csv $(filter-out $<, $^) \
 		$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions) --label-column condition --add-prefix macrostate,) --axis 0 --sep , --type category
-	$(call conda_run,scbolt-core) python scripts/binarization/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/binarization/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
 		--cluster macrostate --layer log-norm --is-log --method wilcoxon --use-rep $(USE_REP) \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION)
 	$(call print_task,plotting embedding colored by macrostates)
-	$(call conda_run,scbolt-core) python fig/plot_embedding.py fig/macrostates.json --infile $(tmpdir)/integrated/bin/dea/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
+	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/macrostates.json --infile $(tmpdir)/integrated/bin/dea/mcts.h5ad --outfile $(@D)/macrostates.pdf --use-rep $(USE_REP)
 endif
 
 $(bin_consensus): $(bin_macrostates) $(lastword $(bin_cells)) $(bin_dea)
@@ -1255,7 +1284,7 @@ $(bin_consensus): $(bin_macrostates) $(lastword $(bin_cells)) $(bin_dea)
 	((col++))
 	cut -f 1,$$col -d ',' $(word 2, $^) > $(tmpdir)/bin/consensus/distributions.csv
 	unset col
-	$(call conda_run,scbolt-core) python scripts/binarization/bin_consensus.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/binarization/bin_consensus.py \
 		--scboolseq $< $(tmpdir)/bin/consensus/distributions.csv --dea $(lastword $^) \
 		--outfile $@ --pct-bin $(@D)/pct_bin.csv
 
@@ -1265,9 +1294,9 @@ $(bonesis_model)&: $(bin) $(if $(filter-out $(words $(CONDITIONS)),1),$(annotati
 	$(call check_file,$(YAML_MODEL),YAML_MODEL)
 	mkdir -p $(tmpdir)/bonesis/hvg $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
 	$(call print_task,estimating top$(if $(MODEL_TOP_HVG), $(MODEL_TOP_HVG),) highly variable genes with $(MODEL_HVG_METHOD))
-	$(call conda_run,scbolt-core) python scripts/preprocessing/hvg.py $(lastword $^) $(tmpdir)/bonesis/hvg/top_genes.txt \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/preprocessing/hvg.py $(lastword $^) $(tmpdir)/bonesis/hvg/top_genes.txt \
 		--method $(MODEL_HVG_METHOD) $(model_layer) $(if $(MODEL_TOP_HVG),--hvg $(MODEL_TOP_HVG),) $(batch)
-	$(call conda_run,scbolt-bonesis) python scripts/inference/specification.py $(YAML_MODEL) $< \
+	$(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/specification.py $(YAML_MODEL) $< \
 		--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 		--important-genes $(word 3,$(bonesis_model)) --mandatory-genes $(word 4,$(bonesis_model)) \
 		--filter-genes $(tmpdir)/bonesis/hvg/top_genes.txt --domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg)
@@ -1278,7 +1307,7 @@ $(bonesis_model)&: $(bin) | $(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),$(if $(fi
 	$(call print_rule,spec)
 	$(call check_file,$(YAML_MODEL),YAML_MODEL)
 	mkdir -p $(dir $(word 1,$(bonesis_model))) $(dir $(word 2,$(bonesis_model))) $(dir $(word 3,$(bonesis_model))) $(dir $(word 4,$(bonesis_model)))
-	$(call conda_run,scbolt-bonesis) python scripts/inference/specification.py $(YAML_MODEL) $< \
+	$(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/specification.py $(YAML_MODEL) $< \
 		--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 		--important-genes $(word 3,$(bonesis_model)) --mandatory-genes $(word 4,$(bonesis_model)) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg)
@@ -1290,7 +1319,7 @@ $(max_nodes_soft): $(bonesis_model)
 	$(call print_rule,max-nodes-soft)
 	mkdir -p $(@D)
 	set +e; \
-	$(call inference_timeout,$(TIMEOUT_SOFT)) $(call conda_run,scbolt-bonesis) python scripts/inference/inference.py filter-nodes \
+	$(call inference_timeout,$(TIMEOUT_SOFT)) $(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --asp $(@D)/nodes.sh --solution $@ \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --bonesis-mode soft --max-clause $(MAX_CLAUSE) \
 		--canonic $(CANONIC_FILTER) \
@@ -1304,7 +1333,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 	$(call print_rule,max-consts-soft)
 	mkdir -p $(@D)
 	set +e; \
-	$(call inference_timeout,$(TIMEOUT_CONSTS)) $(call conda_run,scbolt-bonesis) python scripts/inference/inference.py filter-consts \
+	$(call inference_timeout,$(TIMEOUT_CONSTS)) $(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-consts \
 		$(word 1,$^) $(word 2,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --bonesis-mode soft --max-clause $(MAX_CLAUSE) $(min_self_loop_consts) \
 		--canonic $(CANONIC_FILTER) \
@@ -1318,7 +1347,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 	$(call print_rule,max-nodes-relaxed)
 	mkdir -p $(@D)
 	set +e; \
-	$(call inference_timeout,$(TIMEOUT_RELAXED)) $(call conda_run,scbolt-bonesis) python scripts/inference/inference.py filter-nodes \
+	$(call inference_timeout,$(TIMEOUT_RELAXED)) $(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --bonesis-mode relaxed --max-clause $(MAX_CLAUSE) \
 		--canonic $(CANONIC_FILTER) \
@@ -1333,7 +1362,7 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 	$(call check_parameter,$(TIMEOUT_SEED),TIMEOUT_SEED (needed by target 'max-nodes-seed'))
 	mkdir -p $(@D)
 	set +e; \
-	$(call inference_timeout,$(TIMEOUT_SEED)) $(call conda_run,scbolt-bonesis) python scripts/inference/inference.py filter-nodes \
+	$(call inference_timeout,$(TIMEOUT_SEED)) $(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --bonesis-mode hard --max-clause $(MAX_CLAUSE) \
 		--canonic $(CANONIC_FILTER) \
@@ -1353,7 +1382,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 	else \
 		set +e; \
 		cat $(word 4,$^) $(word 6,$^) | sort -u > $(@D)/mandatory.txt; \
-		$(call inference_timeout,$(TIMEOUT_LOCK)) $(call conda_run,scbolt-bonesis) python scripts/inference/inference.py filter-nodes \
+		$(call inference_timeout,$(TIMEOUT_LOCK)) $(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
 			$(word 1,$^) $(word 2,$^) --important-genes $(word 3,$^) --mandatory-genes $(@D)/mandatory.txt --filter-grn $(word 5,$^) --asp $(@D)/nodes.sh --solution $@ \
 			--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --bonesis-mode hard --max-clause $(MAX_CLAUSE) \
 			--canonic $(CANONIC_FILTER) \
@@ -1367,7 +1396,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 $(bn_min): $(bonesis_model) $(max_nodes_lock)
 	$(call print_rule,bn-min)
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-bonesis) python scripts/inference/inference.py min \
+	$(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py min \
 		$(word 1,$^) $(word 2,$^) --filter-grn $(lastword $^) --asp $(@D)/min.sh --solution $(basename $@) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) --max-clause $(MAX_CLAUSE) $(min_self_loop_infer) \
 		--canonic $(CANONIC_INFER) \
@@ -1384,7 +1413,7 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock)
 	$(call print_rule,bn-submin)
 	$(call check_partial_bn_outputs,$(bn_submin_dir),bn-submin)
 	mkdir -p $(bn_submin_dir)
-	$(call conda_run,scbolt-bonesis) python scripts/inference/inference.py submin \
+	$(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py submin \
 		$(word 1,$^) $(word 2,$^) \
 		--filter-grn $(lastword $^) \
 		--asp $(bn_submin_dir)/submin.sh \
@@ -1405,7 +1434,7 @@ $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock)
 	$(call print_rule,bn-diverse)
 	$(call check_partial_bn_outputs,$(bn_diverse_dir),bn-diverse)
 	mkdir -p $(bn_diverse_dir)
-	$(call conda_run,scbolt-bonesis) python scripts/inference/inference.py diverse \
+	$(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py diverse \
 		$(word 1,$^) $(word 2,$^) \
 		--filter-grn $(lastword $^) \
 		--asp $(bn_diverse_dir)/diverse.sh \

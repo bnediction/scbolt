@@ -1,6 +1,6 @@
 ## MANDATORY PARAMETERS ##
 
-RESULTS = nestorowa
+RESULTS = ../../nestorowa
 CONDITIONS = unique
 
 ## USER-UPDATED PARAMETERS ##
@@ -11,7 +11,7 @@ TIMEOUT = 100h
 PRIOR_KNOWLEDGE = dorothea
 MODEL_HVG_METHOD = cell_ranger
 USE_REP = X_se
-YAML_MODEL = user/nestorowa/spec.yml
+YAML_MODEL = spec.yml
 MACROSTATE_METHOD = stream
 MACROSTATE_SIZE = 25
 BIN_METHOD = consensus

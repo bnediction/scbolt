@@ -96,7 +96,7 @@ args = parser.parse_args()
 if args.quiet:
     warnings.filterwarnings("ignore")
 
-if not Path(os.path.dirname(args.outfile)).exists:
+if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(os.path.dirname(args.outfile))
 
 file_extension = str(args.infile).split(".")[-1]
@@ -111,7 +111,9 @@ if file_extension == "txt":
     with open(args.infile, "r") as file:
         gene_list = [line.replace("\n", "") for line in file]
     gene_list = genesynonyms(
-        gene_list, input_type=args.input_type, output_type=args.output_type
+        gene_list,
+        input_identifier_type=args.input_identifier_type,
+        output_identifier_type=args.output_identifier_type,
     )
     with open(args.outfile, "w") as file:
         for gene in gene_list:
@@ -120,8 +122,8 @@ elif file_extension == "csv" or file_extension == "tsv":
     output = pd.read_csv(args.infile, index_col=0, sep=args.sep)
     genesynonyms(
         output,
-        input_identifier_type=args.input_type,
-        output_identifier_type=args.output_type,
+        input_identifier_type=args.input_identifier_type,
+        output_identifier_type=args.output_identifier_type,
         axis=args.axis,
         copy=False,
     )

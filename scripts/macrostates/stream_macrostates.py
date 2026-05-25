@@ -274,7 +274,7 @@ if args.prune_epg:
             adata,
             epg_collapse_mode=args.collapse_mode,
             epg_collapse_par=args.collapse_parameter,
-            epg_n_processes=args.n_jobs,
+            epg_n_processes=args.jobs,
         )
 else:
     std.print_info(
@@ -283,9 +283,15 @@ else:
 
 std.print_task("retrieving stream-based clusters")
 
+def get_stream_cluster(value):
+    match = re.search(r"\d+", str(value))
+    if match is None:
+        raise ValueError(f"STREAM cluster label has no numeric id: {value}")
+    return match.group()
+
 adata.obs["kmeans"] = (
     adata.obs["kmeans"]
-    .transform(lambda x: re.search(r"\d+", x).group())
+    .transform(get_stream_cluster)
     .astype("category")
 )
 

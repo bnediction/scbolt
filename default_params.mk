@@ -1,4 +1,10 @@
-$(eval PARAMS ?= user/apl/params.mk)  # user parameter file
+# Path resolution policy:
+# - paths defined in params.mk are resolved relative to the directory
+#   containing params.mk;
+# - paths passed on the command line are resolved relative to the
+#   directory from which make is launched;
+# - internal scBOLT resources are resolved relative to the scBOLT root.
+$(eval PARAMS ?= user/apl/params.mk)  # user parameter file (resolved relative to scBOLT root)
 
 # Configuration policy:
 # - PARAMS can be overridden here to point to another parameter file
@@ -28,7 +34,8 @@ go_organism_url ?= https://current.geneontology.org/ontology/subsets/goslim_$(OR
 # Useful when starting from user-provided or precomputed upstream analyses.
 # BINARIZATION_FILE overrides the binarization target when set.
 # USE_REP must name an embedding in adata.obsm, usually created by clustering.
-# LABEL_COL is created by annotation, copied per condition, and used by downstream macrostate methods.
+# LABEL_COL is created by annotation, copied per condition, and used by
+# downstream macrostate methods.
 $(eval BINARIZATION_FILE ?=)                # precomputed macrostate binarization
 $(eval USE_REP ?= X_umap)                   # embedding key in adata.obsm
 $(eval LABEL_COL ?= label)                  # annotated cell-type column in adata.obs
@@ -36,17 +43,17 @@ $(eval LABEL_COL ?= label)                  # annotated cell-type column in adat
 ## FILTERING ##
 # Dropout and MT thresholds are fractions in [0,1].
 # *_EXPRESSION, *_COUNTS, and *_READS are non-negative min/max ranges.
-# MAD_DEVIATION defines lower and upper factors for discarding cells 
-# whose log-total reads deviate from the median by more than the corresponding MAD-scaled threshold.
-$(eval GENE_DROPOUT ?= 0.999)               # maximum gene dropout fraction required for a gene to pass filtering
-$(eval GENE_EXPRESSION ?= 0 inf)            # minimum and maximum number of cells expressing a gene required for it to pass filtering
-$(eval GENE_COUNTS ?= 0 inf)                # minimum and maximum total counts required for a gene to pass filtering
-$(eval CELL_DROPOUT ?= 1)                   # maximum gene dropout fraction required for a cell to pass filtering
-$(eval CELL_EXPRESSION ?= 0 inf)            # minimum and maximum number of expressed genes required for a cell to pass filtering
-$(eval CELL_READS ?= 0 inf)                 # minimum and maximum total reads required for a cell to pass filtering
+# MAD_DEVIATION defines lower and upper factors for discarding cells whose
+# log-total reads deviate from the median by more than the MAD-scaled threshold.
+$(eval GENE_DROPOUT ?= 0.999)               # maximum gene dropout fraction
+$(eval GENE_EXPRESSION ?= 0 inf)            # min/max cells expressing a gene
+$(eval GENE_COUNTS ?= 0 inf)                # min/max total gene counts
+$(eval CELL_DROPOUT ?= 1)                   # maximum cell dropout fraction
+$(eval CELL_EXPRESSION ?= 0 inf)            # min/max expressed genes per cell
+$(eval CELL_READS ?= 0 inf)                 # min/max total cell reads
 $(eval MAD_DEVIATION ?= 2 2)                # lower/upper MAD factors around median log-total reads
 $(eval NORM_MAD ?= true)                    # use Gaussian-consistent MAD scaling
-$(eval MT ?= 0.05)                          # maximum mitochondrial count fraction required for a cell to pass filtering
+$(eval MT ?= 0.05)                          # maximum mitochondrial count fraction
 $(eval HVG ?= 2000)                         # number of highly variable genes
 $(eval FILTER_NON_HVG ?= false)             # keep only highly variable genes
 
@@ -62,7 +69,7 @@ $(eval DIM_CLUSTERING ?= 20)                # PCA components used for clustering
 $(eval DIM_EMBEDDING ?= 2)                  # number of embedding dimensions
 $(eval PCA_ONLY_HVG ?= true)                # use only HVGs for PCA projection
 $(eval NEIGHBORS ?= 20)                     # number of nearest neighbors
-$(eval METRIC ?= euclidean)                 # distance metric for neighbors and optionally t-SNE projection
+$(eval METRIC ?= euclidean)                 # neighbor/t-SNE distance metric
 $(eval RESOLUTION ?= 0.4)                   # Leiden clustering resolution
 $(eval MIN_DIST ?= 0.1)                     # UMAP minimum distance
 $(eval SPREAD ?= 1)                         # UMAP spread
@@ -71,7 +78,7 @@ $(eval SPREAD ?= 1)                         # UMAP spread
 # LOGFC is non-negative.
 # CORRECTION values: benjamini-hochberg, bonferroni.
 # ALPHA is an adjusted p-value threshold in [0,1].
-$(eval LOGFC ?= 0.25)                       # minimum absolute log2 fold-change for differential expression
+$(eval LOGFC ?= 0.25)                       # minimum absolute log2 fold-change
 $(eval CORRECTION ?= bonferroni)            # p-value correction method
 $(eval ALPHA ?= 0.05)                       # adjusted p-value threshold
 
@@ -91,7 +98,8 @@ $(eval SMOOTH_BATCH_SIZE ?= 1000)           # cells subsampled for diffusion smo
 
 ## MACROSTATES ##
 # MACROSTATE_METHOD values: knnbs, stream, cotan, cellrank.
-# For stream, if the number of cells assigned to a macrostate is lower than MACROSTATE_SIZE, the macrostate is extended to neighbouring nodes in the elastic principal graph.
+# For stream, macrostates smaller than MACROSTATE_SIZE are extended to
+# neighbouring elastic principal graph nodes.
 $(eval MACROSTATE_SIZE ?= 100)              # target macrostate size
 $(eval MACROSTATE_METHOD ?= cotan)          # macrostate method
 
@@ -137,7 +145,8 @@ $(eval KNNBS_NEIGHBORS ?= 20)               # KNN graph neighbor number
 
 ## BIN-CELLS ##
 # HVG methods: seurat, cell_ranger, seurat_v3.
-# If SCBOOLSEQ_TOP_HVG is not specified, the number of HVGs is estimated automatically, except when SCBOOLSEQ_HVG_METHOD=seurat_v3 where it is required.
+# If SCBOOLSEQ_TOP_HVG is empty, the number of HVGs is estimated automatically,
+# except when SCBOOLSEQ_HVG_METHOD=seurat_v3 where it is required.
 $(eval SCBOOLSEQ_HVG_METHOD ?= cell_ranger) # HVG method for cell binarization
 $(eval SCBOOLSEQ_TOP_HVG ?=)                # top HVGs for cell binarization
 $(eval UNIMODAL_QUANTILE ?= 0.10)           # quantile threshold for unimodal genes
@@ -145,14 +154,16 @@ $(eval ZEROES_ARE_ZEROES ?= true)           # set zero-inflated zeroes to 0
 
 ## BIN-SCBOOLSEQ ##
 # NANS_THRESHOLD is in [0,1]. Other vote thresholds are in [0.5,1].
-$(eval NANS_THRESHOLD ?= 0.3)               # maximum NaN fraction per macrostate, not applied to zero-inflated genes
+# NANS_THRESHOLD is not applied to zero-inflated genes.
+$(eval NANS_THRESHOLD ?= 0.3)               # maximum NaN fraction per macrostate
 $(eval BIMODAL_THRESHOLD ?= 0.7)            # minimum vote fraction for bimodal genes
 $(eval ZEROINF_THRESHOLD ?= 0.7)            # minimum vote fraction for zero-inflated genes
 $(eval UNIMODAL_THRESHOLD ?= 0.7)           # minimum vote fraction for unimodal genes
 
 ## BIN-DEA ##
 # HVG methods: seurat, cell_ranger, seurat_v3.
-# If DEA_TOP_HVG is not specified, the number of HVGs is estimated automatically, except when DEA_HVG_METHOD=seurat_v3 where it is required.
+# If DEA_TOP_HVG is empty, the number of HVGs is estimated automatically,
+# except when DEA_HVG_METHOD=seurat_v3 where it is required.
 # BIN_LOGFC is non-negative.
 # BIN_CORRECTION values: benjamini-hochberg, bonferroni.
 # BIN_ALPHA is an adjusted p-value threshold in [0,1].
@@ -184,16 +195,17 @@ $(eval MODEL_TOP_HVG ?=)                    # top HVGs for model genes
 # Clingo filter configs: auto, frumpy, jumpy, tweety, handy, crafty, trendy, many, or file path.
 # Clingo filter opt modes: opt, optN, ignore.
 # Clingo opt strategies: bb[,<method>] or usc[,<method>].
-# Diagnostic opt modes: ignore tests satisfiability, optN tracks progressive improvements.
-# Diagnostic opt strategy: bb,dec tests whether usc is blocking.
-# CANONIC_FILTER controls filter-nodes/filter-consts; CANONIC_INFER controls min/submin/diverse.
+# Diagnostic opt modes: opt gives fast anytime solutions; optN targets
+# certified optima; ignore tests satisfiability.
+# CANONIC_FILTER controls filter-nodes/filter-consts.
+# CANONIC_INFER controls min/submin/diverse.
 # TIMEOUT_* values are passed to GNU timeout; empty means no timeout.
 $(eval MAX_CLAUSE ?= 8)                     # maximum literals per propositional formula
 $(eval PRIOR_KNOWLEDGE ?= collectri)        # prior GRN domain
 $(eval DOROTHEA_API ?= current)             # DoRothEA API source
 $(eval DOROTHEA_LEVELS ?= A B C)            # DoRothEA confidence levels
-$(eval CANONIC_FILTER ?= false)             # canonical logical function representation during filtering
-$(eval CANONIC_INFER ?= true)               # canonical logical function representation during BN inference
+$(eval CANONIC_FILTER ?= false)             # canonical functions during filtering
+$(eval CANONIC_INFER ?= true)               # canonical functions during BN inference
 
 ## MAX-NODES-SOFT ##
 $(eval CLINGO_CONFIG_SOFT ?=)               # Clingo default configuration
@@ -221,7 +233,7 @@ $(eval TIMEOUT_RELAXED ?= 48h)              # timeout
 # TIMEOUT_SEED is required when max-nodes-seed is reached.
 $(eval CLINGO_CONFIG_SEED ?=)               # Clingo default configuration
 $(eval CLINGO_OPT_MODE_SEED ?= opt)         # Clingo optimization mode
-$(eval CLINGO_OPT_STRATEGY_SEED ?= usc)     # Clingo optimization strategy
+$(eval CLINGO_OPT_STRATEGY_SEED ?= bb,inc)  # Clingo optimization strategy
 $(eval JOBS_SEED ?= 1)                      # solver jobs
 $(eval TIMEOUT_SEED ?= 24h)                 # timeout
 
@@ -243,5 +255,5 @@ $(eval MIN_SELF_LOOP_INFER ?= true)         # minimize one-node feedbacks at inf
 $(eval CLINGO_OPT_MODE_MIN ?= optN)         # Clingo optimization mode
 
 ## BONESIS-DIVERSE / BONESIS-SUBMIN ##
-$(eval INFER_LIMIT ?=)                      # number of diverse sparsest or subset-minimal BN solutions
-                                            # if empty, enumerate all available solutions according to the selected inference target
+$(eval INFER_LIMIT ?=)                      # diverse/subset-minimal solution limit
+# If empty, enumerate all available solutions for the selected inference target.

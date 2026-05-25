@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 
 bt.sct.pl.set_default_params()
 
-pd.DataFrame.iteritems = pd.DataFrame.items
+setattr(pd.DataFrame, "iteritems", pd.DataFrame.items)
 
 
 def marker_pairs_converter(
@@ -220,7 +220,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 if any(v < 0 for v in args.mad_deviation):
-    raise argparse.ArgumentError(
+    raise ValueError(
         f"expected positive values, but received {args.mad_deviation}"
     )
 
