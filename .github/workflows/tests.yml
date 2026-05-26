@@ -70,9 +70,9 @@ jobs:
           set -e
           printf '%s\n' "$output"
           test "$status" -ne 0
-          grep -q "required parameter not defined: LABEL" <<< "$output"
-          grep -q "required parameter not defined: KNNBS_CENTRALITY_CTRL or KNNBS_PERIPHERY_CTRL" <<< "$output"
-          grep -q "required parameter not defined: KNNBS_CENTRALITY_TREATED or KNNBS_PERIPHERY_TREATED" <<< "$output"
+          grep -q "required project parameter not defined: LABEL" <<< "$output"
+          grep -q "required method parameter not defined: KNNBS_CENTRALITY_CTRL or KNNBS_PERIPHERY_CTRL" <<< "$output"
+          grep -q "required method parameter not defined: KNNBS_CENTRALITY_TREATED or KNNBS_PERIPHERY_TREATED" <<< "$output"
           grep -q "check failed for target 'knnbs'" <<< "$output"
 
   diagnostic-seed:
@@ -89,6 +89,6 @@ jobs:
           printf '%s\n' "$output"
           test "$status" -ne 0
           grep -qE "required file not found: .*missing.yml" <<< "$output"
-          grep -q "required parameter not defined: TIMEOUT_SEED" <<< "$output"
-          grep -q "required parameter not defined: LABEL" <<< "$output"
+          grep -q "required method parameter not defined: TIMEOUT_SEED" <<< "$output"
+          grep -q "required project parameter not defined: LABEL" <<< "$output"
           grep -q "check failed for target 'max-nodes-seed'" <<< "$output"
