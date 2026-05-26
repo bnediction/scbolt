@@ -30,6 +30,15 @@ $(eval RESULTS ?= project/)                 # output directory
 genome_url ?= https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz
 go_organism_url ?= https://current.geneontology.org/ontology/subsets/goslim_$(ORGANISM).obo
 
+## ALIGNMENT/COUNTING ##
+# ALIGNMENT_TOOL values: cellranger, star.
+# STARsolo uses STAR 2.7.1a to reuse Cell Ranger reference indices.
+# It assumes 10x-style reads: R1 stores cell barcode/UMI, R2 stores cDNA.
+$(eval ALIGNMENT_TOOL ?= star)        # alignment/counting backend
+$(eval STAR_CB_LEN ?= 16)                  # cell-barcode length
+$(eval STAR_UMI_LEN ?= 10)                 # UMI length
+$(eval STAR_WHITELIST ?=)                  # barcode whitelist file
+
 ## EXTRA PARAMETERS ##
 # Useful when starting from user-provided or precomputed upstream analyses.
 # BINARIZATION_FILE overrides the binarization target when set.
