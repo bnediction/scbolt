@@ -32,12 +32,18 @@ go_organism_url ?= https://current.geneontology.org/ontology/subsets/goslim_$(OR
 
 ## ALIGNMENT/COUNTING ##
 # ALIGNMENT_TOOL values: cellranger, star.
-# STARsolo uses STAR 2.7.1a to reuse Cell Ranger reference indices.
+# STAR uses STAR 2.7.1a to reuse Cell Ranger reference indices.
 # It assumes 10x-style reads: R1 stores cell barcode/UMI, R2 stores cDNA.
-$(eval ALIGNMENT_TOOL ?= star)        # alignment/counting backend
+# STAR_BARCODE_FILTER values: auto, threshold, top.
+# auto estimates a knee point; threshold requires STAR_MIN_UMI; top requires
+# STAR_TOP_BARCODES.
+$(eval ALIGNMENT_TOOL ?= star)             # alignment/counting backend
 $(eval STAR_CB_LEN ?= 16)                  # cell-barcode length
 $(eval STAR_UMI_LEN ?= 10)                 # UMI length
 $(eval STAR_WHITELIST ?=)                  # barcode whitelist file
+$(eval STAR_BARCODE_FILTER ?= auto)        # barcode filtering method
+$(eval STAR_MIN_UMI ?=)                    # optional minimum UMI count
+$(eval STAR_TOP_BARCODES ?=)               # optional number of top barcodes
 
 ## EXTRA PARAMETERS ##
 # Useful when starting from user-provided or precomputed upstream analyses.

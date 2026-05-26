@@ -141,6 +141,11 @@ case "$(strip $($(1)))" in \
 	''|*[!0-9]*|0) $(call print_error,required positive integer for parameter $(1) \(current: $(strip $($(1)))\));; \
 esac
 endef
+define require_optional_positive_integer
+if [ -n "$(strip $($(1)))" ]; then \
+	$(call require_positive_integer,$(1)); \
+fi
+endef
 define require_float
 if ! printf '%s\n' "$(strip $($(1)))" \
 		| grep -Eq '^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$$$$'; then \
@@ -224,6 +229,20 @@ endef
 define require_knnbs_parameters
 $(call require_choice,KNNBS_EMBEDDING,pca umap,knnbs); \
 $(call require_positive_integer,KNNBS_NEIGHBORS)
+endef
+define require_star_barcode_filter_parameters
+$(call require_choice,STAR_BARCODE_FILTER,auto threshold top,$(1)); \
+$(call require_optional_positive_integer,STAR_MIN_UMI); \
+$(call require_optional_positive_integer,STAR_TOP_BARCODES); \
+if [ "$(STAR_BARCODE_FILTER)" = "threshold" ] && [ -z "$(strip $(STAR_MIN_UMI))" ]; then \
+	$(call print_error,required parameter not defined: STAR_MIN_UMI \(needed by target '$(1)'\)); \
+fi; \
+if [ "$(STAR_BARCODE_FILTER)" = "top" ] && [ -z "$(strip $(STAR_TOP_BARCODES))" ]; then \
+	$(call print_error,required parameter not defined: STAR_TOP_BARCODES \(needed by target '$(1)'\)); \
+fi; \
+if [ "$(STAR_BARCODE_FILTER)" = "auto" ] && [ -n "$(strip $(STAR_MIN_UMI)$(STAR_TOP_BARCODES))" ]; then \
+	$(call print_error,STAR_MIN_UMI and STAR_TOP_BARCODES require STAR_BARCODE_FILTER=threshold or top); \
+fi
 endef
 define require_bin_cells_parameters
 $(call require_float,UNIMODAL_QUANTILE); \
@@ -320,6 +339,11 @@ case "$(strip $(1))" in \
 	*) $(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: $(2)=$(strip $(1)));; \
 esac
 endef
+define check_optional_positive_integer_diagnostic
+if [ -n "$(strip $(1))" ]; then \
+	$(call check_positive_integer_diagnostic,$(1),$(2),$(3)); \
+fi
+endef
 define check_float_diagnostic
 if printf '%s\n' "$(strip $(1))" \
 		| grep -Eq '^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$$$$'; then \
@@ -393,11 +417,35 @@ maybe_log_target_parameters = $(if $(call target_log_parameters,$(1)),\
 	$(call log_parameters,$(call target_log_parameters,$(1))) \
 	printf '\n';)
 
-conda_run = PYTHONPATH="$(lib_dir)$(if $(PYTHONPATH),:$(PYTHONPATH))" conda run --no-capture-output -n $(1)
+PYTHONUNBUFFERED ?= 1
+TQDM_DISABLE ?= 0
+TQDM_TO_TTY ?= 0
+
+conda_pythonpath = $(lib_dir)$(if $(PYTHONPATH),:$(PYTHONPATH))
+conda_runtime_env = env \
+	PYTHONPATH="$(conda_pythonpath)" \
+	PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)"
+tqdm_runtime_env = $(conda_runtime_env) \
+	TQDM_DISABLE="$(TQDM_DISABLE)" \
+	TQDM_TO_TTY="$(TQDM_TO_TTY)"
+nested_make_env = env \
+	$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
+	PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
+	TQDM_DISABLE="$(TQDM_DISABLE)" \
+	TQDM_TO_TTY="$(TQDM_TO_TTY)"
+logged_nested_make_env = env \
+	$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
+	PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
+	TQDM_DISABLE="$(TQDM_DISABLE)" \
+	TQDM_TO_TTY="1"
+conda_run = $(conda_runtime_env) conda run --no-capture-output -n $(1)
+conda_run_tqdm = $(tqdm_runtime_env) conda run --no-capture-output -n $(1)
+nested_make = $(nested_make_env) $(MAKE) -f "$(makefile_path)"
+logged_nested_make = $(logged_nested_make_env) $(MAKE) -f "$(makefile_path)"
 inference_timeout = $(if $(filter-out 0,$(strip $(1))),timeout --foreground $(strip $(1)),)
 
 ifndef LOGGING
-run_logged = $(MAKE) -f "$(makefile_path)" LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
+run_logged = $(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
 else ifeq ($(LOGGING),true)
 run_logged = \
 	mkdir -p $(dir $(LOGFILE)); \
@@ -419,13 +467,12 @@ run_logged = \
 		$(call maybe_log_target_parameters,$(1)) \
 		printf '%s\n' '[OUTPUT]'; \
 	} >> "$(LOGFILE)"; \
-	PYTHONUNBUFFERED=1 TQDM_TO_TTY=1 \
-		$(MAKE) -f "$(makefile_path)" LOGGING=false __$(1) LOGFILE="$(LOGFILE)" 2>&1 \
+	$(logged_nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)" 2>&1 \
 		| tee -a "$(LOGFILE)"
 else ifeq ($(LOGGING),false)
-run_logged = $(MAKE) -f "$(makefile_path)" LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
+run_logged = $(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
 else
-run_logged = $(MAKE) -f "$(makefile_path)" LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
+run_logged = $(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
 endif
 
 define fastq_naming
@@ -487,7 +534,7 @@ define check_inference_status
 endef
 
 define check_partial_bn_outputs
-@if [ -d "$(1)" ] && [ ! -f "$(1)/.done" ]; then \
+@if [ -d "$(1)" ] && [ ! -f "$(3)" ]; then \
 	echo "" > /dev/tty; \
 	echo "Detected incomplete outputs for target '$(2)'." > /dev/tty; \
 	echo "Output directory: $(1)" > /dev/tty; \
@@ -525,7 +572,10 @@ define find_paths_for_conditions
 
 fastq_$(1) =                    $(results)/$(1)/fastq
 cellranger_$(1) =               $(results)/$(1)/count/cellranger/$(1).mri.tgz
-star_$(1) =                     $(results)/$(1)/count/star/.done
+star_$(1) =                     $(results)/$(1)/count/star/Aligned.sortedByCoord.out.bam \
+                                $(results)/$(1)/count/star/Solo.out/matrix.mtx \
+                                $(results)/$(1)/count/star/Solo.out/barcodes.tsv
+qc_$(1) =                       $(results)/$(1)/count/star/star.velocyto.bam
 velocyto_$(1) =                 $(results)/$(1)/count/counts.h5ad
 filtering_$(1) =                $(results)/$(1)/prep/filter/counts.h5ad
 normalization_$(1) =            $(results)/$(1)/prep/norm/counts.h5ad
@@ -597,7 +647,7 @@ ifneq ($(filter-out 0,$(strip $(INFER_LIMIT))),)
 bn_submin_indices := $(shell seq 0 $$(($(INFER_LIMIT)-1)))
 bn_submin = $(call bn_files,$(bn_submin_indices),$(bn_submin_dir))
 else
-bn_submin = $(bn_submin_dir)/.done
+bn_submin = $(bn_submin_dir)/ensemble.pdf
 endif
 
 bn_diverse_dir = $(results)/infer/bn/diverse
@@ -605,7 +655,7 @@ ifneq ($(filter-out 0,$(strip $(INFER_LIMIT))),)
 bn_diverse_indices := $(shell seq 0 $$(($(INFER_LIMIT)-1)))
 bn_diverse = $(call bn_files,$(bn_diverse_indices),$(bn_diverse_dir))
 else
-bn_diverse = $(bn_diverse_dir)/.done
+bn_diverse = $(bn_diverse_dir)/ensemble.pdf
 endif
 
 $(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
@@ -619,6 +669,7 @@ fastq_target :=
 alignment_target :=
 cellranger_target :=
 star_target :=
+qc_target :=
 velocyto_target :=
 filtering_target :=
 normalization_target :=
@@ -641,6 +692,7 @@ $(eval fastq_target := $(fastq_target) $(fastq_$(1)))
 $(eval alignment_target := $(alignment_target) $(alignment_$(1)))
 $(eval cellranger_target := $(cellranger_target) $(cellranger_$(1)))
 $(eval star_target := $(star_target) $(star_$(1)))
+$(eval qc_target := $(qc_target) $(qc_$(1)))
 $(eval velocyto_target := $(velocyto_target) $(velocyto_$(1)))
 $(eval filtering_target := $(filtering_target) $(filtering_$(1)))
 $(eval normalization_target := $(normalization_target) $(normalization_$(1)))
@@ -800,7 +852,8 @@ target_params_load-dorothea = ORGANISM
 target_params_alignment = ALIGNMENT_TOOL MEMORY STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
 target_params_cellranger = MEMORY
 target_params_star = MEMORY STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
-target_params_velocyto = ALIGNMENT_TOOL MEMORY
+target_params_qc = STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
+target_params_velocyto = ALIGNMENT_TOOL MEMORY STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
 target_params_filtering = \
 	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
 	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
@@ -867,6 +920,7 @@ core_config_param_set = \
 	PARAMS REFERENCES RESULTS MEMORY JOBS SEED LOGGING USE_REP LABEL_COL
 method_config_param_set = \
 	ALIGNMENT_TOOL STAR_CB_LEN STAR_UMI_LEN \
+	STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES \
 	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
 	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
 	MAD_DEVIATION NORM_MAD MT HVG FILTER_NON_HVG \
@@ -901,7 +955,7 @@ external_resource_config_param_set = \
 	CLINGO_CONFIG_SOFT CLINGO_CONFIG_CONSTS CLINGO_CONFIG_RELAXED \
 	CLINGO_CONFIG_SEED CLINGO_CONFIG_LOCK
 config_default_modules = \
-	load-fastq load-dorothea alignment cellranger star velocyto \
+	load-fastq load-dorothea alignment cellranger star qc velocyto \
 	filtering normalization clustering dea annotation velocity potency \
 	macrostates cotan cellrank stream knnbs bin-cells bin-macrostates \
 	bin-dea bin-consensus binarization spec max-nodes-soft max-consts-soft \
@@ -945,7 +999,7 @@ help: ## display this help and exit
 .PHONY: config
 config: ## display effective configuration and exit
 	$(eval config_modules := $(if $(TARGET),\
-		$(shell $(MAKE) -f "$(makefile_path)" --always-make --dry-run LOGGING=false \
+		$(shell $(nested_make) --always-make --dry-run LOGGING=false \
 			__check_mode=true __$(TARGET) LOGFILE="$(LOGFILE)" 2>/dev/null \
 			| sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' \
 			| awk '!seen[$$0]++'),\
@@ -993,7 +1047,7 @@ check: ## check Make-level dependencies, configuration and external tools requir
 	check_success() { printf '$(green)SUCCESS$(nc) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
 	check_failure() { printf '$(red)FAIL$(nc) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
 	missing=0; \
-	$(MAKE) -f "$(makefile_path)" --dry-run LOGGING=false \
+	$(nested_make) --dry-run LOGGING=false \
 		__check_mode=true __$(TARGET) LOGFILE="$(LOGFILE)" > "$${dry_run}"; \
 	$(foreach var,$(check_missing_config_params),$(call report_check_error,required core parameter not defined: $(var));) \
 	if [ -n "$(MEMORY)" ]; then \
@@ -1025,6 +1079,24 @@ check: ## check Make-level dependencies, configuration and external tools requir
 		$(call check_positive_integer_diagnostic,$(STAR_UMI_LEN),STAR_UMI_LEN,method); \
 		if [ -n "$(STAR_WHITELIST)" ]; then \
 		$(call check_file_diagnostic,$(STAR_WHITELIST),STAR_WHITELIST,external resource); \
+		fi; \
+	fi; \
+	if grep -q 'scripts/alignment/filter_barcodes.py' "$${dry_run}"; then \
+		$(call check_choice_diagnostic,$(STAR_BARCODE_FILTER),auto threshold top,STAR_BARCODE_FILTER,method); \
+		$(call check_optional_positive_integer_diagnostic,$(STAR_MIN_UMI),STAR_MIN_UMI,method); \
+		$(call check_optional_positive_integer_diagnostic,$(STAR_TOP_BARCODES),STAR_TOP_BARCODES,method); \
+		if [ "$(STAR_BARCODE_FILTER)" = "threshold" ] && [ -z "$(STAR_MIN_UMI)" ]; then \
+			$(call report_check_error,required method parameter not defined: \
+				STAR_MIN_UMI (needed by target '$(TARGET)')); \
+		fi; \
+		if [ "$(STAR_BARCODE_FILTER)" = "top" ] && [ -z "$(STAR_TOP_BARCODES)" ]; then \
+			$(call report_check_error,required method parameter not defined: \
+				STAR_TOP_BARCODES (needed by target '$(TARGET)')); \
+		fi; \
+		if [ "$(STAR_BARCODE_FILTER)" = "auto" ] \
+				&& { [ -n "$(STAR_MIN_UMI)" ] || [ -n "$(STAR_TOP_BARCODES)" ]; }; then \
+			$(call report_check_error,method parameters STAR_MIN_UMI and STAR_TOP_BARCODES \
+				require STAR_BARCODE_FILTER=threshold or top); \
 		fi; \
 	fi; \
 	if grep -q 'ALIGNMENT_TOOL' "$${dry_run}"; then \
@@ -1199,7 +1271,7 @@ dry-run: ## display modules required to build TARGET without executing them
 	@if [ -z "$(TARGET)" ]; then \
 		$(call print_error,missing TARGET \(usage: make dry-run TARGET=<module>\)); \
 	fi
-	$(MAKE) -f "$(makefile_path)" --dry-run LOGGING=false __$(TARGET) LOGFILE="$(LOGFILE)"
+	$(nested_make) --dry-run LOGGING=false __$(TARGET) LOGFILE="$(LOGFILE)"
 
 ##@ Clean
 
@@ -1265,9 +1337,14 @@ cellranger: ## run Cell Ranger for alignment and counting
 __cellranger: $(cellranger_target)
 
 .PHONY: star __star
-star: ## run STARsolo for alignment and counting
+star: ## run STAR for alignment and counting
 	$(call run_logged,star)
 __star: $(star_target)
+
+.PHONY: qc __qc
+qc: ## prepare STAR outputs for downstream spliced/unspliced counting
+	$(call run_logged,qc)
+__qc: $(qc_target)
 
 .PHONY: velocyto __velocyto
 velocyto: ## run Velocyto for spliced and unspliced counting
@@ -1553,7 +1630,7 @@ $(cellranger_$(1)): $(fastq_$(1)) $(genome_ref)
 	mv $(tmpdir)/cellranger/$(1)/* $$(@D)
 	rm -rf $(tmpdir)/cellranger/$(1)
 
-$(star_$(1)): $(fastq_$(1)) $(star_index)
+$(star_$(1))&: $(fastq_$(1)) $(star_index)
 	$(call print_rule,star,$(1))
 	$(call require_choice,ALIGNMENT_TOOL,cellranger star,star)
 	$(call require_positive_integer,STAR_CB_LEN)
@@ -1566,7 +1643,7 @@ $(star_$(1)): $(fastq_$(1)) $(star_index)
 	r1_files="$$$$(find "$$$${fastq_dir}" -name '*_R1_001.fastq.gz' | sort | paste -sd, -)"
 	r2_files="$$$$(find "$$$${fastq_dir}" -name '*_R2_001.fastq.gz' | sort | paste -sd, -)"
 	if [ -z "$$$${r1_files}" ] || [ -z "$$$${r2_files}" ]; then \
-		$(call print_error,STARsolo requires R1 and R2 FASTQ files in $$$${fastq_dir}); \
+		$(call print_error,STAR requires R1 and R2 FASTQ files in $$$${fastq_dir}); \
 	fi
 	$(call conda_run,scbolt-align) STAR \
 		--runThreadN $(JOBS) \
@@ -1587,7 +1664,6 @@ $(star_$(1)): $(fastq_$(1)) $(star_index)
 	rm -rf $$(@D)
 	mkdir -p $$(@D)
 	mv $(tmpdir)/star/$(1)/* $$(@D)/
-	touch $$@
 
 ifeq ($(ALIGNMENT_TOOL),cellranger)
 $(velocyto_$(1)): $(cellranger_$(1)) $(genome_ref)
@@ -1606,22 +1682,41 @@ $(velocyto_$(1)): $(cellranger_$(1)) $(genome_ref)
 		$$(@D)/counts.loom $$@ --from loom --to h5ad \
 		--remove-positions --sort --standardization
 else ifeq ($(ALIGNMENT_TOOL),star)
-$(velocyto_$(1)): $(star_$(1)) $(genome_ref)
+$(qc_$(1)): $(star_$(1))
+	$(call print_rule,qc,$(1))
+	$(call print_task,filtering STAR barcodes)
+	$(call require_star_barcode_filter_parameters,qc)
+	mkdir -p $$(@D)
+	$(call conda_run,scbolt-core) python $(scripts_dir)/alignment/filter_barcodes.py \
+		$$(<D)/Solo.out/matrix.mtx \
+		$$(<D)/Solo.out/barcodes.tsv \
+		$$(@D)/filtered_barcodes.tsv \
+		--method $(STAR_BARCODE_FILTER) \
+		$(if $(STAR_MIN_UMI),--min-umi $(STAR_MIN_UMI),) \
+		$(if $(STAR_TOP_BARCODES),--top-barcodes $(STAR_TOP_BARCODES),)
+	$(call print_task,preparing STAR BAM for velocyto)
+	mkdir -p $$(@D)
+	$(call conda_run,scbolt-velocyto) python $(scripts_dir)/alignment/retag_bam.py \
+		$$(<D)/Aligned.sortedByCoord.out.bam $$@.tmp \
+		--barcodes $$(@D)/filtered_barcodes.tsv \
+		--tag CR:CB UR:UB \
+		--jobs $(JOBS)
+	mv $$@.tmp $$@
+
+$(velocyto_$(1)): $(qc_$(1)) $(genome_ref)
 	$(call print_rule,velocyto,$(1))
 	$(call require_choice,ALIGNMENT_TOOL,cellranger star,velocyto)
+	$(call require_star_barcode_filter_parameters,velocyto)
 	$(call check_file,$(public_dir)/transcriptome/repeat_msk.gtf,repeat_msk.gtf)
 	mkdir -p $(tmpdir)/velocyto/$(1)
-	$(call print_debug,copying BAM tags to create velocyto-compatible tags)
-	$(call conda_run,scbolt-velocyto) python $(scripts_dir)/utils/retag_bam.py \
-		$$(<D)/Aligned.sortedByCoord.out.bam $(tmpdir)/velocyto/$(1)/star.velocyto.bam \
-		--tag CR:CB UR:UB
+	$(call print_task,estimating spliced and unspliced counts with velocyto)
 	$(call conda_run,scbolt-velocyto) velocyto run \
 		-m $(public_dir)/transcriptome/repeat_msk.gtf \
-		-b $$(<D)/Solo.out/barcodes.tsv \
+		-b $$(<D)/filtered_barcodes.tsv \
 		-o $(tmpdir)/velocyto/$(1) \
 		-e star \
 		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
-		$(tmpdir)/velocyto/$(1)/star.velocyto.bam $$(lastword $$^)/genes/genes.gtf
+		$$(firstword $$^) $$(lastword $$^)/genes/genes.gtf
 	mkdir -p $$(@D)
 	mv $(tmpdir)/velocyto/$(1)/star.loom $$(@D)/counts.loom
 	rm -rf $(tmpdir)/velocyto/$(1)
@@ -2037,7 +2132,7 @@ $(max_nodes_soft): $(bonesis_model)
 	mkdir -p $(@D)
 	set +e; \
 	$(call inference_timeout,$(TIMEOUT_SOFT)) \
-		$(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
+		$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
 		--asp $(@D)/nodes.sh --solution $@ \
@@ -2059,7 +2154,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 	mkdir -p $(@D)
 	set +e; \
 	$(call inference_timeout,$(TIMEOUT_CONSTS)) \
-		$(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-consts \
+		$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-consts \
 		$(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) \
 		--asp $(@D)/nodes.sh --solution $@ \
@@ -2080,7 +2175,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 	mkdir -p $(@D)
 	set +e; \
 	$(call inference_timeout,$(TIMEOUT_RELAXED)) \
-		$(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
+		$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
@@ -2102,7 +2197,7 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 	mkdir -p $(@D)
 	set +e; \
 	$(call inference_timeout,$(TIMEOUT_SEED)) \
-		$(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
+		$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
@@ -2129,7 +2224,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 		set +e; \
 		cat $(word 4,$^) $(word 6,$^) | sort -u > $(@D)/mandatory.txt; \
 		$(call inference_timeout,$(TIMEOUT_LOCK)) \
-			$(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
+			$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
 			$(word 1,$^) $(word 2,$^) \
 			--important-genes $(word 3,$^) --mandatory-genes $(@D)/mandatory.txt \
 			--filter-grn $(word 5,$^) --asp $(@D)/nodes.sh --solution $@ \
@@ -2150,7 +2245,7 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock)
 	$(call require_bonesis_infer_parameters,bn-min)
 	$(call require_bool,MIN_SELF_LOOP_INFER,bn-min)
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py min \
+	$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py min \
 		$(word 1,$^) $(word 2,$^) \
 		--filter-grn $(lastword $^) \
 		--asp $(@D)/min.sh \
@@ -2171,9 +2266,9 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock)
 $(bn_submin)&: $(bonesis_model) $(max_nodes_lock)
 	$(call print_rule,bn-submin)
 	$(call require_bonesis_infer_parameters,bn-submin)
-	$(call check_partial_bn_outputs,$(bn_submin_dir),bn-submin)
+	$(call check_partial_bn_outputs,$(bn_submin_dir),bn-submin,$@)
 	mkdir -p $(bn_submin_dir)
-	$(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py submin \
+	$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py submin \
 		$(word 1,$^) $(word 2,$^) \
 		--filter-grn $(lastword $^) \
 		--asp $(bn_submin_dir)/submin.sh \
@@ -2188,14 +2283,13 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock)
 		--config-formats $(CONFIG_FORMATS) \
 		--graph-formats $(GRAPH_FORMATS) \
 		--remove-isolated-nodes
-	touch $(bn_submin_dir)/.done
 
 $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock)
 	$(call print_rule,bn-diverse)
 	$(call require_bonesis_infer_parameters,bn-diverse)
-	$(call check_partial_bn_outputs,$(bn_diverse_dir),bn-diverse)
+	$(call check_partial_bn_outputs,$(bn_diverse_dir),bn-diverse,$@)
 	mkdir -p $(bn_diverse_dir)
-	$(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/inference.py diverse \
+	$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py diverse \
 		$(word 1,$^) $(word 2,$^) \
 		--filter-grn $(lastword $^) \
 		--asp $(bn_diverse_dir)/diverse.sh \
@@ -2210,7 +2304,6 @@ $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock)
 		--config-formats $(CONFIG_FORMATS) \
 		--graph-formats $(GRAPH_FORMATS) \
 		--remove-isolated-nodes
-	touch $(bn_diverse_dir)/.done
 
 $(foreach condition,$(conditions),$(eval $(call compute_rules_for_conditions,$(condition))))
 $(foreach reference,$(references),$(eval $(call compute_rules_for_references,$(reference))))

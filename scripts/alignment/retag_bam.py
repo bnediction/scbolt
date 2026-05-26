@@ -12,11 +12,22 @@ import std
 import pysam
 
 
+def load_barcodes(barcode_file: str | Path | None) -> set[str] | None:
+    if barcode_file is None:
+        return None
+
+    with open(barcode_file) as handle:
+        return {line.strip() for line in handle if line.strip()}
+
+
 def copy_bam_tags(
     infile: str | Path,
     outfile: str | Path,
     tags: dict[str, str],
-) -> dict[tuple[str, str], int]:
+    barcodes: set[str] | None = None,
+    barcode_tag: str = "CR",
+    threads: int = 1,
+) -> tuple[dict[tuple[str, str], int], int, int]:
     """
     Copy BAM tags from source names to destination names.
 
@@ -36,18 +47,29 @@ def copy_bam_tags(
     """
 
     copied = {(source, destination): 0 for source, destination in tags.items()}
+    kept_reads = 0
+    skipped_reads = 0
 
-    with pysam.AlignmentFile(infile, "rb") as bam_in:
-        with pysam.AlignmentFile(outfile, "wb", template=bam_in) as bam_out:
+    with pysam.AlignmentFile(infile, "rb", threads=threads) as bam_in:
+        with pysam.AlignmentFile(outfile, "wb", template=bam_in, threads=threads) as bam_out:
             for read in bam_in:
+                if barcodes is not None:
+                    if not read.has_tag(barcode_tag):
+                        skipped_reads += 1
+                        continue
+                    if read.get_tag(barcode_tag) not in barcodes:
+                        skipped_reads += 1
+                        continue
+
                 for source, destination in tags.items():
                     if read.has_tag(source):
                         value, value_type = read.get_tag(source, with_value_type=True)
                         read.set_tag(destination, value, value_type=value_type)
                         copied[(source, destination)] += 1
                 bam_out.write(read)
+                kept_reads += 1
 
-    return copied
+    return copied, kept_reads, skipped_reads
 
 
 parser_description = """
@@ -60,7 +82,11 @@ passed with --tag, using <source>:<destination> syntax.
 parser = argparse.ArgumentParser(
     prog="retag-bam",
     description=parser_description,
-    usage="python retag_bam.py [-h] <FILE> <FILE> [--tag LITERAL:LITERAL ...]",
+    usage=(
+        "python retag_bam.py [-h] <FILE> <FILE> "
+        "[--tag LITERAL:LITERAL ...] [--barcodes FILE] "
+        "[--barcode-tag TAG] [--jobs INT]"
+    ),
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
@@ -88,15 +114,53 @@ parser.add_argument(
     help="tag mapping from source to destination (default: CR:CB UR:UB)",
 )
 
+parser.add_argument(
+    "--barcodes",
+    type=lambda x: Path(x).resolve(),
+    default=None,
+    metavar="FILE",
+    help="keep only reads matching one of these barcodes",
+)
+
+parser.add_argument(
+    "--barcode-tag",
+    default="CR",
+    metavar="TAG",
+    help="read tag used to match barcodes (default: CR)",
+)
+
+parser.add_argument(
+    "--jobs",
+    type=int,
+    default=1,
+    metavar="INT",
+    help="BAM compression/decompression jobs (default: 1)",
+)
+
 args = parser.parse_args()
+
+if args.jobs <= 0:
+    parser.error("--jobs must be a positive integer")
 
 if args.outfile.parent:
     os.makedirs(args.outfile.parent, exist_ok=True)
 
 std.print_task(f"loading BAM file from {args.infile}")
+barcodes = load_barcodes(args.barcodes)
+if barcodes is not None:
+    std.print_task(f"loading selected barcodes from {args.barcodes}")
+    std.print_info(f"selected barcodes: {len(barcodes)}")
+
 std.print_task(f"saving retagged BAM file in {args.outfile}")
 
-copied = copy_bam_tags(args.infile, args.outfile, args.tags)
+copied, kept_reads, skipped_reads = copy_bam_tags(
+    args.infile,
+    args.outfile,
+    args.tags,
+    barcodes=barcodes,
+    barcode_tag=args.barcode_tag,
+    threads=args.jobs,
+)
 
 missing_tags = [
     f"{source}->{destination}"
@@ -116,3 +180,11 @@ copied_str = ", ".join(
 std.print_result(
     f"copied {copied_str}"
 )
+
+if barcodes is not None:
+    total_reads = kept_reads + skipped_reads
+    kept_fraction = kept_reads / total_reads if total_reads else 0
+    std.print_result(
+        f"kept {kept_reads}/{total_reads} reads "
+        f"({kept_fraction:.1%})"
+    )
