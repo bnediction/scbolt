@@ -848,6 +848,62 @@ model_layer = $(if $(filter seurat seurat_v3 cell_ranger,$(MODEL_HVG_METHOD)),\
 min_self_loop_consts = $(if $(filter true,$(MIN_SELF_LOOP_CONSTS)),--minimize-self-loops)
 min_self_loop_infer = $(if $(filter true,$(MIN_SELF_LOOP_INFER)),--minimize-self-loops)
 
+reset_stages = \
+	load-fastq alignment cellranger star qc velocyto \
+	filtering normalization clustering dea scoring goea annotation \
+	velocity potency cotan cellrank stream knnbs macrostates \
+	bin-cells bin-macrostates bin-dea bin-consensus binarization \
+	spec max-nodes-soft max-consts-soft max-nodes-relaxed \
+	max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
+RESET_TARGET_load-fastq = $(fastq_target)
+RESET_TARGET_alignment = $(alignment_target)
+RESET_TARGET_cellranger = $(cellranger_target)
+RESET_TARGET_star = $(star_target)
+RESET_TARGET_qc = $(qc_target)
+RESET_TARGET_velocyto = $(velocyto_target)
+RESET_TARGET_filtering = $(filtering_target)
+RESET_TARGET_normalization = $(normalization_target)
+RESET_TARGET_clustering = $(clustering_target)
+RESET_TARGET_dea = $(dea_target)
+RESET_TARGET_scoring = $(scoring_target)
+RESET_TARGET_goea = $(goea_target)
+RESET_TARGET_annotation = $(annotation_target)
+RESET_TARGET_velocity = $(velocity_target)
+RESET_TARGET_potency = $(potency_target)
+RESET_TARGET_cotan = $(cotan_target)
+RESET_TARGET_cellrank = $(cellrank_target)
+RESET_TARGET_stream = $(stream_target)
+RESET_TARGET_knnbs = $(knnbs_target)
+RESET_TARGET_macrostates = $(macrostates_target)
+RESET_TARGET_bin-cells = $(bin_cells)
+RESET_TARGET_bin-macrostates = $(bin_macrostates)
+RESET_TARGET_bin-dea = $(bin_dea)
+RESET_TARGET_bin-consensus = $(bin_consensus)
+RESET_TARGET_binarization = $(bin)
+RESET_TARGET_spec = $(bonesis_model)
+RESET_TARGET_max-nodes-soft = $(max_nodes_soft)
+RESET_TARGET_max-consts-soft = $(max_consts_soft)
+RESET_TARGET_max-nodes-relaxed = $(max_nodes_relaxed)
+RESET_TARGET_max-nodes-seed = $(max_nodes_seed)
+RESET_TARGET_max-nodes-lock = $(max_nodes_lock)
+RESET_TARGET_bn-min = $(bn_min)
+RESET_TARGET_bn-submin = $(bn_submin)
+RESET_TARGET_bn-diverse = $(bn_diverse)
+
+reset_from := $(strip $(RESET_FROM))
+reset_disabled_goals := help
+reset_disabled := $(filter $(reset_disabled_goals),$(MAKECMDGOALS))$(__reset_disabled)
+ifneq ($(reset_from),)
+ifeq ($(reset_disabled),)
+reset_targets := $(strip $(RESET_TARGET_$(reset_from)))
+ifeq ($(reset_targets),)
+$(error unknown RESET_FROM module: $(reset_from) \
+	(supported values: $(subst $(space),$(comma) ,$(reset_stages))))
+endif
+.PHONY: $(reset_targets)
+endif
+endif
+
 target_params_load-dorothea = ORGANISM
 target_params_alignment = ALIGNMENT_TOOL MEMORY STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
 target_params_cellranger = MEMORY
@@ -985,14 +1041,19 @@ endef
 .PHONY: help
 help: ## display this help and exit
 	@awk 'BEGIN {FS = ":.*##"; \
-		printf "usage: make $(green)<module>$(nc) [REFERENCES=<...>] "; \
-		printf "(current value:$(subst $(space),$(plus),$(references)))\n\n"; \
+		printf "usage: make $(green)<module>$(nc) [REFERENCES=<cond>[+...]] "; \
+		printf "[RESET_FROM=<module>] "; \
+		printf "(REFERENCES=$(subst $(space),$(plus),$(references)))\n\n"; \
 		printf "scBOLT is a semi-automated pipeline for Boolean network inference "; \
 		printf "from multi-condition single-cell transcriptomes. "; \
 		printf "The workflow includes: alignment and preprocessing, integration and clustering, "; \
 		printf "cell annotation, trajectory inference, macrostate characterization, "; \
 		printf "macrostate binarization, Boolean constraint specification, gene selection, "; \
-		printf "and Boolean network inference.\n"} \
+		printf "and Boolean network inference.\n\n"; \
+		printf "$(bold)Special parameters$(nc)\n"; \
+		printf "  %-23s %s\n", "REFERENCES=<cond>[+...]", "restrict the run to selected references"; \
+		printf "  %-23s %s\n", "RESET_FROM=<module>", "rebuild from this module; successful recipes replace outputs"; \
+		printf "  %-23s %s\n", "TARGET=<module>", "select module for check, config, and dry-run"} \
 		/^[a-zA-Z_-]+:.*?##/ { printf "  $(green)%-22s$(nc) %s\n", $$1, $$2 } \
 		/^##@/ { printf "\n$(bold)%s$(nc)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
@@ -1710,7 +1771,7 @@ $(velocyto_$(1)): $(qc_$(1)) $(genome_ref)
 	$(call check_file,$(public_dir)/transcriptome/repeat_msk.gtf,repeat_msk.gtf)
 	mkdir -p $(tmpdir)/velocyto/$(1)
 	$(call print_task,estimating spliced and unspliced counts with velocyto)
-	$(call conda_run,scbolt-velocyto) velocyto run \
+	$(call conda_run,scbolt-velocyto-test) velocyto run \
 		-m $(public_dir)/transcriptome/repeat_msk.gtf \
 		-b $$(<D)/filtered_barcodes.tsv \
 		-o $(tmpdir)/velocyto/$(1) \

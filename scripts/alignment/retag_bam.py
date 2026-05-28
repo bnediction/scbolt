@@ -26,7 +26,7 @@ def copy_bam_tags(
     tags: dict[str, str],
     barcodes: set[str] | None = None,
     barcode_tag: str = "CR",
-    threads: int = 1,
+    jobs: int = 1,
 ) -> tuple[dict[tuple[str, str], int], int, int]:
     """
     Copy BAM tags from source names to destination names.
@@ -39,19 +39,30 @@ def copy_bam_tags(
         Output BAM file with copied tags.
     tags: dict[str, str]
         Mapping of source tags to destination tags.
+    barcodes: set[str] or None
+        Optional barcode whitelist. If provided, only reads whose barcode tag
+        matches one of these values are written.
+    barcode_tag: str
+        BAM tag used to match reads against the barcode whitelist.
+    jobs: int
+        Number of jobs used by pysam for BAM compression/decompression.
 
     Returns
     -------
     dict[tuple[str, str], int]
         Number of reads copied for each source/destination tag pair.
+    int
+        Number of reads written to the output BAM file.
+    int
+        Number of reads skipped because of barcode filtering.
     """
 
     copied = {(source, destination): 0 for source, destination in tags.items()}
     kept_reads = 0
     skipped_reads = 0
 
-    with pysam.AlignmentFile(infile, "rb", threads=threads) as bam_in:
-        with pysam.AlignmentFile(outfile, "wb", template=bam_in, threads=threads) as bam_out:
+    with pysam.AlignmentFile(infile, "rb", threads=jobs) as bam_in:
+        with pysam.AlignmentFile(outfile, "wb", template=bam_in, threads=jobs) as bam_out:
             for read in bam_in:
                 if barcodes is not None:
                     if not read.has_tag(barcode_tag):
@@ -146,9 +157,10 @@ if args.outfile.parent:
     os.makedirs(args.outfile.parent, exist_ok=True)
 
 std.print_task(f"loading BAM file from {args.infile}")
+if args.barcodes is not None:
+    std.print_task(f"loading selected barcodes from {args.barcodes}")
 barcodes = load_barcodes(args.barcodes)
 if barcodes is not None:
-    std.print_task(f"loading selected barcodes from {args.barcodes}")
     std.print_info(f"selected barcodes: {len(barcodes)}")
 
 std.print_task(f"saving retagged BAM file in {args.outfile}")
@@ -159,7 +171,7 @@ copied, kept_reads, skipped_reads = copy_bam_tags(
     args.tags,
     barcodes=barcodes,
     barcode_tag=args.barcode_tag,
-    threads=args.jobs,
+    jobs=args.jobs,
 )
 
 missing_tags = [
