@@ -4,6 +4,7 @@ import os, io, sys
 import contextlib
 
 import datetime
+from pathlib import Path
 from typing import Optional
 
 @contextlib.contextmanager
@@ -50,6 +51,12 @@ class Section(object):
 def print_task(message: Optional[str]=None, file=sys.stdout, flush=True) -> None:
     print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - TASK - {message}", file=file, flush=flush)
     return None
+
+def format_path(path: str | Path) -> str:
+    path_str = os.fspath(path)
+    relative_path = os.path.relpath(path_str)
+    return relative_path if len(relative_path) < len(path_str) else path_str
+
 
 def print_info(message: Optional[str]=None, file=sys.stdout, flush=True) -> None:
     print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - INFO - {message}", file=file, flush=flush)

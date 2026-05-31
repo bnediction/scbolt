@@ -91,9 +91,14 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(
-    f"loading scBoolSeq and DEA results from {str(args.scboolseq[0])}, {str(args.scboolseq[1])}, {str(args.dea)}"
+std.print_task("loading binarization inputs")
+std.print_info(
+    f"loading scBoolSeq binarisation (file={std.format_path(args.scboolseq[0])})"
 )
+std.print_info(
+    f"loading scBoolSeq distributions (file={Path(args.scboolseq[1]).resolve()})"
+)
+std.print_info(f"loading DEA binarisation (file={std.format_path(args.dea)})")
 
 scboolseq_bin = pd.read_csv(args.scboolseq[0], index_col=0, sep=",")
 
@@ -101,7 +106,7 @@ scboolseq_distribution = pd.read_csv(args.scboolseq[1], index_col=0, sep=",").il
 
 dea_bin = pd.read_csv(args.dea, index_col=0, sep=",")
 
-std.print_task("binarizing clusters using scBoolSeq and DEA results")
+std.print_task("binarizing clusters (sources=scBoolSeq, DEA)")
 
 if not set(scboolseq_bin.columns) == set(scboolseq_bin.columns):
     raise KeyError(f"column names different in scboolseq and dea dataframes")
@@ -130,12 +135,13 @@ pct_bin = pd.concat(
     keys=["scboolseq", "dea", "merge"],
 ).round(5)
 
-std.print_result(f"proportion of binarized values:\n{pct_bin}")
+pct_bin_display = pct_bin.map(lambda value: f"{value:.2%}")
+std.print_result(f"proportion of binarized values:\n{pct_bin_display}")
 
-std.print_task(f"saving binarized matrix in {str(args.outfile)}")
+std.print_task(f"saving binarized matrix (file={std.format_path(args.outfile)})")
 
 merge_bin.to_csv(args.outfile, sep=",", index=True)
 
 if args.pct_bin:
-    std.print_task(f"saving proportion of binarized values in {str(args.pct_bin)}")
+    std.print_task(f"saving binarization proportions (file={std.format_path(args.pct_bin)})")
     pct_bin.to_csv(args.pct_bin, sep=",", index=True)

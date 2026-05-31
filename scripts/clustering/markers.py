@@ -113,14 +113,14 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
 if args.layer:
     adata.X = adata.layers[args.layer].copy()
 
-std.print_task("ranking genes for characterizing groups")
+std.print_task("ranking genes (scope=groups)")
 
 sc.tl.rank_genes_groups(
     adata=adata,
@@ -136,7 +136,7 @@ sc.tl.rank_genes_groups(
 markers_df = sc.get.rank_genes_groups_df(adata, group=None, pval_cutoff=args.alpha)
 
 std.print_warning(
-    "found inconsistencies between log2 fold-changes derived from seurat::FindAllMarkers and scanpy.rank_gene_groups (see <https://www.biostars.org/p/453129/>)"
+    "found inconsistent log2 fold-changes (sources=seurat::FindAllMarkers, scanpy.rank_gene_groups, see=https://www.biostars.org/p/453129/)"
 )
 std.print_debug("updating log2 fold-changes")
 logfoldchanges_df = bt.sct.tl.calculate_logfoldchanges(
@@ -159,11 +159,11 @@ markers_df = pd.merge(
     how="inner",
 )
 
-std.print_task(f"saving data in {str(args.outfile)}")
+std.print_task(f"saving CSV table (file={std.format_path(args.outfile)})")
 markers_df.to_csv(args.outfile, sep=",", index=False)
 
 if args.xlsx:
-    std.print_task(f"saving differentially expressed genes in {str(args.xlsx)}")
+    std.print_task(f"saving differential expression workbook (file={std.format_path(args.xlsx)})")
     with ExcelWriter(args.xlsx) as xlsx_writer:
         pd.DataFrame(adata.var_names).to_excel(
             xlsx_writer, sheet_name="background", header=False, index=False

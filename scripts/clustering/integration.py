@@ -282,7 +282,9 @@ std.print_task("loading datasets")
 
 adatas = []
 for infile, label in zip(args.infiles, args.labels):
-    std.print_info(f"loading dataset '{label}' from {str(infile)}")
+    std.print_task(
+        f"loading AnnData (condition={label}, file={std.format_path(infile)})"
+    )
     adatas.append(ad.read_h5ad(infile))
 
 for adata in adatas:
@@ -290,7 +292,7 @@ for adata in adatas:
     clean_adata(adata)
 
 std.print_debug(
-    "merging datasets ({0})".format(", ".join(f"'{label}'" for label in args.labels))
+    f"merging datasets (conditions={'+'.join(args.labels)})"
 )
 try:
     adata = ad.concat(
@@ -307,19 +309,19 @@ del adatas
 
 if args.integration == "ingest":
 
-    std.print_info("integrating data using ingest")
+    std.print_info("integrating data (method=ingest)")
 
     reference = args.labels[0]
-    std.print_info(f"using reference dataset: {reference}")
+    std.print_info(f"selecting reference condition (condition={reference})")
 
-    std.print_info(f"splitting datasets ({' '.join(label for label in args.labels)})")
+    std.print_info(f"splitting datasets (conditions={'+'.join(args.labels)})")
     adatas = dict()
     for label in args.labels:
         adatas[label] = adata[adata.obs["condition"] == label].to_memory()
 
     if args.hvg:
         std.print_task(
-            f"computing top {args.hvg} highly variable genes for each dataset"
+            f"computing highly variable genes (top={args.hvg}, scope=each dataset)"
         )
         for label in args.labels:
             sc.pp.highly_variable_genes(
@@ -333,7 +335,7 @@ if args.integration == "ingest":
             )
 
     std.print_task(
-        f"computing top {args.pca_dimension} principal components (dataset: {reference})"
+        f"computing principal components (dimensions={args.pca_dimension}, condition={reference})"
     )
     sc.tl.pca(
         adatas[reference],
@@ -345,7 +347,7 @@ if args.integration == "ingest":
     )
 
     std.print_task(
-        f"computing closest neighbors-related connectivities and similarities using top {args.clustering_dimension} principal components (dataset: {reference})"
+        f"computing nearest-neighbor graph (principal components={args.clustering_dimension}, condition={reference})"
     )
     sc.pp.neighbors(
         adatas[reference],
@@ -357,14 +359,14 @@ if args.integration == "ingest":
     )
 
     std.print_task(
-        f"computing shared nearest neighbors-related connectivities and similarities (dataset: {reference})"
+        f"computing shared nearest-neighbor graph (condition={reference})"
     )
     bt.sct.tl.shared_neighbors(
         adatas[reference], snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
     )
 
     std.print_task(
-        f"embedding the neighborhood graph in {args.embedding_dimension} dimensions (dataset: {reference})"
+        f"embedding neighborhood graph (dimensions={args.embedding_dimension}, condition={reference})"
     )
     std.print_info("computing Uniform Manifold Approximation and Projection (UMAP)")
     sc.tl.umap(
@@ -379,7 +381,7 @@ if args.integration == "ingest":
     del adatas[reference].uns["umap"]["params"]["random_state"]
 
     for label in args.labels[1:]:
-        std.print_task(f"mapping embeddings using ingest (dataset: {label})")
+        std.print_task(f"mapping embeddings (condition={label})")
         sc.tl.ingest(
             adata=adatas[label],
             adata_ref=adatas[reference],
@@ -391,7 +393,7 @@ if args.integration == "ingest":
         )
 
     std.print_debug(
-        f"concatenating datasets ({' '.join(label for label in args.labels)})"
+        f"concatenating datasets (conditions={'+'.join(args.labels)})"
     )
     try:
         adata = ad.concat(
@@ -406,7 +408,7 @@ if args.integration == "ingest":
         raise RuntimeError("anndatas concatenation not working")
 
     std.print_task(
-        f"computing closest neighbors-related connectivities and similarities using top {args.clustering_dimension} principal components (dataset: integrated)"
+        f"computing nearest-neighbor graph (principal components={args.clustering_dimension}, dataset=integrated)"
     )
     sc.pp.neighbors(
         adata,
@@ -418,13 +420,13 @@ if args.integration == "ingest":
     )
 
     std.print_task(
-        "computing shared nearest neighbors-related connectivities and similarities (dataset: integrated)"
+        "computing shared nearest-neighbor graph (dataset=integrated)"
     )
     bt.sct.tl.shared_neighbors(
         adata, snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
     )
 
-    std.print_task("clustering cells using Leiden algorithm (dataset: integrated)")
+    std.print_task("clustering cells (algorithm=leiden, dataset=integrated)")
     sc.tl.leiden(
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
@@ -436,10 +438,10 @@ if args.integration == "ingest":
 
 elif args.integration == "bbknn":
 
-    std.print_info("integrating data using BBKNN")
+    std.print_info("integrating data (method=BBKNN)")
 
     if args.hvg:
-        std.print_task(f"computing top {args.hvg} highly variable genes")
+        std.print_task(f"computing highly variable genes (top={args.hvg})")
         sc.pp.highly_variable_genes(
             adata,
             layer="counts",
@@ -450,7 +452,7 @@ elif args.integration == "bbknn":
             inplace=True,
         )
 
-    std.print_task(f"computing top {args.pca_dimension} principal components")
+    std.print_task(f"computing principal components (dimensions={args.pca_dimension})")
     sc.tl.pca(
         adata,
         n_comps=args.pca_dimension,
@@ -460,7 +462,7 @@ elif args.integration == "bbknn":
         copy=False,
     )
 
-    std.print_task("mapping embeddings using batch balanced nearest neighbors")
+    std.print_task("mapping embeddings")
     with std.disable_print():
         sc.external.pp.bbknn(
             adata,
@@ -475,7 +477,7 @@ elif args.integration == "bbknn":
             copy=False,
         )
 
-    std.print_task("clustering cells using Leiden algorithm")
+    std.print_task("clustering cells (algorithm=leiden)")
     sc.tl.leiden(
         adata,
         neighbors_key="neighbors",
@@ -486,7 +488,7 @@ elif args.integration == "bbknn":
     )
 
     std.print_task(
-        f"embedding the neighborhood graph in {args.embedding_dimension} dimensions"
+        f"embedding neighborhood graph (dimensions={args.embedding_dimension})"
     )
     if args.embedding == "umap":
         std.print_info("computing Uniform Manifold Approximation and Projection (UMAP)")
@@ -515,14 +517,16 @@ elif args.integration == "bbknn":
 
 elif args.integration == "scanorama":
 
-    std.print_info("integrating data using scanorama")
+    std.print_info("integrating data (method=scanorama)")
 
-    std.print_info(f"splitting datasets ({' '.join(label for label in args.labels)})")
+    std.print_info(f"splitting datasets (conditions={'+'.join(args.labels)})")
     adatas = dict()
     for label in args.labels:
         adatas[label] = adata[adata.obs["condition"] == label].to_memory()
 
-    std.print_task("computing integrated embedding using scanorama")
+    std.print_task(
+        f"computing integrated embedding (dimensions={args.pca_dimension})"
+    )
     with std.disable_print():
         adatas = scanorama.correct_scanpy(
             list(adatas.values()),
@@ -532,7 +536,7 @@ elif args.integration == "scanorama":
         )
 
     std.print_debug(
-        f"concatenating datasets ({' '.join(label for label in args.labels)})"
+        f"concatenating datasets (conditions={'+'.join(args.labels)})"
     )
     try:
         adata = ad.concat(
@@ -547,7 +551,7 @@ elif args.integration == "scanorama":
         raise RuntimeError("anndatas concatenation not working")
 
     std.print_task(
-        f"computing closest neighbors-related connectivities and similarities using top {args.clustering_dimension} principal components"
+        f"computing nearest-neighbor graph (principal components={args.clustering_dimension})"
     )
     sc.pp.neighbors(
         adata,
@@ -559,13 +563,13 @@ elif args.integration == "scanorama":
     )
 
     std.print_task(
-        "computing shared nearest neighbors-related connectivities and similarities"
+        "computing shared nearest-neighbor graph"
     )
     bt.sct.tl.shared_neighbors(
         adata, snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
     )
 
-    std.print_task("clustering cells using Leiden algorithm")
+    std.print_task("clustering cells (algorithm=leiden)")
     sc.tl.leiden(
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
@@ -576,7 +580,7 @@ elif args.integration == "scanorama":
     )
 
     std.print_task(
-        f"embedding the neighborhood graph in {args.embedding_dimension} dimensions"
+        f"embedding neighborhood graph (dimensions={args.embedding_dimension})"
     )
     if args.embedding == "umap":
         std.print_info("computing Uniform Manifold Approximation and Projection (UMAP)")
@@ -605,7 +609,7 @@ elif args.integration == "scanorama":
 
 pc_plot = Path(f"{os.path.dirname(args.outfile)}/pc_condition.pdf")
 std.print_info(
-    f"plotting embeddings in {os.path.relpath(os.path.dirname(args.outfile))}"
+    f"plotting embeddings (directory={os.path.relpath(os.path.dirname(args.outfile))})"
 )
 bt.sct.pl.embedding_plot(
     adata,
@@ -656,5 +660,5 @@ for obs in ["condition", "leiden"]:
         outfile=embedding_plot,
     )
 
-std.print_task(f"saving data in {str(args.outfile)}")
+std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 adata.write_h5ad(filename=args.outfile, compression="gzip")

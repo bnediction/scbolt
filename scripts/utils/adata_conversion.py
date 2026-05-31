@@ -141,7 +141,7 @@ if to_format == "csvs":
 else:
     os.makedirs(name=os.path.dirname(args.output), exist_ok=True)
 
-std.print_task(f"loading data from {str(args.input)}")
+std.print_task(f"loading data (format={from_format}, file={std.format_path(args.input)})")
 if from_format == "h5ad":
     adata = sc.read_h5ad(filename=args.input)
 elif from_format == "loom":
@@ -189,7 +189,7 @@ if args.standardization:
 if args.sort:
     adata = adata[sorted(adata.obs.index), sorted(adata.var.index)].to_memory()
 
-std.print_task(f"saving data in {str(args.output)}")
+std.print_task(f"saving data (format={to_format}, file={std.format_path(args.output)})")
 if to_format == "h5ad":
     adata.write_h5ad(
         filename=args.output, compression="gzip" if args.compression else None

@@ -171,7 +171,7 @@ else:
     labels = cast(Sequence[str], args.labels)
     label_column = cast(str, args.label_column)
 
-std.print_task(f"loading AnnData object from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 if str(args.infile).endswith("h5ad"):
     adata = ad.read_h5ad(filename=args.infile)
 elif str(args.infile).endswith("loom"):
@@ -182,7 +182,7 @@ else:
     )
 
 if len(args.csv) == 1:
-    std.print_task(f"loading tabular annotation from {str(args.csv[0])}")
+    std.print_task(f"loading tabular annotation (file={std.format_path(args.csv[0])})")
     df = pd.read_csv(
         args.csv[0],
         sep=args.sep,
@@ -192,8 +192,8 @@ if len(args.csv) == 1:
         cols_to_remove = set(adata.obs.columns) & set(df.columns)
         if cols_to_remove:
             std.print_debug(
-                "removing in 'adata.obs' the following column(s): {0}".format(
-                    ", ".join(f"'{cols}'" for cols in cols_to_remove)
+                "removing columns (table=adata.obs, columns={0})".format(
+                    "+".join(map(str, cols_to_remove))
                 )
             )
             adata.obs = adata.obs.drop(list(cols_to_remove), axis=1)
@@ -204,8 +204,8 @@ if len(args.csv) == 1:
         cols_to_remove = set(adata.var.columns) & set(df.columns)
         if cols_to_remove:
             std.print_debug(
-                "removing in 'adata.var' the following column(s): {0}".format(
-                    ", ".join(f"'{cols}'" for cols in cols_to_remove)
+                "removing columns (table=adata.var, columns={0})".format(
+                    "+".join(map(str, cols_to_remove))
                 )
             )
             adata.var = adata.var.drop(list(cols_to_remove), axis=1)
@@ -214,7 +214,8 @@ if len(args.csv) == 1:
         )
 else:
     std.print_task(
-        f"loading tabular annotations from {', '.join(str(file) for file in args.csv)}"
+        "loading tabular annotations "
+        f"(files={', '.join(std.format_path(file) for file in args.csv)})"
     )
     dfs = dict()
     add_prefix = args.add_prefix or []
@@ -234,8 +235,8 @@ else:
         )
         if cols_to_remove:
             std.print_debug(
-                "removing in 'adata.obs' the following column(s): {0}".format(
-                    ", ".join(f"'{cols}'" for cols in cols_to_remove)
+                "removing columns (table=adata.obs, columns={0})".format(
+                    "+".join(map(str, cols_to_remove))
                 )
             )
             adata_df = adata_df.drop(list(cols_to_remove), axis=1)
@@ -246,8 +247,8 @@ else:
         )
         if cols_to_remove:
             std.print_debug(
-                "removing in 'adata.var' the following column(s): {0}".format(
-                    ", ".join(f"'{cols}'" for cols in cols_to_remove)
+                "removing columns (table=adata.var, columns={0})".format(
+                    "+".join(map(str, cols_to_remove))
                 )
             )
             adata_df = adata_df.drop(list(cols_to_remove), axis=1)
@@ -266,7 +267,7 @@ else:
     else:
         adata.var = adata_df
 
-std.print_task(f"saving AnnData object in {str(args.outfile)}")
+std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 if str(args.outfile).endswith("h5ad"):
     adata.write_h5ad(filename=args.outfile, compression="gzip")
 elif str(args.outfile).endswith("loom"):

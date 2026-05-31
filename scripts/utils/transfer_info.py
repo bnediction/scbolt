@@ -96,10 +96,10 @@ args = parser.parse_args()
 
 std.print_task("loading datasets")
 
-std.print_info(f"loading left dataset from {args.left}")
+std.print_task(f"loading AnnData (side=left, file={std.format_path(args.left)})")
 left_ad = ad.read_h5ad(args.left)
 
-std.print_info(f"loading right dataset from {args.right}")
+std.print_task(f"loading AnnData (side=right, file={std.format_path(args.right)})")
 right_ad = ad.read_h5ad(args.right)
 
 if args.index:
@@ -109,7 +109,7 @@ if args.index:
         make_composite_obs_index(adata, args.index)
 
 if args.obs:
-    std.print_task(f"transferring observations ({', '.join(map(str, args.obs))})")
+    std.print_task(f"transferring observations (columns={', '.join(map(str, args.obs))})")
 
     right_ad.obs = right_ad.obs.loc[:, args.obs]
     bt.sct.pp.merge(left_ad=left_ad, right_ad=right_ad, axis="obs", copy=False)
@@ -118,7 +118,7 @@ else:
     std.print_info("transferring observations not performed")
 
 if args.var:
-    std.print_task(f"transferring variables ({', '.join(map(str, args.var))})")
+    std.print_task(f"transferring variables (columns={', '.join(map(str, args.var))})")
 
     right_ad.var = right_ad.var.loc[:, args.var]
     bt.sct.pp.merge(left_ad=left_ad, right_ad=right_ad, axis="var", copy=False)
@@ -127,7 +127,7 @@ else:
     std.print_info("transferring variables not performed")
 
 if args.layers:
-    std.print_task(f"transferring layers ({', '.join(map(str, args.layers))})")
+    std.print_task(f"transferring layers (layers={', '.join(map(str, args.layers))})")
 
     bt.sct.pp.transfer_layer(
         left_ad=left_ad,
@@ -143,7 +143,7 @@ if args.index:
     left_ad.obs.index = left_ad.obs["_previous_index"]
     left_ad.obs.drop(columns="_previous_index", inplace=True)
 
-std.print_task(f"saving data in {args.outfile}")
+std.print_task(f"saving AnnData (file={std.format_path(args.outfile if args.outfile else args.left)})")
 
 left_ad.write_h5ad(
     filename=args.outfile if args.outfile else args.left,

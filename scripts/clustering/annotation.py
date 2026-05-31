@@ -73,7 +73,7 @@ for k, v in args.labels.items():
     dict_to_str += f"{add}{k}->{v}"
     add = ", "
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
@@ -84,12 +84,12 @@ elif not hasattr(adata.obs[args.obs], "cat"):
         f"series 'adata.obs[{args.obs}]' does not refer to a categorical variable"
     )
 
-std.print_task(f"renaming labels for column '{args.obs}' ({dict_to_str})")
+std.print_task(f"renaming labels (column={args.obs}, labels={dict_to_str})")
 
 if args.new_obs is None:
     adata.obs[args.obs].replace(args.labels, inplace=True)
 else:
     adata.obs[args.new_obs] = adata.obs[args.obs].replace(args.labels, inplace=False)
 
-std.print_task(f"saving data in {str(args.outfile)}")
+std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 adata.write_h5ad(filename=args.outfile, compression="gzip")

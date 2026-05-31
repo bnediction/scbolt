@@ -46,9 +46,7 @@ args = parser.parse_args()
 if args.outfile.parent:
     os.makedirs(args.outfile.parent, exist_ok=True)
 
-std.print_task(
-    f"loading DoRothEA with decoupler.get_dorothea (organism: {args.organism})"
-)
+std.print_task(f"loading DoRothEA (source=decoupler.get_dorothea, organism={args.organism})")
 
 try:
     import decoupler as dc
@@ -77,5 +75,5 @@ dorothea["sign"] = pd.to_numeric(dorothea["sign"]).map(
 dorothea = dorothea.drop_duplicates().sort_values(["source", "target", "sign"])
 
 std.print_result(f"interactions: {len(dorothea)}")
-std.print_task(f"saving DoRothEA prior network in {str(args.outfile)}")
+std.print_task(f"saving DoRothEA prior network (file={std.format_path(args.outfile)})")
 dorothea.to_csv(args.outfile, index=False)

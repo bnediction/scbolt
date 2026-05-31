@@ -103,7 +103,7 @@ file_extension = str(args.infile).split(".")[-1]
 
 genesynonyms = GeneSynonyms(organism=args.organism)
 
-std.print_task(f"loading gene data from {str(args.infile)}")
+std.print_task(f"loading gene data (file={std.format_path(args.infile)})")
 std.print_info(
     f"standardizing gene identifiers ({args.input_identifier_type} => {args.output_identifier_type})"
 )
@@ -131,4 +131,4 @@ elif file_extension == "csv" or file_extension == "tsv":
 else:
     raise IOError(f"incorrect format (txt, csv or tsv format expected)")
 
-std.print_task(f"saving standardized gene data in {str(args.outfile)}")
+std.print_task(f"saving standardized gene data (file={std.format_path(args.outfile)})")

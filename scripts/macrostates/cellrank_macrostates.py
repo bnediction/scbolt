@@ -189,7 +189,7 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
 std.print_task("computing kernels")
@@ -226,7 +226,7 @@ else:
     combined_kernel = 0.8 * velocity_kernel + 0.2 * connectivity_kernel
 
 std.print_task(
-    "estimating macrostates using generalized perron cluster cluster analysis (GPCCA)"
+    "estimating macrostates (method=generalized perron cluster cluster analysis, abbreviation=GPCCA)"
 )
 gpcca = cr.estimators.GPCCA(combined_kernel)
 
@@ -278,7 +278,9 @@ else:
     adata.obs["final_states"] = adata.obs["final_states"].astype("category")
 
 cellrank_plot_dir = Path(os.path.dirname(args.outfile))
-std.print_task(f"plotting CellRank outputs in {os.path.relpath(cellrank_plot_dir)}")
+std.print_task(
+    f"plotting CellRank outputs (directory={os.path.relpath(cellrank_plot_dir)})"
+)
 macrostate_files = {
     "macrostate": cellrank_plot_dir / "umap_cellrank.pdf",
     "init_states": cellrank_plot_dir / "umap_init_states.pdf",
@@ -318,9 +320,9 @@ for obs, file in macrostate_files.items():
     else:
         std.print_warning(f"no plotting for '{obs}': no state found")
 
-std.print_task(f"saving AnnData object in {str(args.outfile)}")
+std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 adata.write_h5ad(filename=args.outfile, compression="gzip")
 
 if args.csv:
-    std.print_task(f"saving KNNbs macrostates in {str(args.csv)}")
+    std.print_task(f"saving CellRank macrostates (file={std.format_path(args.csv)})")
     adata.obs["macrostate"].to_csv(args.csv, sep=",", index=True)

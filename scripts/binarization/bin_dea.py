@@ -140,7 +140,7 @@ if args.method == "t-test-overestim-var":
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
@@ -150,13 +150,11 @@ if args.layer:
 features = list(adata.var_names)
 
 if args.filter_genes:
-    std.print_info(
-        f"filtering genes by considering only those specified in {args.filter_genes}"
-    )
+    std.print_info(f"filtering genes (file={std.format_path(args.filter_genes)})")
     with open(args.filter_genes) as file:
         adata = adata[:, [line.strip() for line in file.readlines()]]
 
-std.print_task(f"ranking genes for characterizing groups (method: {args.method})")
+std.print_task(f"ranking genes (scope=groups, method={args.method})")
 
 adata.obs[args.cluster] = adata.obs[args.cluster].cat.remove_unused_categories()
 
@@ -174,7 +172,7 @@ sc.tl.rank_genes_groups(
 dea_df = sc.get.rank_genes_groups_df(adata, group=None, pval_cutoff=args.alpha)
 
 std.print_warning(
-    "found inconsistencies between log2 fold-changes derived from seurat::FindAllMarkers and scanpy.rank_gene_groups (see <https://www.biostars.org/p/453129/>)"
+    "found inconsistent log2 fold-changes (sources=seurat::FindAllMarkers, scanpy.rank_gene_groups, see=https://www.biostars.org/p/453129/)"
 )
 std.print_debug("updating log2 fold-changes")
 
@@ -197,9 +195,7 @@ dea_df = pd.merge(
     how="inner",
 )
 
-std.print_task(
-    f"binarizing cell populations with respect to differential expression analysis results"
-)
+std.print_task("binarizing cell populations (source=differential expression analysis)")
 
 cluster_bin = pd.DataFrame(
     data=np.nan, index=adata.obs[args.cluster].cat.categories, columns=features
@@ -216,7 +212,8 @@ if args.use_rep:
     )
     pct_bin_plot = Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf")
     std.print_task(
-        f"plotting binarization summaries in {os.path.relpath(os.path.dirname(args.outfile))}"
+        "plotting binarization summaries "
+        f"(directory={os.path.relpath(os.path.dirname(args.outfile))})"
     )
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
     adata.obs[f"pct_bin_{args.cluster}"] = adata.obs[args.cluster].map(pct_bin)
@@ -244,10 +241,11 @@ if args.use_rep:
         outfile=pct_bin_plot,
     )
 
-std.print_task(f"saving DEA results in {os.path.dirname(args.outfile)}/dea_results.csv")
+dea_results = Path(f"{os.path.dirname(args.outfile)}/dea_results.csv")
+std.print_task(f"saving DEA results (file={std.format_path(dea_results)})")
 dea_df.to_csv(
-    Path(f"{os.path.dirname(args.outfile)}/dea_results.csv"), sep=",", index=True
+    dea_results, sep=",", index=True
 )
 
-std.print_task(f"saving predicted binarized values in {str(args.outfile)}")
+std.print_task(f"saving binarized matrix (file={std.format_path(args.outfile)})")
 cluster_bin.to_csv(args.outfile, sep=",", index=True)

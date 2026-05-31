@@ -3,6 +3,7 @@
 from ._stdout import (
     Section,
     disable_print,
+    format_path,
     print_info,
     print_task,
     print_warning,

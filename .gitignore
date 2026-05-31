@@ -105,3 +105,5 @@ apl/
 nestorowa/
 public/
 llc/
+*.md
+!README.md

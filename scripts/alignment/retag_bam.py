@@ -156,14 +156,14 @@ if args.jobs <= 0:
 if args.outfile.parent:
     os.makedirs(args.outfile.parent, exist_ok=True)
 
-std.print_task(f"loading BAM file from {args.infile}")
+std.print_task(f"loading BAM (file={std.format_path(args.infile)})")
 if args.barcodes is not None:
-    std.print_task(f"loading selected barcodes from {args.barcodes}")
+    std.print_task(f"loading selected barcodes (file={std.format_path(args.barcodes)})")
 barcodes = load_barcodes(args.barcodes)
 if barcodes is not None:
-    std.print_info(f"selected barcodes: {len(barcodes)}")
+    std.print_info(f"identified {len(barcodes)} barcodes")
 
-std.print_task(f"saving retagged BAM file in {args.outfile}")
+std.print_task(f"saving retagged BAM (file={std.format_path(args.outfile)})")
 
 copied, kept_reads, skipped_reads = copy_bam_tags(
     args.infile,

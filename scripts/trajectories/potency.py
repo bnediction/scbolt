@@ -165,7 +165,7 @@ if not args.outpath.exists():
 
 np.random.seed(args.seed)
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
 counts = bt.sct.tl.anndata_to_dataframe(adata, layer=args.layer)
@@ -267,10 +267,9 @@ scores /= scores.max()
 potency_df["normalized_score"] = scores
 
 if args.csv:
-    std.print_task(
-        f"saving predicted cell potencies in {os.path.join(args.outpath, args.csv)}"
-    )
-    potency_df.to_csv(os.path.join(args.outpath, args.csv), sep=",", index=True)
+    csv_outfile = args.outpath / args.csv
+    std.print_task(f"saving cell potency table (file={std.format_path(csv_outfile)})")
+    potency_df.to_csv(csv_outfile, sep=",", index=True)
 
 adata.obs = adata.obs.merge(
     right=potency_df.add_prefix("cytotrace_"),
@@ -282,7 +281,7 @@ adata.obs = adata.obs.merge(
 embedding_label = "UMAP" if args.embedding == "umap" else "t-SNE"
 use_rep = "X_umap" if args.embedding == "umap" else "X_tsne"
 plot_dir = os.path.relpath(args.outpath)
-std.print_task(f"plotting potency outputs in {plot_dir}")
+std.print_task(f"plotting potency outputs (directory={plot_dir})")
 for obs in ["score", "normalized_score", "potency"]:
     bt.sct.pl.embedding_plot(
         adata,
@@ -350,7 +349,6 @@ bt.sct.pl.boxplot(
 )
 
 if args.h5ad:
-    std.print_task(
-        f"saving predicted cell potencies in {os.path.join(args.outpath, args.h5ad)}"
-    )
-    adata.write_h5ad(filename=os.path.join(args.outpath, args.h5ad), compression="gzip")
+    h5ad_outfile = args.outpath / args.h5ad
+    std.print_task(f"saving AnnData (file={std.format_path(h5ad_outfile)})")
+    adata.write_h5ad(filename=h5ad_outfile, compression="gzip")

@@ -73,16 +73,16 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
 if args.layer:
     adata.X = adata.layers[args.layer].copy()
 
-std.print_task(f"normalizing read counts")
+std.print_task("normalizing read counts")
 
-std.print_info("standardizing counts with respect to library size (layer: norm)")
+std.print_info("standardizing counts (reference=library size, layer=norm)")
 adata.layers["norm"] = adata.X.copy()
 sc.pp.normalize_total(adata, target_sum=1e4, layer="norm", copy=False)
 
@@ -110,5 +110,5 @@ else:
     std.print_info("no unwanted effects specified")
     adata.layers["correct"] = adata.layers["scale"].copy()
 
-std.print_task(f"saving data in {str(args.outfile)}")
+std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 adata.write_h5ad(filename=args.outfile, compression="gzip")

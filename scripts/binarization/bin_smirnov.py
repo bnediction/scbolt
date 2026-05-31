@@ -122,7 +122,7 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
@@ -130,9 +130,7 @@ if args.layer:
     adata.X = adata.layers[args.layer].copy()
 
 if args.filter_genes:
-    std.print_info(
-        f"filtering genes by considering only those specified in {args.filter_genes}"
-    )
+    std.print_info(f"filtering genes (file={std.format_path(args.filter_genes)})")
     with open(args.filter_genes) as file:
         adata = adata[:, [line.strip() for line in file.readlines()]]
 
@@ -182,7 +180,8 @@ if args.use_rep:
         else args.use_rep.lower()
     )
     std.print_task(
-        f"plotting binarization summaries in {os.path.relpath(os.path.dirname(args.outfile))}"
+        "plotting binarization summaries "
+        f"(directory={os.path.relpath(os.path.dirname(args.outfile))})"
     )
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
     adata.obs[f"pct_bin_{args.cluster}"] = adata.obs[args.cluster].map(pct_bin)
@@ -210,12 +209,11 @@ if args.use_rep:
         outfile=Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf"),
     )
 
-std.print_task(
-    f"saving Kolmogorov-Smirnov results in {os.path.dirname(args.outfile)}/ks_results.csv"
-)
+ks_results = Path(f"{os.path.dirname(args.outfile)}/ks_results.csv")
+std.print_task(f"saving Kolmogorov-Smirnov results (file={std.format_path(ks_results)})")
 ks_df.to_csv(
-    Path(f"{os.path.dirname(args.outfile)}/ks_results.csv"), sep=",", index=True
+    ks_results, sep=",", index=True
 )
 
-std.print_task(f"saving predicted binarized values in {str(args.outfile)}")
+std.print_task(f"saving binarized matrix (file={std.format_path(args.outfile)})")
 cluster_bin.to_csv(args.outfile, sep=",", index=True)

@@ -17,6 +17,15 @@ import bonesistools as bt
 
 bt.sct.pl.set_default_params()
 
+
+def _format_percent_if_float(value):
+    if value is None:
+        return "none"
+    if isinstance(value, (float, np.floating)):
+        return f"{value:.2%}"
+    return str(value)
+
+
 parser = argparse.ArgumentParser(
     prog="clustering",
     description=(
@@ -192,16 +201,16 @@ label = "UMAP" if args.embedding == "umap" else "t-SNE"
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
 if args.layer:
     adata.X = adata.layers[args.layer].copy()
 
-std.print_task(f"computing top {args.pca_dimension} principal components")
+std.print_task(f"computing principal components (dimensions={args.pca_dimension})")
 if args.only_hvg:
-    std.print_info("using only highly variable genes")
+    std.print_info("filtering PCA features (scope=highly variable genes)")
 sc.tl.pca(
     adata,
     n_comps=args.pca_dimension,
@@ -212,7 +221,7 @@ sc.tl.pca(
 )
 
 std.print_task(
-    f"computing closest neighbors-related connectivities and similarities using top {args.clustering_dimension} principal components"
+    f"computing nearest-neighbor graph (principal components={args.clustering_dimension})"
 )
 sc.pp.neighbors(
     adata,
@@ -223,28 +232,40 @@ sc.pp.neighbors(
     copy=False,
 )
 
+prune_snn = 1 / 15
+prune_snn_msg = _format_percent_if_float(prune_snn)
 std.print_task(
-    "computing shared nearest neighbors-related connectivities and similarities"
+    f"computing shared nearest-neighbor graph (pruning_threshold={prune_snn_msg})"
 )
 bt.sct.tl.shared_neighbors(
-    adata, snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
+    adata, snn_key="shared_neighbors", prune_snn=prune_snn, copy=False
 )
 
-std.print_task("clustering cells using Leiden algorithm")
+std.print_task(
+    f"clustering cells (algorithm=leiden, resolution={args.resolution})"
+)
 sc.tl.leiden(
     adata,
     neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
     resolution=args.resolution,
-    key_added=f"leiden",
+    key_added="leiden",
     random_state=args.seed,
     copy=False,
 )
+std.print_result(
+    f"identified {adata.obs['leiden'].nunique()} clusters"
+)
 
 std.print_task(
-    f"embedding the neighborhood graph in {args.embedding_dimension} dimensions"
+    f"embedding neighborhood graph (dimensions={args.embedding_dimension})"
 )
 if args.embedding == "umap":
-    std.print_info("computing Uniform Manifold Approximation and Projection (UMAP)")
+    std.print_task(
+        f"computing embedding (method=UMAP, "
+        f"dimensions={args.embedding_dimension}, "
+        f"min_dist={args.min_dist}, "
+        f"spread={args.spread})"
+    )
     sc.tl.umap(
         adata,
         neighbors_key="neighbors",
@@ -256,7 +277,11 @@ if args.embedding == "umap":
     )
     del adata.uns["umap"]["params"]["random_state"]
 elif args.embedding == "tsne":
-    std.print_info("computing t-distributed Stochastic Neighborhood Embedding (t-SNE)")
+    std.print_task(
+        f"computing embedding (method=t-SNE, "
+        f"dimensions={args.embedding_dimension}, "
+        f"metric={args.metric})"
+    )
     sc.tl.tsne(
         adata,
         n_pcs=args.embedding_dimension,
@@ -268,7 +293,7 @@ elif args.embedding == "tsne":
 
 embedding_plot = Path(f"{os.path.dirname(args.outfile)}/{args.embedding}_leiden.pdf")
 std.print_info(
-    f"plotting embeddings in {os.path.relpath(os.path.dirname(args.outfile))}"
+    f"plotting embeddings (directory={os.path.relpath(os.path.dirname(args.outfile))})"
 )
 bt.sct.pl.embedding_plot(
     adata,
@@ -294,5 +319,5 @@ bt.sct.pl.embedding_plot(
     outfile=embedding_plot,
 )
 
-std.print_task(f"saving data in {str(args.outfile)}")
+std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 adata.write_h5ad(filename=args.outfile, compression="gzip")

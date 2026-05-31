@@ -61,7 +61,7 @@ Install the following dependencies:
 1. GNU Make (>= 4.3)
 2. LaTeX
 3. Anaconda
-4. Cell Ranger
+4. Cell Ranger (optional, only if used instead of STAR)
 
 Example installation commands:
 
@@ -74,7 +74,8 @@ Download and configure Anaconda:
 
 * [https://www.anaconda.com/download/](https://www.anaconda.com/download/)
 
-Download Cell Ranger and add it to your `PATH` environment variable:
+If you use Cell Ranger instead of STAR, download Cell Ranger and add it to your
+`PATH` environment variable:
 
 * [https://www.10xgenomics.com/support/software/cell-ranger/downloads](https://www.10xgenomics.com/support/software/cell-ranger/downloads)
 

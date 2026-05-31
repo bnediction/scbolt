@@ -177,7 +177,7 @@ adata.layers["stream"] = adata.X.copy()
 
 import scanpy as sc
 
-std.print_info(f"standardizing counts with respect to library size (layer: norm)")
+std.print_info("standardizing counts (reference=library size, layer=norm)")
 adata.layers["norm"] = adata.layers["counts"].copy()
 sc.pp.normalize_total(
     adata,
@@ -203,7 +203,7 @@ sc.pp.scale(
     copy=False
 )
 
-std.print_task(f"computing top {opt.hvg} highly variable genes (loess_frac={opt.loess_frac})")
+std.print_task(f"computing highly variable genes (top={opt.hvg}, loess_frac={opt.loess_frac})")
 adata.X = adata.layers["stream"].copy()
 with std.disable_print():
     st.select_variable_genes(
@@ -214,7 +214,7 @@ with std.disable_print():
     plt.savefig(f"{opt.path}/hvg.pdf", bbox_inches="tight")
     plt.close()
 
-std.print_task(f"computing top {opt.pca_dimension} principal components")
+std.print_task(f"computing principal components (dimensions={opt.pca_dimension})")
 with std.disable_print():
     st.select_top_principal_components(
         adata,
@@ -224,7 +224,7 @@ with std.disable_print():
     )
     plt.close()
 
-std.print_task("computing embedding space using Spectral embedding algorithm")
+std.print_task("computing embedding space (method=spectral embedding)")
 with std.disable_print():
     st.dimension_reduction(
         adata,
@@ -235,7 +235,7 @@ with std.disable_print():
         n_jobs=4
     )
 
-std.print_task("computing embedding space using UMAP algorithm")
+std.print_task("computing embedding space (method=UMAP)")
 with std.disable_print():
     st.plot_visualization_2D(
         adata,
@@ -246,7 +246,7 @@ with std.disable_print():
     )
     plt.savefig(f"{opt.path}/umap_label.pdf")
 
-std.print_task(f"saving h5ad-formatted data in {str(opt.path)}/annot.h5ad")
+std.print_task(f"saving AnnData (file={std.format_path(f'{opt.path}/annot.h5ad')})")
 del adata.uns["workdir"]
 for key in list(adata.obs.keys()):
     if isinstance (adata.obs[key][0], tuple):

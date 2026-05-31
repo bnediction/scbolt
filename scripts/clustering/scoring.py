@@ -85,14 +85,14 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading counts from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
-std.print_task(f"loading signatures from {str(args.signatures)}")
+std.print_task(f"loading signature definitions (file={std.format_path(args.signatures)})")
 with open(args.signatures, "r") as file:
     signatures = json.load(file)
 
-std.print_task(f"loading markers from {str(args.markers)}")
+std.print_task(f"loading marker workbook (file={std.format_path(args.markers)})")
 with pd.ExcelFile(args.markers) as file:
     markers = {}
     for sheet_name in file.sheet_names:
@@ -102,7 +102,7 @@ with pd.ExcelFile(args.markers) as file:
 
 std.print_task("analyzing cell signatures")
 
-std.print_debug("deleting signature genes not present in AnnData object")
+std.print_debug("deleting signature genes (reason=absent_from_AnnData)")
 background = adata.var_names
 for phenotype, genes in signatures.items():
     signatures[phenotype] = {gene for gene in genes if gene in background}
@@ -129,5 +129,5 @@ info = pd.DataFrame.from_dict(info)
 
 std.print_result(f"signature summary\n{info}")
 
-std.print_task(f"saving results in {str(args.outfile)}")
+std.print_task(f"saving CSV table (file={std.format_path(args.outfile)})")
 info.to_csv(args.outfile, sep=",", index=True)

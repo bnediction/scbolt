@@ -139,7 +139,7 @@ if args.method == "seurat_v3":
 else:
     adata._inplace_subset_var(adata.var.highly_variable)
 
-std.print_result(f"{adata.n_vars} highly variable genes selected")
+std.print_result(f"identified {adata.n_vars} highly variable genes")
 
 with open(args.outfile, "w") as file:
     for gene in adata.var.index:

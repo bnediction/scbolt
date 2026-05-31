@@ -57,7 +57,7 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(os.path.dirname(args.outfile))
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 if str(args.infile).endswith(".h5ad"):
     adata = sc.read_h5ad(args.infile)
 elif str(args.infile).endswith(".loom"):
@@ -74,7 +74,7 @@ if args.standardization:
     std.print_info("standardizing gene names")
     gene_list = GeneSynonyms()(gene_list)
 
-std.print_task(f"saving gene list in {str(args.outfile)}")
+std.print_task(f"saving gene list (file={std.format_path(args.outfile)})")
 with open(args.outfile, "w") as file:
     for gene in gene_list:
         file.write(f"{gene}\n")

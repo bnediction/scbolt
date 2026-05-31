@@ -55,7 +55,6 @@ toupper = $(call translate_case,$1,_lower,_upper)
 tolower = $(call translate_case,$1,_upper,_lower)
 
 comma := ,
-plus := +
 empty :=
 space := $(empty) $(empty)
 
@@ -71,9 +70,9 @@ is_creatable_path = $(shell { test -n "$(strip $(1))" && mkdir -p "$(strip $(1))
 	>/dev/null 2>&1 && echo true || echo false)
 
 conditions := $(call tolower, $(CONDITIONS))
-references := $(conditions) $(if $(filter-out 1,$(words $(conditions))),integrated)
-REFERENCES := $(subst $(space),$(plus),$(strip $(references)))
-running_references := $(subst $(plus),$(space),$(REFERENCES))
+references_default := $(conditions) $(if $(filter-out 1,$(words $(conditions))),integrated)
+REFERENCES ?= $(references_default)
+running_references := $(strip $(REFERENCES))
 running_conditions := $(filter-out integrated,$(running_references))
 invalid_references = $(strip $(filter-out $(conditions) integrated,$(running_references)))
 
@@ -280,8 +279,8 @@ print_check_reports = cat "$${project_checks}" "$${core_checks}" "$${method_chec
 	"$${command_checks}" "$${other_checks}"
 parameter_label = $(strip $(if $(3),$(3) )parameter)
 parameter_name = $(firstword $(strip $(1)))
-parameter_context = $(strip $(patsubst $(call parameter_name,$(1))%,%,$(strip $(1))))
-parameter_assignment = $(strip $(call parameter_name,$(2))=$(strip $(1)) $(call parameter_context,$(2)))
+parameter_assignment = $(strip $(call parameter_name,$(2))=$(strip $(1)) \
+	$(strip $(patsubst $(call parameter_name,$(2))%,%,$(strip $(2)))))
 define check_file_diagnostic
 if [ -z "$(1)" ]; then \
 	$(call report_check_error,required file parameter not defined: $(2)); \
@@ -411,37 +410,26 @@ endef
 knnbs_centrality = $(KNNBS_CENTRALITY_$(call toupper,$(1)))
 knnbs_periphery = $(KNNBS_PERIPHERY_$(call toupper,$(1)))
 log_parameters = $(foreach var,$(strip $(1)),printf '%s=%s\n' '$(var)' "$($(var))"; )
-target_log_parameters = $(strip $(target_params_$(1)))
-maybe_log_target_parameters = $(if $(call target_log_parameters,$(1)),\
-	printf '%s\n' '[CONFIGURATION]'; \
-	$(call log_parameters,$(call target_log_parameters,$(1))) \
-	printf '\n';)
 
 PYTHONUNBUFFERED ?= 1
 TQDM_DISABLE ?= 0
 TQDM_TO_TTY ?= 0
 
-conda_pythonpath = $(lib_dir)$(if $(PYTHONPATH),:$(PYTHONPATH))
 conda_runtime_env = env \
-	PYTHONPATH="$(conda_pythonpath)" \
+	PYTHONPATH="$(lib_dir)$(if $(PYTHONPATH),:$(PYTHONPATH))" \
 	PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)"
-tqdm_runtime_env = $(conda_runtime_env) \
-	TQDM_DISABLE="$(TQDM_DISABLE)" \
-	TQDM_TO_TTY="$(TQDM_TO_TTY)"
-nested_make_env = env \
-	$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
-	PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
-	TQDM_DISABLE="$(TQDM_DISABLE)" \
-	TQDM_TO_TTY="$(TQDM_TO_TTY)"
-logged_nested_make_env = env \
-	$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
-	PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
-	TQDM_DISABLE="$(TQDM_DISABLE)" \
-	TQDM_TO_TTY="1"
 conda_run = $(conda_runtime_env) conda run --no-capture-output -n $(1)
-conda_run_tqdm = $(tqdm_runtime_env) conda run --no-capture-output -n $(1)
-nested_make = $(nested_make_env) $(MAKE) -f "$(makefile_path)"
-logged_nested_make = $(logged_nested_make_env) $(MAKE) -f "$(makefile_path)"
+conda_run_inference = $(conda_runtime_env) \
+	TQDM_DISABLE="$(TQDM_DISABLE)" \
+	TQDM_TO_TTY="$(TQDM_TO_TTY)" \
+	PYTHONHASHSEED="$(SEED)" \
+	conda run --no-capture-output -n $(1)
+nested_make = env \
+	$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
+	PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
+	TQDM_DISABLE="$(TQDM_DISABLE)" \
+	TQDM_TO_TTY="$(TQDM_TO_TTY)" \
+	$(MAKE) -f "$(makefile_path)" $(trust_make_options)
 inference_timeout = $(if $(filter-out 0,$(strip $(1))),timeout --foreground $(strip $(1)),)
 
 ifndef LOGGING
@@ -464,10 +452,18 @@ run_logged = \
 		printf 'CONDITIONS=%s\n' "$(CONDITIONS)"; \
 		printf 'REFERENCES=%s\n' "$(REFERENCES)"; \
 		printf '\n'; \
-		$(call maybe_log_target_parameters,$(1)) \
+		$(if $(strip $(target_params_$(1))),\
+			printf '%s\n' '[CONFIGURATION]'; \
+			$(call log_parameters,$(strip $(target_params_$(1)))) \
+			printf '\n';) \
 		printf '%s\n' '[OUTPUT]'; \
 	} >> "$(LOGFILE)"; \
-	$(logged_nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)" 2>&1 \
+	env \
+		$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
+		PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
+		TQDM_DISABLE="$(TQDM_DISABLE)" \
+		TQDM_TO_TTY="1" \
+		$(MAKE) -f "$(makefile_path)" LOGGING=false __$(1) LOGFILE="$(LOGFILE)" 2>&1 \
 		| tee -a "$(LOGFILE)"
 else ifeq ($(LOGGING),false)
 run_logged = $(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
@@ -505,7 +501,10 @@ define fastq_naming
 endef
 
 define check_inference_status
-	if [ $$exit_status -eq 124 ]; then \
+	if [ $$exit_status -eq 0 ]; then \
+		echo "_GLOBAL_OPTIMUM" > $(@D)/__SOLUTION; \
+		$(call print_debug,global optimum found); \
+	elif [ $$exit_status -eq 124 ]; then \
 		echo -e ''; \
 		if [ -s $@ ]; then \
 			echo "_LOCAL_OPTIMUM" > $(@D)/__SOLUTION; \
@@ -524,13 +523,28 @@ define check_inference_status
 			$(call log,ERROR,inference interrupted: no partial solution found); \
 		fi; \
 		exit $$exit_status; \
-	elif [ $$exit_status -ne 0 ]; then \
-		echo "_FAILURE" > $(@D)/__SOLUTION; \
-		exit $$exit_status; \
 	else \
-		echo "_GLOBAL_OPTIMUM" > $(@D)/__SOLUTION; \
-		$(call print_debug,global optimum found); \
+		echo "_FAILURE" > $(@D)/__SOLUTION; \
+		$(call log,ERROR,inference failed); \
+		exit $$exit_status; \
 	fi
+endef
+
+define trap_inference_interrupt
+handle_inference_interrupt() { \
+	signal_status="$$1"; \
+	echo -e ""; \
+	if [ -s $@ ]; then \
+		echo "_PARTIAL_SOLUTIONS" > $(@D)/__SOLUTION; \
+		$(call log,WARNING,inference interrupted: keeping partial solutions); \
+	else \
+		echo "_FAILURE" > $(@D)/__SOLUTION; \
+		$(call log,ERROR,inference interrupted: no partial solution found); \
+	fi; \
+	exit "$${signal_status}"; \
+}; \
+trap 'handle_inference_interrupt 130' INT; \
+trap 'handle_inference_interrupt 143' TERM
 endef
 
 define check_partial_bn_outputs
@@ -890,18 +904,27 @@ RESET_TARGET_bn-min = $(bn_min)
 RESET_TARGET_bn-submin = $(bn_submin)
 RESET_TARGET_bn-diverse = $(bn_diverse)
 
-reset_from := $(strip $(RESET_FROM))
+reset_modules := $(strip $(RESET_TARGET))
+trust_modules := $(strip $(TRUST_TARGET))
 reset_disabled_goals := help
 reset_disabled := $(filter $(reset_disabled_goals),$(MAKECMDGOALS))$(__reset_disabled)
-ifneq ($(reset_from),)
 ifeq ($(reset_disabled),)
-reset_targets := $(strip $(RESET_TARGET_$(reset_from)))
-ifeq ($(reset_targets),)
-$(error unknown RESET_FROM module: $(reset_from) \
+unknown_reset_targets := $(filter-out $(reset_stages),$(reset_modules))
+unknown_trust_targets := $(filter-out $(reset_stages),$(trust_modules))
+ifneq ($(unknown_reset_targets),)
+$(error unknown RESET_TARGET module: $(unknown_reset_targets) \
 	(supported values: $(subst $(space),$(comma) ,$(reset_stages))))
 endif
+ifneq ($(unknown_trust_targets),)
+$(error unknown TRUST_TARGET module: $(unknown_trust_targets) \
+	(supported values: $(subst $(space),$(comma) ,$(reset_stages))))
+endif
+reset_targets := $(strip $(foreach module,$(reset_modules),$(RESET_TARGET_$(module))))
+trust_targets := $(strip $(foreach module,$(trust_modules),$(RESET_TARGET_$(module))))
+ifneq ($(reset_targets),)
 .PHONY: $(reset_targets)
 endif
+trust_make_options := $(foreach target,$(trust_targets),--old-file="$(target)")
 endif
 
 target_params_load-dorothea = ORGANISM
@@ -1041,9 +1064,10 @@ endef
 .PHONY: help
 help: ## display this help and exit
 	@awk 'BEGIN {FS = ":.*##"; \
-		printf "usage: make $(green)<module>$(nc) [REFERENCES=<cond>[+...]] "; \
-		printf "[RESET_FROM=<module>] "; \
-		printf "(REFERENCES=$(subst $(space),$(plus),$(references)))\n\n"; \
+		printf "usage: make $(green)<module>$(nc) [REFERENCES=<condition...>] "; \
+		printf "[RESET_TARGET=<module...>] "; \
+		printf "[TRUST_TARGET=<module...>]\n"; \
+		printf "(default value for REFERENCES: $(running_references))\n\n"; \
 		printf "scBOLT is a semi-automated pipeline for Boolean network inference "; \
 		printf "from multi-condition single-cell transcriptomes. "; \
 		printf "The workflow includes: alignment and preprocessing, integration and clustering, "; \
@@ -1051,9 +1075,10 @@ help: ## display this help and exit
 		printf "macrostate binarization, Boolean constraint specification, gene selection, "; \
 		printf "and Boolean network inference.\n\n"; \
 		printf "$(bold)Special parameters$(nc)\n"; \
-		printf "  %-23s %s\n", "REFERENCES=<cond>[+...]", "restrict the run to selected references"; \
-		printf "  %-23s %s\n", "RESET_FROM=<module>", "rebuild from this module; successful recipes replace outputs"; \
-		printf "  %-23s %s\n", "TARGET=<module>", "select module for check, config, and dry-run"} \
+		printf "  %-25s %s\n", "REFERENCES=<condition...>", "restrict the run to selected references"; \
+		printf "  %-25s %s\n", "RESET_TARGET=<module...>", "rebuild from these modules; successful recipes replace outputs"; \
+		printf "  %-25s %s\n", "TRUST_TARGET=<module...>", "trust these module outputs and skip rebuilding them"; \
+		printf "  %-25s %s\n", "TARGET=<module>", "select module for check, config, and dry-run"} \
 		/^[a-zA-Z_-]+:.*?##/ { printf "  $(green)%-22s$(nc) %s\n", $$1, $$2 } \
 		/^##@/ { printf "\n$(bold)%s$(nc)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
@@ -1582,7 +1607,7 @@ $(bin_cells)&: export OMP_NUM_THREADS = $(open_allocated_cpu)
 $(genome_ref):
 	$(call print_rule,load-genome)
 	mkdir -p $(@D)
-	wget --quiet --show-progress -cO $@.tar.gz $(genome_url)
+	wget --quiet --show-progress --progress=bar:force:noscroll -cO $@.tar.gz $(genome_url)
 	tar -zxvf $@.tar.gz -C $(@D)
 	[ -f $@/genes/genes.gtf.gz ] && gunzip $@/genes/genes.gtf.gz
 
@@ -1592,16 +1617,16 @@ $(star_index): | $(genome_ref)
 $(cc_markers):
 	$(call print_rule,load-cc)
 	mkdir -p $(@D)
-	wget --quiet --show-progress -cO $@ $(cycle_url)
+	wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(cycle_url)
 
 $(word 1,$(signatures)) $(word 2,$(signatures)):
 	$(eval FILENAME := $(basename $(notdir $@)))
 	$(call print_rule,load-signatures,$(FILENAME))
 	mkdir -p $(@D)
 	if [ $(FILENAME) = "geiger" ]; then \
-		wget --quiet --show-progress -cO $@ $(geiger_url); \
+		wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(geiger_url); \
 	else \
-		wget --quiet --show-progress -cO $@ $(chambers_url); \
+		wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(chambers_url); \
 	fi
 
 $(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures))
@@ -1614,17 +1639,17 @@ $(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures))
 $(go_basic):
 	$(call print_rule,load-go,go_basic)
 	mkdir -p $(@D)
-	wget --quiet --show-progress -cO $@ $(go_basic_url)
+	wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(go_basic_url)
 
 $(go_organism):
 	$(call print_rule,load-go,go_$(ORGANISM))
 	mkdir -p $(@D)
-	wget --quiet --show-progress -cO $@ $(go_organism_url)
+	wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(go_organism_url)
 
 $(gene2go):
 	$(call print_rule,load-go,gene2go)
 	mkdir -p $(@D)
-	wget --quiet --show-progress --directory-prefix=$(@D) $(gene2go_url)
+	wget --quiet --show-progress --progress=bar:force:noscroll --directory-prefix=$(@D) $(gene2go_url)
 	[ -f $@.gz ] && gunzip $@.gz
 
 $(dorothea_legacy):
@@ -2192,11 +2217,12 @@ $(max_nodes_soft): $(bonesis_model)
 	$(call require_bonesis_filter_parameters,max-nodes-soft)
 	mkdir -p $(@D)
 	set +e; \
+	$(call trap_inference_interrupt); \
 	$(call inference_timeout,$(TIMEOUT_SOFT)) \
-		$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
+		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
-		--asp $(@D)/nodes.sh --solution $@ \
+		--asp $(@D)/nodes.sh --solution $@ --status $(@D)/__SOLUTION \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) \
 		--bonesis-mode soft --max-clause $(MAX_CLAUSE) \
 		--canonic $(CANONIC_FILTER) \
@@ -2205,6 +2231,7 @@ $(max_nodes_soft): $(bonesis_model)
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SOFT) \
 		--jobs $(JOBS_SOFT); \
 	exit_status=$$?; \
+	trap - INT TERM; \
 	set -e; \
 	$(call check_inference_status, $(TIMEOUT_SOFT))
 
@@ -2214,11 +2241,12 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 	$(call require_bool,MIN_SELF_LOOP_CONSTS,max-consts-soft)
 	mkdir -p $(@D)
 	set +e; \
+	$(call trap_inference_interrupt); \
 	$(call inference_timeout,$(TIMEOUT_CONSTS)) \
-		$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-consts \
+		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-consts \
 		$(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) \
-		--asp $(@D)/nodes.sh --solution $@ \
+		--asp $(@D)/nodes.sh --solution $@ --status $(@D)/__SOLUTION \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) \
 		--bonesis-mode soft --max-clause $(MAX_CLAUSE) $(min_self_loop_consts) \
 		--canonic $(CANONIC_FILTER) \
@@ -2227,6 +2255,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_CONSTS) \
 		--jobs $(JOBS_CONSTS); \
 	exit_status=$$?; \
+	trap - INT TERM; \
 	set -e; \
 	$(call check_inference_status, $(TIMEOUT_CONSTS))
 
@@ -2235,11 +2264,13 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 	$(call require_bonesis_filter_parameters,max-nodes-relaxed)
 	mkdir -p $(@D)
 	set +e; \
+	$(call trap_inference_interrupt); \
 	$(call inference_timeout,$(TIMEOUT_RELAXED)) \
-		$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
+		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
-		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
+		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
+		--solution $@ --status $(@D)/__SOLUTION \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) \
 		--bonesis-mode relaxed --max-clause $(MAX_CLAUSE) \
 		--canonic $(CANONIC_FILTER) \
@@ -2248,6 +2279,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_RELAXED) \
 		--jobs $(JOBS_RELAXED); \
 	exit_status=$$?; \
+	trap - INT TERM; \
 	set -e; \
 	$(call check_inference_status, $(TIMEOUT_RELAXED))
 
@@ -2257,11 +2289,13 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 	$(call check_parameter,$(TIMEOUT_SEED),TIMEOUT_SEED (needed by target 'max-nodes-seed'))
 	mkdir -p $(@D)
 	set +e; \
+	$(call trap_inference_interrupt); \
 	$(call inference_timeout,$(TIMEOUT_SEED)) \
-		$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
+		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
-		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh --solution $@ \
+		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
+		--solution $@ --status $(@D)/__SOLUTION \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) \
 		--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
 		--canonic $(CANONIC_FILTER) \
@@ -2270,6 +2304,7 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SEED) \
 		--jobs $(JOBS_SEED); \
 	exit_status=$$?; \
+	trap - INT TERM; \
 	set -e; \
 	$(call check_inference_status, $(TIMEOUT_SEED))
 
@@ -2283,12 +2318,14 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 		echo "_GLOBAL_OPTIMUM" > $(@D)/__SOLUTION; \
 	else \
 		set +e; \
+		$(call trap_inference_interrupt); \
 		cat $(word 4,$^) $(word 6,$^) | sort -u > $(@D)/mandatory.txt; \
 		$(call inference_timeout,$(TIMEOUT_LOCK)) \
-			$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
+			$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
 			$(word 1,$^) $(word 2,$^) \
 			--important-genes $(word 3,$^) --mandatory-genes $(@D)/mandatory.txt \
-			--filter-grn $(word 5,$^) --asp $(@D)/nodes.sh --solution $@ \
+			--filter-grn $(word 5,$^) --asp $(@D)/nodes.sh \
+			--solution $@ --status $(@D)/__SOLUTION \
 			--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) \
 			--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
 			--canonic $(CANONIC_FILTER) \
@@ -2297,6 +2334,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 			--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_LOCK) \
 			--jobs $(JOBS_LOCK); \
 		exit_status=$$?; \
+		trap - INT TERM; \
 		set -e; \
 		$(call check_inference_status,$(TIMEOUT_LOCK)); \
 	fi
@@ -2306,7 +2344,7 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock)
 	$(call require_bonesis_infer_parameters,bn-min)
 	$(call require_bool,MIN_SELF_LOOP_INFER,bn-min)
 	mkdir -p $(@D)
-	$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py min \
+	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py min \
 		$(word 1,$^) $(word 2,$^) \
 		--filter-grn $(lastword $^) \
 		--asp $(@D)/min.sh \
@@ -2329,7 +2367,7 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock)
 	$(call require_bonesis_infer_parameters,bn-submin)
 	$(call check_partial_bn_outputs,$(bn_submin_dir),bn-submin,$@)
 	mkdir -p $(bn_submin_dir)
-	$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py submin \
+	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py submin \
 		$(word 1,$^) $(word 2,$^) \
 		--filter-grn $(lastword $^) \
 		--asp $(bn_submin_dir)/submin.sh \
@@ -2350,7 +2388,7 @@ $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock)
 	$(call require_bonesis_infer_parameters,bn-diverse)
 	$(call check_partial_bn_outputs,$(bn_diverse_dir),bn-diverse,$@)
 	mkdir -p $(bn_diverse_dir)
-	$(call conda_run_tqdm,scbolt-bonesis) python $(scripts_dir)/inference/inference.py diverse \
+	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py diverse \
 		$(word 1,$^) $(word 2,$^) \
 		--filter-grn $(lastword $^) \
 		--asp $(bn_diverse_dir)/diverse.sh \

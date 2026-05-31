@@ -3,6 +3,21 @@
 [ -d "envs" ] && env_dir="./envs" || env_dir="../envs"
 [ -d "lib" ] && lib_dir="./lib" || lib_dir="../lib"
 
+bonesis_hash="${BONESIS_HASH:-24c4f9c91a4496b9777043e17e504ecc31312d87}"
+scvelo_hash="${SCVELO_HASH:-b2f31b345641efdccd39fbcb8c0beaa0014b4b88}"
+
+install_bonesis_git() {
+    conda activate "$1"
+    pip install --force-reinstall --no-deps "git+https://github.com/bnediction/bonesis.git@${bonesis_hash}"
+    conda deactivate
+}
+
+install_scvelo_git() {
+    conda activate "$1"
+    pip install "git+https://github.com/theislab/scvelo.git@${scvelo_hash}"
+    conda deactivate
+}
+
 install_env() {
     if conda env list | grep -q "^$1 ";
     then
@@ -18,9 +33,11 @@ install_env() {
             fi
             if [ $1 == "scbolt-velocity" ];
             then
-                conda activate $1
-                pip install git+https://github.com/theislab/scvelo.git@b2f31b345641efdccd39fbcb8c0beaa0014b4b88
-                conda deactivate;
+                install_scvelo_git "$1"
+            fi
+            if [ $1 == "scbolt-bonesis" ];
+            then
+                install_bonesis_git "$1"
             fi
 
         else
@@ -32,15 +49,11 @@ install_env() {
         conda develop --name $1 ${lib_dir};
         if [ $1 == "scbolt-bonesis" ];
         then
-            conda activate $1
-#            pip install git+https://github.com/bnediction/bonesistools.git@d4710d937da23b16117ce832e97a41d2a98753e2
-            conda deactivate;
+            install_bonesis_git "$1"
         fi
         if [ $1 == "scbolt-velocity" ];
         then
-            conda activate $1
-            pip install git+https://github.com/theislab/scvelo.git@b2f31b345641efdccd39fbcb8c0beaa0014b4b88
-            conda deactivate;
+            install_scvelo_git "$1"
         fi
     fi
 }

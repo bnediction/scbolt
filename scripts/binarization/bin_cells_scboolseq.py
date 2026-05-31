@@ -121,20 +121,18 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
 std.print_info(f"converting layer '{args.layer}' into dataframe")
 counts_df = bt.sct.tl.anndata_to_dataframe(adata, layer=args.layer)
 
 if args.filter_genes:
-    std.print_info(
-        f"filtering genes by considering only those specified in {args.filter_genes}"
-    )
+    std.print_info(f"filtering genes (file={std.format_path(args.filter_genes)})")
     with open(args.filter_genes) as file:
         counts_df = counts_df[[line.strip() for line in file.readlines()]]
 
-std.print_task("binarizing cells")
+std.print_task("binarizing cells (method=scBoolSeq)")
 
 scbool = scBoolSeq(
     margin_quantile=args.quantile,
@@ -172,13 +170,13 @@ adata.layers["bin"] = cell_df
 adata.obs["pct_bin"] = (~cell_df.isna()).mean(axis=1)
 adata.var["distribution"] = criteria_df["Category"]
 
-std.print_task(f"saving AnnData object in {str(args.outfile)}")
+std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 adata.write_h5ad(filename=args.outfile, compression="gzip")
 
 if args.bin:
-    std.print_task(f"saving binarized matrix in {str(args.bin)}")
+    std.print_task(f"saving binarized matrix (file={std.format_path(args.bin)})")
     cell_df.to_csv(args.bin, sep=",", index=True)
 
 if args.statistics:
-    std.print_task(f"saving statistical estimators in {str(args.statistics)}")
+    std.print_task(f"saving statistical estimators (file={std.format_path(args.statistics)})")
     criteria_df.to_csv(args.statistics, sep=",", index=True)

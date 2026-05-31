@@ -231,7 +231,7 @@ embedding_label = (
 outpath = os.path.dirname(args.outfile)
 os.makedirs(f"{outpath}/streamplot", exist_ok=True)
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 adata.uns["workdir"] = str(outpath)
 
@@ -281,7 +281,7 @@ else:
         "not prunning elastic principal graph by filtering out trivial branches"
     )
 
-std.print_task("retrieving stream-based clusters")
+std.print_task("retrieving clusters (method=STREAM)")
 
 def get_stream_cluster(value):
     match = re.search(r"\d+", str(value))
@@ -329,7 +329,7 @@ std.print_info(info_str)
 
 groups = set([args.obs]).union({"kmeans", "macrostate"})
 
-std.print_task(f"plotting STREAM outputs in {os.path.relpath(outpath)}")
+std.print_task(f"plotting STREAM outputs (directory={os.path.relpath(outpath)})")
 for group in groups:
     epg_plot = Path(f"{outpath}/epg_{group}.pdf")
     bt.sct.pl.embedding_plot(
@@ -393,11 +393,11 @@ for root in adata.obs["macrostate"].cat.categories:
     plt.close()
 
 if args.pkl:
-    std.print_task(f"saving STREAM object in {str(args.pkl)}")
+    std.print_task(f"saving STREAM object (file={std.format_path(args.pkl)})")
     with std.disable_print():
         st.write(adata, file_name=args.pkl)
 
-std.print_task(f"saving AnnData object in {str(args.outfile)}")
+std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 del adata.uns["workdir"]
 for key in list(adata.obs.keys()):
     if isinstance(adata.obs[key][0], tuple):
@@ -410,5 +410,5 @@ for key in list(adata.uns.keys()):
 adata.write_h5ad(filename=args.outfile, compression="gzip")
 
 if args.csv:
-    std.print_task(f"saving stream macrostates in {str(args.csv)}")
+    std.print_task(f"saving STREAM macrostates (file={std.format_path(args.csv)})")
     adata.obs["macrostate"].to_csv(args.csv, sep=",", index=True)

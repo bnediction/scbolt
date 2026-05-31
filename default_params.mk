@@ -37,7 +37,7 @@ go_organism_url ?= https://current.geneontology.org/ontology/subsets/goslim_$(OR
 # STAR_BARCODE_FILTER values: auto, threshold, top.
 # auto estimates a knee point; threshold requires STAR_MIN_UMI; top requires
 # STAR_TOP_BARCODES.
-$(eval ALIGNMENT_TOOL ?= star)             # alignment/counting backend
+$(eval ALIGNMENT_TOOL ?= cellranger)       # alignment/counting backend
 $(eval STAR_CB_LEN ?= 16)                  # cell-barcode length
 $(eval STAR_UMI_LEN ?= 10)                 # UMI length
 $(eval STAR_WHITELIST ?=)                  # barcode whitelist file

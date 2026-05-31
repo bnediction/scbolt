@@ -124,7 +124,7 @@ outpath = os.path.dirname(args.outfile)
 if not Path(outpath).exists():
     os.makedirs(outpath)
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
 adata.obs["clusters"] = adata.obs[args.cluster]
@@ -133,7 +133,7 @@ if args.layer:
     adata.X = adata.layers[args.layer].copy()
 
 plot_dir = Path(outpath)
-std.print_task(f"plotting velocity outputs in {os.path.relpath(plot_dir)}")
+std.print_task(f"plotting velocity outputs (directory={os.path.relpath(plot_dir)})")
 
 if args.cluster:
     scv.pl.proportions(
@@ -146,7 +146,7 @@ if args.cluster:
     plt.savefig(Path(f"{outpath}/proportions.pdf"))
     plt.close()
 
-std.print_task("computing first- and second-order moments for each cell")
+std.print_task("computing moments (orders=first, second, scope=cells)")
 with std.disable_print():
     scv.pp.moments(
         adata,
@@ -159,7 +159,7 @@ with std.disable_print():
         copy=False,
     )
 
-std.print_task(f"estimating RNA velocities using {args.mode} mode")
+std.print_task(f"estimating RNA velocities (mode={args.mode})")
 with std.disable_print():
     scv.tl.velocity(
         adata,
@@ -169,7 +169,7 @@ with std.disable_print():
         copy=False,
     )
 
-std.print_task("computing velocity graph based on cosine similarities")
+std.print_task("computing velocity graph (similarity=cosine)")
 with std.disable_print():
     scv.tl.velocity_graph(adata, vkey="velocity", copy=False, n_jobs=args.jobs)
 
@@ -177,7 +177,7 @@ std.print_task("estimating velocity pseudotime")
 with std.disable_print():
     scv.tl.velocity_pseudotime(adata, vkey="velocity", use_velocity_graph=True)
 
-std.print_task("estimating PAGA graph with velocity-directed edges")
+std.print_task("estimating PAGA graph (edges=velocity-directed)")
 with std.disable_print():
     scv.tl.paga(adata, vkey="velocity", groups=args.cluster, copy=False)
     adata.uns["transitions_confidence"] = adata.uns["paga"]["transitions_confidence"]
@@ -282,7 +282,7 @@ ax = bt.sct.pl.draw_paga(
 plt.savefig(Path(f"{outpath}/paga.pdf"))
 plt.close()
 
-std.print_task(f"saving data in {str(args.outfile)}")
+std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 if args.cluster != "clusters":
     del adata.obs["clusters"]
 adata.write_h5ad(filename=args.outfile, compression="gzip")

@@ -34,8 +34,11 @@ class ptqdm(tqdm):
 
         self._tqdm_file = None
         if TQDM_TO_TTY:
-            self._tqdm_file = open("/dev/tty", "w")
-            kwargs.setdefault("file", self._tqdm_file)
+            try:
+                self._tqdm_file = open("/dev/tty", "w")
+                kwargs.setdefault("file", self._tqdm_file)
+            except OSError:
+                pass
         else:
             kwargs.setdefault("file", sys.stdout)
 
@@ -154,6 +157,20 @@ def get_clingo_settings(*extra_options):
     return {"clingo_options": options} if options else {}
 
 
+def get_subset_minimal_clingo_settings(jobs):
+    parallel_jobs, parallel_option = get_clingo_parallel_mode(jobs)
+
+    if parallel_option:
+        return {"parallel": None, "clingo_options": [parallel_option]}
+    if parallel_jobs <= 1:
+        return {}
+
+    return {
+        "parallel": None,
+        "clingo_options": [f"--parallel-mode={min(parallel_jobs, 14)}"],
+    }
+
+
 def format_node_coverage(name, kept, total):
     removed = total - kept
     pct = 0 if total == 0 else 100 * kept / total
@@ -173,6 +190,22 @@ def print_node_solution(solution, nodes_in_data, nodes_in_domain, **kwargs):
         ),
         **kwargs,
     )
+
+
+def write_node_solution(
+    nodes: Iterable[str],
+    outfile: Path,
+    status_file: Path | None = None,
+):
+    n_nodes = 0
+    with open(outfile, "w") as file:
+        for node in nodes:
+            file.write(f"{node}\n")
+            n_nodes += 1
+
+    if n_nodes > 0 and status_file is not None:
+        with open(status_file, "w") as file:
+            file.write("_PARTIAL_SOLUTIONS\n")
 
 
 def close_progress(view, leave=None):
@@ -197,40 +230,6 @@ def next_solution(view):
 # clingo may find and write the optimal intermediate model, but the final
 # model parsing can fail with RuntimeError/double free. This view returns
 # the last intermediate model directly instead of reparsing the final one.
-class SafeNodesView(bonesis.NodesView):
-    def __next__(self):
-        if self.mode != "opt" or not self.callback_intermediate_model:
-            return super().__next__()
-
-        if self.limit and self._counter >= self.limit:
-            if hasattr(self, "_solve_handler"):
-                self._solve_handler.cancel()
-            raise StopIteration
-
-        self.cur_model = next(self._iterator)
-        self._progress_tick()
-        pmodel = self.parse_model(self.cur_model)
-        self.callback_intermediate_model(pmodel)
-
-        try:
-            while True:
-                self.cur_model = next(self._iterator)
-                self._progress_tick()
-                pmodel = self.parse_model(self.cur_model)
-                self.callback_intermediate_model(pmodel)
-        except StopIteration:
-            if self.progress:
-                self._progressbar.close()
-
-        for func in self.filters:
-            if not func(pmodel):
-                print(f"Skipping solution not verifying {func.__name__}")
-                return next(self)
-
-        self._counter += 1
-        return pmodel
-
-
 def load_prior_network(
     domain,
     organism,
@@ -254,7 +253,7 @@ def load_prior_network(
             levels=levels,
             genesyn=genesyn,
         )
-    std.print_info(f"loading custom prior network ({domain})")
+    std.print_task(f"loading custom prior network (file={std.format_path(domain)})")
     return bt.bpy.ig.read_interaction_graph(
         infile=domain,
         genesyn=genesyn,
@@ -458,6 +457,8 @@ def write_ensemble_influence_graph(
     components: Iterable[str],
     outfile: str | Path,
 ) -> None:
+    std.print_task(f"saving ensemble influence graph (file={outfile})")
+
     ensemble = bt.bpy.bn.BooleanNetworkEnsemble(components=components)
     for bn in bns:
         ensemble.append(to_bonesistools_boolean_network(bn))
@@ -673,6 +674,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--status",
+    dest="status",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    metavar="FILE",
+    help="optional output file storing the current inference status",
+)
+
+parser.add_argument(
     "--config-formats",
     dest="config_formats",
     nargs="+",
@@ -825,13 +835,13 @@ bonesis.settings["parallel"] = clingo_parallel_jobs
 
 genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
 
-std.print_task(f"loading partially binarized metastates from {str(args.mstates)}")
+std.print_task(f"loading partially binarized metastates (file={std.format_path(args.mstates)})")
 
 mstates_df = pd.read_csv(args.mstates, index_col=0, sep=args.sep).fillna(float("nan"))
 
 mstates_cfg = get_cfg(mstates_df, axis="index")
 
-std.print_task("initializing BoNesis inference settings")
+std.print_task("initializing inference settings (engine=BoNesis)")
 
 canonic = args.canonic
 if canonic is None:
@@ -847,7 +857,7 @@ if args.action == "filter-nodes":
 grn = load_prior_network(args.domain, args.organism, genesyn, args.dorothea_levels)
 
 if args.filter_grn:
-    std.print_info(f"filtering prior network with selected genes ({args.filter_grn})")
+    std.print_info(f"filtering prior network (genes={args.filter_grn})")
     with open(args.filter_grn) as fp:
         nodes = [line.strip() for line in fp.readlines()]
     grn = grn.subgraph(nodes)
@@ -896,9 +906,7 @@ elif args.bonesis_mode == "hard":
 
 if args.action == "filter-nodes":
 
-    std.print_task(
-        "maximizing satisfiable nodes under dynamical constraints"
-    )
+    std.print_task("maximizing satisfiable nodes")
 
     bo.maximize_nodes()
 
@@ -917,12 +925,10 @@ if args.action == "filter-nodes":
     bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
 
     def intermediate_solution(nodes):
-        with open(args.solution, "w") as file:
-            for node in nodes:
-                file.write(f"{node}\n")
+        write_node_solution(nodes, args.solution, args.status)
 
     clingo_opt_strategy = args.clingo_opt_strategy or "bb,dec"
-    view = SafeNodesView(
+    view = bonesis.NodesView(
         bo,
         mode=args.clingo_opt_mode,
         intermediate_model_cb=intermediate_solution,
@@ -938,11 +944,9 @@ if args.action == "filter-nodes":
     view.standalone(output_filename=args.asp)
     nodes_in_data, nodes_in_domain, domain_edges = get_node_sets(bo)
 
-    if new_constraints == False:
+    if not new_constraints:
         std.print_info("no new constraints added; stopping", flush=True)
-        with open(args.solution, "w") as file:
-            for node in bo.domain.nodes:
-                file.write(f"{node}\n")
+        write_node_solution(bo.domain.nodes, args.solution, args.status)
         sys.exit(0)
 
     print_node_reference(nodes_in_data, nodes_in_domain, domain_edges, flush=True)
@@ -966,22 +970,17 @@ if args.action == "filter-nodes":
         if not solution:
             raise
         std.print_debug(
-            "final model parsing failed; using the last intermediate solution. "
-            "This may be a partial/non-certified optimum.",
+            "selecting intermediate solution (reason=final model parsing failed, certification=partial/non-certified)",
             flush=True,
         )
 
-    with open(args.solution, "w") as file:
-        for node in solution:
-            file.write(f"{node}\n")
+    write_node_solution(solution, args.solution, args.status)
 
     print_node_solution(solution, nodes_in_data, nodes_in_domain, flush=True)
 
 elif args.action == "filter-consts":
 
-    std.print_task(
-        "maximizing strong constants under dynamical constraints"
-    )
+    std.print_task("maximizing strong constants")
 
     bo.maximize_strong_constants()
     if args.minimize_self_loops:
@@ -1016,9 +1015,7 @@ elif args.action == "filter-consts":
     std.print_warning("this may take some time.")
     solution = next_solution(view)
 
-    with open(args.solution, "w") as file:
-        for node in solution:
-            file.write(f"{node}\n")
+    write_node_solution(solution, args.solution, args.status)
 
     print_node_solution(solution, nodes_in_data, nodes_in_domain)
 
@@ -1029,9 +1026,8 @@ else:
     }
     if normalized_to_original_gene_names:
         std.print_debug(
-            "unsupported '-' characters detected in gene names; "
-            "the following gene names will be restored after BoNesis inference: "
-            f"{', '.join(f'{k} -> {v}' for k, v in normalized_to_original_gene_names.items())}"
+            "restoring gene names "
+            f"(phase=post-inference, reason=unsupported '-' characters, genes={'+'.join(f'{k}->{v}' for k, v in normalized_to_original_gene_names.items())})"
         )
 
     config_predicates = get_configuration_predicates(bo)
@@ -1055,16 +1051,15 @@ else:
             if len(tuples) == 1 and tuples[0][1] == 0:
                 rename_cfgs[tuples[0]] = name
     if rename_cfgs:
+        renamed_configs = ", ".join(map(str, rename_cfgs))
         std.print_debug(
-            "the following tuple-based configuration names will be simplified: "
-            f"{', '.join(f'{k} -> {v}' for k, v in rename_cfgs.items())}"
+            "simplifying configuration names "
+            f"(reason=tuple-based names, configurations={renamed_configs})"
         )
 
     if args.action == "min":
 
-        std.print_task(
-            "computing solution of Boolean network minimizing the edge number"
-        )
+        std.print_task("computing Boolean network solution (objective=minimize edges)")
 
         bo.custom("edge(A,B) :- clause(B,_,A,_). #minimize { 1@1,A,B: edge(A,B) }.")
         bo.custom("#maximize { 1@10,N: constant(N) }.")
@@ -1079,7 +1074,6 @@ else:
             clingo_opt_strategy=clingo_opt_strategy,
             extra=("boolean-network", "configurations"),
             progress=ptqdm,
-            **get_clingo_settings(clingo_parallel_option),
         )
         view.standalone(output_filename=args.asp)
 
@@ -1123,10 +1117,10 @@ else:
 
         if args.limit not in [None, 0]:
             std.print_task(
-                f"enumerating {args.limit} subset-minimal Boolean network solutions"
+                f"enumerating Boolean network solutions (kind=subset-minimal, limit={args.limit})"
             )
         else:
-            std.print_task("enumerating subset-minimal Boolean network solutions")
+            std.print_task("enumerating Boolean network solutions (kind=subset-minimal)")
 
         print_node_reference(*get_node_sets(bo))
         std.print_warning("this may take some time.")
@@ -1136,7 +1130,8 @@ else:
             solutions="subset-minimal",
             extra=("boolean-network", "configurations"),
             limit=args.limit if args.limit is not None else 0,
-            **get_clingo_settings(clingo_parallel_option),
+            progress=ptqdm,
+            **get_subset_minimal_clingo_settings(args.jobs),
         )
         view.standalone(output_filename=args.asp)
 
@@ -1154,9 +1149,11 @@ else:
     elif args.action == "diverse":
 
         if args.limit not in [None, 0]:
-            std.print_task(f"sampling {args.limit} sparsest Boolean network solutions")
+            std.print_task(
+                f"sampling Boolean network solutions (kind=sparsest, limit={args.limit})"
+            )
         else:
-            std.print_task("sampling sparsest Boolean network solutions")
+            std.print_task("sampling Boolean network solutions (kind=sparsest)")
 
         print_node_reference(*get_node_sets(bo))
         std.print_warning("this may take some time.")
@@ -1166,7 +1163,6 @@ else:
             extra=("configurations",),
             limit=args.limit if args.limit is not None else 0,
             progress=ptqdm,
-            **get_clingo_settings(clingo_parallel_option),
         )
         view.standalone(output_filename=args.asp)
 

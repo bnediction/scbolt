@@ -116,7 +116,7 @@ if not Path(os.path.dirname(args.outfile)).exists():
 
 genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
 
-std.print_task(f"loading gene sets from {str(args.infile)}")
+std.print_task(f"loading gene set workbook (file={std.format_path(args.infile)})")
 with ExcelFile(args.infile) as file:
     study_geneset = {}
     for sheet_name in file.sheet_names:
@@ -168,7 +168,7 @@ go_file = args.go
 if go_file is None:
     raise ValueError("argument --go is required")
 
-std.print_task(f"loading gene ontologies from {str(go_file)}")
+std.print_task(f"loading gene ontology (file={std.format_path(go_file)})")
 
 go_dag = GODag(obo_file=go_file, prt=open(os.devnull, "w"))
 
@@ -194,7 +194,8 @@ with open(go_file, "r") as go_reader:
                 continue
 
 std.print_task(
-    f"loading gene-to-go associations from {args.gene2go if args.gene2go else args.annotations}"
+    "loading gene-to-GO associations "
+    f"(file={std.format_path(args.gene2go if args.gene2go else args.annotations)})"
 )
 with std.disable_print():
     if args.gene2go:
@@ -206,7 +207,7 @@ with std.disable_print():
 for namespace, gene_id2go in associations.items():
     std.print_info(f"{namespace} {len(gene_id2go):,} annotated {args.organism} genes")
 
-std.print_task("performing gene ontology enrichment analysis (GOEA)")
+std.print_task("performing gene ontology enrichment analysis (method=GOEA)")
 
 goea = GOEnrichmentStudyNS(
     pop=background_geneset,
@@ -234,7 +235,7 @@ for cluster, geneset in study_geneset.items():
                 f"{os.path.dirname(args.outfile)}/{cluster}", _goea_significant_results
             )
 
-std.print_task(f"saving results in {str(args.outfile)}")
+std.print_task(f"saving GOEA workbook (file={std.format_path(args.outfile)})")
 
 with ExcelWriter(args.outfile) as xlsx_writer:
     for cluster in study_geneset.keys():

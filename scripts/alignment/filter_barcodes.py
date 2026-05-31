@@ -189,7 +189,7 @@ if args.method == "auto" and args.top_barcodes is not None:
 if args.outfile.parent:
     os.makedirs(args.outfile.parent, exist_ok=True)
 
-std.print_task(f"loading count matrix from {args.matrix}")
+std.print_task(f"loading count matrix (file={std.format_path(args.matrix)})")
 counts = barcode_umi_counts(args.matrix)
 
 std.print_task("selecting cell barcodes")
@@ -211,5 +211,5 @@ std.print_result(
     f"(minimum UMI count: {threshold})"
 )
 
-std.print_task(f"saving filtered barcodes in {args.outfile}")
+std.print_task(f"saving barcodes (file={std.format_path(args.outfile)})")
 write_barcodes(args.barcodes, args.outfile, indices)

@@ -385,7 +385,7 @@ predict = Predict(
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
@@ -399,7 +399,7 @@ convert_metadata = (
 std.print_info(f"converting layer '{args.layer}' into dataframe")
 cell_df = bt.sct.tl.anndata_to_dataframe(adata=adata, obs=metadata, layer=args.layer)
 
-std.print_task("counting binarized values for each cell population")
+std.print_task("counting binarized values (scope=cell populations)")
 cluster_counts = count_binarized_values(
     obs_df=cell_df,
     columns=list(map(str, adata.var.index)),
@@ -414,13 +414,13 @@ if args.exclude:
     )
     if clusters_to_remove:
         std.print_info(
-            "removing the following cluster(s): {0}".format(
-                ", ".join(f"'{cluster}'" for cluster in clusters_to_remove)
+            "removing clusters (clusters={0})".format(
+                "+".join(map(str, clusters_to_remove))
             )
         )
         cluster_counts = cluster_counts.drop(list(clusters_to_remove))
 
-std.print_task("binarizing cell populations with respect to voting rules")
+std.print_task("binarizing cell populations (rules=voting)")
 cluster_bin = cast(
     DataFrame,
     predict(cluster_counts, cast(Series, adata.var[args.distribution])),
@@ -438,7 +438,8 @@ if args.use_rep:
         else args.use_rep.lower()
     )
     std.print_task(
-        f"plotting binarization summaries in {os.path.relpath(os.path.dirname(args.outfile))}"
+        "plotting binarization summaries "
+        f"(directory={os.path.relpath(os.path.dirname(args.outfile))})"
     )
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
     adata.obs[f"pct_bin_{args.cluster}"] = adata.obs[args.cluster].map(pct_bin)
@@ -493,9 +494,9 @@ if args.use_rep:
                 ),
             )
 
-std.print_task(f"saving predicted binarized values in {str(args.outfile)}")
+std.print_task(f"saving binarized matrix (file={std.format_path(args.outfile)})")
 cluster_bin.to_csv(args.outfile, sep=",", index=True)
 
 if args.counts:
-    std.print_task(f"saving counts of binarized values in {str(args.counts)}")
+    std.print_task(f"saving binarized value counts (file={std.format_path(args.counts)})")
     cluster_counts.to_csv(args.counts, sep=",", index=True)

@@ -186,7 +186,7 @@ if args.base <= 1:
 nexponential_fun = lambda base, radius: 1 / base ** np.arange(0, radius)
 bdc = bt.bpy.BooleanDifferentialCalculus()
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading binarized matrix (file={std.format_path(args.infile)})")
 
 meta_bin = pd.read_csv(args.infile, index_col=0).transpose()
 
@@ -208,7 +208,7 @@ std.print_info(
 
 std.print_task("checking successors")
 
-std.print_info("extracting paths using depth-first search")
+std.print_info("extracting paths (method=depth-first search)")
 interaction_scores = bt.grn.scoring(
     graph=grn,
     weights=nexponential_fun(base=args.base, radius=args.radius),
@@ -228,7 +228,7 @@ interaction_signs = sign_likelihood(
 with open(f"{args.outpath}/sign_likelihood.json", "w") as outfile:
     json.dump(interaction_signs, outfile)
 
-std.print_info("testing predecessors using differential Boolean calculus")
+std.print_info("testing predecessors (method=differential Boolean calculus)")
 
 score_matrix = OrderedDict({condition: {} for condition in meta_bin.index})
 for c1, c2 in itertools.product(meta_bin.index, repeat=2):
@@ -254,7 +254,9 @@ for source, targets in interaction_signs.items():
 
 score_df = pd.DataFrame.from_dict(score_matrix, orient="index")
 
-std.print_task(f"saving data in {str(args.outpath)}")
+std.print_task(
+    f"saving differential analysis outputs (directory={os.path.relpath(args.outpath)})"
+)
 
 score_df.to_csv(f"{args.outpath}/pairwise_predecessor_scores.csv", sep=",", index=True)
 

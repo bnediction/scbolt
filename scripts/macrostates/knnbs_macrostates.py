@@ -165,7 +165,7 @@ elif args.embedding == "tsne":
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
 if adata.obs[args.obs].dtype.name != "category":
@@ -189,7 +189,7 @@ if args.centrality:
                 f"cluster {cluster} in argument --centrality not found in 'adata.obs[{args.obs}]'",
             )
 
-std.print_task("estimating KNNbs subclusters")
+std.print_task("estimating subclusters (method=KNNbs)")
 knnbs = bt.sct.tl.Knnbs(
     n_neighbors=args.neighbors,
     use_rep=embedding,
@@ -212,9 +212,9 @@ adata.obs["macrostate"] = knnbs.knnbs(
     subclusters_minimizing_distances=args.centrality,
 )
 
-std.print_task(f"saving AnnData object in {str(args.outfile)}")
+std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 adata.write_h5ad(filename=args.outfile, compression="gzip")
 
 if args.csv:
-    std.print_task(f"saving KNNbs macrostates in {str(args.csv)}")
+    std.print_task(f"saving KNNbs macrostates (file={std.format_path(args.csv)})")
     adata.obs["macrostate"].to_csv(args.csv, sep=",", index=True)

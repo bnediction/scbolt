@@ -228,7 +228,7 @@ outpath = Path(os.path.dirname(args.outfile))
 if not outpath.exists():
     os.makedirs(outpath)
 
-std.print_task(f"loading data from {str(args.infile)}")
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(Path(f"{args.infile}").resolve())
 
@@ -239,18 +239,17 @@ adata.var_names_make_unique()
 
 shape = {"init": adata.shape}
 
-std.print_task("classifying genes encoding mitochondrial proteins")
+std.print_task("classifying genes (class=mitochondrial proteins)")
 bt.sct.tl.mitochondrial_genes(adata, index_type="name", key="mt", axis=1, copy=False)
 
-std.print_task("classifying genes encoding ribosomal proteins")
+std.print_task("classifying genes (class=ribosomal proteins)")
 bt.sct.tl.ribosomal_genes(adata, index_type="name", key="rps", axis=1, copy=False)
 
 if args.marker_infile is None:
     std.print_warning("cannot classify cell cycle phases: marker file not specified")
 else:
-    std.print_task(
-        f"classifying cell cycle phases (using file {str(args.marker_infile)})"
-    )
+    std.print_task(f"loading cell-cycle marker data (file={std.format_path(args.marker_infile)})")
+    std.print_task("classifying cells (class=cell cycle phases)")
     std.print_info("parsing R marker file")
     parser = rdata.parser.parse_file(args.marker_infile)
     std.print_info("converting R marker data to Python objects")
@@ -277,7 +276,7 @@ sc.pp.calculate_qc_metrics(
 )
 
 raw_plot = outpath / "raw-data.pdf"
-std.print_info(f"plotting QC summaries in {os.path.relpath(outpath)}")
+std.print_info(f"plotting QC summaries (directory={os.path.relpath(outpath)})")
 ax = sc.pl.violin(
     adata=adata,
     keys=["n_genes_by_counts", "total_counts", "pct_counts_mt", "pct_counts_rps"],
@@ -366,7 +365,7 @@ bt.sct.pp.filter_obs(adata, "total_counts", lambda x: (x >= reads[0]) & (x < rea
 
 bt.sct.pp.filter_obs(adata, "pct_counts_mt", lambda x: x < 1e2 * args.mt)
 
-std.print_task(f"computing top {args.hvg} highly variable genes")
+std.print_task(f"computing highly variable genes (top={args.hvg})")
 
 sc.pp.highly_variable_genes(
     adata,
@@ -428,7 +427,7 @@ if args.marker_infile:
     ax.set(xlabel="cell cycle phases")
     plt.savefig(f"{outpath}/cell-cycles-counting.pdf")
 
-std.print_task(f"saving data in {str(args.outfile)}")
+std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 adata.write_h5ad(filename=args.outfile, compression="gzip")
 
 std.print_result(

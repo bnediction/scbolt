@@ -85,12 +85,14 @@ if args.outfile is None:
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading dataset 'integrated' from {str(args.integrated)}")
+std.print_task(
+    f"loading AnnData (dataset=integrated, file={std.format_path(args.integrated)})"
+)
 integrated_ad = ad.read_h5ad(args.integrated)
 
 specific_ad = {}
 for name, file in zip(args.labels, args.specifics):
-    std.print_task(f"loading dataset '{name}' from {str(file)}")
+    std.print_task(f"loading AnnData (dataset={name}, file={std.format_path(file)})")
     specific_ad[name] = ad.read_h5ad(file)
 
 if args.obs_label not in integrated_ad.obs.columns:
@@ -108,13 +110,13 @@ for column in args.obs:
 cols_to_remove = set(args.obs).intersection(set(integrated_ad.obs.columns))
 if cols_to_remove:
     std.print_debug(
-        "removing in dataset 'integrated' the following column(s): {0}".format(
-            ", ".join(f"'{cols}'" for cols in cols_to_remove)
+        "removing columns (dataset=integrated, columns={0})".format(
+            "+".join(map(str, cols_to_remove))
         )
     )
     integrated_ad.obs = integrated_ad.obs.drop(list(cols_to_remove), axis=1)
 
-std.print_task("transferring information from specific datasets to integrated datasets")
+std.print_task("transferring information (source=specific, target=integrated)")
 bt.sct.pp.transfer_obs_sti(
     adata=integrated_ad,
     adatas=list(specific_ad.values()),
@@ -124,5 +126,7 @@ bt.sct.pp.transfer_obs_sti(
     copy=False,
 )
 
-std.print_task(f"saving dataset 'integrated' in {str(args.outfile)}")
+std.print_task(
+    f"saving AnnData (dataset=integrated, file={std.format_path(args.outfile)})"
+)
 integrated_ad.write_h5ad(filename=args.outfile, compression="gzip")

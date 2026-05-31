@@ -39,7 +39,7 @@ def load_prior_network(
             levels=levels,
             genesyn=genesyn,
         )
-    std.print_info(f"loading custom prior network ({domain})")
+    std.print_task(f"loading custom prior network (file={std.format_path(domain)})")
     return bt.bpy.ig.read_interaction_graph(
         infile=domain,
         genesyn=genesyn,
@@ -171,16 +171,12 @@ for outfile in [
 
 genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
 
-std.print_task(
-    f"loading json-formatted model specification file {str(args.model_specification)}"
-)
+std.print_task(f"loading model specification (file={std.format_path(args.model_specification)})")
 
 with open(args.model_specification, "r") as file:
     specification = yaml.safe_load(file)
 
-std.print_task(
-    f"loading csv-formatted binarized macrostates file {str(args.macrostates)}"
-)
+std.print_task(f"loading CSV table (file={std.format_path(args.macrostates)})")
 
 macrostates_df = genesyn(
     pd.read_csv(args.macrostates, index_col=0, sep=args.sep), axis="columns"
@@ -209,22 +205,22 @@ if args.filter_genes:
     keep_only = genesyn(keep_only)
     if important_genes - keep_only:
         std.print_debug(
-            "some important genes have been filtered out but are reintegrated: {0}".format(
-                ", ".join(f"{gene}" for gene in list(important_genes - keep_only))
+            "reintegrating filtered genes (kind=important, genes={0})".format(
+                "+".join(map(str, important_genes - keep_only))
             )
         )
     if mandatory_genes - keep_only:
         std.print_debug(
-            "some mandatory genes have been filtered out but are reintegrated: {0}".format(
-                ", ".join(f"{gene}" for gene in list(mandatory_genes - keep_only))
+            "reintegrating filtered genes (kind=mandatory, genes={0})".format(
+                "+".join(map(str, mandatory_genes - keep_only))
             )
         )
     keep_only = keep_only | mandatory_genes | important_genes
     keep_only_present = keep_only & set(macrostates_df.columns)
     if keep_only - keep_only_present:
         std.print_warning(
-            "some important and/or mandatory genes are missing in csv-formatted binarized macrostate file: {0}".format(
-                ", ".join(f"{gene}" for gene in list(keep_only - keep_only_present))
+            "missing genes (source=binarized macrostates, format=csv, genes={0})".format(
+                "+".join(map(str, keep_only - keep_only_present))
             )
         )
     macrostates_df = macrostates_df.loc[:, list(keep_only_present)]
@@ -252,23 +248,23 @@ for property in specification["bonesis"]:
     except:
         raise RuntimeError(f"invalid dynamical Boolean properties: {property}")
 
-std.print_task(f"saving dynamical Boolean properties in {args.model}")
+std.print_task(f"saving Boolean specification (file={std.format_path(args.model)})")
 
 with open(args.model, "w") as file:
     for property in specification["bonesis"]:
         file.write(f"{property}\n")
 
-std.print_task(f"saving binarized metastates in {args.metastates}")
+std.print_task(f"saving CSV table (file={std.format_path(args.metastates)})")
 
 macrostates_df.to_csv(args.metastates, sep=",", index=True)
 
-std.print_task(f"saving important genes in {args.important_genes}")
+std.print_task(f"saving gene list (file={std.format_path(args.important_genes)})")
 
 with open(args.important_genes, "w") as file:
     for gene in important_genes:
         file.write(f"{gene}\n")
 
-std.print_task(f"saving mandatory genes in {args.mandatory_genes}")
+std.print_task(f"saving gene list (file={std.format_path(args.mandatory_genes)})")
 
 with open(args.mandatory_genes, "w") as file:
     for gene in mandatory_genes:

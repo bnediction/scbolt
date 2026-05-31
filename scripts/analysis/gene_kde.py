@@ -73,7 +73,9 @@ args = parser.parse_args()
 if not args.outpath.exists():
     os.makedirs(args.outpath)
 
-std.print_task(f"loading data from {', '.join(str(infile) for infile in args.infiles)}")
+std.print_task(
+    f"loading AnnData objects (files={', '.join(std.format_path(file) for file in args.infiles)})"
+)
 adatas = [ad.read_h5ad(infile) for infile in args.infiles]
 
 for i in range(len(adatas)):
@@ -91,7 +93,9 @@ else:
 
 del adatas
 
-std.print_task(f"plotting gene KDEs in {os.path.relpath(args.outpath)}")
+std.print_task(
+    f"plotting gene KDEs (directory={os.path.relpath(args.outpath)})"
+)
 for gene in args.genes:
     if gene not in adata.var.index:
         std.print_warning(f"gene not found: {gene}")

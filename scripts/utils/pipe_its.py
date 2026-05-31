@@ -88,12 +88,14 @@ for outfile in args.outfiles:
     if not Path(os.path.dirname(outfile)).exists():
         os.makedirs(Path(os.path.dirname(outfile)))
 
-std.print_task(f"loading dataset 'integrated' from {str(args.integrated)}")
+std.print_task(
+    f"loading AnnData (dataset=integrated, file={std.format_path(args.integrated)})"
+)
 integrated_ad = ad.read_h5ad(args.integrated)
 
 specific_ad = {}
 for name, file in zip(args.labels, args.specifics):
-    std.print_task(f"loading dataset '{name}' from {str(file)}")
+    std.print_task(f"loading AnnData (dataset={name}, file={std.format_path(file)})")
     specific_ad[name] = ad.read_h5ad(file)
 
 if args.obs_label not in integrated_ad.obs.columns:
@@ -107,13 +109,13 @@ for column in args.obs:
     if column not in integrated_ad.obs:
         raise KeyError(f"column `{column}` not found in dataset 'integrated'")
 
-std.print_task("transferring information from integrated dataset to specific datasets")
+std.print_task("transferring information (source=integrated, target=specific)")
 for name, adata in specific_ad.items():
     cols_to_remove = set(args.obs).intersection(set(adata.obs.columns))
     if cols_to_remove:
         std.print_debug(
-            "removing in dataset '{0}' the following column(s): {1}".format(
-                name, ", ".join(f"'{cols}'" for cols in cols_to_remove)
+            "removing columns (dataset={0}, columns={1})".format(
+                name, "+".join(map(str, cols_to_remove))
             )
         )
         adata.obs = adata.obs.drop(list(cols_to_remove), axis=1)
@@ -125,5 +127,5 @@ for name, adata in specific_ad.items():
     )
 
 for name, outfile in zip(args.labels, args.outfiles):
-    std.print_task(f"saving dataset '{name}' in {str(outfile)}")
+    std.print_task(f"saving AnnData (dataset={name}, file={std.format_path(outfile)})")
     specific_ad[name].write_h5ad(filename=outfile, compression="gzip")
