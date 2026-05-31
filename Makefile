@@ -1103,7 +1103,8 @@ check: ## check Make-level dependencies, configuration and external tools requir
 		printf '$(red)FAIL$(nc) %s\n' "missing TARGET (usage: make check TARGET=<module>)"; \
 		exit 1; \
 	fi
-	@dry_run="$$(mktemp)"; \
+	@target_dry_run="$$(mktemp)"; \
+	dry_run="$$(mktemp)"; \
 	check_report_dir="$$(mktemp -d)"; \
 	project_checks="$${check_report_dir}/01_project"; \
 	core_checks="$${check_report_dir}/02_core"; \
@@ -1116,7 +1117,7 @@ check: ## check Make-level dependencies, configuration and external tools requir
 	touch "$${project_checks}" "$${core_checks}" "$${method_checks}" \
 		"$${external_resource_checks}" "$${file_checks}" "$${conda_checks}" \
 		"$${command_checks}" "$${other_checks}"; \
-	trap 'rm -f "$${dry_run}"; rm -rf "$${check_report_dir}"' EXIT; \
+	trap 'rm -f "$${target_dry_run}" "$${dry_run}"; rm -rf "$${check_report_dir}"' EXIT; \
 	route_check_report() { \
 		case "$$1" in \
 			project\ parameter*|*project\ parameter*) printf '%s\n' "$${project_checks}";; \
@@ -1134,6 +1135,8 @@ check: ## check Make-level dependencies, configuration and external tools requir
 	check_failure() { printf '$(red)FAIL$(nc) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
 	missing=0; \
 	$(nested_make) --dry-run LOGGING=false \
+		__check_mode=true __$(TARGET) LOGFILE="$(LOGFILE)" > "$${target_dry_run}"; \
+	$(nested_make) --always-make --dry-run LOGGING=false \
 		__check_mode=true __$(TARGET) LOGFILE="$(LOGFILE)" > "$${dry_run}"; \
 	$(foreach var,$(check_missing_config_params),$(call report_check_error,required core parameter not defined: $(var));) \
 	if [ -n "$(MEMORY)" ]; then \
@@ -1153,12 +1156,9 @@ check: ## check Make-level dependencies, configuration and external tools requir
 	fi; \
 	$(call check_references_diagnostic); \
 	$(foreach var,$(check_present_config_params),$(call check_success,core parameter valid: $(var)=$($(var)));) \
-	if [ ! -s "$${dry_run}" ]; then \
-		if [ "$${missing}" -eq 0 ]; then \
-			$(call check_success,target already up to date: '$(TARGET)'); \
-			$(print_check_reports); \
-			exit 0; \
-		fi; \
+	target_already_up_to_date=0; \
+	if [ ! -s "$${target_dry_run}" ]; then \
+		target_already_up_to_date=1; \
 	fi; \
 	if grep -qE '(^|[[:space:]])STAR([[:space:]]|$$)' "$${dry_run}"; then \
 		$(call check_positive_integer_diagnostic,$(STAR_CB_LEN),STAR_CB_LEN,method); \
@@ -1348,6 +1348,9 @@ check: ## check Make-level dependencies, configuration and external tools requir
 		$(call check_failure,check failed for target '$(TARGET)'); \
 		$(print_check_reports); \
 		exit 1; \
+	fi; \
+	if [ "$${target_already_up_to_date}" -eq 1 ]; then \
+		$(call check_success,target already up to date: '$(TARGET)'); \
 	fi; \
 	$(call check_success,check passed for target '$(TARGET)'); \
 	$(print_check_reports)

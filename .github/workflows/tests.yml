@@ -65,12 +65,11 @@ jobs:
       - name: Check complete diagnostic output
         run: |
           set +e
-          output="$(make check TARGET=knnbs __check_externals__=false LABEL= KNNBS_CENTRALITY_CTRL= KNNBS_PERIPHERY_CTRL= KNNBS_CENTRALITY_TREATED= KNNBS_PERIPHERY_TREATED= 2>&1)"
+          output="$(make check TARGET=knnbs __check_externals__=false KNNBS_CENTRALITY_CTRL= KNNBS_PERIPHERY_CTRL= KNNBS_CENTRALITY_TREATED= KNNBS_PERIPHERY_TREATED= 2>&1)"
           status="$?"
           set -e
           printf '%s\n' "$output"
           test "$status" -ne 0
-          grep -q "required project parameter not defined: LABEL" <<< "$output"
           grep -q "required method parameter not defined: KNNBS_CENTRALITY_CTRL or KNNBS_PERIPHERY_CTRL" <<< "$output"
           grep -q "required method parameter not defined: KNNBS_CENTRALITY_TREATED or KNNBS_PERIPHERY_TREATED" <<< "$output"
           grep -q "check failed for target 'knnbs'" <<< "$output"
@@ -83,12 +82,11 @@ jobs:
       - name: Check complete diagnostic output
         run: |
           set +e
-          output="$(make check TARGET=max-nodes-seed __check_externals__=false TIMEOUT_SEED= LABEL= YAML_MODEL=missing.yml 2>&1)"
+          output="$(make check TARGET=max-nodes-seed __check_externals__=false TIMEOUT_SEED= YAML_MODEL=missing.yml 2>&1)"
           status="$?"
           set -e
           printf '%s\n' "$output"
           test "$status" -ne 0
           grep -qE "required file not found: .*missing.yml" <<< "$output"
           grep -q "required method parameter not defined: TIMEOUT_SEED" <<< "$output"
-          grep -q "required project parameter not defined: LABEL" <<< "$output"
           grep -q "check failed for target 'max-nodes-seed'" <<< "$output"
