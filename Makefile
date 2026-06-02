@@ -2102,11 +2102,11 @@ $(cotan_$(1))&: $(annotation_$(1))
 	$(call print_rule,cotan,$(1))
 	$(call require_bool,COTAN_ONLY_HVG,cotan)
 	mkdir -p $$(@D) $(tmpdir)/$(1)/cotan
-	$(call print_debug,loading file $$< \(layer 'matrix'\))
+	$(call print_debug,converting AnnData object to CSV count matrix)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/adata_conversion.py \
 		$$< $(tmpdir)/$(1)/cotan/barcts.csv --from h5ad --to csv \
 		--layer matrix $(cotan_only_hvg)
-	$(call print_debug,transposing counts matrix)
+	$(call print_debug,transposing count matrix)
 	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' \
 		< $(tmpdir)/$(1)/cotan/barcts.csv \
 		> $(tmpdir)/$(1)/cotan/gencts.csv
@@ -2114,12 +2114,12 @@ $(cotan_$(1))&: $(annotation_$(1))
 		--infile $(tmpdir)/$(1)/cotan/gencts.csv --outfile $$(@D)/cotan.RDS --csv $$(lastword $$(cotan_$(1))) \
 		--sep , --name $(1) --max-iterations $(MAX_ITER) --method $(COTAN_METHOD) --min-ude 0.3 --jobs $(JOBS)
 	sed -i '1 i\,macrostate' $$(lastword $$(cotan_$(1)))
-	$(call print_debug,adding cotan macrostates to AnnData)
+	$(call print_debug,adding COTAN macrostates to AnnData)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/add_to_anndata.py \
 		$$< $$(firstword $$(cotan_$(1))) \
 		--csv $$(lastword $$(cotan_$(1))) \
 		--axis 0 --sep , --type category
-	$(call print_task,plotting embedding colored by cotan macrostates)
+	$(call print_task,plotting embedding (color=COTAN macrostates))
 	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/macrostates.json \
 		--infile $$(firstword $$(cotan_$(1))) \
 		--outfile $$(@D)/umap_cotan.pdf \

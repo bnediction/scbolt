@@ -219,7 +219,7 @@ logfile.name <- file.path(outpath, "cotan.log")
 logfile <- file(logfile.name, open="wt")
 sink(logfile, type="output")
 sink(logfile, type="message")
-print_debug(paste0("storing running COTAN-related information in ", logfile.name), logfile.name)
+print_debug(paste0("storing COTAN logs (file=", logfile.name, ")"), logfile.name)
 
 dir.create(
   path=outpath,
@@ -227,7 +227,7 @@ dir.create(
   recursive=TRUE
 )
 
-print_task(paste0("loading file ", args$infile), logfile.name)
+print_task(paste0("loading count matrix (file=", args$infile, ")"), logfile.name)
 
 df <- read.csv(
   args$infile,
@@ -243,7 +243,7 @@ cotan <- initializeMetaDataset(
   sampleCondition = args$condition
 )
 
-print_task("preprocessing count data", logfile.name)
+print_task("preprocessing count matrix", logfile.name)
 
 if (isTRUE(args$drop_mithocondrial)){
   cotan <- addElementToMetaDataset(cotan, tag="remove mithocondrial genes and cells", value=TRUE)
@@ -329,11 +329,11 @@ cotan <- storeGDI(
   genesGDI=global.differentiation.index
 )
 
-print_task("clustering cells using COTAN algorithm", logfile.name)
+print_task(paste0("clustering cells (method=COTAN, merging=", args$method, ")"), logfile.name)
 
 advanced.GDI.uniformity.checker <- new("AdvancedGDIUniformityCheck")
 
-print_info("searching for uniform clusters", logfile.name)
+print_info("searching uniform clusters", logfile.name)
 print_warning("this may take some time.", logfile.name)
 
 c(split.clusters, split.coex.df) %<-%
@@ -359,7 +359,7 @@ if (args$method == "classic"){
   c(clusters, coex.df) %<-%
     list(split.clusters, split.coex.df)
 } else if (args$method == "soft-merging"){
-  print_info("merging uniform clusters using soft-merging constraint", logfile.name)
+  print_info("merging uniform clusters (method=soft)", logfile.name)
   c(clusters, coex.df) %<-%
     mergeUniformCellsClusters(
       cotan,
@@ -379,7 +379,7 @@ if (args$method == "classic"){
     coexDF=coex.df
   )
 } else {
-  print_info("merging uniform clusters using strong-merging constraint", logfile.name)
+  print_info("merging uniform clusters (method=strong)", logfile.name)
   GDI.uniformity.checkers.list <- list(
     advanced.GDI.uniformity.checker,
     shiftCheckerThresholds(advanced.GDI.uniformity.checker, 0.01),
@@ -417,14 +417,14 @@ print_result("COTAN summary", logfile.name)
 closeAllConnections()
 summary.data
 
-print_task(paste0("saving COTAN data in ", args$outfile), logfile.name)
+print_task(paste0("saving COTAN object (file=", args$outfile, ")"), logfile.name)
 
 saveRDS(
   cotan,
   file=file.path(args$outfile)
 )
 
-print_task(paste0("saving cluster-related data in ", args$csv), logfile.name)
+print_task(paste0("saving COTAN macrostates (file=", args$csv, ")"), logfile.name)
 
 write.table(
   data.frame(clusters),
