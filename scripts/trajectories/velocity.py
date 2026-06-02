@@ -14,6 +14,12 @@ import scvelo as scv
 
 import matplotlib.pyplot as plt
 
+warnings.filterwarnings(
+    "ignore",
+    message="is_categorical_dtype is deprecated.*",
+    category=DeprecationWarning,
+)
+
 bt.sct.pl.set_default_params()
 
 parser = argparse.ArgumentParser(
@@ -135,18 +141,25 @@ if args.layer:
 plot_dir = Path(outpath)
 std.print_task(f"plotting velocity outputs (directory={os.path.relpath(plot_dir)})")
 
-if args.cluster:
-    scv.pl.proportions(
-        adata,
-        groupby=args.cluster,
-        fontsize=plt.rcParams["font.size"],
-        figsize=(11, 5),
-        show=False,
+with warnings.catch_warnings():
+    warnings.filterwarnings(
+        "ignore",
+        message="is_categorical_dtype is deprecated.*",
+        category=DeprecationWarning,
     )
-    plt.savefig(Path(f"{outpath}/proportions.pdf"))
-    plt.close()
 
-std.print_task("computing moments (orders=first, second, scope=cells)")
+    if args.cluster:
+        scv.pl.proportions(
+            adata,
+            groupby=args.cluster,
+            fontsize=plt.rcParams["font.size"],
+            figsize=(11, 5),
+            show=False,
+        )
+        plt.savefig(Path(f"{outpath}/proportions.pdf"))
+        plt.close()
+
+std.print_task("computing moments (orders=first, second)")
 with std.disable_print():
     scv.pp.moments(
         adata,
@@ -169,7 +182,7 @@ with std.disable_print():
         copy=False,
     )
 
-std.print_task("computing velocity graph (similarity=cosine)")
+std.print_task("inferring velocity graph")
 with std.disable_print():
     scv.tl.velocity_graph(adata, vkey="velocity", copy=False, n_jobs=args.jobs)
 
@@ -191,96 +204,103 @@ color_map = {
     for idx, cluster in enumerate(adata.obs[args.cluster].cat.categories)
 }
 
-with std.disable_print():
-    ax = scv.pl.velocity_embedding_stream(
-        adata,
-        basis=args.embedding,
-        title="",
-        linewidth=1,
-        size=5,
-        color_map=color_map,
-        alpha=0.5,
-        legend_loc="best",
-        legend_fontweight="bold",
-        figsize=(7, 4),
-        show=False,
+with warnings.catch_warnings():
+    warnings.filterwarnings(
+        "ignore",
+        message="is_categorical_dtype is deprecated.*",
+        category=DeprecationWarning,
     )
-    for txt in ax.texts:
-        txt.set_visible(False)
-    try:
-        plt.savefig(Path(f"{outpath}/stream_plot.pdf"))
-    except:
-        if os.path.isfile(Path(f"{outpath}/stream_plot.pdf")):
-            os.remove(Path(f"{outpath}/stream_plot.pdf"))
-        plt.savefig(Path(f"{outpath}/stream_plot.png"))
+
+    with std.disable_print():
+        ax = scv.pl.velocity_embedding_stream(
+            adata,
+            basis=args.embedding,
+            title="",
+            linewidth=1,
+            size=5,
+            color_map=color_map,
+            alpha=0.5,
+            legend_loc="best",
+            legend_fontweight="bold",
+            figsize=(7, 4),
+            show=False,
+        )
+        for txt in ax.texts:
+            txt.set_visible(False)
+        try:
+            plt.savefig(Path(f"{outpath}/stream_plot.pdf"))
+        except:
+            if os.path.isfile(Path(f"{outpath}/stream_plot.pdf")):
+                os.remove(Path(f"{outpath}/stream_plot.pdf"))
+            plt.savefig(Path(f"{outpath}/stream_plot.png"))
+        plt.close()
+
+    bt.sct.pl.embedding_plot(
+        adata,
+        obs="velocity_pseudotime",
+        use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
+        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
+        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
+        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
+        figwidth=6,
+        s=4,
+        alpha=1,
+        add_legend=True,
+        lgd_params={
+            "title": "pseudotime",
+            "ncol": 1,
+            "markerscale": 5,
+            "frameon": True,
+            "edgecolor": bt.sct.pl.get_color("black"),
+            "shadow": False,
+        },
+        n_components=3 if adata.obsm["velocity_umap"].shape[1] > 2 else 2,
+        background_visible=False,
+        colorbar_scale=0.3,
+        colors="gnuplot",
+        outfile=Path(f"{outpath}/velocity_pseudotime.pdf"),
+    )
+
+    fig, ax = bt.sct.pl.embedding_plot(
+        adata,
+        obs=args.cluster,
+        use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
+        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
+        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
+        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
+        figwidth=6,
+        s=4,
+        alpha=1,
+        add_legend=True,
+        lgd_params={
+            "title": "clusters",
+            "ncol": 1,
+            "markerscale": 5,
+            "frameon": True,
+            "edgecolor": bt.sct.pl.get_color("black"),
+            "shadow": False,
+        },
+        color=adata.uns["colors"],
+        n_components=(
+            3 if adata.obsm["velocity_umap"].shape[1] > 2 and args.plot_3d is True else 2
+        ),
+        background_visible=False,
+    )
+    plt.axis("off")
+    ax = bt.sct.pl.draw_paga(
+        adata=adata,
+        obs=args.cluster,
+        use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
+        edges="transitions_confidence",
+        threshold=0.01,
+        ax=ax,
+        with_labels=False,
+        width=2,
+        node_size=100,
+        node_color=color_map,
+    )
+    plt.savefig(Path(f"{outpath}/paga.pdf"))
     plt.close()
-
-bt.sct.pl.embedding_plot(
-    adata,
-    obs="velocity_pseudotime",
-    use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
-    xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
-    ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
-    zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
-    figwidth=6,
-    s=4,
-    alpha=1,
-    add_legend=True,
-    lgd_params={
-        "title": "pseudotime",
-        "ncol": 1,
-        "markerscale": 5,
-        "frameon": True,
-        "edgecolor": bt.sct.pl.get_color("black"),
-        "shadow": False,
-    },
-    n_components=3 if adata.obsm["velocity_umap"].shape[1] > 2 else 2,
-    background_visible=False,
-    colorbar_scale=0.3,
-    colors="gnuplot",
-    outfile=Path(f"{outpath}/velocity_pseudotime.pdf"),
-)
-
-fig, ax = bt.sct.pl.embedding_plot(
-    adata,
-    obs=args.cluster,
-    use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
-    xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
-    ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
-    zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
-    figwidth=6,
-    s=4,
-    alpha=1,
-    add_legend=True,
-    lgd_params={
-        "title": "clusters",
-        "ncol": 1,
-        "markerscale": 5,
-        "frameon": True,
-        "edgecolor": bt.sct.pl.get_color("black"),
-        "shadow": False,
-    },
-    color=adata.uns["colors"],
-    n_components=(
-        3 if adata.obsm["velocity_umap"].shape[1] > 2 and args.plot_3d is True else 2
-    ),
-    background_visible=False,
-)
-plt.axis("off")
-ax = bt.sct.pl.draw_paga(
-    adata=adata,
-    obs=args.cluster,
-    use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
-    edges="transitions_confidence",
-    threshold=0.01,
-    ax=ax,
-    with_labels=False,
-    width=2,
-    node_size=100,
-    node_color=color_map,
-)
-plt.savefig(Path(f"{outpath}/paga.pdf"))
-plt.close()
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 if args.cluster != "clusters":

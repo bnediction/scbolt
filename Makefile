@@ -117,15 +117,18 @@ define check_file
 [ -n "$(1)" ] || { $(call print_error,required file parameter not defined: $(2)); }; \
 [ -f "$(1)" ] || { $(call print_error,required file not found: $(1)); }
 endef
+
 check_command = command -v $(1) >/dev/null 2>&1 || { $(call print_error,required command not found: $(1)); }
 check_conda_env = conda env list | awk '{print $$1}' | grep -qx "$(1)" \
 	|| { $(call print_error,required conda environment not found: $(1)); }
 check_parameter = [ -n "$(strip $(1))" ] || { $(call print_error,required parameter not defined: $(2)); }
+
 define require_parameter
 [ -n "$(strip $($(1)))" ] || { \
 	$(call print_error,required parameter not defined: $(1)$(if $(2), \(needed by target '$(2)'\))); \
 }
 endef
+
 define require_choice
 case "$(strip $($(1)))" in \
 	$(subst $(space),|,$(strip $(2)))) ;; \
@@ -134,23 +137,28 @@ case "$(strip $($(1)))" in \
 		(supported values: $(subst $(space),$(comma) ,$(strip $(2)))));; \
 esac
 endef
+
 require_bool = $(call require_choice,$(1),true false,$(2))
+
 define require_positive_integer
 case "$(strip $($(1)))" in \
 	''|*[!0-9]*|0) $(call print_error,required positive integer for parameter $(1) \(current: $(strip $($(1)))\));; \
 esac
 endef
+
 define require_optional_positive_integer
 if [ -n "$(strip $($(1)))" ]; then \
 	$(call require_positive_integer,$(1)); \
 fi
 endef
+
 define require_float
 if ! printf '%s\n' "$(strip $($(1)))" \
 		| grep -Eq '^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$$$$'; then \
 	$(call print_error,required numeric value for parameter $(1) \(current: $(strip $($(1)))\)); \
 fi
 endef
+
 define require_optional_hvg_method
 case "$(strip $($(1)))" in \
 	""|seurat|cell_ranger|seurat_v3) ;; \
@@ -160,6 +168,7 @@ if [ "$(strip $($(1)))" = "seurat_v3" ] && [ -z "$(strip $($(2)))" ]; then \
 	$(call print_error,parameter $(2) is required when parameter $(1) is equal to seurat_v3); \
 fi
 endef
+
 define require_prior_knowledge
 $(call require_parameter,PRIOR_KNOWLEDGE,$(1)); \
 [ -n "$(strip $(prior_knowledge))" ] || { \
@@ -168,11 +177,13 @@ $(call require_parameter,PRIOR_KNOWLEDGE,$(1)); \
 		or an existing file path)); \
 }
 endef
+
 define require_dorothea_api
 if [ "$(strip $(PRIOR_KNOWLEDGE))" = "dorothea" ]; then \
 	$(call require_choice,DOROTHEA_API,$(dorothea_apis),$(1)); \
 fi
 endef
+
 define require_dorothea_levels
 for level in $(DOROTHEA_LEVELS); do \
 	case "$${level}" in \
@@ -182,16 +193,19 @@ for level in $(DOROTHEA_LEVELS); do \
 	esac; \
 done
 endef
+
 define require_cc_correction
 $(call require_bool,CC_CORRECTION,$(1)); \
 if [ "$(CC_CORRECTION)" = "true" ] && [ "$(ORGANISM)" != "mouse" ]; then \
 	$(call print_error,CC_CORRECTION=true is only supported for mouse \(current: $(ORGANISM)\)); \
 fi
 endef
+
 define require_filtering_parameters
 $(call require_bool,NORM_MAD,filtering); \
 $(call require_bool,FILTER_NON_HVG,filtering)
 endef
+
 define require_clustering_parameters
 $(call require_positive_integer,DIM_PCA); \
 $(call require_positive_integer,DIM_CLUSTERING); \
@@ -202,19 +216,23 @@ $(call require_float,RESOLUTION); \
 $(call require_float,MIN_DIST); \
 $(call require_float,SPREAD)
 endef
+
 define require_velocity_parameters
 $(call require_positive_integer,DIM_MOMENT); \
 $(call require_bool,VELOCITY_ONLY_HVG,velocity)
 endef
+
 define require_cellrank_parameters
 $(call require_positive_integer,INITIAL_STATES); \
 $(call require_positive_integer,TERMINAL_STATES); \
 $(call require_float,CELLRANK_STABILITY); \
 $(call require_float,CELLRANK_ALPHA)
 endef
+
 define require_dea_parameters
 $(call require_float,LOGFC)
 endef
+
 define require_stream_parameters
 $(call require_positive_integer,CLUSTER_NUMBER); \
 $(call require_float,ALPHA_EPG); \
@@ -225,10 +243,12 @@ $(call require_float,EXTEND_PARAMETER); \
 $(call require_bool,PRUNE_EPG,stream); \
 $(call require_bool,COLLAPSE_PARAMETER,stream)
 endef
+
 define require_knnbs_parameters
 $(call require_choice,KNNBS_EMBEDDING,pca umap,knnbs); \
 $(call require_positive_integer,KNNBS_NEIGHBORS)
 endef
+
 define require_star_barcode_filter_parameters
 $(call require_choice,STAR_BARCODE_FILTER,auto threshold top,$(1)); \
 $(call require_optional_positive_integer,STAR_MIN_UMI); \
@@ -243,34 +263,71 @@ if [ "$(STAR_BARCODE_FILTER)" = "auto" ] && [ -n "$(strip $(STAR_MIN_UMI)$(STAR_
 	$(call print_error,STAR_MIN_UMI and STAR_TOP_BARCODES require STAR_BARCODE_FILTER=threshold or top); \
 fi
 endef
+
 define require_bin_cells_parameters
 $(call require_float,UNIMODAL_QUANTILE); \
 $(call require_bool,ZEROES_ARE_ZEROES,bin-cells)
 endef
+
 define require_bin_macrostates_parameters
 $(call require_float,NANS_THRESHOLD); \
 $(call require_float,BIMODAL_THRESHOLD); \
 $(call require_float,ZEROINF_THRESHOLD); \
 $(call require_float,UNIMODAL_THRESHOLD)
 endef
+
 define require_bin_dea_parameters
 $(call require_float,BIN_LOGFC); \
 $(call require_float,BIN_ALPHA)
 endef
+
 require_binarization_parameters = $(call require_choice,BIN_METHOD,scboolseq dea consensus,binarization)
+
 define require_prior_parameters
 $(call require_prior_knowledge,$(1)); \
 $(call require_dorothea_api,$(1)); \
 $(call require_dorothea_levels)
 endef
+
 define require_bonesis_filter_parameters
 $(call require_prior_parameters,$(1)); \
 $(call require_bool,CANONIC_FILTER,$(1))
 endef
+
 define require_bonesis_infer_parameters
 $(call require_prior_parameters,$(1)); \
 $(call require_bool,CANONIC_INFER,$(1))
 endef
+
+ifneq ($(__dry_run_output),)
+require_parameter =
+require_choice =
+require_bool =
+require_positive_integer =
+require_optional_positive_integer =
+require_float =
+require_optional_hvg_method =
+require_prior_knowledge =
+require_dorothea_api =
+require_dorothea_levels =
+require_cc_correction =
+require_filtering_parameters =
+require_clustering_parameters =
+require_velocity_parameters =
+require_cellrank_parameters =
+require_dea_parameters =
+require_stream_parameters =
+require_knnbs_parameters =
+require_star_barcode_filter_parameters =
+require_bin_cells_parameters =
+require_bin_macrostates_parameters =
+require_bin_dea_parameters =
+require_binarization_parameters =
+require_prior_parameters =
+require_bonesis_filter_parameters =
+require_bonesis_infer_parameters =
+endif
+
 check_success = check_success "$(1)"
 check_failure = check_failure "$(1)"
 report_check_error = missing=1; $(call check_failure,$(1))
@@ -281,6 +338,7 @@ parameter_label = $(strip $(if $(3),$(3) )parameter)
 parameter_name = $(firstword $(strip $(1)))
 parameter_assignment = $(strip $(call parameter_name,$(2))=$(strip $(1)) \
 	$(strip $(patsubst $(call parameter_name,$(2))%,%,$(strip $(2)))))
+
 define check_file_diagnostic
 if [ -z "$(1)" ]; then \
 	$(call report_check_error,required file parameter not defined: $(2)); \
@@ -292,6 +350,150 @@ else \
 	$(call check_success,file found: $(2) ($(1))); \
 fi
 endef
+
+define check_h5ad_metadata_list_diagnostic
+h5ad_files=""; \
+for h5ad in $(strip $(1)); do \
+	if [ -f "$${h5ad}" ]; then \
+		h5ad_files="$${h5ad_files} $${h5ad}"; \
+	fi; \
+done; \
+if [ -n "$${h5ad_files}" ]; then \
+	h5ad_check_stderr="$$(mktemp)"; \
+	if $(call conda_run,scbolt-core) python $(scripts_dir)/utils/check_h5ad.py \
+			$${h5ad_files} \
+			$(if $(strip $(2)),--obs $(strip $(2)),) \
+			$(if $(strip $(3)),--var $(strip $(3)),) \
+			$(if $(strip $(4)),--obsm $(strip $(4)),) \
+			$(if $(strip $(5)),--layers $(strip $(5)),) \
+			$(if $(strip $(6)),--obsp $(strip $(6)),) \
+			>/dev/null 2>"$${h5ad_check_stderr}"; then \
+		for h5ad in $${h5ad_files}; do \
+			h5ad_reference="integrated"; \
+			for condition in $(conditions); do \
+				case "$${h5ad}" in */$${condition}/*) h5ad_reference="$${condition}";; esac; \
+			done; \
+			if [ -z "$(strip $(2) $(3) $(4) $(5) $(6))" ]; then \
+				$(call check_success,h5ad file readable (reference: $${h5ad_reference})); \
+			fi; \
+			$(foreach key,$(strip $(2)),\
+				$(call check_success,h5ad metadata: obs '$(key)' found \
+					(reference: $${h5ad_reference}));) \
+			$(foreach key,$(strip $(3)),\
+				$(call check_success,h5ad metadata: var '$(key)' found \
+					(reference: $${h5ad_reference}));) \
+			$(foreach key,$(strip $(4)),\
+				$(call check_success,h5ad metadata: obsm '$(key)' found \
+					(reference: $${h5ad_reference}));) \
+			$(foreach key,$(strip $(5)),\
+				$(call check_success,h5ad metadata: layer '$(key)' found \
+					(reference: $${h5ad_reference}));) \
+			$(foreach key,$(strip $(6)),\
+				$(call check_success,h5ad metadata: obsp '$(key)' found \
+					(reference: $${h5ad_reference}));) \
+		done; \
+	else \
+		h5ad_check_msg="$$(cat "$${h5ad_check_stderr}")"; \
+		$(call report_check_error,h5ad metadata invalid: $${h5ad_check_msg}); \
+	fi; \
+	rm -f "$${h5ad_check_stderr}"; \
+fi
+endef
+
+define check_first_h5ad_for_condition
+if grep -q 'scripts/preprocessing/filtering.py' "$${h5ad_dry_run}" \
+		&& grep -q '$(results)/$(1)/prep/filter/counts.h5ad' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(results)/$(1)/count/counts.h5ad,,,,spliced unspliced); \
+elif grep -q 'scripts/preprocessing/normalization.py' "$${h5ad_dry_run}" \
+		&& grep -q '$(results)/$(1)/prep/norm/counts.h5ad' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(results)/$(1)/prep/filter/counts.h5ad,,,,); \
+elif grep -qE 'scripts/clustering/(clustering|integration).py' "$${h5ad_dry_run}" \
+		&& grep -q '$(results)/$(1)/clust/clust.h5ad' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(results)/$(1)/prep/norm/counts.h5ad,\
+		,$(if $(filter true,$(PCA_ONLY_HVG)),highly_variable,),,\
+		counts log-norm correct); \
+elif grep -q 'scripts/clustering/markers.py' "$${h5ad_dry_run}" \
+		&& grep -q '$(results)/$(1)/clust/dea/markers.csv' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(results)/$(1)/clust/clust.h5ad,leiden,,,log-norm); \
+elif grep -q 'scripts/clustering/scoring.py' "$${h5ad_dry_run}" \
+		&& grep -q '$(results)/$(1)/clust/sig.csv' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(results)/$(1)/clust/clust.h5ad,leiden n_genes_by_counts total_counts,,,); \
+elif grep -q 'scripts/utils/pipe_its.py' "$${h5ad_dry_run}" \
+		&& grep -q '$(results)/$(1)/clust/annot.h5ad' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(annotation_integrated),condition $(LABEL_COL),,,); \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(results)/$(1)/clust/clust.h5ad,,,$(USE_REP),); \
+elif grep -q 'scripts/trajectories/velocity.py' "$${h5ad_dry_run}" \
+		&& grep -q '$(results)/$(1)/trajectories/velocity/velocity.h5ad' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(results)/$(1)/clust/annot.h5ad,\
+		$(LABEL_COL),$(if $(filter true,$(VELOCITY_ONLY_HVG)),highly_variable,),\
+		$(call uniq,$(USE_REP) X_pca X_umap),\
+		counts spliced unspliced,connectivities); \
+elif grep -q 'scripts/trajectories/potency.py' "$${h5ad_dry_run}" \
+		&& grep -q '$(results)/$(1)/trajectories/potency' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(results)/$(1)/clust/annot.h5ad,$(LABEL_COL),,X_umap,counts); \
+elif grep -q 'scripts/utils/adata_conversion.py' "$${h5ad_dry_run}" \
+		&& grep -q '/$(1)/cotan/barcts.csv' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(results)/$(1)/clust/annot.h5ad,\
+		,$(if $(filter true,$(COTAN_ONLY_HVG)),highly_variable,),\
+		$(USE_REP),matrix); \
+elif grep -q 'scripts/macrostates/cellrank_macrostates.py' "$${h5ad_dry_run}" \
+		&& grep -q '$(results)/$(1)/mstates/cellrank/mstates.h5ad' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(results)/$(1)/trajectories/velocity/velocity.h5ad,,,X_umap,Ms velocity); \
+elif grep -q 'scripts/macrostates/stream_macrostates.py' "$${h5ad_dry_run}" \
+		&& grep -q '$(results)/$(1)/mstates/stream/mstates.h5ad' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(results)/$(1)/clust/annot.h5ad,$(LABEL_COL),,$(USE_REP),); \
+elif grep -q 'scripts/macrostates/knnbs_macrostates.py' "$${h5ad_dry_run}" \
+		&& grep -q '$(results)/$(1)/mstates/knnbs/mstates.h5ad' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(results)/$(1)/clust/annot.h5ad,$(LABEL_COL),,$(call uniq,X_$(KNNBS_EMBEDDING) $(USE_REP)),); \
+fi
+endef
+
+define check_first_h5ad_for_integrated
+if grep -q 'scripts/clustering/integration.py' "$${h5ad_dry_run}" \
+		&& grep -q '$(clustering_integrated)' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(call h5ads_for_conditions,normalization),,,,counts correct); \
+elif grep -q 'scripts/clustering/annotation.py' "$${h5ad_dry_run}" \
+		&& grep -q '$(annotation_integrated)' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,$(clustering_integrated),leiden,,$(USE_REP),); \
+elif grep -q 'scripts/preprocessing/hvg.py' "$${h5ad_dry_run}" \
+		&& grep -q '/bonesis/hvg/top_genes.txt' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(bin_cells_input_h5ads),\
+		$(if $(and $(MODEL_HVG_METHOD),$(filter-out 1,$(words $(CONDITIONS)))),condition,),\
+		,,\
+		$(if $(MODEL_HVG_METHOD),$(call hvg_layer_name,$(MODEL_HVG_METHOD)),)); \
+elif grep -q 'scripts/binarization/bin_cells_scboolseq.py' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(bin_cells_input_h5ads),\
+		$(if $(and $(SCBOOLSEQ_HVG_METHOD),$(filter-out 1,$(words $(CONDITIONS)))),condition,),\
+		,$(USE_REP),\
+		$(if $(SCBOOLSEQ_HVG_METHOD),$(call hvg_layer_name,$(SCBOOLSEQ_HVG_METHOD)),log-norm)); \
+elif grep -q 'scripts/binarization/bin_clusters_scboolseq.py' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(firstword $(bin_cells)),,distribution,$(USE_REP),bin); \
+elif grep -q 'scripts/binarization/bin_dea.py' "$${h5ad_dry_run}"; then \
+	$(call check_h5ad_metadata_list_diagnostic,\
+		$(bin_cells_input_h5ads),\
+		$(if $(and $(DEA_HVG_METHOD),$(filter-out 1,$(words $(CONDITIONS)))),condition,),\
+		,$(USE_REP),\
+		$(if $(DEA_HVG_METHOD),$(call hvg_layer_name,$(DEA_HVG_METHOD)),log-norm)); \
+fi
+endef
+
 define check_command_diagnostic
 if command -v $(1) >/dev/null 2>&1; then \
 	$(call check_success,command found: $(1)); \
@@ -299,6 +501,7 @@ else \
 	$(call report_check_error,required command not found: $(1)); \
 fi
 endef
+
 define check_conda_env_diagnostic
 if conda env list | awk '{print $$1}' | grep -qx "$(1)"; then \
 	$(call check_success,conda environment found: $(1)); \
@@ -306,6 +509,7 @@ else \
 	$(call report_check_error,required conda environment not found: $(1)); \
 fi
 endef
+
 define check_parameter_diagnostic
 if [ -n "$(strip $(1))" ]; then \
 	$(if $(strip $(3)),\
@@ -315,6 +519,7 @@ else \
 	$(call report_check_error,required $(call parameter_label,$(1),$(2),$(3)) not defined: $(strip $(2))); \
 fi
 endef
+
 define check_knnbs_seed_diagnostic
 if [ -n "$(strip $(1))" ] || [ -n "$(strip $(2))" ]; then \
 	if [ -n "$(strip $(1))" ]; then \
@@ -331,6 +536,7 @@ else \
 		KNNBS_PERIPHERY_$(call toupper,$(3)) (needed by target 'knnbs')); \
 fi
 endef
+
 define check_positive_integer_diagnostic
 case "$(strip $(1))" in \
 	''|*[!0-9]*|0) $(call report_check_error,required positive integer for \
@@ -338,11 +544,13 @@ case "$(strip $(1))" in \
 	*) $(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: $(2)=$(strip $(1)));; \
 esac
 endef
+
 define check_optional_positive_integer_diagnostic
 if [ -n "$(strip $(1))" ]; then \
 	$(call check_positive_integer_diagnostic,$(1),$(2),$(3)); \
 fi
 endef
+
 define check_float_diagnostic
 if printf '%s\n' "$(strip $(1))" \
 		| grep -Eq '^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$$$$'; then \
@@ -352,6 +560,7 @@ else \
 		$(call parameter_label,$(1),$(2),$(3)) $(2) (current: $(strip $(1)))); \
 fi
 endef
+
 define check_path_diagnostic
 if [ -z "$(strip $(1))" ]; then \
 	$(call report_check_error,required path $(call parameter_label,$(1),$(2),$(3)) not defined: $(2)); \
@@ -361,6 +570,7 @@ else \
 	$(call report_check_error,invalid path for $(call parameter_label,$(1),$(2),$(3)) $(2): $(strip $(1))); \
 fi
 endef
+
 define check_references_diagnostic
 if [ -z "$(strip $(REFERENCES))" ]; then \
 	$(call report_check_error,required core parameter not defined: REFERENCES); \
@@ -381,6 +591,7 @@ else \
 	fi; \
 fi
 endef
+
 define check_choice_diagnostic
 case "$(strip $(1))" in \
 	$(subst $(space),|,$(strip $(2)))) \
@@ -391,7 +602,9 @@ case "$(strip $(1))" in \
 		(supported values: $(subst $(space),$(comma) ,$(strip $(2)))));; \
 esac
 endef
+
 check_bool_diagnostic = $(call check_choice_diagnostic,$(1),true false,$(2),$(3))
+
 define check_optional_hvg_method_diagnostic
 case "$(strip $(1))" in \
 	""|seurat|cell_ranger|seurat_v3) \
@@ -407,6 +620,7 @@ if [ "$(strip $(1))" = "seurat_v3" ] && [ -z "$(strip $(2))" ]; then \
 		is equal to seurat_v3); \
 fi
 endef
+
 knnbs_centrality = $(KNNBS_CENTRALITY_$(call toupper,$(1)))
 knnbs_periphery = $(KNNBS_PERIPHERY_$(call toupper,$(1)))
 log_parameters = $(foreach var,$(strip $(1)),printf '%s=%s\n' '$(var)' "$($(var))"; )
@@ -419,6 +633,9 @@ conda_runtime_env = env \
 	PYTHONPATH="$(lib_dir)$(if $(PYTHONPATH),:$(PYTHONPATH))" \
 	PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)"
 conda_run = $(conda_runtime_env) conda run --no-capture-output -n $(1)
+conda_run_cellrank = $(conda_runtime_env) \
+	OMPI_MCA_btl="^smcuda" \
+	conda run --no-capture-output -n $(1)
 conda_run_inference = $(conda_runtime_env) \
 	TQDM_DISABLE="$(TQDM_DISABLE)" \
 	TQDM_TO_TTY="$(TQDM_TO_TTY)" \
@@ -569,6 +786,13 @@ endef
 
 ## BEGIN PATHS ##
 
+h5ads_for_conditions = $(foreach condition,$(running_conditions),$($(1)_$(condition)))
+bin_cells_input_h5ads = $(if $(filter-out $(words $(CONDITIONS)),1),\
+                         $(annotation_integrated),$(annotation_$(conditions)))
+
+clustering_integrated = $(results)/integrated/clust/clust.h5ad
+annotation_integrated = $(results)/integrated/clust/annot.h5ad
+
 cc_markers  = $(public_dir)/cycle/mouse_cycle_markers.rds
 signatures  = $(public_dir)/signatures/geiger.xls \
               $(public_dir)/signatures/chambers.xls \
@@ -673,7 +897,7 @@ bn_diverse = $(bn_diverse_dir)/ensemble.pdf
 endif
 
 $(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
-$(foreach reference,$(references),$(eval $(call find_paths_for_references,$(reference))))
+$(foreach reference,$(references_default),$(eval $(call find_paths_for_references,$(reference))))
 
 ## END PATHS ##
 
@@ -777,13 +1001,6 @@ endif
 $(if $(filter true,$(call is_creatable_path,$(RESULTS))),$(shell mkdir -p "$(results)"))
 
 check_mode := $(filter check,$(MAKECMDGOALS))$(__check_mode)
-check_required_config_params = MEMORY JOBS SEED LOGGING RESULTS USE_REP LABEL_COL
-check_missing_config_params := $(strip \
-	$(foreach var,$(check_required_config_params),\
-		$(if $(strip $($(var))),,$(var))))
-check_simple_config_params = USE_REP LABEL_COL
-check_present_config_params := $(filter-out \
-	$(check_missing_config_params),$(check_simple_config_params))
 
 ifneq ($(check_mode),)
 $(if $(strip $(JOBS)),,$(eval override JOBS := 1))
@@ -817,7 +1034,8 @@ else
 knnbs_dimension=--dimension $(KNNBS_DIMENSION)
 endif
 
-hvg_layer = $(if $(filter seurat_v3,$(1)),--layer counts,--layer log-norm)
+hvg_layer_name = $(if $(filter seurat_v3,$(1)),counts,log-norm)
+hvg_layer = --layer $(call hvg_layer_name,$(1))
 scboolseq_layer = $(if $(filter seurat seurat_v3 cell_ranger,$(SCBOOLSEQ_HVG_METHOD)),\
 	$(call hvg_layer,$(SCBOOLSEQ_HVG_METHOD)))
 zeroes_are_zeroes = $(if $(filter true,$(ZEROES_ARE_ZEROES)),--zeroes-are-zeroes)
@@ -904,7 +1122,7 @@ RESET_TARGET_bn-min = $(bn_min)
 RESET_TARGET_bn-submin = $(bn_submin)
 RESET_TARGET_bn-diverse = $(bn_diverse)
 
-reset_modules := $(strip $(RESET_TARGET))
+reset_modules := $(strip $(RESET_TARGET) $(RESET_FROM))
 trust_modules := $(strip $(TRUST_TARGET))
 reset_disabled_goals := help
 reset_disabled := $(filter $(reset_disabled_goals),$(MAKECMDGOALS))$(__reset_disabled)
@@ -912,7 +1130,7 @@ ifeq ($(reset_disabled),)
 unknown_reset_targets := $(filter-out $(reset_stages),$(reset_modules))
 unknown_trust_targets := $(filter-out $(reset_stages),$(trust_modules))
 ifneq ($(unknown_reset_targets),)
-$(error unknown RESET_TARGET module: $(unknown_reset_targets) \
+$(error unknown RESET_TARGET/RESET_FROM module: $(unknown_reset_targets) \
 	(supported values: $(subst $(space),$(comma) ,$(reset_stages))))
 endif
 ifneq ($(unknown_trust_targets),)
@@ -1049,6 +1267,7 @@ config_method_params = $(call uniq,$(filter $(method_config_param_set),$(1)))
 config_external_resource_params = $(call uniq,$(filter $(external_resource_config_param_set),$(1)))
 
 config_print_var = $(if $(filter undefined,$(origin $(1))),,$(info $(1)=$($(1))))
+
 define config_print_section
 $(info )
 $(info [$(1)])
@@ -1125,6 +1344,7 @@ check: ## check Make-level dependencies, configuration and external tools requir
 			method\ parameter*|*method\ parameter*) printf '%s\n' "$${method_checks}";; \
 			external\ resource\ parameter*|*external\ resource\ parameter*) \
 				printf '%s\n' "$${external_resource_checks}";; \
+			h5ad\ metadata*|*h5ad\ metadata*) printf '%s\n' "$${file_checks}";; \
 			file\ found*|*file*) printf '%s\n' "$${file_checks}";; \
 			conda\ environment*|command\ found:\ conda|*conda*) printf '%s\n' "$${conda_checks}";; \
 			command\ found*|*command*) printf '%s\n' "$${command_checks}";; \
@@ -1136,30 +1356,31 @@ check: ## check Make-level dependencies, configuration and external tools requir
 	missing=0; \
 	$(nested_make) --dry-run LOGGING=false \
 		__check_mode=true __$(TARGET) LOGFILE="$(LOGFILE)" > "$${target_dry_run}"; \
-	$(nested_make) --always-make --dry-run LOGGING=false \
-		__check_mode=true __$(TARGET) LOGFILE="$(LOGFILE)" > "$${dry_run}"; \
-	$(foreach var,$(check_missing_config_params),$(call report_check_error,required core parameter not defined: $(var));) \
-	if [ -n "$(MEMORY)" ]; then \
+	if [ ! -s "$${target_dry_run}" ]; then \
+		printf '$(green)SUCCESS$(nc) %s\n' "target '$(TARGET)' already up to date"; \
+		exit 0; \
+	fi; \
+	cp "$${target_dry_run}" "$${dry_run}"; \
+	if grep -qE -- '--samtools-memory|--localmem|--memory' "$${dry_run}"; then \
 		$(call check_positive_integer_diagnostic,$(MEMORY),MEMORY,core); \
 	fi; \
-	if [ -n "$(JOBS)" ]; then \
+	if grep -qE -- '--threads|--jobs|--runThreadN|--samtools-threads|--localcores' "$${dry_run}"; then \
 		$(call check_positive_integer_diagnostic,$(JOBS),JOBS,core); \
 	fi; \
-	if [ -n "$(SEED)" ]; then \
+	if grep -qE -- '--seed|PYTHONHASHSEED' "$${dry_run}"; then \
 		$(call check_positive_integer_diagnostic,$(SEED),SEED,core); \
 	fi; \
-	if [ -n "$(LOGGING)" ]; then \
-		$(call check_bool_diagnostic,$(LOGGING),LOGGING,core); \
+	if grep -qE 'scripts/(clustering/annotation|utils/pipe_its|trajectories/potency|macrostates/stream_macrostates|binarization/(bin_cells_scboolseq|bin_clusters_scboolseq|bin_dea))\\.py' \
+			"$${dry_run}" \
+			|| grep -q 'scripts/macrostates/knnbs_macrostates.py' "$${dry_run}" \
+			|| grep -q '/cotan/barcts.csv' "$${dry_run}"; then \
+		$(call check_parameter_diagnostic,$(USE_REP),USE_REP,core); \
 	fi; \
-	if [ -n "$(RESULTS)" ]; then \
-		$(call check_path_diagnostic,$(RESULTS),RESULTS,core); \
+	if grep -qE 'scripts/(clustering/annotation|utils/pipe_its|trajectories/velocity|trajectories/potency|macrostates/(stream|knnbs)_macrostates)\\.py' \
+			"$${dry_run}"; then \
+		$(call check_parameter_diagnostic,$(LABEL_COL),LABEL_COL,core); \
 	fi; \
-	$(call check_references_diagnostic); \
-	$(foreach var,$(check_present_config_params),$(call check_success,core parameter valid: $(var)=$($(var)));) \
-	target_already_up_to_date=0; \
-	if [ ! -s "$${target_dry_run}" ]; then \
-		target_already_up_to_date=1; \
-	fi; \
+	h5ad_dry_run="$${target_dry_run}"; \
 	if grep -qE '(^|[[:space:]])STAR([[:space:]]|$$)' "$${dry_run}"; then \
 		$(call check_positive_integer_diagnostic,$(STAR_CB_LEN),STAR_CB_LEN,method); \
 		$(call check_positive_integer_diagnostic,$(STAR_UMI_LEN),STAR_UMI_LEN,method); \
@@ -1327,6 +1548,8 @@ check: ## check Make-level dependencies, configuration and external tools requir
 				$(call knnbs_centrality,$(condition)),\
 				$(call knnbs_periphery,$(condition)),$(condition));) \
 	fi; \
+	$(foreach condition,$(running_conditions),$(call check_first_h5ad_for_condition,$(condition));) \
+	$(if $(filter integrated,$(running_references)),$(call check_first_h5ad_for_integrated);) \
 	if [ "$(__check_externals__)" = "true" ]; then \
 		if grep -q 'repeat_msk.gtf' "$${dry_run}"; then \
 			$(call check_file_diagnostic,$(public_dir)/transcriptome/repeat_msk.gtf,repeat masker annotation); \
@@ -1349,9 +1572,6 @@ check: ## check Make-level dependencies, configuration and external tools requir
 		$(print_check_reports); \
 		exit 1; \
 	fi; \
-	if [ "$${target_already_up_to_date}" -eq 1 ]; then \
-		$(call check_success,target already up to date: '$(TARGET)'); \
-	fi; \
 	$(call check_success,check passed for target '$(TARGET)'); \
 	$(print_check_reports)
 
@@ -1360,7 +1580,8 @@ dry-run: ## display modules required to build TARGET without executing them
 	@if [ -z "$(TARGET)" ]; then \
 		$(call print_error,missing TARGET \(usage: make dry-run TARGET=<module>\)); \
 	fi
-	$(nested_make) --dry-run LOGGING=false __$(TARGET) LOGFILE="$(LOGFILE)"
+	$(nested_make) --dry-run LOGGING=false __dry_run_output=true __$(TARGET) LOGFILE="$(LOGFILE)" \
+		| sed '/^[[:space:]]*$$/d'
 
 ##@ Clean
 
@@ -1916,7 +2137,7 @@ $(cellrank_$(1))&: $(velocity_$(1)) $(potency_$(1))
 		$$(firstword $$^) $(tmpdir)/$(1)/cellrank/kernels.h5ad \
 		--csv $(tmpdir)/$(1)/cellrank/potency_scores.csv \
 		--axis 0 --sep , --type float
-	$(call conda_run,scbolt-cellrank) python $(scripts_dir)/macrostates/cellrank_macrostates.py \
+	$(call conda_run_cellrank,scbolt-cellrank) python $(scripts_dir)/macrostates/cellrank_macrostates.py \
 		$(tmpdir)/$(1)/cellrank/kernels.h5ad $$(firstword $$(cellrank_$(1))) \
 		--csv $$(lastword $$(cellrank_$(1))) \
 		--obs $(LABEL_COL) --method $(CELLRANK_METHOD) \
@@ -2408,6 +2629,6 @@ $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock)
 		--remove-isolated-nodes
 
 $(foreach condition,$(conditions),$(eval $(call compute_rules_for_conditions,$(condition))))
-$(foreach reference,$(references),$(eval $(call compute_rules_for_references,$(reference))))
+$(foreach reference,$(references_default),$(eval $(call compute_rules_for_references,$(reference))))
 
 ## END RULES

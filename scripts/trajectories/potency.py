@@ -222,7 +222,6 @@ std.print_task("predicting cell potencies")
 
 with std.disable_print():
     for idx in range(chunk_number):
-        std.print_info(f"processing batch {idx+1}")
         chunked_counts = counts.iloc[subsamples[idx], :]
         smooth_by_knn_df = cytotrace.process_subset(
             idx=idx,

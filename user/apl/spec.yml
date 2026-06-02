@@ -31,7 +31,9 @@ bonesis:
   - treated_prom1 / ctrl_alt
 # universal constraints
   - ctrl_prom1 >> 'fixpoints' ^ {bo.obs('ctrl_Rep'), bo.obs('ctrl_Neu'), bo.obs('ctrl_Alt')}
+  - ctrl_prom2 >> 'fixpoints' ^ {bo.obs('ctrl_Neu'), bo.obs('ctrl_Alt')}
   - treated_prom1 >> 'fixpoints' ^ {bo.obs('treated_Rep'), bo.obs('treated_Neu')}
+  - treated_prom2 >> 'fixpoints' ^ {bo.obs('treated_Neu')}
 important_genes:
 # granulocytic differentiation
   - 'Rara'
