@@ -1,17 +1,17 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
 from typing import Sequence, Union, cast
 from pathlib import Path
 
 import std
-import argparse, cli
+import argparse
+import cli
 
 import pandas as pd
 import anndata as ad
+
+import warnings
+warnings.filterwarnings("ignore")
 
 PathLike = Union[str, Path]
 category = pd.Categorical

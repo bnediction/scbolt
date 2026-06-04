@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
-import argparse, cli
+import os
+import std
+import argparse
+import cli
 from pathlib import Path
 
 import math
@@ -16,9 +14,12 @@ import pandas as pd
 import anndata as ad
 import scanpy as sc
 import bonesistools as bt
-from pypairs import pairs
+import pypairs
 
 import matplotlib.pyplot as plt
+
+import warnings
+warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()
 
@@ -59,6 +60,25 @@ def median_absolute_deviation(x, consistency=False):
     """
     constant = 1.4826 if consistency else 1
     return constant * np.median(np.absolute(x - np.median(x)))
+
+
+def format_filtering_coverage(name, kept, total):
+    removed = total - kept
+    pct = 0 if total == 0 else 100 * kept / total
+    return f"{name}: kept={kept}/{total} ({pct:.1f}%), removed={removed}"
+
+
+def format_range(values):
+    lower, upper = values
+    upper = "inf" if math.isinf(upper) else upper
+    return f"{lower}..{upper}"
+
+
+def format_count_range(values):
+    lower, upper = values
+    lower = int(math.ceil(lower))
+    upper = "inf" if math.isinf(upper) else int(math.floor(upper))
+    return f"{lower}..{upper}"
 
 
 parser = argparse.ArgumentParser(
@@ -199,30 +219,10 @@ parser.add_argument(
     help="maximum proportion of mitochondrial gene expression required for a cell to pass filtering (default: 1)",
 )
 
-parser.add_argument(
-    "--hvg",
-    dest="hvg",
-    type=int,
-    required=False,
-    default=2000,
-    metavar="INT",
-    help="number of highly variable genes (default: 2000)",
-)
-
-parser.add_argument(
-    "--filter-non-hvg",
-    dest="filter_non_hvg",
-    action="store_true",
-    required=False,
-    help="filter non-highly variable genes",
-)
-
 args = parser.parse_args()
 
 if any(v < 0 for v in args.mad_deviation):
-    raise ValueError(
-        f"expected positive values, but received {args.mad_deviation}"
-    )
+    raise ValueError(f"expected positive values, but received {args.mad_deviation}")
 
 outpath = Path(os.path.dirname(args.outfile))
 if not outpath.exists():
@@ -232,9 +232,6 @@ std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(Path(f"{args.infile}").resolve())
 
-std.print_task("initializing settings")
-
-adata.layers["counts"] = adata.X.copy()
 adata.var_names_make_unique()
 
 shape = {"init": adata.shape}
@@ -248,15 +245,16 @@ bt.sct.tl.ribosomal_genes(adata, index_type="name", key="rps", axis=1, copy=Fals
 if args.marker_infile is None:
     std.print_warning("cannot classify cell cycle phases: marker file not specified")
 else:
-    std.print_task(f"loading cell-cycle marker data (file={std.format_path(args.marker_infile)})")
     std.print_task("classifying cells (class=cell cycle phases)")
-    std.print_info("parsing R marker file")
+    std.print_info(
+        f"loading cell-cycle marker data (file={std.format_path(args.marker_infile)})"
+    )
     parser = rdata.parser.parse_file(args.marker_infile)
-    std.print_info("converting R marker data to Python objects")
+    std.print_debug("decoding marker data (format=RDS)")
     marker_pairs = rdata.conversion.convert(parser)
-    std.print_info("scoring cell cycle phases for each cell")
+    std.print_info("scoring cell cycle phases")
     marker_pairs = marker_pairs_converter(marker_pairs, "official_name")
-    scores = pairs.cyclone(adata, marker_pairs)
+    scores = pypairs.pairs.cyclone(adata, marker_pairs)
     adata.obs.rename(
         columns={
             "pypairs_G1": "G1_score",
@@ -299,14 +297,16 @@ for i, title in zip(
 plt.savefig(raw_plot)
 plt.close()
 
-std.print_task("preprocessing count data")
-
 mad = median_absolute_deviation(
     np.log(adata.obs.total_counts), consistency=(args.consistent_mad)
 )
 reads = [
     np.exp(np.median(np.log(adata.obs.total_counts)) - args.mad_deviation[0] * mad),
     np.exp(np.median(np.log(adata.obs.total_counts)) + args.mad_deviation[1] * mad),
+]
+cell_reads = [
+    max(args.cell_reads[0], reads[0]),
+    min(args.cell_reads[1], reads[1]),
 ]
 
 ylim = [0, round(math.ceil(max(adata.obs.total_counts) + 1000), -3)]
@@ -325,7 +325,12 @@ ax[0].axhline(reads[1], linewidth=1.5, linestyle="--", color=bt.sct.pl.get_color
 ax[0].set_ylim(ylim)
 ax[0].set(title="raw")
 
-std.print_info("filtering low-quality genes")
+std.print_task(
+    "filtering genes "
+    f"(dropout<={1e2 * args.gene_dropout:g}%, "
+    f"expressed_cells={format_range(args.gene_expression)}, "
+    f"counts={format_range(args.gene_counts)})"
+)
 
 bt.sct.pp.filter_var(
     adata, "pct_dropout_by_counts", lambda x: (x <= 1e2 * args.gene_dropout)
@@ -343,7 +348,13 @@ bt.sct.pp.filter_var(
     lambda x: (x >= args.gene_counts[0]) & (x < args.gene_counts[1]),
 )
 
-std.print_info("filtering low-quality cells")
+std.print_task(
+    "filtering cells "
+    f"(dropout<={1e2 * args.cell_dropout:g}%, "
+    f"expressed_genes={format_range(args.cell_expression)}, "
+    f"reads={format_count_range(cell_reads)}, "
+    f"mitochondria<{1e2 * args.mt:g}%)"
+)
 
 bt.sct.pp.filter_obs(
     adata, "n_genes_by_counts", lambda x: (x >= (1 - args.cell_dropout) * adata.n_vars)
@@ -365,24 +376,14 @@ bt.sct.pp.filter_obs(adata, "total_counts", lambda x: (x >= reads[0]) & (x < rea
 
 bt.sct.pp.filter_obs(adata, "pct_counts_mt", lambda x: x < 1e2 * args.mt)
 
-std.print_task(f"computing highly variable genes (top={args.hvg})")
-
-sc.pp.highly_variable_genes(
-    adata,
-    layer="counts",
-    flavor="seurat_v3",
-    span=0.3,
-    n_bins=20,
-    n_top_genes=args.hvg,
-    inplace=True,
-)
-if args.filter_non_hvg:
-    std.print_info(f"filtering non-highly variable genes")
-    adata._inplace_subset_var(adata.var.highly_variable)
-else:
-    std.print_info(f"keeping non-highly variable genes")
-
 shape["final"] = adata.shape
+
+std.print_result(
+    format_filtering_coverage("genes", shape["final"][0], shape["init"][0])
+)
+std.print_result(
+    format_filtering_coverage("cells", shape["final"][1], shape["init"][1])
+)
 
 sc.pl.violin(
     adata=adata,
@@ -429,10 +430,3 @@ if args.marker_infile:
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 adata.write_h5ad(filename=args.outfile, compression="gzip")
-
-std.print_result(
-    f"gene number: [before filtering: {shape['init'][0]}, after filtering: {shape['final'][0]}, removed: {shape['init'][0] - shape['final'][0]}]"
-)
-std.print_result(
-    f"cell number: [before filtering: {shape['init'][1]}, after filtering: {shape['final'][1]}, removed: {shape['init'][1] - shape['final'][1]}]"
-)

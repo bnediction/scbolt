@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
+import os
+import std
 import argparse
+import cli
 from pathlib import Path
 
 import random
@@ -14,6 +12,9 @@ import numpy as np
 import anndata as ad
 import scanpy as sc
 import bonesistools as bt
+
+import warnings
+warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()
 
@@ -122,6 +123,49 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--flavor",
+    dest="flavor",
+    type=str,
+    required=False,
+    default="seurat_v3",
+    choices=["seurat", "cell_ranger", "seurat_v3"],
+    metavar="[seurat | cell_ranger | seurat_v3]",
+    help="method used for identifying highly variable genes (default: seurat_v3)",
+)
+
+parser.add_argument(
+    "--top-hvg",
+    dest="top_hvg",
+    type=int,
+    required=False,
+    default=None,
+    metavar="INT",
+    help="number of highly variable genes to select (default: None)",
+)
+
+parser.add_argument(
+    "--span",
+    dest="span",
+    action=cli.Range,
+    type=float,
+    min=0,
+    max=1,
+    required=False,
+    default=0.3,
+    help="fraction of cells used when estimating the variance in the loess model (used only if method='seurat_v3', default: 0.3)",
+)
+
+parser.add_argument(
+    "--bins",
+    dest="bins",
+    type=float,
+    required=False,
+    default=20,
+    metavar="INT",
+    help="number of bins for binning the mean gene expression (default: 20)",
+)
+
+parser.add_argument(
     "--only-hvg",
     dest="only_hvg",
     action="store_true",
@@ -208,6 +252,21 @@ adata = ad.read_h5ad(args.infile)
 if args.layer:
     adata.X = adata.layers[args.layer].copy()
 
+if args.only_hvg:
+    std.print_task(
+        "estimating highly variable genes "
+        f"(flavor={args.flavor}, number={args.top_hvg if args.top_hvg else 'none'})"
+    )
+    sc.pp.highly_variable_genes(
+        adata,
+        layer="counts" if args.flavor == "seurat_v3" else "log-norm",
+        flavor=args.flavor,
+        span=args.span,
+        n_bins=args.bins,
+        n_top_genes=args.top_hvg,
+        inplace=True,
+    )
+
 std.print_task(f"computing principal components (dimensions={args.pca_dimension})")
 if args.only_hvg:
     std.print_info("filtering PCA features (scope=highly variable genes)")
@@ -241,24 +300,18 @@ bt.sct.tl.shared_neighbors(
     adata, snn_key="shared_neighbors", prune_snn=prune_snn, copy=False
 )
 
-std.print_task(
-    f"clustering cells (algorithm=leiden, resolution={args.resolution})"
-)
+std.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
 sc.tl.leiden(
     adata,
     neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
     resolution=args.resolution,
-    key_added="leiden",
+    key_added="cluster",
     random_state=args.seed,
     copy=False,
 )
-std.print_result(
-    f"identified {adata.obs['leiden'].nunique()} clusters"
-)
+std.print_result(f"identified {adata.obs['cluster'].nunique()} clusters")
 
-std.print_task(
-    f"embedding neighborhood graph (dimensions={args.embedding_dimension})"
-)
+std.print_task(f"embedding neighborhood graph (dimensions={args.embedding_dimension})")
 if args.embedding == "umap":
     std.print_task(
         f"computing embedding (method=UMAP, "
@@ -291,13 +344,13 @@ elif args.embedding == "tsne":
         copy=False,
     )
 
-embedding_plot = Path(f"{os.path.dirname(args.outfile)}/{args.embedding}_leiden.pdf")
+embedding_plot = Path(f"{os.path.dirname(args.outfile)}/{args.embedding}_cluster.pdf")
 std.print_info(
     f"plotting embeddings (directory={os.path.relpath(os.path.dirname(args.outfile))})"
 )
 bt.sct.pl.embedding_plot(
     adata,
-    obs="leiden",
+    obs="cluster",
     use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
     xlabel=r"$\mathrm{{{}_{{1}}}}$".format(label),
     ylabel=r"$\mathrm{{{}_{{2}}}}$".format(label),

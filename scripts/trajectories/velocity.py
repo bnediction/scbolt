@@ -1,10 +1,7 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
+import os
+import std
 import argparse
 from pathlib import Path
 
@@ -13,6 +10,9 @@ import bonesistools as bt
 import scvelo as scv
 
 import matplotlib.pyplot as plt
+
+import warnings
+warnings.filterwarnings("ignore")
 
 warnings.filterwarnings(
     "ignore",
@@ -229,7 +229,7 @@ with warnings.catch_warnings():
             txt.set_visible(False)
         try:
             plt.savefig(Path(f"{outpath}/stream_plot.pdf"))
-        except:
+        except Exception:
             if os.path.isfile(Path(f"{outpath}/stream_plot.pdf")):
                 os.remove(Path(f"{outpath}/stream_plot.pdf"))
             plt.savefig(Path(f"{outpath}/stream_plot.png"))
@@ -282,7 +282,9 @@ with warnings.catch_warnings():
         },
         color=adata.uns["colors"],
         n_components=(
-            3 if adata.obsm["velocity_umap"].shape[1] > 2 and args.plot_3d is True else 2
+            3
+            if adata.obsm["velocity_umap"].shape[1] > 2 and args.plot_3d is True
+            else 2
         ),
         background_visible=False,
     )

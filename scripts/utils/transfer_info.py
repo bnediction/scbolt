@@ -1,15 +1,14 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
 import std
 import argparse
 from pathlib import Path
 
 import anndata as ad
 import bonesistools as bt
+
+import warnings
+warnings.filterwarnings("ignore")
 
 
 def make_composite_obs_index(adata, keys, sep="|"):
@@ -109,7 +108,9 @@ if args.index:
         make_composite_obs_index(adata, args.index)
 
 if args.obs:
-    std.print_task(f"transferring observations (columns={', '.join(map(str, args.obs))})")
+    std.print_task(
+        f"transferring observations (columns={', '.join(map(str, args.obs))})"
+    )
 
     right_ad.obs = right_ad.obs.loc[:, args.obs]
     bt.sct.pp.merge(left_ad=left_ad, right_ad=right_ad, axis="obs", copy=False)
@@ -143,7 +144,9 @@ if args.index:
     left_ad.obs.index = left_ad.obs["_previous_index"]
     left_ad.obs.drop(columns="_previous_index", inplace=True)
 
-std.print_task(f"saving AnnData (file={std.format_path(args.outfile if args.outfile else args.left)})")
+std.print_task(
+    f"saving AnnData (file={std.format_path(args.outfile if args.outfile else args.left)})"
+)
 
 left_ad.write_h5ad(
     filename=args.outfile if args.outfile else args.left,

@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-import warnings
-
 import os
 import std
 import argparse
@@ -94,6 +92,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 if args.quiet:
+    import warnings
     warnings.filterwarnings("ignore")
 
 if not Path(os.path.dirname(args.outfile)).exists():
@@ -129,6 +128,6 @@ elif file_extension == "csv" or file_extension == "tsv":
     )
     output.to_csv(args.outfile, sep=args.sep)
 else:
-    raise IOError(f"incorrect format (txt, csv or tsv format expected)")
+    raise IOError("incorrect format (txt, csv or tsv format expected)")
 
 std.print_task(f"saving standardized gene data (file={std.format_path(args.outfile)})")

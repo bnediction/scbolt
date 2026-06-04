@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
 import os
 import std
 import argparse
@@ -12,6 +8,9 @@ from pathlib import Path
 from bonesistools.databases.ncbi import GeneSynonyms
 
 import scanpy as sc
+
+import warnings
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(
     prog="get_genes",
@@ -63,7 +62,7 @@ if str(args.infile).endswith(".h5ad"):
 elif str(args.infile).endswith(".loom"):
     adata = sc.read_loom(args.infile)
 else:
-    raise IOError(f"incorrect format (h5ad or loom format expected)")
+    raise IOError("incorrect format (h5ad or loom format expected)")
 
 if args.axis == "obs":
     gene_list = list(adata.obs.index)

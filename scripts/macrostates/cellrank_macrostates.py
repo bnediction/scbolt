@@ -1,10 +1,7 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
+import os
+import std
 import argparse
 from pathlib import Path
 
@@ -15,6 +12,9 @@ import numpy as np
 import anndata as ad
 import cellrank as cr
 import bonesistools as bt
+
+import warnings
+warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()
 

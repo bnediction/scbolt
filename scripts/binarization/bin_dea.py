@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
-import argparse, cli
+import os
+import std
+import argparse
+import cli
 from pathlib import Path
 
 import math
@@ -15,6 +13,9 @@ import pandas as pd
 import anndata as ad
 import scanpy as sc
 import bonesistools as bt
+
+import warnings
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(
     prog="bin_dea",
@@ -243,9 +244,7 @@ if args.use_rep:
 
 dea_results = Path(f"{os.path.dirname(args.outfile)}/dea_results.csv")
 std.print_task(f"saving DEA results (file={std.format_path(dea_results)})")
-dea_df.to_csv(
-    dea_results, sep=",", index=True
-)
+dea_df.to_csv(dea_results, sep=",", index=True)
 
 std.print_task(f"saving binarized matrix (file={std.format_path(args.outfile)})")
 cluster_bin.to_csv(args.outfile, sep=",", index=True)

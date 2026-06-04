@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
-import argparse, cli
+import os
+import std
+import argparse
+import cli
 from pathlib import Path
 
 from typing import Optional, Sequence
@@ -18,6 +16,9 @@ import anndata as ad
 import scanpy as sc
 import bonesistools as bt
 import scanorama
+
+import warnings
+warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()
 
@@ -46,8 +47,8 @@ def clean_adata(
         del adata.uns["neighbors"]
     if "shared_neighbors" in adata.uns.keys():
         del adata.uns["shared_neighbors"]
-    if "leiden" in adata.uns.keys():
-        del adata.uns["leiden"]
+    if "cluster" in adata.uns.keys():
+        del adata.uns["cluster"]
     if "tsne" in adata.uns.keys():
         del adata.uns["tsne"]
     if "umap" in adata.uns.keys():
@@ -172,21 +173,62 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--flavor",
+    dest="flavor",
+    type=str,
+    required=False,
+    default="seurat_v3",
+    choices=["seurat", "cell_ranger", "seurat_v3"],
+    metavar="[seurat | cell_ranger | seurat_v3]",
+    help="method used for identifying highly variable genes (default: seurat_v3)",
+)
+
+parser.add_argument(
+    "--top-hvg",
+    dest="top_hvg",
+    type=int,
+    required=False,
+    default=None,
+    metavar="INT",
+    help="number of highly variable genes to select (default: None)",
+)
+
+parser.add_argument(
+    "--span",
+    dest="span",
+    action=cli.Range,
+    type=float,
+    min=0,
+    max=1,
+    required=False,
+    default=0.3,
+    help="fraction of cells used when estimating the variance in the loess model (used only if method='seurat_v3', default: 0.3)",
+)
+
+parser.add_argument(
+    "--bins",
+    dest="bins",
+    type=float,
+    required=False,
+    default=20,
+    metavar="INT",
+    help="number of bins for binning the mean gene expression (default: 20)",
+)
+
+parser.add_argument(
+    "--only-hvg",
+    dest="only_hvg",
+    action="store_true",
+    required=False,
+    help="use only highly variable genes for PCA projection",
+)
+
+parser.add_argument(
     "--zero-center",
     dest="zero_center",
     action="store_true",
     required=False,
     help="if true, compute PCA from covariance matrix, otherwise omit zero-centering variables",
-)
-
-parser.add_argument(
-    "--hvg",
-    dest="hvg",
-    type=int,
-    required=False,
-    default=None,
-    metavar="INT",
-    help="number of highly variable genes (default: None)",
 )
 
 parser.add_argument(
@@ -263,11 +305,13 @@ args = parser.parse_args()
 
 if args.pca_dimension < args.clustering_dimension:
     raise ValueError(
-        f"invalid values for arguments: 'pca-dimension' > 'clustering-dimension' not satisfied (pca-dimension: {args.pca_dimension}, clustering-dimension: {args.clustering_dimension})"
+        "invalid dimensionality: "
+        f"clustering dimension ({args.clustering_dimension}) "
+        f"cannot exceed pca dimension ({args.pca_dimension})"
     )
 
 if args.integration == "ingest" and args.embedding == "tsne":
-    raise ValueError(f"ingest does not support tsne embedding")
+    raise ValueError("ingest does not support tsne embedding")
 
 embedding_label = "UMAP" if args.embedding == "umap" else "t-SNE"
 
@@ -291,9 +335,7 @@ for adata in adatas:
     adata.X = adata.layers[args.layer].copy()
     clean_adata(adata)
 
-std.print_debug(
-    f"merging datasets (conditions={'+'.join(args.labels)})"
-)
+std.print_debug(f"merging datasets (conditions={', '.join(args.labels)})")
 try:
     adata = ad.concat(
         adatas=adatas,
@@ -303,9 +345,24 @@ try:
         merge="same",
         uns_merge="same",
     )
-except:
-    raise RuntimeError("anndatas concatenation not working")
+except Exception as error:
+    raise RuntimeError("anndatas concatenation not working") from error
 del adatas
+
+std.print_task(
+    "estimating highly variable genes "
+    f"(flavor={args.flavor}, number={args.top_hvg if args.top_hvg else 'none'})"
+)
+sc.pp.highly_variable_genes(
+    adata,
+    layer="counts" if args.flavor == "seurat_v3" else "log-norm",
+    flavor=args.flavor,
+    span=args.span,
+    n_bins=args.bins,
+    n_top_genes=args.top_hvg,
+    batch_key="condition",
+    inplace=True,
+)
 
 if args.integration == "ingest":
 
@@ -314,25 +371,10 @@ if args.integration == "ingest":
     reference = args.labels[0]
     std.print_info(f"selecting reference condition (condition={reference})")
 
-    std.print_info(f"splitting datasets (conditions={'+'.join(args.labels)})")
+    std.print_info(f"splitting datasets (conditions={', '.join(args.labels)})")
     adatas = dict()
     for label in args.labels:
         adatas[label] = adata[adata.obs["condition"] == label].to_memory()
-
-    if args.hvg:
-        std.print_task(
-            f"computing highly variable genes (top={args.hvg}, scope=each dataset)"
-        )
-        for label in args.labels:
-            sc.pp.highly_variable_genes(
-                adatas[label],
-                layer="counts",
-                flavor="seurat_v3",
-                span=0.3,
-                n_bins=20,
-                n_top_genes=args.hvg,
-                inplace=True,
-            )
 
     std.print_task(
         f"computing principal components (dimensions={args.pca_dimension}, condition={reference})"
@@ -341,7 +383,7 @@ if args.integration == "ingest":
         adatas[reference],
         n_comps=args.pca_dimension,
         zero_center=args.zero_center,
-        use_highly_variable=(args.hvg is not None),
+        use_highly_variable=args.only_hvg,
         random_state=np.random.RandomState(args.seed),
         copy=False,
     )
@@ -358,9 +400,7 @@ if args.integration == "ingest":
         copy=False,
     )
 
-    std.print_task(
-        f"computing shared nearest-neighbor graph (condition={reference})"
-    )
+    std.print_task(f"computing shared nearest-neighbor graph (condition={reference})")
     bt.sct.tl.shared_neighbors(
         adatas[reference], snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
     )
@@ -368,7 +408,12 @@ if args.integration == "ingest":
     std.print_task(
         f"embedding neighborhood graph (dimensions={args.embedding_dimension}, condition={reference})"
     )
-    std.print_info("computing Uniform Manifold Approximation and Projection (UMAP)")
+    std.print_task(
+        f"computing embedding (method=UMAP, "
+        f"dimensions={args.embedding_dimension}, "
+        f"min_dist={args.min_dist}, "
+        f"spread={args.spread})"
+    )
     sc.tl.umap(
         adatas[reference],
         neighbors_key="neighbors",
@@ -392,9 +437,7 @@ if args.integration == "ingest":
             n_jobs=args.jobs,
         )
 
-    std.print_debug(
-        f"concatenating datasets (conditions={'+'.join(args.labels)})"
-    )
+    std.print_debug(f"concatenating datasets (conditions={'+'.join(args.labels)})")
     try:
         adata = ad.concat(
             adatas=list(adatas.values()),
@@ -404,8 +447,8 @@ if args.integration == "ingest":
             merge="same",
             uns_merge="same",
         )
-    except:
-        raise RuntimeError("anndatas concatenation not working")
+    except Exception as error:
+        raise RuntimeError("anndatas concatenation not working") from error
 
     std.print_task(
         f"computing nearest-neighbor graph (principal components={args.clustering_dimension}, dataset=integrated)"
@@ -419,9 +462,7 @@ if args.integration == "ingest":
         copy=False,
     )
 
-    std.print_task(
-        "computing shared nearest-neighbor graph (dataset=integrated)"
-    )
+    std.print_task("computing shared nearest-neighbor graph (dataset=integrated)")
     bt.sct.tl.shared_neighbors(
         adata, snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
     )
@@ -431,7 +472,7 @@ if args.integration == "ingest":
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
         resolution=args.resolution,
-        key_added=f"leiden",
+        key_added="cluster",
         random_state=args.seed,
         copy=False,
     )
@@ -440,24 +481,12 @@ elif args.integration == "bbknn":
 
     std.print_info("integrating data (method=BBKNN)")
 
-    if args.hvg:
-        std.print_task(f"computing highly variable genes (top={args.hvg})")
-        sc.pp.highly_variable_genes(
-            adata,
-            layer="counts",
-            flavor="seurat_v3",
-            span=0.3,
-            n_bins=20,
-            n_top_genes=args.hvg,
-            inplace=True,
-        )
-
     std.print_task(f"computing principal components (dimensions={args.pca_dimension})")
     sc.tl.pca(
         adata,
         n_comps=args.pca_dimension,
         zero_center=args.zero_center,
-        use_highly_variable=(args.hvg is not None),
+        use_highly_variable=args.only_hvg,
         random_state=np.random.RandomState(args.seed),
         copy=False,
     )
@@ -471,8 +500,10 @@ elif args.integration == "bbknn":
             use_rep="X_pca",
             n_pcs=args.clustering_dimension,
             metric=args.metric,
-            approx=False,
-            use_annoy=False,
+            approx=None,
+            use_annoy=None,
+            use_faiss=None,
+            computation="cKDTree",
             pynndescent_random_state=args.seed,
             copy=False,
         )
@@ -482,7 +513,7 @@ elif args.integration == "bbknn":
         adata,
         neighbors_key="neighbors",
         resolution=args.resolution,
-        key_added=f"leiden",
+        key_added="cluster",
         random_state=args.seed,
         copy=False,
     )
@@ -491,7 +522,12 @@ elif args.integration == "bbknn":
         f"embedding neighborhood graph (dimensions={args.embedding_dimension})"
     )
     if args.embedding == "umap":
-        std.print_info("computing Uniform Manifold Approximation and Projection (UMAP)")
+        std.print_task(
+            f"computing embedding (method=UMAP, "
+            f"dimensions={args.embedding_dimension}, "
+            f"min_dist={args.min_dist}, "
+            f"spread={args.spread})"
+        )
         sc.tl.umap(
             adata,
             neighbors_key="neighbors",
@@ -503,8 +539,10 @@ elif args.integration == "bbknn":
         )
         del adata.uns["umap"]["params"]["random_state"]
     elif args.embedding == "tsne":
-        std.print_info(
-            "computing t-distributed Stochastic Neighborhood Embedding (t-SNE)"
+        std.print_task(
+            f"computing embedding (method=t-SNE, "
+            f"dimensions={args.embedding_dimension}, "
+            f"metric={args.metric})"
         )
         sc.tl.tsne(
             adata,
@@ -524,20 +562,16 @@ elif args.integration == "scanorama":
     for label in args.labels:
         adatas[label] = adata[adata.obs["condition"] == label].to_memory()
 
-    std.print_task(
-        f"computing integrated embedding (dimensions={args.pca_dimension})"
-    )
+    std.print_task(f"computing integrated embedding (dimensions={args.pca_dimension})")
     with std.disable_print():
         adatas = scanorama.correct_scanpy(
             list(adatas.values()),
             dimred=args.pca_dimension,
             return_dimred=True,
-            hvg=args.hvg,
+            hvg=args.top_hvg,
         )
 
-    std.print_debug(
-        f"concatenating datasets (conditions={'+'.join(args.labels)})"
-    )
+    std.print_debug(f"concatenating datasets (conditions={'+'.join(args.labels)})")
     try:
         adata = ad.concat(
             adatas=adatas,
@@ -547,8 +581,8 @@ elif args.integration == "scanorama":
             merge="same",
             uns_merge="same",
         )
-    except:
-        raise RuntimeError("anndatas concatenation not working")
+    except Exception as error:
+        raise RuntimeError("anndatas concatenation not working") from error
 
     std.print_task(
         f"computing nearest-neighbor graph (principal components={args.clustering_dimension})"
@@ -562,9 +596,7 @@ elif args.integration == "scanorama":
         copy=False,
     )
 
-    std.print_task(
-        "computing shared nearest-neighbor graph"
-    )
+    std.print_task("computing shared nearest-neighbor graph")
     bt.sct.tl.shared_neighbors(
         adata, snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
     )
@@ -574,7 +606,7 @@ elif args.integration == "scanorama":
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
         resolution=args.resolution,
-        key_added=f"leiden",
+        key_added="cluster",
         random_state=args.seed,
         copy=False,
     )
@@ -583,7 +615,12 @@ elif args.integration == "scanorama":
         f"embedding neighborhood graph (dimensions={args.embedding_dimension})"
     )
     if args.embedding == "umap":
-        std.print_info("computing Uniform Manifold Approximation and Projection (UMAP)")
+        std.print_task(
+            f"computing embedding (method=UMAP, "
+            f"dimensions={args.embedding_dimension}, "
+            f"min_dist={args.min_dist}, "
+            f"spread={args.spread})"
+        )
         sc.tl.umap(
             adata,
             neighbors_key="neighbors",
@@ -595,8 +632,10 @@ elif args.integration == "scanorama":
         )
         del adata.uns["umap"]["params"]["random_state"]
     elif args.embedding == "tsne":
-        std.print_info(
-            "computing t-distributed Stochastic Neighborhood Embedding (t-SNE)"
+        std.print_task(
+            f"computing embedding (method=t-SNE, "
+            f"dimensions={args.embedding_dimension}, "
+            f"metric={args.metric})"
         )
         sc.tl.tsne(
             adata,
@@ -634,7 +673,7 @@ bt.sct.pl.embedding_plot(
     outfile=pc_plot,
 )
 
-for obs in ["condition", "leiden"]:
+for obs in ["condition", "cluster"]:
     embedding_plot = Path(f"{os.path.dirname(args.outfile)}/{args.embedding}_{obs}.pdf")
     bt.sct.pl.embedding_plot(
         adata,

@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
-import argparse, cli
+import os
+import std
+import argparse
+import cli
 from pathlib import Path
 
 import anndata as ad
 import scanpy as sc
+
+import warnings
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(
     prog="hvg",

@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
 from typing import Optional, Sequence, Union, cast
 from collections import namedtuple
 
-import os, std
-import argparse, cli
+import os
+import std
+import argparse
+import cli
 from pathlib import Path
 
 from pandas import DataFrame, Index, Series, MultiIndex
@@ -16,6 +14,9 @@ import anndata as ad
 import bonesistools as bt
 
 import numpy as np
+
+import warnings
+warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()
 
@@ -498,5 +499,7 @@ std.print_task(f"saving binarized matrix (file={std.format_path(args.outfile)})"
 cluster_bin.to_csv(args.outfile, sep=",", index=True)
 
 if args.counts:
-    std.print_task(f"saving binarized value counts (file={std.format_path(args.counts)})")
+    std.print_task(
+        f"saving binarized value counts (file={std.format_path(args.counts)})"
+    )
     cluster_counts.to_csv(args.counts, sep=",", index=True)

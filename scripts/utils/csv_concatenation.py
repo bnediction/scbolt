@@ -4,7 +4,8 @@ import os
 import std
 from pathlib import Path
 
-import argparse, cli
+import argparse
+import cli
 
 import pandas as pd
 

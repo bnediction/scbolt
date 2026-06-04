@@ -7,7 +7,6 @@ import argparse
 import h5py
 import std
 
-
 parser = argparse.ArgumentParser(
     prog="check_h5ad",
     description="Check that an AnnData H5AD file contains required metadata keys.",
@@ -87,7 +86,9 @@ for path in args.h5ad:
     try:
         h5ad = h5py.File(path, "r")
     except OSError as error:
-        print(f"invalid AnnData file: {std.format_path(path)} ({error})", file=sys.stderr)
+        print(
+            f"invalid AnnData file: {std.format_path(path)} ({error})", file=sys.stderr
+        )
         sys.exit(1)
 
     with h5ad:

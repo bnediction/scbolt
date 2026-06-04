@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
+import os
+import std
 import argparse
 from pathlib import Path
 
 import numpy as np
 
 import pandas as pd
+
+import warnings
+warnings.filterwarnings("ignore")
 
 
 def merge(scboolseq_val, dea_val, scboolseq_distribution):
@@ -109,9 +109,9 @@ dea_bin = pd.read_csv(args.dea, index_col=0, sep=",")
 std.print_task("binarizing clusters (sources=scBoolSeq, DEA)")
 
 if not set(scboolseq_bin.columns) == set(scboolseq_bin.columns):
-    raise KeyError(f"column names different in scboolseq and dea dataframes")
+    raise KeyError("column names different in scboolseq and dea dataframes")
 if not set(scboolseq_bin.index) == set(scboolseq_bin.index):
-    raise KeyError(f"index names different in scboolseq and dea dataframes")
+    raise KeyError("index names different in scboolseq and dea dataframes")
 
 merge_bin = pd.DataFrame(
     data=np.nan, index=scboolseq_bin.index, columns=scboolseq_bin.columns
@@ -143,5 +143,7 @@ std.print_task(f"saving binarized matrix (file={std.format_path(args.outfile)})"
 merge_bin.to_csv(args.outfile, sep=",", index=True)
 
 if args.pct_bin:
-    std.print_task(f"saving binarization proportions (file={std.format_path(args.pct_bin)})")
+    std.print_task(
+        f"saving binarization proportions (file={std.format_path(args.pct_bin)})"
+    )
     pct_bin.to_csv(args.pct_bin, sep=",", index=True)

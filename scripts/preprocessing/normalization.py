@@ -1,10 +1,7 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
+import os
+import std
 import argparse
 from pathlib import Path
 
@@ -12,6 +9,9 @@ import anndata as ad
 import scanpy as sc
 import numpy as np
 import bonesistools as bt
+
+import warnings
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(
     prog="normalization",
@@ -82,15 +82,15 @@ if args.layer:
 
 std.print_task("normalizing read counts")
 
-std.print_info("standardizing counts (reference=library size, layer=norm)")
+std.print_info("standardizing counts by library size (layer=norm)")
 adata.layers["norm"] = adata.X.copy()
 sc.pp.normalize_total(adata, target_sum=1e4, layer="norm", copy=False)
 
-std.print_info("performing log-transformation (layer: log-norm)")
+std.print_info("performing log-transformation (layer=log-norm)")
 adata.layers["log-norm"] = adata.layers["norm"].copy()
 sc.pp.log1p(adata, base=np.exp(1), layer="log-norm", copy=False)
 
-std.print_info("scaling to unit variance and zero mean (layer: scale)")
+std.print_info("scaling to unit variance and zero mean (layer=scale)")
 adata.layers["scale"] = adata.layers["log-norm"].copy()
 sc.pp.scale(adata, layer="scale", copy=False)
 

@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
-import argparse, cli
+import os
+import std
+import argparse
+import cli
 from pathlib import Path
 
 import anndata as ad
+
+import warnings
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(
     prog="annotation",
@@ -70,7 +71,7 @@ if not Path(os.path.dirname(args.outfile)).exists():
 dict_to_str = ""
 add = ""
 for k, v in args.labels.items():
-    dict_to_str += f"{add}{k}->{v}"
+    dict_to_str += f"{add}{k}=>{v}"
     add = ", "
 
 std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")

@@ -1,10 +1,7 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, argparse
+import os
+import argparse
 import std
 from pathlib import Path
 
@@ -12,6 +9,9 @@ import anndata as ad
 from bonesistools import anndatatools as sct
 
 import matplotlib.pyplot as plt
+
+import warnings
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(
     prog="gene_kde",
@@ -86,16 +86,14 @@ if len(args.infiles) > 1:
     try:
         adata = ad.concat(adatas, axis=0, merge="first", uns_merge="same")
         adata.obs_names_make_unique()  ### handle issue when there are identical barcodes between anndata.
-    except:
-        raise RuntimeError("Anndatas concatenation did not work, aborting")
+    except Exception as error:
+        raise RuntimeError("Anndatas concatenation did not work, aborting") from error
 else:
     adata = adatas[0]
 
 del adatas
 
-std.print_task(
-    f"plotting gene KDEs (directory={os.path.relpath(args.outpath)})"
-)
+std.print_task(f"plotting gene KDEs (directory={os.path.relpath(args.outpath)})")
 for gene in args.genes:
     if gene not in adata.var.index:
         std.print_warning(f"gene not found: {gene}")

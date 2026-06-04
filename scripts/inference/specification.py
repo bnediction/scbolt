@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
-import os, std
-import argparse, cli
+import os
+import std
+import argparse
+import cli
 import yaml
 from typing import Optional, Sequence, cast
 from pathlib import Path
@@ -10,10 +12,9 @@ import pandas as pd
 import bonesistools as bt
 
 import bonesis
+from utils import get_cfg
 
 bonesis.settings["quiet"] = True
-
-from utils import get_cfg
 
 
 def load_prior_network(
@@ -171,7 +172,9 @@ for outfile in [
 
 genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
 
-std.print_task(f"loading model specification (file={std.format_path(args.model_specification)})")
+std.print_task(
+    f"loading model specification (file={std.format_path(args.model_specification)})"
+)
 
 with open(args.model_specification, "r") as file:
     specification = yaml.safe_load(file)
@@ -245,8 +248,10 @@ bo = bonesis.BoNesis(pkn, macrostates_cfg)
 for property in specification["bonesis"]:
     try:
         exec(property)
-    except:
-        raise RuntimeError(f"invalid dynamical Boolean properties: {property}")
+    except Exception as error:
+        raise RuntimeError(
+            f"invalid dynamical Boolean properties: {property}"
+        ) from error
 
 std.print_task(f"saving Boolean specification (file={std.format_path(args.model)})")
 

@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
 from pathlib import Path
 
 import os
@@ -15,6 +11,9 @@ import anndata as ad
 import pandas as pd
 import scanpy as sc
 import bonesistools as bt
+
+import warnings
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(
     prog="adata_conversion",
@@ -173,7 +172,10 @@ if args.remove_positions:
             del adata.var[column]
 
 if args.metadata:
-    split = lambda metadata: [metadatum.split("=") for metadatum in metadata]
+    def split(metadata):
+        return [metadatum.split("=") for metadatum in metadata]
+
+
     metadata_d = {info[0]: info[1] for info in split(args.metadata)}
     add_metadata(adata, **metadata_d)
 

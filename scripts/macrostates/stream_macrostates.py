@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std, re
-import argparse, cli
+import os
+import std
+import re
+import argparse
+import cli
 from pathlib import Path
 
 import numpy as np
@@ -18,6 +17,9 @@ import matplotlib.pyplot as plt
 
 from networkx.classes.graph import Graph
 from rpy2.rinterface import ListSexpVector
+
+import warnings
+warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()
 
@@ -283,16 +285,16 @@ else:
 
 std.print_task("retrieving clusters (method=STREAM)")
 
+
 def get_stream_cluster(value):
     match = re.search(r"\d+", str(value))
     if match is None:
         raise ValueError(f"STREAM cluster label has no numeric id: {value}")
     return match.group()
 
+
 adata.obs["kmeans"] = (
-    adata.obs["kmeans"]
-    .transform(get_stream_cluster)
-    .astype("category")
+    adata.obs["kmeans"].transform(get_stream_cluster).astype("category")
 )
 
 epg_to_flat = dict()

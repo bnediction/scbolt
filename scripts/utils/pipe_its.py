@@ -1,25 +1,29 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
+import os
+import std
 import argparse
 from pathlib import Path
 
 import anndata as ad
 
+import warnings
+warnings.filterwarnings("ignore")
+
 parser = argparse.ArgumentParser(
     prog="pipe_its",
     description=(
         "Transfer columns from an integrated adata.obs to multiple specific "
-        "adata.obs tables.\n"
+        "adata.obs and adata.var tables.\n"
         "Values passed to --specifics and --labels must be ordered together.\n"
         "If --outfiles is specified, values must also be ordered with --specifics "
         "and --labels."
     ),
-    usage="""python pipe_its.py [-h] <FILE> <FILE ...> [--outfiles <FILE ...>] --labels <LITERAL ...> --obs-label <LITERAL> [--obs <LITERAL ...>]""",
+    usage=(
+        "python pipe_its.py [-h] <FILE> <FILE ...> [--outfiles <FILE ...>] "
+        "--labels <LITERAL ...> --obs-label <LITERAL> "
+        "[--obs <LITERAL ...>] [--var <LITERAL ...>]"
+    ),
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
@@ -79,6 +83,17 @@ parser.add_argument(
     help="column names in integrated adata.obs to transfer (if not specified, transfer all columns)",
 )
 
+parser.add_argument(
+    "--var",
+    dest="var",
+    type=str,
+    nargs="+",
+    required=False,
+    default=None,
+    metavar="LITERAL",
+    help="column names in integrated adata.var to transfer",
+)
+
 args = parser.parse_args()
 
 if args.outfiles is None:
@@ -109,7 +124,12 @@ for column in args.obs:
     if column not in integrated_ad.obs:
         raise KeyError(f"column `{column}` not found in dataset 'integrated'")
 
-std.print_task("transferring information (source=integrated, target=specific)")
+if args.var is not None:
+    for column in args.var:
+        if column not in integrated_ad.var:
+            raise KeyError(f"column `{column}` not found in integrated_ad.var")
+
+std.print_task("transferring observations (source=integrated, target=specific)")
 for name, adata in specific_ad.items():
     cols_to_remove = set(args.obs).intersection(set(adata.obs.columns))
     if cols_to_remove:
@@ -125,6 +145,24 @@ for name, adata in specific_ad.items():
         left_index=True,
         right_index=True,
     )
+
+if args.var is not None:
+    std.print_task("transferring variables (source=integrated, target=specific)")
+    for name, adata in specific_ad.items():
+        cols_to_remove = set(args.var).intersection(set(adata.var.columns))
+        if cols_to_remove:
+            std.print_debug(
+                "removing columns (dataset={0}, columns={1})".format(
+                    name, "+".join(map(str, cols_to_remove))
+                )
+            )
+            adata.var = adata.var.drop(list(cols_to_remove), axis=1)
+        adata.var = adata.var.merge(
+            right=integrated_ad.var[args.var],
+            how="left",
+            left_index=True,
+            right_index=True,
+        )
 
 for name, outfile in zip(args.labels, args.outfiles):
     std.print_task(f"saving AnnData (dataset={name}, file={std.format_path(outfile)})")

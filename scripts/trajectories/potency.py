@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, inspect, std
-import argparse, cli
+import os
+import inspect
+import std
+import argparse
+import cli
 from pathlib import Path
 
 import re
@@ -22,6 +21,9 @@ import torch
 import cytotrace2_py as cytotrace
 
 import matplotlib.pyplot as plt
+
+import warnings
+warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()
 
@@ -128,14 +130,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--embedding",
-    dest="embedding",
+    "--use-rep",
+    dest="use_rep",
     type=str,
     required=False,
-    default="umap",
-    choices=["umap", "tsne"],
-    metavar="[umap | tsne]",
-    help="embedding projection used (default: umap)",
+    default=None,
+    metavar="LITERAL",
+    help="embedding projection",
 )
 
 parser.add_argument(
@@ -277,15 +278,17 @@ adata.obs = adata.obs.merge(
     right_index=True,
 )
 
-embedding_label = "UMAP" if args.embedding == "umap" else "t-SNE"
-use_rep = "X_umap" if args.embedding == "umap" else "X_tsne"
+try:
+    embedding_label = args.use_rep.split("_")[1]
+except IndexError:
+    embedding_label = args.use_rep
 plot_dir = os.path.relpath(args.outpath)
 std.print_task(f"plotting potency outputs (directory={plot_dir})")
 for obs in ["score", "normalized_score", "potency"]:
     bt.sct.pl.embedding_plot(
         adata,
         obs=f"cytotrace_{obs}",
-        use_rep=use_rep,
+        use_rep=args.use_rep,
         xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
         ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
         zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
@@ -301,7 +304,7 @@ for obs in ["score", "normalized_score", "potency"]:
             "edgecolor": bt.sct.pl.get_color("black"),
             "shadow": False,
         },
-        n_components=3 if adata.obsm[use_rep].shape[1] > 2 else 2,
+        n_components=3 if adata.obsm[args.use_rep].shape[1] > 2 else 2,
         background_visible=False,
         outfile=Path(f"{args.outpath}/umap_cytotrace_{obs}.pdf"),
     )
@@ -340,7 +343,7 @@ plt.savefig(Path(f"{args.outpath}/boxplot_cytotrace_score.pdf"))
 bt.sct.pl.boxplot(
     adata,
     obs="cytotrace_normalized_score",
-    groupby="leiden",
+    groupby="cluster",
     sort="descending",
     showfliers=False,
     showpoints=True,

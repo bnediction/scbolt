@@ -4,8 +4,10 @@ from typing import Any, Optional, Mapping, Iterable, Sequence, cast
 from collections import defaultdict
 
 import sys
-import os, std
-import argparse, cli
+import os
+import std
+import argparse
+import cli
 import json
 from pathlib import Path
 
@@ -241,7 +243,7 @@ def load_prior_network(
         return bt.dbs.omnipath.load_collectri_grn(
             organism=organism,
             genesyn=genesyn,
-    )
+        )
     if domain == "dorothea":
         levels = cast(list[str], dorothea_levels)
         std.print_info(
@@ -835,7 +837,9 @@ bonesis.settings["parallel"] = clingo_parallel_jobs
 
 genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
 
-std.print_task(f"loading partially binarized metastates (file={std.format_path(args.mstates)})")
+std.print_task(
+    f"loading partially binarized metastates (file={std.format_path(args.mstates)})"
+)
 
 mstates_df = pd.read_csv(args.mstates, index_col=0, sep=args.sep).fillna(float("nan"))
 
@@ -1120,7 +1124,9 @@ else:
                 f"enumerating Boolean network solutions (kind=subset-minimal, limit={args.limit})"
             )
         else:
-            std.print_task("enumerating Boolean network solutions (kind=subset-minimal)")
+            std.print_task(
+                "enumerating Boolean network solutions (kind=subset-minimal)"
+            )
 
         print_node_reference(*get_node_sets(bo))
         std.print_warning("this may take some time.")

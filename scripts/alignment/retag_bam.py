@@ -62,7 +62,9 @@ def copy_bam_tags(
     skipped_reads = 0
 
     with pysam.AlignmentFile(infile, "rb", threads=jobs) as bam_in:
-        with pysam.AlignmentFile(outfile, "wb", template=bam_in, threads=jobs) as bam_out:
+        with pysam.AlignmentFile(
+            outfile, "wb", template=bam_in, threads=jobs
+        ) as bam_out:
             for read in bam_in:
                 if barcodes is not None:
                     if not read.has_tag(barcode_tag):
@@ -189,14 +191,9 @@ copied_str = ", ".join(
     f"{source}->{destination} for {count} reads"
     for (source, destination), count in copied.items()
 )
-std.print_result(
-    f"copied {copied_str}"
-)
+std.print_result(f"copied {copied_str}")
 
 if barcodes is not None:
     total_reads = kept_reads + skipped_reads
     kept_fraction = kept_reads / total_reads if total_reads else 0
-    std.print_result(
-        f"kept {kept_reads}/{total_reads} reads "
-        f"({kept_fraction:.1%})"
-    )
+    std.print_result(f"kept {kept_reads}/{total_reads} reads " f"({kept_fraction:.1%})")

@@ -22,8 +22,8 @@ LOGGING ?= true
 
 ## INFORMATION ##
 # ORGANISM values: mouse, human, escherichia-coli.
-$(eval ORGANISM ?= mouse)                   # organism used for gene resources
-$(eval CONDITIONS ?= ctrl treated)          # experimental conditions
+$(eval ORGANISM ?=)                         # organism used for gene resources
+$(eval CONDITIONS ?= unique)                # experimental conditions
 $(eval RESULTS ?= project/)                 # output directory
 
 ## URLS ##
@@ -69,25 +69,29 @@ $(eval CELL_READS ?= 0 inf)                 # min/max total cell reads
 $(eval MAD_DEVIATION ?= 2 2)                # lower/upper MAD factors around median log-total reads
 $(eval NORM_MAD ?= true)                    # use Gaussian-consistent MAD scaling
 $(eval MT ?= 0.05)                          # maximum mitochondrial count fraction
-$(eval HVG ?= 2000)                         # number of highly variable genes
-$(eval FILTER_NON_HVG ?= false)             # keep only highly variable genes
 
 ## NORMALIZATION ##
 # CC_CORRECTION=true is supported only for ORGANISM=mouse.
 $(eval CC_CORRECTION ?= true)               # regress out cell-cycle effects
 
 ## CLUSTERING ##
+# If ANALYSIS_HVG_TOP is empty, the number of HVGs is estimated automatically,
+# except when ANALYSIS_HVG_FLAVOR=seurat_v3 where it is required.
+$(eval ANALYSIS_HVG_FLAVOR ?= cell_ranger)  # HVG method for analysis modules
+$(eval ANALYSIS_HVG_TOP ?=)                 # top HVGs for analysis modules
+$(eval ANALYSIS_HVG_SPAN ?= 0.3)            # cell fraction used by seurat_v3 loess
+$(eval ANALYSIS_HVG_BINS ?= 20)             # mean-expression bins for HVG selection
 # INTEGRATION values: bbknn, scanorama, ingest.
 $(eval INTEGRATION ?= bbknn)                # integration method
 $(eval DIM_PCA ?= 50)                       # number of PCA components
 $(eval DIM_CLUSTERING ?= 20)                # PCA components used for clustering
 $(eval DIM_EMBEDDING ?= 2)                  # number of embedding dimensions
-$(eval PCA_ONLY_HVG ?= true)                # use only HVGs for PCA projection
 $(eval NEIGHBORS ?= 20)                     # number of nearest neighbors
 $(eval METRIC ?= euclidean)                 # neighbor/t-SNE distance metric
 $(eval RESOLUTION ?= 0.4)                   # Leiden clustering resolution
 $(eval MIN_DIST ?= 0.1)                     # UMAP minimum distance
 $(eval SPREAD ?= 1)                         # UMAP spread
+$(eval PCA_ONLY_HVG ?= true)                # use only HVGs for PCA projection
 
 ## DEA ##
 # LOGFC is non-negative.
@@ -106,7 +110,7 @@ $(eval DIM_MOMENT ?= 15)                    # PCA components used to estimate mo
 $(eval VELOCITY_ONLY_HVG ?= true)           # use only HVGs for RNA velocity
 $(eval SMM_MODE ?= dynamical)               # scVelo mode
 
-## CYTOTRACE ##
+## POTENCY ##
 # CytoTRACE supports ORGANISM=mouse or ORGANISM=human.
 $(eval BATCH_SIZE ?= 20000)                 # cells processed per batch
 $(eval SMOOTH_BATCH_SIZE ?= 1000)           # cells subsampled for diffusion smoothing
@@ -116,7 +120,7 @@ $(eval SMOOTH_BATCH_SIZE ?= 1000)           # cells subsampled for diffusion smo
 # For stream, macrostates smaller than MACROSTATE_SIZE are extended to
 # neighbouring elastic principal graph nodes.
 $(eval MACROSTATE_SIZE ?= 100)              # target macrostate size
-$(eval MACROSTATE_METHOD ?= cotan)          # macrostate method
+$(eval MACROSTATE_METHOD ?= cellrank)       # macrostate method
 
 ## COTAN ##
 # COTAN_METHOD values: classic, soft-merging, strong-merging.
@@ -150,20 +154,30 @@ $(eval PRUNE_EPG ?= false)                  # prune trivial branches
 $(eval COLLAPSE_PARAMETER ?= false)         # pruning collapse parameter
 
 ## KNNBS ##
-# KNNBS_EMBEDDING values supported by the Makefile: pca, umap.
+# KNNBS_EMBEDDING must name an embedding in adata.obsm.
 # Each condition needs KNNBS_CENTRALITY_<CONDITION>, KNNBS_PERIPHERY_<CONDITION>, or both.
 # CENTRALITY minimizes distances to the cluster's own barycenter.
 # PERIPHERY maximizes distances to other clusters' barycenters.
-$(eval KNNBS_EMBEDDING ?= umap)             # embedding used for distances
+$(eval KNNBS_EMBEDDING ?= X_umap)           # embedding key used for distances
 $(eval KNNBS_DIMENSION ?=)                  # embedding dimensions used for distances
 $(eval KNNBS_NEIGHBORS ?= 20)               # KNN graph neighbor number
 
+## BINARIZATION ##
+# If BIN_HVG_TOP is empty, the number of HVGs is estimated automatically,
+# except when BIN_HVG_FLAVOR=seurat_v3 where it is required.
+# BIN_HVG_* controls the shared HVG selection used by binarization methods.
+# BIN_METHOD values: scboolseq, dea, consensus.
+# BINARIZATION_FILE overrides BIN_METHOD when set.
+# Consensus keeps compatible scBoolSeq/DEA states and leaves conflicts undefined.
+$(eval BIN_HVG_FLAVOR ?= cell_ranger)       # HVG method for binarization
+$(eval BIN_HVG_TOP ?=)                      # top HVGs for binarization
+$(eval BIN_HVG_SPAN ?= 0.3)                 # cell fraction used by seurat_v3 loess
+$(eval BIN_HVG_BINS ?= 20)                  # mean-expression bins for HVG selection
+$(eval BIN_METHOD ?= consensus)             # binarization method
+
 ## BIN-CELLS ##
 # HVG methods: seurat, cell_ranger, seurat_v3.
-# If SCBOOLSEQ_TOP_HVG is empty, the number of HVGs is estimated automatically,
-# except when SCBOOLSEQ_HVG_METHOD=seurat_v3 where it is required.
-$(eval SCBOOLSEQ_HVG_METHOD ?= cell_ranger) # HVG method for cell binarization
-$(eval SCBOOLSEQ_TOP_HVG ?=)                # top HVGs for cell binarization
+$(eval BIN_SCBOOLSEQ_ONLY_HVG ?= true)      # use only HVGs for scBoolSeq binarization
 $(eval UNIMODAL_QUANTILE ?= 0.10)           # quantile threshold for unimodal genes
 $(eval ZEROES_ARE_ZEROES ?= true)           # set zero-inflated zeroes to 0
 
@@ -176,31 +190,18 @@ $(eval ZEROINF_THRESHOLD ?= 0.7)            # minimum vote fraction for zero-inf
 $(eval UNIMODAL_THRESHOLD ?= 0.7)           # minimum vote fraction for unimodal genes
 
 ## BIN-DEA ##
-# HVG methods: seurat, cell_ranger, seurat_v3.
-# If DEA_TOP_HVG is empty, the number of HVGs is estimated automatically,
-# except when DEA_HVG_METHOD=seurat_v3 where it is required.
 # BIN_LOGFC is non-negative.
 # BIN_CORRECTION values: benjamini-hochberg, bonferroni.
 # BIN_ALPHA is an adjusted p-value threshold in [0,1].
-$(eval DEA_HVG_METHOD ?= cell_ranger)       # HVG method for DEA binarization
-$(eval DEA_TOP_HVG ?=)                      # top HVGs for DEA binarization
+$(eval BIN_DEA_ONLY_HVG ?= true)            # use only HVGs for DEA binarization
 $(eval BIN_LOGFC ?= 0.5)                    # minimum absolute log2 fold-change for binarization
 $(eval BIN_CORRECTION ?= benjamini-hochberg)# p-value correction method
 $(eval BIN_ALPHA ?= 0.05)                   # adjusted p-value threshold
 
-## BINARIZATION ##
-# BIN_METHOD values: scboolseq, dea, consensus.
-# BINARIZATION_FILE overrides BIN_METHOD when set.
-# Consensus keeps compatible scBoolSeq/DEA states and leaves conflicts undefined.
-$(eval BIN_METHOD ?= consensus)             # binarization method
-
 ## SPEC ##
-# HVG methods: empty, seurat, cell_ranger, seurat_v3.
-# MODEL_TOP_HVG is required when MODEL_HVG_METHOD=seurat_v3.
-# YAML_MODEL stores manual BoNesis constraints; spec checks their syntax.
-$(eval YAML_MODEL ?= spec.yml)              # BoNesis model specification file
-$(eval MODEL_HVG_METHOD ?=)                 # HVG method for model genes
-$(eval MODEL_TOP_HVG ?=)                    # top HVGs for model genes
+# SPEC_FILE stores manual BoNesis constraints; spec checks their syntax.
+$(eval SPEC_FILE ?= spec.yml)               # BoNesis model specification file
+$(eval SPEC_ONLY_HVG ?= true)               # use only binarization HVGs for model genes
 
 ## INFERENCE ##
 # PRIOR_KNOWLEDGE values: collectri, dorothea, or an existing file path.

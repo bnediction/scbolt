@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
-import argparse, cli
+import os
+import std
+import argparse
+import cli
 from pathlib import Path
 
 import anndata as ad
 import bonesistools as bt
+
+import warnings
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(
     prog="knnbs",
@@ -65,10 +66,9 @@ parser.add_argument(
     dest="embedding",
     type=str,
     required=False,
-    default="umap",
-    choices=["pca", "umap", "tsne"],
-    metavar="[pca | umap | tsne]",
-    help="embedding projection used when calculating pairwise distances (default: umap)",
+    default="X_umap",
+    metavar="KEY",
+    help="embedding key in adata.obsm used when calculating pairwise distances (default: X_umap)",
 )
 
 parser.add_argument(
@@ -155,13 +155,6 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-if args.embedding == "pca":
-    embedding = "X_pca"
-elif args.embedding == "umap":
-    embedding = "X_umap"
-elif args.embedding == "tsne":
-    embedding = "X_tsne"
-
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
@@ -172,7 +165,7 @@ if adata.obs[args.obs].dtype.name != "category":
     adata.obs[args.obs] = adata.obs[args.obs].astype("category")
 
 if args.dimension is None:
-    args.dimension = adata.obsm[embedding].shape[1]
+    args.dimension = adata.obsm[args.embedding].shape[1]
 
 if args.periphery:
     for cluster in args.periphery:
@@ -192,7 +185,7 @@ if args.centrality:
 std.print_task("estimating subclusters (method=KNNbs)")
 knnbs = bt.sct.tl.Knnbs(
     n_neighbors=args.neighbors,
-    use_rep=embedding,
+    use_rep=args.embedding,
     n_components=args.dimension,
     metric=args.metric,
 )

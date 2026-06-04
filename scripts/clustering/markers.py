@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
-import argparse, cli
+import os
+import std
+import argparse
+import cli
 from pathlib import Path
 
 import math
@@ -15,6 +13,9 @@ import anndata as ad
 import scanpy as sc
 import bonesistools as bt
 from pandas import ExcelWriter
+
+import warnings
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(
     prog="markers",
@@ -163,7 +164,9 @@ std.print_task(f"saving CSV table (file={std.format_path(args.outfile)})")
 markers_df.to_csv(args.outfile, sep=",", index=False)
 
 if args.xlsx:
-    std.print_task(f"saving differential expression workbook (file={std.format_path(args.xlsx)})")
+    std.print_task(
+        f"saving differential expression workbook (file={std.format_path(args.xlsx)})"
+    )
     with ExcelWriter(args.xlsx) as xlsx_writer:
         pd.DataFrame(adata.var_names).to_excel(
             xlsx_writer, sheet_name="background", header=False, index=False

@@ -1,10 +1,7 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
+import os
+import std
 import argparse
 from pathlib import Path
 
@@ -18,6 +15,9 @@ from goatools.obo_parser import GODag
 from goatools.anno.gaf_reader import GafReader
 from goatools.anno.genetogo_reader import Gene2GoReader
 from goatools.goea.go_enrichment_ns import GOEnrichmentStudyNS
+
+import warnings
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(
     prog="goea",

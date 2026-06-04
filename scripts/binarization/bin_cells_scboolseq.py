@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
-import argparse, cli
+import os
+import std
+import argparse
+import cli
 from pathlib import Path
 
 import anndata as ad
@@ -15,6 +13,9 @@ import numpy as np
 import pandas as pd
 
 from scboolseq import scBoolSeq
+
+import warnings
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(
     prog="bin_cells_scboolseq",
@@ -63,18 +64,6 @@ parser.add_argument(
     default=None,
     metavar="FILE",
     help="output file storing computed statistics (format: csv)",
-)
-
-parser.add_argument(
-    "--labels",
-    dest="labels",
-    action=cli.Required_length,
-    type=str,
-    min=2,
-    required=False,
-    default=None,
-    metavar="LITERAL",
-    help="dataset labels (default: None)",
 )
 
 parser.add_argument(
@@ -137,7 +126,6 @@ std.print_task("binarizing cells (method=scBoolSeq)")
 scbool = scBoolSeq(
     margin_quantile=args.quantile,
     zeroinf_binarizer="quantile",
-    #    zeroinf_binarizer="zero_or_not",
     zeroes_are=0 if args.zeroes_are_zeroes else np.nan,
 )
 
@@ -178,5 +166,7 @@ if args.bin:
     cell_df.to_csv(args.bin, sep=",", index=True)
 
 if args.statistics:
-    std.print_task(f"saving statistical estimators (file={std.format_path(args.statistics)})")
+    std.print_task(
+        f"saving statistical estimators (file={std.format_path(args.statistics)})"
+    )
     criteria_df.to_csv(args.statistics, sep=",", index=True)

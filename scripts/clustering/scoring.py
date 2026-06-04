@@ -1,10 +1,7 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
+import os
+import std
 import argparse
 from pathlib import Path
 
@@ -13,6 +10,9 @@ import pandas as pd
 import anndata as ad
 import bonesistools as bt
 from anndata import AnnData
+
+import warnings
+warnings.filterwarnings("ignore")
 
 
 def multiple_hypergeometric_test(
@@ -88,7 +88,9 @@ if not Path(os.path.dirname(args.outfile)).exists():
 std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
-std.print_task(f"loading signature definitions (file={std.format_path(args.signatures)})")
+std.print_task(
+    f"loading signature definitions (file={std.format_path(args.signatures)})"
+)
 with open(args.signatures, "r") as file:
     signatures = json.load(file)
 

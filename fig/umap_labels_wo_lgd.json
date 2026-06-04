@@ -12,7 +12,7 @@
         "n_components"
     ],
     "figure": {
-        "obs": "leiden",
+        "obs": "cluster",
         "use_rep": "X_umap",
         "figheight": 5,
         "figwidth": 6,

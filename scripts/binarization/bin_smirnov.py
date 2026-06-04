@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-import os, std
-import argparse, cli
+import os
+import std
+import argparse
+import cli
 from pathlib import Path
 
 import math
@@ -14,6 +12,9 @@ import numpy as np
 import pandas as pd
 import anndata as ad
 import bonesistools as bt
+
+import warnings
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(
     prog="bin_smirnov",
@@ -210,10 +211,10 @@ if args.use_rep:
     )
 
 ks_results = Path(f"{os.path.dirname(args.outfile)}/ks_results.csv")
-std.print_task(f"saving Kolmogorov-Smirnov results (file={std.format_path(ks_results)})")
-ks_df.to_csv(
-    ks_results, sep=",", index=True
+std.print_task(
+    f"saving Kolmogorov-Smirnov results (file={std.format_path(ks_results)})"
 )
+ks_df.to_csv(ks_results, sep=",", index=True)
 
 std.print_task(f"saving binarized matrix (file={std.format_path(args.outfile)})")
 cluster_bin.to_csv(args.outfile, sep=",", index=True)

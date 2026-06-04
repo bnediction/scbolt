@@ -1,12 +1,9 @@
 #!/usr/bin/python3
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
 import importlib
 
-import os, argparse
+import os
+import argparse
 import json
 from pathlib import Path
 
@@ -14,6 +11,9 @@ import anndata as ad
 from bonesistools import sctools as sct
 
 import matplotlib.pyplot as plt
+
+import warnings
+warnings.filterwarnings("ignore")
 
 sct.pl.set_default_params()
 

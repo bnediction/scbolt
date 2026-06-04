@@ -1,15 +1,13 @@
 #!/usr/bin/env python
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Optional
 from collections import OrderedDict
 
 import std
-import argparse, cli
+import argparse
+import cli
 import json
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -19,6 +17,9 @@ import bonesistools as bt
 
 import itertools
 import networkx as nx
+
+import warnings
+warnings.filterwarnings("ignore")
 
 
 def collectri_to_grn(
@@ -183,7 +184,10 @@ args = parser.parse_args()
 if args.base <= 1:
     raise ValueError(f"incorrect value for `base` argument : {args.base}")
 
-nexponential_fun = lambda base, radius: 1 / base ** np.arange(0, radius)
+def nexponential_fun(base, radius):
+    return 1 / base ** np.arange(0, radius)
+
+
 bdc = bt.bpy.BooleanDifferentialCalculus()
 
 std.print_task(f"loading binarized matrix (file={std.format_path(args.infile)})")

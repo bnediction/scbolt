@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
 import std
+import pandas as pd
 
 
 def get_sign_column(dorothea):
@@ -46,7 +47,9 @@ args = parser.parse_args()
 if args.outfile.parent:
     os.makedirs(args.outfile.parent, exist_ok=True)
 
-std.print_task(f"loading DoRothEA (source=decoupler.get_dorothea, organism={args.organism})")
+std.print_task(
+    f"loading DoRothEA (source=decoupler.get_dorothea, organism={args.organism})"
+)
 
 try:
     import decoupler as dc
@@ -60,8 +63,6 @@ if not hasattr(dc, "get_dorothea"):
         "decoupler.get_dorothea is not available. "
         "Use a legacy decoupler release in the scbolt-decoupler-legacy environment."
     )
-
-import pandas as pd
 
 dorothea = dc.get_dorothea(organism=args.organism)
 sign_column = get_sign_column(dorothea)
