@@ -1,5 +1,4 @@
 <p>
-  <img src="man/fig/logo-scbolt.png" alt="scBOLT" width="220" align="right"/>
   <a href="https://github.com/bnediction/scbolt/actions/workflows/tests.yml">
     <img src="https://github.com/bnediction/scbolt/actions/workflows/tests.yml/badge.svg" alt="tests"/>
   </a>
@@ -31,7 +30,9 @@ The pipeline combines:
 * support multi-condition experimental designs;
 * facilitate the study of poorly characterized signaling pathways.
 
-<br clear="right"/>
+<p align="center">
+  <img src="man/fig/logo-scbolt.png" alt="scBOLT" width="360"/>
+</p>
 
 ---
 
