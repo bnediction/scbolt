@@ -1,5 +1,5 @@
 <p>
-  <img src="man/fig/logo-scbolt.png" alt="scBOLT" width="180" align="right"/>
+  <img src="man/fig/logo-scbolt.png" alt="scBOLT" width="200" align="right"/>
   <a href="https://github.com/bnediction/scbolt/actions/workflows/tests.yml">
     <img src="https://github.com/bnediction/scbolt/actions/workflows/tests.yml/badge.svg" alt="tests"/>
   </a>
