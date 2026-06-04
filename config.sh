@@ -7,15 +7,15 @@ bonesis_hash="${BONESIS_HASH:-24c4f9c91a4496b9777043e17e504ecc31312d87}"
 scvelo_hash="${SCVELO_HASH:-b2f31b345641efdccd39fbcb8c0beaa0014b4b88}"
 
 install_bonesis_git() {
-    conda activate "$1"
-    pip install --force-reinstall --no-deps "git+https://github.com/bnediction/bonesis.git@${bonesis_hash}"
-    conda deactivate
+    conda run --no-capture-output -n "$1" python -m pip install \
+        --force-reinstall \
+        --no-deps \
+        "git+https://github.com/bnediction/bonesis.git@${bonesis_hash}"
 }
 
 install_scvelo_git() {
-    conda activate "$1"
-    pip install "git+https://github.com/theislab/scvelo.git@${scvelo_hash}"
-    conda deactivate
+    conda run --no-capture-output -n "$1" python -m pip install \
+        "git+https://github.com/theislab/scvelo.git@${scvelo_hash}"
 }
 
 install_env() {
@@ -58,7 +58,7 @@ install_env() {
     fi
 }
 
-source ${HOME}/anaconda3/etc/profile.d/conda.sh
+source "$(conda info --base)/etc/profile.d/conda.sh"
 
 if conda env list | grep -q "^base";
 then
