@@ -12,7 +12,7 @@
 
 <h1>
   scBOLT<br>
-  <span style="font-size: 0.8em;">BOolean network Learning from multi-condition Transcriptomes</span>
+  <span style="font-size: 0.8em;">BOolean network Learning from multi‑condition Transcriptomes</span>
 </h1>
 
 `scBOLT` is a semi-automated workflow built upon the `BoNesis` engine,
