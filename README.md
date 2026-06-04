@@ -1,10 +1,19 @@
-[![tests](https://github.com/bnediction/scbolt/actions/workflows/tests.yml/badge.svg)](https://github.com/bnediction/scbolt/actions/workflows/tests.yml)
-[![Make](https://img.shields.io/badge/Make-%3E%3D4.3-red?style=flat)](https://www.gnu.org/software/make)
+<p>
+  <img src="man/fig/logo-scbolt.png" alt="scBOLT" width="180" align="right"/>
+  <a href="https://github.com/bnediction/scbolt/actions/workflows/tests.yml">
+    <img src="https://github.com/bnediction/scbolt/actions/workflows/tests.yml/badge.svg" alt="tests"/>
+  </a>
+  <a href="https://www.gnu.org/software/make">
+    <img src="https://img.shields.io/badge/Make-%3E%3D4.3-red?style=flat" alt="Make >= 4.3"/>
+  </a>
+</p>
 
-# Introduction
+<br>
 
-`scBOLT` (*BOolean network Learning from multi-condition Transcriptomes*) is a semi-automated workflow built upon the `BoNesis` engine,
-designed to infer an ensemble of sparsest BNs from multi-condition scRNA-seq data.
+# scBOLT - BOolean network Learning from multi-condition Transcriptomes
+
+`scBOLT` is a semi-automated workflow built upon the `BoNesis` engine,
+designed to infer an ensemble of sparsest Boolean networks from multi-condition scRNA-seq data.
 
 The pipeline combines:
 
@@ -19,9 +28,7 @@ The pipeline combines:
 * support multi-condition experimental designs;
 * facilitate the study of poorly characterized signaling pathways.
 
-<p align="center">
-  <img src="man/fig/logo-scbolt.png" alt="scBOLT" width="360"/>
-</p>
+<br clear="right"/>
 
 ---
 
