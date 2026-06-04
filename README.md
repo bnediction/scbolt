@@ -10,7 +10,9 @@
 
 <br>
 
-# scBOLT - BOolean network Learning from multi-condition Transcriptomes
+# scBOLT
+
+<h1>BOolean network Learning from multi-condition Transcriptomes</h1>
 
 `scBOLT` is a semi-automated workflow built upon the `BoNesis` engine,
 designed to infer an ensemble of sparsest Boolean networks from multi-condition scRNA-seq data.
