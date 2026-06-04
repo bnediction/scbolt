@@ -13,11 +13,15 @@ The pipeline combines:
 * macrostate characterization and binarization;
 * BoNesis-based logical model inference.
 
-scBOLT aims to:
+`scBOLT` aims to:
 
 * automate Boolean network reconstruction as much as possible;
 * support multi-condition experimental designs;
 * facilitate the study of poorly characterized signaling pathways.
+
+<p align="center">
+  <img src="man/fig/logo-scbolt.png" alt="scBOLT" width="360"/>
+</p>
 
 ---
 
