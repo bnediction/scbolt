@@ -44,73 +44,6 @@ scBOLT addresses these challenges by providing:
 
 ---
 
-# Main features
-
-### Multi-condition modelling
-
-Joint analysis of multiple experimental conditions through integrated state abstractions and dynamical constraints.
-
-### Multiple macrostate characterization strategies
-
-* CellRank
-* STREAM
-* COTAN
-* KNNbs
-
-### Multiple binarization strategies
-
-* scBoolSeq-based
-* DEA-based
-* consensus
-
-### Exact Boolean network inference
-
-Inference of sparsest Boolean networks using Answer Set Programming solver.
-
-### Flexible workflow entry points
-
-Start from:
-
-* raw FASTQ files;
-* normalized AnnData objects;
-* custom macrostate AnnData files;
-* precomputed binarizations;
-* custom regulatory interaction networks.
-
----
-
-# Quick start
-
-Generate a small demonstration dataset:
-
-```bash
-conda run -n scbolt-core python quickstart/load_mini_nestorowa.py
-```
-
-Infer a Boolean network:
-
-```bash
-make bn-submin PARAMS=quickstart/nestorowa.mk
-```
-
-Expected runtime:
-
-```text
-~10 minutes
-```
-
-Expected outputs:
-
-```text
-results/infer/bn/submin/
-```
-
-The quickstart demonstrates the complete workflow on a lightweight dataset.
-
-For biologically meaningful analyses and manuscript reproductions, see the full case studies and advanced documentation.
-
----
-
 # Workflow overview
 
 Boolean network inference in scBOLT is driven by:
@@ -138,37 +71,39 @@ Some stages are fully automated, whereas others intentionally require user inter
 
 ---
 
-# Flexible entry points
+# Main features
 
-scBOLT can start from multiple stages of the workflow.
+### Multi-condition modelling
 
-### Starting from custom macrostates
+Joint analysis of multiple experimental conditions through integrated state abstractions and dynamical constraints.
 
-```bash
-make bn-submin MACROSTATE_FILE=my_macrostates.h5ad
-```
+### Multiple macrostate characterization strategies
 
-Required AnnData fields:
+* CellRank
+* STREAM
+* COTAN
+* KNNbs
 
-```text
-layers:
-  log-norm
+### Multiple binarization strategies
 
-obs:
-  macrostate
-  condition (for multi-condition projects)
+* scBoolSeq-based
+* DEA-based
+* consensus
 
-obsm:
-  X_umap (or USE_REP)
-```
+### Exact Boolean network inference
 
-### Starting from precomputed binarizations
+Inference of sparsest Boolean networks using BoNesis engine.
 
-```bash
-make bn-submin BINARIZATION_FILE=my_binarization.csv
-```
+### Flexible workflow entry points
 
-This allows scBOLT to integrate with existing single-cell analysis workflows and external trajectory inference methods.
+scBOLT can either run the full workflow or resume from user-provided
+intermediate analyses. It supports entry points from:
+
+* raw FASTQ files;
+* normalized AnnData objects;
+* custom macrostate AnnData files;
+* precomputed binarizations;
+* custom regulatory interaction networks.
 
 ---
 
@@ -221,6 +156,26 @@ and save it in:
 ```text
 public/transcriptome/repeat_msk.gtf
 ```
+
+---
+
+# Quick start
+
+Generate a small demonstration dataset:
+```bash
+conda run -n scbolt-core python quickstart/load_mini_nestorowa.py
+```
+
+Infer subset-minimal Boolean networks:
+```bash
+make bn-submin PARAMS=quickstart/nestorowa.mk
+```
+
+Subset-minimal Boolean networks are produced in `results/infer/bn/submin/` in approximately 10 minutes.
+
+The quickstart demonstrates the complete workflow on a lightweight dataset.
+
+For full biological analyses, manuscript reproductions, and advanced workflows, see the documentation in `man/`.
 
 ---
 
@@ -277,6 +232,34 @@ make bn-submin REFERENCES=ctrl
 make check TARGET=velocity
 make LOGGING=false bn-submin
 ```
+
+### Starting from custom macrostates
+
+```bash
+make bn-submin MACROSTATE_FILE=my_macrostates.h5ad
+```
+
+Required AnnData fields:
+
+```text
+layers:
+  log-norm
+
+obs:
+  macrostate
+  condition (for multi-condition projects)
+
+obsm:
+  X_umap (or USE_REP)
+```
+
+### Starting from precomputed binarizations
+
+```bash
+make bn-submin BINARIZATION_FILE=my_binarization.csv
+```
+
+This allows scBOLT to integrate with existing single-cell analysis workflows and external trajectory inference methods.
 
 ---
 
