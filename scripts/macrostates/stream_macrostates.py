@@ -19,6 +19,7 @@ from networkx.classes.graph import Graph
 from rpy2.rinterface import ListSexpVector
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()

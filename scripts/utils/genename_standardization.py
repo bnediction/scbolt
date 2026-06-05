@@ -93,6 +93,7 @@ args = parser.parse_args()
 
 if args.quiet:
     import warnings
+
     warnings.filterwarnings("ignore")
 
 if not Path(os.path.dirname(args.outfile)).exists():

@@ -17,6 +17,7 @@ from goatools.anno.genetogo_reader import Gene2GoReader
 from goatools.goea.go_enrichment_ns import GOEnrichmentStudyNS
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(

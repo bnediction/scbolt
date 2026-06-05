@@ -19,6 +19,7 @@ import itertools
 import networkx as nx
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 
@@ -183,6 +184,7 @@ parser.add_argument(
 args = parser.parse_args()
 if args.base <= 1:
     raise ValueError(f"incorrect value for `base` argument : {args.base}")
+
 
 def nexponential_fun(base, radius):
     return 1 / base ** np.arange(0, radius)

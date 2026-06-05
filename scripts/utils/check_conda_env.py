@@ -96,8 +96,16 @@ def installed_packages(env: str) -> dict[str, PackageSpec]:
     data = run_json(["conda", "list", "-n", env, "--json"])
     packages = {}
     for item in data:
-        source = "pip" if item.get("channel") == "pypi" or item.get("platform") == "pypi" else "conda"
-        name = normalize_pip_name(item["name"]) if source == "pip" else normalize_name(item["name"])
+        source = (
+            "pip"
+            if item.get("channel") == "pypi" or item.get("platform") == "pypi"
+            else "conda"
+        )
+        name = (
+            normalize_pip_name(item["name"])
+            if source == "pip"
+            else normalize_name(item["name"])
+        )
         packages[name] = PackageSpec(
             name=name,
             version=item.get("version"),
@@ -107,13 +115,17 @@ def installed_packages(env: str) -> dict[str, PackageSpec]:
     return packages
 
 
-def lookup_package(packages: dict[str, PackageSpec], spec: PackageSpec) -> PackageSpec | None:
+def lookup_package(
+    packages: dict[str, PackageSpec], spec: PackageSpec
+) -> PackageSpec | None:
     if spec.source == "pip":
         return packages.get(normalize_pip_name(spec.name))
     return packages.get(spec.name)
 
 
-def compare_specs(expected: list[PackageSpec], installed: dict[str, PackageSpec]) -> list[str]:
+def compare_specs(
+    expected: list[PackageSpec], installed: dict[str, PackageSpec]
+) -> list[str]:
     warnings = []
     for spec in expected:
         package = lookup_package(installed, spec)
@@ -136,7 +148,17 @@ def direct_url_commit(env: str, package: str) -> str | None:
         "print(json.loads(text).get('vcs_info', {}).get('commit_id', '') if text else '')"
     )
     output = subprocess.check_output(
-        ["conda", "run", "--no-capture-output", "-n", env, "python", "-c", code, package],
+        [
+            "conda",
+            "run",
+            "--no-capture-output",
+            "-n",
+            env,
+            "python",
+            "-c",
+            code,
+            package,
+        ],
         text=True,
     )
     return output.strip() or None
@@ -152,14 +174,18 @@ def check_git_packages(env: str, specs: list[str]) -> tuple[list[str], list[str]
             warnings.append(f"git package commit not verifiable: {package} (env={env})")
             continue
         if commit == expected:
-            successes.append(f"conda environment git package valid: {package}={expected} (env={env})")
+            successes.append(
+                f"conda environment git package valid: {package}={expected} (env={env})"
+            )
         elif commit:
             warnings.append(
                 f"conda environment git package differs: {package}={commit} "
                 f"(expected: {expected}, env={env})"
             )
         else:
-            warnings.append(f"conda environment git package has no recorded commit: {package} (env={env})")
+            warnings.append(
+                f"conda environment git package has no recorded commit: {package} (env={env})"
+            )
     return successes, warnings
 
 
@@ -176,17 +202,25 @@ def main() -> int:
     args = parser.parse_args()
 
     if not args.yaml.is_file():
-        emit("warning", [f"conda environment yaml not found: {args.yaml} (env={args.env})"])
+        emit(
+            "warning",
+            [f"conda environment yaml not found: {args.yaml} (env={args.env})"],
+        )
         return 0
 
     name, expected = read_environment_yaml(args.yaml)
     if name != args.env:
-        emit("warning", [f"conda environment name differs from yaml: {args.env} != {name}"])
+        emit(
+            "warning",
+            [f"conda environment name differs from yaml: {args.env} != {name}"],
+        )
 
     try:
         installed = installed_packages(args.env)
     except subprocess.CalledProcessError as error:
-        emit("failure", [f"conda environment cannot be inspected: {args.env} ({error})"])
+        emit(
+            "failure", [f"conda environment cannot be inspected: {args.env} ({error})"]
+        )
         return 1
 
     warnings = compare_specs(expected, installed)

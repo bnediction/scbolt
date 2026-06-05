@@ -13,6 +13,7 @@ from bonesistools import sctools as sct
 import matplotlib.pyplot as plt
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 sct.pl.set_default_params()

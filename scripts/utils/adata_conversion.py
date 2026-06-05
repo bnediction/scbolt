@@ -13,6 +13,7 @@ import scanpy as sc
 import bonesistools as bt
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(
@@ -176,9 +177,9 @@ if args.remove_positions:
             del adata.var[column]
 
 if args.metadata:
+
     def split(metadata):
         return [metadatum.split("=") for metadatum in metadata]
-
 
     metadata_d = {info[0]: info[1] for info in split(args.metadata)}
     add_metadata(adata, **metadata_d)

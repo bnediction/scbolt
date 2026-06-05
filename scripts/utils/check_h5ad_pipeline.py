@@ -110,62 +110,95 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
 
     if name == "filtering.py":
         infile, outfile = map(h5ad, args[:2])
-        return Operation([infile], [outfile], {0: field("layers", "counts")}, {
-            ("obs", "G1_score"),
-            ("obs", "S_score"),
-            ("obs", "G2M_score"),
-            ("obs", "n_genes_by_counts"),
-            ("obs", "total_counts"),
-        })
+        return Operation(
+            [infile],
+            [outfile],
+            {0: field("layers", "counts")},
+            {
+                ("obs", "G1_score"),
+                ("obs", "S_score"),
+                ("obs", "G2M_score"),
+                ("obs", "n_genes_by_counts"),
+                ("obs", "total_counts"),
+            },
+        )
 
     if name == "normalization.py":
         infile, outfile = map(h5ad, args[:2])
         required = field("layers", option(tokens, "--layer"))
         required |= fields("obs", option_values(tokens, "--correction"))
-        return Operation([infile], [outfile], {0: required}, {
-            ("layers", "norm"),
-            ("layers", "log-norm"),
-            ("layers", "scale"),
-            ("layers", "correct"),
-        })
+        return Operation(
+            [infile],
+            [outfile],
+            {0: required},
+            {
+                ("layers", "norm"),
+                ("layers", "log-norm"),
+                ("layers", "scale"),
+                ("layers", "correct"),
+            },
+        )
 
     if name == "clustering.py":
         infile, outfile = map(h5ad, args[:2])
         required = {("layers", "correct"), ("layers", "counts"), ("layers", "log-norm")}
-        return Operation([infile], [outfile], {0: required}, {
-            ("var", "highly_variable"),
-            ("var", "highly_variable_rank"),
-            ("obsm", "X_pca"),
-            ("obsp", "connectivities"),
-            ("obs", "cluster"),
-            ("obsm", embedding_key(tokens)),
-        })
+        return Operation(
+            [infile],
+            [outfile],
+            {0: required},
+            {
+                ("var", "highly_variable"),
+                ("var", "highly_variable_rank"),
+                ("obsm", "X_pca"),
+                ("obsp", "connectivities"),
+                ("obs", "cluster"),
+                ("obsm", embedding_key(tokens)),
+            },
+        )
 
     if name == "integration.py":
         outfile = h5ad(option(tokens, "--outfile"))
         inputs = [path for path in map(h5ad, args) if path and path != outfile]
         required = {("layers", "counts"), ("layers", "log-norm"), ("layers", "correct")}
-        return Operation(inputs, [outfile], {i: set(required) for i in range(len(inputs))}, {
-            ("obs", "condition"),
-            ("var", "highly_variable"),
-            ("var", "highly_variable_rank"),
-            ("obsm", "X_pca"),
-            ("obsp", "connectivities"),
-            ("obs", "cluster"),
-            ("obsm", embedding_key(tokens)),
-        })
+        return Operation(
+            inputs,
+            [outfile],
+            {i: set(required) for i in range(len(inputs))},
+            {
+                ("obs", "condition"),
+                ("var", "highly_variable"),
+                ("var", "highly_variable_rank"),
+                ("obsm", "X_pca"),
+                ("obsp", "connectivities"),
+                ("obs", "cluster"),
+                ("obsm", embedding_key(tokens)),
+            },
+        )
 
     if name == "annotation.py":
         infile, outfile = map(h5ad, args[:2])
         new_obs = option(tokens, "--new-obs")
-        return Operation([infile], [outfile], {0: field("obs", option(tokens, "--obs"))}, {
-            ("obs", new_obs),
-        } if new_obs else set())
+        return Operation(
+            [infile],
+            [outfile],
+            {0: field("obs", option(tokens, "--obs"))},
+            (
+                {
+                    ("obs", new_obs),
+                }
+                if new_obs
+                else set()
+            ),
+        )
 
     if name == "pipe_its.py":
         integrated = h5ad(args[0])
-        outfiles = [path for path in map(h5ad, option_values(tokens, "--outfiles")) if path]
-        specifics = [path for path in map(h5ad, args[1:]) if path and path not in outfiles]
+        outfiles = [
+            path for path in map(h5ad, option_values(tokens, "--outfiles")) if path
+        ]
+        specifics = [
+            path for path in map(h5ad, args[1:]) if path and path not in outfiles
+        ]
         requires = {0: field("obs", option(tokens, "--obs-label"))}
         requires[0] |= fields("obs", option_values(tokens, "--obs"))
         requires[0] |= fields("var", option_values(tokens, "--var"))
@@ -186,12 +219,17 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
         required |= field("obs", option(tokens, "--cluster"))
         if "--only-hvg" in tokens:
             required.add(("var", "highly_variable"))
-        return Operation([infile], [outfile], {0: required}, {
-            ("layers", "Ms"),
-            ("layers", "Mu"),
-            ("layers", "variance_velocity"),
-            ("layers", "velocity"),
-        })
+        return Operation(
+            [infile],
+            [outfile],
+            {0: required},
+            {
+                ("layers", "Ms"),
+                ("layers", "Mu"),
+                ("layers", "variance_velocity"),
+                ("layers", "velocity"),
+            },
+        )
 
     if name == "potency.py":
         infile = h5ad(args[0])
@@ -255,10 +293,15 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
     if name == "bin_cells_scboolseq.py":
         infile = h5ad(args[0])
         outfile = h5ad(option(tokens, "--outfile"))
-        return Operation([infile], [outfile], {0: field("layers", option(tokens, "--layer"))}, {
-            ("layers", "bin"),
-            ("var", "distribution"),
-        })
+        return Operation(
+            [infile],
+            [outfile],
+            {0: field("layers", option(tokens, "--layer"))},
+            {
+                ("layers", "bin"),
+                ("var", "distribution"),
+            },
+        )
 
     if name == "bin_clusters_scboolseq.py":
         infile = h5ad(args[0])
@@ -293,7 +336,9 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
 
     if name == "hvg.py":
         infile = h5ad(args[0])
-        return Operation([infile], [], {0: field("layers", option(tokens, "--layer"))}, set(), None)
+        return Operation(
+            [infile], [], {0: field("layers", option(tokens, "--layer"))}, set(), None
+        )
 
     if name == "plot_embedding.py":
         infile = h5ad(option(tokens, "--infile"))
@@ -311,12 +356,17 @@ def parse_finalized_velocyto(tokens: list[str]) -> Operation | None:
     h5ads = [path for path in map(h5ad, tokens) if path]
     if len(h5ads) < 2:
         return None
-    return Operation([h5ads[-2]], [h5ads[-1]], {}, {
-        ("layers", "ambiguous"),
-        ("layers", "spliced"),
-        ("layers", "unspliced"),
-        ("layers", "counts"),
-    })
+    return Operation(
+        [h5ads[-2]],
+        [h5ads[-1]],
+        {},
+        {
+            ("layers", "ambiguous"),
+            ("layers", "spliced"),
+            ("layers", "unspliced"),
+            ("layers", "counts"),
+        },
+    )
 
 
 def parse_operations(dry_run: Path) -> list[Operation]:
@@ -346,7 +396,11 @@ def boundary_requirements(operations: list[Operation]) -> dict[Path, set[Field]]
         for index, fields_ in operation.requires.items():
             if index < len(operation.inputs):
                 needed[operation.inputs[index]] |= fields_
-    return {path: fields_ for path, fields_ in needed.items() if path not in produced and fields_}
+    return {
+        path: fields_
+        for path, fields_ in needed.items()
+        if path not in produced and fields_
+    }
 
 
 def reference(path: Path, conditions: list[str]) -> str:
@@ -367,7 +421,9 @@ def field_label(field_: Field) -> str:
     return f"{label} '{key}'"
 
 
-def check_h5ad(path: Path, fields_: set[Field], conditions: list[str]) -> tuple[list[str], list[str]]:
+def check_h5ad(
+    path: Path, fields_: set[Field], conditions: list[str]
+) -> tuple[list[str], list[str]]:
     ref = reference(path, conditions)
     success, failure = [], []
     if not path.is_file():
@@ -445,7 +501,10 @@ def main() -> int:
         emit("failure", failure)
         failures.extend(failure)
 
-    for path in sorted(set(potency_csv_sources(args.dry_run)) - produced_potency_csv(operations, args.dry_run)):
+    for path in sorted(
+        set(potency_csv_sources(args.dry_run))
+        - produced_potency_csv(operations, args.dry_run)
+    ):
         success, failure = check_csv_score(path)
         emit("success", success)
         emit("failure", failure)

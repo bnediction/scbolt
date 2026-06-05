@@ -10,6 +10,7 @@ from bonesistools.databases.ncbi import GeneSynonyms
 import scanpy as sc
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(

@@ -14,6 +14,7 @@ import cellrank as cr
 import bonesistools as bt
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()

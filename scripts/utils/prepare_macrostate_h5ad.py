@@ -83,7 +83,9 @@ require_key(adata.obsm, args.use_rep, "obsm")
 
 if args.prefix_macrostates:
     if args.condition_obs is None:
-        raise ValueError("--condition-obs is required when --prefix-macrostates is used")
+        raise ValueError(
+            "--condition-obs is required when --prefix-macrostates is used"
+        )
     require_key(adata.obs, args.condition_obs, "obs")
     std.print_task(
         "prefixing macrostates "
