@@ -101,18 +101,14 @@ if args.infile is not None:
 elif "infile" in params:
     infile = Path(params["infile"])
 else:
-    raise argparse.ArgumentError(
-        "infile must be must called with --infile or specified in json file"
-    )
+    parser.error("infile must be provided with --infile or specified in json file")
 
 if args.outfile is not None:
     outfile = args.outfile
 elif "outfile" in params:
     outfile = Path(params["outfile"])
 else:
-    raise argparse.ArgumentError(
-        "outfile must be must called with --outfile or specified in json file"
-    )
+    parser.error("outfile must be provided with --outfile or specified in json file")
 
 if not Path(os.path.dirname(outfile)).exists():
     os.makedirs(os.path.dirname(outfile))
@@ -141,7 +137,10 @@ if "n_components" not in params["figure"]:
         3 if adata.obsm[params["figure"]["use_rep"]].shape[1] > 2 else 2
     )
 
-fig, ax = sct.pl.embedding_plot(adata, **params["figure"])
+figure = sct.pl.embedding_plot(adata, **params["figure"])
+if figure is None:
+    raise RuntimeError("embedding plot did not return a figure and axis")
+fig, ax = figure
 
 sct.pl.set_default_axis(ax)
 if "grid" in params:

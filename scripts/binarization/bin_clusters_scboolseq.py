@@ -78,7 +78,7 @@ class Predict(object):
             Threshold = namedtuple(
                 "Constants", ["nans", "bimodal", "zeroinf", "unimodal"]
             )
-            self.__THRESHOLD = Threshold(
+            self._threshold = Threshold(
                 nans_threshold, bimodal_threshold, zeroinf_threshold, unimodal_threshold
             )
 
@@ -89,9 +89,9 @@ class Predict(object):
         zeroinf_threshold: float,
         unimodal_threshold: float,
     ):
-        if hasattr(self, f"_{self.__class__.__name__}__THRESHOLD"):
+        if hasattr(self, "_threshold"):
             raise AttributeError(
-                f"'{self.__class__.__name__}' object already attribute '_{self.__class__.__name__}__THRESHOLD'"
+                f"'{self.__class__.__name__}' object already has attribute '_threshold'"
             )
         else:
             self.check_thresholds(
@@ -100,13 +100,13 @@ class Predict(object):
             Threshold = namedtuple(
                 "Constants", ["nans", "bimodal", "zeroinf", "unimodal"]
             )
-            self.__THRESHOLD = Threshold(
+            self._threshold = Threshold(
                 nans_threshold, bimodal_threshold, zeroinf_threshold, unimodal_threshold
             )
 
     def get(self):
-        if hasattr(self, f"_{self.__class__.__name__}__THRESHOLD"):
-            return self.__THRESHOLD
+        if hasattr(self, "_threshold"):
+            return self._threshold
         else:
             return None
 
@@ -122,31 +122,33 @@ class Predict(object):
             if not_nans == 0:
                 return float("nan")
             if category == "Bimodal":
-                if nans / total > self.__THRESHOLD.nans:
+                if nans / total > self._threshold.nans:
                     return float("nan")
-                elif zeros / not_nans > self.__THRESHOLD.bimodal:
+                elif zeros / not_nans > self._threshold.bimodal:
                     return 0
-                elif ones / not_nans > self.__THRESHOLD.bimodal:
+                elif ones / not_nans > self._threshold.bimodal:
                     return 1
                 else:
                     return float("nan")
             elif category == "ZeroInf":
-                if ones / total > self.__THRESHOLD.zeroinf:
+                if ones / total > self._threshold.zeroinf:
                     return 1
-                elif zeros / total > self.__THRESHOLD.zeroinf:
+                elif zeros / total > self._threshold.zeroinf:
                     return 0
                 else:
                     return float("nan")
             elif category == "Unimodal":
-                if nans / total > self.__THRESHOLD.nans:
+                if nans / total > self._threshold.nans:
                     return float("nan")
-                elif zeros / not_nans > self.__THRESHOLD.unimodal:
+                elif zeros / not_nans > self._threshold.unimodal:
                     return 0
-                elif ones / not_nans > self.__THRESHOLD.unimodal:
+                elif ones / not_nans > self._threshold.unimodal:
                     return 1
             else:
                 raise ValueError(
-                    f"invalid parameter value for 'category': expected 'Bimodal', 'ZeroInf' or 'Unimodal' but received '{category}'."
+                    "invalid parameter value for 'category': "
+                    "expected 'Bimodal', 'ZeroInf' or 'Unimodal' "
+                    f"but received '{category}'."
                 )
 
         _iterable = [
@@ -325,7 +327,10 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=0.3,
-    help="maximum proportion of NaN values allowed in a cluster for a gene to be binarized (not applied to zero-inflated genes, default: 0.3)",
+    help=(
+        "maximum proportion of NaN values allowed in a cluster for a gene "
+        "to be binarized (not applied to zero-inflated genes, default: 0.3)"
+    ),
 )
 
 parser.add_argument(
@@ -337,7 +342,10 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=2 / 3,
-    help="minimum proportion of zero or one values w.r.t. binarized values required for a bimodal gene to be binarized (default: 2/3)",
+    help=(
+        "minimum proportion of zero or one values w.r.t. binarized values "
+        "required for a bimodal gene to be binarized (default: 2/3)"
+    ),
 )
 
 parser.add_argument(
@@ -349,7 +357,10 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=0.5,
-    help="minimum proportion of zero or one values w.r.t. binarized and NaN values required for a zero-inflated gene to be binarized (default: 0.5)",
+    help=(
+        "minimum proportion of zero or one values w.r.t. binarized and NaN "
+        "values required for a zero-inflated gene to be binarized (default: 0.5)"
+    ),
 )
 
 parser.add_argument(
@@ -361,7 +372,10 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=2 / 3,
-    help="minimum proportion of zero or one values w.r.t. binarized values required for a unimodal gene to be binarized (default: 2/3)",
+    help=(
+        "minimum proportion of zero or one values w.r.t. binarized values "
+        "required for a unimodal gene to be binarized (default: 2/3)"
+    ),
 )
 
 parser.add_argument(
@@ -371,7 +385,10 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="embedding projection in adata.obsm used for plotting percentage of cluster-related binarization (default: None)",
+    help=(
+        "embedding projection in adata.obsm used for plotting percentage "
+        "of cluster-related binarization (default: None)"
+    ),
 )
 
 args = parser.parse_args()

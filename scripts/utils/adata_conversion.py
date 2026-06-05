@@ -22,7 +22,11 @@ parser = argparse.ArgumentParser(
     - matrix.mtx.gz (sparse matrix in the Market Exchange MEX format, also named coordinate list format)
     - barcodes.tsv.gz (information about each cell)
     - features.tsv.gz (information about each gene)""",
-    usage="python adata_conversion.py [-h] <PATH | FILE> <PATH | FILE> --from <h5ad | loom | 10x> --to <h5ad | loom | csv | csvs> [--metadata <KEY=VALUE ...>] [<args>]",
+    usage=(
+        "python adata_conversion.py [-h] <PATH | FILE> <PATH | FILE> "
+        "--from <h5ad | loom | 10x> --to <h5ad | loom | csv | csvs> "
+        "[--metadata <KEY=VALUE ...>] [<args>]"
+    ),
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
@@ -42,7 +46,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--from",
-    dest="from",
+    dest="from_format",
     type=str,
     choices=["h5ad", "loom", "10x"],
     metavar="[h5ad | loom | 10x]",
@@ -52,7 +56,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--to",
-    dest="to",
+    dest="to_format",
     type=str,
     choices=["h5ad", "loom", "csv", "csvs"],
     metavar="[h5ad | loom | csv | csvs]",
@@ -129,8 +133,8 @@ def add_metadata(adata: ad.AnnData, **metadata) -> None:
 
 args = parser.parse_args()
 
-from_format = getattr(args, "from")
-to_format = getattr(args, "to")
+from_format = args.from_format
+to_format = args.to_format
 
 if from_format == to_format:
     raise ValueError("Argument --from and --to must be different")
@@ -186,7 +190,11 @@ if args.standardization:
         bt.sct.pp.convert_gene_identifiers(
             adata, axis="var", input_identifier_type=input_identifier_type, copy=False
         )
-    adata = bt.sct.pp.var_names_merge_duplicates(adata, var_names_column="symbol")
+    merged_adata = bt.sct.pp.var_names_merge_duplicates(
+        adata, var_names_column="symbol"
+    )
+    if merged_adata is not None:
+        adata = merged_adata
 
 if args.sort:
     adata = adata[sorted(adata.obs.index), sorted(adata.var.index)].to_memory()

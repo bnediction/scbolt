@@ -185,6 +185,8 @@ logfoldchanges_df = bt.sct.tl.calculate_logfoldchanges(
     cluster_rebalancing=False,
     filter_logfoldchanges=lambda x: abs(x) > args.logfc,
 )
+if logfoldchanges_df is None:
+    raise RuntimeError("log2 fold-change calculation did not return a table")
 
 dea_df = dea_df.loc[:, dea_df.columns != "logfoldchanges"]
 
@@ -199,11 +201,15 @@ dea_df = pd.merge(
 std.print_task("binarizing cell populations (source=differential expression analysis)")
 
 cluster_bin = pd.DataFrame(
-    data=np.nan, index=adata.obs[args.cluster].cat.categories, columns=features
+    data=np.nan,
+    index=adata.obs[args.cluster].cat.categories,
+    columns=pd.Index(features),
 )
 
-for row in dea_df.itertuples():
-    cluster_bin.at[row.group, row.names] = 1 if row.logfoldchanges > 0 else 0
+for group, gene, logfoldchange in dea_df[
+    ["group", "names", "logfoldchanges"]
+].itertuples(index=False, name=None):
+    cluster_bin.at[group, gene] = 1 if logfoldchange > 0 else 0
 
 if args.use_rep:
     embedding_label = (

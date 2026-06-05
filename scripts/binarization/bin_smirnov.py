@@ -146,6 +146,8 @@ ks_df = bt.sct.tl.smirnov_tests(
     layer=args.layer,
     copy=True,
 )
+if ks_df is None:
+    raise RuntimeError("smirnov tests did not return a table")
 
 logfoldchanges_df = bt.sct.tl.calculate_logfoldchanges(
     adata,
@@ -155,6 +157,8 @@ logfoldchanges_df = bt.sct.tl.calculate_logfoldchanges(
     cluster_rebalancing=False,
     filter_logfoldchanges=lambda x: abs(x) > args.logfc,
 )
+if logfoldchanges_df is None:
+    raise RuntimeError("log2 fold-change calculation did not return a table")
 
 ks_df = pd.merge(
     ks_df,
@@ -171,8 +175,10 @@ cluster_bin = pd.DataFrame(
     data=np.nan, index=adata.obs[args.cluster].cat.categories, columns=adata.var.index
 )
 
-for row in ks_df.itertuples():
-    cluster_bin.at[row.group, row.names] = 1 if row.logfoldchanges > 0 else 0
+for group, gene, logfoldchange in ks_df[
+    ["group", "names", "logfoldchanges"]
+].itertuples(index=False, name=None):
+    cluster_bin.at[group, gene] = 1 if logfoldchange > 0 else 0
 
 if args.use_rep:
     embedding_label = (

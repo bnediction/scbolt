@@ -233,6 +233,10 @@ endef
 
 define require_clustering_parameters
 $(call require_choice,USE_REP,X_umap X_tsne,clustering); \
+$(call require_choice,ANALYSIS_HVG_FLAVOR,seurat cell_ranger seurat_v3,clustering); \
+$(call require_optional_positive_integer,ANALYSIS_HVG_TOP); \
+$(call require_float,ANALYSIS_HVG_SPAN); \
+$(call require_positive_integer,ANALYSIS_HVG_BINS); \
 $(call require_positive_integer,DIM_PCA); \
 $(call require_positive_integer,DIM_CLUSTERING); \
 $(call require_positive_integer,DIM_EMBEDDING); \
@@ -1072,10 +1076,11 @@ target_params_velocyto = ALIGNMENT_TOOL MEMORY STAR_BARCODE_FILTER STAR_MIN_UMI 
 target_params_filtering = \
 	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
 	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
-	MAD_DEVIATION NORM_MAD MT HVG
+	MAD_DEVIATION NORM_MAD MT
 target_params_normalization = CC_CORRECTION
 target_params_clustering = \
-	INTEGRATION DIM_PCA DIM_CLUSTERING DIM_EMBEDDING PCA_ONLY_HVG \
+	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
+	ANALYSIS_HVG_BINS DIM_PCA DIM_CLUSTERING DIM_EMBEDDING PCA_ONLY_HVG \
 	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD
 target_params_dea = LOGFC CORRECTION ALPHA
 target_params_annotation = LABEL
@@ -1107,7 +1112,10 @@ target_params_bin-consensus = \
 	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
 	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
 target_params_binarization = BIN_METHOD BINARIZATION_FILE MACROSTATE_FILE
-target_params_spec = SPEC_FILE SPEC_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS $(prior_knowledge_params)
+target_params_spec = \
+	SPEC_FILE SPEC_ONLY_HVG \
+	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	$(prior_knowledge_params)
 target_params_max-nodes-soft = \
 	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
 	CLINGO_CONFIG_SOFT CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT \
@@ -1131,8 +1139,21 @@ target_params_max-nodes-lock = \
 target_params_bn-min = \
 	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER MIN_SELF_LOOP_INFER \
 	CLINGO_OPT_MODE_MIN GRAPH_FORMATS
-target_params_bn-submin = $(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
-target_params_bn-diverse = $(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
+target_params_bn-submin = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER \
+	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
+target_params_bn-diverse = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER \
+	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
+
+use_rep_check_pattern = $(use_rep_check_pattern_1)$(use_rep_check_pattern_2)$(use_rep_check_pattern_3)
+use_rep_check_pattern_1 = scripts/(clustering/annotation|utils/pipe_its|trajectories/potency
+use_rep_check_pattern_2 = |macrostates/stream_macrostates|binarization/(bin_cells_scboolseq
+use_rep_check_pattern_3 = |bin_clusters_scboolseq|bin_dea)).py
+
+label_col_check_pattern = $(label_col_check_pattern_1)$(label_col_check_pattern_2)
+label_col_check_pattern_1 = scripts/(clustering/annotation|utils/pipe_its|trajectories/velocity
+label_col_check_pattern_2 = |trajectories/potency|macrostates/(stream|knnbs)_macrostates).py
 
 uniq = $(if $(1),$(firstword $(1)) $(call uniq,$(filter-out $(firstword $(1)),$(1))))
 
@@ -1147,9 +1168,10 @@ method_config_param_set = \
 	STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES \
 	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
 	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
-	MAD_DEVIATION NORM_MAD MT HVG \
+	MAD_DEVIATION NORM_MAD MT \
 	CC_CORRECTION \
-	INTEGRATION DIM_PCA DIM_CLUSTERING DIM_EMBEDDING PCA_ONLY_HVG \
+	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
+	ANALYSIS_HVG_BINS DIM_PCA DIM_CLUSTERING DIM_EMBEDDING PCA_ONLY_HVG \
 	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD \
 	LOGFC CORRECTION ALPHA \
 	DIM_MOMENT VELOCITY_ONLY_HVG SMM_MODE \
@@ -1300,14 +1322,12 @@ check: ## check Make-level dependencies, configuration and external tools requir
 	if grep -qE -- '--seed|PYTHONHASHSEED' "$${dry_run}"; then \
 		$(call check_positive_integer_diagnostic,$(SEED),SEED,core); \
 	fi; \
-	if grep -qE 'scripts/(clustering/annotation|utils/pipe_its|trajectories/potency|macrostates/stream_macrostates|binarization/(bin_cells_scboolseq|bin_clusters_scboolseq|bin_dea))\\.py' \
-			"$${dry_run}" \
+	if grep -qE '$(use_rep_check_pattern)' "$${dry_run}" \
 			|| grep -q 'scripts/macrostates/knnbs_macrostates.py' "$${dry_run}" \
 			|| grep -q '/cotan/barcts.csv' "$${dry_run}"; then \
 		$(call check_parameter_diagnostic,$(USE_REP),USE_REP,core); \
 	fi; \
-	if grep -qE 'scripts/(clustering/annotation|utils/pipe_its|trajectories/velocity|trajectories/potency|macrostates/(stream|knnbs)_macrostates)\\.py' \
-			"$${dry_run}"; then \
+	if grep -qE '$(label_col_check_pattern)' "$${dry_run}"; then \
 		$(call check_parameter_diagnostic,$(LABEL_COL),LABEL_COL,core); \
 	fi; \
 	if grep -qE '(^|[[:space:]])STAR([[:space:]]|$$)' "$${dry_run}"; then \
@@ -1346,7 +1366,8 @@ check: ## check Make-level dependencies, configuration and external tools requir
 			$(MACROSTATE_METHOD),cotan cellrank stream knnbs,$(call needed_by,MACROSTATE_METHOD,macrostates),method); \
 	fi; \
 	if grep -q 'BIN_METHOD' "$${dry_run}"; then \
-		$(call check_choice_diagnostic,$(BIN_METHOD),scboolseq dea consensus,$(call needed_by,BIN_METHOD,binarization),method); \
+		$(call check_choice_diagnostic,\
+			$(BIN_METHOD),scboolseq dea consensus,$(call needed_by,BIN_METHOD,binarization),method); \
 	fi; \
 	if grep -q 'scripts/utils/prepare_macrostate_h5ad.py' "$${dry_run}"; then \
 		$(call check_parameter_diagnostic,\
@@ -1364,6 +1385,15 @@ check: ## check Make-level dependencies, configuration and external tools requir
 	fi; \
 	if grep -qE 'scripts/clustering/(clustering|integration).py' "$${dry_run}"; then \
 		$(call check_choice_diagnostic,$(USE_REP),X_umap X_tsne,USE_REP,core); \
+		$(call check_choice_diagnostic,\
+			$(ANALYSIS_HVG_FLAVOR),seurat cell_ranger seurat_v3,\
+			$(call needed_by,ANALYSIS_HVG_FLAVOR,clustering),method); \
+		$(call check_optional_positive_integer_diagnostic,\
+			$(ANALYSIS_HVG_TOP),$(call needed_by,ANALYSIS_HVG_TOP,clustering),method); \
+		$(call check_float_diagnostic,\
+			$(ANALYSIS_HVG_SPAN),$(call needed_by,ANALYSIS_HVG_SPAN,clustering),method); \
+		$(call check_positive_integer_diagnostic,\
+			$(ANALYSIS_HVG_BINS),$(call needed_by,ANALYSIS_HVG_BINS,clustering),method); \
 		$(call check_positive_integer_diagnostic,$(DIM_PCA),$(call needed_by,DIM_PCA,clustering),method); \
 		$(call check_positive_integer_diagnostic,$(DIM_CLUSTERING),$(call needed_by,DIM_CLUSTERING,clustering),method); \
 		$(call check_positive_integer_diagnostic,$(DIM_EMBEDDING),$(call needed_by,DIM_EMBEDDING,clustering),method); \
@@ -2030,7 +2060,7 @@ $(velocyto_$(1)): $(qc_$(1)) $(genome_ref)
 	$(call check_file,$(public_dir)/transcriptome/repeat_msk.gtf,repeat_msk.gtf)
 	mkdir -p $(tmpdir)/velocyto/$(1)
 	$(call print_task,estimating spliced and unspliced counts with velocyto)
-	$(call conda_run,scbolt-velocyto-test) velocyto run \
+	$(call conda_run,scbolt-velocyto) velocyto run \
 		-m $(public_dir)/transcriptome/repeat_msk.gtf \
 		-b $$(<D)/filtered_barcodes.tsv \
 		-o $(tmpdir)/velocyto/$(1) \
