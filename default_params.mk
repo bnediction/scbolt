@@ -48,10 +48,15 @@ $(eval STAR_TOP_BARCODES ?=)               # optional number of top barcodes
 ## EXTRA PARAMETERS ##
 # Useful when starting from user-provided or precomputed upstream analyses.
 # BINARIZATION_FILE overrides the binarization target when set.
+# MACROSTATE_FILE skips macrostate inference and restarts from one AnnData file.
+# It must contain layer 'log-norm', obs 'macrostate', obsm USE_REP, and obs
+# 'condition' for multi-condition projects. If BIN_HVG_FLAVOR=seurat_v3 is used
+# downstream, it must also contain layer 'counts'.
 # USE_REP must name an embedding in adata.obsm, usually created by clustering.
 # LABEL_COL is created by annotation, copied per condition, and used by
 # downstream macrostate methods.
 $(eval BINARIZATION_FILE ?=)                # precomputed macrostate binarization
+$(eval MACROSTATE_FILE ?=)                  # precomputed macrostate AnnData file
 $(eval USE_REP ?= X_umap)                   # embedding key in adata.obsm
 $(eval LABEL_COL ?= label)                  # annotated cell-type column in adata.obs
 

@@ -1,0 +1,100 @@
+#!/usr/bin/env python
+
+from pathlib import Path
+from typing import Any
+
+import argparse
+import std
+
+import anndata as ad
+
+
+def require_key(collection: Any, key: str, group: str) -> None:
+    if key not in collection:
+        raise KeyError(f"missing AnnData field: {group}['{key}']")
+
+
+parser = argparse.ArgumentParser(
+    prog="prepare_macrostate_h5ad",
+    description="Prepare a precomputed macrostate AnnData file for binarization.",
+    usage="python prepare_macrostate_h5ad.py <FILE> <FILE> --use-rep <LITERAL> [<args>]",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
+
+parser.add_argument(
+    "infile",
+    type=lambda x: Path(x).resolve(),
+    metavar="FILE",
+    help="input macrostate-annotated AnnData file (format: h5ad)",
+)
+
+parser.add_argument(
+    "outfile",
+    type=lambda x: Path(x).resolve(),
+    metavar="FILE",
+    help="output prepared AnnData file (format: h5ad)",
+)
+
+parser.add_argument(
+    "--macrostate-obs",
+    dest="macrostate_obs",
+    type=str,
+    required=False,
+    default="macrostate",
+    metavar="LITERAL",
+    help="obs column storing macrostates (default: macrostate)",
+)
+
+parser.add_argument(
+    "--condition-obs",
+    dest="condition_obs",
+    type=str,
+    required=False,
+    default=None,
+    metavar="LITERAL",
+    help="obs column storing experimental conditions (default: None)",
+)
+
+parser.add_argument(
+    "--prefix-macrostates",
+    dest="prefix_macrostates",
+    action="store_true",
+    help="prefix macrostates with condition labels",
+)
+
+parser.add_argument(
+    "--use-rep",
+    dest="use_rep",
+    type=str,
+    required=True,
+    metavar="LITERAL",
+    help="embedding key required in adata.obsm",
+)
+
+args = parser.parse_args()
+
+std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+adata = ad.read_h5ad(args.infile)
+
+std.print_task("validating macrostate AnnData metadata")
+require_key(adata.layers, "log-norm", "layers")
+require_key(adata.obs, args.macrostate_obs, "obs")
+require_key(adata.obsm, args.use_rep, "obsm")
+
+if args.prefix_macrostates:
+    if args.condition_obs is None:
+        raise ValueError("--condition-obs is required when --prefix-macrostates is used")
+    require_key(adata.obs, args.condition_obs, "obs")
+    std.print_task(
+        "prefixing macrostates "
+        f"(condition={args.condition_obs}, obs={args.macrostate_obs})"
+    )
+    adata.obs[args.macrostate_obs] = (
+        adata.obs[args.condition_obs].astype(str)
+        + "_"
+        + adata.obs[args.macrostate_obs].astype(str)
+    ).astype("category")
+
+std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
+args.outfile.parent.mkdir(parents=True, exist_ok=True)
+adata.write_h5ad(filename=args.outfile, compression="gzip")

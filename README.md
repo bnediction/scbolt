@@ -31,7 +31,7 @@ The pipeline combines:
 * facilitate the study of poorly characterized signaling pathways.
 
 <p align="center">
-  <img src="man/fig/logo-scbolt.png" alt="scBOLT" width="360"/>
+  <img src="man/fig/logo-scbolt.svg" alt="scBOLT" width="360"/>
 </p>
 
 ---

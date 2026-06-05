@@ -82,7 +82,7 @@ jobs:
       - name: Check complete diagnostic output
         run: |
           set +e
-          output="$(make check TARGET=max-nodes-seed __check_externals__=false TIMEOUT_SEED= YAML_MODEL=missing.yml 2>&1)"
+          output="$(make check TARGET=max-nodes-seed __check_externals__=false TIMEOUT_SEED= SPEC_FILE=missing.yml 2>&1)"
           status="$?"
           set -e
           printf '%s\n' "$output"
