@@ -1,0 +1,537 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+resolve_script_path() {
+    local source="${BASH_SOURCE[0]}"
+    local dir
+
+    while [ -L "${source}" ]; do
+        dir="$(cd -P "$(dirname "${source}")" && pwd)"
+        source="$(readlink "${source}")"
+        if [[ "${source}" != /* ]]; then
+            source="${dir}/${source}"
+        fi
+    done
+
+    dir="$(cd -P "$(dirname "${source}")" && pwd)"
+    printf '%s/%s\n' "${dir}" "$(basename "${source}")"
+}
+
+SCBOLT_SCRIPT="$(resolve_script_path)"
+SCBOLT_BIN_DIR="$(dirname "${SCBOLT_SCRIPT}")"
+SCBOLT_ROOT="$(cd "${SCBOLT_BIN_DIR}/.." && pwd)"
+SCBOLT_MAKEFILE="${SCBOLT_ROOT}/Makefile"
+SCBOLT_DEFAULT_PARAMS="${SCBOLT_ROOT}/default_params.mk"
+
+if [ -t 1 ]; then
+    stdout_green=$'\033[0;32m'
+    stdout_yellow=$'\033[0;33m'
+    stdout_nc=$'\033[0m'
+else
+    stdout_green=""
+    stdout_yellow=""
+    stdout_nc=""
+fi
+
+if [ -t 2 ]; then
+    stderr_red=$'\033[0;31m'
+    stderr_nc=$'\033[0m'
+else
+    stderr_red=""
+    stderr_nc=""
+fi
+
+print_success() {
+    printf '%s%s%s %s\n' "${stdout_green}" "✓" "${stdout_nc}" "$1"
+}
+
+print_warning() {
+    printf '%s%s%s %s\n' "${stdout_yellow}" "⚠" "${stdout_nc}" "$1"
+}
+
+print_error() {
+    printf '%s%s%s %s\n' "${stderr_red}" "✗" "${stderr_nc}" "$1" >&2
+}
+
+print_installation_error() {
+    local missing_file="$1"
+
+    print_error "scBOLT installation is incomplete or corrupted: ${missing_file} not found."
+    printf '%s\n' "Expected: ${SCBOLT_ROOT}/${missing_file}" >&2
+    printf '%s\n' "Please reinstall scBOLT or rerun config.sh." >&2
+}
+
+if [ ! -f "${SCBOLT_MAKEFILE}" ]; then
+    print_installation_error "Makefile"
+    exit 1
+fi
+
+if [ ! -f "${SCBOLT_DEFAULT_PARAMS}" ]; then
+    print_installation_error "default_params.mk"
+    exit 1
+fi
+
+usage() {
+    exec make -f "${SCBOLT_MAKEFILE}" help SCBOLT_CLI=true
+}
+
+trim() {
+    local value="$1"
+
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s\n' "${value}"
+}
+
+absolute_path() {
+    local path="$1"
+    local dir
+    local base
+
+    dir="$(dirname "${path}")"
+    base="$(basename "${path}")"
+    printf '%s/%s\n' "$(cd "${dir}" && pwd)" "${base}"
+}
+
+find_project_file() {
+    local dir="${PWD}"
+
+    while true; do
+        if [ -f "${dir}/.scbolt" ]; then
+            printf '%s\n' "${dir}/.scbolt"
+            return 0
+        fi
+        if [ "${dir}" = "/" ]; then
+            return 1
+        fi
+        dir="$(dirname "${dir}")"
+    done
+}
+
+read_project_params() {
+    local project_file="$1"
+    local line
+    local value
+
+    while IFS= read -r line || [ -n "${line}" ]; do
+        line="$(trim "${line}")"
+        case "${line}" in
+            ""|\#*) continue ;;
+        esac
+        if [[ "${line}" =~ ^PARAMS[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+            value="$(trim "${BASH_REMATCH[1]}")"
+        else
+            value="${line}"
+        fi
+        if [ -z "${value}" ]; then
+            return 1
+        fi
+        printf '%s\n' "${value}"
+        return 0
+    done < "${project_file}"
+
+    return 1
+}
+
+resolve_project_params() {
+    local project_file
+    local project_dir
+    local params
+
+    if project_file="$(find_project_file)"; then
+        project_dir="$(dirname "${project_file}")"
+        params="$(read_project_params "${project_file}")" || {
+            print_error "Invalid .scbolt project file: ${project_file}"
+            exit 1
+        }
+        if [[ "${params}" = /* ]]; then
+            printf '%s\n' "${params}"
+        else
+            printf '%s\n' "$(absolute_path "${project_dir}/${params}")"
+        fi
+        return 0
+    fi
+
+    if [ -f "${PWD}/params.mk" ]; then
+        printf '%s\n' "params.mk"
+        return 0
+    fi
+
+    return 1
+}
+
+require_params_file() {
+    local params="$1"
+    local failure_message="${2:-}"
+    local params_path
+
+    if [ -z "${params}" ]; then
+        if [ -n "${failure_message}" ]; then
+            printf '%s\n' "No parameter file found." >&2
+            print_error "${failure_message}"
+        else
+            print_error "No parameter file found."
+        fi
+        printf '\n' >&2
+        printf '%s\n' "Run:" >&2
+        printf '  %s\n' "scbolt init <params.mk>" >&2
+        printf '%s\n' "or:" >&2
+        printf '  %s\n' "scbolt <target> --params=<file>" >&2
+        exit 1
+    fi
+
+    if [[ "${params}" = /* ]]; then
+        params_path="${params}"
+    else
+        params_path="${PWD}/${params}"
+    fi
+
+    if [ ! -f "${params_path}" ]; then
+        if [ -n "${failure_message}" ]; then
+            printf '%s\n' "Parameter file not found: ${params}" >&2
+            print_error "${failure_message}"
+        else
+            print_error "Parameter file not found: ${params}"
+        fi
+        exit 1
+    fi
+
+    case "${params}" in
+        *.mk) ;;
+        *)
+            if [ -n "${failure_message}" ]; then
+                printf '%s\n' "Parameter file must have a .mk extension: ${params}" >&2
+                print_error "${failure_message}"
+            else
+                print_error "Parameter file must have a .mk extension: ${params}"
+            fi
+            exit 1
+            ;;
+    esac
+}
+
+default_init_params() {
+    if [ -f "${PWD}/params.mk" ]; then
+        printf '%s\n' "params.mk"
+    fi
+    return 0
+}
+
+read_prompt_value() {
+    local variable="$1"
+    local prompt="$2"
+    local value=""
+
+    if [ -t 0 ]; then
+        IFS= read -e -r -p "${prompt}" value || value=""
+    else
+        printf '%s' "${prompt}" >&2
+        IFS= read -r value || value=""
+        printf '\n' >&2
+    fi
+    value="$(trim "${value}")"
+    printf -v "${variable}" '%s' "${value}"
+}
+
+stored_params_path() {
+    local params="$1"
+    local params_abs
+
+    if [[ "${params}" != /* ]]; then
+        printf '%s\n' "${params}"
+        return 0
+    fi
+
+    params_abs="$(absolute_path "${params}")"
+    if command -v realpath >/dev/null 2>&1; then
+        realpath --relative-to="${PWD}" "${params_abs}" 2>/dev/null || printf '%s\n' "${params_abs}"
+    else
+        printf '%s\n' "${params_abs}"
+    fi
+}
+
+init_project() {
+    local params="${1:-}"
+    local default_params
+    local failure_message
+    local previous_params=""
+    local stored_params
+
+    if [ "$#" -gt 1 ]; then
+        print_error "Usage: scbolt init <params.mk>"
+        exit 1
+    fi
+
+    if [ -f "${PWD}/.scbolt" ]; then
+        previous_params="$(read_project_params "${PWD}/.scbolt" || true)"
+    fi
+    if [ -n "${previous_params}" ]; then
+        failure_message="scBOLT project update failed."
+    else
+        failure_message="scBOLT project initialization failed."
+    fi
+
+    if [ -z "${params}" ]; then
+        default_params="${previous_params:-$(default_init_params)}"
+        if [ -n "${default_params}" ]; then
+            read_prompt_value params "Select parameter file [${default_params}]: "
+            params="${params:-${default_params}}"
+        else
+            read_prompt_value params "Select parameter file: "
+        fi
+    fi
+    if [ -z "${params}" ]; then
+        printf '%s\n' "No parameter file specified." >&2
+        print_error "${failure_message}"
+        exit 1
+    fi
+
+    require_params_file "${params}" "${failure_message}"
+    stored_params="$(stored_params_path "${params}")"
+    printf 'PARAMS=%s\n' "${stored_params}" > "${PWD}/.scbolt"
+
+    if [ -n "${previous_params}" ]; then
+        if [ "${previous_params}" = "${stored_params}" ]; then
+            printf '%s %s\n' "Parameter file:" "${stored_params}"
+            print_warning "scBOLT project unchanged."
+        else
+            printf '%s %s -> %s\n' "Parameter file:" "${previous_params}" "${stored_params}"
+            print_success "scBOLT project updated."
+        fi
+    else
+        printf '%s %s\n' "Parameter file:" "${stored_params}"
+        print_success "scBOLT project initialized."
+    fi
+}
+
+option_to_make_variable() {
+    local option="$1"
+    local variable
+
+    variable="${option#--}"
+    variable="${variable//-/_}"
+    printf '%s\n' "${variable^^}"
+}
+
+collect_global_args() {
+    leading_args=()
+
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --params|--references|--reset-target|--trust-target|--logging|--target)
+                if [ "$#" -eq 1 ]; then
+                    print_error "Missing value for $1"
+                    exit 1
+                fi
+                leading_args+=("$1" "$2")
+                shift 2
+                ;;
+            --raw)
+                leading_args+=("$1")
+                shift
+                ;;
+            --raw=*)
+                print_error "Unsupported scbolt option with value: --raw"
+                printf '%s\n' "Use '--raw' without a value." >&2
+                exit 1
+                ;;
+            --level|--level=*)
+                print_error "Unsupported scbolt option: --level"
+                printf '%s\n' "Use '--raw' to display the raw show-config listing." >&2
+                exit 1
+                ;;
+            --*=*|*=*)
+                leading_args+=("$1")
+                shift
+                ;;
+            --*)
+                print_error "Unsupported scbolt option without value: $1"
+                printf '%s\n' "Use '$1=<value>' or a supported command option." >&2
+                exit 1
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    remaining_args=("$@")
+}
+
+translate_args() {
+    local arg
+    local option
+    local value
+
+    make_args=()
+    positional_args=()
+    params_from_cli=""
+    params_from_make=""
+
+    while [ "$#" -gt 0 ]; do
+        arg="$1"
+        shift
+
+        case "${arg}" in
+            --params=*)
+                params_from_cli="${arg#--params=}"
+                ;;
+            --params)
+                if [ "$#" -eq 0 ]; then
+                    print_error "Missing value for --params"
+                    exit 1
+                fi
+                params_from_cli="$1"
+                shift
+                ;;
+            --references=*)
+                make_args+=("REFERENCES=${arg#--references=}")
+                ;;
+            --references)
+                if [ "$#" -eq 0 ]; then
+                    print_error "Missing value for --references"
+                    exit 1
+                fi
+                make_args+=("REFERENCES=$1")
+                shift
+                ;;
+            --reset-target=*)
+                make_args+=("RESET_TARGET=${arg#--reset-target=}")
+                ;;
+            --reset-target)
+                if [ "$#" -eq 0 ]; then
+                    print_error "Missing value for --reset-target"
+                    exit 1
+                fi
+                make_args+=("RESET_TARGET=$1")
+                shift
+                ;;
+            --trust-target=*)
+                make_args+=("TRUST_TARGET=${arg#--trust-target=}")
+                ;;
+            --trust-target)
+                if [ "$#" -eq 0 ]; then
+                    print_error "Missing value for --trust-target"
+                    exit 1
+                fi
+                make_args+=("TRUST_TARGET=$1")
+                shift
+                ;;
+            --logging=*)
+                make_args+=("LOGGING=${arg#--logging=}")
+                ;;
+            --logging)
+                if [ "$#" -eq 0 ]; then
+                    print_error "Missing value for --logging"
+                    exit 1
+                fi
+                make_args+=("LOGGING=$1")
+                shift
+                ;;
+            --raw)
+                make_args+=("SHOW_CONFIG_RAW=true")
+                ;;
+            --raw=*)
+                print_error "Unsupported scbolt option with value: --raw"
+                printf '%s\n' "Use '--raw' without a value." >&2
+                exit 1
+                ;;
+            --level|--level=*)
+                print_error "Unsupported scbolt option: --level"
+                printf '%s\n' "Use '--raw' to display the raw show-config listing." >&2
+                exit 1
+                ;;
+            --target=*)
+                make_args+=("TARGET=${arg#--target=}")
+                ;;
+            --target)
+                if [ "$#" -eq 0 ]; then
+                    print_error "Missing value for --target"
+                    exit 1
+                fi
+                make_args+=("TARGET=$1")
+                shift
+                ;;
+            --*=*)
+                option="${arg%%=*}"
+                value="${arg#*=}"
+                make_args+=("$(option_to_make_variable "${option}")=${value}")
+                ;;
+            PARAMS=*)
+                params_from_make="${arg#PARAMS=}"
+                ;;
+            *=*)
+                make_args+=("${arg}")
+                ;;
+            --*)
+                print_error "Unsupported scbolt option without value: ${arg}"
+                printf '%s\n' "Use '${arg}=<value>' or a supported command option." >&2
+                exit 1
+                ;;
+            *)
+                positional_args+=("${arg}")
+                ;;
+        esac
+    done
+
+    value="${params_from_cli:-${params_from_make:-}}"
+    if [ -z "${value}" ]; then
+        value="$(resolve_project_params)" || true
+    fi
+    params_assignment="${value}"
+}
+
+run_make_with_params() {
+    local params="$1"
+    shift
+
+    require_params_file "${params}"
+    exec make -f "${SCBOLT_MAKEFILE}" "$@" "PARAMS=${params}"
+}
+
+if [ "$#" -eq 0 ]; then
+    usage
+fi
+
+case "$1" in
+    -h|--help|help)
+        usage
+        ;;
+esac
+
+collect_global_args "$@"
+if [ "${#remaining_args[@]}" -eq 0 ]; then
+    usage
+fi
+
+cmd="${remaining_args[0]}"
+set -- "${remaining_args[@]:1}"
+
+case "${cmd}" in
+    ""|-h|--help|help)
+        usage
+        ;;
+    init)
+        init_project "$@"
+        ;;
+    check|dry-run|show-config)
+        translate_args "${leading_args[@]}" "$@"
+        make_target="${cmd}"
+        if [ "${#positional_args[@]}" -gt 0 ]; then
+            target="${positional_args[0]}"
+            positional_args=("${positional_args[@]:1}")
+            run_make_with_params \
+                "${params_assignment}" \
+                "${make_target}" \
+                "TARGET=${target}" \
+                "${positional_args[@]}" \
+                "${make_args[@]}"
+        else
+            run_make_with_params "${params_assignment}" "${make_target}" "${make_args[@]}"
+        fi
+        ;;
+    *)
+        translate_args "${leading_args[@]}" "$@"
+        run_make_with_params "${params_assignment}" "${cmd}" "${positional_args[@]}" "${make_args[@]}"
+        ;;
+esac

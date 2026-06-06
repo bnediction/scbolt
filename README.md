@@ -162,13 +162,23 @@ public/transcriptome/repeat_msk.gtf
 # Quick start
 
 Generate a small demonstration dataset:
+
 ```bash
 conda run -n scbolt-core python quickstart/load_mini_nestorowa.py
 ```
 
 Infer subset-minimal Boolean networks:
+
 ```bash
-make bn-submin PARAMS=quickstart/nestorowa.mk
+scbolt bn-submin --params=quickstart/nestorowa.mk
+```
+
+or initialize the project parameter file first:
+
+```bash
+cd quickstart
+scbolt init nestorowa.mk
+scbolt bn-submin
 ```
 
 Subset-minimal Boolean networks are produced in `results/infer/bn/submin/` in approximately 10 minutes.
@@ -184,59 +194,68 @@ For full biological analyses, manuscript reproductions, and advanced workflows, 
 Display available modules:
 
 ```bash
-make help
+scbolt help
 ```
 
 Run a module:
 
 ```bash
-make <module>
+scbolt <module>
 ```
 
 Display effective configuration:
 
 ```bash
-make config
+scbolt show-config
 ```
 
 Preview execution without running:
 
 ```bash
-make dry-run TARGET=<module>
+scbolt dry-run <module>
 ```
 
 Validate dependencies and configuration:
 
 ```bash
-make check TARGET=<module>
+scbolt check <module>
 ```
 
 ## Common options
 
-| Option                      | Description                                           |
-| --------------------------- | ----------------------------------------------------- |
-| `TARGET=<module>`           | Module inspected by `check`, `config`, and `dry-run`. |
-| `REFERENCES=<condition...>` | Restrict execution to selected references.            |
-| `RESET_TARGET=<module...>`  | Rebuild from these modules.                           |
-| `TRUST_TARGET=<module...>`  | Trust these outputs and skip rebuilding them.         |
-| `LOGGING=false`             | Disable persistent logging.                           |
-| `PRIOR_KNOWLEDGE=<resource>`| Use `collectri`, `dorothea`, or a custom regulatory network. |
+| Option                         | Description                                           |
+| ------------------------------ | ----------------------------------------------------- |
+| `--params=<file>`              | Select the parameter file.                            |
+| `--references=<condition...>`  | Restrict execution to selected references.            |
+| `--reset-target=<module...>`   | Rebuild from these modules.                           |
+| `--trust-target=<module...>`   | Trust these outputs and skip rebuilding them.         |
+| `--logging=false`              | Disable persistent logging.                           |
+| `--raw`                        | Display raw `show-config` listing.                    |
+| `--target=<module>`            | Select module for `check`, `show-config`, and `dry-run`. |
+| `--<parameter>=<value>`        | Override any Make parameter using dash-separated option names. |
+| `--prior-knowledge=<resource>` | Use `collectri`, `dorothea`, or a custom regulatory network. |
+
+Make-style assignments such as `PRIOR_KNOWLEDGE=dorothea` remain supported.
 
 Advanced documentation is available in: `man/`.
 
 Examples:
 
 ```bash
-make bn-submin
-make bn-submin REFERENCES=ctrl
-make check TARGET=velocity
-make LOGGING=false bn-submin
+scbolt bn-submin
+scbolt bn-submin --references=ctrl
+scbolt check velocity
+scbolt bn-submin --logging=false
+scbolt bn-submin --max-clause=12
 ```
+
+Internally, scBOLT uses GNU Make as its workflow engine. Advanced users can
+still call `make` directly when needed.
 
 ### Starting from custom macrostates
 
 ```bash
-make bn-submin MACROSTATE_FILE=my_macrostates.h5ad
+scbolt bn-submin --macrostate-file=my_macrostates.h5ad
 ```
 
 Required AnnData fields:
@@ -256,7 +275,7 @@ obsm:
 ### Starting from precomputed binarizations
 
 ```bash
-make bn-submin BINARIZATION_FILE=my_binarization.csv
+scbolt bn-submin --binarization-file=my_binarization.csv
 ```
 
 This allows scBOLT to integrate with existing single-cell analysis workflows and external trajectory inference methods.

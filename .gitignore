@@ -93,6 +93,8 @@ todo.*
 *.yml
 !envs/
 !envs/*.yml
+!tests/
+!tests/**
 
 ### Related-repository ###
 !.github/

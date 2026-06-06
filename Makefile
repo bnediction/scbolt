@@ -4,7 +4,7 @@
 .SHELLFLAGS := -eu -o pipefail -c
 
 SHELL := /bin/bash
-MAKEFLAGS += --silent
+MAKEFLAGS += --silent --no-builtin-rules
 __check_externals__ ?= true
 
 launch_dir := $(CURDIR)
@@ -63,7 +63,7 @@ ifndef CONDITIONS
 $(error parameter CONDITIONS not defined)
 endif
 
-diagnostic_mode := $(filter check config,$(MAKECMDGOALS))$(__check_mode)
+diagnostic_mode := $(filter check show-config,$(MAKECMDGOALS))$(__check_mode)
 
 is_positive_integer = $(shell printf '%s\n' "$(strip $(1))" \
 	| grep -Eq '^[1-9][0-9]*$$' && echo true || echo false)
@@ -94,15 +94,31 @@ gene2go_url := ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
 
 ## END URLS ##
 
-## BEGIN COLORS ##
+## BEGIN TERMINAL OUTPUT ##
 
+interactive_output := $(if $(MAKE_TERMOUT),true,false)
+
+ifeq ($(interactive_output),true)
 nc        = \033[0m
 green     = \033[0;32m
 red       = \033[0;31m
 yellow    = \033[0;33m
 bold      = \033[1m
+success_label = $(green)✓ SUCCESS$(nc)
+warning_label = $(yellow)⚠ WARNING$(nc)
+failure_label = $(red)✗ FAIL$(nc)
+else
+nc        =
+green     =
+red       =
+yellow    =
+bold      =
+success_label = SUCCESS
+warning_label = WARNING
+failure_label = FAIL
+endif
 
-## END COLORS ##
+## END TERMINAL OUTPUT ##
 
 ## BEGIN FUNCTIONS ##
 
@@ -942,7 +958,10 @@ endif
 norm_mad = $(if $(filter true,$(NORM_MAD)),--consistent-mad)
 cc_scores = $(if $(filter true,$(CC_CORRECTION)),--correction G2M_score S_score G1_score)
 pca_only_hvg = $(if $(filter true,$(PCA_ONLY_HVG)),--only-hvg)
-embedding = $(if $(filter X_umap,$(USE_REP)),umap,$(if $(filter X_tsne,$(USE_REP)),tsne))
+embedding_method_X_umap = umap
+embedding_method_X_tsne = tsne
+embedding_method = $(embedding_method_$(1))
+embedding = $(call embedding_method,$(USE_REP))
 
 label_ids = $(if $(LABEL),$(shell seq 0 1 $$(($(words $(LABEL))-1))))
 label_map = $(join $(label_ids),$(addprefix :,$(LABEL)))
@@ -1216,13 +1235,171 @@ config_project_params = $(call uniq,$(filter $(project_config_param_set),$(1)))
 config_core_params = $(call uniq,$(filter $(core_config_param_set),$(1)))
 config_method_params = $(call uniq,$(filter $(method_config_param_set),$(1)))
 config_external_resource_params = $(call uniq,$(filter $(external_resource_config_param_set),$(1)))
+target_dry_run_modules = $(shell $(nested_make) --always-make --dry-run LOGGING=false \
+	__check_mode=true __$(1) PARAMS="$(PARAMS)" LOGFILE="$(LOGFILE)" 2>/dev/null \
+	| sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' \
+	| awk '!seen[$$0]++')
 
 config_print_var = $(if $(filter undefined,$(origin $(1))),,$(info $(1)=$($(1))))
+SHOW_CONFIG_RAW ?= false
+help_command = $(if $(filter true,$(SCBOLT_CLI)),scbolt,make)
+help_module_usage = $(if $(filter true,$(SCBOLT_CLI)),<module>,$(green)<module>$(nc))
+help_params_option = $(if $(filter true,$(SCBOLT_CLI)), [--params=<file>])
+help_references_option = $(if $(filter true,$(SCBOLT_CLI)),\
+	 [--references=<condition...>], [REFERENCES=<condition...>])
+help_reset_option = $(if $(filter true,$(SCBOLT_CLI)),\
+	 [--reset-target=<module...>], [RESET_TARGET=<module...>])
+help_trust_option = $(if $(filter true,$(SCBOLT_CLI)),\
+	 [--trust-target=<module...>], [TRUST_TARGET=<module...>])
 
 define config_print_section
 $(info )
 $(info [$(1)])
 $(foreach var,$(strip $(2)),$(call config_print_var,$(var)))
+endef
+
+define config_print_global
+$(eval config_modules := $(if $(TARGET),\
+	$(call target_dry_run_modules,$(TARGET)),\
+	$(config_default_modules)))
+$(eval config_params := $(call uniq,$(config_base_params) $(call config_params_from_modules,$(config_modules))))
+$(call config_print_section,PROJECT PARAMETERS,$(call config_project_params,$(config_params)))
+$(call config_print_section,CORE PARAMETERS,$(call config_core_params,$(config_params)))
+$(call config_print_section,METHOD PARAMETERS,$(call config_method_params,$(config_params)))
+$(call config_print_section,EXTERNAL RESOURCE PARAMETERS,$(call config_external_resource_params,$(config_params)))
+@:
+endef
+
+show_config_target = $(if $(TARGET),$(TARGET),all)
+show_config_modules = $(if $(TARGET),$(call target_dry_run_modules,$(TARGET)),$(config_default_modules))
+show_config_params_file = $(shell realpath --relative-to="$(launch_dir)" "$(PARAMS)" 2>/dev/null || printf '%s' "$(PARAMS)")
+show_config_results = $(shell realpath --relative-to="$(launch_dir)" "$(results)" 2>/dev/null || printf '%s' "$(results)")
+show_config_logging = $(if $(filter true,$(LOGGING)),enabled,$(if $(filter false,$(LOGGING)),disabled,$(LOGGING)))
+show_config_integration = $(if $(filter-out 1,$(words $(conditions))),$(INTEGRATION),none)
+show_config_embedding_label_X_umap = $(call toupper,$(embedding_method_X_umap))
+show_config_embedding_label_X_tsne = t-SNE
+show_config_embedding_label_X_se = spectral embedding
+show_config_embedding_label_X_pca = PCA
+show_config_embedding_label_X_largevis = LargeVis
+show_config_embedding_label_X_diffmap = diffusion map
+show_config_embedding_label_X_phate = PHATE
+show_config_embedding_label_X_trimap = TriMap
+show_config_embedding_label_X_pacmap = PaCMAP
+show_config_embedding_label = $(strip $(if $(show_config_embedding_label_$(1)),\
+	$(show_config_embedding_label_$(1)),\
+	$(patsubst X_%,%,$(1))))
+show_config_embedding = $(if $(filter knnbs,$(MACROSTATE_METHOD)),$(KNNBS_EMBEDDING),$(USE_REP))
+show_config_macrostate_embedding = $(call show_config_embedding_label,$(show_config_embedding))
+show_config_analytic_modules = \
+	velocity potency cotan cellrank stream knnbs \
+	bin-cells bin-macrostates bin-dea bin-consensus binarization spec \
+	max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock \
+	bn-min bn-submin bn-diverse
+show_config_param_modules = $(call uniq,$(strip \
+	$(filter $(show_config_analytic_modules),$(show_config_modules)) \
+	$(if $(filter macrostates,$(show_config_modules)),$(MACROSTATE_METHOD))))
+show_config_inference_modules = \
+	spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock \
+	bn-min bn-submin bn-diverse
+show_config_has_inference = $(filter $(show_config_inference_modules),$(show_config_param_modules))
+show_config_inference_params = PRIOR_KNOWLEDGE DOROTHEA_API DOROTHEA_LEVELS MAX_CLAUSE
+show_config_has_analysis_hvg = $(filter clustering,$(show_config_modules))
+show_config_binarization_hvg_modules = bin-cells bin-dea bin-consensus spec
+show_config_has_binarization_hvg = \
+	$(filter $(show_config_binarization_hvg_modules),$(show_config_param_modules))
+show_config_has_hvg = $(strip $(show_config_has_analysis_hvg) $(show_config_has_binarization_hvg))
+show_config_hvg_params = \
+	ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN ANALYSIS_HVG_BINS \
+	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS
+show_config_var_value = $(if $(filter REFERENCES,$(1)),$(running_references),$($(1)))
+show_config_var_label = $(call tolower,$(subst _, ,$(1)))
+show_config_label_width = $(shell printf '%s\n' \
+	$(foreach var,$(strip $(1)),'$(call show_config_var_label,$(var))') \
+	| awk '{ if (length > max) max = length } \
+		END { width = max + 1; if (width < 20) width = 20; print width }')
+show_config_var_command = printf '%-$(2)s: %s\n' \
+	'$(call show_config_var_label,$(1))' "$(call show_config_var_value,$(1))";
+show_config_print_vars = $(foreach var,$(strip $(1)),$(call show_config_var_command,$(var),$(2)))
+show_config_section_title = $(1) parameters
+show_config_module_params = $(call uniq,\
+	$(filter-out $(show_config_inference_params) $(show_config_hvg_params),$(target_params_$(1))))
+show_config_module_label_width = $(call show_config_label_width,$(call show_config_module_params,$(1)))
+
+define show_config_print_param_section
+$(if $(strip $(target_params_$(1))),\
+printf '\n%s\n' '$(call show_config_section_title,$(1))'
+printf '%s\n' '$(call show_config_section_title,$(1))' | sed 's/./-/g'
+$(call show_config_print_vars,\
+	$(call show_config_module_params,$(1)),\
+	$(call show_config_module_label_width,$(1))))
+endef
+
+define show_config_print_pipeline
+$(if $(strip $(show_config_param_modules)),\
+@printf '\nExecution pipeline\n'
+@printf '%s\n' '------------------'
+@printf '%s\n' $(foreach module,$(show_config_param_modules),'- $(module)'))
+endef
+
+define show_config_print_inference
+$(if $(strip $(show_config_has_inference)),\
+@printf '\nInference\n'
+@printf '%s\n' '---------'
+@printf '%-16s : %s\n' 'Prior knowledge' "$(PRIOR_KNOWLEDGE)"
+$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'DoRothEA API' "$(DOROTHEA_API)")
+$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Levels' "$(DOROTHEA_LEVELS)")
+@printf '%-16s : %s\n' 'Max clause' "$(MAX_CLAUSE)")
+endef
+
+define show_config_print_hvg
+$(if $(strip $(show_config_has_hvg)),\
+@printf '\nhighly variable genes\n'
+@printf '%s\n' 'highly variable genes' | sed 's/./-/g')
+$(if $(strip $(show_config_has_analysis_hvg)),\
+@printf 'analysis:\n'
+@printf '  - %-6s : %s\n' 'flavor' "$(ANALYSIS_HVG_FLAVOR)"
+@printf '  - %-6s : %s\n' 'top' "$(ANALYSIS_HVG_TOP)"
+@printf '  - %-6s : %s\n' 'span' "$(ANALYSIS_HVG_SPAN)"
+@printf '  - %-6s : %s\n' 'bins' "$(ANALYSIS_HVG_BINS)")
+$(if $(strip $(show_config_has_binarization_hvg)),\
+$(if $(strip $(show_config_has_analysis_hvg)),@printf '\n')
+@printf 'binarization:\n'
+@printf '  - %-6s : %s\n' 'flavor' "$(BIN_HVG_FLAVOR)"
+@printf '  - %-6s : %s\n' 'top' "$(BIN_HVG_TOP)"
+@printf '  - %-6s : %s\n' 'span' "$(BIN_HVG_SPAN)"
+@printf '  - %-6s : %s\n' 'bins' "$(BIN_HVG_BINS)")
+endef
+
+define show_config_print
+@printf 'Target: %s\n\n' "$(show_config_target)"
+@printf 'Project\n'
+@printf '%s\n' '-------'
+@printf '%-13s : %s\n' 'Params file' "$(show_config_params_file)"
+@printf '%-13s : %s\n' 'Organism' "$(ORGANISM)"
+@printf '%-13s : %s\n' 'Conditions' "$(conditions)"
+@printf '%-13s : %s\n\n' 'Results' "$(show_config_results)"
+@printf 'Workflow\n'
+@printf '%s\n' '--------'
+@printf '%-14s : %s\n' 'Representation' "$(USE_REP)"
+@printf '%-14s : %s\n\n' 'Label column' "$(LABEL_COL)"
+@printf 'Methods\n'
+@printf '%s\n' '-------'
+@printf '%-14s : %s\n' 'Embedding' "$(show_config_macrostate_embedding)"
+@printf '%-14s : %s\n' 'Integration' "$(show_config_integration)"
+@printf '%-14s : %s\n' 'Macrostate' "$(MACROSTATE_METHOD)"
+@printf '%-14s : %s\n' 'Binarization' "$(BIN_METHOD)"
+$(if $(filter knnbs,$(MACROSTATE_METHOD)),@printf '%-14s : %s\n' 'Neighbors' "$(KNNBS_NEIGHBORS)")
+@printf '\n'
+@printf 'Execution\n'
+@printf '%s\n' '---------'
+@printf '%-12s : %s\n' 'Jobs' "$(JOBS)"
+@printf '%-12s : %s GB\n' 'Memory' "$(MEMORY)"
+@printf '%-12s : %s\n' 'Seed' "$(SEED)"
+@printf '%-12s : %s\n' 'Logging' "$(show_config_logging)"
+$(show_config_print_hvg)
+$(show_config_print_inference)
+$(show_config_print_pipeline)
+$(foreach module,$(show_config_param_modules),$(call show_config_print_param_section,$(module)))
 endef
 
 ## END PARAMETERS ##
@@ -1234,9 +1411,11 @@ endef
 .PHONY: help
 help: ## display this help and exit
 	@awk 'BEGIN {FS = ":.*##"; \
-		printf "usage: make $(green)<module>$(nc) [REFERENCES=<condition...>] "; \
-		printf "[RESET_TARGET=<module...>] "; \
-		printf "[TRUST_TARGET=<module...>]\n"; \
+		printf "usage: $(help_command) $(help_module_usage)$(help_params_option)"; \
+		printf "$(help_references_option)"; \
+		printf "$(help_reset_option)"; \
+		printf "$(help_trust_option)"; \
+		printf "\n"; \
 		printf "(default value for REFERENCES: $(running_references))\n\n"; \
 		printf "scBOLT is a semi-automated pipeline for Boolean network inference "; \
 		printf "from multi-condition single-cell transcriptomes. "; \
@@ -1245,32 +1424,46 @@ help: ## display this help and exit
 		printf "macrostate binarization, Boolean constraint specification, gene selection, "; \
 		printf "and Boolean network inference.\n\n"; \
 		printf "$(bold)Special parameters$(nc)\n"; \
-		printf "  %-25s %s\n", "REFERENCES=<condition...>", "restrict the run to selected references"; \
-		printf "  %-25s %s\n", "RESET_TARGET=<module...>", "rebuild from these modules; successful recipes replace outputs"; \
-		printf "  %-25s %s\n", "TRUST_TARGET=<module...>", "trust these module outputs and skip rebuilding them"; \
-		printf "  %-25s %s\n", "TARGET=<module>", "select module for check, config, and dry-run"} \
-		/^[a-zA-Z_-]+:.*?##/ { printf "  $(green)%-22s$(nc) %s\n", $$1, $$2 } \
+		if ("$(SCBOLT_CLI)" == "true") { \
+			printf "  %-31s %s\n", "--params=<file>", "select the parameter file"; \
+			printf "  %-31s %s\n", "--references=<condition...>", "restrict the run to selected references"; \
+			printf "  %-31s %s\n", "--reset-target=<module...>", "rebuild from these modules; successful recipes replace outputs"; \
+			printf "  %-31s %s\n", "--trust-target=<module...>", "trust these module outputs and skip rebuilding them"; \
+			printf "  %-31s %s\n", "--logging=<bool>", "enable or disable persistent logging"; \
+			printf "  %-31s %s\n", "--raw", "display raw show-config listing"; \
+			printf "  %-31s %s\n", "--<parameter>=<value>", "override any Make parameter using dash-separated option names"; \
+			printf "  %-31s %s\n", "--target=<module>", "select module for check, show-config, and dry-run"; \
+		} else { \
+			printf "  %-31s %s\n", "REFERENCES=<condition...>", "restrict the run to selected references"; \
+			printf "  %-31s %s\n", "RESET_TARGET=<module...>", "rebuild from these modules; successful recipes replace outputs"; \
+			printf "  %-31s %s\n", "TRUST_TARGET=<module...>", "trust these module outputs and skip rebuilding them"; \
+			printf "  %-31s %s\n", "SHOW_CONFIG_RAW=true", "display raw show-config listing"; \
+			printf "  %-31s %s\n", "TARGET=<module>", "select module for check, show-config, and dry-run"; \
+		}} \
+		/^[a-zA-Z_-]+:.*?##/ { \
+			printf "  $(green)%-22s$(nc) %s\n", $$1, $$2; \
+		} \
 		/^##@/ { printf "\n$(bold)%s$(nc)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
-.PHONY: config
-config: ## display effective configuration and exit
-	$(eval config_modules := $(if $(TARGET),\
-		$(shell $(nested_make) --always-make --dry-run LOGGING=false \
-			__check_mode=true __$(TARGET) LOGFILE="$(LOGFILE)" 2>/dev/null \
-			| sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' \
-			| awk '!seen[$$0]++'),\
-		$(config_default_modules)))
-	$(eval config_params := $(call uniq,$(config_base_params) $(call config_params_from_modules,$(config_modules))))
-	$(call config_print_section,PROJECT PARAMETERS,$(call config_project_params,$(config_params)))
-	$(call config_print_section,CORE PARAMETERS,$(call config_core_params,$(config_params)))
-	$(call config_print_section,METHOD PARAMETERS,$(call config_method_params,$(config_params)))
-	$(call config_print_section,EXTERNAL RESOURCE PARAMETERS,$(call config_external_resource_params,$(config_params)))
-	@:
+.PHONY: show-config
+show-config: ## display effective configuration and exit
+ifneq ($(TARGET),)
+ifeq ($(filter $(TARGET),$(reset_stages)),)
+	$(call print_error,unknown TARGET=$(TARGET); supported values: $(reset_stages))
+endif
+endif
+ifeq ($(SHOW_CONFIG_RAW),true)
+	$(config_print_global)
+else ifeq ($(SHOW_CONFIG_RAW),false)
+	$(show_config_print)
+else
+	$(call print_error,unsupported SHOW_CONFIG_RAW=$(SHOW_CONFIG_RAW) \(supported values: true, false\))
+endif
 
 .PHONY: check
 check: ## check Make-level dependencies, configuration and external tools required to build TARGET
 	@if [ -z "$(TARGET)" ]; then \
-		printf '$(red)FAIL$(nc) %s\n' "missing TARGET (usage: make check TARGET=<module>)"; \
+		printf '$(failure_label) %s\n' "missing TARGET (usage: make check TARGET=<module>)"; \
 		exit 1; \
 	fi
 	@target_dry_run="$$(mktemp)"; \
@@ -1302,14 +1495,14 @@ check: ## check Make-level dependencies, configuration and external tools requir
 			*) printf '%s\n' "$${other_checks}";; \
 		esac; \
 	}; \
-	check_success() { printf '$(green)SUCCESS$(nc) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
-	check_warning() { printf '$(yellow)WARNING$(nc) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
-	check_failure() { printf '$(red)FAIL$(nc) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
+	check_success() { printf '$(success_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
+	check_warning() { printf '$(warning_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
+	check_failure() { printf '$(failure_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
 	missing=0; \
 	$(nested_make) --dry-run LOGGING=false \
 		__check_mode=true __$(TARGET) LOGFILE="$(LOGFILE)" > "$${target_dry_run}"; \
 	if [ ! -s "$${target_dry_run}" ]; then \
-		printf '$(green)SUCCESS$(nc) %s\n' "target '$(TARGET)' already up to date"; \
+		printf '$(success_label) %s\n' "target '$(TARGET)' already up to date"; \
 		exit 0; \
 	fi; \
 	cp "$${target_dry_run}" "$${dry_run}"; \

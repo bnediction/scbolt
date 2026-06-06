@@ -12,12 +12,12 @@ jobs:
       - uses: actions/checkout@v6
       - run: make help >/dev/null
 
-  make-config:
-    name: Make config
+  make-show-config:
+    name: Make show-config
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
-      - run: make config >/dev/null
+      - run: make show-config >/dev/null
 
   python-compile:
     name: Python compileall
@@ -28,6 +28,13 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m compileall lib scripts fig
+
+  scbolt-cli:
+    name: scBOLT CLI wrapper
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - run: bash tests/test_scbolt_cli.sh
 
   dry-run-knnbs:
     name: Dry-run knnbs
