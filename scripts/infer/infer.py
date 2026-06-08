@@ -90,7 +90,7 @@ def make_filter_nodes_score_formatter(
         fields = {}
 
         if important_total and len(values) >= 2:
-            fields["important"] = f"{values[0]}/{important_total}"
+            fields["important/total"] = f"{values[0]}/{important_total}"
             fields["nodes"] = f"{values[1]}/{node_total}"
         elif values:
             fields["nodes"] = f"{values[-1]}/{node_total}"
@@ -102,15 +102,22 @@ def make_filter_nodes_score_formatter(
 
 def make_filter_consts_score_formatter(
     node_total: int,
+    important_total: int = 0,
 ) -> Callable[[Sequence[int]], Mapping[str, str]]:
     def format_score(score: Sequence[int]) -> Mapping[str, str]:
         values = [abs(int(value)) for value in score]
         if not values:
             return {"score": str(list(score))}
 
-        removed_nodes = values[-1]
+        removed_nodes = values[-2] if important_total and len(values) >= 2 else values[-1]
         kept_nodes = max(node_total - removed_nodes, 0)
-        return {"nodes": f"{kept_nodes}/{node_total}"}
+        fields = {"nodes": f"{kept_nodes}/{node_total}"}
+        if important_total and len(values) >= 2:
+            fields = {
+                "important/total": f"{values[-1]}/{important_total}",
+                **fields,
+            }
+        return fields
 
     return format_score
 
@@ -1062,11 +1069,28 @@ elif args.action == "filter-consts":
     if args.minimize_self_loops:
         bo.custom("edge(A,A) :- clause(A,_,A,_). #minimize { 1@10000,A: edge(A,A) }.")
 
+    important_genes = set(read_gene_list(args.important_genes))
+    important_genes_in_domain = important_genes & set(bo.domain.nodes)
+    for gene in important_genes_in_domain:
+        bo.custom(f"important_node({clingo_encode(gene)}).")
+
+    if important_genes_in_domain:
+        bo.custom(
+            "#maximize { 1@1,N: important_node(N), node(N), "
+            "not strong_constant(N) }."
+        )
+
     clingo_opt_strategy = "usc"
     ptqdm.score_formatter = make_filter_consts_score_formatter(
         node_total=len(bo.domain.nodes),
+        important_total=len(important_genes_in_domain),
     )
     ptqdm.initial_postfix = {"nodes": f"0/{len(bo.domain.nodes)}"}
+    if important_genes_in_domain:
+        ptqdm.initial_postfix = {
+            "important/total": f"0/{len(important_genes_in_domain)}",
+            **ptqdm.initial_postfix,
+        }
     view = bonesis.NonStrongConstantNodesView(
         bo,
         mode=args.clingo_opt_mode,
@@ -1097,6 +1121,11 @@ elif args.action == "filter-consts":
 
     write_node_solution(solution, args.solution, args.status)
 
+    if important_genes_in_domain:
+        std.print_result(
+            f"important nodes: kept={len(set(solution) & important_genes_in_domain)}/"
+            f"{len(important_genes_in_domain)}"
+        )
     print_node_solution(solution, nodes_in_data, nodes_in_domain)
 
 else:

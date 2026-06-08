@@ -792,6 +792,7 @@ define check_inference_status
 		echo -e ''; \
 		if [ -s $@ ]; then \
 			echo "_LOCAL_OPTIMUM" > $(@D)/__SOLUTION; \
+			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@);) \
 			$(call print_warning,user-defined time limit reached \($(1)\): local optimum found); \
 		else \
 			echo "_FAILURE" > $(@D)/__SOLUTION; \
@@ -801,6 +802,7 @@ define check_inference_status
 		echo -e ''; \
 		if [ -s $@ ]; then \
 			echo "_PARTIAL_SOLUTIONS" > $(@D)/__SOLUTION; \
+			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@);) \
 			$(call print_warning,inference interrupted: keeping partial solutions); \
 		else \
 			echo "_FAILURE" > $(@D)/__SOLUTION; \
@@ -820,6 +822,7 @@ handle_inference_interrupt() { \
 	echo -e ""; \
 	if [ -s $@ ]; then \
 		echo "_PARTIAL_SOLUTIONS" > $(@D)/__SOLUTION; \
+		$(if $(strip $(1)),$(call write_scbolt_metadata,$(1),$@);) \
 		$(call log,WARNING,inference interrupted: keeping partial solutions); \
 	else \
 		echo "_FAILURE" > $(@D)/__SOLUTION; \

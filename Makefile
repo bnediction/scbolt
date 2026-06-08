@@ -657,7 +657,7 @@ $(max_nodes_soft): $(bonesis_model)
 	$(call require_bonesis_filter_parameters,max-nodes-soft)
 	mkdir -p $(@D)
 	set +e; \
-	$(call trap_inference_interrupt); \
+	$(call trap_inference_interrupt,max-nodes-soft); \
 	$(call inference_timeout,$(TIMEOUT_SOFT)) \
 		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
@@ -673,7 +673,7 @@ $(max_nodes_soft): $(bonesis_model)
 	exit_status=$$?; \
 	trap - INT TERM; \
 	set -e; \
-	$(call check_inference_status, $(TIMEOUT_SOFT))
+	$(call check_inference_status,$(TIMEOUT_SOFT),max-nodes-soft)
 	$(call write_scbolt_metadata,max-nodes-soft,$@)
 
 $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
@@ -682,11 +682,12 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 	$(call require_bool,MIN_SELF_LOOP_CONSTS,max-consts-soft)
 	mkdir -p $(@D)
 	set +e; \
-	$(call trap_inference_interrupt); \
+	$(call trap_inference_interrupt,max-consts-soft); \
 	$(call inference_timeout,$(TIMEOUT_CONSTS)) \
 		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-consts \
 		$(word 1,$^) $(word 2,$^) \
-		--mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) \
+		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
+		--filter-grn $(lastword $^) \
 		--asp $(@D)/nodes.sh --solution $@ --status $(@D)/__SOLUTION \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) \
 		--bonesis-mode soft --max-clause $(MAX_CLAUSE) $(min_self_loop_consts) \
@@ -698,7 +699,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 	exit_status=$$?; \
 	trap - INT TERM; \
 	set -e; \
-	$(call check_inference_status, $(TIMEOUT_CONSTS))
+	$(call check_inference_status,$(TIMEOUT_CONSTS),max-consts-soft)
 	$(call write_scbolt_metadata,max-consts-soft,$@)
 
 $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
@@ -706,7 +707,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 	$(call require_bonesis_filter_parameters,max-nodes-relaxed)
 	mkdir -p $(@D)
 	set +e; \
-	$(call trap_inference_interrupt); \
+	$(call trap_inference_interrupt,max-nodes-relaxed); \
 	$(call inference_timeout,$(TIMEOUT_RELAXED)) \
 		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
@@ -723,7 +724,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 	exit_status=$$?; \
 	trap - INT TERM; \
 	set -e; \
-	$(call check_inference_status, $(TIMEOUT_RELAXED))
+	$(call check_inference_status,$(TIMEOUT_RELAXED),max-nodes-relaxed)
 	$(call write_scbolt_metadata,max-nodes-relaxed,$@)
 
 $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
@@ -732,7 +733,7 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 	$(call check_parameter,$(TIMEOUT_SEED),TIMEOUT_SEED (needed by target 'max-nodes-seed'))
 	mkdir -p $(@D)
 	set +e; \
-	$(call trap_inference_interrupt); \
+	$(call trap_inference_interrupt,max-nodes-seed); \
 	$(call inference_timeout,$(TIMEOUT_SEED)) \
 		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
@@ -749,7 +750,7 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 	exit_status=$$?; \
 	trap - INT TERM; \
 	set -e; \
-	$(call check_inference_status, $(TIMEOUT_SEED))
+	$(call check_inference_status,$(TIMEOUT_SEED),max-nodes-seed)
 	$(call write_scbolt_metadata,max-nodes-seed,$@)
 
 $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
@@ -762,7 +763,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 		echo "_GLOBAL_OPTIMUM" > $(@D)/__SOLUTION; \
 	else \
 		set +e; \
-		$(call trap_inference_interrupt); \
+		$(call trap_inference_interrupt,max-nodes-lock); \
 		cat $(word 4,$^) $(word 6,$^) | sort -u > $(@D)/mandatory.txt; \
 		$(call inference_timeout,$(TIMEOUT_LOCK)) \
 			$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
@@ -780,7 +781,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 		exit_status=$$?; \
 		trap - INT TERM; \
 		set -e; \
-		$(call check_inference_status,$(TIMEOUT_LOCK)); \
+		$(call check_inference_status,$(TIMEOUT_LOCK),max-nodes-lock); \
 	fi
 	$(call write_scbolt_metadata,max-nodes-lock,$@)
 

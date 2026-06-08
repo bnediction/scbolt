@@ -300,7 +300,7 @@ dorothea_levels_arg = $(if $(filter dorothea,$(prior_knowledge)),\
 	$(if $(strip $(DOROTHEA_LEVELS)),--dorothea-levels $(DOROTHEA_LEVELS)))
 prior_knowledge_params = PRIOR_KNOWLEDGE \
 	$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),\
-	DOROTHEA_API $(if $(filter current,$(DOROTHEA_API)),DOROTHEA_LEVELS))
+	DOROTHEA_API DOROTHEA_LEVELS)
 
 min_self_loop_consts = $(if $(filter true,$(MIN_SELF_LOOP_CONSTS)),--minimize-self-loops)
 min_self_loop_infer = $(if $(filter true,$(MIN_SELF_LOOP_INFER)),--minimize-self-loops)

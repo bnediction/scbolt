@@ -491,6 +491,9 @@ else
 		value="$$2"; \
 		hint="$$3"; \
 		description="$$4"; \
+		note="$$5"; \
+		note2="$$6"; \
+		note3="$$7"; \
 		if [ -n "$${value}" ] && [ -n "$${hint}" ]; then \
 			printf '  %-26s %s (%s)\n' "$${name}" "$${value}" "$${hint}"; \
 		elif [ -n "$${value}" ]; then \
@@ -502,6 +505,15 @@ else
 		fi; \
 		if [ -n "$${description}" ]; then \
 			printf '    %s\n' "$${description}"; \
+		fi; \
+		if [ -n "$${note}" ]; then \
+			printf '    %s\n' "$${note}"; \
+		fi; \
+		if [ -n "$${note2}" ]; then \
+			printf '    %s\n' "$${note2}"; \
+		fi; \
+		if [ -n "$${note3}" ]; then \
+			printf '    %s\n' "$${note3}"; \
 		fi; \
 		printf '\n'; \
 	}; \
@@ -558,7 +570,10 @@ else
 			print_parameter_help \
 				'$(param)' "$$(format_value "$($(param))")" \
 				'$(parameter_help_hint_$(param))' \
-				'$(parameter_help_description_$(param))';) \
+				'$(parameter_help_description_$(param))' \
+				'$(parameter_help_note_$(param))' \
+				'$(parameter_help_note2_$(param))' \
+				'$(parameter_help_note3_$(param))';) \
 	fi; \
 	if [ -n "$(module_help_has_bin_hvg)" ]; then \
 		printf '%s\n' 'Notes'; \

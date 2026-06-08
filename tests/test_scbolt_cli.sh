@@ -114,7 +114,7 @@ expect_make_args -f "${makefile}" clean HELP=true SCBOLT_CLI=true
     cd "${project}"
     "${scbolt}" init --help > "${tmpdir}/init-help.out"
 )
-grep -qx 'usage: scbolt init \[<params.mk>|--remove|--show\]' "${tmpdir}/init-help.out"
+grep -qx 'usage: scbolt init \[<params.mk>\] \[options\]' "${tmpdir}/init-help.out"
 grep -q '^Parameters$' "${tmpdir}/init-help.out"
 grep -q '^  --remove' "${tmpdir}/init-help.out"
 grep -q '^  --show' "${tmpdir}/init-help.out"
