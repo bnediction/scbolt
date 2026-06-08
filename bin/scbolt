@@ -21,7 +21,7 @@ SCBOLT_SCRIPT="$(resolve_script_path)"
 SCBOLT_BIN_DIR="$(dirname "${SCBOLT_SCRIPT}")"
 SCBOLT_ROOT="$(cd "${SCBOLT_BIN_DIR}/.." && pwd)"
 SCBOLT_MAKEFILE="${SCBOLT_ROOT}/Makefile"
-SCBOLT_DEFAULT_PARAMS="${SCBOLT_ROOT}/default_params.mk"
+SCBOLT_DEFAULT_PARAMS="${SCBOLT_ROOT}/mk/default_params.mk"
 terminal_device=""
 terminal_state=""
 
@@ -97,7 +97,7 @@ if [ ! -f "${SCBOLT_MAKEFILE}" ]; then
 fi
 
 if [ ! -f "${SCBOLT_DEFAULT_PARAMS}" ]; then
-    print_installation_error "default_params.mk"
+    print_installation_error "mk/default_params.mk"
     exit 1
 fi
 

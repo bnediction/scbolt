@@ -521,9 +521,9 @@ $(bin_mstates): $(firstword $(bin_cells)) \
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/add_to_anndata.py \
 		$(firstword $^) $(tmpdir)/integrated/bin/aggr/mcts.h5ad \
 		--csv $(filter-out $<, $^) \
-		$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions),) \
-		$(if $(filter-out $(words $(CONDITIONS)),1),--label-column condition,) \
-		$(if $(filter-out $(words $(CONDITIONS)),1),--add-prefix macrostate,) \
+		$(if $(multi_condition),--labels $(conditions),) \
+		$(if $(multi_condition),--label-column condition,) \
+		$(if $(multi_condition),--add-prefix macrostate,) \
 		--axis 0 --sep , --type category
 	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_clusters_scboolseq.py \
 		$(tmpdir)/integrated/bin/aggr/mcts.h5ad $@ \
@@ -573,9 +573,9 @@ $(bin_dea): \
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/add_to_anndata.py \
 		$(firstword $^) $(tmpdir)/integrated/bin/dea/mcts.h5ad \
 		--csv $(filter-out $<, $^) \
-		$(if $(filter-out $(words $(CONDITIONS)),1),--labels $(conditions),) \
-		$(if $(filter-out $(words $(CONDITIONS)),1),--label-column condition,) \
-		$(if $(filter-out $(words $(CONDITIONS)),1),--add-prefix macrostate,) \
+		$(if $(multi_condition),--labels $(conditions),) \
+		$(if $(multi_condition),--label-column condition,) \
+		$(if $(multi_condition),--add-prefix macrostate,) \
 		--axis 0 --sep , --type category
 	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
 		--cluster macrostate --layer log-norm --is-log --method wilcoxon --use-rep $(USE_REP) \

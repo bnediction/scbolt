@@ -4,7 +4,7 @@
 # - paths passed on the command line are resolved relative to the
 #   directory from which make is launched;
 # - internal scBOLT resources are resolved relative to the scBOLT root.
-$(eval PARAMS ?= user/apl/params.mk)  # user parameter file (resolved relative to scBOLT root)
+$(eval PARAMS ?= params.mk)  # user parameter file (resolved relative to scBOLT root)
 
 # Configuration policy:
 # - PARAMS can be overridden here to point to another parameter file
@@ -22,6 +22,7 @@ LOGGING ?= true
 
 ## INFORMATION ##
 # ORGANISM values: mouse, human, escherichia-coli.
+# Empty CONDITIONS is treated as one implicit condition named unique.
 $(eval ORGANISM ?=)                         # organism used for gene resources
 $(eval CONDITIONS ?= unique)                # experimental conditions
 $(eval RESULTS ?= project/)                 # output directory

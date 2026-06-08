@@ -1,8 +1,7 @@
 ## BEGIN PATHS ##
 
 h5ads_for_conditions = $(foreach condition,$(running_conditions),$($(1)_$(condition)))
-default_bin_input_h5ads = $(if $(filter-out $(words $(CONDITIONS)),1),\
-                         $(annotation_integrated),$(annotation_$(conditions)))
+default_bin_input_h5ads = $(if $(multi_condition),$(annotation_integrated),$(annotation_$(conditions)))
 macrostate_h5ad = $(if $(MACROSTATE_FILE),$(tmpdir)/bin/macrostates.h5ad)
 bin_input_h5ads = $(if $(MACROSTATE_FILE),$(macrostate_h5ad),$(default_bin_input_h5ads))
 
@@ -180,7 +179,7 @@ endif
 
 ## END TARGETS ##
 
-ifeq ($(words $(CONDITIONS)),1)
+ifeq ($(words $(conditions)),1)
 batch =
 else
 batch = --batch condition
@@ -468,8 +467,8 @@ use_rep_check_pattern_2 = |macrostates/stream_mstates|binarization/(bin_cells_sc
 use_rep_check_pattern_3 = |bin_clusters_scboolseq|bin_dea)).py
 
 label_col_check_pattern = $(label_col_check_pattern_1)$(label_col_check_pattern_2)
-label_col_check_pattern_1 = scripts/(clustering/annotation|utils/pipe_its|trajectories/velocity
-label_col_check_pattern_2 = |trajectories/potency|macrostates/(stream|knnbs)_mstates).py
+label_col_check_pattern_1 = scripts/(clust/annotation|utils/pipe_its|traj/velocity
+label_col_check_pattern_2 = |traj/potency|mstates/(stream|knnbs)_mstates).py
 
 uniq = $(if $(1),$(firstword $(1)) $(call uniq,$(filter-out $(firstword $(1)),$(1))))
 

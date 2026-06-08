@@ -13,7 +13,7 @@ resolve_path_from = $(call strip_trailing_slash,\
 	$(if $(call is_absolute_path,$(1)),$(1),$(abspath $(strip $(2))/$(strip $(1)))))
 resolve_optional_path_from = $(if $(strip $(1)),$(call resolve_path_from,$(1),$(2)))
 
-include $(scbolt_root)/default_params.mk
+include $(scbolt_root)/mk/default_params.mk
 
 params_base := $(if $(filter command line,$(origin PARAMS)),$(launch_dir),$(scbolt_root))
 override PARAMS := $(call resolve_path_from,$(PARAMS),$(params_base))
@@ -51,10 +51,6 @@ comma := ,
 empty :=
 space := $(empty) $(empty)
 
-ifndef CONDITIONS
-$(error parameter CONDITIONS not defined)
-endif
-
 diagnostic_mode := $(filter check show-config progress module-help,$(MAKECMDGOALS))$(__check_mode)\
 	$(if $(filter true,$(HELP)),help)
 
@@ -63,8 +59,10 @@ is_positive_integer = $(shell printf '%s\n' "$(strip $(1))" \
 is_creatable_path = $(shell { test -n "$(strip $(1))" && mkdir -p "$(strip $(1))"; } \
 	>/dev/null 2>&1 && echo true || echo false)
 
-conditions := $(call tolower, $(CONDITIONS))
-references_default := $(conditions) $(if $(filter-out 1,$(words $(conditions))),integrated)
+raw_conditions := $(strip $(call tolower, $(CONDITIONS)))
+conditions := $(if $(raw_conditions),$(raw_conditions),unique)
+multi_condition := $(filter-out 1,$(words $(conditions)))
+references_default := $(strip $(conditions) $(if $(multi_condition),integrated))
 REFERENCES ?= $(references_default)
 running_references := $(strip $(REFERENCES))
 running_conditions := $(filter-out integrated,$(running_references))
