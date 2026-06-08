@@ -4,7 +4,9 @@ scbolt_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 env_dir="${scbolt_root}/envs"
 lib_dir="${scbolt_root}/lib"
 scbolt_command="${scbolt_root}/bin/scbolt"
+scbolt_completion="${scbolt_root}/bin/completion.bash"
 local_bin="${HOME}/.local/bin"
+local_completion_dir="${HOME}/.local/share/bash-completion/completions"
 
 bonesis_hash="${BONESIS_HASH:-24c4f9c91a4496b9777043e17e504ecc31312d87}"
 scvelo_hash="${SCVELO_HASH:-b2f31b345641efdccd39fbcb8c0beaa0014b4b88}"
@@ -34,10 +36,6 @@ install_env() {
             then
                 conda develop --name "$1" "${lib_dir}";
             fi
-            if [ "$1" == "scbolt-velocity" ];
-            then
-#                install_scvelo_git "$1"
-            fi
             if [ "$1" == "scbolt-bonesis" ];
             then
                 install_bonesis_git "$1"
@@ -53,10 +51,6 @@ install_env() {
         if [ "$1" == "scbolt-bonesis" ];
         then
             install_bonesis_git "$1"
-        fi
-        if [ "$1" == "scbolt-velocity" ];
-        then
-#            install_scvelo_git "$1"
         fi
     fi
 }
@@ -95,7 +89,26 @@ install_scbolt_command() {
     esac
 }
 
+install_scbolt_completion() {
+    if [ ! -f "${scbolt_completion}" ];
+    then
+        echo "scBOLT Bash completion not found: ${scbolt_completion}"
+        return
+    fi
+
+    mkdir -p "${local_completion_dir}"
+    ln -sfn "${scbolt_completion}" "${local_completion_dir}/scbolt"
+
+    echo "Installed Bash completion:"
+    echo "  ${local_completion_dir}/scbolt -> ${scbolt_completion}"
+    echo
+    echo "Restart your shell, or run:"
+    echo
+    echo "  source ${local_completion_dir}/scbolt"
+}
+
 install_scbolt_command
+install_scbolt_completion
 echo
 
 # shellcheck source=/dev/null

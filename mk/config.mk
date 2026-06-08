@@ -1,5 +1,6 @@
 __check_externals__ ?= true
 HELP ?= false
+params_optional_mode := $(filter help,$(MAKECMDGOALS))$(if $(filter true,$(HELP)),help)
 
 launch_dir := $(CURDIR)
 lib_dir := $(scbolt_root)/lib
@@ -19,7 +20,14 @@ params_base := $(if $(filter command line,$(origin PARAMS)),$(launch_dir),$(scbo
 override PARAMS := $(call resolve_path_from,$(PARAMS),$(params_base))
 params_dir := $(call strip_trailing_slash,$(dir $(PARAMS)))
 
+ifneq ($(params_optional_mode),)
+-include $(PARAMS)
+else
+ifeq ($(wildcard $(PARAMS)),)
+$(error parameter file not found: $(PARAMS))
+endif
 include $(PARAMS)
+endif
 
 path_origin_base = $(if $(filter command line,$(origin $(1))),$(launch_dir),$(params_dir))
 resolve_user_path_var = $(eval override $(1) := \

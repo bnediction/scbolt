@@ -109,3 +109,4 @@ public/
 llc/
 *.md
 !README.md
+!man/*.md
