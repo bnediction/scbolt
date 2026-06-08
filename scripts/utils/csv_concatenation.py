@@ -9,10 +9,12 @@ import cli
 
 import pandas as pd
 
+script_name = Path(__file__).name
+
 parser = argparse.ArgumentParser(
     prog="csv_concatenation",
     description="""Concatenate CSV files by rows or columns.""",
-    usage="python csv_concatenation.py [-h] <FILE ...> [-o <FILE>] [--axis <row | column>] [--suffixes <LITERAL ...>] [<args>]",
+    usage=f"python {script_name} [-h] <FILE ...> [-o <FILE>] [--axis <row | column>] [--suffixes <LITERAL ...>] [<args>]",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 

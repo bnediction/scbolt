@@ -11,6 +11,8 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
+script_name = Path(__file__).name
+
 parser = argparse.ArgumentParser(
     prog="pipe_its",
     description=(
@@ -21,7 +23,7 @@ parser = argparse.ArgumentParser(
         "and --labels."
     ),
     usage=(
-        "python pipe_its.py [-h] <FILE> <FILE ...> [--outfiles <FILE ...>] "
+        f"python {script_name} [-h] <FILE> <FILE ...> [--outfiles <FILE ...>] "
         "--labels <LITERAL ...> --obs-label <LITERAL> "
         "[--obs <LITERAL ...>] [--var <LITERAL ...>]"
     ),

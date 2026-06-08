@@ -13,6 +13,7 @@ import shlex
 import sys
 
 Field = tuple[str, str]
+script_name = Path(__file__).name
 
 
 @dataclass
@@ -108,7 +109,7 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
     args = positional_after_script(tokens, script)
     name = Path(script).name
 
-    if name == "filtering.py":
+    if name == "filter.py":
         infile, outfile = map(h5ad, args[:2])
         return Operation(
             [infile],
@@ -123,7 +124,7 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
             },
         )
 
-    if name == "normalization.py":
+    if name == "norm.py":
         infile, outfile = map(h5ad, args[:2])
         required = field("layers", option(tokens, "--layer"))
         required |= fields("obs", option_values(tokens, "--correction"))
@@ -266,7 +267,7 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
         required |= field("obs", option(tokens, "--condition-obs"))
         return Operation([infile], [outfile], {0: required}, set())
 
-    if name == "cellrank_macrostates.py":
+    if name == "cellrank_mstates.py":
         infile, outfile = map(h5ad, args[:2])
         required = {
             ("layers", option(tokens, "--scvelo-first-moment") or "Ms"),
@@ -278,13 +279,13 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
         required |= field("obs", option(tokens, "--cytotrace-score"))
         return Operation([infile], [outfile], {0: required}, {("obs", "macrostate")})
 
-    if name == "stream_macrostates.py":
+    if name == "stream_mstates.py":
         infile, outfile = map(h5ad, args[:2])
         required = field("obs", option(tokens, "--obs"))
         required |= field("obsm", option(tokens, "--use-rep"))
         return Operation([infile], [outfile], {0: required}, {("obs", "macrostate")})
 
-    if name == "knnbs_macrostates.py":
+    if name == "knnbs_mstates.py":
         infile, outfile = map(h5ad, args[:2])
         required = field("obs", option(tokens, "--obs"))
         required |= field("obsm", option(tokens, "--embedding"))
@@ -487,7 +488,7 @@ def emit(status: str, messages: list[str]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(prog=script_name)
     parser.add_argument("--dry-run", type=Path, required=True)
     parser.add_argument("--conditions", nargs="*", default=[])
     args = parser.parse_args()

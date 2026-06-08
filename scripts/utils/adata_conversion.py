@@ -16,6 +16,8 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
+script_name = Path(__file__).name
+
 parser = argparse.ArgumentParser(
     prog="adata_conversion",
     description="""Convert single-omics counting data into the desired format.
@@ -24,7 +26,7 @@ parser = argparse.ArgumentParser(
     - barcodes.tsv.gz (information about each cell)
     - features.tsv.gz (information about each gene)""",
     usage=(
-        "python adata_conversion.py [-h] <PATH | FILE> <PATH | FILE> "
+        f"python {script_name} [-h] <PATH | FILE> <PATH | FILE> "
         "--from <h5ad | loom | 10x> --to <h5ad | loom | csv | csvs> "
         "[--metadata <KEY=VALUE ...>] [<args>]"
     ),

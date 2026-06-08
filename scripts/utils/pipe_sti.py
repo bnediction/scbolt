@@ -12,6 +12,8 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
+script_name = Path(__file__).name
+
 parser = argparse.ArgumentParser(
     prog="pipe_sti",
     description=(
@@ -19,7 +21,7 @@ parser = argparse.ArgumentParser(
         "adata.obs.\n"
         "Values passed to --specifics and --labels must be ordered together."
     ),
-    usage="python pipe_sti.py [-h] <FILE> <FILE ...> [--outfile <FILE>] --labels <LITERAL ...> --obs-label <LITERAL> [--obs <LITERAL ...>]",
+    usage=f"python {script_name} [-h] <FILE> <FILE ...> [--outfile <FILE>] --labels <LITERAL ...> --obs-label <LITERAL> [--obs <LITERAL ...>]",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 

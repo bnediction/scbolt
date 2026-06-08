@@ -15,7 +15,7 @@ scBOLT was designed for:
 * users who wish to construct Boolean networks without manually assembling every intermediate step.
 
 <p align="center">
-  <img src="man/fig/logo-scbolt.svg" alt="scBOLT logo" width="360"/>
+  <img src="man/fig/logo-scbolt.svg" alt="scBOLT logo" width="200"/>
 </p>
 
 ---
@@ -197,6 +197,24 @@ Display available modules:
 scbolt help
 ```
 
+Display command-specific help:
+
+```bash
+scbolt init --help
+scbolt show-config help
+scbolt check --help
+scbolt progress --help
+scbolt clean help
+```
+
+Create, update, or remove the project configuration:
+
+```bash
+scbolt init <params.mk>
+scbolt init --show
+scbolt init --remove
+```
+
 Run a module:
 
 ```bash
@@ -221,6 +239,25 @@ Validate dependencies and configuration:
 scbolt check <module>
 ```
 
+Display workflow progress:
+
+```bash
+scbolt progress
+scbolt progress --all
+scbolt progress bn-submin
+```
+
+Clean cache and logs, optionally with selected module outputs:
+
+```bash
+scbolt clean
+scbolt clean --all
+scbolt clean macrostates bn-submin
+```
+
+Without modules, `scbolt clean` asks before removing cache and logs.
+With `--all`, it asks before removing cache, logs, and all generated module outputs.
+
 ## Common options
 
 | Option                         | Description                                           |
@@ -230,8 +267,8 @@ scbolt check <module>
 | `--reset-target=<module...>`   | Rebuild from these modules.                           |
 | `--trust-target=<module...>`   | Trust these outputs and skip rebuilding them.         |
 | `--logging=false`              | Disable persistent logging.                           |
+| `--help`                       | Display command-specific help when supported.         |
 | `--raw`                        | Display raw `show-config` listing.                    |
-| `--target=<module>`            | Select module for `check`, `show-config`, and `dry-run`. |
 | `--<parameter>=<value>`        | Override any Make parameter using dash-separated option names. |
 | `--prior-knowledge=<resource>` | Use `collectri`, `dorothea`, or a custom regulatory network. |
 

@@ -14,10 +14,12 @@ def require_key(collection: Any, key: str, group: str) -> None:
         raise KeyError(f"missing AnnData field: {group}['{key}']")
 
 
+script_name = Path(__file__).name
+
 parser = argparse.ArgumentParser(
     prog="prepare_macrostate_h5ad",
     description="Prepare a precomputed macrostate AnnData file for binarization.",
-    usage="python prepare_macrostate_h5ad.py <FILE> <FILE> --use-rep <LITERAL> [<args>]",
+    usage=f"python {script_name} <FILE> <FILE> --use-rep <LITERAL> [<args>]",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 

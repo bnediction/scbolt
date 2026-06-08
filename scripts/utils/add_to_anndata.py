@@ -31,13 +31,15 @@ def generate_unique_index_name(dfs: Union[pd.DataFrame, Sequence[pd.DataFrame]])
     return index_name
 
 
+script_name = Path(__file__).name
+
 parser = argparse.ArgumentParser(
     prog="add_to_anndata",
     description=(
         "Add CSV/TSV file content to an AnnData file. The content can be added "
         "either to 'adata.obs' or 'adata.var', depending on --axis."
     ),
-    usage="python add_to_anndata.py <FILE> <FILE> --csv <FILE> [--axis <AXIS>] [<args>]",
+    usage=f"python {script_name} <FILE> <FILE> --csv <FILE> [--axis <AXIS>] [<args>]",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 

@@ -20,10 +20,12 @@ def make_composite_obs_index(adata, keys, sep="|"):
     )
 
 
+script_name = Path(__file__).name
+
 parser = argparse.ArgumentParser(
     prog="transfer_info",
     description="""Transfer observations, variables and layers from a right dataset to a left dataset.""",
-    usage="""python transfer_info.py [-h] <FILE> <FILE> [--outfile <FILE>] [--obs <LITERAL ...>] [--var <LITERAL ...>] [--layers <LITERAL ...>] [<args>]""",
+    usage=f"""python {script_name} [-h] <FILE> <FILE> [--outfile <FILE>] [--obs <LITERAL ...>] [--var <LITERAL ...>] [--layers <LITERAL ...>] [<args>]""",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 

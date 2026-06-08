@@ -22,14 +22,44 @@ SCBOLT_BIN_DIR="$(dirname "${SCBOLT_SCRIPT}")"
 SCBOLT_ROOT="$(cd "${SCBOLT_BIN_DIR}/.." && pwd)"
 SCBOLT_MAKEFILE="${SCBOLT_ROOT}/Makefile"
 SCBOLT_DEFAULT_PARAMS="${SCBOLT_ROOT}/default_params.mk"
+terminal_device=""
+terminal_state=""
+
+restore_terminal() {
+    if [ -n "${terminal_state}" ] && [ -n "${terminal_device}" ]; then
+        stty "${terminal_state}" < "${terminal_device}" 2> /dev/null || true
+    fi
+}
+
+hide_control_characters() {
+    if terminal_state="$( { stty -g < /dev/tty; } 2> /dev/null )"; then
+        terminal_device="/dev/tty"
+    elif [ -t 0 ]; then
+        terminal_device="/dev/stdin"
+        terminal_state="$(stty -g < "${terminal_device}" 2> /dev/null || true)"
+    else
+        return 0
+    fi
+
+    if [ -z "${terminal_state}" ]; then
+        return 0
+    fi
+
+    stty -echoctl < "${terminal_device}" 2> /dev/null || true
+    trap restore_terminal EXIT
+}
+
+hide_control_characters
 
 if [ -t 1 ]; then
     stdout_green=$'\033[0;32m'
     stdout_yellow=$'\033[0;33m'
+    stdout_bold=$'\033[1m'
     stdout_nc=$'\033[0m'
 else
     stdout_green=""
     stdout_yellow=""
+    stdout_bold=""
     stdout_nc=""
 fi
 
@@ -72,7 +102,18 @@ if [ ! -f "${SCBOLT_DEFAULT_PARAMS}" ]; then
 fi
 
 usage() {
-    exec make -f "${SCBOLT_MAKEFILE}" help SCBOLT_CLI=true
+    make -f "${SCBOLT_MAKEFILE}" help SCBOLT_CLI=true
+    exit "$?"
+}
+
+init_help() {
+    printf '%s\n\n' "usage: scbolt init [<params.mk>|--remove|--show]"
+    printf '%s\n\n' "Create, update, or remove the project configuration used by scBOLT."
+    printf '%sParameters%s\n' "${stdout_bold}" "${stdout_nc}"
+    printf '  %-31s %s\n' '<params.mk>' 'parameter file to use'
+    printf '  %-31s %s\n' '--remove' 'remove active project configuration'
+    printf '  %-31s %s\n' '--show' 'display active parameter file'
+    printf '  %-31s %s\n' '--help, -h' 'display this help'
 }
 
 trim() {
@@ -304,6 +345,41 @@ init_project() {
     fi
 }
 
+remove_project() {
+    local project_file
+    local params=""
+
+    if ! project_file="$(find_project_file)"; then
+        printf '%s\n' "Project file not found."
+        print_warning "scBOLT project unchanged."
+        return 0
+    fi
+
+    params="$(read_project_params "${project_file}" || true)"
+    printf '%s %s\n' "Project file:" "${project_file}"
+    if [ -n "${params}" ]; then
+        printf '%s %s\n' "Parameter file:" "${params}"
+    fi
+
+    if rm -f "${project_file}"; then
+        print_success "scBOLT project configuration removed."
+    else
+        print_error "scBOLT project removal failed."
+        exit 1
+    fi
+}
+
+show_project_params() {
+    local params
+
+    if ! params="$(resolve_project_params)"; then
+        print_error "No parameter file found."
+        exit 1
+    fi
+
+    printf '%s %s\n' "Parameter file:" "${params}"
+}
+
 option_to_make_variable() {
     local option="$1"
     local variable
@@ -486,7 +562,43 @@ run_make_with_params() {
     shift
 
     require_params_file "${params}"
-    exec make -f "${SCBOLT_MAKEFILE}" "$@" "PARAMS=${params}"
+    make -f "${SCBOLT_MAKEFILE}" "$@" "PARAMS=${params}"
+    exit "$?"
+}
+
+run_make_help() {
+    local command="$1"
+
+    make -f "${SCBOLT_MAKEFILE}" "${command}" HELP=true SCBOLT_CLI=true
+    exit "$?"
+}
+
+has_help_request() {
+    local arg
+
+    for arg in "$@"; do
+        case "${arg}" in
+            help|-h|--help|HELP=true)
+                return 0
+                ;;
+        esac
+    done
+
+    return 1
+}
+
+drop_help_args() {
+    filtered_args=()
+
+    for arg in "$@"; do
+        case "${arg}" in
+            help|-h|--help|HELP=true)
+                ;;
+            *)
+                filtered_args+=("${arg}")
+                ;;
+        esac
+    done
 }
 
 if [ "$#" -eq 0 ]; then
@@ -512,9 +624,119 @@ case "${cmd}" in
         usage
         ;;
     init)
-        init_project "$@"
+        if has_help_request "$@"; then
+            init_help
+            exit 0
+        fi
+        init_remove=false
+        init_show=false
+        init_args=()
+        for arg in "$@"; do
+            case "${arg}" in
+                --remove)
+                    init_remove=true
+                    ;;
+                --show)
+                    init_show=true
+                    ;;
+                --remove=*)
+                    print_error "Unsupported scbolt option with value: --remove"
+                    printf '%s\n' "Use '--remove' without a value." >&2
+                    exit 1
+                    ;;
+                --show=*)
+                    print_error "Unsupported scbolt option with value: --show"
+                    printf '%s\n' "Use '--show' without a value." >&2
+                    exit 1
+                    ;;
+                *)
+                    init_args+=("${arg}")
+                    ;;
+            esac
+        done
+        if [ "${init_remove}" = "true" ] && [ "${init_show}" = "true" ]; then
+            print_error "Use either '--remove' or '--show', not both."
+            exit 1
+        elif [ "${init_remove}" = "true" ] && [ "${#init_args[@]}" -gt 0 ]; then
+            print_error "Use either '--remove' or a parameter file, not both."
+            exit 1
+        elif [ "${init_show}" = "true" ] && [ "${#init_args[@]}" -gt 0 ]; then
+            print_error "Use either '--show' or a parameter file, not both."
+            exit 1
+        elif [ "${init_remove}" = "true" ]; then
+            remove_project
+        elif [ "${init_show}" = "true" ]; then
+            show_project_params
+        else
+            init_project "${init_args[@]}"
+        fi
+        ;;
+    clean)
+        if has_help_request "$@"; then
+            run_make_help "clean"
+        fi
+        clean_all=false
+        clean_args=()
+        for arg in "$@"; do
+            case "${arg}" in
+                --all)
+                    clean_all=true
+                    ;;
+                --all=*)
+                    print_error "Unsupported scbolt option with value: --all"
+                    printf '%s\n' "Use '--all' without a value." >&2
+                    exit 1
+                    ;;
+                *)
+                    clean_args+=("${arg}")
+                    ;;
+            esac
+        done
+        translate_args "${leading_args[@]}" "${clean_args[@]}"
+        if [ "${clean_all}" = "true" ] && [ "${#positional_args[@]}" -gt 0 ]; then
+            print_error "Use either '--all' or explicit modules, not both."
+            exit 1
+        elif [ "${clean_all}" = "true" ]; then
+            make_args+=("CLEAN_TARGET=all")
+        elif [ "${#positional_args[@]}" -gt 0 ]; then
+            make_args+=("CLEAN_TARGET=${positional_args[*]}")
+        fi
+        run_make_with_params "${params_assignment}" clean "${make_args[@]}"
+        ;;
+    progress)
+        if has_help_request "$@"; then
+            run_make_help "progress"
+        fi
+        progress_all=false
+        progress_args=()
+        for arg in "$@"; do
+            case "${arg}" in
+                --all)
+                    progress_all=true
+                    ;;
+                --all=*)
+                    print_error "Unsupported scbolt option with value: --all"
+                    printf '%s\n' "Use '--all' without a value." >&2
+                    exit 1
+                    ;;
+                *)
+                    progress_args+=("${arg}")
+                    ;;
+            esac
+        done
+        translate_args "${leading_args[@]}" "${progress_args[@]}"
+        if [ "${progress_all}" = "true" ]; then
+            make_args+=("PROGRESS_ALL=true")
+        fi
+        if [ "${#positional_args[@]}" -gt 0 ]; then
+            make_args+=("TARGET=${positional_args[*]}")
+        fi
+        run_make_with_params "${params_assignment}" progress "${make_args[@]}"
         ;;
     check|dry-run|show-config)
+        if has_help_request "$@"; then
+            run_make_help "${cmd}"
+        fi
         translate_args "${leading_args[@]}" "$@"
         make_target="${cmd}"
         if [ "${#positional_args[@]}" -gt 0 ]; then
@@ -531,6 +753,16 @@ case "${cmd}" in
         fi
         ;;
     *)
+        if has_help_request "$@"; then
+            drop_help_args "$@"
+            translate_args "${leading_args[@]}" "${filtered_args[@]}"
+            run_make_with_params \
+                "${params_assignment}" \
+                module-help \
+                "TARGET=${cmd}" \
+                "${make_args[@]}" \
+                SCBOLT_CLI=true
+        fi
         translate_args "${leading_args[@]}" "$@"
         run_make_with_params "${params_assignment}" "${cmd}" "${positional_args[@]}" "${make_args[@]}"
         ;;

@@ -1,0 +1,544 @@
+## BEGIN PATHS ##
+
+h5ads_for_conditions = $(foreach condition,$(running_conditions),$($(1)_$(condition)))
+default_bin_input_h5ads = $(if $(filter-out $(words $(CONDITIONS)),1),\
+                         $(annotation_integrated),$(annotation_$(conditions)))
+macrostate_h5ad = $(if $(MACROSTATE_FILE),$(tmpdir)/bin/macrostates.h5ad)
+bin_input_h5ads = $(if $(MACROSTATE_FILE),$(macrostate_h5ad),$(default_bin_input_h5ads))
+
+clustering_integrated = $(results)/integrated/clust/clust.h5ad
+annotation_integrated = $(results)/integrated/clust/annot.h5ad
+
+cc_markers  = $(public_dir)/cycle/mouse_cycle_markers.rds
+signatures  = $(public_dir)/signatures/geiger.xls \
+              $(public_dir)/signatures/chambers.xls \
+              $(public_dir)/signatures/sig.json
+go_basic    = $(public_dir)/go/go_basic.obo
+go_organism = $(public_dir)/go/goslim_$(ORGANISM).obo
+gene2go     = $(public_dir)/go/gene2go
+dorothea_legacy = $(public_dir)/omnipath/dorothea_legacy_$(ORGANISM).csv
+
+$(eval genome_ref := $(public_dir)/ref/$(notdir $(genome_url)))
+genome_ref := $(genome_ref:.tar.gz=)
+star_index = $(genome_ref)/star/Genome
+
+define find_paths_for_conditions
+
+fastq_$(1) =                    $(results)/$(1)/fastq
+cellranger_$(1) =               $(results)/$(1)/count/cellranger/$(1).mri.tgz
+star_$(1) =                     $(results)/$(1)/count/star/Aligned.sortedByCoord.out.bam \
+                                $(results)/$(1)/count/star/Solo.out/matrix.mtx \
+                                $(results)/$(1)/count/star/Solo.out/barcodes.tsv
+qc_$(1) =                       $(results)/$(1)/count/star/star.velocyto.bam
+velocyto_$(1) =                 $(results)/$(1)/count/counts.h5ad
+filtering_$(1) =                $(results)/$(1)/prep/filter/counts.h5ad
+normalization_$(1) =            $(results)/$(1)/prep/norm/counts.h5ad
+velocity_$(1) =                 $(results)/$(1)/trajectories/velocity/velocity.h5ad
+potency_$(1) =                  $(results)/$(1)/trajectories/potency/potency.csv
+cotan_$(1) =                    $(results)/$(1)/mstates/cotan/mstates.h5ad \
+                                $(results)/$(1)/mstates/cotan/mstates.csv
+cellrank_$(1) =                 $(results)/$(1)/mstates/cellrank/mstates.h5ad \
+                                $(results)/$(1)/mstates/cellrank/mstates.csv
+stream_$(1) =                   $(results)/$(1)/mstates/stream/mstates.h5ad \
+                                $(results)/$(1)/mstates/stream/mstates.csv
+knnbs_$(1) =                    $(results)/$(1)/mstates/knnbs/mstates.h5ad \
+                                $(results)/$(1)/mstates/knnbs/mstates.csv
+
+ifeq ($(MACROSTATE_METHOD),cotan)
+macrostates_$(1) =              $$(cotan_$(1))
+else ifeq ($(MACROSTATE_METHOD),cellrank)
+macrostates_$(1) =              $$(cellrank_$(1))
+else ifeq ($(MACROSTATE_METHOD),stream)
+macrostates_$(1) =              $$(stream_$(1))
+else ifeq ($(MACROSTATE_METHOD),knnbs)
+macrostates_$(1) =              $$(knnbs_$(1))
+else
+macrostates_$(1) =              $(results)/$(1)/mstates/invalid-method/.error
+endif
+
+ifeq ($(ALIGNMENT_TOOL),cellranger)
+alignment_$(1) =                $$(cellranger_$(1))
+else ifeq ($(ALIGNMENT_TOOL),star)
+alignment_$(1) =                $$(star_$(1))
+else
+alignment_$(1) =                $(results)/$(1)/count/invalid-alignment/.error
+endif
+
+endef
+
+define find_paths_for_references
+
+clustering_$(1) =               $(results)/$(1)/clust/clust.h5ad
+dea_$(1) =                      $(results)/$(1)/clust/dea/markers.csv \
+                                $(results)/$(1)/clust/dea/genes.xlsx
+scoring_$(1) =                  $(results)/$(1)/clust/sig.csv
+goea_basic_$(1) =               $(results)/$(1)/clust/goea/basic.xlsx
+goea_organism_$(1) =            $(results)/$(1)/clust/goea/$(ORGANISM).xlsx
+annotation_$(1) =               $(results)/$(1)/clust/annot.h5ad
+
+endef
+
+bin_cells =                     $(results)/bin/scboolseq/cell/cells_bin.h5ad \
+                                $(results)/bin/scboolseq/cell/cells_stats.csv
+bin_hvg =                       $(tmpdir)/bin/top_genes.txt
+bin_mstates =               $(results)/bin/scboolseq/macro/$(MACROSTATE_METHOD)/mstates_bin.csv
+bin_dea =                       $(results)/bin/dea/$(MACROSTATE_METHOD)/mstates_bin.csv
+bin_consensus =                 $(results)/bin/consensus/$(MACROSTATE_METHOD)/mstates_bin.csv
+
+bonesis_model =                 $(results)/infer/spec/model.bo \
+                                $(results)/infer/spec/mstates.csv \
+                                $(results)/infer/spec/important.txt \
+                                $(results)/infer/spec/mandatory.txt
+max_nodes_soft =                $(results)/infer/genes/soft/comps.txt
+max_consts_soft =               $(results)/infer/genes/consts/comps.txt
+max_nodes_relaxed =             $(results)/infer/genes/relaxed/comps.txt
+max_nodes_seed =                $(results)/infer/genes/seed/comps.txt
+max_nodes_lock =                $(results)/infer/genes/lock/comps.txt
+bn_min =                        $(results)/infer/bn/min/model.bnet
+
+bn_submin_dir = $(results)/infer/bn/submin
+bn_files = $(foreach i,$(1),$(2)/$(i)/model.bnet $(2)/$(i)/state.cfg)
+ifneq ($(filter-out 0,$(strip $(INFER_LIMIT))),)
+bn_submin_indices := $(shell seq 0 $$(($(INFER_LIMIT)-1)))
+bn_submin = $(call bn_files,$(bn_submin_indices),$(bn_submin_dir))
+else
+bn_submin = $(bn_submin_dir)/ensemble.pdf
+endif
+
+bn_diverse_dir = $(results)/infer/bn/diverse
+ifneq ($(filter-out 0,$(strip $(INFER_LIMIT))),)
+bn_diverse_indices := $(shell seq 0 $$(($(INFER_LIMIT)-1)))
+bn_diverse = $(call bn_files,$(bn_diverse_indices),$(bn_diverse_dir))
+else
+bn_diverse = $(bn_diverse_dir)/ensemble.pdf
+endif
+
+$(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
+$(foreach reference,$(references_default),$(eval $(call find_paths_for_references,$(reference))))
+
+## END PATHS ##
+
+## BEGIN TARGETS ##
+
+fastq_target :=
+alignment_target :=
+cellranger_target :=
+star_target :=
+qc_target :=
+velocyto_target :=
+filtering_target :=
+normalization_target :=
+clustering_target :=
+dea_target :=
+scoring_target :=
+goea_target :=
+annotation_target :=
+velocity_target :=
+potency_target :=
+macrostates_target :=
+stream_target :=
+cellrank_target :=
+knnbs_target :=
+cotan_target :=
+
+define find_targets_for_conditions
+
+$(eval fastq_target := $(fastq_target) $(fastq_$(1)))
+$(eval alignment_target := $(alignment_target) $(alignment_$(1)))
+$(eval cellranger_target := $(cellranger_target) $(cellranger_$(1)))
+$(eval star_target := $(star_target) $(star_$(1)))
+$(eval qc_target := $(qc_target) $(qc_$(1)))
+$(eval velocyto_target := $(velocyto_target) $(velocyto_$(1)))
+$(eval filtering_target := $(filtering_target) $(filtering_$(1)))
+$(eval normalization_target := $(normalization_target) $(normalization_$(1)))
+$(eval velocity_target := $(velocity_target) $(velocity_$(1)))
+$(eval potency_target := $(potency_target) $(potency_$(1)))
+$(eval cotan_target := $(cotan_target) $(cotan_$(1)))
+$(eval cellrank_target := $(cellrank_target) $(cellrank_$(1)))
+$(eval stream_target := $(stream_target) $(stream_$(1)))
+$(eval knnbs_target := $(knnbs_target) $(knnbs_$(1)))
+$(eval macrostates_target := $(macrostates_target) $(macrostates_$(1)))
+
+endef
+
+define find_targets_for_references
+
+$(eval clustering_target := $(clustering_target) $(clustering_$(1)))
+$(eval dea_target := $(dea_target) $(dea_$(1)))
+$(eval scoring_target := $(scoring_target) $(scoring_$(1)))
+$(eval goea_target := $(goea_target) $(goea_basic_$(1)) $(goea_organism_$(1)))
+$(eval annotation_target := $(annotation_target) $(annotation_$(1)))
+
+endef
+
+$(foreach condition,$(running_conditions),$(eval $(call find_targets_for_conditions,$(condition))))
+$(foreach reference,$(running_references),$(eval $(call find_targets_for_references,$(reference))))
+
+ifneq ($(strip $(MACROSTATE_FILE)),)
+macrostates_target := $(macrostate_h5ad)
+endif
+
+## END TARGETS ##
+
+ifeq ($(words $(CONDITIONS)),1)
+batch =
+else
+batch = --batch condition
+endif
+
+## BEGIN PARAMETERS ##
+
+ifeq ($(diagnostic_mode),)
+ifneq ($(call is_positive_integer,$(MEMORY)),true)
+$(error parameter MEMORY must be a positive integer (current: $(MEMORY)))
+endif
+ifneq ($(call is_positive_integer,$(JOBS)),true)
+$(error parameter JOBS must be a positive integer (current: $(JOBS)))
+endif
+ifneq ($(call is_positive_integer,$(SEED)),true)
+$(error parameter SEED must be a positive integer (current: $(SEED)))
+endif
+ifneq ($(filter $(LOGGING),true false),$(LOGGING))
+$(error unsupported value for parameter LOGGING (supported values: true, false))
+endif
+ifneq ($(call is_creatable_path,$(RESULTS)),true)
+$(error parameter RESULTS must be a valid output path (current: $(RESULTS)))
+endif
+ifeq ($(strip $(REFERENCES)),)
+$(error parameter REFERENCES not defined)
+endif
+ifneq ($(invalid_references),)
+$(error unsupported value for parameter REFERENCES: $(invalid_references) \
+	(supported values: $(subst $(space),$(comma) ,$(conditions) integrated)))
+endif
+ifeq ($(words $(conditions)),1)
+ifneq ($(filter integrated,$(running_references)),)
+$(error unsupported value for parameter REFERENCES: integrated is not supported \
+	for mono-condition projects)
+endif
+endif
+endif
+
+$(if $(filter true,$(call is_creatable_path,$(RESULTS))),$(shell mkdir -p "$(results)"))
+
+check_mode := $(filter check,$(MAKECMDGOALS))$(__check_mode)
+
+ifneq ($(check_mode),)
+$(if $(strip $(JOBS)),,$(eval override JOBS := 1))
+endif
+
+ifndef JOBS
+open_allocated_cpu := 1
+else ifneq ($(call is_positive_integer,$(JOBS)),true)
+open_allocated_cpu := 1
+else
+try_open_allocated_cpu := $(shell echo $$(($(JOBS) / 2)))
+open_allocated_cpu := $(if $(findstring $(try_open_allocated_cpu),0),1,$(try_open_allocated_cpu))
+endif
+
+norm_mad = $(if $(filter true,$(NORM_MAD)),--consistent-mad)
+cc_scores = $(if $(filter true,$(CC_CORRECTION)),--correction G2M_score S_score G1_score)
+pca_only_hvg = $(if $(filter true,$(PCA_ONLY_HVG)),--only-hvg)
+embedding_method_X_umap = umap
+embedding_method_X_tsne = tsne
+embedding_method = $(embedding_method_$(1))
+embedding = $(call embedding_method,$(USE_REP))
+
+label_ids = $(if $(LABEL),$(shell seq 0 1 $$(($(words $(LABEL))-1))))
+label_map = $(join $(label_ids),$(addprefix :,$(LABEL)))
+
+velocity_only_hvg = $(if $(filter true,$(VELOCITY_ONLY_HVG)),--only-hvg)
+cotan_only_hvg = $(if $(filter true,$(COTAN_ONLY_HVG)),--only-hvg)
+extend_epg = $(if $(filter true,$(EXTEND_EPG)),--extend-epg)
+prune_epg = $(if $(filter true,$(PRUNE_EPG)),--prune-epg)
+
+ifeq ($(KNNBS_DIMENSION),)
+knnbs_dimension=
+else
+knnbs_dimension=--dimension $(KNNBS_DIMENSION)
+endif
+
+hvg_layer_name = $(if $(filter seurat_v3,$(1)),counts,log-norm)
+hvg_layer = --layer $(call hvg_layer_name,$(1))
+bin_hvg_layer = $(if $(filter seurat seurat_v3 cell_ranger,$(BIN_HVG_FLAVOR)),\
+	$(call hvg_layer,$(BIN_HVG_FLAVOR)))
+bin_scboolseq_hvg = $(if $(filter true,$(BIN_SCBOOLSEQ_ONLY_HVG)),--filter-genes $(bin_hvg))
+bin_dea_hvg = $(if $(filter true,$(BIN_DEA_ONLY_HVG)),--filter-genes $(bin_hvg))
+zeroes_are_zeroes = $(if $(filter true,$(ZEROES_ARE_ZEROES)),--zeroes-are-zeroes)
+bin_method_error = $(results)/bin/invalid-method/.error
+default_bin = $(if $(filter scboolseq,$(BIN_METHOD)),$(bin_mstates),\
+	$(if $(filter dea,$(BIN_METHOD)),$(bin_dea),\
+	$(if $(filter consensus,$(BIN_METHOD)),$(bin_consensus),$(bin_method_error))))
+bin = $(if $(BINARIZATION_FILE),$(BINARIZATION_FILE),$(default_bin))
+
+known_prior_knowledge = collectri dorothea
+dorothea_apis = current legacy
+dorothea_levels = A B C D
+
+# Resolve the user-facing prior knowledge parameter to the actual domain passed
+# to BoNesis scripts. Only dorothea+legacy is materialized as a custom file,
+# because decoupler.get_dorothea lives in the legacy environment.
+ifeq ($(PRIOR_KNOWLEDGE),collectri)
+prior_knowledge = collectri
+else ifeq ($(PRIOR_KNOWLEDGE),dorothea)
+ifneq ($(filter $(strip $(DOROTHEA_API)),$(dorothea_apis)),)
+ifeq ($(strip $(DOROTHEA_API)),legacy)
+prior_knowledge = $(dorothea_legacy)
+else
+prior_knowledge = dorothea
+endif
+else
+prior_knowledge =
+endif
+else ifneq ($(wildcard $(PRIOR_KNOWLEDGE)),)
+prior_knowledge = $(PRIOR_KNOWLEDGE)
+endif
+dorothea_levels_arg = $(if $(filter dorothea,$(prior_knowledge)),\
+	$(if $(strip $(DOROTHEA_LEVELS)),--dorothea-levels $(DOROTHEA_LEVELS)))
+prior_knowledge_params = PRIOR_KNOWLEDGE \
+	$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),\
+	DOROTHEA_API $(if $(filter current,$(DOROTHEA_API)),DOROTHEA_LEVELS))
+
+min_self_loop_consts = $(if $(filter true,$(MIN_SELF_LOOP_CONSTS)),--minimize-self-loops)
+min_self_loop_infer = $(if $(filter true,$(MIN_SELF_LOOP_INFER)),--minimize-self-loops)
+
+reset_stages = \
+	load-fastq alignment cellranger star qc velocyto \
+	filtering normalization clustering dea scoring goea annotation \
+	velocity potency cotan cellrank stream knnbs macrostates \
+	bin-cells bin-macrostates bin-dea bin-consensus binarization \
+	spec max-nodes-soft max-consts-soft max-nodes-relaxed \
+	max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
+RESET_TARGET_load-fastq = $(fastq_target)
+RESET_TARGET_alignment = $(alignment_target)
+RESET_TARGET_cellranger = $(cellranger_target)
+RESET_TARGET_star = $(star_target)
+RESET_TARGET_qc = $(qc_target)
+RESET_TARGET_velocyto = $(velocyto_target)
+RESET_TARGET_filtering = $(filtering_target)
+RESET_TARGET_normalization = $(normalization_target)
+RESET_TARGET_clustering = $(clustering_target)
+RESET_TARGET_dea = $(dea_target)
+RESET_TARGET_scoring = $(scoring_target)
+RESET_TARGET_goea = $(goea_target)
+RESET_TARGET_annotation = $(annotation_target)
+RESET_TARGET_velocity = $(velocity_target)
+RESET_TARGET_potency = $(potency_target)
+RESET_TARGET_cotan = $(cotan_target)
+RESET_TARGET_cellrank = $(cellrank_target)
+RESET_TARGET_stream = $(stream_target)
+RESET_TARGET_knnbs = $(knnbs_target)
+RESET_TARGET_mstates = $(macrostates_target)
+RESET_TARGET_bin-cells = $(bin_cells)
+RESET_TARGET_bin-macrostates = $(bin_mstates)
+RESET_TARGET_bin-dea = $(bin_dea)
+RESET_TARGET_bin-consensus = $(bin_consensus)
+RESET_TARGET_binarization = $(bin)
+RESET_TARGET_spec = $(bonesis_model)
+RESET_TARGET_max-nodes-soft = $(max_nodes_soft)
+RESET_TARGET_max-consts-soft = $(max_consts_soft)
+RESET_TARGET_max-nodes-relaxed = $(max_nodes_relaxed)
+RESET_TARGET_max-nodes-seed = $(max_nodes_seed)
+RESET_TARGET_max-nodes-lock = $(max_nodes_lock)
+RESET_TARGET_bn-min = $(bn_min)
+RESET_TARGET_bn-submin = $(bn_submin)
+RESET_TARGET_bn-diverse = $(bn_diverse)
+
+reset_modules := $(strip $(RESET_TARGET) $(RESET_FROM))
+trust_modules := $(strip $(TRUST_TARGET))
+raw_clean_modules := $(strip $(CLEAN_TARGET))
+clean_all := $(filter all,$(raw_clean_modules))
+clean_modules := $(if $(filter all,$(raw_clean_modules)),$(reset_stages),$(raw_clean_modules))
+reset_disabled_goals := help
+reset_disabled := $(strip \
+	$(filter $(reset_disabled_goals),$(MAKECMDGOALS)) \
+	$(__reset_disabled) \
+	$(if $(filter true,$(HELP)),help))
+ifeq ($(reset_disabled),)
+unknown_reset_targets := $(filter-out $(reset_stages),$(reset_modules))
+unknown_trust_targets := $(filter-out $(reset_stages),$(trust_modules))
+unknown_clean_targets := $(filter-out $(reset_stages) all,$(raw_clean_modules))
+ifneq ($(clean_all),)
+ifneq ($(filter-out all,$(raw_clean_modules)),)
+$(error CLEAN_TARGET=all cannot be combined with modules: $(filter-out all,$(raw_clean_modules)))
+endif
+endif
+ifneq ($(unknown_reset_targets),)
+$(error unknown RESET_TARGET/RESET_FROM module: $(unknown_reset_targets) \
+	(supported values: $(subst $(space),$(comma) ,$(reset_stages))))
+endif
+ifneq ($(unknown_trust_targets),)
+$(error unknown TRUST_TARGET module: $(unknown_trust_targets) \
+	(supported values: $(subst $(space),$(comma) ,$(reset_stages))))
+endif
+ifneq ($(unknown_clean_targets),)
+$(error unknown CLEAN_TARGET module: $(unknown_clean_targets) \
+	(supported values: $(subst $(space),$(comma) ,$(reset_stages))))
+endif
+reset_targets := $(strip $(foreach module,$(reset_modules),$(RESET_TARGET_$(module))))
+trust_targets := $(strip $(foreach module,$(trust_modules),$(RESET_TARGET_$(module))))
+ifneq ($(reset_targets),)
+.PHONY: $(reset_targets)
+endif
+trust_make_options := $(foreach target,$(trust_targets),--old-file="$(target)")
+endif
+
+target_params_load-dorothea = ORGANISM
+target_params_alignment = ALIGNMENT_TOOL MEMORY STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
+target_params_cellranger = MEMORY
+target_params_star = MEMORY STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
+target_params_qc = STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
+target_params_velocyto = ALIGNMENT_TOOL MEMORY STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
+target_params_filtering = \
+	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
+	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
+	MAD_DEVIATION NORM_MAD MT
+target_params_normalization = CC_CORRECTION
+target_params_clustering = \
+	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
+	ANALYSIS_HVG_BINS DIM_PCA DIM_CLUSTERING DIM_EMBEDDING PCA_ONLY_HVG \
+	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD
+target_params_dea = LOGFC CORRECTION ALPHA
+target_params_annotation = LABEL
+target_params_velocity = DIM_MOMENT VELOCITY_ONLY_HVG SMM_MODE
+target_params_potency = BATCH_SIZE SMOOTH_BATCH_SIZE
+target_params_cotan = MACROSTATE_SIZE COTAN_METHOD COTAN_ONLY_HVG MAX_ITER
+target_params_cellrank = \
+	MACROSTATE_SIZE CELLRANK_METHOD STATES INITIAL_STATES TERMINAL_STATES \
+	CELLRANK_STABILITY CELLRANK_ALPHA
+target_params_stream = \
+	MACROSTATE_SIZE CLUSTERING_METHOD CLUSTER_NUMBER \
+	ALPHA_EPG MU_EPG LAMBDA_EPG EXTEND_EPG EXTEND_MODE \
+	EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER
+target_params_knnbs = MACROSTATE_SIZE KNNBS_EMBEDDING KNNBS_DIMENSION KNNBS_NEIGHBORS
+target_params_mstates = MACROSTATE_METHOD MACROSTATE_SIZE MACROSTATE_FILE
+target_params_bin-cells = \
+	MACROSTATE_FILE \
+	BIN_SCBOOLSEQ_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES
+target_params_bin-macrostates = \
+	MACROSTATE_FILE NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD
+target_params_bin-dea = \
+	MACROSTATE_FILE \
+	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
+target_params_bin-consensus = \
+	MACROSTATE_FILE \
+	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD \
+	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
+target_params_binarization = BIN_METHOD BINARIZATION_FILE MACROSTATE_FILE
+target_params_spec = \
+	SPEC_FILE SPEC_ONLY_HVG \
+	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	$(prior_knowledge_params)
+target_params_max-nodes-soft = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	CLINGO_CONFIG_SOFT CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT \
+	JOBS_SOFT TIMEOUT_SOFT
+target_params_max-consts-soft = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER MIN_SELF_LOOP_CONSTS \
+	CLINGO_CONFIG_CONSTS CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS \
+	JOBS_CONSTS TIMEOUT_CONSTS
+target_params_max-nodes-relaxed = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	CLINGO_CONFIG_RELAXED CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED \
+	JOBS_RELAXED TIMEOUT_RELAXED
+target_params_max-nodes-seed = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	CLINGO_CONFIG_SEED CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED \
+	JOBS_SEED TIMEOUT_SEED
+target_params_max-nodes-lock = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	CLINGO_CONFIG_LOCK CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK \
+	JOBS_LOCK TIMEOUT_LOCK
+target_params_bn-min = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER MIN_SELF_LOOP_INFER \
+	CLINGO_OPT_MODE_MIN GRAPH_FORMATS
+target_params_bn-submin = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER \
+	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
+target_params_bn-diverse = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER \
+	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
+
+use_rep_check_pattern = $(use_rep_check_pattern_1)$(use_rep_check_pattern_2)$(use_rep_check_pattern_3)
+use_rep_check_pattern_1 = scripts/(clustering/annotation|utils/pipe_its|trajectories/potency
+use_rep_check_pattern_2 = |macrostates/stream_mstates|binarization/(bin_cells_scboolseq
+use_rep_check_pattern_3 = |bin_clusters_scboolseq|bin_dea)).py
+
+label_col_check_pattern = $(label_col_check_pattern_1)$(label_col_check_pattern_2)
+label_col_check_pattern_1 = scripts/(clustering/annotation|utils/pipe_its|trajectories/velocity
+label_col_check_pattern_2 = |trajectories/potency|macrostates/(stream|knnbs)_mstates).py
+
+uniq = $(if $(1),$(firstword $(1)) $(call uniq,$(filter-out $(firstword $(1)),$(1))))
+
+project_config_param_set = \
+	ORGANISM CONDITIONS \
+	$(foreach condition,$(conditions),SRA_$(call toupper,$(condition))) \
+	LABEL SPEC_FILE
+core_config_param_set = \
+	PARAMS REFERENCES RESULTS MEMORY JOBS SEED LOGGING USE_REP LABEL_COL
+method_config_param_set = \
+	ALIGNMENT_TOOL STAR_CB_LEN STAR_UMI_LEN \
+	STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES \
+	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
+	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
+	MAD_DEVIATION NORM_MAD MT \
+	CC_CORRECTION \
+	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
+	ANALYSIS_HVG_BINS DIM_PCA DIM_CLUSTERING DIM_EMBEDDING PCA_ONLY_HVG \
+	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD \
+	LOGFC CORRECTION ALPHA \
+	DIM_MOMENT VELOCITY_ONLY_HVG SMM_MODE \
+	BATCH_SIZE SMOOTH_BATCH_SIZE \
+	MACROSTATE_SIZE MACROSTATE_METHOD \
+	COTAN_METHOD COTAN_ONLY_HVG MAX_ITER \
+	CELLRANK_METHOD STATES INITIAL_STATES TERMINAL_STATES \
+	CELLRANK_STABILITY CELLRANK_ALPHA \
+	CLUSTERING_METHOD CLUSTER_NUMBER ALPHA_EPG MU_EPG LAMBDA_EPG \
+	EXTEND_EPG EXTEND_MODE EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER \
+	KNNBS_EMBEDDING KNNBS_DIMENSION KNNBS_NEIGHBORS \
+	BIN_SCBOOLSEQ_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES \
+	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD \
+	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	BIN_LOGFC BIN_CORRECTION BIN_ALPHA \
+	BIN_METHOD \
+	SPEC_ONLY_HVG \
+	MAX_CLAUSE DOROTHEA_API DOROTHEA_LEVELS CANONIC_FILTER CANONIC_INFER \
+	CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT JOBS_SOFT TIMEOUT_SOFT \
+	CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS JOBS_CONSTS TIMEOUT_CONSTS \
+	CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED JOBS_RELAXED TIMEOUT_RELAXED \
+	CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED JOBS_SEED TIMEOUT_SEED \
+	CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK JOBS_LOCK TIMEOUT_LOCK \
+	CLINGO_OPT_MODE_MIN CONFIG_FORMATS GRAPH_FORMATS MIN_SELF_LOOP_CONSTS \
+	MIN_SELF_LOOP_INFER INFER_LIMIT
+external_resource_config_param_set = \
+	STAR_WHITELIST BINARIZATION_FILE MACROSTATE_FILE PRIOR_KNOWLEDGE \
+	CLINGO_CONFIG_SOFT CLINGO_CONFIG_CONSTS CLINGO_CONFIG_RELAXED \
+	CLINGO_CONFIG_SEED CLINGO_CONFIG_LOCK
+config_default_modules = \
+	load-fastq load-dorothea alignment cellranger star qc velocyto \
+	filtering normalization clustering dea annotation velocity potency \
+	macrostates cotan cellrank stream knnbs bin-cells bin-macrostates \
+	bin-dea bin-consensus binarization spec max-nodes-soft max-consts-soft \
+	max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
+config_base_params = \
+	ORGANISM CONDITIONS $(foreach condition,$(conditions),SRA_$(call toupper,$(condition))) \
+	PARAMS REFERENCES RESULTS MEMORY JOBS SEED LOGGING USE_REP LABEL_COL
+config_params_from_modules = $(strip $(foreach module,$(1),$(target_params_$(module))))
+config_project_params = $(call uniq,$(filter $(project_config_param_set),$(1)))
+config_core_params = $(call uniq,$(filter $(core_config_param_set),$(1)))
+config_method_params = $(call uniq,$(filter $(method_config_param_set),$(1)))
+config_external_resource_params = $(call uniq,$(filter $(external_resource_config_param_set),$(1)))
+target_dry_run_modules = $(shell $(nested_make) --always-make --dry-run LOGGING=false \
+	__check_mode=true __$(1) PARAMS="$(PARAMS)" LOGFILE="$(LOGFILE)" 2>/dev/null \
+	| sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' \
+	| awk '!seen[$$0]++')
+target_pending_modules = $(shell $(nested_make) --dry-run LOGGING=false \
+	__check_mode=true __$(1) PARAMS="$(PARAMS)" LOGFILE="$(LOGFILE)" 2>/dev/null \
+	| sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' \
+	| awk '!seen[$$0]++')
+
+## END PARAMETERS ##

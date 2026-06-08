@@ -9,11 +9,13 @@ from bonesistools.databases.ncbi import GeneSynonyms
 
 import pandas as pd
 
+script_name = Path(__file__).name
+
 parser = argparse.ArgumentParser(
     prog="genename_standardization",
     description="""Convert gene aliases to another identifier type.
     By default, convert gene names to their NCBI reference names.""",
-    usage="""python genename_standardization.py [-h] <PATH> <PATH> [<args>]""",
+    usage=f"""python {script_name} [-h] <PATH> <PATH> [<args>]""",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 

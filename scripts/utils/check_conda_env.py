@@ -11,6 +11,8 @@ import re
 import subprocess
 import sys
 
+script_name = Path(__file__).name
+
 
 @dataclass(frozen=True)
 class PackageSpec:
@@ -195,7 +197,7 @@ def emit(status: str, messages: list[str]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(prog=script_name)
     parser.add_argument("--env", required=True)
     parser.add_argument("--yaml", type=Path, required=True)
     parser.add_argument("--git-package", action="append", default=[])

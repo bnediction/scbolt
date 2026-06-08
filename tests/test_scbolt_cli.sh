@@ -65,6 +65,60 @@ done
 run_scbolt_from_path "${project}" help
 expect_make_args -f "${makefile}" help SCBOLT_CLI=true
 
+run_scbolt "${project}" show-config help
+expect_make_args -f "${makefile}" show-config HELP=true SCBOLT_CLI=true
+
+run_scbolt "${project}" show-config -h
+expect_make_args -f "${makefile}" show-config HELP=true SCBOLT_CLI=true
+
+run_scbolt "${project}" show-config --help
+expect_make_args -f "${makefile}" show-config HELP=true SCBOLT_CLI=true
+
+run_scbolt "${project}" check --help
+expect_make_args -f "${makefile}" check HELP=true SCBOLT_CLI=true
+
+run_scbolt "${project}" dry-run help
+expect_make_args -f "${makefile}" dry-run HELP=true SCBOLT_CLI=true
+
+run_scbolt "${project}" annotation help --params=params.mk
+expect_make_args \
+    -f "${makefile}" \
+    module-help \
+    TARGET=annotation \
+    SCBOLT_CLI=true \
+    PARAMS=params.mk
+
+run_scbolt "${project}" annotation --help --params=params.mk
+expect_make_args \
+    -f "${makefile}" \
+    module-help \
+    TARGET=annotation \
+    SCBOLT_CLI=true \
+    PARAMS=params.mk
+
+run_scbolt "${project}" bn-submin -h --params=params.mk
+expect_make_args \
+    -f "${makefile}" \
+    module-help \
+    TARGET=bn-submin \
+    SCBOLT_CLI=true \
+    PARAMS=params.mk
+
+run_scbolt "${project}" progress --help
+expect_make_args -f "${makefile}" progress HELP=true SCBOLT_CLI=true
+
+run_scbolt "${project}" clean help
+expect_make_args -f "${makefile}" clean HELP=true SCBOLT_CLI=true
+
+(
+    cd "${project}"
+    "${scbolt}" init --help > "${tmpdir}/init-help.out"
+)
+grep -qx 'usage: scbolt init \[<params.mk>|--remove|--show\]' "${tmpdir}/init-help.out"
+grep -q '^Parameters$' "${tmpdir}/init-help.out"
+grep -q '^  --remove' "${tmpdir}/init-help.out"
+grep -q '^  --show' "${tmpdir}/init-help.out"
+
 (
     cd "${project}"
     "${scbolt}" init params.mk > "${tmpdir}/init.out" 2> "${tmpdir}/init.err"
@@ -101,8 +155,91 @@ grep -qx 'PARAMS=spaced.mk' "${project}/.scbolt"
 grep -q '^Parameter file: spaced.mk$' "${tmpdir}/unchanged-init.out"
 grep -qx '⚠ scBOLT project unchanged.' "${tmpdir}/unchanged-init.out"
 
+mkdir -p "${project}/nested/path"
+(
+    cd "${project}/nested/path"
+    "${scbolt}" init --show > "${tmpdir}/show-init.out"
+)
+grep -qx "Parameter file: ${project}/spaced.mk" "${tmpdir}/show-init.out"
+
+(
+    cd "${project}/nested/path"
+    "${scbolt}" init --remove > "${tmpdir}/remove-init.out"
+)
+test ! -e "${project}/.scbolt"
+grep -qx "Project file: ${project}/.scbolt" "${tmpdir}/remove-init.out"
+grep -qx 'Parameter file: spaced.mk' "${tmpdir}/remove-init.out"
+grep -qx '✓ scBOLT project configuration removed.' "${tmpdir}/remove-init.out"
+
+(
+    cd "${project}"
+    "${scbolt}" init spaced.mk > "${tmpdir}/restore-init.out"
+)
+grep -qx 'PARAMS=spaced.mk' "${project}/.scbolt"
+
+if (
+    cd "${project}"
+    "${scbolt}" init --remove spaced.mk > "${tmpdir}/bad-remove-init.out" \
+        2> "${tmpdir}/bad-remove-init.err"
+); then
+    printf '%s\n' "expected init --remove with params file to fail" >&2
+    exit 1
+fi
+grep -qx "✗ Use either '--remove' or a parameter file, not both." \
+    "${tmpdir}/bad-remove-init.err"
+
+if (
+    cd "${project}"
+    "${scbolt}" init --show spaced.mk > "${tmpdir}/bad-show-init.out" \
+        2> "${tmpdir}/bad-show-init.err"
+); then
+    printf '%s\n' "expected init --show with params file to fail" >&2
+    exit 1
+fi
+grep -qx "✗ Use either '--show' or a parameter file, not both." \
+    "${tmpdir}/bad-show-init.err"
+
+no_project="${tmpdir}/no-project"
+mkdir -p "${no_project}"
+(
+    cd "${no_project}"
+    "${scbolt}" init --remove > "${tmpdir}/missing-remove-init.out"
+)
+grep -qx 'Project file not found.' "${tmpdir}/missing-remove-init.out"
+grep -qx '⚠ scBOLT project unchanged.' "${tmpdir}/missing-remove-init.out"
+
+if (
+    cd "${no_project}"
+    "${scbolt}" init --show > "${tmpdir}/missing-show-init.out" \
+        2> "${tmpdir}/missing-show-init.err"
+); then
+    printf '%s\n' "expected init --show without params to fail" >&2
+    exit 1
+fi
+grep -qx '✗ No parameter file found.' "${tmpdir}/missing-show-init.err"
+
 run_scbolt "${project}" bn-submin
 expect_make_args -f "${makefile}" bn-submin "PARAMS=${project}/spaced.mk"
+
+run_scbolt "${project}" clean
+expect_make_args -f "${makefile}" clean "PARAMS=${project}/spaced.mk"
+
+run_scbolt "${project}" clean --all --params=params.mk
+expect_make_args -f "${makefile}" clean CLEAN_TARGET=all PARAMS=params.mk
+
+if run_scbolt "${project}" clean --all macrostates > "${tmpdir}/bad-clean.out" \
+    2> "${tmpdir}/bad-clean.err"; then
+    printf '%s\n' "expected clean --all with explicit modules to fail" >&2
+    exit 1
+fi
+grep -qx "✗ Use either '--all' or explicit modules, not both." "${tmpdir}/bad-clean.err"
+
+run_scbolt "${project}" clean macrostates bn-submin --params=params.mk
+expect_make_args \
+    -f "${makefile}" \
+    clean \
+    "CLEAN_TARGET=macrostates bn-submin" \
+    PARAMS=params.mk
 
 printf '# override params\n' > "${project}/override.mk"
 printf '# wrong params\n' > "${project}/spec.yml"
@@ -201,6 +338,15 @@ expect_make_args -f "${makefile}" dry-run TARGET=bn-submin PARAMS=params.mk
 
 run_scbolt "${project}" --target bn-submin dry-run --params=params.mk
 expect_make_args -f "${makefile}" dry-run TARGET=bn-submin PARAMS=params.mk
+
+run_scbolt "${project}" progress --params=params.mk
+expect_make_args -f "${makefile}" progress PARAMS=params.mk
+
+run_scbolt "${project}" progress --all --params=params.mk
+expect_make_args -f "${makefile}" progress PROGRESS_ALL=true PARAMS=params.mk
+
+run_scbolt "${project}" progress bn-min bn-diverse --params=params.mk
+expect_make_args -f "${makefile}" progress "TARGET=bn-min bn-diverse" PARAMS=params.mk
 
 run_scbolt "${project}" show-config macrostates --params=params.mk
 expect_make_args \

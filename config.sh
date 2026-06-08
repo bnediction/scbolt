@@ -36,7 +36,7 @@ install_env() {
             fi
             if [ "$1" == "scbolt-velocity" ];
             then
-                install_scvelo_git "$1"
+#                install_scvelo_git "$1"
             fi
             if [ "$1" == "scbolt-bonesis" ];
             then
@@ -56,7 +56,7 @@ install_env() {
         fi
         if [ "$1" == "scbolt-velocity" ];
         then
-            install_scvelo_git "$1"
+#            install_scvelo_git "$1"
         fi
     fi
 }

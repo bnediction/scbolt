@@ -17,10 +17,12 @@ def get_sign_column(dorothea):
     raise ValueError("DoRothEA table must contain a sign, weight or mor column")
 
 
+script_name = Path(__file__).name
+
 parser = argparse.ArgumentParser(
     prog="load_dorothea_legacy",
     description="Download DoRothEA through decoupler.get_dorothea and export a signed interaction graph.",
-    usage="python load_dorothea_legacy.py --organism <ORGANISM> --outfile <FILE>",
+    usage=f"python {script_name} --organism <ORGANISM> --outfile <FILE>",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 

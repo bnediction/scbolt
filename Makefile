@@ -5,2046 +5,15 @@
 
 SHELL := /bin/bash
 MAKEFLAGS += --silent --no-builtin-rules
-__check_externals__ ?= true
 
-launch_dir := $(CURDIR)
 makefile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 scbolt_root := $(patsubst %/,%,$(dir $(makefile_path)))
-lib_dir := $(scbolt_root)/lib
-scripts_dir := $(scbolt_root)/scripts
-fig_dir := $(scbolt_root)/fig
-public_dir := $(scbolt_root)/public
 
-strip_trailing_slash = $(if $(filter /,$(strip $(1))),/,$(patsubst %/,%,$(strip $(1))))
-is_absolute_path = $(filter /%,$(strip $(1)))
-resolve_path_from = $(call strip_trailing_slash,\
-	$(if $(call is_absolute_path,$(1)),$(1),$(abspath $(strip $(2))/$(strip $(1)))))
-resolve_optional_path_from = $(if $(strip $(1)),$(call resolve_path_from,$(1),$(2)))
-
-include $(scbolt_root)/default_params.mk
-
-params_base := $(if $(filter command line,$(origin PARAMS)),$(launch_dir),$(scbolt_root))
-override PARAMS := $(call resolve_path_from,$(PARAMS),$(params_base))
-params_dir := $(call strip_trailing_slash,$(dir $(PARAMS)))
-
-include $(PARAMS)
-
-path_origin_base = $(if $(filter command line,$(origin $(1))),$(launch_dir),$(params_dir))
-resolve_user_path_var = $(eval override $(1) := \
-	$(call resolve_optional_path_from,$($(1)),$(call path_origin_base,$(1))))
-clingo_named_configs := auto frumpy jumpy tweety handy crafty trendy many
-clingo_config_vars := \
-	CLINGO_CONFIG_SOFT CLINGO_CONFIG_CONSTS CLINGO_CONFIG_RELAXED \
-	CLINGO_CONFIG_SEED CLINGO_CONFIG_LOCK
-resolve_clingo_config = $(if $(strip $($(1))),\
-	$(if $(filter $(strip $($(1))),$(clingo_named_configs)),,$(call resolve_user_path_var,$(1))))
-
-$(call resolve_user_path_var,RESULTS)
-$(call resolve_user_path_var,SPEC_FILE)
-$(call resolve_user_path_var,BINARIZATION_FILE)
-$(call resolve_user_path_var,MACROSTATE_FILE)
-$(if $(filter $(strip $(PRIOR_KNOWLEDGE)),collectri dorothea),,$(call resolve_user_path_var,PRIOR_KNOWLEDGE))
-$(call resolve_user_path_var,STAR_WHITELIST)
-$(foreach var,$(clingo_config_vars),$(call resolve_clingo_config,$(var)))
-
-_lower2upper = a:A b:B c:C d:D e:E f:F g:G h:H i:I j:J k:K l:L m:M n:N o:O p:P q:Q r:R s:S t:T u:U v:V w:W x:X y:Y z:Z
-_lower = $(word 1, $(subst :, ,$(word 1,$(1))))
-_upper = $(word 2, $(subst :, ,$(word 1,$(1))))
-translate_case = $(eval _=$1)$(strip $(foreach pair,$(_lower2upper),\
-	$(eval _=$(subst $(call $(2),$(pair)),$(call $(3),$(pair)),$_))))$_
-toupper = $(call translate_case,$1,_lower,_upper)
-tolower = $(call translate_case,$1,_upper,_lower)
-
-comma := ,
-empty :=
-space := $(empty) $(empty)
-
-ifndef CONDITIONS
-$(error parameter CONDITIONS not defined)
-endif
-
-diagnostic_mode := $(filter check show-config,$(MAKECMDGOALS))$(__check_mode)
-
-is_positive_integer = $(shell printf '%s\n' "$(strip $(1))" \
-	| grep -Eq '^[1-9][0-9]*$$' && echo true || echo false)
-is_creatable_path = $(shell { test -n "$(strip $(1))" && mkdir -p "$(strip $(1))"; } \
-	>/dev/null 2>&1 && echo true || echo false)
-
-conditions := $(call tolower, $(CONDITIONS))
-references_default := $(conditions) $(if $(filter-out 1,$(words $(conditions))),integrated)
-REFERENCES ?= $(references_default)
-running_references := $(strip $(REFERENCES))
-running_conditions := $(filter-out integrated,$(running_references))
-invalid_references = $(strip $(filter-out $(conditions) integrated,$(running_references)))
-
-results := $(patsubst %/,%,$(RESULTS))
-
-log_target := $(patsubst __%,%,$(or $(firstword $(MAKECMDGOALS)),default))
-LOGFILE := $(results)/logs/$(shell date '+%Y%m%d_%H%M%S')_$(log_target).log
-export tmpdir := $(shell mktemp -d -t scbolt-XXXXXXXXXX)
-$(shell { trap 'rm -rf $(tmpdir);' EXIT; tail --pid=$$PPID -f /dev/null; } </dev/null >/dev/null 2>/dev/null &)
-
-## BEGIN URLS ##
-
-cycle_url := https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cycle_markers.rds
-go_basic_url := http://purl.obolibrary.org/obo/go/go-basic.obo
-geiger_url := https://doi.org/10.1371/journal.pbio.2003389.s025
-chambers_url := https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
-gene2go_url := ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
-
-## END URLS ##
-
-## BEGIN TERMINAL OUTPUT ##
-
-interactive_output := $(if $(MAKE_TERMOUT),true,false)
-
-ifeq ($(interactive_output),true)
-nc        = \033[0m
-green     = \033[0;32m
-red       = \033[0;31m
-yellow    = \033[0;33m
-bold      = \033[1m
-success_label = $(green)✓ SUCCESS$(nc)
-warning_label = $(yellow)⚠ WARNING$(nc)
-failure_label = $(red)✗ FAIL$(nc)
-else
-nc        =
-green     =
-red       =
-yellow    =
-bold      =
-success_label = SUCCESS
-warning_label = WARNING
-failure_label = FAIL
-endif
-
-## END TERMINAL OUTPUT ##
-
-## BEGIN FUNCTIONS ##
-
-log = printf '%s - %s - %s\n' "`date '+%Y-%m-%d %H:%M:%S.%3N'`" "$(1)" "$(2)"
-
-print_rule    = $(call log,RULE,$(1)$(if $(2), (reference: $(2))))
-print_task    = $(call log,TASK,$(1))
-print_info    = $(call log,INFO,$(1))
-print_warning = $(call log,WARNING,$(1))
-print_debug   = $(call log,DEBUG,$(1))
-print_result  = $(call log,RESULT,$(1))
-print_error   = $(call log,ERROR,$(1)); exit 1
-
-define finalize_velocyto_h5ad
-$(call conda_run,scbolt-core) python -c '\
-import sys; \
-import anndata as ad; \
-adata = ad.read_h5ad(sys.argv[1]); \
-adata.layers["counts"] = adata.X.copy(); \
-adata.write_h5ad(filename=sys.argv[2], compression="gzip"); \
-spliced = float(adata.layers["spliced"].sum()); \
-unspliced = float(adata.layers["unspliced"].sum()); \
-ambiguous = float(adata.layers["ambiguous"].sum()); \
-counts = float(adata.layers["counts"].sum()); \
-print(f"reads: spliced={spliced:.0f}, unspliced={unspliced:.0f}, ambiguous={ambiguous:.0f}"); \
-print(f"reads: spliced+unspliced+ambiguous={spliced + unspliced + ambiguous:.0f}, counts={counts:.0f}")' \
-$(1) $(2) | while IFS= read -r line; do $(call print_result,$$$$line); done
-endef
-
-define check_file
-[ -n "$(1)" ] || { $(call print_error,required file parameter not defined: $(2)); }; \
-[ -f "$(1)" ] || { $(call print_error,required file not found: $(1)); }
-endef
-
-check_command = command -v $(1) >/dev/null 2>&1 || { $(call print_error,required command not found: $(1)); }
-check_conda_env = conda env list | awk '{print $$1}' | grep -qx "$(1)" \
-	|| { $(call print_error,required conda environment not found: $(1)); }
-check_parameter = [ -n "$(strip $(1))" ] || { $(call print_error,required parameter not defined: $(2)); }
-
-define require_parameter
-[ -n "$(strip $($(1)))" ] || { \
-	$(call print_error,required parameter not defined: $(1)$(if $(2), \(needed by target '$(2)'\))); \
-}
-endef
-
-define require_choice
-case "$(strip $($(1)))" in \
-	$(subst $(space),|,$(strip $(2)))) ;; \
-	"") $(call print_error,required parameter not defined: $(1)$(if $(3), \(needed by target '$(3)'\)));; \
-	*) $(call print_error,unsupported value for parameter $(1) \
-		(supported values: $(subst $(space),$(comma) ,$(strip $(2)))));; \
-esac
-endef
-
-require_bool = $(call require_choice,$(1),true false,$(2))
-
-define require_positive_integer
-case "$(strip $($(1)))" in \
-	''|*[!0-9]*|0) $(call print_error,required positive integer for parameter $(1) \(current: $(strip $($(1)))\));; \
-esac
-endef
-
-define require_optional_positive_integer
-if [ -n "$(strip $($(1)))" ]; then \
-	$(call require_positive_integer,$(1)); \
-fi
-endef
-
-define require_float
-if ! printf '%s\n' "$(strip $($(1)))" \
-		| grep -Eq '^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$$$$'; then \
-	$(call print_error,required numeric value for parameter $(1) \(current: $(strip $($(1)))\)); \
-fi
-endef
-
-define require_optional_hvg_method
-case "$(strip $($(1)))" in \
-	""|seurat|cell_ranger|seurat_v3) ;; \
-	*) $(call print_error,unsupported value for parameter $(1) (supported values: seurat, cell_ranger, seurat_v3));; \
-esac; \
-if [ "$(strip $($(1)))" = "seurat_v3" ] && [ -z "$(strip $($(2)))" ]; then \
-	$(call print_error,parameter $(2) is required when parameter $(1) is equal to seurat_v3); \
-fi
-endef
-
-define require_hvg_method
-$(call require_choice,$(1),seurat cell_ranger seurat_v3,$(3)); \
-if [ "$(strip $($(1)))" = "seurat_v3" ] && [ -z "$(strip $($(2)))" ]; then \
-	$(call print_error,parameter $(2) is required when parameter $(1) is equal to seurat_v3); \
-fi
-endef
-
-define require_prior_knowledge
-$(call require_parameter,PRIOR_KNOWLEDGE,$(1)); \
-[ -n "$(strip $(prior_knowledge))" ] || { \
-	$(call print_error,unsupported value for parameter PRIOR_KNOWLEDGE \
-		(supported values: $(subst $(space),$(comma) ,$(strip $(known_prior_knowledge))) \
-		or an existing file path)); \
-}
-endef
-
-define require_dorothea_api
-if [ "$(strip $(PRIOR_KNOWLEDGE))" = "dorothea" ]; then \
-	$(call require_choice,DOROTHEA_API,$(dorothea_apis),$(1)); \
-fi
-endef
-
-define require_dorothea_levels
-for level in $(DOROTHEA_LEVELS); do \
-	case "$${level}" in \
-		$(subst $(space),|,$(dorothea_levels))) ;; \
-		*) $(call print_error,unsupported value for parameter DOROTHEA_LEVELS \
-			(supported values: $(subst $(space),$(comma) ,$(dorothea_levels))));; \
-	esac; \
-done
-endef
-
-define require_cc_correction
-$(call require_bool,CC_CORRECTION,$(1)); \
-if [ "$(CC_CORRECTION)" = "true" ] && [ "$(ORGANISM)" != "mouse" ]; then \
-	$(call print_error,CC_CORRECTION=true is only supported for mouse \(current: $(ORGANISM)\)); \
-fi
-endef
-
-define require_filtering_parameters
-$(call require_bool,NORM_MAD,filtering)
-endef
-
-define require_clustering_parameters
-$(call require_choice,USE_REP,X_umap X_tsne,clustering); \
-$(call require_choice,ANALYSIS_HVG_FLAVOR,seurat cell_ranger seurat_v3,clustering); \
-$(call require_optional_positive_integer,ANALYSIS_HVG_TOP); \
-$(call require_float,ANALYSIS_HVG_SPAN); \
-$(call require_positive_integer,ANALYSIS_HVG_BINS); \
-$(call require_positive_integer,DIM_PCA); \
-$(call require_positive_integer,DIM_CLUSTERING); \
-$(call require_positive_integer,DIM_EMBEDDING); \
-$(call require_bool,PCA_ONLY_HVG,clustering); \
-$(call require_positive_integer,NEIGHBORS); \
-$(call require_float,RESOLUTION); \
-$(call require_float,MIN_DIST); \
-$(call require_float,SPREAD)
-endef
-
-define require_velocity_parameters
-$(call require_positive_integer,DIM_MOMENT); \
-$(call require_bool,VELOCITY_ONLY_HVG,velocity)
-endef
-
-define require_cellrank_parameters
-$(call require_positive_integer,INITIAL_STATES); \
-$(call require_positive_integer,TERMINAL_STATES); \
-$(call require_float,CELLRANK_STABILITY); \
-$(call require_float,CELLRANK_ALPHA)
-endef
-
-define require_dea_parameters
-$(call require_float,LOGFC)
-endef
-
-define require_stream_parameters
-$(call require_positive_integer,CLUSTER_NUMBER); \
-$(call require_float,ALPHA_EPG); \
-$(call require_float,MU_EPG); \
-$(call require_float,LAMBDA_EPG); \
-$(call require_bool,EXTEND_EPG,stream); \
-$(call require_float,EXTEND_PARAMETER); \
-$(call require_bool,PRUNE_EPG,stream); \
-$(call require_bool,COLLAPSE_PARAMETER,stream)
-endef
-
-define require_knnbs_parameters
-$(call require_parameter,KNNBS_EMBEDDING,knnbs); \
-$(call require_positive_integer,KNNBS_NEIGHBORS)
-endef
-
-define require_star_barcode_filter_parameters
-$(call require_choice,STAR_BARCODE_FILTER,auto threshold top,$(1)); \
-$(call require_optional_positive_integer,STAR_MIN_UMI); \
-$(call require_optional_positive_integer,STAR_TOP_BARCODES); \
-if [ "$(STAR_BARCODE_FILTER)" = "threshold" ] && [ -z "$(strip $(STAR_MIN_UMI))" ]; then \
-	$(call print_error,required parameter not defined: STAR_MIN_UMI \(needed by target '$(1)'\)); \
-fi; \
-if [ "$(STAR_BARCODE_FILTER)" = "top" ] && [ -z "$(strip $(STAR_TOP_BARCODES))" ]; then \
-	$(call print_error,required parameter not defined: STAR_TOP_BARCODES \(needed by target '$(1)'\)); \
-fi; \
-if [ "$(STAR_BARCODE_FILTER)" = "auto" ] && [ -n "$(strip $(STAR_MIN_UMI)$(STAR_TOP_BARCODES))" ]; then \
-	$(call print_error,STAR_MIN_UMI and STAR_TOP_BARCODES require STAR_BARCODE_FILTER=threshold or top); \
-fi
-endef
-
-define require_bin_cells_parameters
-$(call require_bool,BIN_SCBOOLSEQ_ONLY_HVG,bin-cells); \
-$(call require_float,UNIMODAL_QUANTILE); \
-$(call require_bool,ZEROES_ARE_ZEROES,bin-cells)
-endef
-
-define require_bin_hvg_parameters
-$(call require_hvg_method,BIN_HVG_FLAVOR,BIN_HVG_TOP,$(1)); \
-$(call require_float,BIN_HVG_SPAN); \
-$(call require_positive_integer,BIN_HVG_BINS)
-endef
-
-define require_bin_macrostates_parameters
-$(call require_float,NANS_THRESHOLD); \
-$(call require_float,BIMODAL_THRESHOLD); \
-$(call require_float,ZEROINF_THRESHOLD); \
-$(call require_float,UNIMODAL_THRESHOLD)
-endef
-
-define require_bin_dea_parameters
-$(call require_bool,BIN_DEA_ONLY_HVG,bin-dea); \
-$(call require_float,BIN_LOGFC); \
-$(call require_float,BIN_ALPHA)
-endef
-
-require_binarization_parameters = $(call require_choice,BIN_METHOD,scboolseq dea consensus,binarization)
-
-define require_prior_parameters
-$(call require_prior_knowledge,$(1)); \
-$(call require_dorothea_api,$(1)); \
-$(call require_dorothea_levels)
-endef
-
-define require_bonesis_filter_parameters
-$(call require_prior_parameters,$(1)); \
-$(call require_bool,CANONIC_FILTER,$(1))
-endef
-
-define require_bonesis_infer_parameters
-$(call require_prior_parameters,$(1)); \
-$(call require_bool,CANONIC_INFER,$(1))
-endef
-
-ifneq ($(__dry_run_output),)
-require_parameter =
-require_choice =
-require_bool =
-require_positive_integer =
-require_optional_positive_integer =
-require_float =
-require_optional_hvg_method =
-require_hvg_method =
-require_prior_knowledge =
-require_dorothea_api =
-require_dorothea_levels =
-require_cc_correction =
-require_filtering_parameters =
-require_clustering_parameters =
-require_velocity_parameters =
-require_cellrank_parameters =
-require_dea_parameters =
-require_stream_parameters =
-require_knnbs_parameters =
-require_star_barcode_filter_parameters =
-require_bin_cells_parameters =
-require_bin_hvg_parameters =
-require_bin_macrostates_parameters =
-require_bin_dea_parameters =
-require_binarization_parameters =
-require_prior_parameters =
-require_bonesis_filter_parameters =
-require_bonesis_infer_parameters =
-endif
-
-check_success = check_success "$(1)"
-check_failure = check_failure "$(1)"
-report_check_error = missing=1; $(call check_failure,$(1))
-print_check_reports = cat "$${project_checks}" "$${core_checks}" "$${method_checks}" \
-	"$${external_resource_checks}" "$${file_checks}" "$${conda_checks}" \
-	"$${command_checks}" "$${other_checks}"
-parameter_label = $(strip $(if $(3),$(3) )parameter)
-parameter_name = $(firstword $(strip $(1)))
-parameter_context = $(strip $(patsubst $(call parameter_name,$(1))%,%,$(strip $(1))))
-parameter_description = $(strip $(call parameter_label,$(1),$(2),$(3)) \
-	$(call parameter_name,$(2)) $(call parameter_context,$(2)))
-parameter_assignment = $(strip $(call parameter_name,$(2))=$(strip $(1)) \
-	$(strip $(patsubst $(call parameter_name,$(2))%,%,$(strip $(2)))))
-needed_by = $(1) (needed by target '$(2)')
-
-define check_file_diagnostic
-if [ -z "$(1)" ]; then \
-	$(call report_check_error,required file parameter not defined: $(2)); \
-elif [ ! -f "$(1)" ]; then \
-	$(call report_check_error,required file not found: $(1)); \
-elif [ -n "$(strip $(3))" ]; then \
-	$(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: $(call parameter_assignment,$(1),$(2))); \
-else \
-	$(call check_success,file found: $(2) ($(1))); \
-fi
-endef
-
-define check_command_diagnostic
-if command -v $(1) >/dev/null 2>&1; then \
-	$(call check_success,command found: $(1)); \
-else \
-	$(call report_check_error,required command not found: $(1)); \
-fi
-endef
-
-define check_parameter_diagnostic
-if [ -n "$(strip $(1))" ]; then \
-	$(if $(strip $(3)),\
-		$(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: $(call parameter_assignment,$(1),$(2))),\
-		$(call check_success,parameter defined: $(strip $(2)))); \
-else \
-	$(call report_check_error,required $(call parameter_label,$(1),$(2),$(3)) not defined: $(strip $(2))); \
-fi
-endef
-
-define check_knnbs_seed_diagnostic
-if [ -n "$(strip $(1))" ] || [ -n "$(strip $(2))" ]; then \
-	if [ -n "$(strip $(1))" ]; then \
-		$(call check_success,method parameter valid: \
-			KNNBS_CENTRALITY_$(call toupper,$(3))=$(strip $(1)) (needed by target 'knnbs')); \
-	fi; \
-	if [ -n "$(strip $(2))" ]; then \
-		$(call check_success,method parameter valid: \
-			KNNBS_PERIPHERY_$(call toupper,$(3))=$(strip $(2)) (needed by target 'knnbs')); \
-	fi; \
-else \
-	$(call report_check_error,required method parameter not defined: \
-		KNNBS_CENTRALITY_$(call toupper,$(3)) or \
-		KNNBS_PERIPHERY_$(call toupper,$(3)) (needed by target 'knnbs')); \
-fi
-endef
-
-define check_positive_integer_diagnostic
-case "$(strip $(1))" in \
-	''|*[!0-9]*|0) $(call report_check_error,required positive integer for \
-		$(call parameter_description,$(1),$(2),$(3)) (current: $(strip $(1))));; \
-	*) $(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: \
-		$(call parameter_assignment,$(1),$(2)));; \
-esac
-endef
-
-define check_optional_positive_integer_diagnostic
-if [ -n "$(strip $(1))" ]; then \
-	$(call check_positive_integer_diagnostic,$(1),$(2),$(3)); \
-fi
-endef
-
-define check_float_diagnostic
-if printf '%s\n' "$(strip $(1))" \
-		| grep -Eq '^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$$$$'; then \
-	$(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: \
-		$(call parameter_assignment,$(1),$(2))); \
-else \
-	$(call report_check_error,required numeric value for \
-		$(call parameter_description,$(1),$(2),$(3)) (current: $(strip $(1)))); \
-fi
-endef
-
-define check_path_diagnostic
-if [ -z "$(strip $(1))" ]; then \
-	$(call report_check_error,required path $(call parameter_label,$(1),$(2),$(3)) not defined: $(2)); \
-elif mkdir -p "$(strip $(1))" >/dev/null 2>&1; then \
-	$(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: $(2)=$(strip $(1))); \
-else \
-	$(call report_check_error,invalid path for $(call parameter_label,$(1),$(2),$(3)) $(2): $(strip $(1))); \
-fi
-endef
-
-define check_references_diagnostic
-if [ -z "$(strip $(REFERENCES))" ]; then \
-	$(call report_check_error,required core parameter not defined: REFERENCES); \
-else \
-	references_ok=1; \
-	if [ -n "$(invalid_references)" ]; then \
-		$(call report_check_error,unsupported value for core parameter REFERENCES: $(invalid_references) \
-			(supported values: $(subst $(space),$(comma) ,$(conditions) integrated))); \
-		references_ok=0; \
-	fi; \
-	if [ "$(words $(conditions))" -eq 1 ] && [ -n "$(filter integrated,$(running_references))" ]; then \
-		$(call report_check_error,unsupported value for core parameter REFERENCES: integrated is not supported \
-			for mono-condition projects); \
-		references_ok=0; \
-	fi; \
-	if [ "$${references_ok}" -eq 1 ]; then \
-		$(call check_success,core parameter valid: REFERENCES=$(REFERENCES)); \
-	fi; \
-fi
-endef
-
-define check_choice_diagnostic
-case "$(strip $(1))" in \
-	$(subst $(space),|,$(strip $(2)))) \
-		$(call check_success,$(call parameter_label,$(1),$(3),$(4)) valid: \
-			$(call parameter_assignment,$(1),$(3)));; \
-	"") $(call report_check_error,required $(call parameter_label,$(1),$(3),$(4)) not defined: \
-		$(call parameter_name,$(3)) $(call parameter_context,$(3)));; \
-	*) $(call report_check_error,unsupported value for \
-		$(call parameter_description,$(1),$(3),$(4)) \
-		(supported values: $(subst $(space),$(comma) ,$(strip $(2)))));; \
-esac
-endef
-
-check_bool_diagnostic = $(call check_choice_diagnostic,$(1),true false,$(2),$(3))
-
-define check_optional_hvg_method_diagnostic
-case "$(strip $(1))" in \
-	""|seurat|cell_ranger|seurat_v3) \
-		$(call check_success,$(call parameter_label,$(1),$(3),$(5)) valid: \
-			$(call parameter_assignment,$(1),$(3)));; \
-	*) $(call report_check_error,unsupported value for \
-		$(call parameter_label,$(1),$(3),$(5)) $(call parameter_name,$(3)) \
-		(supported values: seurat, cell_ranger, seurat_v3));; \
-esac; \
-if [ "$(strip $(1))" = "seurat_v3" ] && [ -z "$(strip $(2))" ]; then \
-	$(call report_check_error,$(call parameter_label,$(1),$(4),$(5)) $(call parameter_name,$(4)) \
-		is required when $(call parameter_label,$(1),$(3),$(5)) $(call parameter_name,$(3)) \
-		is equal to seurat_v3); \
-fi
-endef
-
-define check_hvg_method_diagnostic
-case "$(strip $(1))" in \
-	seurat|cell_ranger|seurat_v3) \
-		$(call check_success,$(call parameter_label,$(1),$(3),$(5)) valid: \
-			$(call parameter_assignment,$(1),$(3)));; \
-	"") $(call report_check_error,required $(call parameter_label,$(1),$(3),$(5)) \
-		not defined: $(call parameter_name,$(3)));; \
-	*) $(call report_check_error,unsupported value for \
-		$(call parameter_label,$(1),$(3),$(5)) $(call parameter_name,$(3)) \
-		(supported values: seurat, cell_ranger, seurat_v3));; \
-esac; \
-if [ "$(strip $(1))" = "seurat_v3" ] && [ -z "$(strip $(2))" ]; then \
-	$(call report_check_error,$(call parameter_label,$(1),$(4),$(5)) $(call parameter_name,$(4)) \
-		is required when $(call parameter_label,$(1),$(3),$(5)) $(call parameter_name,$(3)) \
-		is equal to seurat_v3); \
-fi
-endef
-
-knnbs_centrality = $(KNNBS_CENTRALITY_$(call toupper,$(1)))
-knnbs_periphery = $(KNNBS_PERIPHERY_$(call toupper,$(1)))
-log_parameters = $(foreach var,$(strip $(1)),printf '%s=%s\n' '$(var)' "$($(var))"; )
-
-PYTHONUNBUFFERED ?= 1
-TQDM_DISABLE ?= 0
-TQDM_TO_TTY ?= 0
-
-conda_runtime_env = env \
-	PYTHONPATH="$(lib_dir)$(if $(PYTHONPATH),:$(PYTHONPATH))" \
-	PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)"
-conda_run = $(conda_runtime_env) conda run --no-capture-output -n $(1)
-conda_run_cellrank = $(conda_runtime_env) \
-	OMPI_MCA_btl="^smcuda" \
-	conda run --no-capture-output -n $(1)
-conda_run_inference = $(conda_runtime_env) \
-	TQDM_DISABLE="$(TQDM_DISABLE)" \
-	TQDM_TO_TTY="$(TQDM_TO_TTY)" \
-	PYTHONHASHSEED="$(SEED)" \
-	conda run --no-capture-output -n $(1)
-BONESIS_HASH ?= 24c4f9c91a4496b9777043e17e504ecc31312d87
-SCVELO_HASH ?= b2f31b345641efdccd39fbcb8c0beaa0014b4b88
-nested_make = env \
-	$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
-	PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
-	TQDM_DISABLE="$(TQDM_DISABLE)" \
-	TQDM_TO_TTY="$(TQDM_TO_TTY)" \
-	$(MAKE) -f "$(makefile_path)" $(trust_make_options)
-inference_timeout = $(if $(filter-out 0,$(strip $(1))),timeout --foreground $(strip $(1)),)
-
-ifndef LOGGING
-run_logged = $(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
-else ifeq ($(LOGGING),true)
-run_logged = \
-	mkdir -p $(dir $(LOGFILE)); \
-	{ \
-		printf '%s\n' '[RUN]'; \
-		printf 'DATE=%s\n' "`date '+%Y-%m-%d %H:%M:%S'`"; \
-		printf 'TARGET=%s\n' "$(1)"; \
-		printf 'RESULTS=%s\n' "$(RESULTS)"; \
-		printf 'PARAMS=%s\n' "$(PARAMS)"; \
-		printf 'LOGFILE=%s\n' "$(LOGFILE)"; \
-		printf 'GIT_HASH=%s\n' "`git rev-parse HEAD 2>/dev/null || echo unknown`"; \
-		printf '\n'; \
-		printf '%s\n' '[CONTEXT]'; \
-		printf 'SEED=%s\n' "$(SEED)"; \
-		printf 'JOBS=%s\n' "$(JOBS)"; \
-		printf 'CONDITIONS=%s\n' "$(CONDITIONS)"; \
-		printf 'REFERENCES=%s\n' "$(REFERENCES)"; \
-		printf '\n'; \
-		$(if $(strip $(target_params_$(1))),\
-			printf '%s\n' '[CONFIGURATION]'; \
-			$(call log_parameters,$(strip $(target_params_$(1)))) \
-			printf '\n';) \
-		printf '%s\n' '[OUTPUT]'; \
-	} >> "$(LOGFILE)"; \
-	env \
-		$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
-		PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
-		TQDM_DISABLE="$(TQDM_DISABLE)" \
-		TQDM_TO_TTY="1" \
-		$(MAKE) -f "$(makefile_path)" LOGGING=false __$(1) LOGFILE="$(LOGFILE)" 2>&1 \
-		| tee -a "$(LOGFILE)"
-else ifeq ($(LOGGING),false)
-run_logged = $(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
-else
-run_logged = $(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
-endif
-
-define fastq_naming
-	n_fastq="$$(find $(1) -name "$(2)_[1-4].fastq.gz" -printf '.' | wc -m)"
-	if [ $${n_fastq} -eq 0 ]; then \
-		$(call print_error,fastq downloading failed);\
-	
-	elif [ $${n_fastq} -eq 1 ]; then \
-		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_S1_L00$(4)_R1_001.fastq.gz;\
-	
-	elif [ $${n_fastq} -eq 2 ]; then \
-		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_S1_L00$(4)_R1_001.fastq.gz
-		mv $(1)/$(2)_2.fastq.gz $(1)/$(3)_S1_L00$(4)_R2_001.fastq.gz;\
-	
-	elif [ $${n_fastq} -eq 3 ]; then \
-		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_S1_L00$(4)_I1_001.fastq.gz
-		mv $(1)/$(2)_2.fastq.gz $(1)/$(3)_S1_L00$(4)_R1_001.fastq.gz
-		mv $(1)/$(2)_3.fastq.gz $(1)/$(3)_S1_L00$(4)_R2_001.fastq.gz;\
-
-	elif [ $${n_fastq} -eq 4 ]; then \
-		mv $(1)/$(2)_1.fastq.gz $(1)/$(3)_S1_L00$(4)_I1_001.fastq.gz
-		mv $(1)/$(2)_2.fastq.gz $(1)/$(3)_S1_L00$(4)_I2_001.fastq.gz
-		mv $(1)/$(2)_3.fastq.gz $(1)/$(3)_S1_L00$(4)_R1_001.fastq.gz
-		mv $(1)/$(2)_4.fastq.gz $(1)/$(3)_S1_L00$(4)_R2_001.fastq.gz;\
-
-	else \
-		$(call print_error,number of downloaded fastq exceeds 4);\
-
-	fi
-endef
-
-define check_inference_status
-	if [ $$exit_status -eq 0 ]; then \
-		echo "_GLOBAL_OPTIMUM" > $(@D)/__SOLUTION; \
-		$(call print_debug,global optimum found); \
-	elif [ $$exit_status -eq 124 ]; then \
-		echo -e ''; \
-		if [ -s $@ ]; then \
-			echo "_LOCAL_OPTIMUM" > $(@D)/__SOLUTION; \
-			$(call print_warning,user-defined time limit reached \($(1)\): local optimum found); \
-		else \
-			echo "_FAILURE" > $(@D)/__SOLUTION; \
-			$(call print_error,user-defined time limit reached \($(1)\): no solution found); \
-		fi; \
-	elif [ $$exit_status -eq 130 ] || [ $$exit_status -eq 143 ]; then \
-		echo -e ''; \
-		if [ -s $@ ]; then \
-			echo "_PARTIAL_SOLUTIONS" > $(@D)/__SOLUTION; \
-			$(call print_warning,inference interrupted: keeping partial solutions); \
-		else \
-			echo "_FAILURE" > $(@D)/__SOLUTION; \
-			$(call log,ERROR,inference interrupted: no partial solution found); \
-		fi; \
-		exit $$exit_status; \
-	else \
-		echo "_FAILURE" > $(@D)/__SOLUTION; \
-		$(call log,ERROR,inference failed); \
-		exit $$exit_status; \
-	fi
-endef
-
-define trap_inference_interrupt
-handle_inference_interrupt() { \
-	signal_status="$$1"; \
-	echo -e ""; \
-	if [ -s $@ ]; then \
-		echo "_PARTIAL_SOLUTIONS" > $(@D)/__SOLUTION; \
-		$(call log,WARNING,inference interrupted: keeping partial solutions); \
-	else \
-		echo "_FAILURE" > $(@D)/__SOLUTION; \
-		$(call log,ERROR,inference interrupted: no partial solution found); \
-	fi; \
-	exit "$${signal_status}"; \
-}; \
-trap 'handle_inference_interrupt 130' INT; \
-trap 'handle_inference_interrupt 143' TERM
-endef
-
-define check_partial_bn_outputs
-@if [ -d "$(1)" ] && [ ! -f "$(3)" ]; then \
-	echo "" > /dev/tty; \
-	echo "Detected incomplete outputs for target '$(2)'." > /dev/tty; \
-	echo "Output directory: $(1)" > /dev/tty; \
-	echo "" > /dev/tty; \
-	printf "Remove partial outputs and rerun inference? [y/N] " > /dev/tty; \
-	read ans; \
-	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
-		rm -rf "$(1)"; \
-		echo "Partial outputs removed." > /dev/tty; \
-	else \
-		echo "Inference aborted." > /dev/tty; \
-		exit 1; \
-	fi; \
-fi
-endef
-
-## END FUNCTIONS ##
-
-## BEGIN PATHS ##
-
-h5ads_for_conditions = $(foreach condition,$(running_conditions),$($(1)_$(condition)))
-default_bin_input_h5ads = $(if $(filter-out $(words $(CONDITIONS)),1),\
-                         $(annotation_integrated),$(annotation_$(conditions)))
-macrostate_h5ad = $(if $(MACROSTATE_FILE),$(tmpdir)/bin/macrostates.h5ad)
-bin_input_h5ads = $(if $(MACROSTATE_FILE),$(macrostate_h5ad),$(default_bin_input_h5ads))
-
-clustering_integrated = $(results)/integrated/clust/clust.h5ad
-annotation_integrated = $(results)/integrated/clust/annot.h5ad
-
-cc_markers  = $(public_dir)/cycle/mouse_cycle_markers.rds
-signatures  = $(public_dir)/signatures/geiger.xls \
-              $(public_dir)/signatures/chambers.xls \
-              $(public_dir)/signatures/sig.json
-go_basic    = $(public_dir)/go/go_basic.obo
-go_organism = $(public_dir)/go/goslim_$(ORGANISM).obo
-gene2go     = $(public_dir)/go/gene2go
-dorothea_legacy = $(public_dir)/omnipath/dorothea_legacy_$(ORGANISM).csv
-
-$(eval genome_ref := $(public_dir)/ref/$(notdir $(genome_url)))
-genome_ref := $(genome_ref:.tar.gz=)
-star_index = $(genome_ref)/star/Genome
-
-define find_paths_for_conditions
-
-fastq_$(1) =                    $(results)/$(1)/fastq
-cellranger_$(1) =               $(results)/$(1)/count/cellranger/$(1).mri.tgz
-star_$(1) =                     $(results)/$(1)/count/star/Aligned.sortedByCoord.out.bam \
-                                $(results)/$(1)/count/star/Solo.out/matrix.mtx \
-                                $(results)/$(1)/count/star/Solo.out/barcodes.tsv
-qc_$(1) =                       $(results)/$(1)/count/star/star.velocyto.bam
-velocyto_$(1) =                 $(results)/$(1)/count/counts.h5ad
-filtering_$(1) =                $(results)/$(1)/prep/filter/counts.h5ad
-normalization_$(1) =            $(results)/$(1)/prep/norm/counts.h5ad
-velocity_$(1) =                 $(results)/$(1)/trajectories/velocity/velocity.h5ad
-potency_$(1) =                  $(results)/$(1)/trajectories/potency/potency.csv
-cotan_$(1) =                    $(results)/$(1)/mstates/cotan/mstates.h5ad \
-                                $(results)/$(1)/mstates/cotan/mstates.csv
-cellrank_$(1) =                 $(results)/$(1)/mstates/cellrank/mstates.h5ad \
-                                $(results)/$(1)/mstates/cellrank/mstates.csv
-stream_$(1) =                   $(results)/$(1)/mstates/stream/mstates.h5ad \
-                                $(results)/$(1)/mstates/stream/mstates.csv
-knnbs_$(1) =                    $(results)/$(1)/mstates/knnbs/mstates.h5ad \
-                                $(results)/$(1)/mstates/knnbs/mstates.csv
-
-ifeq ($(MACROSTATE_METHOD),cotan)
-macrostates_$(1) =              $$(cotan_$(1))
-else ifeq ($(MACROSTATE_METHOD),cellrank)
-macrostates_$(1) =              $$(cellrank_$(1))
-else ifeq ($(MACROSTATE_METHOD),stream)
-macrostates_$(1) =              $$(stream_$(1))
-else ifeq ($(MACROSTATE_METHOD),knnbs)
-macrostates_$(1) =              $$(knnbs_$(1))
-else
-macrostates_$(1) =              $(results)/$(1)/mstates/invalid-method/.error
-endif
-
-ifeq ($(ALIGNMENT_TOOL),cellranger)
-alignment_$(1) =                $$(cellranger_$(1))
-else ifeq ($(ALIGNMENT_TOOL),star)
-alignment_$(1) =                $$(star_$(1))
-else
-alignment_$(1) =                $(results)/$(1)/count/invalid-alignment/.error
-endif
-
-endef
-
-define find_paths_for_references
-
-clustering_$(1) =               $(results)/$(1)/clust/clust.h5ad
-dea_$(1) =                      $(results)/$(1)/clust/dea/markers.csv \
-                                $(results)/$(1)/clust/dea/genes.xlsx
-scoring_$(1) =                  $(results)/$(1)/clust/sig.csv
-goea_basic_$(1) =               $(results)/$(1)/clust/goea/basic.xlsx
-goea_organism_$(1) =            $(results)/$(1)/clust/goea/$(ORGANISM).xlsx
-annotation_$(1) =               $(results)/$(1)/clust/annot.h5ad
-
-endef
-
-bin_cells =                     $(results)/bin/scboolseq/cell/cells_bin.h5ad \
-                                $(results)/bin/scboolseq/cell/cells_stats.csv
-bin_hvg =                       $(tmpdir)/bin/top_genes.txt
-bin_macrostates =               $(results)/bin/scboolseq/macro/$(MACROSTATE_METHOD)/mstates_bin.csv
-bin_dea =                       $(results)/bin/dea/$(MACROSTATE_METHOD)/mstates_bin.csv
-bin_consensus =                 $(results)/bin/consensus/$(MACROSTATE_METHOD)/mstates_bin.csv
-
-bonesis_model =                 $(results)/infer/spec/model.bo \
-                                $(results)/infer/spec/mstates.csv \
-                                $(results)/infer/spec/important.txt \
-                                $(results)/infer/spec/mandatory.txt
-max_nodes_soft =                $(results)/infer/genes/soft/comps.txt
-max_consts_soft =               $(results)/infer/genes/consts/comps.txt
-max_nodes_relaxed =             $(results)/infer/genes/relaxed/comps.txt
-max_nodes_seed =                $(results)/infer/genes/seed/comps.txt
-max_nodes_lock =                $(results)/infer/genes/lock/comps.txt
-bn_min =                        $(results)/infer/bn/min/model.bnet
-
-bn_submin_dir = $(results)/infer/bn/submin
-bn_files = $(foreach i,$(1),$(2)/$(i)/model.bnet $(2)/$(i)/state.cfg)
-ifneq ($(filter-out 0,$(strip $(INFER_LIMIT))),)
-bn_submin_indices := $(shell seq 0 $$(($(INFER_LIMIT)-1)))
-bn_submin = $(call bn_files,$(bn_submin_indices),$(bn_submin_dir))
-else
-bn_submin = $(bn_submin_dir)/ensemble.pdf
-endif
-
-bn_diverse_dir = $(results)/infer/bn/diverse
-ifneq ($(filter-out 0,$(strip $(INFER_LIMIT))),)
-bn_diverse_indices := $(shell seq 0 $$(($(INFER_LIMIT)-1)))
-bn_diverse = $(call bn_files,$(bn_diverse_indices),$(bn_diverse_dir))
-else
-bn_diverse = $(bn_diverse_dir)/ensemble.pdf
-endif
-
-$(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
-$(foreach reference,$(references_default),$(eval $(call find_paths_for_references,$(reference))))
-
-## END PATHS ##
-
-## BEGIN TARGETS ##
-
-fastq_target :=
-alignment_target :=
-cellranger_target :=
-star_target :=
-qc_target :=
-velocyto_target :=
-filtering_target :=
-normalization_target :=
-clustering_target :=
-dea_target :=
-scoring_target :=
-goea_target :=
-annotation_target :=
-velocity_target :=
-potency_target :=
-macrostates_target :=
-stream_target :=
-cellrank_target :=
-knnbs_target :=
-cotan_target :=
-
-define find_targets_for_conditions
-
-$(eval fastq_target := $(fastq_target) $(fastq_$(1)))
-$(eval alignment_target := $(alignment_target) $(alignment_$(1)))
-$(eval cellranger_target := $(cellranger_target) $(cellranger_$(1)))
-$(eval star_target := $(star_target) $(star_$(1)))
-$(eval qc_target := $(qc_target) $(qc_$(1)))
-$(eval velocyto_target := $(velocyto_target) $(velocyto_$(1)))
-$(eval filtering_target := $(filtering_target) $(filtering_$(1)))
-$(eval normalization_target := $(normalization_target) $(normalization_$(1)))
-$(eval velocity_target := $(velocity_target) $(velocity_$(1)))
-$(eval potency_target := $(potency_target) $(potency_$(1)))
-$(eval cotan_target := $(cotan_target) $(cotan_$(1)))
-$(eval cellrank_target := $(cellrank_target) $(cellrank_$(1)))
-$(eval stream_target := $(stream_target) $(stream_$(1)))
-$(eval knnbs_target := $(knnbs_target) $(knnbs_$(1)))
-$(eval macrostates_target := $(macrostates_target) $(macrostates_$(1)))
-
-endef
-
-define find_targets_for_references
-
-$(eval clustering_target := $(clustering_target) $(clustering_$(1)))
-$(eval dea_target := $(dea_target) $(dea_$(1)))
-$(eval scoring_target := $(scoring_target) $(scoring_$(1)))
-$(eval goea_target := $(goea_target) $(goea_basic_$(1)) $(goea_organism_$(1)))
-$(eval annotation_target := $(annotation_target) $(annotation_$(1)))
-
-endef
-
-$(foreach condition,$(running_conditions),$(eval $(call find_targets_for_conditions,$(condition))))
-$(foreach reference,$(running_references),$(eval $(call find_targets_for_references,$(reference))))
-
-ifneq ($(strip $(MACROSTATE_FILE)),)
-macrostates_target := $(macrostate_h5ad)
-endif
-
-## END TARGETS ##
-
-ifeq ($(words $(CONDITIONS)),1)
-batch =
-else
-batch = --batch condition
-endif
-
-## BEGIN PARAMETERS ##
-
-ifeq ($(diagnostic_mode),)
-ifneq ($(call is_positive_integer,$(MEMORY)),true)
-$(error parameter MEMORY must be a positive integer (current: $(MEMORY)))
-endif
-ifneq ($(call is_positive_integer,$(JOBS)),true)
-$(error parameter JOBS must be a positive integer (current: $(JOBS)))
-endif
-ifneq ($(call is_positive_integer,$(SEED)),true)
-$(error parameter SEED must be a positive integer (current: $(SEED)))
-endif
-ifneq ($(filter $(LOGGING),true false),$(LOGGING))
-$(error unsupported value for parameter LOGGING (supported values: true, false))
-endif
-ifneq ($(call is_creatable_path,$(RESULTS)),true)
-$(error parameter RESULTS must be a valid output path (current: $(RESULTS)))
-endif
-ifeq ($(strip $(REFERENCES)),)
-$(error parameter REFERENCES not defined)
-endif
-ifneq ($(invalid_references),)
-$(error unsupported value for parameter REFERENCES: $(invalid_references) \
-	(supported values: $(subst $(space),$(comma) ,$(conditions) integrated)))
-endif
-ifeq ($(words $(conditions)),1)
-ifneq ($(filter integrated,$(running_references)),)
-$(error unsupported value for parameter REFERENCES: integrated is not supported \
-	for mono-condition projects)
-endif
-endif
-endif
-
-$(if $(filter true,$(call is_creatable_path,$(RESULTS))),$(shell mkdir -p "$(results)"))
-
-check_mode := $(filter check,$(MAKECMDGOALS))$(__check_mode)
-
-ifneq ($(check_mode),)
-$(if $(strip $(JOBS)),,$(eval override JOBS := 1))
-endif
-
-ifndef JOBS
-open_allocated_cpu := 1
-else ifneq ($(call is_positive_integer,$(JOBS)),true)
-open_allocated_cpu := 1
-else
-try_open_allocated_cpu := $(shell echo $$(($(JOBS) / 2)))
-open_allocated_cpu := $(if $(findstring $(try_open_allocated_cpu),0),1,$(try_open_allocated_cpu))
-endif
-
-norm_mad = $(if $(filter true,$(NORM_MAD)),--consistent-mad)
-cc_scores = $(if $(filter true,$(CC_CORRECTION)),--correction G2M_score S_score G1_score)
-pca_only_hvg = $(if $(filter true,$(PCA_ONLY_HVG)),--only-hvg)
-embedding_method_X_umap = umap
-embedding_method_X_tsne = tsne
-embedding_method = $(embedding_method_$(1))
-embedding = $(call embedding_method,$(USE_REP))
-
-label_ids = $(if $(LABEL),$(shell seq 0 1 $$(($(words $(LABEL))-1))))
-label_map = $(join $(label_ids),$(addprefix :,$(LABEL)))
-
-velocity_only_hvg = $(if $(filter true,$(VELOCITY_ONLY_HVG)),--only-hvg)
-cotan_only_hvg = $(if $(filter true,$(COTAN_ONLY_HVG)),--only-hvg)
-extend_epg = $(if $(filter true,$(EXTEND_EPG)),--extend-epg)
-prune_epg = $(if $(filter true,$(PRUNE_EPG)),--prune-epg)
-
-ifeq ($(KNNBS_DIMENSION),)
-knnbs_dimension=
-else
-knnbs_dimension=--dimension $(KNNBS_DIMENSION)
-endif
-
-hvg_layer_name = $(if $(filter seurat_v3,$(1)),counts,log-norm)
-hvg_layer = --layer $(call hvg_layer_name,$(1))
-bin_hvg_layer = $(if $(filter seurat seurat_v3 cell_ranger,$(BIN_HVG_FLAVOR)),\
-	$(call hvg_layer,$(BIN_HVG_FLAVOR)))
-bin_scboolseq_hvg = $(if $(filter true,$(BIN_SCBOOLSEQ_ONLY_HVG)),--filter-genes $(bin_hvg))
-bin_dea_hvg = $(if $(filter true,$(BIN_DEA_ONLY_HVG)),--filter-genes $(bin_hvg))
-zeroes_are_zeroes = $(if $(filter true,$(ZEROES_ARE_ZEROES)),--zeroes-are-zeroes)
-bin_method_error = $(results)/bin/invalid-method/.error
-default_bin = $(if $(filter scboolseq,$(BIN_METHOD)),$(bin_macrostates),\
-	$(if $(filter dea,$(BIN_METHOD)),$(bin_dea),\
-	$(if $(filter consensus,$(BIN_METHOD)),$(bin_consensus),$(bin_method_error))))
-bin = $(if $(BINARIZATION_FILE),$(BINARIZATION_FILE),$(default_bin))
-
-known_prior_knowledge = collectri dorothea
-dorothea_apis = current legacy
-dorothea_levels = A B C D
-
-# Resolve the user-facing prior knowledge parameter to the actual domain passed
-# to BoNesis scripts. Only dorothea+legacy is materialized as a custom file,
-# because decoupler.get_dorothea lives in the legacy environment.
-ifeq ($(PRIOR_KNOWLEDGE),collectri)
-prior_knowledge = collectri
-else ifeq ($(PRIOR_KNOWLEDGE),dorothea)
-ifneq ($(filter $(strip $(DOROTHEA_API)),$(dorothea_apis)),)
-ifeq ($(strip $(DOROTHEA_API)),legacy)
-prior_knowledge = $(dorothea_legacy)
-else
-prior_knowledge = dorothea
-endif
-else
-prior_knowledge =
-endif
-else ifneq ($(wildcard $(PRIOR_KNOWLEDGE)),)
-prior_knowledge = $(PRIOR_KNOWLEDGE)
-endif
-dorothea_levels_arg = $(if $(filter dorothea,$(prior_knowledge)),\
-	$(if $(strip $(DOROTHEA_LEVELS)),--dorothea-levels $(DOROTHEA_LEVELS)))
-prior_knowledge_params = PRIOR_KNOWLEDGE \
-	$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),\
-	DOROTHEA_API $(if $(filter current,$(DOROTHEA_API)),DOROTHEA_LEVELS))
-
-min_self_loop_consts = $(if $(filter true,$(MIN_SELF_LOOP_CONSTS)),--minimize-self-loops)
-min_self_loop_infer = $(if $(filter true,$(MIN_SELF_LOOP_INFER)),--minimize-self-loops)
-
-reset_stages = \
-	load-fastq alignment cellranger star qc velocyto \
-	filtering normalization clustering dea scoring goea annotation \
-	velocity potency cotan cellrank stream knnbs macrostates \
-	bin-cells bin-macrostates bin-dea bin-consensus binarization \
-	spec max-nodes-soft max-consts-soft max-nodes-relaxed \
-	max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
-RESET_TARGET_load-fastq = $(fastq_target)
-RESET_TARGET_alignment = $(alignment_target)
-RESET_TARGET_cellranger = $(cellranger_target)
-RESET_TARGET_star = $(star_target)
-RESET_TARGET_qc = $(qc_target)
-RESET_TARGET_velocyto = $(velocyto_target)
-RESET_TARGET_filtering = $(filtering_target)
-RESET_TARGET_normalization = $(normalization_target)
-RESET_TARGET_clustering = $(clustering_target)
-RESET_TARGET_dea = $(dea_target)
-RESET_TARGET_scoring = $(scoring_target)
-RESET_TARGET_goea = $(goea_target)
-RESET_TARGET_annotation = $(annotation_target)
-RESET_TARGET_velocity = $(velocity_target)
-RESET_TARGET_potency = $(potency_target)
-RESET_TARGET_cotan = $(cotan_target)
-RESET_TARGET_cellrank = $(cellrank_target)
-RESET_TARGET_stream = $(stream_target)
-RESET_TARGET_knnbs = $(knnbs_target)
-RESET_TARGET_macrostates = $(macrostates_target)
-RESET_TARGET_bin-cells = $(bin_cells)
-RESET_TARGET_bin-macrostates = $(bin_macrostates)
-RESET_TARGET_bin-dea = $(bin_dea)
-RESET_TARGET_bin-consensus = $(bin_consensus)
-RESET_TARGET_binarization = $(bin)
-RESET_TARGET_spec = $(bonesis_model)
-RESET_TARGET_max-nodes-soft = $(max_nodes_soft)
-RESET_TARGET_max-consts-soft = $(max_consts_soft)
-RESET_TARGET_max-nodes-relaxed = $(max_nodes_relaxed)
-RESET_TARGET_max-nodes-seed = $(max_nodes_seed)
-RESET_TARGET_max-nodes-lock = $(max_nodes_lock)
-RESET_TARGET_bn-min = $(bn_min)
-RESET_TARGET_bn-submin = $(bn_submin)
-RESET_TARGET_bn-diverse = $(bn_diverse)
-
-reset_modules := $(strip $(RESET_TARGET) $(RESET_FROM))
-trust_modules := $(strip $(TRUST_TARGET))
-reset_disabled_goals := help
-reset_disabled := $(filter $(reset_disabled_goals),$(MAKECMDGOALS))$(__reset_disabled)
-ifeq ($(reset_disabled),)
-unknown_reset_targets := $(filter-out $(reset_stages),$(reset_modules))
-unknown_trust_targets := $(filter-out $(reset_stages),$(trust_modules))
-ifneq ($(unknown_reset_targets),)
-$(error unknown RESET_TARGET/RESET_FROM module: $(unknown_reset_targets) \
-	(supported values: $(subst $(space),$(comma) ,$(reset_stages))))
-endif
-ifneq ($(unknown_trust_targets),)
-$(error unknown TRUST_TARGET module: $(unknown_trust_targets) \
-	(supported values: $(subst $(space),$(comma) ,$(reset_stages))))
-endif
-reset_targets := $(strip $(foreach module,$(reset_modules),$(RESET_TARGET_$(module))))
-trust_targets := $(strip $(foreach module,$(trust_modules),$(RESET_TARGET_$(module))))
-ifneq ($(reset_targets),)
-.PHONY: $(reset_targets)
-endif
-trust_make_options := $(foreach target,$(trust_targets),--old-file="$(target)")
-endif
-
-target_params_load-dorothea = ORGANISM
-target_params_alignment = ALIGNMENT_TOOL MEMORY STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
-target_params_cellranger = MEMORY
-target_params_star = MEMORY STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
-target_params_qc = STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
-target_params_velocyto = ALIGNMENT_TOOL MEMORY STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
-target_params_filtering = \
-	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
-	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
-	MAD_DEVIATION NORM_MAD MT
-target_params_normalization = CC_CORRECTION
-target_params_clustering = \
-	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
-	ANALYSIS_HVG_BINS DIM_PCA DIM_CLUSTERING DIM_EMBEDDING PCA_ONLY_HVG \
-	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD
-target_params_dea = LOGFC CORRECTION ALPHA
-target_params_annotation = LABEL
-target_params_velocity = DIM_MOMENT VELOCITY_ONLY_HVG SMM_MODE
-target_params_potency = BATCH_SIZE SMOOTH_BATCH_SIZE
-target_params_cotan = MACROSTATE_SIZE COTAN_METHOD COTAN_ONLY_HVG MAX_ITER
-target_params_cellrank = \
-	MACROSTATE_SIZE CELLRANK_METHOD STATES INITIAL_STATES TERMINAL_STATES \
-	CELLRANK_STABILITY CELLRANK_ALPHA
-target_params_stream = \
-	MACROSTATE_SIZE CLUSTERING_METHOD CLUSTER_NUMBER \
-	ALPHA_EPG MU_EPG LAMBDA_EPG EXTEND_EPG EXTEND_MODE \
-	EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER
-target_params_knnbs = MACROSTATE_SIZE KNNBS_EMBEDDING KNNBS_DIMENSION KNNBS_NEIGHBORS
-target_params_macrostates = MACROSTATE_METHOD MACROSTATE_SIZE MACROSTATE_FILE
-target_params_bin-cells = \
-	MACROSTATE_FILE \
-	BIN_SCBOOLSEQ_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
-	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES
-target_params_bin-macrostates = \
-	MACROSTATE_FILE NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD
-target_params_bin-dea = \
-	MACROSTATE_FILE \
-	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
-	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
-target_params_bin-consensus = \
-	MACROSTATE_FILE \
-	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD \
-	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
-	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
-target_params_binarization = BIN_METHOD BINARIZATION_FILE MACROSTATE_FILE
-target_params_spec = \
-	SPEC_FILE SPEC_ONLY_HVG \
-	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
-	$(prior_knowledge_params)
-target_params_max-nodes-soft = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
-	CLINGO_CONFIG_SOFT CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT \
-	JOBS_SOFT TIMEOUT_SOFT
-target_params_max-consts-soft = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER MIN_SELF_LOOP_CONSTS \
-	CLINGO_CONFIG_CONSTS CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS \
-	JOBS_CONSTS TIMEOUT_CONSTS
-target_params_max-nodes-relaxed = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
-	CLINGO_CONFIG_RELAXED CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED \
-	JOBS_RELAXED TIMEOUT_RELAXED
-target_params_max-nodes-seed = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
-	CLINGO_CONFIG_SEED CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED \
-	JOBS_SEED TIMEOUT_SEED
-target_params_max-nodes-lock = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
-	CLINGO_CONFIG_LOCK CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK \
-	JOBS_LOCK TIMEOUT_LOCK
-target_params_bn-min = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER MIN_SELF_LOOP_INFER \
-	CLINGO_OPT_MODE_MIN GRAPH_FORMATS
-target_params_bn-submin = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER \
-	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
-target_params_bn-diverse = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER \
-	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
-
-use_rep_check_pattern = $(use_rep_check_pattern_1)$(use_rep_check_pattern_2)$(use_rep_check_pattern_3)
-use_rep_check_pattern_1 = scripts/(clustering/annotation|utils/pipe_its|trajectories/potency
-use_rep_check_pattern_2 = |macrostates/stream_macrostates|binarization/(bin_cells_scboolseq
-use_rep_check_pattern_3 = |bin_clusters_scboolseq|bin_dea)).py
-
-label_col_check_pattern = $(label_col_check_pattern_1)$(label_col_check_pattern_2)
-label_col_check_pattern_1 = scripts/(clustering/annotation|utils/pipe_its|trajectories/velocity
-label_col_check_pattern_2 = |trajectories/potency|macrostates/(stream|knnbs)_macrostates).py
-
-uniq = $(if $(1),$(firstword $(1)) $(call uniq,$(filter-out $(firstword $(1)),$(1))))
-
-project_config_param_set = \
-	ORGANISM CONDITIONS \
-	$(foreach condition,$(conditions),SRA_$(call toupper,$(condition))) \
-	LABEL SPEC_FILE
-core_config_param_set = \
-	PARAMS REFERENCES RESULTS MEMORY JOBS SEED LOGGING USE_REP LABEL_COL
-method_config_param_set = \
-	ALIGNMENT_TOOL STAR_CB_LEN STAR_UMI_LEN \
-	STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES \
-	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
-	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
-	MAD_DEVIATION NORM_MAD MT \
-	CC_CORRECTION \
-	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
-	ANALYSIS_HVG_BINS DIM_PCA DIM_CLUSTERING DIM_EMBEDDING PCA_ONLY_HVG \
-	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD \
-	LOGFC CORRECTION ALPHA \
-	DIM_MOMENT VELOCITY_ONLY_HVG SMM_MODE \
-	BATCH_SIZE SMOOTH_BATCH_SIZE \
-	MACROSTATE_SIZE MACROSTATE_METHOD \
-	COTAN_METHOD COTAN_ONLY_HVG MAX_ITER \
-	CELLRANK_METHOD STATES INITIAL_STATES TERMINAL_STATES \
-	CELLRANK_STABILITY CELLRANK_ALPHA \
-	CLUSTERING_METHOD CLUSTER_NUMBER ALPHA_EPG MU_EPG LAMBDA_EPG \
-	EXTEND_EPG EXTEND_MODE EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER \
-	KNNBS_EMBEDDING KNNBS_DIMENSION KNNBS_NEIGHBORS \
-	BIN_SCBOOLSEQ_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
-	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES \
-	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD \
-	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
-	BIN_LOGFC BIN_CORRECTION BIN_ALPHA \
-	BIN_METHOD \
-	SPEC_ONLY_HVG \
-	MAX_CLAUSE DOROTHEA_API DOROTHEA_LEVELS CANONIC_FILTER CANONIC_INFER \
-	CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT JOBS_SOFT TIMEOUT_SOFT \
-	CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS JOBS_CONSTS TIMEOUT_CONSTS \
-	CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED JOBS_RELAXED TIMEOUT_RELAXED \
-	CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED JOBS_SEED TIMEOUT_SEED \
-	CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK JOBS_LOCK TIMEOUT_LOCK \
-	CLINGO_OPT_MODE_MIN CONFIG_FORMATS GRAPH_FORMATS MIN_SELF_LOOP_CONSTS \
-	MIN_SELF_LOOP_INFER INFER_LIMIT
-external_resource_config_param_set = \
-	STAR_WHITELIST BINARIZATION_FILE MACROSTATE_FILE PRIOR_KNOWLEDGE \
-	CLINGO_CONFIG_SOFT CLINGO_CONFIG_CONSTS CLINGO_CONFIG_RELAXED \
-	CLINGO_CONFIG_SEED CLINGO_CONFIG_LOCK
-config_default_modules = \
-	load-fastq load-dorothea alignment cellranger star qc velocyto \
-	filtering normalization clustering dea annotation velocity potency \
-	macrostates cotan cellrank stream knnbs bin-cells bin-macrostates \
-	bin-dea bin-consensus binarization spec max-nodes-soft max-consts-soft \
-	max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
-config_base_params = \
-	ORGANISM CONDITIONS $(foreach condition,$(conditions),SRA_$(call toupper,$(condition))) \
-	PARAMS REFERENCES RESULTS MEMORY JOBS SEED LOGGING USE_REP LABEL_COL
-config_params_from_modules = $(strip $(foreach module,$(1),$(target_params_$(module))))
-config_project_params = $(call uniq,$(filter $(project_config_param_set),$(1)))
-config_core_params = $(call uniq,$(filter $(core_config_param_set),$(1)))
-config_method_params = $(call uniq,$(filter $(method_config_param_set),$(1)))
-config_external_resource_params = $(call uniq,$(filter $(external_resource_config_param_set),$(1)))
-target_dry_run_modules = $(shell $(nested_make) --always-make --dry-run LOGGING=false \
-	__check_mode=true __$(1) PARAMS="$(PARAMS)" LOGFILE="$(LOGFILE)" 2>/dev/null \
-	| sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' \
-	| awk '!seen[$$0]++')
-
-config_print_var = $(if $(filter undefined,$(origin $(1))),,$(info $(1)=$($(1))))
-SHOW_CONFIG_RAW ?= false
-help_command = $(if $(filter true,$(SCBOLT_CLI)),scbolt,make)
-help_module_usage = $(if $(filter true,$(SCBOLT_CLI)),<module>,$(green)<module>$(nc))
-help_params_option = $(if $(filter true,$(SCBOLT_CLI)), [--params=<file>])
-help_references_option = $(if $(filter true,$(SCBOLT_CLI)),\
-	 [--references=<condition...>], [REFERENCES=<condition...>])
-help_reset_option = $(if $(filter true,$(SCBOLT_CLI)),\
-	 [--reset-target=<module...>], [RESET_TARGET=<module...>])
-help_trust_option = $(if $(filter true,$(SCBOLT_CLI)),\
-	 [--trust-target=<module...>], [TRUST_TARGET=<module...>])
-
-define config_print_section
-$(info )
-$(info [$(1)])
-$(foreach var,$(strip $(2)),$(call config_print_var,$(var)))
-endef
-
-define config_print_global
-$(eval config_modules := $(if $(TARGET),\
-	$(call target_dry_run_modules,$(TARGET)),\
-	$(config_default_modules)))
-$(eval config_params := $(call uniq,$(config_base_params) $(call config_params_from_modules,$(config_modules))))
-$(call config_print_section,PROJECT PARAMETERS,$(call config_project_params,$(config_params)))
-$(call config_print_section,CORE PARAMETERS,$(call config_core_params,$(config_params)))
-$(call config_print_section,METHOD PARAMETERS,$(call config_method_params,$(config_params)))
-$(call config_print_section,EXTERNAL RESOURCE PARAMETERS,$(call config_external_resource_params,$(config_params)))
-@:
-endef
-
-show_config_target = $(if $(TARGET),$(TARGET),all)
-show_config_modules = $(if $(TARGET),$(call target_dry_run_modules,$(TARGET)),$(config_default_modules))
-show_config_params_file = $(shell realpath --relative-to="$(launch_dir)" "$(PARAMS)" 2>/dev/null || printf '%s' "$(PARAMS)")
-show_config_results = $(shell realpath --relative-to="$(launch_dir)" "$(results)" 2>/dev/null || printf '%s' "$(results)")
-show_config_logging = $(if $(filter true,$(LOGGING)),enabled,$(if $(filter false,$(LOGGING)),disabled,$(LOGGING)))
-show_config_integration = $(if $(filter-out 1,$(words $(conditions))),$(INTEGRATION),none)
-show_config_embedding_label_X_umap = $(call toupper,$(embedding_method_X_umap))
-show_config_embedding_label_X_tsne = t-SNE
-show_config_embedding_label_X_se = spectral embedding
-show_config_embedding_label_X_pca = PCA
-show_config_embedding_label_X_largevis = LargeVis
-show_config_embedding_label_X_diffmap = diffusion map
-show_config_embedding_label_X_phate = PHATE
-show_config_embedding_label_X_trimap = TriMap
-show_config_embedding_label_X_pacmap = PaCMAP
-show_config_embedding_label = $(strip $(if $(show_config_embedding_label_$(1)),\
-	$(show_config_embedding_label_$(1)),\
-	$(patsubst X_%,%,$(1))))
-show_config_embedding = $(if $(filter knnbs,$(MACROSTATE_METHOD)),$(KNNBS_EMBEDDING),$(USE_REP))
-show_config_macrostate_embedding = $(call show_config_embedding_label,$(show_config_embedding))
-show_config_analytic_modules = \
-	velocity potency cotan cellrank stream knnbs \
-	bin-cells bin-macrostates bin-dea bin-consensus binarization spec \
-	max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock \
-	bn-min bn-submin bn-diverse
-show_config_param_modules = $(call uniq,$(strip \
-	$(filter $(show_config_analytic_modules),$(show_config_modules)) \
-	$(if $(filter macrostates,$(show_config_modules)),$(MACROSTATE_METHOD))))
-show_config_inference_modules = \
-	spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock \
-	bn-min bn-submin bn-diverse
-show_config_has_inference = $(filter $(show_config_inference_modules),$(show_config_param_modules))
-show_config_inference_params = PRIOR_KNOWLEDGE DOROTHEA_API DOROTHEA_LEVELS MAX_CLAUSE
-show_config_has_analysis_hvg = $(filter clustering,$(show_config_modules))
-show_config_binarization_hvg_modules = bin-cells bin-dea bin-consensus spec
-show_config_has_binarization_hvg = \
-	$(filter $(show_config_binarization_hvg_modules),$(show_config_param_modules))
-show_config_has_hvg = $(strip $(show_config_has_analysis_hvg) $(show_config_has_binarization_hvg))
-show_config_hvg_params = \
-	ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN ANALYSIS_HVG_BINS \
-	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS
-show_config_var_value = $(if $(filter REFERENCES,$(1)),$(running_references),$($(1)))
-show_config_var_label = $(call tolower,$(subst _, ,$(1)))
-show_config_label_width = $(shell printf '%s\n' \
-	$(foreach var,$(strip $(1)),'$(call show_config_var_label,$(var))') \
-	| awk '{ if (length > max) max = length } \
-		END { width = max + 1; if (width < 20) width = 20; print width }')
-show_config_var_command = printf '%-$(2)s: %s\n' \
-	'$(call show_config_var_label,$(1))' "$(call show_config_var_value,$(1))";
-show_config_print_vars = $(foreach var,$(strip $(1)),$(call show_config_var_command,$(var),$(2)))
-show_config_section_title = $(1) parameters
-show_config_module_params = $(call uniq,\
-	$(filter-out $(show_config_inference_params) $(show_config_hvg_params),$(target_params_$(1))))
-show_config_module_label_width = $(call show_config_label_width,$(call show_config_module_params,$(1)))
-
-define show_config_print_param_section
-$(if $(strip $(target_params_$(1))),\
-printf '\n%s\n' '$(call show_config_section_title,$(1))'
-printf '%s\n' '$(call show_config_section_title,$(1))' | sed 's/./-/g'
-$(call show_config_print_vars,\
-	$(call show_config_module_params,$(1)),\
-	$(call show_config_module_label_width,$(1))))
-endef
-
-define show_config_print_pipeline
-$(if $(strip $(show_config_param_modules)),\
-@printf '\nExecution pipeline\n'
-@printf '%s\n' '------------------'
-@printf '%s\n' $(foreach module,$(show_config_param_modules),'- $(module)'))
-endef
-
-define show_config_print_inference
-$(if $(strip $(show_config_has_inference)),\
-@printf '\nInference\n'
-@printf '%s\n' '---------'
-@printf '%-16s : %s\n' 'Prior knowledge' "$(PRIOR_KNOWLEDGE)"
-$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'DoRothEA API' "$(DOROTHEA_API)")
-$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Levels' "$(DOROTHEA_LEVELS)")
-@printf '%-16s : %s\n' 'Max clause' "$(MAX_CLAUSE)")
-endef
-
-define show_config_print_hvg
-$(if $(strip $(show_config_has_hvg)),\
-@printf '\nhighly variable genes\n'
-@printf '%s\n' 'highly variable genes' | sed 's/./-/g')
-$(if $(strip $(show_config_has_analysis_hvg)),\
-@printf 'analysis:\n'
-@printf '  - %-6s : %s\n' 'flavor' "$(ANALYSIS_HVG_FLAVOR)"
-@printf '  - %-6s : %s\n' 'top' "$(ANALYSIS_HVG_TOP)"
-@printf '  - %-6s : %s\n' 'span' "$(ANALYSIS_HVG_SPAN)"
-@printf '  - %-6s : %s\n' 'bins' "$(ANALYSIS_HVG_BINS)")
-$(if $(strip $(show_config_has_binarization_hvg)),\
-$(if $(strip $(show_config_has_analysis_hvg)),@printf '\n')
-@printf 'binarization:\n'
-@printf '  - %-6s : %s\n' 'flavor' "$(BIN_HVG_FLAVOR)"
-@printf '  - %-6s : %s\n' 'top' "$(BIN_HVG_TOP)"
-@printf '  - %-6s : %s\n' 'span' "$(BIN_HVG_SPAN)"
-@printf '  - %-6s : %s\n' 'bins' "$(BIN_HVG_BINS)")
-endef
-
-define show_config_print
-@printf 'Target: %s\n\n' "$(show_config_target)"
-@printf 'Project\n'
-@printf '%s\n' '-------'
-@printf '%-13s : %s\n' 'Params file' "$(show_config_params_file)"
-@printf '%-13s : %s\n' 'Organism' "$(ORGANISM)"
-@printf '%-13s : %s\n' 'Conditions' "$(conditions)"
-@printf '%-13s : %s\n\n' 'Results' "$(show_config_results)"
-@printf 'Workflow\n'
-@printf '%s\n' '--------'
-@printf '%-14s : %s\n' 'Representation' "$(USE_REP)"
-@printf '%-14s : %s\n\n' 'Label column' "$(LABEL_COL)"
-@printf 'Methods\n'
-@printf '%s\n' '-------'
-@printf '%-14s : %s\n' 'Embedding' "$(show_config_macrostate_embedding)"
-@printf '%-14s : %s\n' 'Integration' "$(show_config_integration)"
-@printf '%-14s : %s\n' 'Macrostate' "$(MACROSTATE_METHOD)"
-@printf '%-14s : %s\n' 'Binarization' "$(BIN_METHOD)"
-$(if $(filter knnbs,$(MACROSTATE_METHOD)),@printf '%-14s : %s\n' 'Neighbors' "$(KNNBS_NEIGHBORS)")
-@printf '\n'
-@printf 'Execution\n'
-@printf '%s\n' '---------'
-@printf '%-12s : %s\n' 'Jobs' "$(JOBS)"
-@printf '%-12s : %s GB\n' 'Memory' "$(MEMORY)"
-@printf '%-12s : %s\n' 'Seed' "$(SEED)"
-@printf '%-12s : %s\n' 'Logging' "$(show_config_logging)"
-$(show_config_print_hvg)
-$(show_config_print_inference)
-$(show_config_print_pipeline)
-$(foreach module,$(show_config_param_modules),$(call show_config_print_param_section,$(module)))
-endef
-
-## END PARAMETERS ##
-
-## BEGIN HELP ##
-
-##@ Utilities
-
-.PHONY: help
-help: ## display this help and exit
-	@awk 'BEGIN {FS = ":.*##"; \
-		printf "usage: $(help_command) $(help_module_usage)$(help_params_option)"; \
-		printf "$(help_references_option)"; \
-		printf "$(help_reset_option)"; \
-		printf "$(help_trust_option)"; \
-		printf "\n"; \
-		printf "(default value for REFERENCES: $(running_references))\n\n"; \
-		printf "scBOLT is a semi-automated pipeline for Boolean network inference "; \
-		printf "from multi-condition single-cell transcriptomes. "; \
-		printf "The workflow includes: alignment and preprocessing, integration and clustering, "; \
-		printf "cell annotation, trajectory inference, macrostate characterization, "; \
-		printf "macrostate binarization, Boolean constraint specification, gene selection, "; \
-		printf "and Boolean network inference.\n\n"; \
-		printf "$(bold)Special parameters$(nc)\n"; \
-		if ("$(SCBOLT_CLI)" == "true") { \
-			printf "  %-31s %s\n", "--params=<file>", "select the parameter file"; \
-			printf "  %-31s %s\n", "--references=<condition...>", "restrict the run to selected references"; \
-			printf "  %-31s %s\n", "--reset-target=<module...>", "rebuild from these modules; successful recipes replace outputs"; \
-			printf "  %-31s %s\n", "--trust-target=<module...>", "trust these module outputs and skip rebuilding them"; \
-			printf "  %-31s %s\n", "--logging=<bool>", "enable or disable persistent logging"; \
-			printf "  %-31s %s\n", "--raw", "display raw show-config listing"; \
-			printf "  %-31s %s\n", "--<parameter>=<value>", "override any Make parameter using dash-separated option names"; \
-			printf "  %-31s %s\n", "--target=<module>", "select module for check, show-config, and dry-run"; \
-		} else { \
-			printf "  %-31s %s\n", "REFERENCES=<condition...>", "restrict the run to selected references"; \
-			printf "  %-31s %s\n", "RESET_TARGET=<module...>", "rebuild from these modules; successful recipes replace outputs"; \
-			printf "  %-31s %s\n", "TRUST_TARGET=<module...>", "trust these module outputs and skip rebuilding them"; \
-			printf "  %-31s %s\n", "SHOW_CONFIG_RAW=true", "display raw show-config listing"; \
-			printf "  %-31s %s\n", "TARGET=<module>", "select module for check, show-config, and dry-run"; \
-		}} \
-		/^[a-zA-Z_-]+:.*?##/ { \
-			printf "  $(green)%-22s$(nc) %s\n", $$1, $$2; \
-		} \
-		/^##@/ { printf "\n$(bold)%s$(nc)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
-
-.PHONY: show-config
-show-config: ## display effective configuration and exit
-ifneq ($(TARGET),)
-ifeq ($(filter $(TARGET),$(reset_stages)),)
-	$(call print_error,unknown TARGET=$(TARGET); supported values: $(reset_stages))
-endif
-endif
-ifeq ($(SHOW_CONFIG_RAW),true)
-	$(config_print_global)
-else ifeq ($(SHOW_CONFIG_RAW),false)
-	$(show_config_print)
-else
-	$(call print_error,unsupported SHOW_CONFIG_RAW=$(SHOW_CONFIG_RAW) \(supported values: true, false\))
-endif
-
-.PHONY: check
-check: ## check Make-level dependencies, configuration and external tools required to build TARGET
-	@if [ -z "$(TARGET)" ]; then \
-		printf '$(failure_label) %s\n' "missing TARGET (usage: make check TARGET=<module>)"; \
-		exit 1; \
-	fi
-	@target_dry_run="$$(mktemp)"; \
-	dry_run="$$(mktemp)"; \
-	check_report_dir="$$(mktemp -d)"; \
-	project_checks="$${check_report_dir}/01_project"; \
-	core_checks="$${check_report_dir}/02_core"; \
-	method_checks="$${check_report_dir}/03_method"; \
-	external_resource_checks="$${check_report_dir}/04_external_resource"; \
-	file_checks="$${check_report_dir}/05_files"; \
-	conda_checks="$${check_report_dir}/06_conda"; \
-	command_checks="$${check_report_dir}/07_commands"; \
-	other_checks="$${check_report_dir}/08_other"; \
-	touch "$${project_checks}" "$${core_checks}" "$${method_checks}" \
-		"$${external_resource_checks}" "$${file_checks}" "$${conda_checks}" \
-		"$${command_checks}" "$${other_checks}"; \
-	trap 'rm -f "$${target_dry_run}" "$${dry_run}"; rm -rf "$${check_report_dir}"' EXIT; \
-	route_check_report() { \
-		case "$$1" in \
-			project\ parameter*|*project\ parameter*) printf '%s\n' "$${project_checks}";; \
-			core\ parameter*|*core\ parameter*) printf '%s\n' "$${core_checks}";; \
-			method\ parameter*|*method\ parameter*) printf '%s\n' "$${method_checks}";; \
-			external\ resource\ parameter*|*external\ resource\ parameter*) \
-				printf '%s\n' "$${external_resource_checks}";; \
-			h5ad\ metadata*|*h5ad\ metadata*) printf '%s\n' "$${file_checks}";; \
-			file\ found*|*file*) printf '%s\n' "$${file_checks}";; \
-			conda\ environment*|command\ found:\ conda|*conda*) printf '%s\n' "$${conda_checks}";; \
-			command\ found*|*command*) printf '%s\n' "$${command_checks}";; \
-			*) printf '%s\n' "$${other_checks}";; \
-		esac; \
-	}; \
-	check_success() { printf '$(success_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
-	check_warning() { printf '$(warning_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
-	check_failure() { printf '$(failure_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
-	missing=0; \
-	$(nested_make) --dry-run LOGGING=false \
-		__check_mode=true __$(TARGET) LOGFILE="$(LOGFILE)" > "$${target_dry_run}"; \
-	if [ ! -s "$${target_dry_run}" ]; then \
-		printf '$(success_label) %s\n' "target '$(TARGET)' already up to date"; \
-		exit 0; \
-	fi; \
-	cp "$${target_dry_run}" "$${dry_run}"; \
-	if grep -qE -- '--samtools-memory|--localmem|--memory' "$${dry_run}"; then \
-		$(call check_positive_integer_diagnostic,$(MEMORY),MEMORY,core); \
-	fi; \
-	if grep -qE -- '--threads|--jobs|--runThreadN|--samtools-threads|--localcores' "$${dry_run}"; then \
-		$(call check_positive_integer_diagnostic,$(JOBS),JOBS,core); \
-	fi; \
-	if grep -qE -- '--seed|PYTHONHASHSEED' "$${dry_run}"; then \
-		$(call check_positive_integer_diagnostic,$(SEED),SEED,core); \
-	fi; \
-	if grep -qE '$(use_rep_check_pattern)' "$${dry_run}" \
-			|| grep -q 'scripts/macrostates/knnbs_macrostates.py' "$${dry_run}" \
-			|| grep -q '/cotan/barcts.csv' "$${dry_run}"; then \
-		$(call check_parameter_diagnostic,$(USE_REP),USE_REP,core); \
-	fi; \
-	if grep -qE '$(label_col_check_pattern)' "$${dry_run}"; then \
-		$(call check_parameter_diagnostic,$(LABEL_COL),LABEL_COL,core); \
-	fi; \
-	if grep -qE '(^|[[:space:]])STAR([[:space:]]|$$)' "$${dry_run}"; then \
-		$(call check_positive_integer_diagnostic,$(STAR_CB_LEN),$(call needed_by,STAR_CB_LEN,star),method); \
-		$(call check_positive_integer_diagnostic,$(STAR_UMI_LEN),$(call needed_by,STAR_UMI_LEN,star),method); \
-		if [ -n "$(STAR_WHITELIST)" ]; then \
-		$(call check_file_diagnostic,$(STAR_WHITELIST),$(call needed_by,STAR_WHITELIST,star),external resource); \
-		fi; \
-	fi; \
-	if grep -q 'scripts/alignment/filter_barcodes.py' "$${dry_run}"; then \
-		$(call check_choice_diagnostic,\
-			$(STAR_BARCODE_FILTER),auto threshold top,$(call needed_by,STAR_BARCODE_FILTER,qc),method); \
-		$(call check_optional_positive_integer_diagnostic,\
-			$(STAR_MIN_UMI),$(call needed_by,STAR_MIN_UMI,qc),method); \
-		$(call check_optional_positive_integer_diagnostic,\
-			$(STAR_TOP_BARCODES),$(call needed_by,STAR_TOP_BARCODES,qc),method); \
-		if [ "$(STAR_BARCODE_FILTER)" = "threshold" ] && [ -z "$(STAR_MIN_UMI)" ]; then \
-			$(call report_check_error,required method parameter not defined: \
-				STAR_MIN_UMI (needed by target '$(TARGET)')); \
-		fi; \
-		if [ "$(STAR_BARCODE_FILTER)" = "top" ] && [ -z "$(STAR_TOP_BARCODES)" ]; then \
-			$(call report_check_error,required method parameter not defined: \
-				STAR_TOP_BARCODES (needed by target '$(TARGET)')); \
-		fi; \
-		if [ "$(STAR_BARCODE_FILTER)" = "auto" ] \
-				&& { [ -n "$(STAR_MIN_UMI)" ] || [ -n "$(STAR_TOP_BARCODES)" ]; }; then \
-			$(call report_check_error,method parameters STAR_MIN_UMI and STAR_TOP_BARCODES \
-				require STAR_BARCODE_FILTER=threshold or top); \
-		fi; \
-	fi; \
-	if grep -q 'ALIGNMENT_TOOL' "$${dry_run}"; then \
-		$(call check_choice_diagnostic,$(ALIGNMENT_TOOL),cellranger star,ALIGNMENT_TOOL,method); \
-	fi; \
-	if grep -q 'MACROSTATE_METHOD' "$${dry_run}"; then \
-		$(call check_choice_diagnostic,\
-			$(MACROSTATE_METHOD),cotan cellrank stream knnbs,$(call needed_by,MACROSTATE_METHOD,macrostates),method); \
-	fi; \
-	if grep -q 'BIN_METHOD' "$${dry_run}"; then \
-		$(call check_choice_diagnostic,\
-			$(BIN_METHOD),scboolseq dea consensus,$(call needed_by,BIN_METHOD,binarization),method); \
-	fi; \
-	if grep -q 'scripts/utils/prepare_macrostate_h5ad.py' "$${dry_run}"; then \
-		$(call check_parameter_diagnostic,\
-			$(MACROSTATE_FILE),$(call needed_by,MACROSTATE_FILE,$(TARGET)),external resource); \
-	fi; \
-	if grep -q 'scripts/preprocessing/filtering.py' "$${dry_run}"; then \
-		$(call check_bool_diagnostic,$(NORM_MAD),$(call needed_by,NORM_MAD,filtering),method); \
-	fi; \
-	if grep -q 'scripts/preprocessing/normalization.py' "$${dry_run}"; then \
-		$(call check_bool_diagnostic,$(CC_CORRECTION),$(call needed_by,CC_CORRECTION,normalization),method); \
-		if [ "$(CC_CORRECTION)" = "true" ] && [ "$(ORGANISM)" != "mouse" ]; then \
-			$(call report_check_error,method parameter CC_CORRECTION=true is only supported \
-				for ORGANISM=mouse (current: $(ORGANISM))); \
-		fi; \
-	fi; \
-	if grep -qE 'scripts/clustering/(clustering|integration).py' "$${dry_run}"; then \
-		$(call check_choice_diagnostic,$(USE_REP),X_umap X_tsne,USE_REP,core); \
-		$(call check_choice_diagnostic,\
-			$(ANALYSIS_HVG_FLAVOR),seurat cell_ranger seurat_v3,\
-			$(call needed_by,ANALYSIS_HVG_FLAVOR,clustering),method); \
-		$(call check_optional_positive_integer_diagnostic,\
-			$(ANALYSIS_HVG_TOP),$(call needed_by,ANALYSIS_HVG_TOP,clustering),method); \
-		$(call check_float_diagnostic,\
-			$(ANALYSIS_HVG_SPAN),$(call needed_by,ANALYSIS_HVG_SPAN,clustering),method); \
-		$(call check_positive_integer_diagnostic,\
-			$(ANALYSIS_HVG_BINS),$(call needed_by,ANALYSIS_HVG_BINS,clustering),method); \
-		$(call check_positive_integer_diagnostic,$(DIM_PCA),$(call needed_by,DIM_PCA,clustering),method); \
-		$(call check_positive_integer_diagnostic,$(DIM_CLUSTERING),$(call needed_by,DIM_CLUSTERING,clustering),method); \
-		$(call check_positive_integer_diagnostic,$(DIM_EMBEDDING),$(call needed_by,DIM_EMBEDDING,clustering),method); \
-		$(call check_bool_diagnostic,$(PCA_ONLY_HVG),$(call needed_by,PCA_ONLY_HVG,clustering),method); \
-		$(call check_positive_integer_diagnostic,$(NEIGHBORS),$(call needed_by,NEIGHBORS,clustering),method); \
-		$(call check_float_diagnostic,$(RESOLUTION),$(call needed_by,RESOLUTION,clustering),method); \
-		$(call check_float_diagnostic,$(MIN_DIST),$(call needed_by,MIN_DIST,clustering),method); \
-		$(call check_float_diagnostic,$(SPREAD),$(call needed_by,SPREAD,clustering),method); \
-	fi; \
-	if grep -q 'scripts/trajectories/velocity.py' "$${dry_run}"; then \
-		$(call check_positive_integer_diagnostic,$(DIM_MOMENT),$(call needed_by,DIM_MOMENT,velocity),method); \
-		$(call check_bool_diagnostic,$(VELOCITY_ONLY_HVG),$(call needed_by,VELOCITY_ONLY_HVG,velocity),method); \
-	fi; \
-	if grep -q 'scripts/macrostates/cellrank_macrostates.py' "$${dry_run}"; then \
-		$(call check_positive_integer_diagnostic,$(INITIAL_STATES),$(call needed_by,INITIAL_STATES,cellrank),method); \
-		$(call check_positive_integer_diagnostic,$(TERMINAL_STATES),$(call needed_by,TERMINAL_STATES,cellrank),method); \
-		$(call check_float_diagnostic,$(CELLRANK_STABILITY),$(call needed_by,CELLRANK_STABILITY,cellrank),method); \
-		$(call check_float_diagnostic,$(CELLRANK_ALPHA),$(call needed_by,CELLRANK_ALPHA,cellrank),method); \
-	fi; \
-	if grep -q 'scripts/macrostates/cotan_macrostates.R' "$${dry_run}"; then \
-		$(call check_bool_diagnostic,$(COTAN_ONLY_HVG),$(call needed_by,COTAN_ONLY_HVG,cotan),method); \
-	fi; \
-	if grep -q 'scripts/macrostates/stream_macrostates.py' "$${dry_run}"; then \
-		$(call check_positive_integer_diagnostic,$(CLUSTER_NUMBER),$(call needed_by,CLUSTER_NUMBER,stream),method); \
-		$(call check_float_diagnostic,$(ALPHA_EPG),$(call needed_by,ALPHA_EPG,stream),method); \
-		$(call check_float_diagnostic,$(MU_EPG),$(call needed_by,MU_EPG,stream),method); \
-		$(call check_float_diagnostic,$(LAMBDA_EPG),$(call needed_by,LAMBDA_EPG,stream),method); \
-		$(call check_bool_diagnostic,$(EXTEND_EPG),$(call needed_by,EXTEND_EPG,stream),method); \
-		$(call check_float_diagnostic,$(EXTEND_PARAMETER),$(call needed_by,EXTEND_PARAMETER,stream),method); \
-		$(call check_bool_diagnostic,$(PRUNE_EPG),$(call needed_by,PRUNE_EPG,stream),method); \
-		$(call check_bool_diagnostic,$(COLLAPSE_PARAMETER),$(call needed_by,COLLAPSE_PARAMETER,stream),method); \
-	fi; \
-	if grep -q 'scripts/macrostates/knnbs_macrostates.py' "$${dry_run}"; then \
-		$(call check_parameter_diagnostic,\
-			$(KNNBS_EMBEDDING),$(call needed_by,KNNBS_EMBEDDING,knnbs),method); \
-		$(call check_positive_integer_diagnostic,\
-			$(KNNBS_NEIGHBORS),$(call needed_by,KNNBS_NEIGHBORS,knnbs),method); \
-	fi; \
-	if grep -q 'scripts/binarization/bin_cells_scboolseq.py' "$${dry_run}" \
-			|| grep -q '"RULE" "bin-cells' "$${dry_run}"; then \
-		$(call check_bool_diagnostic,\
-			$(BIN_SCBOOLSEQ_ONLY_HVG),$(call needed_by,BIN_SCBOOLSEQ_ONLY_HVG,bin-cells),method); \
-		if [ "$(BIN_SCBOOLSEQ_ONLY_HVG)" = "true" ]; then \
-			$(call check_hvg_method_diagnostic,\
-				$(BIN_HVG_FLAVOR),$(BIN_HVG_TOP),\
-				$(call needed_by,BIN_HVG_FLAVOR,bin-cells),$(call needed_by,BIN_HVG_TOP,bin-cells),method); \
-			$(call check_float_diagnostic,$(BIN_HVG_SPAN),$(call needed_by,BIN_HVG_SPAN,bin-cells),method); \
-			$(call check_positive_integer_diagnostic,$(BIN_HVG_BINS),$(call needed_by,BIN_HVG_BINS,bin-cells),method); \
-		fi; \
-		$(call check_float_diagnostic,$(UNIMODAL_QUANTILE),$(call needed_by,UNIMODAL_QUANTILE,bin-cells),method); \
-		$(call check_bool_diagnostic,$(ZEROES_ARE_ZEROES),$(call needed_by,ZEROES_ARE_ZEROES,bin-cells),method); \
-	fi; \
-	if grep -q 'scripts/binarization/bin_clusters_scboolseq.py' "$${dry_run}"; then \
-		$(call check_float_diagnostic,$(NANS_THRESHOLD),$(call needed_by,NANS_THRESHOLD,bin-macrostates),method); \
-		$(call check_float_diagnostic,$(BIMODAL_THRESHOLD),$(call needed_by,BIMODAL_THRESHOLD,bin-macrostates),method); \
-		$(call check_float_diagnostic,$(ZEROINF_THRESHOLD),$(call needed_by,ZEROINF_THRESHOLD,bin-macrostates),method); \
-		$(call check_float_diagnostic,$(UNIMODAL_THRESHOLD),$(call needed_by,UNIMODAL_THRESHOLD,bin-macrostates),method); \
-	fi; \
-	if grep -q 'scripts/binarization/bin_dea.py' "$${dry_run}" \
-			|| grep -q '"RULE" "bin-dea' "$${dry_run}"; then \
-		$(call check_bool_diagnostic,$(BIN_DEA_ONLY_HVG),$(call needed_by,BIN_DEA_ONLY_HVG,bin-dea),method); \
-		if [ "$(BIN_DEA_ONLY_HVG)" = "true" ]; then \
-			$(call check_hvg_method_diagnostic,\
-				$(BIN_HVG_FLAVOR),$(BIN_HVG_TOP),\
-				$(call needed_by,BIN_HVG_FLAVOR,bin-dea),$(call needed_by,BIN_HVG_TOP,bin-dea),method); \
-			$(call check_float_diagnostic,$(BIN_HVG_SPAN),$(call needed_by,BIN_HVG_SPAN,bin-dea),method); \
-			$(call check_positive_integer_diagnostic,$(BIN_HVG_BINS),$(call needed_by,BIN_HVG_BINS,bin-dea),method); \
-		fi; \
-		$(call check_float_diagnostic,$(BIN_LOGFC),$(call needed_by,BIN_LOGFC,bin-dea),method); \
-		$(call check_float_diagnostic,$(BIN_ALPHA),$(call needed_by,BIN_ALPHA,bin-dea),method); \
-	fi; \
-	if grep -q 'scripts/clustering/markers.py' "$${dry_run}"; then \
-		$(call check_float_diagnostic,$(LOGFC),$(call needed_by,LOGFC,dea),method); \
-	fi; \
-	if grep -q 'scripts/inference/specification.py' "$${dry_run}"; then \
-		$(call check_file_diagnostic,$(SPEC_FILE),$(call needed_by,SPEC_FILE,spec),project); \
-		$(call check_bool_diagnostic,$(SPEC_ONLY_HVG),$(call needed_by,SPEC_ONLY_HVG,spec),method); \
-		if [ "$(SPEC_ONLY_HVG)" = "true" ]; then \
-			$(call check_hvg_method_diagnostic,\
-				$(BIN_HVG_FLAVOR),$(BIN_HVG_TOP),\
-				$(call needed_by,BIN_HVG_FLAVOR,spec),$(call needed_by,BIN_HVG_TOP,spec),method); \
-			$(call check_float_diagnostic,$(BIN_HVG_SPAN),$(call needed_by,BIN_HVG_SPAN,spec),method); \
-			$(call check_positive_integer_diagnostic,$(BIN_HVG_BINS),$(call needed_by,BIN_HVG_BINS,spec),method); \
-		fi; \
-	fi; \
-	if grep -q 'PRIOR_KNOWLEDGE' "$${dry_run}"; then \
-		$(call check_parameter_diagnostic,$(PRIOR_KNOWLEDGE),PRIOR_KNOWLEDGE,external resource); \
-		if [ -n "$(PRIOR_KNOWLEDGE)" ] && [ -z "$(prior_knowledge)" ]; then \
-			$(call report_check_error,unsupported value for external resource parameter PRIOR_KNOWLEDGE \
-				(supported values: collectri, dorothea or an existing file path)); \
-		fi; \
-	fi; \
-	if grep -q 'DOROTHEA_API' "$${dry_run}" && [ "$(PRIOR_KNOWLEDGE)" = "dorothea" ]; then \
-		$(call check_choice_diagnostic,$(DOROTHEA_API),$(dorothea_apis),DOROTHEA_API,method); \
-	fi; \
-	if grep -q 'DOROTHEA_LEVELS' "$${dry_run}"; then \
-		invalid_dorothea_levels=0; \
-		for level in $(DOROTHEA_LEVELS); do \
-			case "$${level}" in \
-				$(subst $(space),|,$(dorothea_levels))) ;; \
-				*) $(call report_check_error,unsupported value for method parameter DOROTHEA_LEVELS \
-					(supported values: $(subst $(space),$(comma) ,$(dorothea_levels)))); \
-					invalid_dorothea_levels=1;; \
-			esac; \
-		done; \
-		if [ -n "$(DOROTHEA_LEVELS)" ] && [ "$${invalid_dorothea_levels}" -eq 0 ]; then \
-			$(call check_success,method parameter valid: DOROTHEA_LEVELS=$(DOROTHEA_LEVELS)); \
-		fi; \
-	fi; \
-	if grep -q 'CANONIC_FILTER' "$${dry_run}"; then \
-		$(call check_bool_diagnostic,$(CANONIC_FILTER),CANONIC_FILTER,method); \
-	fi; \
-	if grep -q 'CANONIC_INFER' "$${dry_run}"; then \
-		$(call check_bool_diagnostic,$(CANONIC_INFER),CANONIC_INFER,method); \
-	fi; \
-	if grep -q 'MIN_SELF_LOOP_CONSTS' "$${dry_run}"; then \
-		$(call check_bool_diagnostic,$(MIN_SELF_LOOP_CONSTS),MIN_SELF_LOOP_CONSTS,method); \
-	fi; \
-	if grep -q 'MIN_SELF_LOOP_INFER' "$${dry_run}"; then \
-		$(call check_bool_diagnostic,$(MIN_SELF_LOOP_INFER),MIN_SELF_LOOP_INFER,method); \
-	fi; \
-	if [ "$(TARGET)" = "max-nodes-seed" ] || grep -q '"RULE" "max-nodes-seed' "$${dry_run}"; then \
-		$(call check_parameter_diagnostic,$(TIMEOUT_SEED),TIMEOUT_SEED (needed by target 'max-nodes-seed'),method); \
-	fi; \
-	if grep -q 'parallel-fastq-dump' "$${dry_run}"; then \
-		:; \
-		$(foreach condition,$(running_conditions),\
-			$(call check_parameter_diagnostic,\
-				$(SRA_$(call toupper,$(condition))),\
-				SRA_$(call toupper,$(condition)) \
-					(needed by target 'load-fastq'),project);) \
-	fi; \
-	if grep -q 'scripts/clustering/annotation.py' "$${dry_run}"; then \
-		$(call check_parameter_diagnostic,$(LABEL),LABEL (needed by target 'annotation'),project); \
-	fi; \
-	if grep -q 'scripts/macrostates/knnbs_macrostates.py' "$${dry_run}" \
-			|| grep -q 'KNNBS_CENTRALITY_' "$${dry_run}"; then \
-		:; \
-		$(foreach condition,$(running_conditions),\
-			$(call check_knnbs_seed_diagnostic,\
-				$(call knnbs_centrality,$(condition)),\
-				$(call knnbs_periphery,$(condition)),$(condition));) \
-	fi; \
-	if [ "$(__check_externals__)" = "true" ]; then \
-		h5ad_report="$$(mktemp)"; \
-		if ! $(call conda_run,scbolt-core) python $(scripts_dir)/utils/check_h5ad_pipeline.py \
-				--dry-run "$${dry_run}" --conditions $(conditions) > "$${h5ad_report}"; then \
-			missing=1; \
-		fi; \
-		while IFS=$$'\t' read -r status message; do \
-			if [ -z "$${status}" ]; then \
-				continue; \
-			elif [ "$${status}" = "success" ]; then \
-				check_success "$${message}"; \
-			elif [ "$${status}" = "warning" ]; then \
-				check_warning "$${message}"; \
-			elif [ "$${status}" = "failure" ]; then \
-				check_failure "$${message}"; \
-				missing=1; \
-			fi; \
-		done < "$${h5ad_report}"; \
-		rm -f "$${h5ad_report}"; \
-	fi; \
-	if [ "$(__check_externals__)" = "true" ]; then \
-		if grep -q 'repeat_msk.gtf' "$${dry_run}"; then \
-			$(call check_file_diagnostic,$(public_dir)/transcriptome/repeat_msk.gtf,repeat masker annotation); \
-		fi; \
-		$(call check_command_diagnostic,conda); \
-		if command -v conda >/dev/null 2>&1; then \
-			for env in $$({ \
-				grep -oE 'conda run[^;|&]* -n [^ ]+' "$${dry_run}" || true; \
-			} | awk '{print $$NF}' | sort -u); do \
-				if conda env list | awk '{print $$1}' | grep -qx "$${env}"; then \
-					check_success "conda environment found: $${env}"; \
-					env_yaml="$(scbolt_root)/envs/$${env#scbolt-}.yml"; \
-					git_packages=""; \
-					case "$${env}" in \
-						scbolt-bonesis) git_packages="--git-package bonesis=$(BONESIS_HASH)";; \
-						scbolt-velocity) git_packages="--git-package scvelo=$(SCVELO_HASH)";; \
-					esac; \
-					conda_report="$$(mktemp)"; \
-					if ! python3 $(scripts_dir)/utils/check_conda_env.py \
-							--env "$${env}" --yaml "$${env_yaml}" $${git_packages} \
-							> "$${conda_report}"; then \
-						missing=1; \
-					fi; \
-					while IFS=$$'\t' read -r status message; do \
-						if [ -z "$${status}" ]; then \
-							continue; \
-						elif [ "$${status}" = "success" ]; then \
-							check_success "$${message}"; \
-						elif [ "$${status}" = "warning" ]; then \
-							check_warning "$${message}"; \
-						elif [ "$${status}" = "failure" ]; then \
-							check_failure "$${message}"; \
-							missing=1; \
-						fi; \
-					done < "$${conda_report}"; \
-					rm -f "$${conda_report}"; \
-				else \
-					$(call report_check_error,required conda environment not found: $${env}); \
-				fi; \
-			done; \
-		fi; \
-		if grep -qE '(^|[[:space:]])cellranger count([[:space:]]|$$)' "$${dry_run}"; then \
-			$(call check_command_diagnostic,cellranger); \
-		fi; \
-		if grep -q -- '--graph-formats' "$${dry_run}"; then \
-			$(call check_command_diagnostic,dot); \
-		fi; \
-	fi; \
-	if [ "$${missing}" -ne 0 ]; then \
-		$(call check_failure,check failed for target '$(TARGET)'); \
-		$(print_check_reports); \
-		exit 1; \
-	fi; \
-	$(call check_success,check passed for target '$(TARGET)'); \
-	$(print_check_reports)
-
-.PHONY: dry-run
-dry-run: ## display modules required to build TARGET without executing them
-	@if [ -z "$(TARGET)" ]; then \
-		$(call print_error,missing TARGET \(usage: make dry-run TARGET=<module>\)); \
-	fi
-	$(nested_make) --dry-run LOGGING=false __dry_run_output=true __$(TARGET) LOGFILE="$(LOGFILE)" \
-		| sed '/^[[:space:]]*$$/d'
-
-##@ Clean
-
-.PHONY: clean
-clean: ## clear cache
-	find . -name "\*.pyc" -delete
-	find . -type d -name "__pycache__" -exec rm -rf "{}" \;
-	find . -type d -name "cache" -exec rm -rf "{}" \;
-
-.PHONY: mrproper
-mrproper: ## clear cache and public/private data
-	find . -name "\*.pyc" -delete
-	find . -type d -name "__pycache__" -exec rm -rf "{}" \;
-	find . -type d -name "cache" -exec rm -rf "{}" \;
-	test -n "$(results)" && test "$(results)" != "/"
-	rm -rf $(results)
-	mkdir -p $(results)
-	[ ! -d $(public_dir)/transcriptome ] || find $(public_dir)/transcriptome \
-		! -name "repeat_msk.gtf" -type f -exec rm -f "{}" \;
-
-##@ Download
-
-.PHONY: load-genome __load-genome
-load-genome: ## download the reference genome
-	$(call run_logged,load-genome)
-__load-genome: $(genome_ref)
-
-.PHONY: load-fastq __load-fastq
-load-fastq: ## download FASTQ files
-	$(call run_logged,load-fastq)
-__load-fastq: $(fastq_target)
-
-.PHONY: load-signatures __load-signatures
-load-signatures: ## download phenotype-related signatures
-	$(call run_logged,load-signatures)
-__load-signatures: $(lastword $(signatures))
-
-.PHONY: load-cc __load-cc
-load-cc: ## download cell-cycle markers
-	$(call run_logged,load-cc)
-__load-cc: $(cc_markers)
-
-.PHONY: load-go __load-go
-load-go: ## download Gene Ontology resources
-	$(call run_logged,load-go)
-__load-go: $(go_basic) $(go_organism) $(gene2go)
-
-.PHONY: load-dorothea __load-dorothea
-load-dorothea: ## download DoRothEA through the legacy decoupler wrapper
-	$(call run_logged,load-dorothea)
-__load-dorothea: $(dorothea_legacy)
-
-##@ Alignment/Counting
-
-.PHONY: alignment __alignment
-alignment: ## run the selected alignment/counting backend
-	$(call run_logged,alignment)
-__alignment: $(alignment_target)
-
-.PHONY: cellranger __cellranger
-cellranger: ## run Cell Ranger for alignment and counting
-	$(call run_logged,cellranger)
-__cellranger: $(cellranger_target)
-
-.PHONY: star __star
-star: ## run STAR for alignment and counting
-	$(call run_logged,star)
-__star: $(star_target)
-
-.PHONY: qc __qc
-qc: ## prepare STAR outputs for downstream spliced/unspliced counting
-	$(call run_logged,qc)
-__qc: $(qc_target)
-
-.PHONY: velocyto __velocyto
-velocyto: ## run Velocyto for spliced and unspliced counting
-	$(call run_logged,velocyto)
-__velocyto: $(velocyto_target)
-
-##@ Preprocessing
-
-.PHONY: filtering __filtering
-filtering: ## filter low-quality cells and genes, and optionally assign cell-cycle phases
-	$(call run_logged,filtering)
-__filtering: $(filtering_target)
-
-.PHONY: normalization __normalization
-normalization: ## normalize counts and optionally correct for cell-cycle effects
-	$(call run_logged,normalization)
-__normalization: $(normalization_target)
-
-##@ Clustering
-
-.PHONY: clustering __clustering
-clustering: ## cluster cells after dimensionality reduction, with optional integration
-	$(call run_logged,clustering)
-__clustering: $(clustering_target)
-
-.PHONY: dea __dea
-dea: ## identify cluster-specific upregulated genes for marker detection
-	$(call run_logged,dea)
-__dea: $(dea_target)
-
-.PHONY: scoring __scoring
-scoring: ## score phenotype-related signatures to support cluster annotation
-	$(call run_logged,scoring)
-__scoring: $(scoring_target)
-
-.PHONY: goea __goea
-goea: ## perform Gene Ontology enrichment analysis to support cluster annotation
-	$(call run_logged,goea)
-__goea: $(goea_target)
-
-.PHONY: annotation __annotation
-annotation: ## assign names to cell clusters
-	$(call run_logged,annotation)
-__annotation: $(annotation_target)
-
-##@ Trajectory inference
-
-.PHONY: velocity __velocity
-velocity: ## estimate RNA velocity to infer cell-state transitions
-	$(call run_logged,velocity)
-__velocity: $(velocity_target)
-
-.PHONY: potency __potency
-potency: ## estimate cell differentiation potential
-	$(call run_logged,potency)
-__potency: $(potency_target)
-
-##@ Macrostate characterization
-
-.PHONY: cotan __cotan
-cotan: ## estimate macrostates from zero-count co-expression
-	$(call run_logged,cotan)
-__cotan: $(cotan_target)
-
-.PHONY: cellrank __cellrank
-cellrank: ## estimate macrostates using similarity-, potency-, and RNA-velocity-based kernels
-	$(call run_logged,cellrank)
-__cellrank: $(cellrank_target)
-
-.PHONY: stream __stream
-stream: ## estimate macrostates using an elastic principal graph
-	$(call run_logged,stream)
-__stream: $(stream_target)
-
-.PHONY: knnbs __knnbs
-knnbs: ## estimate macrostates using k-nearest-neighbors-based subclustering
-	$(call run_logged,knnbs)
-__knnbs: $(knnbs_target)
-
-.PHONY: macrostates __macrostates
-macrostates: ## define groups of cells sharing similar phenotypic profiles according to MACROSTATE_METHOD
-	$(call run_logged,macrostates)
-__macrostates: $(macrostates_target)
-
-##@ Binarization
-
-.PHONY: bin-cells __bin-cells
-bin-cells: ## binarize cells using gene-specific distributions from ScBoolSeq
-	$(call run_logged,bin-cells)
-__bin-cells: $(bin_cells)
-
-.PHONY: bin-macrostates __bin-macrostates
-bin-macrostates: ## binarize macrostates by aggregating ScBoolSeq-binarized cells using voting rules
-	$(call run_logged,bin-macrostates)
-__bin-macrostates: $(bin_macrostates)
-
-.PHONY: bin-dea __bin-dea
-bin-dea: ## binarize macrostates using differential expression analysis
-	$(call run_logged,bin-dea)
-__bin-dea: $(bin_dea)
-
-.PHONY: bin-consensus __bin-consensus
-bin-consensus: ## binarize macrostates by combining ScBoolSeq and DEA results
-	$(call run_logged,bin-consensus)
-__bin-consensus: $(bin_consensus)
-
-.PHONY: binarization __binarization
-binarization: ## derive partially defined Boolean states from macrostates according to BIN_METHOD
-	$(call run_logged,binarization)
-__binarization: $(bin)
-
-##@ Boolean network inference
-
-.PHONY: spec __spec
-spec: ## specify Boolean constraints using the BoNesis language
-	$(call run_logged,spec)
-__spec: $(bonesis_model)
-
-.PHONY: max-nodes-soft __max-nodes-soft
-max-nodes-soft: ## maximise nodes without non-reachability and universal constraints (soft constraints)
-	$(call run_logged,max-nodes-soft)
-__max-nodes-soft: $(max_nodes_soft)
-
-.PHONY: max-consts-soft __max-consts-soft
-max-consts-soft: ## maximise strong constants without non-reachability and universal constraints (soft constraints)
-	$(call run_logged,max-consts-soft)
-__max-consts-soft: $(max_consts_soft)
-
-.PHONY: max-nodes-relaxed __max-nodes-relaxed
-max-nodes-relaxed: ## maximise nodes without universal constraints (relaxed constraints)
-	$(call run_logged,max-nodes-relaxed)
-__max-nodes-relaxed: $(max_nodes_relaxed)
-
-.PHONY: max-nodes-seed __max-nodes-seed
-max-nodes-seed: ## maximise nodes (hard constraints, stage 1)
-	$(call run_logged,max-nodes-seed)
-__max-nodes-seed: $(max_nodes_seed)
-
-.PHONY: max-nodes-lock __max-nodes-lock
-max-nodes-lock: ## maximise nodes (hard constraints, stage 2)
-	$(call run_logged,max-nodes-lock)
-__max-nodes-lock: $(max_nodes_lock)
-
-.PHONY: bn-min __bn-min
-bn-min: ## infer a minimum-edge Boolean network with BoNesis (one minimal solution)
-	$(call run_logged,bn-min)
-__bn-min: $(bn_min)
-
-.PHONY: bn-submin __bn-submin
-bn-submin: ## enumerate subset-minimal Boolean network solutions
-	$(call run_logged,bn-submin)
-__bn-submin: $(bn_submin)
-
-.PHONY: bn-diverse __bn-diverse
-bn-diverse: ## sampling of diverse sparsest Boolean network solutions
-	$(call run_logged,bn-diverse)
-__bn-diverse: $(bn_diverse)
-
-## END HELP ##
+include $(scbolt_root)/mk/config.mk
+include $(scbolt_root)/mk/modules.mk
+include $(scbolt_root)/mk/cli.mk
+include $(scbolt_root)/mk/check.mk
+include $(scbolt_root)/mk/clean.mk
 
 ## preserve target even if make is killed or interrupted
 .PRECIOUS: $(max_nodes_soft)
@@ -2230,7 +199,7 @@ $(qc_$(1)): $(star_$(1))
 	$(call print_task,filtering STAR barcodes)
 	$(call require_star_barcode_filter_parameters,qc)
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/alignment/filter_barcodes.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/align/qc.py \
 		$$(<D)/Solo.out/matrix.mtx \
 		$$(<D)/Solo.out/barcodes.tsv \
 		$$(@D)/filtered_barcodes.tsv \
@@ -2239,7 +208,7 @@ $(qc_$(1)): $(star_$(1))
 		$(if $(STAR_TOP_BARCODES),--top-barcodes $(STAR_TOP_BARCODES),)
 	$(call print_task,preparing STAR BAM for velocyto)
 	mkdir -p $$(@D) $(tmpdir)/$(1)/qc
-	$(call conda_run,scbolt-velocyto) python $(scripts_dir)/alignment/retag_bam.py \
+	$(call conda_run,scbolt-velocyto) python $(scripts_dir)/align/retag_bam.py \
 		$$(<D)/Aligned.sortedByCoord.out.bam $(tmpdir)/$(1)/qc/star.velocyto.bam \
 		--barcodes $$(@D)/filtered_barcodes.tsv \
 		--tag CR:CB UR:UB \
@@ -2275,7 +244,7 @@ $(filtering_$(1)): $(velocyto_$(1)) $(if $(filter mouse,$(ORGANISM)),$(cc_marker
 	$(call print_rule,filtering,$(1))
 	$(require_filtering_parameters)
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/preprocessing/filtering.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/prep/filter.py \
 		$$(firstword $$^) $$@ $(if $(filter mouse,$(ORGANISM)),--marker $$(lastword $$^)) \
 		--gene-dropout $(GENE_DROPOUT) --gene-expression $(GENE_EXPRESSION) --gene-counts $(GENE_COUNTS) \
 		--cell-dropout $(CELL_DROPOUT) --cell-expression $(CELL_EXPRESSION) --cell-reads $(CELL_READS) \
@@ -2285,14 +254,14 @@ $(normalization_$(1)): $(filtering_$(1))
 	$(call print_rule,normalization,$(1))
 	$(call require_cc_correction,normalization)
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/preprocessing/normalization.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/prep/norm.py \
 		$$< $$@ $(cc_scores) --layer counts --jobs $(JOBS)
 
 $(clustering_$(1)): $(normalization_$(1))
 	$(call print_rule,clustering,$(1))
 	$(require_clustering_parameters)
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/clustering/clustering.py $$< $$@ \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/clustering.py $$< $$@ \
 		--layer correct --adjacency knn --embedding $(embedding) \
 		--pca-dimension $(DIM_PCA) \
 		--clustering-dimension $(DIM_CLUSTERING) \
@@ -2315,7 +284,7 @@ $(annotation_$(1)): $(clustering_$(1))
 				Review DEA/GOEA/signature outputs and set LABEL in your parameter file); \
 	fi
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/clustering/annotation.py $$< $$@ \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/annotation.py $$< $$@ \
 		--obs cluster --new-obs $(LABEL_COL) --labels $(label_map)
 	$(call print_task,plotting embedding colored by labels)
 	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/generic.json \
@@ -2338,14 +307,14 @@ $(velocity_$(1)): $(annotation_$(1))
 	$(call print_rule,velocity,$(1))
 	$(call require_velocity_parameters)
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-velocity) python $(scripts_dir)/trajectories/velocity.py $$< $$@ \
+	$(call conda_run,scbolt-velocity) python $(scripts_dir)/traj/velocity.py $$< $$@ \
 		--layer counts --cluster $(LABEL_COL) --moment-dimension $(DIM_MOMENT) \
 		$(velocity_only_hvg) --mode $(SMM_MODE) --use-rep $(USE_REP) --jobs $(JOBS)
 
 $(potency_$(1)): $(annotation_$(1))
 	$(call print_rule,potency,$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-potency) python $(scripts_dir)/trajectories/potency.py $$< $$(@D) \
+	$(call conda_run,scbolt-potency) python $(scripts_dir)/traj/potency.py $$< $$(@D) \
 		--csv $$(notdir $$@) --h5ad $$(basename $$(notdir $$@)).h5ad \
 		--layer counts --cluster $(LABEL_COL) --batch-size $(BATCH_SIZE) --smooth-batch-size $(SMOOTH_BATCH_SIZE) \
 		--organism $(ORGANISM) --use-rep $(USE_REP) --seed $(SEED) --jobs $(JOBS)
@@ -2362,10 +331,9 @@ $(cotan_$(1))&: $(annotation_$(1))
 	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' \
 		< $(tmpdir)/$(1)/cotan/barcts.csv \
 		> $(tmpdir)/$(1)/cotan/gencts.csv
-	$(call conda_run,scbolt-cotan) Rscript $(scripts_dir)/macrostates/cotan_macrostates.R \
+	$(call conda_run,scbolt-cotan) Rscript $(scripts_dir)/mstates/cotan_mstates.R \
 		--infile $(tmpdir)/$(1)/cotan/gencts.csv --outfile $$(@D)/cotan.RDS --csv $$(lastword $$(cotan_$(1))) \
 		--sep , --name $(1) --max-iterations $(MAX_ITER) --method $(COTAN_METHOD) --min-ude 0.3 --jobs $(JOBS)
-	sed -i '1 i\,macrostate' $$(lastword $$(cotan_$(1)))
 	$(call print_debug,adding COTAN macrostates to AnnData)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/add_to_anndata.py \
 		$$< $$(firstword $$(cotan_$(1))) \
@@ -2389,7 +357,7 @@ $(cellrank_$(1))&: $(velocity_$(1)) $(potency_$(1))
 		$$(firstword $$^) $(tmpdir)/$(1)/cellrank/kernels.h5ad \
 		--csv $(tmpdir)/$(1)/cellrank/potency_scores.csv \
 		--axis 0 --sep , --type float
-	$(call conda_run_cellrank,scbolt-cellrank) python $(scripts_dir)/macrostates/cellrank_macrostates.py \
+	$(call conda_run_cellrank,scbolt-cellrank) python $(scripts_dir)/mstates/cellrank_mstates.py \
 		$(tmpdir)/$(1)/cellrank/kernels.h5ad $$(firstword $$(cellrank_$(1))) \
 		--csv $$(lastword $$(cellrank_$(1))) \
 		--obs $(LABEL_COL) --method $(CELLRANK_METHOD) \
@@ -2401,7 +369,7 @@ $(stream_$(1))&: $(annotation_$(1))
 	$(call print_rule,stream,$(1))
 	$(call require_stream_parameters)
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-stream) python $(scripts_dir)/macrostates/stream_macrostates.py \
+	$(call conda_run,scbolt-stream) python $(scripts_dir)/mstates/stream_mstates.py \
 		$$< $$(firstword $$(stream_$(1))) \
 		--csv $$(lastword $$(stream_$(1))) \
 		--use-rep $(USE_REP) --obs $(LABEL_COL) \
@@ -2423,7 +391,7 @@ $(knnbs_$(1))&: $(annotation_$(1))
 	$(call print_rule,knnbs,$(1))
 	$(call require_knnbs_parameters)
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/macrostates/knnbs_macrostates.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/mstates/knnbs_mstates.py \
 		$$< $$(firstword $$(knnbs_$(1))) \
 		--csv $$(lastword $$(knnbs_$(1))) \
 		--obs $(LABEL_COL) --embedding $(KNNBS_EMBEDDING) --neighbors $(KNNBS_NEIGHBORS) \
@@ -2446,7 +414,7 @@ $(dea_$(1))&: $(clustering_$(1))
 	$(call print_rule,dea,$(1))
 	$(call require_dea_parameters)
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/clustering/markers.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/markers.py \
 		$$< $(firstword $(dea_$(1))) \
 		--xlsx $(lastword $(dea_$(1))) \
 		--cluster cluster --layer log-norm --is-log \
@@ -2455,19 +423,19 @@ $(dea_$(1))&: $(clustering_$(1))
 $(scoring_$(1)): $(clustering_$(1)) $(lastword $(signatures)) $(lastword $(dea_$(1)))
 	$(call print_rule,scoring,$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/clustering/scoring.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/scoring.py \
 		$$^ $$@ --cluster cluster --ignore-sheets background
 
 $(goea_basic_$(1)): $(lastword $(dea_$(1))) $(go_basic) $(gene2go)
 	$(call print_rule,goea,go_basic/$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/clustering/goea.py $$< $$@ \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/goea.py $$< $$@ \
 		--background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
 
 $(goea_organism_$(1)): $(lastword $(dea_$(1))) $(go_organism) $(gene2go)
 	$(call print_rule,goea,go_$(ORGANISM)/$(1))
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/clustering/goea.py $$< $$@ \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/goea.py $$< $$@ \
 		--background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
 
 endef
@@ -2476,7 +444,7 @@ $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(co
 	$(call print_rule,clustering,integrated)
 	$(require_clustering_parameters)
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/clustering/integration.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/integration.py \
 		$^ --outfile $@ --labels $(conditions) \
 		--layer correct --adjacency knn --integration $(INTEGRATION) --embedding $(embedding) \
 		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_CLUSTERING) --embedding-dimension $(DIM_EMBEDDING) \
@@ -2492,7 +460,7 @@ $(annotation_integrated): $(clustering_integrated)
 				Review DEA/GOEA/signature outputs and set LABEL in your parameter file); \
 	fi
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/clustering/annotation.py $< $@ \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/annotation.py $< $@ \
 		--obs cluster --new-obs $(LABEL_COL) --labels $(label_map)
 	$(call print_task,plotting embedding colored by labels)
 	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/generic.json \
@@ -2515,7 +483,7 @@ $(bin_hvg): $(bin_input_h5ads)
 	mkdir -p $(@D)
 	$(call print_task,estimating top$(if $(BIN_HVG_TOP), $(BIN_HVG_TOP),) \
 		highly variable genes with $(BIN_HVG_FLAVOR))
-	$(call conda_run,scbolt-core) python $(scripts_dir)/preprocessing/hvg.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/prep/hvg.py \
 		$(lastword $^) $@ \
 		--method $(BIN_HVG_FLAVOR) \
 		$(bin_hvg_layer) \
@@ -2529,7 +497,7 @@ $(bin_cells)&: $(bin_input_h5ads) \
 	$(if $(filter true,$(BIN_SCBOOLSEQ_ONLY_HVG)),$(call require_bin_hvg_parameters,bin-cells))
 	$(call require_bin_cells_parameters)
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-scboolseq) python $(scripts_dir)/binarization/bin_cells_scboolseq.py \
+	$(call conda_run,scbolt-scboolseq) python $(scripts_dir)/bin/bin_cells_scboolseq.py \
 		$< --outfile $(firstword $(bin_cells)) \
 		--bin $(shell echo $@ | sed "s/.h5ad/.csv/") \
 		--statistics $(lastword $(bin_cells)) \
@@ -2544,10 +512,10 @@ $(bin_cells)&: $(bin_input_h5ads) \
 		--use-rep $(USE_REP)
 
 ifeq ($(strip $(MACROSTATE_FILE)),)
-$(bin_macrostates): $(firstword $(bin_cells)) \
+$(bin_mstates): $(firstword $(bin_cells)) \
     $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
 	$(call print_rule,bin-macrostates)
-	$(call require_bin_macrostates_parameters)
+	$(call require_bin_mstates_parameters)
 	mkdir -p $(@D) $(tmpdir)/integrated/bin/aggr
 	$(call print_debug,adding macrostates to AnnData)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/add_to_anndata.py \
@@ -2557,7 +525,7 @@ $(bin_macrostates): $(firstword $(bin_cells)) \
 		$(if $(filter-out $(words $(CONDITIONS)),1),--label-column condition,) \
 		$(if $(filter-out $(words $(CONDITIONS)),1),--add-prefix macrostate,) \
 		--axis 0 --sep , --type category
-	$(call conda_run,scbolt-core) python $(scripts_dir)/binarization/bin_clusters_scboolseq.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_clusters_scboolseq.py \
 		$(tmpdir)/integrated/bin/aggr/mcts.h5ad $@ \
 		--counts $(@D)/counts_bin.csv \
 		--layer bin --distribution distribution --cluster macrostate \
@@ -2572,11 +540,11 @@ $(bin_macrostates): $(firstword $(bin_cells)) \
 		--outfile $(@D)/macrostates.pdf \
 		--use-rep $(USE_REP)
 else
-$(bin_macrostates): $(firstword $(bin_cells))
+$(bin_mstates): $(firstword $(bin_cells))
 	$(call print_rule,bin-macrostates)
-	$(call require_bin_macrostates_parameters)
+	$(call require_bin_mstates_parameters)
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/binarization/bin_clusters_scboolseq.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_clusters_scboolseq.py \
 		$< $@ \
 		--counts $(@D)/counts_bin.csv \
 		--layer bin --distribution distribution --cluster macrostate \
@@ -2609,7 +577,7 @@ $(bin_dea): \
 		$(if $(filter-out $(words $(CONDITIONS)),1),--label-column condition,) \
 		$(if $(filter-out $(words $(CONDITIONS)),1),--add-prefix macrostate,) \
 		--axis 0 --sep , --type category
-	$(call conda_run,scbolt-core) python $(scripts_dir)/binarization/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
 		--cluster macrostate --layer log-norm --is-log --method wilcoxon --use-rep $(USE_REP) \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION) \
 		$(bin_dea_hvg)
@@ -2625,7 +593,7 @@ $(bin_dea): $(bin_input_h5ads) \
 	$(if $(filter true,$(BIN_DEA_ONLY_HVG)),$(call require_bin_hvg_parameters,bin-dea))
 	$(call require_bin_dea_parameters)
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/binarization/bin_dea.py $< $@ \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_dea.py $< $@ \
 		--cluster macrostate --layer log-norm --is-log --method wilcoxon --use-rep $(USE_REP) \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION) \
 		$(bin_dea_hvg)
@@ -2636,7 +604,7 @@ $(bin_dea): $(bin_input_h5ads) \
 		--use-rep $(USE_REP)
 endif
 
-$(bin_consensus): $(bin_macrostates) $(lastword $(bin_cells)) $(bin_dea)
+$(bin_consensus): $(bin_mstates) $(lastword $(bin_cells)) $(bin_dea)
 	$(call print_rule,bin-consensus)
 	mkdir -p $(@D) $(tmpdir)/bin/consensus
 	$(call print_debug,extracting scBoolSeq distributions)
@@ -2648,7 +616,7 @@ $(bin_consensus): $(bin_macrostates) $(lastword $(bin_cells)) $(bin_dea)
 	((col++))
 	cut -f 1,$$col -d ',' $(word 2, $^) > $(tmpdir)/bin/consensus/distributions.csv
 	unset col
-	$(call conda_run,scbolt-core) python $(scripts_dir)/binarization/bin_consensus.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_consensus.py \
 		--scboolseq $< $(tmpdir)/bin/consensus/distributions.csv --dea $(lastword $^) \
 		--outfile $@ --pct-bin $(@D)/pct_bin.csv
 
@@ -2661,7 +629,7 @@ $(bonesis_model)&: $(bin) \
 	$(call require_prior_parameters,spec)
 	$(call check_file,$(SPEC_FILE),SPEC_FILE)
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-bonesis) python $(scripts_dir)/inference/specification.py $(SPEC_FILE) $< \
+	$(call conda_run,scbolt-bonesis) python $(scripts_dir)/infer/spec.py $(SPEC_FILE) $< \
 		--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 		--important-genes $(word 3,$(bonesis_model)) --mandatory-genes $(word 4,$(bonesis_model)) \
 		$(if $(filter true,$(SPEC_ONLY_HVG)),--filter-genes $(bin_hvg)) \
@@ -2676,7 +644,7 @@ $(max_nodes_soft): $(bonesis_model)
 	set +e; \
 	$(call trap_inference_interrupt); \
 	$(call inference_timeout,$(TIMEOUT_SOFT)) \
-		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
+		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
 		--asp $(@D)/nodes.sh --solution $@ --status $(@D)/__SOLUTION \
@@ -2700,7 +668,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 	set +e; \
 	$(call trap_inference_interrupt); \
 	$(call inference_timeout,$(TIMEOUT_CONSTS)) \
-		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-consts \
+		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-consts \
 		$(word 1,$^) $(word 2,$^) \
 		--mandatory-genes $(word 4,$^) --filter-grn $(lastword $^) \
 		--asp $(@D)/nodes.sh --solution $@ --status $(@D)/__SOLUTION \
@@ -2723,7 +691,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 	set +e; \
 	$(call trap_inference_interrupt); \
 	$(call inference_timeout,$(TIMEOUT_RELAXED)) \
-		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
+		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
@@ -2748,7 +716,7 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 	set +e; \
 	$(call trap_inference_interrupt); \
 	$(call inference_timeout,$(TIMEOUT_SEED)) \
-		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
+		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
@@ -2778,7 +746,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 		$(call trap_inference_interrupt); \
 		cat $(word 4,$^) $(word 6,$^) | sort -u > $(@D)/mandatory.txt; \
 		$(call inference_timeout,$(TIMEOUT_LOCK)) \
-			$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py filter-nodes \
+			$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
 			$(word 1,$^) $(word 2,$^) \
 			--important-genes $(word 3,$^) --mandatory-genes $(@D)/mandatory.txt \
 			--filter-grn $(word 5,$^) --asp $(@D)/nodes.sh \
@@ -2801,7 +769,7 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock)
 	$(call require_bonesis_infer_parameters,bn-min)
 	$(call require_bool,MIN_SELF_LOOP_INFER,bn-min)
 	mkdir -p $(@D)
-	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py min \
+	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py min \
 		$(word 1,$^) $(word 2,$^) \
 		--filter-grn $(lastword $^) \
 		--asp $(@D)/min.sh \
@@ -2824,7 +792,7 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock)
 	$(call require_bonesis_infer_parameters,bn-submin)
 	$(call check_partial_bn_outputs,$(bn_submin_dir),bn-submin,$@)
 	mkdir -p $(bn_submin_dir)
-	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py submin \
+	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py submin \
 		$(word 1,$^) $(word 2,$^) \
 		--filter-grn $(lastword $^) \
 		--asp $(bn_submin_dir)/submin.sh \
@@ -2845,7 +813,7 @@ $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock)
 	$(call require_bonesis_infer_parameters,bn-diverse)
 	$(call check_partial_bn_outputs,$(bn_diverse_dir),bn-diverse,$@)
 	mkdir -p $(bn_diverse_dir)
-	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/inference/inference.py diverse \
+	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py diverse \
 		$(word 1,$^) $(word 2,$^) \
 		--filter-grn $(lastword $^) \
 		--asp $(bn_diverse_dir)/diverse.sh \

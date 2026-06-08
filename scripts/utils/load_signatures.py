@@ -30,11 +30,13 @@ def df2signatures(df):
     return signatures_d
 
 
+script_name = Path(__file__).name
+
 parser = argparse.ArgumentParser(
     prog="load_signatures",
     description="""Load signatures data from two files,
     one in a table format and the other one in list format.""",
-    usage="python load_signatures.py --table-infile <FILE> --list-infile <FILE> --outfile <FILE>",
+    usage=f"python {script_name} --table-infile <FILE> --list-infile <FILE> --outfile <FILE>",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 

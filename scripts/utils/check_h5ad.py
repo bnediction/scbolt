@@ -7,11 +7,13 @@ import argparse
 import h5py
 import std
 
+script_name = Path(__file__).name
+
 parser = argparse.ArgumentParser(
     prog="check_h5ad",
     description="Check that an AnnData H5AD file contains required metadata keys.",
     usage=(
-        "python check_h5ad.py <FILE...> [--obs <KEY...>] [--var <KEY...>] "
+        f"python {script_name} <FILE...> [--obs <KEY...>] [--var <KEY...>] "
         "[--obsm <KEY...>] [--obsp <KEY...>] [--layers <KEY...>]"
     ),
     formatter_class=argparse.RawDescriptionHelpFormatter,

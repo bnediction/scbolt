@@ -13,10 +13,12 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
+script_name = Path(__file__).name
+
 parser = argparse.ArgumentParser(
     prog="get_genes",
     description="""Retrieve gene names.""",
-    usage="""python get_genes.py [-h] <FILE> <FILE> [--axis <obs | var>] [--standardization]""",
+    usage=f"""python {script_name} [-h] <FILE> <FILE> [--axis <obs | var>] [--standardization]""",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 

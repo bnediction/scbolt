@@ -14,10 +14,12 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
+script_name = Path(__file__).name
+
 parser = argparse.ArgumentParser(
     prog="gene_kde",
     description="""Compute gene-related kernel density estimates from single-cell sequencing data.""",
-    usage="python gene_kde.py <FILE ...> -o <PATH> [<args>]",
+    usage=f"python {script_name} <FILE ...> -o <PATH> [<args>]",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 
