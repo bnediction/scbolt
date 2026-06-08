@@ -8,7 +8,6 @@ import json
 from pathlib import Path
 from typing import Literal
 
-
 Status = Literal["done", "stale", "pending", "untracked"]
 
 
@@ -172,9 +171,7 @@ def state_for_targets(
     trusted_old = 0
     multiple_targets = len(targets) > 1
     all_labels = unique_values(
-        [format_target_label(target) for target in targets]
-        if multiple_targets
-        else []
+        [format_target_label(target) for target in targets] if multiple_targets else []
     )
 
     for target in targets:

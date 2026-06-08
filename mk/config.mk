@@ -287,6 +287,7 @@ $(call require_float,SPREAD)
 endef
 
 define require_velocity_parameters
+$(call require_choice,USE_REP,X_umap X_tsne,velocity); \
 $(call require_positive_integer,DIM_MOMENT); \
 $(call require_bool,VELOCITY_ONLY_HVG,velocity)
 endef
@@ -601,9 +602,13 @@ define warn_stale_outputs
 $(foreach path,$(unknown_old_files),\
 	$(call print_warning,old file is not a known scBOLT target: $(path));) \
 selected_modules=" $(call target_dry_run_modules,$(1)) "; \
+running_modules=" $(call target_run_modules,$(1)) "; \
 pending_modules=" "; \
 stale_modules=" "; \
 untracked_modules=" "; \
+is_running() { \
+	case "$${running_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
+}; \
 is_pending() { \
 	case "$${pending_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 }; \
@@ -631,32 +636,38 @@ $(foreach module,$(reset_stages),\
 			module_deps=( $(foreach dep,$(strip $(progress_deps_$(module))),"$(dep)") ); \
 			for dependency in "$${module_deps[@]}"; do \
 				if is_stale "$${dependency}"; then \
-					module_message="$(module) (depends on stale $${dependency})"; \
+					module_message="$(module) (depends on module '$${dependency}')"; \
 					module_stale=1; \
 					break; \
 				elif is_untracked "$${dependency}"; then \
-					module_message="$(module) (depends on untracked $${dependency})"; \
+					module_message="$(module) (depends on module '$${dependency}')"; \
 					module_untracked=1; \
 					break; \
 				elif is_pending "$${dependency}"; then \
-					module_message="$(module) (depends on pending $${dependency})"; \
+					module_message="$(module) (depends on module '$${dependency}')"; \
 					module_stale=1; \
 					break; \
 				fi; \
 			done; \
 		fi; \
 		if [ "$${module_pending}" -eq 1 ]; then \
-			pending_modules="$${pending_modules}$(module) "; \
-		elif [ "$${module_stale}" -eq 1 ]; then \
-			$(call print_warning,stale module output: $${module_message}); \
-			stale_modules="$${stale_modules}$(module) "; \
-		elif [ "$${module_untracked}" -eq 1 ]; then \
-			if [ "$${module_status}" = "untracked" ]; then \
-				$(call print_warning,missing module metadata: $${module_message}); \
-			else \
-				$(call print_warning,untracked module output: $${module_message}); \
+			if ! is_running "$(module)"; then \
+				pending_modules="$${pending_modules}$(module) "; \
 			fi; \
-			untracked_modules="$${untracked_modules}$(module) "; \
+		elif [ "$${module_stale}" -eq 1 ]; then \
+			if ! is_running "$(module)"; then \
+				$(call print_warning,stale module output: $${module_message}); \
+				stale_modules="$${stale_modules}$(module) "; \
+			fi; \
+		elif [ "$${module_untracked}" -eq 1 ]; then \
+			if ! is_running "$(module)"; then \
+				if [ "$${module_status}" = "untracked" ]; then \
+					$(call print_warning,missing module metadata: $${module_message} (untracked output)); \
+				else \
+					$(call print_warning,untracked module output: $${module_message}); \
+				fi; \
+				untracked_modules="$${untracked_modules}$(module) "; \
+			fi; \
 		fi; \
 	fi;)
 endef

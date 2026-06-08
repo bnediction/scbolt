@@ -440,7 +440,9 @@ target_params_bin-consensus = \
 	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD \
 	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
 	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
-target_params_binarization = BIN_METHOD BINARIZATION_FILE MACROSTATE_FILE
+target_params_binarization = \
+	BIN_METHOD BINARIZATION_FILE MACROSTATE_FILE \
+	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS
 target_params_spec = \
 	SPEC_FILE SPEC_ONLY_HVG \
 	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
@@ -628,7 +630,10 @@ config_external_resource_params = $(call uniq,$(filter $(external_resource_confi
 target_dry_run_modules = $(shell $(nested_make) --always-make --dry-run LOGGING=false \
 	__check_mode=true __$(1) PARAMS="$(PARAMS)" LOGFILE="$(LOGFILE)" 2>/dev/null \
 	| sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' \
-	| grep -vx 'bin-hvg' \
-	| awk '!seen[$$0]++')
+	| awk '$$0 != "bin-hvg" && !seen[$$0]++')
+target_run_modules = $(shell $(nested_make) --dry-run LOGGING=false \
+	__check_mode=true __$(1) PARAMS="$(PARAMS)" LOGFILE="$(LOGFILE)" 2>/dev/null \
+	| sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' \
+	| awk '$$0 != "bin-hvg" && !seen[$$0]++')
 
 ## END PARAMETERS ##

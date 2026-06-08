@@ -250,5 +250,5 @@ dependencies:
   - zstandard=0.23.0=py311hbc35293_1
   - zstd=1.5.6=ha6fb4c9_0
   - pip:
-      - bonesistools==1.2.2
+      - bonesistools==1.2.3
       - boolean-py==5.0

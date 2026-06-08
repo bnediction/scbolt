@@ -107,7 +107,7 @@ usage() {
 }
 
 init_help() {
-    printf '%s\n\n' "usage: scbolt init [<params.mk>|--remove|--show]"
+    printf '%s\n\n' "usage: scbolt init [<params.mk>] [options]"
     printf '%s\n\n' "Create, update, or remove the project configuration used by scBOLT."
     printf '%sParameters%s\n' "${stdout_bold}" "${stdout_nc}"
     printf '  %-31s %s\n' '<params.mk>' 'parameter file to use'
@@ -629,6 +629,12 @@ fi
 
 cmd="${remaining_args[0]}"
 set -- "${remaining_args[@]:1}"
+
+case "${cmd}" in
+    macrostate)
+        cmd="macrostates"
+        ;;
+esac
 
 case "${cmd}" in
     ""|-h|--help|help)

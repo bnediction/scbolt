@@ -54,8 +54,8 @@ Modules depending on an untracked upstream output are also considered
 untracked for progress and warnings:
 
 ```text
-WARNING missing module metadata: normalization
-WARNING untracked module output: clustering (depends on untracked normalization)
+WARNING missing module metadata: normalization (untracked output)
+WARNING untracked module output: clustering (depends on module 'normalization')
 ```
 
 ### `PENDING`

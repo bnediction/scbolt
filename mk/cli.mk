@@ -96,6 +96,26 @@ module_help_unknown_targets = $(filter-out $(reset_stages),$(module_help_target)
 module_help_params = $(call uniq,$(target_params_$(module_help_target)))
 module_help_deps = $(call uniq,$(progress_deps_$(module_help_target)))
 module_help_targets = $(RESET_TARGET_$(module_help_target))
+module_help_has_bin_hvg = $(filter BIN_HVG_TOP,$(module_help_params))
+module_help_solution_note = $(if $(filter-out 0,$(strip $(INFER_LIMIT))),\
+	up to $(INFER_LIMIT) solutions,\
+	$(if $(strip $(INFER_LIMIT)),\
+		up to all satisfiable solutions,\
+		up to all satisfiable solutions))
+module_help_outputs_bn-submin = \
+	$(bn_submin_dir)/*/model.bnet \
+	$(bn_submin_dir)/*/state.cfg \
+	$(bn_submin_dir)/ensemble.pdf
+module_help_outputs_bn-diverse = \
+	$(bn_diverse_dir)/*/model.bnet \
+	$(bn_diverse_dir)/*/state.cfg \
+	$(bn_diverse_dir)/ensemble.pdf
+module_help_output_note_bn-submin = $(module_help_solution_note)
+module_help_output_note_bn-diverse = $(module_help_solution_note)
+module_help_outputs = $(strip $(if $(module_help_outputs_$(module_help_target)),\
+	$(module_help_outputs_$(module_help_target)),\
+	$(module_help_targets)))
+module_help_output_note = $(strip $(module_help_output_note_$(module_help_target)))
 relative_to_launch = $(shell realpath --relative-to="$(launch_dir)" "$(1)" 2>/dev/null || printf '%s' "$(1)")
 
 show_config_target = $(if $(TARGET),$(TARGET),all)
@@ -163,7 +183,7 @@ endef
 define show_config_help
 	$(call command_help_header,\
 		$(if $(filter true,$(SCBOLT_CLI)),\
-			scbolt show-config [<module>] [--raw],\
+			scbolt show-config [<module>] [options],\
 			make show-config [TARGET=<module>] [SHOW_CONFIG_RAW=true] [HELP=true]),\
 		Display the effective scBOLT configuration without running the pipeline.)
 	@printf '%s\n' 'By default, show-config prints a readable summary.'
@@ -194,7 +214,7 @@ endef
 define dry_run_help
 	$(call command_help_header,\
 		$(if $(filter true,$(SCBOLT_CLI)),\
-			scbolt dry-run <module>,\
+			scbolt dry-run <module> [options],\
 			make dry-run TARGET=<module> [HELP=true]),\
 		Display recipes required to build a module without executing them.)
 	@printf '$(bold)Parameters$(nc)\n'
@@ -221,7 +241,7 @@ endef
 define progress_help
 	$(call command_help_header,\
 		$(if $(filter true,$(SCBOLT_CLI)),\
-			scbolt progress [<module...>] [--all],\
+			scbolt progress [<module...>] [options],\
 			make progress [TARGET=<module...>] [PROGRESS_ALL=true] [HELP=true]),\
 		Display which workflow modules are already built.)
 	@if [ "$(SCBOLT_CLI)" = "true" ]; then \
@@ -466,9 +486,27 @@ else
 			*) printf '%s\n' "$$1" ;; \
 		esac; \
 	}; \
+	print_parameter_help() { \
+		name="$$1"; \
+		value="$$2"; \
+		hint="$$3"; \
+		description="$$4"; \
+		if [ -n "$${value}" ] && [ -n "$${hint}" ]; then \
+			printf '  %-26s %s (%s)\n' "$${name}" "$${value}" "$${hint}"; \
+		elif [ -n "$${value}" ]; then \
+			printf '  %-26s %s\n' "$${name}" "$${value}"; \
+		elif [ -n "$${hint}" ]; then \
+			printf '  %-26s (%s)\n' "$${name}" "$${hint}"; \
+		else \
+			printf '  %s\n' "$${name}"; \
+		fi; \
+		if [ -n "$${description}" ]; then \
+			printf '    %s\n' "$${description}"; \
+		fi; \
+		printf '\n'; \
+	}; \
 	if [ "$(SCBOLT_CLI)" = "true" ]; then \
-		printf 'usage: scbolt %s [--params=<file>] [--references=<condition...>] [--old-file=<file>]\n\n' \
-			"$(module_help_target)"; \
+		printf 'usage: scbolt %s [options]\n\n' "$(module_help_target)"; \
 	else \
 		printf 'usage: make %s [PARAMS=<file>] [REFERENCES=<condition...>] [OLD_FILES=<file...>]\n\n' \
 			"$(module_help_target)"; \
@@ -476,23 +514,26 @@ else
 	printf '%s\n' 'Description'; \
 	printf '%s\n' '-----------'; \
 	printf '%s\n\n' "$${description}"; \
-	printf '%s\n' 'Targets'; \
+	printf '%s\n' 'Outputs'; \
 	printf '%s\n' '-------'; \
-	targets=( $(foreach target,$(module_help_targets),"$(target)") ); \
-	if [ "$${#targets[@]}" -eq 0 ]; then \
+	outputs=( $(foreach output,$(module_help_outputs),"$(output)") ); \
+	if [ "$${#outputs[@]}" -eq 0 ]; then \
 		printf '  none\n'; \
 	else \
 		shown=0; \
-		max_targets=12; \
-		for target in "$${targets[@]}"; do \
-			if [ "$${shown}" -ge "$${max_targets}" ]; then \
+		max_outputs=12; \
+		for output in "$${outputs[@]}"; do \
+			if [ "$${shown}" -ge "$${max_outputs}" ]; then \
 				break; \
 			fi; \
-			printf '  - %s\n' "$$(relpath "$${target}")"; \
+			printf '  - %s\n' "$$(relpath "$${output}")"; \
 			shown=$$((shown + 1)); \
 		done; \
-		if [ "$${#targets[@]}" -gt "$${max_targets}" ]; then \
-			printf '  - ... (%s more targets)\n' "$$(($${#targets[@]} - max_targets))"; \
+		if [ "$${#outputs[@]}" -gt "$${max_outputs}" ]; then \
+			printf '  - ... (%s more outputs)\n' "$$(($${#outputs[@]} - max_outputs))"; \
+		fi; \
+		if [ -n "$(module_help_output_note)" ]; then \
+			printf '\n  (%s)\n' "$(module_help_output_note)"; \
 		fi; \
 	fi; \
 	printf '\n%s\n' 'Dependencies'; \
@@ -514,7 +555,16 @@ else
 	else \
 		:; \
 		$(foreach param,$(module_help_params),\
-			printf '  %-26s %s\n' '$(param)' "$$(format_value "$($(param))")";) \
+			print_parameter_help \
+				'$(param)' "$$(format_value "$($(param))")" \
+				'$(parameter_help_hint_$(param))' \
+				'$(parameter_help_description_$(param))';) \
+	fi; \
+	if [ -n "$(module_help_has_bin_hvg)" ]; then \
+		printf '%s\n' 'Notes'; \
+		printf '%s\n' '-----'; \
+		printf '%s\n' 'Empty top HVG count means automatic estimation.'; \
+		printf '%s\n' 'For the seurat_v3 HVG method it must be set explicitly.'; \
 	fi
 endif
 
@@ -867,7 +917,7 @@ bin-consensus: ## combine scBoolSeq and DEA binarizations
 __bin-consensus: $(bin_consensus)
 
 .PHONY: binarization __binarization
-binarization: ## binarize macrostates with BIN_METHOD
+binarization: ## convert macrostates into Boolean abstractions with BIN_METHOD
 	$(call run_logged,binarization)
 __binarization: $(bin)
 

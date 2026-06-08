@@ -11,6 +11,7 @@ scbolt_root := $(patsubst %/,%,$(dir $(makefile_path)))
 
 include $(scbolt_root)/mk/config.mk
 include $(scbolt_root)/mk/modules.mk
+include $(scbolt_root)/mk/parameter_help.mk
 include $(scbolt_root)/mk/cli.mk
 include $(scbolt_root)/mk/check.mk
 include $(scbolt_root)/mk/clean.mk
@@ -313,7 +314,7 @@ $(velocity_$(1)): $(annotation_$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-velocity) python $(scripts_dir)/traj/velocity.py $$< $$@ \
 		--layer counts --cluster $(LABEL_COL) --moment-dimension $(DIM_MOMENT) \
-		$(velocity_only_hvg) --mode $(SMM_MODE) --use-rep $(USE_REP) --jobs $(JOBS)
+		$(velocity_only_hvg) --mode $(SMM_MODE) --embedding $(embedding) --jobs $(JOBS)
 	$$(call write_scbolt_metadata,velocity,$$(velocity_$(1)))
 
 $(potency_$(1)): $(annotation_$(1))

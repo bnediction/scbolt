@@ -6,7 +6,7 @@ CLEAN_FORCE ?= false
 define clean_help
 	$(call command_help_header,\
 		$(if $(filter true,$(SCBOLT_CLI)),\
-			scbolt clean [<module...>|--all|--stale],\
+			scbolt clean [<module...>] [options],\
 			make clean [CLEAN_TARGET=<module...>|all] [HELP=true]),\
 		Clean cache$(comma) logs and optionally remove selected module outputs.)
 	@printf '%s\n' 'Without modules, clean asks before removing cache and logs.'

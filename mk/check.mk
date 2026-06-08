@@ -3,7 +3,7 @@
 define check_help
 	$(call command_help_header,\
 		$(if $(filter true,$(SCBOLT_CLI)),\
-			scbolt check <module>,\
+			scbolt check <module> [options],\
 			make check TARGET=<module> [HELP=true]),\
 		Check the inputs required by a module before running it.)
 	@printf '$(bold)Parameters$(nc)\n'
@@ -57,7 +57,8 @@ else ifeq ($(HELP),false)
 			method\ parameter*|*method\ parameter*) printf '%s\n' "$${method_checks}";; \
 			external\ resource\ parameter*|*external\ resource\ parameter*) \
 				printf '%s\n' "$${external_resource_checks}";; \
-			stale\ module\ output*) printf '%s\n' "$${file_checks}";; \
+			stale\ module\ output*|missing\ module\ metadata*|untracked\ module\ output*) \
+				printf '%s\n' "$${file_checks}";; \
 			old\ file*) printf '%s\n' "$${file_checks}";; \
 			h5ad\ metadata*|*h5ad\ metadata*) printf '%s\n' "$${file_checks}";; \
 			file\ found*|*file*) printf '%s\n' "$${file_checks}";; \
@@ -82,9 +83,14 @@ else ifeq ($(HELP),false)
 	$(nested_make) --dry-run LOGGING=false \
 		__check_mode=true __$(TARGET) LOGFILE="$(LOGFILE)" > "$${target_dry_run}"; \
 	selected_modules=" $(call target_dry_run_modules,$(TARGET)) "; \
+	running_modules=" $$(sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' "$${target_dry_run}" \
+		| awk '$$0 != "bin-hvg" && !seen[$$0]++') "; \
 	pending_modules=" "; \
 	stale_modules=" "; \
 	untracked_modules=" "; \
+	is_running() { \
+		case "$${running_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
+	}; \
 	is_pending() { \
 		case "$${pending_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 	}; \
@@ -112,32 +118,38 @@ else ifeq ($(HELP),false)
 				module_deps=( $(foreach dep,$(strip $(progress_deps_$(module))),"$(dep)") ); \
 				for dependency in "$${module_deps[@]}"; do \
 					if is_stale "$${dependency}"; then \
-						module_message="$(module) (depends on stale $${dependency})"; \
+						module_message="$(module) (depends on module '$${dependency}')"; \
 						module_stale=1; \
 						break; \
 					elif is_untracked "$${dependency}"; then \
-						module_message="$(module) (depends on untracked $${dependency})"; \
+						module_message="$(module) (depends on module '$${dependency}')"; \
 						module_untracked=1; \
 						break; \
 					elif is_pending "$${dependency}"; then \
-						module_message="$(module) (depends on pending $${dependency})"; \
+						module_message="$(module) (depends on module '$${dependency}')"; \
 						module_stale=1; \
 						break; \
 					fi; \
 				done; \
 			fi; \
 			if [ "$${module_pending}" -eq 1 ]; then \
-				pending_modules="$${pending_modules}$(module) "; \
-			elif [ "$${module_stale}" -eq 1 ]; then \
-				check_warning "stale module output: $${module_message}"; \
-				stale_modules="$${stale_modules}$(module) "; \
-			elif [ "$${module_untracked}" -eq 1 ]; then \
-				if [ "$${module_status}" = "untracked" ]; then \
-					check_warning "missing module metadata: $${module_message}"; \
-				else \
-					check_warning "untracked module output: $${module_message}"; \
+				if ! is_running "$(module)"; then \
+					pending_modules="$${pending_modules}$(module) "; \
 				fi; \
-				untracked_modules="$${untracked_modules}$(module) "; \
+			elif [ "$${module_stale}" -eq 1 ]; then \
+				if ! is_running "$(module)"; then \
+					check_warning "stale module output: $${module_message}"; \
+					stale_modules="$${stale_modules}$(module) "; \
+				fi; \
+			elif [ "$${module_untracked}" -eq 1 ]; then \
+				if ! is_running "$(module)"; then \
+					if [ "$${module_status}" = "untracked" ]; then \
+						check_warning "missing module metadata: $${module_message} (untracked output)"; \
+					else \
+						check_warning "untracked module output: $${module_message}"; \
+					fi; \
+					untracked_modules="$${untracked_modules}$(module) "; \
+				fi; \
 			fi; \
 		fi;) \
 	if [ ! -s "$${target_dry_run}" ]; then \
@@ -246,6 +258,8 @@ else ifeq ($(HELP),false)
 		$(call check_float_diagnostic,$(SPREAD),$(call needed_by,SPREAD,clustering),method); \
 	fi; \
 	if grep -q 'scripts/traj/velocity.py' "$${dry_run}"; then \
+		$(call check_choice_diagnostic,$(USE_REP),X_umap X_tsne,\
+			$(call needed_by,USE_REP,velocity),core); \
 		$(call check_positive_integer_diagnostic,$(DIM_MOMENT),$(call needed_by,DIM_MOMENT,velocity),method); \
 		$(call check_bool_diagnostic,$(VELOCITY_ONLY_HVG),$(call needed_by,VELOCITY_ONLY_HVG,velocity),method); \
 	fi; \
