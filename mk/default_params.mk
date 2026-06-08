@@ -3,7 +3,7 @@
 #   containing params.mk;
 # - paths passed on the command line are resolved relative to the
 #   directory from which make is launched;
-# - internal scBOLT resources are resolved relative to the scBOLT root.
+# - PUBLIC_DIR defaults to public/ relative to the scBOLT root when omitted.
 $(eval PARAMS ?= params.mk)  # user parameter file (resolved relative to scBOLT root)
 
 # Configuration policy:
@@ -26,6 +26,10 @@ LOGGING ?= true
 $(eval ORGANISM ?=)                         # organism used for gene resources
 $(eval CONDITIONS ?= unique)                # experimental conditions
 $(eval RESULTS ?= project/)                 # output directory
+# Public data directory. In params.mk, relative paths are resolved relative to
+# params.mk; on the command line, they are resolved relative to launch_dir.
+# When omitted, PUBLIC_DIR defaults to public/ relative to the scBOLT root.
+$(eval PUBLIC_DIR ?= public/)               # public reference/resource directory
 
 ## URLS ##
 genome_url ?= https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz

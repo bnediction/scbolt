@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from typing import Any, Optional, Mapping, Iterable, Sequence, cast
+from typing import Any, Callable, Optional, Mapping, Iterable, Sequence, cast
 from collections import defaultdict
 
 import sys
@@ -21,7 +21,7 @@ from mpbn import MPBooleanNetwork
 
 import bonesistools as bt
 
-from utils import get_cfg
+from utils import get_cfg, load_bonesis_code
 
 bonesis.settings["quiet"] = True
 
@@ -31,6 +31,9 @@ script_name = Path(__file__).name
 
 
 class ptqdm(tqdm):
+    score_formatter: Callable[[Sequence[int]], Mapping[str, str]] | None = None
+    initial_postfix: Mapping[str, str] | None = None
+
     def __init__(self, *args, **kwargs):
 
         kwargs.setdefault("leave", True)
@@ -45,6 +48,8 @@ class ptqdm(tqdm):
         else:
             kwargs.setdefault("file", sys.stdout)
 
+        if type(self).initial_postfix is not None:
+            kwargs.setdefault("postfix", type(self).initial_postfix)
         kwargs.setdefault("disable", DISABLE_TQDM)
         super().__init__(*args, **kwargs)
 
@@ -53,6 +58,61 @@ class ptqdm(tqdm):
         if self._tqdm_file is not None:
             self._tqdm_file.close()
             self._tqdm_file = None
+
+    def set_postfix(self, ordered_dict=None, refresh=True, **kwargs):
+        score_formatter = type(self).score_formatter
+        if (
+            score_formatter is not None
+            and ordered_dict is not None
+            and "score" in ordered_dict
+        ):
+            ordered_dict = score_formatter(ordered_dict["score"])
+        return super().set_postfix(
+            ordered_dict=ordered_dict,
+            refresh=refresh,
+            **kwargs,
+        )
+
+
+def read_gene_list(infile: str | Path | None) -> list[str]:
+    if infile is None:
+        return []
+    with open(infile) as file:
+        return [line.rstrip() for line in file if line.rstrip()]
+
+
+def make_filter_nodes_score_formatter(
+    important_total: int,
+    node_total: int,
+) -> Callable[[Sequence[int]], Mapping[str, str]]:
+    def format_score(score: Sequence[int]) -> Mapping[str, str]:
+        values = [abs(int(value)) for value in score]
+        fields = {}
+
+        if important_total and len(values) >= 2:
+            fields["important"] = f"{values[0]}/{important_total}"
+            fields["nodes"] = f"{values[1]}/{node_total}"
+        elif values:
+            fields["nodes"] = f"{values[-1]}/{node_total}"
+
+        return fields or {"score": str(list(score))}
+
+    return format_score
+
+
+def make_filter_consts_score_formatter(
+    node_total: int,
+) -> Callable[[Sequence[int]], Mapping[str, str]]:
+    def format_score(score: Sequence[int]) -> Mapping[str, str]:
+        values = [abs(int(value)) for value in score]
+        if not values:
+            return {"score": str(list(score))}
+
+        removed_nodes = values[-1]
+        kept_nodes = max(node_total - removed_nodes, 0)
+        return {"nodes": f"{kept_nodes}/{node_total}"}
+
+    return format_score
 
 
 def get_configuration_predicates(bo) -> dict:
@@ -876,8 +936,11 @@ pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
 bo = bonesis.BoNesis(pkn, mstates_cfg)
 
 with open(args.spec, "r") as file:
-    for line in file:
-        exec(line.rstrip("\n"))
+    load_bonesis_code(
+        bo,
+        file.read(),
+        filename=str(args.spec),
+    )
 
 if args.bonesis_mode == "soft":
     new_constraints = True
@@ -918,19 +981,24 @@ if args.action == "filter-nodes":
 
     bo.maximize_nodes()
 
-    if args.mandatory_genes:
-        with open(args.mandatory_genes) as file:
-            mandatory_genes = [line.rstrip() for line in file.readlines()]
-        for gene in mandatory_genes:
-            bo.custom(f"node({clingo_encode(gene)}).")
+    mandatory_genes = read_gene_list(args.mandatory_genes)
+    for gene in mandatory_genes:
+        bo.custom(f"node({clingo_encode(gene)}).")
 
-    if args.important_genes:
-        with open(args.important_genes) as file:
-            important_genes = [line.rstrip() for line in file.readlines()]
-        for gene in important_genes:
-            bo.custom(f"important_node({clingo_encode(gene)}).")
+    important_genes = set(read_gene_list(args.important_genes))
+    important_genes_in_domain = important_genes & set(bo.domain.nodes)
+    for gene in important_genes_in_domain:
+        bo.custom(f"important_node({clingo_encode(gene)}).")
 
     bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
+    filter_nodes_score_formatter = make_filter_nodes_score_formatter(
+        important_total=len(important_genes_in_domain),
+        node_total=len(bo.domain.nodes),
+    )
+    ptqdm.score_formatter = filter_nodes_score_formatter
+    ptqdm.initial_postfix = filter_nodes_score_formatter(
+        [0, 0] if important_genes_in_domain else [0]
+    )
 
     def intermediate_solution(nodes):
         write_node_solution(nodes, args.solution, args.status)
@@ -995,6 +1063,10 @@ elif args.action == "filter-consts":
         bo.custom("edge(A,A) :- clause(A,_,A,_). #minimize { 1@10000,A: edge(A,A) }.")
 
     clingo_opt_strategy = "usc"
+    ptqdm.score_formatter = make_filter_consts_score_formatter(
+        node_total=len(bo.domain.nodes),
+    )
+    ptqdm.initial_postfix = {"nodes": f"0/{len(bo.domain.nodes)}"}
     view = bonesis.NonStrongConstantNodesView(
         bo,
         mode=args.clingo_opt_mode,

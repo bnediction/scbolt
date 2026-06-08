@@ -6,7 +6,6 @@ launch_dir := $(CURDIR)
 lib_dir := $(scbolt_root)/lib
 scripts_dir := $(scbolt_root)/scripts
 fig_dir := $(scbolt_root)/scripts/fig
-public_dir := $(scbolt_root)/public
 
 strip_trailing_slash = $(if $(filter /,$(strip $(1))),/,$(patsubst %/,%,$(strip $(1))))
 is_absolute_path = $(filter /%,$(strip $(1)))
@@ -18,6 +17,7 @@ resolve_path_list_from = $(strip \
 uniq = $(if $(1),$(firstword $(1)) $(call uniq,$(filter-out $(firstword $(1)),$(1))))
 
 include $(scbolt_root)/mk/default_params.mk
+default_public_dir := $(PUBLIC_DIR)
 
 params_base := $(if $(filter command line,$(origin PARAMS)),$(launch_dir),$(scbolt_root))
 override PARAMS := $(call resolve_path_from,$(PARAMS),$(params_base))
@@ -35,6 +35,12 @@ endif
 path_origin_base = $(if $(filter command line,$(origin $(1))),$(launch_dir),$(params_dir))
 resolve_user_path_var = $(eval override $(1) := \
 	$(call resolve_optional_path_from,$($(1)),$(call path_origin_base,$(1))))
+public_dir_is_default = $(filter \
+	$(call strip_trailing_slash,$(default_public_dir)),\
+	$(call strip_trailing_slash,$(PUBLIC_DIR)))
+public_dir_base := $(if $(filter command line,$(origin PUBLIC_DIR)),$(launch_dir),\
+	$(if $(public_dir_is_default),$(scbolt_root),$(params_dir)))
+override PUBLIC_DIR := $(call resolve_optional_path_from,$(PUBLIC_DIR),$(public_dir_base))
 clingo_named_configs := auto frumpy jumpy tweety handy crafty trendy many
 clingo_config_vars := \
 	CLINGO_CONFIG_SOFT CLINGO_CONFIG_CONSTS CLINGO_CONFIG_RELAXED \
@@ -81,7 +87,10 @@ REFERENCES ?= $(references_default)
 running_references := $(strip $(REFERENCES))
 running_conditions := $(filter-out integrated,$(running_references))
 invalid_references = $(strip $(filter-out $(conditions) integrated,$(running_references)))
+target_conditions := $(call uniq,$(running_conditions) \
+	$(if $(filter integrated,$(running_references)),$(conditions)))
 
+public_dir := $(patsubst %/,%,$(PUBLIC_DIR))
 results := $(patsubst %/,%,$(RESULTS))
 
 log_target := $(patsubst __%,%,$(or $(firstword $(MAKECMDGOALS)),default))
@@ -153,6 +162,14 @@ print(f"reads: spliced={spliced:.0f}, unspliced={unspliced:.0f}, ambiguous={ambi
 print(f"reads: spliced+unspliced+ambiguous={spliced + unspliced + ambiguous:.0f}, counts={counts:.0f}")' \
 $(1) $(2) | while IFS= read -r line; do $(call print_result,$$$$line); done
 endef
+
+plot_embeddings = outfile="$(3)"; \
+	display_file="$$(realpath --relative-to="$(launch_dir)" "$$outfile" 2>/dev/null \
+		|| printf '%s' "$$outfile")"; \
+	$(call print_task,plotting embeddings (file=$$display_file)); \
+	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(1) \
+		--infile $(2) --outfile "$$outfile" \
+		$(4)
 
 define check_file
 [ -n "$(1)" ] || { $(call print_error,required file parameter not defined: $(2)); }; \
@@ -586,11 +603,15 @@ $(foreach path,$(unknown_old_files),\
 selected_modules=" $(call target_dry_run_modules,$(1)) "; \
 pending_modules=" "; \
 stale_modules=" "; \
+untracked_modules=" "; \
 is_pending() { \
 	case "$${pending_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 }; \
 is_stale() { \
 	case "$${stale_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
+}; \
+is_untracked() { \
+	case "$${untracked_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 }; \
 $(foreach module,$(reset_stages),\
 	if [[ "$${selected_modules}" == *" $(module) "* ]]; then \
@@ -599,16 +620,23 @@ $(foreach module,$(reset_stages),\
 		module_message="$${module_state#*	}"; \
 		module_pending=0; \
 		module_stale=0; \
+		module_untracked=0; \
 		if [ "$${module_status}" = "pending" ]; then \
 			module_pending=1; \
 		elif [ "$${module_status}" = "stale" ]; then \
 			module_stale=1; \
+		elif [ "$${module_status}" = "untracked" ]; then \
+			module_untracked=1; \
 		elif [ "$${module_status}" = "done" ]; then \
 			module_deps=( $(foreach dep,$(strip $(progress_deps_$(module))),"$(dep)") ); \
 			for dependency in "$${module_deps[@]}"; do \
 				if is_stale "$${dependency}"; then \
 					module_message="$(module) (depends on stale $${dependency})"; \
 					module_stale=1; \
+					break; \
+				elif is_untracked "$${dependency}"; then \
+					module_message="$(module) (depends on untracked $${dependency})"; \
+					module_untracked=1; \
 					break; \
 				elif is_pending "$${dependency}"; then \
 					module_message="$(module) (depends on pending $${dependency})"; \
@@ -622,6 +650,13 @@ $(foreach module,$(reset_stages),\
 		elif [ "$${module_stale}" -eq 1 ]; then \
 			$(call print_warning,stale module output: $${module_message}); \
 			stale_modules="$${stale_modules}$(module) "; \
+		elif [ "$${module_untracked}" -eq 1 ]; then \
+			if [ "$${module_status}" = "untracked" ]; then \
+				$(call print_warning,missing module metadata: $${module_message}); \
+			else \
+				$(call print_warning,untracked module output: $${module_message}); \
+			fi; \
+			untracked_modules="$${untracked_modules}$(module) "; \
 		fi; \
 	fi;)
 endef
@@ -652,7 +687,7 @@ conda_run_inference = $(conda_runtime_env) \
 	TQDM_TO_TTY="$(TQDM_TO_TTY)" \
 	PYTHONHASHSEED="$(SEED)" \
 	conda run --no-capture-output -n $(1)
-BONESIS_HASH ?= 24c4f9c91a4496b9777043e17e504ecc31312d87
+BONESIS_HASH ?= d70736703af2fa8a88306ac66626b4876d5c5839
 SCVELO_HASH ?= b2f31b345641efdccd39fbcb8c0beaa0014b4b88
 nested_make = env \
 	$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \

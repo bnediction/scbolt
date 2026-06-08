@@ -309,6 +309,13 @@ expect_make_args \
     CLINGO_OPT_STRATEGY_SEED=bb,inc \
     "PARAMS=${project}/spaced.mk"
 
+run_scbolt "${project}" bn-submin --public-dir=shared-public
+expect_make_args \
+    -f "${makefile}" \
+    bn-submin \
+    PUBLIC_DIR=shared-public \
+    "PARAMS=${project}/spaced.mk"
+
 run_scbolt "${project}" --references="ctrl treated" check velocity --params=params.mk
 expect_make_args \
     -f "${makefile}" \

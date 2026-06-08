@@ -170,7 +170,7 @@ $(eval annotation_target := $(annotation_target) $(annotation_$(1)))
 
 endef
 
-$(foreach condition,$(running_conditions),$(eval $(call find_targets_for_conditions,$(condition))))
+$(foreach condition,$(target_conditions),$(eval $(call find_targets_for_conditions,$(condition))))
 $(foreach reference,$(running_references),$(eval $(call find_targets_for_references,$(reference))))
 
 ifneq ($(strip $(MACROSTATE_FILE)),)
@@ -203,6 +203,9 @@ endif
 ifneq ($(call is_creatable_path,$(RESULTS)),true)
 $(error parameter RESULTS must be a valid output path (current: $(RESULTS)))
 endif
+ifneq ($(call is_creatable_path,$(PUBLIC_DIR)),true)
+$(error parameter PUBLIC_DIR must be a valid output path (current: $(PUBLIC_DIR)))
+endif
 ifeq ($(strip $(REFERENCES)),)
 $(error parameter REFERENCES not defined)
 endif
@@ -219,6 +222,7 @@ endif
 endif
 
 $(if $(filter true,$(call is_creatable_path,$(RESULTS))),$(shell mkdir -p "$(results)"))
+$(if $(filter true,$(call is_creatable_path,$(PUBLIC_DIR))),$(shell mkdir -p "$(public_dir)"))
 
 check_mode := $(filter check,$(MAKECMDGOALS))$(__check_mode)
 
@@ -567,7 +571,7 @@ project_config_param_set = \
 	$(foreach condition,$(conditions),SRA_$(call toupper,$(condition))) \
 	LABEL SPEC_FILE
 core_config_param_set = \
-	PARAMS REFERENCES RESULTS MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
+	PARAMS REFERENCES RESULTS PUBLIC_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
 method_config_param_set = \
 	ALIGNMENT_TOOL STAR_CB_LEN STAR_UMI_LEN \
 	STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES \
@@ -615,7 +619,7 @@ config_default_modules = \
 	max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
 config_base_params = \
 	ORGANISM CONDITIONS $(foreach condition,$(conditions),SRA_$(call toupper,$(condition))) \
-	PARAMS REFERENCES RESULTS MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
+	PARAMS REFERENCES RESULTS PUBLIC_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
 config_params_from_modules = $(strip $(foreach module,$(1),$(target_params_$(module))))
 config_project_params = $(call uniq,$(filter $(project_config_param_set),$(1)))
 config_core_params = $(call uniq,$(filter $(core_config_param_set),$(1)))
@@ -624,6 +628,7 @@ config_external_resource_params = $(call uniq,$(filter $(external_resource_confi
 target_dry_run_modules = $(shell $(nested_make) --always-make --dry-run LOGGING=false \
 	__check_mode=true __$(1) PARAMS="$(PARAMS)" LOGFILE="$(LOGFILE)" 2>/dev/null \
 	| sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' \
+	| grep -vx 'bin-hvg' \
 	| awk '!seen[$$0]++')
 
 ## END PARAMETERS ##

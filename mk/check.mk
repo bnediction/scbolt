@@ -84,11 +84,15 @@ else ifeq ($(HELP),false)
 	selected_modules=" $(call target_dry_run_modules,$(TARGET)) "; \
 	pending_modules=" "; \
 	stale_modules=" "; \
+	untracked_modules=" "; \
 	is_pending() { \
 		case "$${pending_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 	}; \
 	is_stale() { \
 		case "$${stale_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
+	}; \
+	is_untracked() { \
+		case "$${untracked_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 	}; \
 	$(foreach module,$(reset_stages),\
 		if [[ "$${selected_modules}" == *" $(module) "* ]]; then \
@@ -97,16 +101,23 @@ else ifeq ($(HELP),false)
 			module_message="$${module_state#*	}"; \
 			module_pending=0; \
 			module_stale=0; \
+			module_untracked=0; \
 			if [ "$${module_status}" = "pending" ]; then \
 				module_pending=1; \
 			elif [ "$${module_status}" = "stale" ]; then \
 				module_stale=1; \
+			elif [ "$${module_status}" = "untracked" ]; then \
+				module_untracked=1; \
 			elif [ "$${module_status}" = "done" ]; then \
 				module_deps=( $(foreach dep,$(strip $(progress_deps_$(module))),"$(dep)") ); \
 				for dependency in "$${module_deps[@]}"; do \
 					if is_stale "$${dependency}"; then \
 						module_message="$(module) (depends on stale $${dependency})"; \
 						module_stale=1; \
+						break; \
+					elif is_untracked "$${dependency}"; then \
+						module_message="$(module) (depends on untracked $${dependency})"; \
+						module_untracked=1; \
 						break; \
 					elif is_pending "$${dependency}"; then \
 						module_message="$(module) (depends on pending $${dependency})"; \
@@ -120,6 +131,13 @@ else ifeq ($(HELP),false)
 			elif [ "$${module_stale}" -eq 1 ]; then \
 				check_warning "stale module output: $${module_message}"; \
 				stale_modules="$${stale_modules}$(module) "; \
+			elif [ "$${module_untracked}" -eq 1 ]; then \
+				if [ "$${module_status}" = "untracked" ]; then \
+					check_warning "missing module metadata: $${module_message}"; \
+				else \
+					check_warning "untracked module output: $${module_message}"; \
+				fi; \
+				untracked_modules="$${untracked_modules}$(module) "; \
 			fi; \
 		fi;) \
 	if [ ! -s "$${target_dry_run}" ]; then \
@@ -134,6 +152,7 @@ else ifeq ($(HELP),false)
 		exit 0; \
 	fi; \
 	cp "$${target_dry_run}" "$${dry_run}"; \
+	$(call check_path_diagnostic,$(PUBLIC_DIR),PUBLIC_DIR,core); \
 	if grep -qE -- '--samtools-memory|--localmem|--memory' "$${dry_run}"; then \
 		$(call check_positive_integer_diagnostic,$(MEMORY),MEMORY,core); \
 	fi; \

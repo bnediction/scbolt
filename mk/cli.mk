@@ -96,13 +96,14 @@ module_help_unknown_targets = $(filter-out $(reset_stages),$(module_help_target)
 module_help_params = $(call uniq,$(target_params_$(module_help_target)))
 module_help_deps = $(call uniq,$(progress_deps_$(module_help_target)))
 module_help_targets = $(RESET_TARGET_$(module_help_target))
+relative_to_launch = $(shell realpath --relative-to="$(launch_dir)" "$(1)" 2>/dev/null || printf '%s' "$(1)")
 
 show_config_target = $(if $(TARGET),$(TARGET),all)
 show_config_modules = $(if $(TARGET),$(call target_dry_run_modules,$(TARGET)),$(config_default_modules))
-show_config_params_file = $(shell realpath --relative-to="$(launch_dir)" "$(PARAMS)" 2>/dev/null || printf '%s' "$(PARAMS)")
-show_config_results = $(shell realpath --relative-to="$(launch_dir)" "$(results)" 2>/dev/null || printf '%s' "$(results)")
-show_config_old_files = $(foreach path,$(OLD_FILES),\
-	$(shell realpath --relative-to="$(launch_dir)" "$(path)" 2>/dev/null || printf '%s' "$(path)"))
+show_config_params_file = $(call relative_to_launch,$(PARAMS))
+show_config_results = $(call relative_to_launch,$(results))
+show_config_public_dir = $(call relative_to_launch,$(public_dir))
+show_config_old_files = $(foreach path,$(OLD_FILES),$(call relative_to_launch,$(path)))
 show_config_logging = $(if $(filter true,$(LOGGING)),enabled,$(if $(filter false,$(LOGGING)),disabled,$(LOGGING)))
 show_config_integration = $(if $(filter-out 1,$(words $(conditions))),$(INTEGRATION),none)
 show_config_embedding_label_X_umap = $(call toupper,$(embedding_method_X_umap))
@@ -312,6 +313,7 @@ define show_config_print
 @printf '%-13s : %s\n' 'Params file' "$(show_config_params_file)"
 @printf '%-13s : %s\n' 'Organism' "$(ORGANISM)"
 @printf '%-13s : %s\n' 'Conditions' "$(conditions)"
+@printf '%-13s : %s\n' 'Public dir' "$(show_config_public_dir)"
 @printf '%-13s : %s\n\n' 'Results' "$(show_config_results)"
 @printf 'Workflow\n'
 @printf '%s\n' '--------'
@@ -392,6 +394,7 @@ help: ## display help
 			printf "$(bold)Special parameters$(nc)\n"; \
 				if ("$(SCBOLT_CLI)" == "true") { \
 					printf "  %-27s %s\n", "--params=<file>", "select parameter file"; \
+					printf "  %-27s %s\n", "--public-dir=<dir>", "select public resource directory"; \
 					printf "  %-27s %s\n", "--references=<condition...>", "select references"; \
 					printf "  %-27s %s\n", "", "default: $(running_references)"; \
 					printf "  %-27s %s\n", "--reset-target=<module...>", "rebuild from modules"; \
@@ -403,6 +406,7 @@ help: ## display help
 			} else { \
 					printf "  %-27s %s\n", "REFERENCES=<condition...>", "select references"; \
 					printf "  %-27s %s\n", "", "default: $(running_references)"; \
+					printf "  %-27s %s\n", "PUBLIC_DIR=<dir>", "select public resource directory"; \
 					printf "  %-27s %s\n", "RESET_TARGET=<module...>", "rebuild from modules"; \
 					printf "  %-27s %s\n", "TRUST_TARGET=<module...>", "skip rebuilding modules"; \
 					printf "  %-27s %s\n", "OLD_FILES=<file...>", "trust existing DAG files"; \
@@ -555,12 +559,15 @@ ifneq ($(filter $(PROGRESS_ALL),true false),$(PROGRESS_ALL))
 endif
 	@done_file="$$(mktemp)"; \
 	stale_file="$$(mktemp)"; \
+	untracked_file="$$(mktemp)"; \
 	pending_file="$$(mktemp)"; \
 	extra_done_file="$$(mktemp)"; \
 	extra_stale_file="$$(mktemp)"; \
+	extra_untracked_file="$$(mktemp)"; \
 	skipped_file="$$(mktemp)"; \
-	trap 'rm -f "$${done_file}" "$${stale_file}" "$${pending_file}" \
-		"$${extra_done_file}" "$${extra_stale_file}" "$${skipped_file}"' EXIT; \
+	trap 'rm -f "$${done_file}" "$${stale_file}" "$${untracked_file}" "$${pending_file}" \
+		"$${extra_done_file}" "$${extra_stale_file}" "$${extra_untracked_file}" \
+		"$${skipped_file}"' EXIT; \
 	for path in $(OLD_FILES); do \
 		if [ ! -e "$${path}" ] && [ ! -L "$${path}" ]; then \
 			printf '$(failure_label) %s\n' "old file not found: $${path}"; \
@@ -573,6 +580,7 @@ endif
 	selected_modules=" $(progress_modules) "; \
 	pending_modules=" "; \
 	stale_modules=" "; \
+	untracked_modules=" "; \
 	workflow_total=0; \
 	workflow_done=0; \
 	is_pending() { \
@@ -580,6 +588,9 @@ endif
 	}; \
 	is_stale() { \
 		case "$${stale_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
+	}; \
+	is_untracked() { \
+		case "$${untracked_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 	}; \
 	print_list() { \
 		if [ -s "$$1" ]; then \
@@ -602,60 +613,80 @@ endif
 			if [[ "$${module_message}" == *"(old file"* ]]; then \
 				module_label="$${module} (old file)"; \
 			fi; \
-			module_pending=0; \
-			module_stale=0; \
-			if [ "$${module_status}" = "pending" ]; then \
-				module_pending=1; \
-			elif [ "$${module_status}" = "stale" ]; then \
-				module_stale=1; \
-			else \
-				for dependency in $${module_deps}; do \
-					if is_pending "$${dependency}" || is_stale "$${dependency}"; then \
-						module_stale=1; \
-						break; \
-					fi; \
-				done; \
-			fi; \
+				module_pending=0; \
+				module_stale=0; \
+				module_untracked=0; \
+				if [ "$${module_status}" = "pending" ]; then \
+					module_pending=1; \
+				elif [ "$${module_status}" = "stale" ]; then \
+					module_stale=1; \
+				elif [ "$${module_status}" = "untracked" ]; then \
+					module_untracked=1; \
+				else \
+					for dependency in $${module_deps}; do \
+						if is_pending "$${dependency}" || is_stale "$${dependency}"; then \
+							module_stale=1; \
+							break; \
+						elif is_untracked "$${dependency}"; then \
+							module_untracked=1; \
+							break; \
+						fi; \
+					done; \
+				fi; \
 			workflow_total=$$((workflow_total + 1)); \
 			if [ "$${module_pending}" -eq 1 ]; then \
 				printf '%s\n' "- $${module}" >> "$${pending_file}"; \
 				pending_modules="$${pending_modules}$${module} "; \
-			elif [ "$${module_stale}" -eq 1 ]; then \
-				printf '%s\n' "- $${module}" >> "$${stale_file}"; \
-				stale_modules="$${stale_modules}$${module} "; \
-			else \
-				workflow_done=$$((workflow_done + 1)); \
-				printf '%s\n' "- $${module_label}" >> "$${done_file}"; \
+				elif [ "$${module_stale}" -eq 1 ]; then \
+					printf '%s\n' "- $${module}" >> "$${stale_file}"; \
+					stale_modules="$${stale_modules}$${module} "; \
+				elif [ "$${module_untracked}" -eq 1 ]; then \
+					workflow_done=$$((workflow_done + 1)); \
+					printf '%s\n' "- $${module}" >> "$${untracked_file}"; \
+					untracked_modules="$${untracked_modules}$${module} "; \
+				else \
+					workflow_done=$$((workflow_done + 1)); \
+					printf '%s\n' "- $${module_label}" >> "$${done_file}"; \
 			fi; \
 		elif [ "$(PROGRESS_ALL)" = "true" ]; then \
-			if [ "$${module_status}" = "done" ]; then \
-				printf '%s\n' "- $${module}" >> "$${extra_done_file}"; \
-			elif [ "$${module_status}" = "stale" ]; then \
-				printf '%s\n' "- $${module}" >> "$${extra_stale_file}"; \
-			else \
-				printf '%s\n' "- $${module}" >> "$${skipped_file}"; \
-			fi; \
+				if [ "$${module_status}" = "done" ]; then \
+					printf '%s\n' "- $${module}" >> "$${extra_done_file}"; \
+				elif [ "$${module_status}" = "stale" ]; then \
+					printf '%s\n' "- $${module}" >> "$${extra_stale_file}"; \
+				elif [ "$${module_status}" = "untracked" ]; then \
+					printf '%s\n' "- $${module}" >> "$${extra_untracked_file}"; \
+				else \
+					printf '%s\n' "- $${module}" >> "$${skipped_file}"; \
+				fi; \
 		fi; \
 	done; \
 	printf 'PROGRESS\n'; \
 	printf '  final modules: %s\n' "$(progress_targets)"; \
-	printf '  up-to-date modules: %s/%s\n' "$${workflow_done}" "$${workflow_total}"; \
+	printf '  completed modules: %s/%s\n' "$${workflow_done}" "$${workflow_total}"; \
 	printf '\nDONE\n'; \
 	print_list "$${done_file}"; \
-	if [ -s "$${stale_file}" ]; then \
-		printf '\nSTALE\n'; \
-		print_list "$${stale_file}"; \
-	fi; \
-	printf '\nPENDING\n'; \
-	print_list "$${pending_file}"; \
+		if [ -s "$${stale_file}" ]; then \
+			printf '\nSTALE\n'; \
+			print_list "$${stale_file}"; \
+		fi; \
+		if [ -s "$${untracked_file}" ]; then \
+			printf '\nUNTRACKED\n'; \
+			print_list "$${untracked_file}"; \
+		fi; \
+		printf '\nPENDING\n'; \
+		print_list "$${pending_file}"; \
 	if [ "$(PROGRESS_ALL)" = "true" ]; then \
 		printf '\nEXTRA COMPLETED\n'; \
 		print_list "$${extra_done_file}"; \
-		if [ -s "$${extra_stale_file}" ]; then \
-			printf '\nEXTRA STALE\n'; \
-			print_list "$${extra_stale_file}"; \
-		fi; \
-		printf '\nSKIPPED\n'; \
+			if [ -s "$${extra_stale_file}" ]; then \
+				printf '\nEXTRA STALE\n'; \
+				print_list "$${extra_stale_file}"; \
+			fi; \
+			if [ -s "$${extra_untracked_file}" ]; then \
+				printf '\nEXTRA UNTRACKED\n'; \
+				print_list "$${extra_untracked_file}"; \
+			fi; \
+			printf '\nSKIPPED\n'; \
 		print_list "$${skipped_file}"; \
 	fi
 else

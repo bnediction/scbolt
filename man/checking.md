@@ -119,6 +119,7 @@ Examples:
 - `PARAMS`
 - `REFERENCES`
 - `RESULTS`
+- `PUBLIC_DIR`
 - `MEMORY`
 - `JOBS`
 - `SEED`

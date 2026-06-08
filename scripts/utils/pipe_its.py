@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 import anndata as ad
+import pandas as pd
 
 import warnings
 
@@ -99,6 +100,18 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+
+def transfer_dataframe_columns(source, target_index, columns):
+    values = source[columns].reindex(target_index)
+
+    for column in columns:
+        source_column = source[column]
+        if pd.api.types.is_bool_dtype(source_column):
+            values[column] = values[column].fillna(False).astype(bool)
+
+    return values
+
+
 if args.outfiles is None:
     args.outfiles = args.specifics
 
@@ -160,11 +173,13 @@ if args.var is not None:
                 )
             )
             adata.var = adata.var.drop(list(cols_to_remove), axis=1)
-        adata.var = adata.var.merge(
-            right=integrated_ad.var[args.var],
+        adata.var = adata.var.join(
+            transfer_dataframe_columns(
+                source=integrated_ad.var,
+                target_index=adata.var.index,
+                columns=args.var,
+            ),
             how="left",
-            left_index=True,
-            right_index=True,
         )
 
 for name, outfile in zip(args.labels, args.outfiles):

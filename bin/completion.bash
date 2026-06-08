@@ -15,8 +15,8 @@ _scbolt_boolean_options="--logging= --spec-only-hvg= --pca-only-hvg= --velocity-
 --bin-scboolseq-only-hvg= --zeroes-are-zeroes= --bin-dea-only-hvg=
 --canonic-filter= --canonic-infer= --min-self-loop-consts= --min-self-loop-infer=
 --norm-mad= --cc-correction="
-_scbolt_file_options="--params= --old-file= --star-whitelist= --binarization-file= --macrostate-file=
---prior-knowledge= --spec-file="
+_scbolt_file_options="--params= --old-file= --results= --public-dir= --star-whitelist=
+--binarization-file= --macrostate-file= --prior-knowledge= --spec-file="
 
 _scbolt_complete_words() {
     local choices="$1"
@@ -29,6 +29,8 @@ _scbolt_complete_words() {
             COMPREPLY+=("${item}")
         fi
     done
+
+    _scbolt_keep_assignment_open
 }
 
 _scbolt_complete_prefixed_words() {
@@ -43,6 +45,8 @@ _scbolt_complete_prefixed_words() {
             COMPREPLY+=("${prefix}${item}")
         fi
     done
+
+    _scbolt_keep_assignment_open
 }
 
 _scbolt_complete_files() {
@@ -52,8 +56,36 @@ _scbolt_complete_files() {
 
     COMPREPLY=()
     while IFS= read -r item; do
-        COMPREPLY+=("${prefix}${item}")
+        if [ -d "${item}" ]; then
+            COMPREPLY+=("${prefix}${item}/")
+        else
+            COMPREPLY+=("${prefix}${item}")
+        fi
     done < <(compgen -f -- "${current}")
+
+    _scbolt_keep_directory_open
+}
+
+_scbolt_keep_assignment_open() {
+    local reply
+
+    for reply in "${COMPREPLY[@]}"; do
+        if [[ "${reply}" == *= ]]; then
+            compopt -o nospace 2> /dev/null || true
+            return 0
+        fi
+    done
+}
+
+_scbolt_keep_directory_open() {
+    local reply
+
+    for reply in "${COMPREPLY[@]}"; do
+        if [[ "${reply}" == */ ]]; then
+            compopt -o nospace 2> /dev/null || true
+            return 0
+        fi
+    done
 }
 
 _scbolt_is_module() {
@@ -98,6 +130,28 @@ _scbolt_params_args() {
     done
 }
 
+_scbolt_references() {
+    local params_args=()
+    local conditions
+    local references
+
+    mapfile -t params_args < <(_scbolt_params_args)
+    conditions="$(
+        command scbolt show-config --raw "${params_args[@]}" 2> /dev/null \
+            | awk -F= '$1 == "CONDITIONS" { print $2; exit }'
+    )"
+
+    if [ -n "${conditions}" ]; then
+        references="${conditions}"
+        if [ "$(wc -w <<< "${conditions}")" -gt 1 ]; then
+            references="${references} integrated"
+        fi
+        printf '%s\n' "${references}"
+    else
+        printf '%s\n' "unique integrated"
+    fi
+}
+
 _scbolt_help_parameters() {
     local target="$1"
     local in_parameters=false
@@ -133,8 +187,30 @@ _scbolt_help_parameters() {
 _scbolt_module_options() {
     local target="$1"
 
-    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= --logging= --help
+    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
+        --results= --public-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
+        --logging= --help help -h
     _scbolt_help_parameters "${target}"
+}
+
+_scbolt_run_options() {
+    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
+        --results= --public-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
+        --logging= --help -h
+}
+
+_scbolt_diagnostic_options() {
+    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
+        --public-dir= --help -h
+}
+
+_scbolt_progress_options() {
+    printf '%s\n' --all --params= --public-dir= --references= --old-file= --help -h
+}
+
+_scbolt_clean_options() {
+    printf '%s\n' --all --stale --force --params= --public-dir= --references= \
+        --old-file= --help -h
 }
 
 _scbolt_target_from_args() {
@@ -148,16 +224,16 @@ _scbolt_target_from_args() {
     fi
 
     case "${command}" in
-        check|dry-run|show-config)
+        check|dry-run|show-config|progress)
             for ((i = 1; i < COMP_CWORD; i++)); do
                 word="${COMP_WORDS[i]}"
                 case "${word}" in
                     "${command}")
                         ;;
-                    --params|--references|--reset-target|--trust-target|--old-file|--logging|--target)
+                    --params|--public-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target)
                         ((i++))
                         ;;
-                    --params=*|--references=*|--reset-target=*|--trust-target=*|--old-file=*|--logging=*|--target=*)
+                    --params=*|--public-dir=*|--references=*|--reset-target=*|--trust-target=*|--old-file=*|--logging=*|--target=*)
                         ;;
                     --*|*=*)
                         ;;
@@ -182,7 +258,7 @@ _scbolt_first_command() {
     for ((i = 1; i < COMP_CWORD; i++)); do
         word="${COMP_WORDS[i]}"
         case "${word}" in
-            --params|--references|--reset-target|--trust-target|--old-file|--logging|--target)
+            --params|--public-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target)
                 ((i++))
                 ;;
             --*|*=*)
@@ -203,6 +279,29 @@ _scbolt() {
     local command
     local target
     local option
+    local assignment_option
+    local line_before_cursor
+
+    line_before_cursor="${COMP_LINE-}"
+    line_before_cursor="${line_before_cursor:0:${COMP_POINT:-${#line_before_cursor}}}"
+
+    if [[ "${line_before_cursor}" =~ (^|[[:space:]])--references=([^[:space:]]*)$ ]]; then
+        _scbolt_complete_prefixed_words "--references=" "$(_scbolt_references)" \
+            "${BASH_REMATCH[2]}"
+        return 0
+    fi
+
+    if [[ "${line_before_cursor}" =~ (^|[[:space:]])--reset-target=([^[:space:]]*)$ ]]; then
+        _scbolt_complete_prefixed_words "--reset-target=" "${_scbolt_modules}" \
+            "${BASH_REMATCH[2]}"
+        return 0
+    fi
+
+    if [[ "${line_before_cursor}" =~ (^|[[:space:]])--trust-target=([^[:space:]]*)$ ]]; then
+        _scbolt_complete_prefixed_words "--trust-target=" "${_scbolt_modules}" \
+            "${BASH_REMATCH[2]}"
+        return 0
+    fi
 
     case "${cur}" in
         --params=*)
@@ -213,8 +312,17 @@ _scbolt() {
             _scbolt_complete_files "--old-file=" "${cur#--old-file=}"
             return 0
             ;;
+        --public-dir=*)
+            _scbolt_complete_files "--public-dir=" "${cur#--public-dir=}"
+            return 0
+            ;;
         --logging=*)
             _scbolt_complete_prefixed_words "--logging=" "true false" "${cur#--logging=}"
+            return 0
+            ;;
+        --references=*)
+            _scbolt_complete_prefixed_words "--references=" "$(_scbolt_references)" \
+                "${cur#--references=}"
             return 0
             ;;
         --reset-target=*)
@@ -248,25 +356,55 @@ _scbolt() {
             ;;
     esac
 
+    if [ "${prev}" = "=" ] && [ "${COMP_CWORD}" -ge 2 ]; then
+        assignment_option="${COMP_WORDS[COMP_CWORD - 2]}"
+        case "${assignment_option}" in
+            --params)
+                _scbolt_complete_files "" "${cur}"
+                return 0
+                ;;
+            --old-file|--public-dir)
+                _scbolt_complete_files "" "${cur}"
+                return 0
+                ;;
+            --logging)
+                _scbolt_complete_words "true false" "${cur}"
+                return 0
+                ;;
+            --reset-target|--trust-target|--target)
+                _scbolt_complete_words "${_scbolt_modules}" "${cur}"
+                return 0
+                ;;
+            --references)
+                _scbolt_complete_words "$(_scbolt_references)" "${cur}"
+                return 0
+                ;;
+        esac
+    fi
+
     case "${prev}" in
-        --params)
+        --params|--params=)
             _scbolt_complete_files "" "${cur}"
             return 0
             ;;
-        --old-file)
+        --old-file|--old-file=)
             _scbolt_complete_files "" "${cur}"
             return 0
             ;;
-        --logging)
+        --public-dir|--public-dir=)
+            _scbolt_complete_files "" "${cur}"
+            return 0
+            ;;
+        --logging|--logging=)
             _scbolt_complete_words "true false" "${cur}"
             return 0
             ;;
-        --reset-target|--trust-target|--target)
+        --reset-target|--reset-target=|--trust-target|--trust-target=|--target|--target=)
             _scbolt_complete_words "${_scbolt_modules}" "${cur}"
             return 0
             ;;
-        --references)
-            _scbolt_complete_words "unique integrated" "${cur}"
+        --references|--references=)
+            _scbolt_complete_words "$(_scbolt_references)" "${cur}"
             return 0
             ;;
     esac
@@ -289,58 +427,75 @@ _scbolt() {
             ;;
         clean)
             if [[ "${cur}" == --* ]]; then
-                _scbolt_complete_words "--all --stale --force --params= --references= --old-file= --help -h" \
-                    "${cur}"
+                _scbolt_complete_words "$(_scbolt_clean_options)" "${cur}"
             else
-                _scbolt_complete_words "${_scbolt_modules}" "${cur}"
+                _scbolt_complete_words "${_scbolt_modules} $(_scbolt_clean_options)" "${cur}"
             fi
             ;;
         progress)
             if [[ "${cur}" == --* ]]; then
-                _scbolt_complete_words "--all --params= --references= --old-file= --help -h" "${cur}"
+                if [ -n "${target}" ]; then
+                    _scbolt_complete_words "$(_scbolt_progress_options) $(_scbolt_help_parameters "${target}")" \
+                        "${cur}"
+                else
+                    _scbolt_complete_words "$(_scbolt_progress_options)" "${cur}"
+                fi
             else
-                _scbolt_complete_words "${_scbolt_modules}" "${cur}"
+                _scbolt_complete_words \
+                    "${_scbolt_modules} $(_scbolt_progress_options)" \
+                    "${cur}"
             fi
             ;;
         show-config)
             if [[ "${cur}" == --* ]]; then
                 if [ -n "${target}" ]; then
-                    _scbolt_complete_words \
-                        "--raw $(_scbolt_module_options "${target}") -h" "${cur}"
-                else
-                    _scbolt_complete_words \
-                        "--raw --params= --references= --reset-target= --trust-target= --old-file= --help -h" \
+                    _scbolt_complete_words "--raw $(_scbolt_module_options "${target}")" \
                         "${cur}"
+                else
+                    _scbolt_complete_words "--raw $(_scbolt_diagnostic_options)" "${cur}"
                 fi
             else
-                _scbolt_complete_words "${_scbolt_modules}" "${cur}"
+                if [ -n "${target}" ]; then
+                    _scbolt_complete_words "--raw $(_scbolt_module_options "${target}")" \
+                        "${cur}"
+                else
+                    _scbolt_complete_words "${_scbolt_modules} --raw $(_scbolt_diagnostic_options)" "${cur}"
+                fi
             fi
             ;;
         check|dry-run)
             if [[ "${cur}" == --* ]]; then
                 if [ -n "${target}" ]; then
-                    _scbolt_complete_words "$(_scbolt_module_options "${target}") -h" "${cur}"
+                    _scbolt_complete_words "$(_scbolt_module_options "${target}")" "${cur}"
                 else
-                    _scbolt_complete_words \
-                        "--params= --references= --reset-target= --trust-target= --old-file= --help -h" \
-                        "${cur}"
+                    _scbolt_complete_words "$(_scbolt_diagnostic_options)" "${cur}"
                 fi
             else
-                _scbolt_complete_words "${_scbolt_modules}" "${cur}"
+                if [ -n "${target}" ]; then
+                    _scbolt_complete_words "$(_scbolt_module_options "${target}")" "${cur}"
+                else
+                    _scbolt_complete_words "${_scbolt_modules} $(_scbolt_diagnostic_options)" "${cur}"
+                fi
             fi
             ;;
         *)
             if [[ "${cur}" == --* ]]; then
                 if [ -n "${target}" ]; then
-                    _scbolt_complete_words "$(_scbolt_module_options "${target}") -h" "${cur}"
+                    _scbolt_complete_words "$(_scbolt_module_options "${target}")" "${cur}"
                 else
-                    _scbolt_complete_words \
-                        "--params= --references= --reset-target= --trust-target= --old-file= --logging= --help -h" \
-                        "${cur}"
+                    _scbolt_complete_words "$(_scbolt_run_options)" "${cur}"
+                fi
+            else
+                if [ -n "${target}" ]; then
+                    _scbolt_complete_words "$(_scbolt_module_options "${target}")" "${cur}"
+                else
+                    _scbolt_complete_words "$(_scbolt_run_options)" "${cur}"
                 fi
             fi
             ;;
     esac
 }
 
-complete -o bashdefault -o default -F _scbolt scbolt
+if ! complete -o nosort -o bashdefault -o default -F _scbolt scbolt 2> /dev/null; then
+    complete -o bashdefault -o default -F _scbolt scbolt
+fi

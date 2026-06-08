@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Literal
 
 
-Status = Literal["done", "stale", "pending"]
+Status = Literal["done", "stale", "pending", "untracked"]
 
 
 def sidecar_path(target: Path) -> Path:
@@ -57,7 +57,7 @@ def read_metadata(path: Path) -> dict[str, object] | None:
 def changed_parameters(
     stored: dict[str, object],
     current: dict[str, str],
-) -> list[str]:
+) -> list[tuple[str, str, str]]:
     stored_params = stored.get("sensitive_parameters")
     if not isinstance(stored_params, dict):
         return []
@@ -66,8 +66,80 @@ def changed_parameters(
     for name, current_value in current.items():
         stored_value = str(stored_params.get(name, ""))
         if stored_value != current_value:
-            changes.append(f"{name}: {stored_value} -> {current_value}")
+            changes.append((name, stored_value, current_value))
     return changes
+
+
+def format_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(Path.cwd()))
+    except ValueError:
+        return str(path)
+
+
+def format_target_label(path: Path) -> str:
+    formatted = format_path(path)
+    parts = Path(formatted).parts
+    reference_output_dirs = {
+        "clust",
+        "count",
+        "fastq",
+        "mstates",
+        "prep",
+        "traj",
+        "trajectories",
+    }
+
+    for index, part in enumerate(parts[:-1]):
+        if parts[index + 1] in reference_output_dirs:
+            return part
+    return formatted
+
+
+def unique_values(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(values))
+
+
+def format_labels(labels: list[str], all_labels: list[str]) -> str:
+    labels = unique_values(labels)
+    if not labels or set(labels) == set(all_labels):
+        return ""
+    return f" ({', '.join(labels)})"
+
+
+def format_change_messages(
+    grouped_changes: dict[str, dict[str, dict[str, list[str]]]],
+    all_labels: list[str],
+) -> list[str]:
+    messages = []
+
+    for name, current_groups in grouped_changes.items():
+        for current_value, stored_groups in current_groups.items():
+            if len(stored_groups) == 1:
+                stored_value, labels = next(iter(stored_groups.items()))
+                label = format_labels(labels, all_labels)
+                messages.append(f"{name}: {stored_value} -> {current_value}{label}")
+                continue
+
+            stored_values = []
+            for stored_value, labels in stored_groups.items():
+                label = format_labels(labels, all_labels)
+                stored_values.append(f"{stored_value} -> {current_value}{label}")
+            messages.append(f"{name}: {', '.join(stored_values)}")
+
+    return messages
+
+
+def format_grouped_messages(
+    grouped_messages: dict[str, list[str]],
+    all_labels: list[str],
+) -> list[str]:
+    messages = []
+
+    for message, labels in grouped_messages.items():
+        messages.append(f"{message}{format_labels(labels, all_labels)}")
+
+    return messages
 
 
 def target_exists(target: Path) -> bool:
@@ -94,19 +166,30 @@ def state_for_targets(
 
     expected_hash = config_hash(parameters)
     stale_targets: list[Path] = []
-    messages: list[str] = []
+    untracked_targets: list[Path] = []
+    grouped_messages: dict[str, list[str]] = {}
+    grouped_changes: dict[str, dict[str, dict[str, list[str]]]] = {}
     trusted_old = 0
+    multiple_targets = len(targets) > 1
+    all_labels = unique_values(
+        [format_target_label(target) for target in targets]
+        if multiple_targets
+        else []
+    )
 
     for target in targets:
         if normalize_path(target) in old_files:
             trusted_old += 1
             continue
 
+        label = format_target_label(target) if multiple_targets else ""
         sidecar = sidecar_path(target)
         metadata = read_metadata(sidecar)
         if metadata is None:
-            stale_targets.append(target)
-            messages.append("metadata missing")
+            untracked_targets.append(target)
+            grouped_messages.setdefault("metadata missing", [])
+            if label:
+                grouped_messages["metadata missing"].append(label)
             continue
 
         stored_hash = metadata.get("config_hash")
@@ -115,13 +198,26 @@ def state_for_targets(
             stale_targets.append(target)
             changes = changed_parameters(metadata, parameters)
             if changes:
-                messages.extend(changes)
+                for name, stored_value, current_value in changes:
+                    grouped_changes.setdefault(name, {})
+                    grouped_changes[name].setdefault(current_value, {})
+                    grouped_changes[name][current_value].setdefault(stored_value, [])
+                    if label:
+                        grouped_changes[name][current_value][stored_value].append(label)
             else:
-                messages.append("configuration hash mismatch")
+                grouped_messages.setdefault("configuration hash mismatch", [])
+                if label:
+                    grouped_messages["configuration hash mismatch"].append(label)
 
     if stale_targets:
-        unique_messages = list(dict.fromkeys(messages))
+        messages = format_grouped_messages(grouped_messages, all_labels)
+        messages.extend(format_change_messages(grouped_changes, all_labels))
+        unique_messages = unique_values(messages)
         return "stale", f"{module} ({'; '.join(unique_messages)})", stale_targets
+
+    if untracked_targets:
+        labels = grouped_messages.get("metadata missing", [])
+        return "untracked", f"{module}{format_labels(labels, all_labels)}", []
 
     if trusted_old:
         suffix = "old file" if trusted_old == 1 else "old files"
@@ -197,7 +293,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     state = subparsers.add_parser("state", help="compare metadata sidecars")
     state.add_argument("--module", required=True)
-    state.add_argument("--target", action="append", required=True)
+    state.add_argument("--target", action="append", default=[])
     state.add_argument("--old-file", action="append", default=[])
     state.add_argument("--param", action="append", default=[])
     state.add_argument(

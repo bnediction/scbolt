@@ -8,7 +8,7 @@ scbolt_completion="${scbolt_root}/bin/completion.bash"
 local_bin="${HOME}/.local/bin"
 local_completion_dir="${HOME}/.local/share/bash-completion/completions"
 
-bonesis_hash="${BONESIS_HASH:-24c4f9c91a4496b9777043e17e504ecc31312d87}"
+bonesis_hash="${BONESIS_HASH:-d70736703af2fa8a88306ac66626b4876d5c5839}"
 scvelo_hash="${SCVELO_HASH:-b2f31b345641efdccd39fbcb8c0beaa0014b4b88}"
 
 install_bonesis_git() {

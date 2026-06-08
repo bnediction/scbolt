@@ -277,10 +277,7 @@ $(clustering_$(1)): $(normalization_$(1))
 		--neighbors $(NEIGHBORS) --metric $(METRIC) \
 		--resolution $(RESOLUTION) --min-dist $(MIN_DIST) --spread $(SPREAD) \
 		--seed $(SEED)
-	$(call print_task,plotting embedding colored by cell-cycle phase)
-	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/cc.json \
-		--infile $$@ --outfile $$(@D)/cc.pdf \
-		--use-rep $(USE_REP)
+	$$(call plot_embeddings,$(fig_dir)/cc.json,$$@,$$(@D)/cc.pdf,--use-rep $(USE_REP))
 	$$(call write_scbolt_metadata,clustering,$$(clustering_$(1)))
 
 ifeq ($(words $(conditions)),1)
@@ -293,10 +290,9 @@ $(annotation_$(1)): $(clustering_$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/annotation.py $$< $$@ \
 		--obs cluster --new-obs $(LABEL_COL) --labels $(label_map)
-	$(call print_task,plotting embedding colored by labels)
-	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/generic.json \
-		--infile $$@ --outfile $$(@D)/labels.pdf \
-		--obs $(LABEL_COL) --use-rep $(USE_REP)
+	$$(call plot_embeddings,\
+		$(fig_dir)/generic.json,$$@,$$(@D)/labels.pdf,\
+		--obs $(LABEL_COL) --use-rep $(USE_REP))
 	$$(call write_scbolt_metadata,annotation,$$(annotation_$(1)))
 else
 $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
@@ -305,10 +301,9 @@ $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/pipe_its.py $$^ --outfiles $$@ \
 		--labels $(1) --obs-label condition --obs $(LABEL_COL) \
 		--var highly_variable highly_variable_rank
-	$(call print_task,plotting embedding colored by labels)
-	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/generic.json \
-		--infile $$@ --outfile $$(@D)/labels.pdf \
-		--obs $(LABEL_COL) --use-rep $(USE_REP)
+	$$(call plot_embeddings,\
+		$(fig_dir)/generic.json,$$@,$$(@D)/labels.pdf,\
+		--obs $(LABEL_COL) --use-rep $(USE_REP))
 	$$(call write_scbolt_metadata,annotation,$$(annotation_$(1)))
 endif
 
@@ -350,11 +345,9 @@ $(cotan_$(1))&: $(annotation_$(1))
 		$$< $$(firstword $$(cotan_$(1))) \
 		--csv $$(lastword $$(cotan_$(1))) \
 		--axis 0 --sep , --type category
-	$(call print_task,plotting embedding colored by COTAN macrostates)
-	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/macrostates.json \
-		--infile $$(firstword $$(cotan_$(1))) \
-		--outfile $$(@D)/umap_cotan.pdf \
-		--use-rep $(USE_REP)
+	$$(call plot_embeddings,\
+		$(fig_dir)/macrostates.json,$$(firstword $$(cotan_$(1))),$$(@D)/umap_cotan.pdf,\
+		--use-rep $(USE_REP))
 	$$(call write_scbolt_metadata,cotan,$$(cotan_$(1)))
 
 $(cellrank_$(1))&: $(velocity_$(1)) $(potency_$(1))
@@ -413,11 +406,9 @@ $(knnbs_$(1))&: $(annotation_$(1))
 		$(if $(call knnbs_centrality,$(1)),--centrality $(call knnbs_centrality,$(1)),) \
 		$(if $(call knnbs_periphery,$(1)),--periphery $(call knnbs_periphery,$(1)),) \
 		--jobs $(JOBS)
-	$(call print_task,plotting embedding colored by knnbs macrostates)
-	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/macrostates.json \
-		--infile $$(firstword $$(knnbs_$(1))) \
-		--outfile $$(@D)/knnbs.pdf \
-		--use-rep $(USE_REP)
+	$$(call plot_embeddings,\
+		$(fig_dir)/macrostates.json,$$(firstword $$(knnbs_$(1))),$$(@D)/knnbs.pdf,\
+		--use-rep $(USE_REP))
 	$$(call write_scbolt_metadata,knnbs,$$(knnbs_$(1)))
 endif
 
@@ -482,10 +473,9 @@ $(annotation_integrated): $(clustering_integrated)
 	mkdir -p $(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/annotation.py $< $@ \
 		--obs cluster --new-obs $(LABEL_COL) --labels $(label_map)
-	$(call print_task,plotting embedding colored by labels)
-	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/generic.json \
-		--infile $@ --outfile $(@D)/labels.pdf \
-		--obs $(LABEL_COL) --use-rep $(USE_REP)
+	$(call plot_embeddings,\
+		$(fig_dir)/generic.json,$@,$(@D)/labels.pdf,\
+		--obs $(LABEL_COL) --use-rep $(USE_REP))
 	$(call write_scbolt_metadata,annotation,$@)
 
 ifneq ($(strip $(MACROSTATE_FILE)),)
@@ -499,25 +489,31 @@ $(macrostate_h5ad):
 		$(if $(filter-out 1,$(words $(conditions))),--condition-obs condition --prefix-macrostates)
 endif
 
-$(bin_hvg): $(bin_input_h5ads)
-	$(call require_bin_hvg_parameters,binarization)
-	mkdir -p $(@D)
+define build_bin_hvg
+$(call require_bin_hvg_parameters,$(1))
+if [ ! -f "$(bin_hvg)" ]; then
+	mkdir -p $(dir $(bin_hvg))
 	$(call print_task,estimating top$(if $(BIN_HVG_TOP), $(BIN_HVG_TOP),) \
 		highly variable genes with $(BIN_HVG_FLAVOR))
 	$(call conda_run,scbolt-core) python $(scripts_dir)/prep/hvg.py \
-		$(lastword $^) $@ \
+		$(lastword $(bin_input_h5ads)) $(bin_hvg) \
 		--method $(BIN_HVG_FLAVOR) \
 		$(bin_hvg_layer) \
 		$(if $(BIN_HVG_TOP),--hvg $(BIN_HVG_TOP),) \
 		--span $(BIN_HVG_SPAN) --bins $(BIN_HVG_BINS) \
 		$(batch)
+fi
+endef
 
-$(bin_cells)&: $(bin_input_h5ads) \
-    $(if $(filter true,$(BIN_SCBOOLSEQ_ONLY_HVG)),| $(bin_hvg))
+$(bin_hvg): $(bin_input_h5ads)
+	$(call build_bin_hvg,binarization)
+
+$(bin_cells)&: $(bin_input_h5ads)
 	$(call print_rule,bin-cells)
 	$(if $(filter true,$(BIN_SCBOOLSEQ_ONLY_HVG)),$(call require_bin_hvg_parameters,bin-cells))
 	$(call require_bin_cells_parameters)
 	mkdir -p $(@D)
+	$(if $(filter true,$(BIN_SCBOOLSEQ_ONLY_HVG)),$(call build_bin_hvg,bin-cells))
 	$(call conda_run,scbolt-scboolseq) python $(scripts_dir)/bin/bin_cells_scboolseq.py \
 		$< --outfile $(firstword $(bin_cells)) \
 		--bin $(shell echo $@ | sed "s/.h5ad/.csv/") \
@@ -526,11 +522,9 @@ $(bin_cells)&: $(bin_input_h5ads) \
 		--quantile $(UNIMODAL_QUANTILE) \
 		$(zeroes_are_zeroes) \
 		$(bin_scboolseq_hvg)
-	$(call print_task,plotting embedding colored by binarization percentage)
-	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/bin.json \
-		--infile $(firstword $(bin_cells)) \
-		--outfile $(@D)/pct_bin.pdf \
-		--use-rep $(USE_REP)
+	$(call plot_embeddings,\
+		$(fig_dir)/bin.json,$(firstword $(bin_cells)),$(@D)/pct_bin.pdf,\
+		--use-rep $(USE_REP))
 	$(call write_scbolt_metadata,bin-cells,$(bin_cells))
 
 ifeq ($(strip $(MACROSTATE_FILE)),)
@@ -556,11 +550,9 @@ $(bin_mstates): $(firstword $(bin_cells)) \
 		--bimodal-threshold $(BIMODAL_THRESHOLD) \
 		--zeroinf-threshold $(ZEROINF_THRESHOLD) \
 		--unimodal-threshold $(UNIMODAL_THRESHOLD)
-	$(call print_task,plotting embedding colored by macrostates)
-	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/macrostates.json \
-		--infile $(tmpdir)/integrated/bin/aggr/mcts.h5ad \
-		--outfile $(@D)/macrostates.pdf \
-		--use-rep $(USE_REP)
+	$(call plot_embeddings,\
+		$(fig_dir)/macrostates.json,$(tmpdir)/integrated/bin/aggr/mcts.h5ad,$(@D)/macrostates.pdf,\
+		--use-rep $(USE_REP))
 	$(call write_scbolt_metadata,bin-macrostates,$@)
 else
 $(bin_mstates): $(firstword $(bin_cells))
@@ -576,23 +568,21 @@ $(bin_mstates): $(firstword $(bin_cells))
 		--bimodal-threshold $(BIMODAL_THRESHOLD) \
 		--zeroinf-threshold $(ZEROINF_THRESHOLD) \
 		--unimodal-threshold $(UNIMODAL_THRESHOLD)
-	$(call print_task,plotting embedding colored by macrostates)
-	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/macrostates.json \
-		--infile $< \
-		--outfile $(@D)/macrostates.pdf \
-		--use-rep $(USE_REP)
+	$(call plot_embeddings,\
+		$(fig_dir)/macrostates.json,$<,$(@D)/macrostates.pdf,\
+		--use-rep $(USE_REP))
 	$(call write_scbolt_metadata,bin-macrostates,$@)
 endif
 
 ifeq ($(strip $(MACROSTATE_FILE)),)
 $(bin_dea): \
     $(bin_input_h5ads) \
-    $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition)))) \
-    $(if $(filter true,$(BIN_DEA_ONLY_HVG)),| $(bin_hvg))
+    $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
 	$(call print_rule,bin-dea)
 	$(if $(filter true,$(BIN_DEA_ONLY_HVG)),$(call require_bin_hvg_parameters,bin-dea))
 	$(call require_bin_dea_parameters)
 	mkdir -p $(@D) $(tmpdir)/integrated/bin/dea
+	$(if $(filter true,$(BIN_DEA_ONLY_HVG)),$(call build_bin_hvg,bin-dea))
 	$(call print_debug,adding macrostates to AnnData)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/add_to_anndata.py \
 		$(firstword $^) $(tmpdir)/integrated/bin/dea/mcts.h5ad \
@@ -605,28 +595,24 @@ $(bin_dea): \
 		--cluster macrostate --layer log-norm --is-log --method wilcoxon --use-rep $(USE_REP) \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION) \
 		$(bin_dea_hvg)
-	$(call print_task,plotting embedding colored by macrostates)
-	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/macrostates.json \
-		--infile $(tmpdir)/integrated/bin/dea/mcts.h5ad \
-		--outfile $(@D)/macrostates.pdf \
-		--use-rep $(USE_REP)
+	$(call plot_embeddings,\
+		$(fig_dir)/macrostates.json,$(tmpdir)/integrated/bin/dea/mcts.h5ad,$(@D)/macrostates.pdf,\
+		--use-rep $(USE_REP))
 	$(call write_scbolt_metadata,bin-dea,$@)
 else
-$(bin_dea): $(bin_input_h5ads) \
-    $(if $(filter true,$(BIN_DEA_ONLY_HVG)),| $(bin_hvg))
+$(bin_dea): $(bin_input_h5ads)
 	$(call print_rule,bin-dea)
 	$(if $(filter true,$(BIN_DEA_ONLY_HVG)),$(call require_bin_hvg_parameters,bin-dea))
 	$(call require_bin_dea_parameters)
 	mkdir -p $(@D)
+	$(if $(filter true,$(BIN_DEA_ONLY_HVG)),$(call build_bin_hvg,bin-dea))
 	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_dea.py $< $@ \
 		--cluster macrostate --layer log-norm --is-log --method wilcoxon --use-rep $(USE_REP) \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION) \
 		$(bin_dea_hvg)
-	$(call print_task,plotting embedding colored by macrostates)
-	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/macrostates.json \
-		--infile $< \
-		--outfile $(@D)/macrostates.pdf \
-		--use-rep $(USE_REP)
+	$(call plot_embeddings,\
+		$(fig_dir)/macrostates.json,$<,$(@D)/macrostates.pdf,\
+		--use-rep $(USE_REP))
 	$(call write_scbolt_metadata,bin-dea,$@)
 endif
 
@@ -648,7 +634,6 @@ $(bin_consensus): $(bin_mstates) $(lastword $(bin_cells)) $(bin_dea)
 	$(call write_scbolt_metadata,bin-consensus,$@)
 
 $(bonesis_model)&: $(bin) \
-    $(if $(filter true,$(SPEC_ONLY_HVG)),$(bin_hvg)) \
     | $(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),$(if $(filter legacy,$(DOROTHEA_API)),$(dorothea_legacy)))
 	$(call print_rule,spec)
 	$(call require_bool,SPEC_ONLY_HVG,spec)
@@ -656,6 +641,7 @@ $(bonesis_model)&: $(bin) \
 	$(call require_prior_parameters,spec)
 	$(call check_file,$(SPEC_FILE),SPEC_FILE)
 	mkdir -p $(@D)
+	$(if $(filter true,$(SPEC_ONLY_HVG)),$(call build_bin_hvg,spec))
 	$(call conda_run,scbolt-bonesis) python $(scripts_dir)/infer/spec.py $(SPEC_FILE) $< \
 		--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 		--important-genes $(word 3,$(bonesis_model)) --mandatory-genes $(word 4,$(bonesis_model)) \

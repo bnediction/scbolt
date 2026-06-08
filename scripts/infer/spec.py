@@ -12,7 +12,7 @@ import pandas as pd
 import bonesistools as bt
 
 import bonesis
-from utils import get_cfg
+from utils import get_cfg, load_bonesis_code
 
 bonesis.settings["quiet"] = True
 script_name = Path(__file__).name
@@ -249,9 +249,16 @@ pkn_options = {
 pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
 bo = bonesis.BoNesis(pkn, macrostates_cfg)
 
+namespace = {"bo": bo}
+
 for property in specification["bonesis"]:
     try:
-        exec(property)
+        load_bonesis_code(
+            bo,
+            property,
+            filename=str(args.model_specification),
+            namespace=namespace,
+        )
     except Exception as error:
         raise RuntimeError(
             f"invalid dynamical Boolean properties: {property}"

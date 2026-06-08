@@ -3,6 +3,7 @@
 from typing import Optional
 from pandas._typing import Axis
 from pandas import DataFrame
+import bonesis
 from bonesistools.databases.ncbi import GeneSynonyms
 
 
@@ -39,3 +40,37 @@ def get_cfg(
         genesyn(df, axis=0, copy=False)
 
     return {config: genes.to_dict() for config, genes in df.items()}
+
+
+def load_bonesis_code(
+    bo: bonesis.BoNesis,
+    code: str,
+    filename: str = "<bonesis>",
+    namespace: dict | None = None,
+) -> dict:
+    """
+    Load BoNesis DSL code through the safe AST validator.
+
+    The `bo` symbol is kept in the namespace for compatibility with older
+    scBOLT specifications using `bo.obs(...)`, while the BoNesis language
+    symbols also allow direct DSL calls such as `obs(...)`.
+    """
+
+    if namespace is None:
+        namespace = {}
+    namespace.setdefault("bo", bo)
+
+    try:
+        return bo.load_code(
+            code,
+            defs=namespace,
+            safe=True,
+            filename=filename,
+        )
+    except TypeError as error:
+        if "unexpected keyword argument" in str(error):
+            raise RuntimeError(
+                "safe BoNesis DSL loading requires BoNesis with "
+                "`load_code(..., safe=True)` support"
+            ) from error
+        raise
