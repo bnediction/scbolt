@@ -71,6 +71,7 @@ Example output:
 --references=
 --reset-target=
 --trust-target=
+--old-file=
 --logging=
 --help
 --spec-file=
@@ -151,6 +152,7 @@ Examples:
 scbolt spec --spec-file=<TAB>
 scbolt binarization --binarization-file=<TAB>
 scbolt macrostates --macrostate-file=<TAB>
+scbolt bn-submin --old-file=<TAB>
 scbolt --params=<TAB>
 ```
 

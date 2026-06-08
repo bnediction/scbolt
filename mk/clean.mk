@@ -21,6 +21,7 @@ define clean_help
 		printf '  %-31s %s\n' '--help, -h' 'display this help'; \
 		printf '  %-31s %s\n' '--params=<file>' 'select parameter file'; \
 		printf '  %-31s %s\n' '--references=<condition...>' 'select references'; \
+		printf '  %-31s %s\n' '--old-file=<file>' 'keep one trusted file during --stale'; \
 	else \
 		printf '  %-31s %s\n' 'CLEAN_TARGET=<module...>' 'modules whose outputs should be removed'; \
 		printf '  %-31s %s\n' 'CLEAN_TARGET=all' 'ask before removing all generated module outputs'; \
@@ -28,6 +29,7 @@ define clean_help
 		printf '  %-31s %s\n' 'CLEAN_FORCE=true' 'skip confirmation for CLEAN_STALE=true'; \
 		printf '  %-31s %s\n' 'HELP=true' 'display this help'; \
 		printf '  %-31s %s\n' 'REFERENCES=<condition...>' 'select references'; \
+		printf '  %-31s %s\n' 'OLD_FILES=<file...>' 'keep trusted files during CLEAN_STALE=true'; \
 	fi
 endef
 
@@ -52,6 +54,10 @@ ifneq ($(filter $(CLEAN_FORCE),true false),$(CLEAN_FORCE))
 endif
 	@recovered=0; \
 	if [ -n "$(clean_all)" ]; then \
+		if [ -n "$(OLD_FILES)" ]; then \
+			printf '$(warning_label) %s\n' "clean --all may remove trusted old files:"; \
+			$(foreach path,$(OLD_FILES),printf '  - %s\n' '$(path)';) \
+		fi; \
 		if [ ! -t 0 ]; then \
 			printf '$(warning_label) %s\n' "skipped --all: interactive confirmation unavailable"; \
 			exit 0; \
@@ -84,10 +90,14 @@ endif
 		is_pending() { \
 			case "$${pending_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 		}; \
+		is_old_file() { \
+			case " $(OLD_FILES) " in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
+		}; \
 		for module in $(if $(clean_modules),$(clean_modules),$(reset_stages)); do \
 			module_report="$$(mktemp)"; \
 			$(nested_make) LOGGING=false __clean-stale-module \
-				CLEAN_MODULE="$${module}" PARAMS="$(PARAMS)" > "$${module_report}"; \
+				CLEAN_MODULE="$${module}" PARAMS="$(PARAMS)" OLD_FILES="$(OLD_FILES)" \
+				> "$${module_report}"; \
 			module_status="$$(awk -F '\t' '$$1 == "status" { print $$2; exit }' "$${module_report}")"; \
 			module_deps="$$(awk -F '\t' '$$1 == "deps" { print $$2; exit }' "$${module_report}")"; \
 			module_pending=0; \
@@ -110,9 +120,17 @@ endif
 			if [ "$${module_pending}" -eq 1 ]; then \
 				pending_modules="$${pending_modules}$${module} "; \
 			elif [ "$${module_stale}" -eq 1 ]; then \
-				awk -F '\t' '$$1 == "output" { print $$2 }' "$${module_report}" >> "$${stale_outputs}"; \
-				awk -F '\t' '$$1 == "output" || $$1 == "sidecar" { print $$2 }' \
-					"$${module_report}" >> "$${stale_cleanup}"; \
+				while IFS='	' read -r kind path; do \
+					if [ "$${kind}" = "output" ] && is_old_file "$${path}"; then \
+						continue; \
+					fi; \
+					if [ "$${kind}" = "output" ]; then \
+						printf '%s\n' "$${path}" >> "$${stale_outputs}"; \
+					fi; \
+					if [ "$${kind}" = "output" ] || [ "$${kind}" = "sidecar" ]; then \
+						printf '%s\n' "$${path}" >> "$${stale_cleanup}"; \
+					fi; \
+				done < "$${module_report}"; \
 				stale_modules="$${stale_modules}$${module} "; \
 			fi; \
 			rm -f "$${module_report}"; \

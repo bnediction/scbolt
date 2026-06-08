@@ -36,6 +36,10 @@ def parse_parameters(values: list[str]) -> dict[str, str]:
     return dict(parse_parameter(value) for value in values)
 
 
+def normalize_path(path: Path) -> Path:
+    return path.expanduser().resolve()
+
+
 def config_hash(parameters: dict[str, str]) -> str:
     payload = json.dumps(parameters, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode()).hexdigest()
@@ -75,10 +79,12 @@ def state_for_targets(
     module: str,
     targets: list[Path],
     parameters: dict[str, str],
+    old_files: set[Path] | None = None,
 ) -> tuple[Status, str, list[Path]]:
     if not targets:
         return "pending", f"{module} (no target registered)", []
 
+    old_files = old_files or set()
     missing = [target for target in targets if not target_exists(target)]
     if missing:
         return "pending", f"{module} (missing output)", []
@@ -89,8 +95,13 @@ def state_for_targets(
     expected_hash = config_hash(parameters)
     stale_targets: list[Path] = []
     messages: list[str] = []
+    trusted_old = 0
 
     for target in targets:
+        if normalize_path(target) in old_files:
+            trusted_old += 1
+            continue
+
         sidecar = sidecar_path(target)
         metadata = read_metadata(sidecar)
         if metadata is None:
@@ -111,6 +122,10 @@ def state_for_targets(
     if stale_targets:
         unique_messages = list(dict.fromkeys(messages))
         return "stale", f"{module} ({'; '.join(unique_messages)})", stale_targets
+
+    if trusted_old:
+        suffix = "old file" if trusted_old == 1 else "old files"
+        return "done", f"{module} ({suffix})", []
 
     return "done", f"{module} (configuration up to date)", []
 
@@ -142,10 +157,12 @@ def write_metadata(args: argparse.Namespace) -> None:
 def print_state(args: argparse.Namespace) -> None:
     parameters = parse_parameters(args.param)
     targets = [Path(target) for target in args.target]
+    old_files = {normalize_path(Path(path)) for path in args.old_file}
     status, message, stale_targets = state_for_targets(
         module=args.module,
         targets=targets,
         parameters=parameters,
+        old_files=old_files,
     )
 
     if args.field == "status":
@@ -181,6 +198,7 @@ def build_parser() -> argparse.ArgumentParser:
     state = subparsers.add_parser("state", help="compare metadata sidecars")
     state.add_argument("--module", required=True)
     state.add_argument("--target", action="append", required=True)
+    state.add_argument("--old-file", action="append", default=[])
     state.add_argument("--param", action="append", default=[])
     state.add_argument(
         "--field",

@@ -15,7 +15,7 @@ _scbolt_boolean_options="--logging= --spec-only-hvg= --pca-only-hvg= --velocity-
 --bin-scboolseq-only-hvg= --zeroes-are-zeroes= --bin-dea-only-hvg=
 --canonic-filter= --canonic-infer= --min-self-loop-consts= --min-self-loop-infer=
 --norm-mad= --cc-correction="
-_scbolt_file_options="--params= --star-whitelist= --binarization-file= --macrostate-file=
+_scbolt_file_options="--params= --old-file= --star-whitelist= --binarization-file= --macrostate-file=
 --prior-knowledge= --spec-file="
 
 _scbolt_complete_words() {
@@ -133,7 +133,7 @@ _scbolt_help_parameters() {
 _scbolt_module_options() {
     local target="$1"
 
-    printf '%s\n' --params= --references= --reset-target= --trust-target= --logging= --help
+    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= --logging= --help
     _scbolt_help_parameters "${target}"
 }
 
@@ -154,10 +154,10 @@ _scbolt_target_from_args() {
                 case "${word}" in
                     "${command}")
                         ;;
-                    --params|--references|--reset-target|--trust-target|--logging|--target)
+                    --params|--references|--reset-target|--trust-target|--old-file|--logging|--target)
                         ((i++))
                         ;;
-                    --params=*|--references=*|--reset-target=*|--trust-target=*|--logging=*|--target=*)
+                    --params=*|--references=*|--reset-target=*|--trust-target=*|--old-file=*|--logging=*|--target=*)
                         ;;
                     --*|*=*)
                         ;;
@@ -182,7 +182,7 @@ _scbolt_first_command() {
     for ((i = 1; i < COMP_CWORD; i++)); do
         word="${COMP_WORDS[i]}"
         case "${word}" in
-            --params|--references|--reset-target|--trust-target|--logging|--target)
+            --params|--references|--reset-target|--trust-target|--old-file|--logging|--target)
                 ((i++))
                 ;;
             --*|*=*)
@@ -207,6 +207,10 @@ _scbolt() {
     case "${cur}" in
         --params=*)
             _scbolt_complete_files "--params=" "${cur#--params=}"
+            return 0
+            ;;
+        --old-file=*)
+            _scbolt_complete_files "--old-file=" "${cur#--old-file=}"
             return 0
             ;;
         --logging=*)
@@ -249,6 +253,10 @@ _scbolt() {
             _scbolt_complete_files "" "${cur}"
             return 0
             ;;
+        --old-file)
+            _scbolt_complete_files "" "${cur}"
+            return 0
+            ;;
         --logging)
             _scbolt_complete_words "true false" "${cur}"
             return 0
@@ -281,7 +289,7 @@ _scbolt() {
             ;;
         clean)
             if [[ "${cur}" == --* ]]; then
-                _scbolt_complete_words "--all --stale --force --params= --references= --help -h" \
+                _scbolt_complete_words "--all --stale --force --params= --references= --old-file= --help -h" \
                     "${cur}"
             else
                 _scbolt_complete_words "${_scbolt_modules}" "${cur}"
@@ -289,7 +297,7 @@ _scbolt() {
             ;;
         progress)
             if [[ "${cur}" == --* ]]; then
-                _scbolt_complete_words "--all --params= --references= --help -h" "${cur}"
+                _scbolt_complete_words "--all --params= --references= --old-file= --help -h" "${cur}"
             else
                 _scbolt_complete_words "${_scbolt_modules}" "${cur}"
             fi
@@ -301,7 +309,7 @@ _scbolt() {
                         "--raw $(_scbolt_module_options "${target}") -h" "${cur}"
                 else
                     _scbolt_complete_words \
-                        "--raw --params= --references= --reset-target= --trust-target= --help -h" \
+                        "--raw --params= --references= --reset-target= --trust-target= --old-file= --help -h" \
                         "${cur}"
                 fi
             else
@@ -314,7 +322,7 @@ _scbolt() {
                     _scbolt_complete_words "$(_scbolt_module_options "${target}") -h" "${cur}"
                 else
                     _scbolt_complete_words \
-                        "--params= --references= --reset-target= --trust-target= --help -h" \
+                        "--params= --references= --reset-target= --trust-target= --old-file= --help -h" \
                         "${cur}"
                 fi
             else
@@ -327,7 +335,7 @@ _scbolt() {
                     _scbolt_complete_words "$(_scbolt_module_options "${target}") -h" "${cur}"
                 else
                     _scbolt_complete_words \
-                        "--params= --references= --reset-target= --trust-target= --logging= --help -h" \
+                        "--params= --references= --reset-target= --trust-target= --old-file= --logging= --help -h" \
                         "${cur}"
                 fi
             fi

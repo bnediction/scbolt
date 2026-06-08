@@ -239,7 +239,7 @@ def count_binarized_values(
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
-    prog="bin_clusters_scboolseq",
+    prog=Path(__file__).name,
     description=(
         "Count binarized values for each cluster and binarize clusters from "
         "binarized single-cell data using a voting rule."

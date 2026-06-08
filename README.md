@@ -265,7 +265,8 @@ With `--all`, it asks before removing cache, logs, and all generated module outp
 | `--params=<file>`              | Select the parameter file.                            |
 | `--references=<condition...>`  | Restrict execution to selected references.            |
 | `--reset-target=<module...>`   | Rebuild from these modules.                           |
-| `--trust-target=<module...>`   | Trust these outputs and skip rebuilding them.         |
+| `--trust-target=<module...>`   | Trust all outputs from selected modules.              |
+| `--old-file=<file>`            | Trust one existing scBOLT DAG file.                   |
 | `--logging=false`              | Disable persistent logging.                           |
 | `--help`                       | Display command-specific help when supported.         |
 | `--raw`                        | Display raw `show-config` listing.                    |
@@ -274,7 +275,8 @@ With `--all`, it asks before removing cache, logs, and all generated module outp
 
 Make-style assignments such as `PRIOR_KNOWLEDGE=dorothea` remain supported.
 
-Advanced documentation is available in: `man/`.
+Advanced documentation is available in: `man/`, including rebuild controls in
+`man/rebuild_controls.md`.
 
 Examples:
 

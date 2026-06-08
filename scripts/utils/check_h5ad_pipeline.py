@@ -304,7 +304,7 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
             },
         )
 
-    if name == "bin_clusters_scboolseq.py":
+    if name == "bin_clust_scboolseq.py":
         infile = h5ad(args[0])
         required = field("layers", option(tokens, "--layer") or "bin")
         required |= field("var", option(tokens, "--distribution") or "distribution")

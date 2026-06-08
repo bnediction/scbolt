@@ -13,6 +13,9 @@ is_absolute_path = $(filter /%,$(strip $(1)))
 resolve_path_from = $(call strip_trailing_slash,\
 	$(if $(call is_absolute_path,$(1)),$(1),$(abspath $(strip $(2))/$(strip $(1)))))
 resolve_optional_path_from = $(if $(strip $(1)),$(call resolve_path_from,$(1),$(2)))
+resolve_path_list_from = $(strip \
+	$(foreach path,$(strip $(1)),$(call resolve_path_from,$(path),$(2))))
+uniq = $(if $(1),$(firstword $(1)) $(call uniq,$(filter-out $(firstword $(1)),$(1))))
 
 include $(scbolt_root)/mk/default_params.mk
 
@@ -46,6 +49,9 @@ $(call resolve_user_path_var,MACROSTATE_FILE)
 $(if $(filter $(strip $(PRIOR_KNOWLEDGE)),collectri dorothea),,$(call resolve_user_path_var,PRIOR_KNOWLEDGE))
 $(call resolve_user_path_var,STAR_WHITELIST)
 $(foreach var,$(clingo_config_vars),$(call resolve_clingo_config,$(var)))
+old_files_from_params := $(call resolve_path_list_from,$(OLD_FILES),$(call path_origin_base,OLD_FILES))
+old_files_from_cli := $(call resolve_path_list_from,$(CLI_OLD_FILES),$(launch_dir))
+override OLD_FILES := $(strip $(call uniq,$(old_files_from_params) $(old_files_from_cli)))
 
 _lower2upper = a:A b:B c:C d:D e:E f:F g:G h:H i:I j:J k:K l:L m:M n:N o:O p:P q:Q r:R s:S t:T u:U v:V w:W x:X y:Y z:Z
 _lower = $(word 1, $(subst :, ,$(word 1,$(1))))
@@ -558,20 +564,25 @@ log_parameters = $(foreach var,$(strip $(1)),printf '%s=%s\n' '$(var)' "$($(var)
 metadata_target_args = $(foreach target,$(strip $(RESET_TARGET_$(1))),--target "$(target)")
 metadata_custom_target_args = $(foreach target,$(strip $(2)),--target "$(target)")
 metadata_param_args = $(foreach param,$(strip $(sensitive_params_$(1))),--param '$(param)=$($(param))')
+metadata_old_file_args = $(foreach path,$(strip $(OLD_FILES)),--old-file "$(path)")
 metadata_git_hash = $$(git -C "$(scbolt_root)" rev-parse HEAD 2>/dev/null || echo unknown)
 metadata_state = python3 $(scripts_dir)/utils/scbolt_metadata.py state \
 	--module "$(1)" \
 	$(call metadata_target_args,$(1)) \
+	$(metadata_old_file_args) \
 	$(call metadata_param_args,$(1))
 metadata_state_field = $(call metadata_state,$(1)) --field "$(2)"
 metadata_state_make = $(nested_make) LOGGING=false __reset_disabled=metadata \
-	__metadata-state METADATA_MODULE="$(1)" METADATA_FIELD="$(2)" PARAMS="$(PARAMS)"
+	__metadata-state METADATA_MODULE="$(1)" METADATA_FIELD="$(2)" \
+	PARAMS="$(PARAMS)" OLD_FILES="$(OLD_FILES)"
 
 .PHONY: __metadata-state
 __metadata-state:
 	@$(call metadata_state_field,$(METADATA_MODULE),$(or $(METADATA_FIELD),all))
 
 define warn_stale_outputs
+$(foreach path,$(unknown_old_files),\
+	$(call print_warning,old file is not a known scBOLT target: $(path));) \
 selected_modules=" $(call target_dry_run_modules,$(1)) "; \
 pending_modules=" "; \
 stale_modules=" "; \

@@ -547,7 +547,7 @@ $(bin_mstates): $(firstword $(bin_cells)) \
 		$(if $(multi_condition),--label-column condition,) \
 		$(if $(multi_condition),--add-prefix macrostate,) \
 		--axis 0 --sep , --type category
-	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_clusters_scboolseq.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_clust_scboolseq.py \
 		$(tmpdir)/integrated/bin/aggr/mcts.h5ad $@ \
 		--counts $(@D)/counts_bin.csv \
 		--layer bin --distribution distribution --cluster macrostate \
@@ -567,7 +567,7 @@ $(bin_mstates): $(firstword $(bin_cells))
 	$(call print_rule,bin-macrostates)
 	$(call require_bin_mstates_parameters)
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_clusters_scboolseq.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_clust_scboolseq.py \
 		$< $@ \
 		--counts $(@D)/counts_bin.csv \
 		--layer bin --distribution distribution --cluster macrostate \

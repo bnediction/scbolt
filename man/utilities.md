@@ -105,3 +105,7 @@ Modes:
 | `--references=<condition...>` | Restrict the command to selected references. |
 | `--reset-target=<module...>` | Rebuild from selected modules. |
 | `--trust-target=<module...>` | Trust selected outputs and skip rebuilding them. |
+| `--old-file=<file>` | Trust one existing scBOLT DAG file. |
+
+See [`rebuild_controls.md`](rebuild_controls.md) for the difference between
+`RESET_TARGET`, `TRUST_TARGET`, and `OLD_FILES`.

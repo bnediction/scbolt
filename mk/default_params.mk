@@ -60,6 +60,7 @@ $(eval BINARIZATION_FILE ?=)                # precomputed macrostate binarizatio
 $(eval MACROSTATE_FILE ?=)                  # precomputed macrostate AnnData file
 $(eval USE_REP ?= X_umap)                   # embedding key in adata.obsm
 $(eval LABEL_COL ?= label)                  # annotated cell-type column in adata.obs
+$(eval OLD_FILES ?=)                        # trusted existing scBOLT DAG files
 
 ## FILTERING ##
 # Dropout and MT thresholds are fractions in [0,1].

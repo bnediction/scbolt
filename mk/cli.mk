@@ -12,6 +12,8 @@ help_reset_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--reset-target=<module...>], [RESET_TARGET=<module...>])
 help_trust_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--trust-target=<module...>], [TRUST_TARGET=<module...>])
+help_old_file_option = $(if $(filter true,$(SCBOLT_CLI)),\
+	 [--old-file=<file>...], [OLD_FILES=<file...>])
 help_logging_option = $(if $(filter true,$(SCBOLT_CLI)), [--logging=<bool>], [LOGGING=<bool>])
 help_override_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--<parameter>=<value>...], [<PARAMETER>=<value>...])
@@ -99,6 +101,8 @@ show_config_target = $(if $(TARGET),$(TARGET),all)
 show_config_modules = $(if $(TARGET),$(call target_dry_run_modules,$(TARGET)),$(config_default_modules))
 show_config_params_file = $(shell realpath --relative-to="$(launch_dir)" "$(PARAMS)" 2>/dev/null || printf '%s' "$(PARAMS)")
 show_config_results = $(shell realpath --relative-to="$(launch_dir)" "$(results)" 2>/dev/null || printf '%s' "$(results)")
+show_config_old_files = $(foreach path,$(OLD_FILES),\
+	$(shell realpath --relative-to="$(launch_dir)" "$(path)" 2>/dev/null || printf '%s' "$(path)"))
 show_config_logging = $(if $(filter true,$(LOGGING)),enabled,$(if $(filter false,$(LOGGING)),disabled,$(LOGGING)))
 show_config_integration = $(if $(filter-out 1,$(words $(conditions))),$(INTEGRATION),none)
 show_config_embedding_label_X_umap = $(call toupper,$(embedding_method_X_umap))
@@ -172,6 +176,7 @@ define show_config_help
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict the run to selected references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'preview configuration with forced rebuild context'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'preview configuration while trusting selected outputs'; \
+		printf '  %-31s %s\n' '--old-file=<file>' 'trust one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module>' 'select module to summarize'; \
@@ -180,6 +185,7 @@ define show_config_help
 		printf '  %-31s %s\n' 'REFERENCES=<condition...>' 'restrict the run to selected references'; \
 		printf '  %-31s %s\n' 'RESET_TARGET=<module...>' 'preview configuration with forced rebuild context'; \
 		printf '  %-31s %s\n' 'TRUST_TARGET=<module...>' 'preview configuration while trusting selected outputs'; \
+		printf '  %-31s %s\n' 'OLD_FILES=<file...>' 'trust existing DAG files'; \
 		printf '  %-31s %s\n' '<PARAMETER>=<value>' 'override any Make parameter'; \
 	fi
 endef
@@ -198,6 +204,7 @@ define dry_run_help
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict the preview to selected references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'preview rebuild from these modules'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'preview while trusting selected module outputs'; \
+		printf '  %-31s %s\n' '--old-file=<file>' 'preview while trusting one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module>' 'select module to preview'; \
@@ -205,6 +212,7 @@ define dry_run_help
 		printf '  %-31s %s\n' 'REFERENCES=<condition...>' 'restrict the preview to selected references'; \
 		printf '  %-31s %s\n' 'RESET_TARGET=<module...>' 'preview rebuild from these modules'; \
 		printf '  %-31s %s\n' 'TRUST_TARGET=<module...>' 'preview while trusting selected module outputs'; \
+		printf '  %-31s %s\n' 'OLD_FILES=<file...>' 'preview while trusting existing DAG files'; \
 		printf '  %-31s %s\n' '<PARAMETER>=<value>' 'override any Make parameter'; \
 	fi
 endef
@@ -231,6 +239,7 @@ define progress_help
 		printf '  %-31s %s\n' '--references=<condition...>' 'select references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'inspect progress with forced rebuild context'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'inspect progress while trusting selected outputs'; \
+		printf '  %-31s %s\n' '--old-file=<file>' 'inspect progress while trusting one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module...>' 'final modules to inspect'; \
@@ -239,6 +248,7 @@ define progress_help
 		printf '  %-31s %s\n' 'REFERENCES=<condition...>' 'select references'; \
 		printf '  %-31s %s\n' 'RESET_TARGET=<module...>' 'inspect progress with forced rebuild context'; \
 		printf '  %-31s %s\n' 'TRUST_TARGET=<module...>' 'inspect progress while trusting selected outputs'; \
+		printf '  %-31s %s\n' 'OLD_FILES=<file...>' 'inspect progress while trusting existing DAG files'; \
 		printf '  %-31s %s\n' '<PARAMETER>=<value>' 'override any Make parameter'; \
 	fi
 endef
@@ -257,6 +267,13 @@ $(if $(strip $(show_config_param_modules)),\
 @printf '\nExecution pipeline\n'
 @printf '%s\n' '------------------'
 @printf '%s\n' $(foreach module,$(show_config_param_modules),'- $(module)'))
+endef
+
+define show_config_print_old_files
+$(if $(strip $(OLD_FILES)),\
+@printf '\nTrusted old files\n'
+@printf '%s\n' '-----------------'
+@printf '%s\n' $(foreach path,$(show_config_old_files),'- $(path)'))
 endef
 
 define show_config_print_inference
@@ -316,6 +333,7 @@ $(if $(filter knnbs,$(MACROSTATE_METHOD)),@printf '%-14s : %s\n' 'Neighbors' "$(
 @printf '%-12s : %s\n' 'Logging' "$(show_config_logging)"
 $(show_config_print_hvg)
 $(show_config_print_inference)
+$(show_config_print_old_files)
 $(show_config_print_pipeline)
 $(foreach module,$(show_config_param_modules),$(call show_config_print_param_section,$(module)))
 endef
@@ -362,7 +380,7 @@ help: ## display help
 		BEGIN {FS = ":.*##"; \
 			hanging("usage: $(help_command) $(help_module_usage)$(help_params_option)" \
 				"$(help_references_option)$(help_reset_option)$(help_trust_option)" \
-				"$(help_logging_option)$(help_override_option)", \
+				"$(help_old_file_option)$(help_logging_option)$(help_override_option)", \
 				$(help_usage_width), "       "); \
 			printf "\n"; \
 			paragraph("scBOLT is a software framework for Boolean network inference " \
@@ -378,6 +396,7 @@ help: ## display help
 					printf "  %-27s %s\n", "", "default: $(running_references)"; \
 					printf "  %-27s %s\n", "--reset-target=<module...>", "rebuild from modules"; \
 					printf "  %-27s %s\n", "--trust-target=<module...>", "skip rebuilding modules"; \
+					printf "  %-27s %s\n", "--old-file=<file>", "trust existing DAG file"; \
 					printf "  %-27s %s\n", "--logging=<bool>", "enable logging"; \
 					printf "  %-27s %s\n", "--help", "display command help"; \
 					printf "  %-27s %s\n", "--<parameter>=<value>", "override Make parameter"; \
@@ -386,6 +405,7 @@ help: ## display help
 					printf "  %-27s %s\n", "", "default: $(running_references)"; \
 					printf "  %-27s %s\n", "RESET_TARGET=<module...>", "rebuild from modules"; \
 					printf "  %-27s %s\n", "TRUST_TARGET=<module...>", "skip rebuilding modules"; \
+					printf "  %-27s %s\n", "OLD_FILES=<file...>", "trust existing DAG files"; \
 					printf "  %-27s %s\n", "LOGGING=<bool>", "enable logging"; \
 					printf "  %-27s %s\n", "SHOW_CONFIG_RAW=true", "display raw show-config listing"; \
 					printf "  %-27s %s\n", "HELP=true", "display command help"; \
@@ -443,10 +463,10 @@ else
 		esac; \
 	}; \
 	if [ "$(SCBOLT_CLI)" = "true" ]; then \
-		printf 'usage: scbolt %s [--params=<file>] [--references=<condition...>]\n\n' \
+		printf 'usage: scbolt %s [--params=<file>] [--references=<condition...>] [--old-file=<file>]\n\n' \
 			"$(module_help_target)"; \
 	else \
-		printf 'usage: make %s [PARAMS=<file>] [REFERENCES=<condition...>]\n\n' \
+		printf 'usage: make %s [PARAMS=<file>] [REFERENCES=<condition...>] [OLD_FILES=<file...>]\n\n' \
 			"$(module_help_target)"; \
 	fi; \
 	printf '%s\n' 'Description'; \
@@ -476,7 +496,8 @@ else
 	dependency_count=0; \
 	$(foreach dep,$(module_help_deps),\
 		$(foreach target,$(RESET_TARGET_$(dep)),\
-			printf '  - %s (%s)\n' "$$(relpath '$(target)')" '$(dep)'; \
+			printf '  - %s (%s$(if $(filter $(target),$(OLD_FILES)),$(comma) old file))\n' \
+				"$$(relpath '$(target)')" '$(dep)'; \
 			dependency_count=$$((dependency_count + 1));)) \
 	if [ "$${dependency_count}" -eq 0 ]; then \
 		printf '  none\n'; \
@@ -514,6 +535,13 @@ else
 	$(call print_error,unsupported HELP=$(HELP) \(supported values: true, false\))
 endif
 
+.PHONY: __progress-module
+__progress-module:
+	@module_state="$$( $(call metadata_state_field,$(PROGRESS_MODULE),all) )"; \
+	printf 'status\t%s\n' "$${module_state%%	*}"; \
+	printf 'message\t%s\n' "$${module_state#*	}"; \
+	printf 'deps\t%s\n' "$(strip $(progress_deps_$(PROGRESS_MODULE)))"
+
 .PHONY: progress
 progress: ## display module progress
 ifeq ($(HELP),true)
@@ -533,6 +561,15 @@ endif
 	skipped_file="$$(mktemp)"; \
 	trap 'rm -f "$${done_file}" "$${stale_file}" "$${pending_file}" \
 		"$${extra_done_file}" "$${extra_stale_file}" "$${skipped_file}"' EXIT; \
+	for path in $(OLD_FILES); do \
+		if [ ! -e "$${path}" ] && [ ! -L "$${path}" ]; then \
+			printf '$(failure_label) %s\n' "old file not found: $${path}"; \
+			exit 1; \
+		fi; \
+	done; \
+	for path in $(unknown_old_files); do \
+		printf '$(warning_label) %s\n' "old file is not a known scBOLT target: $${path}"; \
+	done; \
 	selected_modules=" $(progress_modules) "; \
 	pending_modules=" "; \
 	stale_modules=" "; \
@@ -551,18 +588,28 @@ endif
 			printf '  (none)\n'; \
 		fi; \
 	}; \
-	$(foreach module,$(reset_stages),\
-		if [[ "$${selected_modules}" == *" $(module) "* ]]; then \
-			module_status="$$( $(call metadata_state_make,$(module),status) )"; \
+	for module in $(reset_stages); do \
+		module_report="$$(mktemp)"; \
+		$(nested_make) LOGGING=false __progress-module \
+			PROGRESS_MODULE="$${module}" PARAMS="$(PARAMS)" OLD_FILES="$(OLD_FILES)" \
+			> "$${module_report}"; \
+		module_status="$$(awk -F '\t' '$$1 == "status" { print $$2; exit }' "$${module_report}")"; \
+		module_message="$$(awk -F '\t' '$$1 == "message" { print $$2; exit }' "$${module_report}")"; \
+		module_deps="$$(awk -F '\t' '$$1 == "deps" { print $$2; exit }' "$${module_report}")"; \
+		rm -f "$${module_report}"; \
+		if [[ "$${selected_modules}" == *" $${module} "* ]]; then \
+			module_label="$${module}"; \
+			if [[ "$${module_message}" == *"(old file"* ]]; then \
+				module_label="$${module} (old file)"; \
+			fi; \
 			module_pending=0; \
 			module_stale=0; \
-			module_deps=( $(foreach dep,$(strip $(progress_deps_$(module))),"$(dep)") ); \
 			if [ "$${module_status}" = "pending" ]; then \
 				module_pending=1; \
 			elif [ "$${module_status}" = "stale" ]; then \
 				module_stale=1; \
 			else \
-				for dependency in "$${module_deps[@]}"; do \
+				for dependency in $${module_deps}; do \
 					if is_pending "$${dependency}" || is_stale "$${dependency}"; then \
 						module_stale=1; \
 						break; \
@@ -571,25 +618,25 @@ endif
 			fi; \
 			workflow_total=$$((workflow_total + 1)); \
 			if [ "$${module_pending}" -eq 1 ]; then \
-				printf '%s\n' '- $(module)' >> "$${pending_file}"; \
-				pending_modules="$${pending_modules}$(module) "; \
+				printf '%s\n' "- $${module}" >> "$${pending_file}"; \
+				pending_modules="$${pending_modules}$${module} "; \
 			elif [ "$${module_stale}" -eq 1 ]; then \
-				printf '%s\n' '- $(module)' >> "$${stale_file}"; \
-				stale_modules="$${stale_modules}$(module) "; \
+				printf '%s\n' "- $${module}" >> "$${stale_file}"; \
+				stale_modules="$${stale_modules}$${module} "; \
 			else \
 				workflow_done=$$((workflow_done + 1)); \
-				printf '%s\n' '- $(module)' >> "$${done_file}"; \
+				printf '%s\n' "- $${module_label}" >> "$${done_file}"; \
 			fi; \
 		elif [ "$(PROGRESS_ALL)" = "true" ]; then \
-			module_status="$$( $(call metadata_state_make,$(module),status) )"; \
 			if [ "$${module_status}" = "done" ]; then \
-				printf '%s\n' '- $(module)' >> "$${extra_done_file}"; \
+				printf '%s\n' "- $${module}" >> "$${extra_done_file}"; \
 			elif [ "$${module_status}" = "stale" ]; then \
-				printf '%s\n' '- $(module)' >> "$${extra_stale_file}"; \
+				printf '%s\n' "- $${module}" >> "$${extra_stale_file}"; \
 			else \
-				printf '%s\n' '- $(module)' >> "$${skipped_file}"; \
+				printf '%s\n' "- $${module}" >> "$${skipped_file}"; \
 			fi; \
-		fi;) \
+		fi; \
+	done; \
 	printf 'PROGRESS\n'; \
 	printf '  final modules: %s\n' "$(progress_targets)"; \
 	printf '  up-to-date modules: %s/%s\n' "$${workflow_done}" "$${workflow_total}"; \

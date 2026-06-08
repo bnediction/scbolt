@@ -376,10 +376,20 @@ $(error unknown CLEAN_TARGET module: $(unknown_clean_targets) \
 endif
 reset_targets := $(strip $(foreach module,$(reset_modules),$(RESET_TARGET_$(module))))
 trust_targets := $(strip $(foreach module,$(trust_modules),$(RESET_TARGET_$(module))))
+known_scbolt_targets := $(call uniq,$(foreach module,$(reset_stages),$(RESET_TARGET_$(module))))
+unknown_old_files := $(filter-out $(known_scbolt_targets),$(OLD_FILES))
+missing_old_files := $(strip $(foreach path,$(OLD_FILES),$(if $(wildcard $(path)),,$(path))))
 ifneq ($(reset_targets),)
 .PHONY: $(reset_targets)
 endif
-trust_make_options := $(foreach target,$(trust_targets),--old-file="$(target)")
+trust_make_options := \
+	$(foreach target,$(trust_targets),--old-file="$(target)") \
+	$(foreach target,$(OLD_FILES),--old-file="$(target)")
+ifeq ($(diagnostic_mode),)
+ifneq ($(missing_old_files),)
+$(error old file not found: $(missing_old_files))
+endif
+endif
 endif
 
 target_params_load-dorothea = ORGANISM
@@ -546,20 +556,18 @@ sensitive_params_bn-diverse = \
 use_rep_check_pattern = $(use_rep_check_pattern_1)$(use_rep_check_pattern_2)$(use_rep_check_pattern_3)
 use_rep_check_pattern_1 = scripts/(clust/annotation|utils/pipe_its|traj/potency
 use_rep_check_pattern_2 = |mstates/stream_mstates|bin/(bin_cells_scboolseq
-use_rep_check_pattern_3 = |bin_clusters_scboolseq|bin_dea)).py
+use_rep_check_pattern_3 = |bin_clust_scboolseq|bin_dea)).py
 
 label_col_check_pattern = $(label_col_check_pattern_1)$(label_col_check_pattern_2)
 label_col_check_pattern_1 = scripts/(clust/annotation|utils/pipe_its|traj/velocity
 label_col_check_pattern_2 = |traj/potency|mstates/(stream|knnbs)_mstates).py
-
-uniq = $(if $(1),$(firstword $(1)) $(call uniq,$(filter-out $(firstword $(1)),$(1))))
 
 project_config_param_set = \
 	ORGANISM CONDITIONS \
 	$(foreach condition,$(conditions),SRA_$(call toupper,$(condition))) \
 	LABEL SPEC_FILE
 core_config_param_set = \
-	PARAMS REFERENCES RESULTS MEMORY JOBS SEED LOGGING USE_REP LABEL_COL
+	PARAMS REFERENCES RESULTS MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
 method_config_param_set = \
 	ALIGNMENT_TOOL STAR_CB_LEN STAR_UMI_LEN \
 	STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES \
@@ -607,7 +615,7 @@ config_default_modules = \
 	max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
 config_base_params = \
 	ORGANISM CONDITIONS $(foreach condition,$(conditions),SRA_$(call toupper,$(condition))) \
-	PARAMS REFERENCES RESULTS MEMORY JOBS SEED LOGGING USE_REP LABEL_COL
+	PARAMS REFERENCES RESULTS MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
 config_params_from_modules = $(strip $(foreach module,$(1),$(target_params_$(module))))
 config_project_params = $(call uniq,$(filter $(project_config_param_set),$(1)))
 config_core_params = $(call uniq,$(filter $(core_config_param_set),$(1)))

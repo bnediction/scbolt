@@ -22,8 +22,9 @@ make check TARGET=bin-cells MACROSTATE_FILE=case/macrostate.h5ad
 make check TARGET=max-nodes-seed __check_externals__=false
 ```
 
-`TARGET` selects the module to inspect. `RESET_TARGET` and `TRUST_TARGET` are
-applied before checking, because they affect the rebuilt pipeline segment.
+`TARGET` selects the module to inspect. `RESET_TARGET`, `TRUST_TARGET`, and
+`OLD_FILES` are applied before checking, because they affect the rebuilt
+pipeline segment.
 
 `__check_externals__=false` disables expensive or machine-dependent external
 checks such as existing files, H5AD metadata, conda environments, and executable
@@ -124,6 +125,7 @@ Examples:
 - `LOGGING`
 - `USE_REP`
 - `LABEL_COL`
+- `OLD_FILES`
 
 Core parameters usually have defaults and are not tied to a specific analytical
 method. They are validated during pipeline initialization, except in diagnostic
@@ -278,8 +280,8 @@ FAIL h5ad metadata: obsm 'X_umap' missing (/path/to/file.h5ad, reference: ctrl)
 
 The AnnData checker reasons over the rebuilt pipeline segment:
 
-1. Run the dry-run for `TARGET=<target>` with `RESET_TARGET` and `TRUST_TARGET`
-   options applied.
+1. Run the dry-run for `TARGET=<target>` with `RESET_TARGET`, `TRUST_TARGET`,
+   and `OLD_FILES` options applied.
 2. Extract the ordered list of AnnData-producing and AnnData-consuming commands
    that will actually run.
 3. Parse each known script command into an operation:

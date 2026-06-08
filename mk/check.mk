@@ -58,6 +58,7 @@ else ifeq ($(HELP),false)
 			external\ resource\ parameter*|*external\ resource\ parameter*) \
 				printf '%s\n' "$${external_resource_checks}";; \
 			stale\ module\ output*) printf '%s\n' "$${file_checks}";; \
+			old\ file*) printf '%s\n' "$${file_checks}";; \
 			h5ad\ metadata*|*h5ad\ metadata*) printf '%s\n' "$${file_checks}";; \
 			file\ found*|*file*) printf '%s\n' "$${file_checks}";; \
 			conda\ environment*|command\ found:\ conda|*conda*) printf '%s\n' "$${conda_checks}";; \
@@ -69,6 +70,15 @@ else ifeq ($(HELP),false)
 	check_warning() { printf '$(warning_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
 	check_failure() { printf '$(failure_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
 	missing=0; \
+	$(foreach path,$(OLD_FILES),\
+		if [ -e "$(path)" ] || [ -L "$(path)" ]; then \
+			check_success "old file found: $(path)"; \
+		else \
+			check_failure "old file not found: $(path)"; \
+			missing=1; \
+		fi; \
+		$(if $(filter $(path),$(known_scbolt_targets)),,\
+			check_warning "old file is not a known scBOLT target: $(path)";)) \
 	$(nested_make) --dry-run LOGGING=false \
 		__check_mode=true __$(TARGET) LOGFILE="$(LOGFILE)" > "$${target_dry_run}"; \
 	selected_modules=" $(call target_dry_run_modules,$(TARGET)) "; \
@@ -113,6 +123,11 @@ else ifeq ($(HELP),false)
 			fi; \
 		fi;) \
 	if [ ! -s "$${target_dry_run}" ]; then \
+		if [ "$${missing}" -ne 0 ]; then \
+			$(call check_failure,check failed for target '$(TARGET)'); \
+			$(print_check_reports); \
+			exit 1; \
+		fi; \
 		$(call check_success,target '$(TARGET)' already up to date); \
 		$(call check_success,check passed for target '$(TARGET)'); \
 		$(print_check_reports); \
@@ -254,7 +269,7 @@ else ifeq ($(HELP),false)
 		$(call check_float_diagnostic,$(UNIMODAL_QUANTILE),$(call needed_by,UNIMODAL_QUANTILE,bin-cells),method); \
 		$(call check_bool_diagnostic,$(ZEROES_ARE_ZEROES),$(call needed_by,ZEROES_ARE_ZEROES,bin-cells),method); \
 	fi; \
-	if grep -q 'scripts/bin/bin_clusters_scboolseq.py' "$${dry_run}"; then \
+	if grep -q 'scripts/bin/bin_clust_scboolseq.py' "$${dry_run}"; then \
 		$(call check_float_diagnostic,$(NANS_THRESHOLD),$(call needed_by,NANS_THRESHOLD,bin-macrostates),method); \
 		$(call check_float_diagnostic,$(BIMODAL_THRESHOLD),$(call needed_by,BIMODAL_THRESHOLD,bin-macrostates),method); \
 		$(call check_float_diagnostic,$(ZEROINF_THRESHOLD),$(call needed_by,ZEROINF_THRESHOLD,bin-macrostates),method); \

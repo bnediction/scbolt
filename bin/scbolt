@@ -394,7 +394,7 @@ collect_global_args() {
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
-            --params|--references|--reset-target|--trust-target|--logging|--target)
+            --params|--references|--reset-target|--trust-target|--old-file|--logging|--target)
                 if [ "$#" -eq 1 ]; then
                     print_error "Missing value for $1"
                     exit 1
@@ -491,6 +491,17 @@ translate_args() {
                     exit 1
                 fi
                 make_args+=("TRUST_TARGET=$1")
+                shift
+                ;;
+            --old-file=*)
+                make_args+=("CLI_OLD_FILES+=${arg#--old-file=}")
+                ;;
+            --old-file)
+                if [ "$#" -eq 0 ]; then
+                    print_error "Missing value for --old-file"
+                    exit 1
+                fi
+                make_args+=("CLI_OLD_FILES+=$1")
                 shift
                 ;;
             --logging=*)
