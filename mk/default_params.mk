@@ -32,7 +32,7 @@ $(eval RESULTS ?= project/)                 # output directory
 $(eval PUBLIC_DIR ?= public/)               # public reference/resource directory
 
 ## URLS ##
-genome_url ?= https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz
+genome_url ?=
 go_organism_url ?= https://current.geneontology.org/ontology/subsets/goslim_$(ORGANISM).obo
 
 ## ALIGNMENT/COUNTING ##

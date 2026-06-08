@@ -102,7 +102,14 @@ if [ ! -f "${SCBOLT_DEFAULT_PARAMS}" ]; then
 fi
 
 usage() {
-    make -f "${SCBOLT_MAKEFILE}" help SCBOLT_CLI=true
+    local params_arg
+
+    params_arg="$(optional_params_make_arg || true)"
+    if [ -n "${params_arg}" ]; then
+        make -f "${SCBOLT_MAKEFILE}" help SCBOLT_CLI=true "${params_arg}"
+    else
+        make -f "${SCBOLT_MAKEFILE}" help SCBOLT_CLI=true
+    fi
     exit "$?"
 }
 
@@ -199,6 +206,21 @@ resolve_project_params() {
     fi
 
     return 1
+}
+
+optional_params_make_arg() {
+    local params
+    local params_path
+
+    params="$(resolve_project_params)" || return 0
+    if [[ "${params}" = /* ]]; then
+        params_path="${params}"
+    else
+        params_path="${PWD}/${params}"
+    fi
+    if [ -f "${params_path}" ]; then
+        printf 'PARAMS=%s\n' "${params}"
+    fi
 }
 
 require_params_file() {
@@ -394,13 +416,21 @@ collect_global_args() {
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
-            --params|--references|--reset-target|--trust-target|--old-file|--logging|--target)
+            --params|--references|--reset-target|--trust-target|--old-file|--logging|--target|-o)
                 if [ "$#" -eq 1 ]; then
                     print_error "Missing value for $1"
                     exit 1
                 fi
                 leading_args+=("$1" "$2")
                 shift 2
+                ;;
+            -o=*)
+                leading_args+=("$1")
+                shift
+                ;;
+            -o?*)
+                leading_args+=("$1")
+                shift
                 ;;
             --raw)
                 leading_args+=("$1")
@@ -472,25 +502,25 @@ translate_args() {
                 shift
                 ;;
             --reset-target=*)
-                make_args+=("RESET_TARGET=${arg#--reset-target=}")
+                make_args+=("CLI_RESET_TARGETS+=${arg#--reset-target=}")
                 ;;
             --reset-target)
                 if [ "$#" -eq 0 ]; then
                     print_error "Missing value for --reset-target"
                     exit 1
                 fi
-                make_args+=("RESET_TARGET=$1")
+                make_args+=("CLI_RESET_TARGETS+=$1")
                 shift
                 ;;
             --trust-target=*)
-                make_args+=("TRUST_TARGET=${arg#--trust-target=}")
+                make_args+=("CLI_TRUST_TARGETS+=${arg#--trust-target=}")
                 ;;
             --trust-target)
                 if [ "$#" -eq 0 ]; then
                     print_error "Missing value for --trust-target"
                     exit 1
                 fi
-                make_args+=("TRUST_TARGET=$1")
+                make_args+=("CLI_TRUST_TARGETS+=$1")
                 shift
                 ;;
             --old-file=*)
@@ -499,6 +529,20 @@ translate_args() {
             --old-file)
                 if [ "$#" -eq 0 ]; then
                     print_error "Missing value for --old-file"
+                    exit 1
+                fi
+                make_args+=("CLI_OLD_FILES+=$1")
+                shift
+                ;;
+            -o=*)
+                make_args+=("CLI_OLD_FILES+=${arg#-o=}")
+                ;;
+            -o?*)
+                make_args+=("CLI_OLD_FILES+=${arg#-o}")
+                ;;
+            -o)
+                if [ "$#" -eq 0 ]; then
+                    print_error "Missing value for -o"
                     exit 1
                 fi
                 make_args+=("CLI_OLD_FILES+=$1")
@@ -538,6 +582,18 @@ translate_args() {
                 fi
                 make_args+=("TARGET=$1")
                 shift
+                ;;
+            RESET_TARGET=*|reset_target=*)
+                make_args+=("RESET_TARGET=${arg#*=}")
+                ;;
+            TRUST_TARGET=*|trust_target=*)
+                make_args+=("TRUST_TARGET=${arg#*=}")
+                ;;
+            OLD_FILES=*|old_files=*)
+                make_args+=("OLD_FILES=${arg#*=}")
+                ;;
+            OLD_FILE=*|old_file=*)
+                make_args+=("CLI_OLD_FILES+=${arg#*=}")
                 ;;
             --*=*)
                 option="${arg%%=*}"
@@ -579,8 +635,14 @@ run_make_with_params() {
 
 run_make_help() {
     local command="$1"
+    local params_arg
 
-    make -f "${SCBOLT_MAKEFILE}" "${command}" HELP=true SCBOLT_CLI=true
+    params_arg="$(optional_params_make_arg || true)"
+    if [ -n "${params_arg}" ]; then
+        make -f "${SCBOLT_MAKEFILE}" "${command}" HELP=true SCBOLT_CLI=true "${params_arg}"
+    else
+        make -f "${SCBOLT_MAKEFILE}" "${command}" HELP=true SCBOLT_CLI=true
+    fi
     exit "$?"
 }
 

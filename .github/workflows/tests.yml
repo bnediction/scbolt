@@ -36,6 +36,13 @@ jobs:
       - uses: actions/checkout@v6
       - run: bash tests/test_scbolt_cli.sh
 
+  matrix-entry:
+    name: Matrix entry
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - run: bash tests/test_matrix_entry.sh
+
   dry-run-knnbs:
     name: Dry-run knnbs
     runs-on: ubuntu-22.04

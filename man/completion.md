@@ -72,6 +72,7 @@ Example output:
 --reset-target=
 --trust-target=
 --old-file=
+-o
 --logging=
 --help
 --spec-file=
@@ -92,6 +93,24 @@ page. If a module help page lists `SPEC_FILE`, the completion exposes:
 
 ```bash
 --spec-file=
+```
+
+Execution commands may receive several modules:
+
+```bash
+scbolt velocity potency
+```
+
+After a completed module followed by a space, completion proposes options:
+
+```bash
+scbolt potency <TAB>
+```
+
+If the next word has already started, completion can propose another module:
+
+```bash
+scbolt potency v<TAB>
 ```
 
 Dash-separated CLI options are translated to Make parameters by replacing
@@ -153,6 +172,7 @@ scbolt spec --spec-file=<TAB>
 scbolt binarization --binarization-file=<TAB>
 scbolt macrostates --macrostate-file=<TAB>
 scbolt bn-submin --old-file=<TAB>
+scbolt bn-submin -o <TAB>
 scbolt --params=<TAB>
 ```
 

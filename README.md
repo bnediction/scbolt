@@ -100,6 +100,7 @@ scBOLT can either run the full workflow or resume from user-provided
 intermediate analyses. It supports entry points from:
 
 * raw FASTQ files;
+* public count matrices such as GEO/GSM supplementary MEX files;
 * normalized AnnData objects;
 * custom macrostate AnnData files;
 * precomputed binarizations;
@@ -218,7 +219,7 @@ scbolt init --remove
 Run a module:
 
 ```bash
-scbolt <module>
+scbolt <module...>
 ```
 
 Display effective configuration:
@@ -266,7 +267,7 @@ With `--all`, it asks before removing cache, logs, and all generated module outp
 | `--references=<condition...>`  | Restrict execution to selected references.            |
 | `--reset-target=<module...>`   | Rebuild from these modules.                           |
 | `--trust-target=<module...>`   | Trust all outputs from selected modules.              |
-| `--old-file=<file>`            | Trust one existing scBOLT DAG file.                   |
+| `-o <file>`, `--old-file=<file>` | Trust one existing scBOLT DAG file.                  |
 | `--logging=false`              | Disable persistent logging.                           |
 | `--help`                       | Display command-specific help when supported.         |
 | `--raw`                        | Display raw `show-config` listing.                    |

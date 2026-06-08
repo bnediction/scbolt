@@ -4,7 +4,7 @@ SHOW_CONFIG_RAW ?= false
 PROGRESS_ALL ?= false
 config_print_var = $(if $(filter undefined,$(origin $(1))),,$(info $(1)=$($(1))))
 help_command = $(if $(filter true,$(SCBOLT_CLI)),scbolt,make)
-help_module_usage = $(if $(filter true,$(SCBOLT_CLI)),<module>,$(green)<module>$(nc))
+help_module_usage = $(if $(filter true,$(SCBOLT_CLI)),<module...>,$(green)<module...>$(nc))
 help_params_option = $(if $(filter true,$(SCBOLT_CLI)), [--params=<file>])
 help_references_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--references=<condition...>], [REFERENCES=<condition...>])
@@ -13,7 +13,7 @@ help_reset_option = $(if $(filter true,$(SCBOLT_CLI)),\
 help_trust_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--trust-target=<module...>], [TRUST_TARGET=<module...>])
 help_old_file_option = $(if $(filter true,$(SCBOLT_CLI)),\
-	 [--old-file=<file>...], [OLD_FILES=<file...>])
+	 [--old-file=<file>...] [-o <file>...], [OLD_FILES=<file...>])
 help_logging_option = $(if $(filter true,$(SCBOLT_CLI)), [--logging=<bool>], [LOGGING=<bool>])
 help_override_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--<parameter>=<value>...], [<PARAMETER>=<value>...])
@@ -53,12 +53,13 @@ progress_targets = $(strip $(if $(TARGET),$(TARGET),$(progress_default_targets))
 progress_modules = $(call uniq,\
 	$(foreach target,$(progress_targets),$(call target_dry_run_modules,$(target))))
 progress_unknown_targets = $(filter-out $(reset_stages),$(progress_targets))
+progress_deps_load-matrix =
 progress_deps_alignment = $(ALIGNMENT_TOOL)
 progress_deps_cellranger = load-fastq
 progress_deps_star = load-fastq
 progress_deps_qc = star
 progress_deps_velocyto = $(if $(filter star,$(ALIGNMENT_TOOL)),qc,cellranger)
-progress_deps_filtering = velocyto
+progress_deps_filtering = $(count_input_module)
 progress_deps_normalization = filtering
 progress_deps_clustering = normalization
 progress_deps_dea = clustering
@@ -197,7 +198,7 @@ define show_config_help
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict the run to selected references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'preview configuration with forced rebuild context'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'preview configuration while trusting selected outputs'; \
-		printf '  %-31s %s\n' '--old-file=<file>' 'trust one existing DAG file'; \
+		printf '  %-31s %s\n' '-o <file>, --old-file=<file>' 'trust one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module>' 'select module to summarize'; \
@@ -225,7 +226,7 @@ define dry_run_help
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict the preview to selected references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'preview rebuild from these modules'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'preview while trusting selected module outputs'; \
-		printf '  %-31s %s\n' '--old-file=<file>' 'preview while trusting one existing DAG file'; \
+		printf '  %-31s %s\n' '-o <file>, --old-file=<file>' 'preview while trusting one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module>' 'select module to preview'; \
@@ -251,6 +252,16 @@ define progress_help
 		printf '%s\n' 'Without TARGET, progress summarizes the workflows ending at bn-min, bn-submin, and bn-diverse.'; \
 		printf '%s\n\n' 'Use PROGRESS_ALL=true to also display extra completed and skipped modules.'; \
 	fi
+	@printf '$(bold)States$(nc)\n'
+	@printf '  %-31s %s\n' 'DONE' 'output exists and matches current metadata'
+	@printf '  %-31s %s\n' 'STALE' 'output exists but metadata or upstream state is outdated'
+	@printf '  %-31s %s\n' 'UNTRACKED' 'output exists but metadata is missing'
+	@printf '  %-31s %s\n' 'PENDING' 'output is missing or will be rebuilt'
+	@printf '  %-31s %s\n' 'EXTRA COMPLETED' 'output exists outside the current workflow (--all)'
+	@printf '  %-31s %s\n' 'EXTRA STALE' 'output exists outside the current workflow and is stale (--all)'
+	@printf '  %-31s %s\n' 'EXTRA UNTRACKED' 'output exists outside the current workflow and is untracked (--all)'
+	@printf '  %-31s %s\n' 'SKIPPED' 'output is outside the current workflow (--all)'
+	@printf '\n'
 	@printf '$(bold)Parameters$(nc)\n'
 	@if [ "$(SCBOLT_CLI)" = "true" ]; then \
 		printf '  %-31s %s\n' '<module...>' 'final modules to inspect'; \
@@ -260,7 +271,7 @@ define progress_help
 		printf '  %-31s %s\n' '--references=<condition...>' 'select references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'inspect progress with forced rebuild context'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'inspect progress while trusting selected outputs'; \
-		printf '  %-31s %s\n' '--old-file=<file>' 'inspect progress while trusting one existing DAG file'; \
+		printf '  %-31s %s\n' '-o <file>, --old-file=<file>' 'inspect progress while trusting one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module...>' 'final modules to inspect'; \
@@ -413,27 +424,27 @@ help: ## display help
 				$(help_text_width)); \
 			printf "$(bold)Special parameters$(nc)\n"; \
 				if ("$(SCBOLT_CLI)" == "true") { \
-					printf "  %-27s %s\n", "--params=<file>", "select parameter file"; \
-					printf "  %-27s %s\n", "--public-dir=<dir>", "select public resource directory"; \
-					printf "  %-27s %s\n", "--references=<condition...>", "select references"; \
-					printf "  %-27s %s\n", "", "default: $(running_references)"; \
-					printf "  %-27s %s\n", "--reset-target=<module...>", "rebuild from modules"; \
-					printf "  %-27s %s\n", "--trust-target=<module...>", "skip rebuilding modules"; \
-					printf "  %-27s %s\n", "--old-file=<file>", "trust existing DAG file"; \
-					printf "  %-27s %s\n", "--logging=<bool>", "enable logging"; \
-					printf "  %-27s %s\n", "--help", "display command help"; \
-					printf "  %-27s %s\n", "--<parameter>=<value>", "override Make parameter"; \
+					printf "  %-31s %s\n", "--params=<file>", "select parameter file"; \
+					printf "  %-31s %s\n", "--public-dir=<dir>", "select public resource directory"; \
+					printf "  %-31s %s\n", "--references=<condition...>", "select references"; \
+					printf "  %-31s %s\n", "", "default: $(running_references)"; \
+					printf "  %-31s %s\n", "--reset-target=<module...>", "rebuild from modules"; \
+					printf "  %-31s %s\n", "--trust-target=<module...>", "skip rebuilding modules"; \
+					printf "  %-31s %s\n", "-o <file>, --old-file=<file>", "trust existing DAG file"; \
+					printf "  %-31s %s\n", "--logging=<bool>", "enable logging"; \
+					printf "  %-31s %s\n", "--help", "display command help"; \
+					printf "  %-31s %s\n", "--<parameter>=<value>", "override Make parameter"; \
 			} else { \
-					printf "  %-27s %s\n", "REFERENCES=<condition...>", "select references"; \
-					printf "  %-27s %s\n", "", "default: $(running_references)"; \
-					printf "  %-27s %s\n", "PUBLIC_DIR=<dir>", "select public resource directory"; \
-					printf "  %-27s %s\n", "RESET_TARGET=<module...>", "rebuild from modules"; \
-					printf "  %-27s %s\n", "TRUST_TARGET=<module...>", "skip rebuilding modules"; \
-					printf "  %-27s %s\n", "OLD_FILES=<file...>", "trust existing DAG files"; \
-					printf "  %-27s %s\n", "LOGGING=<bool>", "enable logging"; \
-					printf "  %-27s %s\n", "SHOW_CONFIG_RAW=true", "display raw show-config listing"; \
-					printf "  %-27s %s\n", "HELP=true", "display command help"; \
-					printf "  %-27s %s\n", "<PARAMETER>=<value>", "override Make parameter"; \
+					printf "  %-31s %s\n", "REFERENCES=<condition...>", "select references"; \
+					printf "  %-31s %s\n", "", "default: $(running_references)"; \
+					printf "  %-31s %s\n", "PUBLIC_DIR=<dir>", "select public resource directory"; \
+					printf "  %-31s %s\n", "RESET_TARGET=<module...>", "rebuild from modules"; \
+					printf "  %-31s %s\n", "TRUST_TARGET=<module...>", "skip rebuilding modules"; \
+					printf "  %-31s %s\n", "OLD_FILES=<file...>", "trust existing DAG files"; \
+					printf "  %-31s %s\n", "LOGGING=<bool>", "enable logging"; \
+					printf "  %-31s %s\n", "SHOW_CONFIG_RAW=true", "display raw show-config listing"; \
+					printf "  %-31s %s\n", "HELP=true", "display command help"; \
+					printf "  %-31s %s\n", "<PARAMETER>=<value>", "override Make parameter"; \
 				}} \
 			/^[a-zA-Z_-]+:.*?##/ { \
 				if (section == "Utilities" && \
@@ -783,6 +794,15 @@ __load-genome: $(genome_ref)
 load-fastq: ## download FASTQ files
 	$(call run_logged,load-fastq)
 __load-fastq: $(fastq_target)
+
+.PHONY: load-matrix __load-matrix
+load-matrix: ## download public count matrices
+	$(call run_logged,load-matrix)
+__load-matrix: $(load_matrix_target)
+ifneq ($(matrix_mode),true)
+	$(call print_error,load-matrix requires GSM_<CONDITION> parameters)
+	exit 1
+endif
 
 .PHONY: load-signatures __load-signatures
 load-signatures: ## download phenotype-related signatures

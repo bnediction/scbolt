@@ -59,26 +59,26 @@ for help_arg in "" help -h --help; do
     else
         run_scbolt "${project}" "${help_arg}"
     fi
-    expect_make_args -f "${makefile}" help SCBOLT_CLI=true
+    expect_make_args -f "${makefile}" help SCBOLT_CLI=true PARAMS=params.mk
 done
 
 run_scbolt_from_path "${project}" help
-expect_make_args -f "${makefile}" help SCBOLT_CLI=true
+expect_make_args -f "${makefile}" help SCBOLT_CLI=true PARAMS=params.mk
 
 run_scbolt "${project}" show-config help
-expect_make_args -f "${makefile}" show-config HELP=true SCBOLT_CLI=true
+expect_make_args -f "${makefile}" show-config HELP=true SCBOLT_CLI=true PARAMS=params.mk
 
 run_scbolt "${project}" show-config -h
-expect_make_args -f "${makefile}" show-config HELP=true SCBOLT_CLI=true
+expect_make_args -f "${makefile}" show-config HELP=true SCBOLT_CLI=true PARAMS=params.mk
 
 run_scbolt "${project}" show-config --help
-expect_make_args -f "${makefile}" show-config HELP=true SCBOLT_CLI=true
+expect_make_args -f "${makefile}" show-config HELP=true SCBOLT_CLI=true PARAMS=params.mk
 
 run_scbolt "${project}" check --help
-expect_make_args -f "${makefile}" check HELP=true SCBOLT_CLI=true
+expect_make_args -f "${makefile}" check HELP=true SCBOLT_CLI=true PARAMS=params.mk
 
 run_scbolt "${project}" dry-run help
-expect_make_args -f "${makefile}" dry-run HELP=true SCBOLT_CLI=true
+expect_make_args -f "${makefile}" dry-run HELP=true SCBOLT_CLI=true PARAMS=params.mk
 
 run_scbolt "${project}" annotation help --params=params.mk
 expect_make_args \
@@ -105,10 +105,10 @@ expect_make_args \
     PARAMS=params.mk
 
 run_scbolt "${project}" progress --help
-expect_make_args -f "${makefile}" progress HELP=true SCBOLT_CLI=true
+expect_make_args -f "${makefile}" progress HELP=true SCBOLT_CLI=true PARAMS=params.mk
 
 run_scbolt "${project}" clean help
-expect_make_args -f "${makefile}" clean HELP=true SCBOLT_CLI=true
+expect_make_args -f "${makefile}" clean HELP=true SCBOLT_CLI=true PARAMS=params.mk
 
 (
     cd "${project}"
@@ -315,6 +315,70 @@ expect_make_args \
     bn-submin \
     PUBLIC_DIR=shared-public \
     "PARAMS=${project}/spaced.mk"
+
+run_scbolt "${project}" bn-submin reset_target=clustering --reset-target=annotation \
+    --reset-target velocity
+expect_make_args \
+    -f "${makefile}" \
+    bn-submin \
+    RESET_TARGET=clustering \
+    CLI_RESET_TARGETS+=annotation \
+    CLI_RESET_TARGETS+=velocity \
+    "PARAMS=${project}/spaced.mk"
+
+run_scbolt "${project}" bn-submin 'RESET_TARGET=clustering annotation' \
+    '--reset-target=velocity potency'
+expect_make_args \
+    -f "${makefile}" \
+    bn-submin \
+    "RESET_TARGET=clustering annotation" \
+    "CLI_RESET_TARGETS+=velocity potency" \
+    "PARAMS=${project}/spaced.mk"
+
+run_scbolt "${project}" bn-submin TRUST_TARGET=clustering --trust-target=annotation \
+    --trust-target velocity
+expect_make_args \
+    -f "${makefile}" \
+    bn-submin \
+    TRUST_TARGET=clustering \
+    CLI_TRUST_TARGETS+=annotation \
+    CLI_TRUST_TARGETS+=velocity \
+    "PARAMS=${project}/spaced.mk"
+
+run_scbolt "${project}" bn-submin 'TRUST_TARGET=clustering annotation' \
+    '--trust-target=velocity potency'
+expect_make_args \
+    -f "${makefile}" \
+    bn-submin \
+    "TRUST_TARGET=clustering annotation" \
+    "CLI_TRUST_TARGETS+=velocity potency" \
+    "PARAMS=${project}/spaced.mk"
+
+run_scbolt "${project}" bn-submin 'old_files=file1.h5ad file2.csv' \
+    '--old-file=file3.h5ad file4.csv' old_file=file5.txt
+expect_make_args \
+    -f "${makefile}" \
+    bn-submin \
+    "OLD_FILES=file1.h5ad file2.csv" \
+    "CLI_OLD_FILES+=file3.h5ad file4.csv" \
+    CLI_OLD_FILES+=file5.txt \
+    "PARAMS=${project}/spaced.mk"
+
+run_scbolt "${project}" bn-submin -o file6.h5ad -ofile7.csv -o=file8.txt
+expect_make_args \
+    -f "${makefile}" \
+    bn-submin \
+    CLI_OLD_FILES+=file6.h5ad \
+    CLI_OLD_FILES+=file7.csv \
+    CLI_OLD_FILES+=file8.txt \
+    "PARAMS=${project}/spaced.mk"
+
+run_scbolt "${project}" -o file9.h5ad bn-submin --params=params.mk
+expect_make_args \
+    -f "${makefile}" \
+    bn-submin \
+    CLI_OLD_FILES+=file9.h5ad \
+    PARAMS=params.mk
 
 run_scbolt "${project}" --references="ctrl treated" check velocity --params=params.mk
 expect_make_args \

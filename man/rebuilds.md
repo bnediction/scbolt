@@ -17,6 +17,18 @@ scbolt bn-submin --reset-target=clustering
 This is useful when a module should be recomputed even if its outputs already
 exist. Successful recipes replace the corresponding outputs.
 
+Multiple modules can be provided by quoting a space-separated list, or by
+repeating the option:
+
+```bash
+scbolt bn-submin --reset-target="clustering annotation"
+scbolt bn-submin --reset-target=clustering --reset-target=annotation
+scbolt bn-submin RESET_TARGET="clustering annotation"
+```
+
+Repeated `--reset-target=<module>` options are appended to Make-style
+`RESET_TARGET=<module...>` assignments.
+
 ## `TRUST_TARGET`
 
 `TRUST_TARGET` trusts all outputs produced by one or more modules.
@@ -28,6 +40,18 @@ scbolt bn-submin --trust-target=clustering
 This is the module-level equivalent of `OLD_FILES`: every output registered for
 the selected module is passed to Make as an old file.
 
+Multiple modules can be provided by quoting a space-separated list, or by
+repeating the option:
+
+```bash
+scbolt bn-submin --trust-target="clustering annotation"
+scbolt bn-submin --trust-target=clustering --trust-target=annotation
+scbolt bn-submin TRUST_TARGET="clustering annotation"
+```
+
+Repeated `--trust-target=<module>` options are appended to Make-style
+`TRUST_TARGET=<module...>` assignments.
+
 ## `OLD_FILES`
 
 `OLD_FILES` trusts individual files already belonging to the scBOLT DAG.
@@ -37,6 +61,23 @@ scbolt bn-submin \
   --old-file=apl/integrated/clust/annot.h5ad \
   --old-file=apl/bin/consensus/knnbs/mstates_bin.csv
 ```
+
+The short form mirrors GNU Make:
+
+```bash
+scbolt bn-submin -o apl/integrated/clust/annot.h5ad
+```
+
+Several files can also be provided as a quoted space-separated list:
+
+```bash
+scbolt bn-submin \
+  --old-file="apl/integrated/clust/annot.h5ad apl/bin/consensus/knnbs/mstates_bin.csv"
+scbolt bn-submin OLD_FILES="apl/integrated/clust/annot.h5ad apl/bin/consensus/knnbs/mstates_bin.csv"
+```
+
+The singular Make-style alias `old_file=<file>` appends one trusted file, like
+`--old-file=<file>`.
 
 Permanent project-level declarations can be added to `params.mk`:
 

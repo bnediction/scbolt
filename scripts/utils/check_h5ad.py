@@ -72,6 +72,13 @@ parser.add_argument(
     help="required keys in adata.layers",
 )
 
+parser.add_argument(
+    "--non-empty",
+    dest="non_empty",
+    action="store_true",
+    help="require at least one observation and one variable",
+)
+
 args = parser.parse_args()
 
 if len(args.h5ad) == 1:
@@ -94,6 +101,21 @@ for path in args.h5ad:
         sys.exit(1)
 
     with h5ad:
+        if args.non_empty:
+            obs_size = (
+                h5ad["obs"]["_index"].shape[0]
+                if "obs" in h5ad and "_index" in h5ad["obs"]
+                else 0
+            )
+            var_size = (
+                h5ad["var"]["_index"].shape[0]
+                if "var" in h5ad and "_index" in h5ad["var"]
+                else 0
+            )
+            if obs_size == 0:
+                missing.append(f"{std.format_path(path)}:obs/_index non-empty")
+            if var_size == 0:
+                missing.append(f"{std.format_path(path)}:var/_index non-empty")
         for group_name, keys in {
             "obs": args.obs,
             "var": args.var,

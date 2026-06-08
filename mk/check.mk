@@ -14,6 +14,7 @@ define check_help
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict checks to selected references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'check what would be required after rebuilding from these modules'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'check while trusting selected module outputs'; \
+		printf '  %-31s %s\n' '-o <file>, --old-file=<file>' 'check while trusting one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module>' 'select module to validate'; \
@@ -80,6 +81,18 @@ else ifeq ($(HELP),false)
 		fi; \
 		$(if $(filter $(path),$(known_scbolt_targets)),,\
 			check_warning "old file is not a known scBOLT target: $(path)";)) \
+	if [ "$(TARGET)" = "load-matrix" ]; then \
+		:; \
+		$(foreach condition,$(running_conditions),\
+			if [ -n "$(call sra_value,$(condition))" ] && [ -n "$(call gsm_value,$(condition))" ]; then \
+				$(call report_check_error,incompatible input sources for condition '$(condition)': \
+					both SRA_$(call toupper,$(condition)) and GSM_$(call toupper,$(condition)) are defined); \
+			fi; \
+			$(call check_parameter_diagnostic,\
+				$(GSM_$(call toupper,$(condition))),\
+				GSM_$(call toupper,$(condition)) \
+					(needed by target 'load-matrix'),project);) \
+	fi; \
 	$(nested_make) --dry-run LOGGING=false \
 		__check_mode=true __$(TARGET) LOGFILE="$(LOGFILE)" > "$${target_dry_run}"; \
 	selected_modules=" $(call target_dry_run_modules,$(TARGET)) "; \
@@ -377,10 +390,49 @@ else ifeq ($(HELP),false)
 	if grep -q 'parallel-fastq-dump' "$${dry_run}"; then \
 		:; \
 		$(foreach condition,$(running_conditions),\
+			if [ -n "$(call sra_value,$(condition))" ] && [ -n "$(call gsm_value,$(condition))" ]; then \
+				$(call report_check_error,incompatible input sources for condition '$(condition)': \
+					both SRA_$(call toupper,$(condition)) and GSM_$(call toupper,$(condition)) are defined); \
+			fi; \
 			$(call check_parameter_diagnostic,\
 				$(SRA_$(call toupper,$(condition))),\
 				SRA_$(call toupper,$(condition)) \
 					(needed by target 'load-fastq'),project);) \
+	fi; \
+	if [ "$(TARGET)" != "load-matrix" ] && grep -q 'download_gsm.sh' "$${dry_run}"; then \
+		:; \
+		$(foreach condition,$(running_conditions),\
+			if [ -n "$(call sra_value,$(condition))" ] && [ -n "$(call gsm_value,$(condition))" ]; then \
+				$(call report_check_error,incompatible input sources for condition '$(condition)': \
+					both SRA_$(call toupper,$(condition)) and GSM_$(call toupper,$(condition)) are defined); \
+			fi; \
+			$(call check_parameter_diagnostic,\
+				$(GSM_$(call toupper,$(condition))),\
+				GSM_$(call toupper,$(condition)) \
+					(needed by target 'load-matrix'),project);) \
+	fi; \
+	if grep -q 'download/import_matrix.py' "$${dry_run}" \
+			&& { grep -q 'scripts/traj/velocity.py' "$${dry_run}" \
+				|| grep -q 'scripts/mstates/cellrank_mstates.py' "$${dry_run}"; }; then \
+		$(call report_check_error,matrix input mode does not provide spliced/unspliced layers \
+			required by velocity-dependent modules); \
+	fi; \
+	if [ "$(matrix_mode)" = "true" ]; then \
+		:; \
+		$(foreach condition,$(running_conditions),\
+			if [ -f "$(load_matrix_$(condition))" ] && ! is_running "load-matrix"; then \
+				matrix_h5ad_report="$$(mktemp)"; \
+				if $(call conda_run,scbolt-core) python $(scripts_dir)/utils/check_h5ad.py \
+						$(load_matrix_$(condition)) --obs condition --layers counts --non-empty \
+						> /dev/null 2> "$${matrix_h5ad_report}"; then \
+					check_success "h5ad metadata: matrix input valid (reference: $(condition))"; \
+				else \
+					check_failure "h5ad metadata: matrix input invalid \
+						(reference: $(condition), file=$(load_matrix_$(condition)))"; \
+					missing=1; \
+				fi; \
+				rm -f "$${matrix_h5ad_report}"; \
+			fi;) \
 	fi; \
 	if grep -q 'scripts/clust/annotation.py' "$${dry_run}"; then \
 		$(call check_parameter_diagnostic,$(LABEL),LABEL (needed by target 'annotation'),project); \

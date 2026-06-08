@@ -17,13 +17,20 @@ go_organism = $(public_dir)/go/goslim_$(ORGANISM).obo
 gene2go     = $(public_dir)/go/gene2go
 dorothea_legacy = $(public_dir)/omnipath/dorothea_legacy_$(ORGANISM).csv
 
-$(eval genome_ref := $(public_dir)/ref/$(notdir $(genome_url)))
+genome_ref_name = $(if $(strip $(genome_url)),$(notdir $(genome_url)),missing-genome-url)
+$(eval genome_ref := $(public_dir)/ref/$(genome_ref_name))
 genome_ref := $(genome_ref:.tar.gz=)
 star_index = $(genome_ref)/star/Genome
 
 define find_paths_for_conditions
 
 fastq_$(1) =                    $(results)/$(1)/fastq
+geo_dir_$(1) =                  $(results)/$(1)/count/geo
+geo_matrix_$(1) =               $$(geo_dir_$(1))/matrix.mtx.gz
+geo_barcodes_$(1) =             $$(geo_dir_$(1))/barcodes.tsv.gz
+geo_genes_$(1) =                $$(geo_dir_$(1))/genes.tsv.gz
+geo_files_$(1) =                $$(geo_matrix_$(1)) $$(geo_barcodes_$(1)) $$(geo_genes_$(1))
+load_matrix_$(1) =              $(results)/$(1)/count/counts.h5ad
 cellranger_$(1) =               $(results)/$(1)/count/cellranger/$(1).mri.tgz
 star_$(1) =                     $(results)/$(1)/count/star/Aligned.sortedByCoord.out.bam \
                                 $(results)/$(1)/count/star/Solo.out/matrix.mtx \
@@ -62,6 +69,8 @@ alignment_$(1) =                $$(star_$(1))
 else
 alignment_$(1) =                $(results)/$(1)/count/invalid-alignment/.error
 endif
+
+count_input_$(1) =              $(if $(filter true,$(matrix_mode)),$$(load_matrix_$(1)),$$(velocyto_$(1)))
 
 endef
 
@@ -120,6 +129,7 @@ $(foreach reference,$(references_default),$(eval $(call find_paths_for_reference
 ## BEGIN TARGETS ##
 
 fastq_target :=
+load_matrix_target :=
 alignment_target :=
 cellranger_target :=
 star_target :=
@@ -142,12 +152,13 @@ cotan_target :=
 
 define find_targets_for_conditions
 
-$(eval fastq_target := $(fastq_target) $(fastq_$(1)))
+$(eval fastq_target := $(fastq_target) $(if $(filter true,$(matrix_mode)),,$(fastq_$(1))))
+$(eval load_matrix_target := $(load_matrix_target) $(if $(filter true,$(matrix_mode)),$(load_matrix_$(1)) $(geo_files_$(1))))
 $(eval alignment_target := $(alignment_target) $(alignment_$(1)))
 $(eval cellranger_target := $(cellranger_target) $(cellranger_$(1)))
 $(eval star_target := $(star_target) $(star_$(1)))
 $(eval qc_target := $(qc_target) $(qc_$(1)))
-$(eval velocyto_target := $(velocyto_target) $(velocyto_$(1)))
+$(eval velocyto_target := $(velocyto_target) $(if $(filter true,$(matrix_mode)),,$(velocyto_$(1))))
 $(eval filtering_target := $(filtering_target) $(filtering_$(1)))
 $(eval normalization_target := $(normalization_target) $(normalization_$(1)))
 $(eval velocity_target := $(velocity_target) $(velocity_$(1)))
@@ -306,13 +317,14 @@ min_self_loop_consts = $(if $(filter true,$(MIN_SELF_LOOP_CONSTS)),--minimize-se
 min_self_loop_infer = $(if $(filter true,$(MIN_SELF_LOOP_INFER)),--minimize-self-loops)
 
 reset_stages = \
-	load-fastq alignment cellranger star qc velocyto \
+	load-fastq load-matrix alignment cellranger star qc velocyto \
 	filtering normalization clustering dea scoring goea annotation \
 	velocity potency cotan cellrank stream knnbs macrostates \
 	bin-cells bin-macrostates bin-dea bin-consensus binarization \
 	spec max-nodes-soft max-consts-soft max-nodes-relaxed \
 	max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
 RESET_TARGET_load-fastq = $(fastq_target)
+RESET_TARGET_load-matrix = $(load_matrix_target)
 RESET_TARGET_alignment = $(alignment_target)
 RESET_TARGET_cellranger = $(cellranger_target)
 RESET_TARGET_star = $(star_target)
@@ -347,8 +359,8 @@ RESET_TARGET_bn-min = $(bn_min)
 RESET_TARGET_bn-submin = $(bn_submin)
 RESET_TARGET_bn-diverse = $(bn_diverse)
 
-reset_modules := $(strip $(RESET_TARGET) $(RESET_FROM))
-trust_modules := $(strip $(TRUST_TARGET))
+reset_modules := $(strip $(RESET_TARGET) $(CLI_RESET_TARGETS) $(RESET_FROM))
+trust_modules := $(strip $(TRUST_TARGET) $(CLI_TRUST_TARGETS))
 raw_clean_modules := $(strip $(CLEAN_TARGET))
 clean_all := $(filter all,$(raw_clean_modules))
 clean_modules := $(if $(filter all,$(raw_clean_modules)),$(reset_stages),$(raw_clean_modules))
@@ -397,6 +409,7 @@ endif
 endif
 
 target_params_load-dorothea = ORGANISM
+target_params_load-matrix = $(foreach condition,$(conditions),GSM_$(call toupper,$(condition)))
 target_params_alignment = ALIGNMENT_TOOL MEMORY STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
 target_params_cellranger = MEMORY
 target_params_star = MEMORY STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
@@ -478,6 +491,7 @@ target_params_bn-diverse = \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 
 sensitive_params_alignment =
+sensitive_params_load-matrix = $(foreach condition,$(conditions),GSM_$(call toupper,$(condition)))
 sensitive_params_star = STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
 sensitive_params_qc = STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
 sensitive_params_velocyto = ALIGNMENT_TOOL STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
@@ -571,6 +585,7 @@ label_col_check_pattern_2 = |traj/potency|mstates/(stream|knnbs)_mstates).py
 project_config_param_set = \
 	ORGANISM CONDITIONS \
 	$(foreach condition,$(conditions),SRA_$(call toupper,$(condition))) \
+	$(foreach condition,$(conditions),GSM_$(call toupper,$(condition))) \
 	LABEL SPEC_FILE
 core_config_param_set = \
 	PARAMS REFERENCES RESULTS PUBLIC_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
@@ -614,13 +629,15 @@ external_resource_config_param_set = \
 	CLINGO_CONFIG_SOFT CLINGO_CONFIG_CONSTS CLINGO_CONFIG_RELAXED \
 	CLINGO_CONFIG_SEED CLINGO_CONFIG_LOCK
 config_default_modules = \
-	load-fastq load-dorothea alignment cellranger star qc velocyto \
+	load-fastq load-matrix load-dorothea alignment cellranger star qc velocyto \
 	filtering normalization clustering dea annotation velocity potency \
 	macrostates cotan cellrank stream knnbs bin-cells bin-macrostates \
 	bin-dea bin-consensus binarization spec max-nodes-soft max-consts-soft \
 	max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
 config_base_params = \
-	ORGANISM CONDITIONS $(foreach condition,$(conditions),SRA_$(call toupper,$(condition))) \
+	ORGANISM CONDITIONS \
+	$(foreach condition,$(conditions),SRA_$(call toupper,$(condition))) \
+	$(foreach condition,$(conditions),GSM_$(call toupper,$(condition))) \
 	PARAMS REFERENCES RESULTS PUBLIC_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
 config_params_from_modules = $(strip $(foreach module,$(1),$(target_params_$(module))))
 config_project_params = $(call uniq,$(filter $(project_config_param_set),$(1)))

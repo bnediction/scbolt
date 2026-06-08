@@ -31,10 +31,14 @@ $(bin_cells)&: export OMP_NUM_THREADS = $(open_allocated_cpu)
 
 $(genome_ref):
 	$(call print_rule,load-genome)
+ifeq ($(strip $(genome_url)),)
+	$(call print_error,no default genome_url for ORGANISM=$(ORGANISM). Set genome_url in your parameter file)
+else
 	mkdir -p $(@D)
 	wget --quiet --show-progress --progress=bar:force:noscroll -cO $@.tar.gz $(genome_url)
 	tar -zxvf $@.tar.gz -C $(@D)
 	[ -f $@/genes/genes.gtf.gz ] && gunzip $@/genes/genes.gtf.gz
+endif
 
 $(star_index): | $(genome_ref)
 	$(call check_file,$@,STAR genome index)
@@ -101,7 +105,7 @@ define compute_rules_for_conditions
 
 $(fastq_$(1)):
 	$(call print_rule,load-fastq,$(1))
-	$(call check_parameter,$(SRA_$(call toupper, $(1))),SRA_$(call toupper, $(1)) \(needed by target 'load-fastq'\))
+	$(call require_sra_condition,$(1))
 	sample_naming="$(1)"
 	lane=0
 	rm -rf $(tmpdir)/$(1)/fastq && mkdir -p $(tmpdir)/$(1)/fastq
@@ -125,6 +129,24 @@ $(fastq_$(1)):
 		$(call print_error,cannot download fastq files: fastq-dump failed); \
 	fi
 	unset files
+
+ifeq ($(matrix_mode),true)
+$(load_matrix_$(1)) $(geo_files_$(1))&:
+	$(call print_rule,load-matrix,$(1))
+	$(call require_gsm_condition,$(1))
+	rm -rf $(tmpdir)/$(1)/geo
+	mkdir -p $(tmpdir)/$(1)/geo $$(geo_dir_$(1))
+	$(call print_task,downloading GEO count matrix (sample=$(GSM_$(call toupper,$(1)))))
+	bash $(scripts_dir)/download/download_gsm.sh \
+		$(GSM_$(call toupper,$(1))) $(tmpdir)/$(1)/geo
+	mv $(tmpdir)/$(1)/geo/matrix.mtx.gz $$(geo_matrix_$(1))
+	mv $(tmpdir)/$(1)/geo/barcodes.tsv.gz $$(geo_barcodes_$(1))
+	mv $(tmpdir)/$(1)/geo/genes.tsv.gz $$(geo_genes_$(1))
+	$(call conda_run,scbolt-core) python $(scripts_dir)/download/import_matrix.py \
+		$$(geo_matrix_$(1)) $$(geo_barcodes_$(1)) $$(geo_genes_$(1)) $$(load_matrix_$(1)) \
+		--condition $(1) --gsm $(GSM_$(call toupper,$(1)))
+	$$(call write_scbolt_metadata,load-matrix,$$(load_matrix_$(1)) $$(geo_files_$(1)))
+endif
 
 $(cellranger_$(1)): $(fastq_$(1)) $(genome_ref)
 	$(call print_rule,cellranger,$(1))
@@ -177,6 +199,7 @@ $(star_$(1))&: $(fastq_$(1)) $(star_index)
 	mv $(tmpdir)/star/$(1)/* $$(@D)/
 	$$(call write_scbolt_metadata,star,$$(star_$(1)))
 
+ifneq ($(matrix_mode),true)
 ifeq ($(ALIGNMENT_TOOL),cellranger)
 $(velocyto_$(1)): $(cellranger_$(1)) $(genome_ref)
 	$(call print_rule,velocyto,$(1))
@@ -244,8 +267,9 @@ $(velocyto_$(1)): $(qc_$(1)) $(genome_ref)
 	$(call finalize_velocyto_h5ad,$(tmpdir)/$(1)/velocyto/counts.h5ad,$$@)
 	$$(call write_scbolt_metadata,velocyto,$$(velocyto_$(1)))
 endif
+endif
 
-$(filtering_$(1)): $(velocyto_$(1)) $(if $(filter mouse,$(ORGANISM)),$(cc_markers))
+$(filtering_$(1)): $(count_input_$(1)) $(if $(filter mouse,$(ORGANISM)),$(cc_markers))
 	$(call print_rule,filtering,$(1))
 	$(require_filtering_parameters)
 	mkdir -p $$(@D)

@@ -32,6 +32,16 @@ endif
 include $(PARAMS)
 endif
 
+ifeq ($(strip $(genome_url)),)
+ifeq ($(ORGANISM),mouse)
+override genome_url := https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz
+else ifeq ($(ORGANISM),human)
+override genome_url := https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2024-A.tar.gz
+else
+override genome_url :=
+endif
+endif
+
 path_origin_base = $(if $(filter command line,$(origin $(1))),$(launch_dir),$(params_dir))
 resolve_user_path_var = $(eval override $(1) := \
 	$(call resolve_optional_path_from,$($(1)),$(call path_origin_base,$(1))))
@@ -89,6 +99,12 @@ running_conditions := $(filter-out integrated,$(running_references))
 invalid_references = $(strip $(filter-out $(conditions) integrated,$(running_references)))
 target_conditions := $(call uniq,$(running_conditions) \
 	$(if $(filter integrated,$(running_references)),$(conditions)))
+gsm_value = $(strip $(GSM_$(call toupper,$(1))))
+sra_value = $(strip $(SRA_$(call toupper,$(1))))
+gsm_conditions := $(strip $(foreach condition,$(conditions),\
+	$(if $(call gsm_value,$(condition)),$(condition))))
+matrix_mode := $(if $(gsm_conditions),true,false)
+count_input_module := $(if $(filter true,$(matrix_mode)),load-matrix,velocyto)
 
 public_dir := $(patsubst %/,%,$(PUBLIC_DIR))
 results := $(patsubst %/,%,$(RESULTS))
@@ -185,6 +201,26 @@ define require_parameter
 [ -n "$(strip $($(1)))" ] || { \
 	$(call print_error,required parameter not defined: $(1)$(if $(2), \(needed by target '$(2)'\))); \
 }
+endef
+
+define require_gsm_condition
+[ -n "$(call gsm_value,$(1))" ] || { \
+	$(call print_error,required parameter not defined: GSM_$(call toupper,$(1)) \(needed by target 'load-matrix'\)); \
+}; \
+if [ -n "$(call sra_value,$(1))" ]; then \
+	$(call print_error,incompatible input sources for condition '$(1)': \
+		both SRA_$(call toupper,$(1)) and GSM_$(call toupper,$(1)) are defined); \
+fi
+endef
+
+define require_sra_condition
+[ -n "$(call sra_value,$(1))" ] || { \
+	$(call print_error,required parameter not defined: SRA_$(call toupper,$(1)) \(needed by target 'load-fastq'\)); \
+}; \
+if [ -n "$(call gsm_value,$(1))" ]; then \
+	$(call print_error,incompatible input sources for condition '$(1)': \
+		both SRA_$(call toupper,$(1)) and GSM_$(call toupper,$(1)) are defined); \
+fi
 endef
 
 define require_choice
@@ -379,6 +415,8 @@ endef
 
 ifneq ($(__dry_run_output),)
 require_parameter =
+require_gsm_condition =
+require_sra_condition =
 require_choice =
 require_bool =
 require_positive_integer =
@@ -840,7 +878,7 @@ define check_partial_bn_outputs
 	echo "Detected incomplete outputs for target '$(2)'." > /dev/tty; \
 	echo "Output directory: $(1)" > /dev/tty; \
 	echo "" > /dev/tty; \
-	printf "Remove partial outputs and rerun inference? [y/N] " > /dev/tty; \
+	printf "Remove partial outputs and rerun inference? (y/[n]): " > /dev/tty; \
 	read ans; \
 	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
 		rm -rf "$(1)"; \

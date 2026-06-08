@@ -246,6 +246,19 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
             required.add(("var", "highly_variable"))
         return Operation([infile], [], {0: required}, set(), None)
 
+    if name == "import_matrix.py":
+        outfile = h5ad(args[3])
+        return Operation(
+            [],
+            [outfile],
+            {},
+            {
+                ("obs", "condition"),
+                ("layers", "counts"),
+            },
+            None,
+        )
+
     if name == "add_to_anndata.py":
         infile, outfile = map(h5ad, args[:2])
         csv_files = option_values(tokens, "--csv")

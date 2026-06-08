@@ -90,10 +90,10 @@ def make_filter_nodes_score_formatter(
         fields = {}
 
         if important_total and len(values) >= 2:
-            fields["important/total"] = f"{values[0]}/{important_total}"
-            fields["nodes"] = f"{values[1]}/{node_total}"
+            fields["important"] = f"{values[0]}/{important_total}"
+            fields["total"] = f"{values[1]}/{node_total}"
         elif values:
-            fields["nodes"] = f"{values[-1]}/{node_total}"
+            fields["total"] = f"{values[-1]}/{node_total}"
 
         return fields or {"score": str(list(score))}
 
@@ -111,10 +111,10 @@ def make_filter_consts_score_formatter(
 
         removed_nodes = values[-2] if important_total and len(values) >= 2 else values[-1]
         kept_nodes = max(node_total - removed_nodes, 0)
-        fields = {"nodes": f"{kept_nodes}/{node_total}"}
+        fields = {"total": f"{kept_nodes}/{node_total}"}
         if important_total and len(values) >= 2:
             fields = {
-                "important/total": f"{values[-1]}/{important_total}",
+                "important": f"{values[-1]}/{important_total}",
                 **fields,
             }
         return fields
@@ -1085,10 +1085,10 @@ elif args.action == "filter-consts":
         node_total=len(bo.domain.nodes),
         important_total=len(important_genes_in_domain),
     )
-    ptqdm.initial_postfix = {"nodes": f"0/{len(bo.domain.nodes)}"}
+    ptqdm.initial_postfix = {"total": f"0/{len(bo.domain.nodes)}"}
     if important_genes_in_domain:
         ptqdm.initial_postfix = {
-            "important/total": f"0/{len(important_genes_in_domain)}",
+            "important": f"0/{len(important_genes_in_domain)}",
             **ptqdm.initial_postfix,
         }
     view = bonesis.NonStrongConstantNodesView(

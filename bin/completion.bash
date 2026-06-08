@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 
-_scbolt_modules="load-genome load-fastq load-signatures load-cc load-go load-dorothea
+_scbolt_modules="load-genome load-fastq load-matrix load-signatures load-cc load-go load-dorothea
 alignment cellranger star qc velocyto
 filtering normalization clustering dea scoring goea annotation
 velocity potency
@@ -15,7 +15,7 @@ _scbolt_boolean_options="--logging= --spec-only-hvg= --pca-only-hvg= --velocity-
 --bin-scboolseq-only-hvg= --zeroes-are-zeroes= --bin-dea-only-hvg=
 --canonic-filter= --canonic-infer= --min-self-loop-consts= --min-self-loop-infer=
 --norm-mad= --cc-correction="
-_scbolt_file_options="--params= --old-file= --results= --public-dir= --star-whitelist=
+_scbolt_file_options="-o= --params= --old-file= --results= --public-dir= --star-whitelist=
 --binarization-file= --macrostate-file= --prior-knowledge= --spec-file="
 
 _scbolt_complete_words() {
@@ -187,30 +187,41 @@ _scbolt_help_parameters() {
 _scbolt_module_options() {
     local target="$1"
 
-    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
+    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= -o \
         --results= --public-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
         --logging= --help help -h
     _scbolt_help_parameters "${target}"
 }
 
 _scbolt_run_options() {
-    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
+    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= -o \
         --results= --public-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
         --logging= --help -h
 }
 
 _scbolt_diagnostic_options() {
-    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
+    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= -o \
         --public-dir= --help -h
 }
 
 _scbolt_progress_options() {
-    printf '%s\n' --all --params= --public-dir= --references= --old-file= --help -h
+    printf '%s\n' --all --params= --public-dir= --references= --old-file= -o --help -h
 }
 
 _scbolt_clean_options() {
     printf '%s\n' --all --stale --force --params= --public-dir= --references= \
-        --old-file= --help -h
+        --old-file= -o --help -h
+}
+
+_scbolt_complete_multi_module_position() {
+    local options="$1"
+    local current="$2"
+
+    if [ -z "${current}" ] || [[ "${current}" == -* ]]; then
+        _scbolt_complete_words "${options}" "${current}"
+    else
+        _scbolt_complete_words "${_scbolt_modules}" "${current}"
+    fi
 }
 
 _scbolt_target_from_args() {
@@ -224,16 +235,16 @@ _scbolt_target_from_args() {
     fi
 
     case "${command}" in
-        check|dry-run|show-config|progress)
+        check|dry-run|show-config|progress|clean)
             for ((i = 1; i < COMP_CWORD; i++)); do
                 word="${COMP_WORDS[i]}"
                 case "${word}" in
                     "${command}")
                         ;;
-                    --params|--public-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target)
+                    --params|--public-dir|--references|--reset-target|--trust-target|--old-file|-o|--logging|--target)
                         ((i++))
                         ;;
-                    --params=*|--public-dir=*|--references=*|--reset-target=*|--trust-target=*|--old-file=*|--logging=*|--target=*)
+                    --params=*|--public-dir=*|--references=*|--reset-target=*|--trust-target=*|--old-file=*|-o=*|-o?*|--logging=*|--target=*)
                         ;;
                     --*|*=*)
                         ;;
@@ -258,10 +269,10 @@ _scbolt_first_command() {
     for ((i = 1; i < COMP_CWORD; i++)); do
         word="${COMP_WORDS[i]}"
         case "${word}" in
-            --params|--public-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target)
+            --params|--public-dir|--references|--reset-target|--trust-target|--old-file|-o|--logging|--target)
                 ((i++))
                 ;;
-            --*|*=*)
+            -o=*|-o?*|--*|*=*)
                 ;;
             *)
                 printf '%s\n' "${word}"
@@ -310,6 +321,14 @@ _scbolt() {
             ;;
         --old-file=*)
             _scbolt_complete_files "--old-file=" "${cur#--old-file=}"
+            return 0
+            ;;
+        -o=*)
+            _scbolt_complete_files "-o=" "${cur#-o=}"
+            return 0
+            ;;
+        -o?*)
+            _scbolt_complete_files "-o" "${cur#-o}"
             return 0
             ;;
         --public-dir=*)
@@ -363,7 +382,7 @@ _scbolt() {
                 _scbolt_complete_files "" "${cur}"
                 return 0
                 ;;
-            --old-file|--public-dir)
+            --old-file|-o|--public-dir)
                 _scbolt_complete_files "" "${cur}"
                 return 0
                 ;;
@@ -387,7 +406,7 @@ _scbolt() {
             _scbolt_complete_files "" "${cur}"
             return 0
             ;;
-        --old-file|--old-file=)
+        --old-file|--old-file=|-o|-o=)
             _scbolt_complete_files "" "${cur}"
             return 0
             ;;
@@ -429,7 +448,11 @@ _scbolt() {
             if [[ "${cur}" == --* ]]; then
                 _scbolt_complete_words "$(_scbolt_clean_options)" "${cur}"
             else
-                _scbolt_complete_words "${_scbolt_modules} $(_scbolt_clean_options)" "${cur}"
+                if [ -n "${target}" ]; then
+                    _scbolt_complete_multi_module_position "$(_scbolt_clean_options)" "${cur}"
+                else
+                    _scbolt_complete_words "${_scbolt_modules} $(_scbolt_clean_options)" "${cur}"
+                fi
             fi
             ;;
         progress)
@@ -441,9 +464,15 @@ _scbolt() {
                     _scbolt_complete_words "$(_scbolt_progress_options)" "${cur}"
                 fi
             else
-                _scbolt_complete_words \
-                    "${_scbolt_modules} $(_scbolt_progress_options)" \
-                    "${cur}"
+                if [ -n "${target}" ]; then
+                    _scbolt_complete_multi_module_position \
+                        "$(_scbolt_progress_options) $(_scbolt_help_parameters "${target}")" \
+                        "${cur}"
+                else
+                    _scbolt_complete_words \
+                        "${_scbolt_modules} $(_scbolt_progress_options)" \
+                        "${cur}"
+                fi
             fi
             ;;
         show-config)
@@ -487,7 +516,7 @@ _scbolt() {
                 fi
             else
                 if [ -n "${target}" ]; then
-                    _scbolt_complete_words "$(_scbolt_module_options "${target}")" "${cur}"
+                    _scbolt_complete_multi_module_position "$(_scbolt_module_options "${target}")" "${cur}"
                 else
                     _scbolt_complete_words "$(_scbolt_run_options)" "${cur}"
                 fi
