@@ -281,7 +281,8 @@ _scbolt() {
             ;;
         clean)
             if [[ "${cur}" == --* ]]; then
-                _scbolt_complete_words "--all --params= --references= --help -h" "${cur}"
+                _scbolt_complete_words "--all --stale --force --params= --references= --help -h" \
+                    "${cur}"
             else
                 _scbolt_complete_words "${_scbolt_modules}" "${cur}"
             fi

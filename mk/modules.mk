@@ -327,7 +327,7 @@ RESET_TARGET_cotan = $(cotan_target)
 RESET_TARGET_cellrank = $(cellrank_target)
 RESET_TARGET_stream = $(stream_target)
 RESET_TARGET_knnbs = $(knnbs_target)
-RESET_TARGET_mstates = $(macrostates_target)
+RESET_TARGET_macrostates = $(macrostates_target)
 RESET_TARGET_bin-cells = $(bin_cells)
 RESET_TARGET_bin-macrostates = $(bin_mstates)
 RESET_TARGET_bin-dea = $(bin_dea)
@@ -410,7 +410,7 @@ target_params_stream = \
 	ALPHA_EPG MU_EPG LAMBDA_EPG EXTEND_EPG EXTEND_MODE \
 	EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER
 target_params_knnbs = MACROSTATE_SIZE KNNBS_EMBEDDING KNNBS_DIMENSION KNNBS_NEIGHBORS
-target_params_mstates = MACROSTATE_METHOD MACROSTATE_SIZE MACROSTATE_FILE
+target_params_macrostates = MACROSTATE_METHOD MACROSTATE_SIZE MACROSTATE_FILE
 target_params_bin-cells = \
 	MACROSTATE_FILE \
 	BIN_SCBOOLSEQ_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
@@ -461,9 +461,91 @@ target_params_bn-diverse = \
 	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 
+sensitive_params_alignment =
+sensitive_params_star = STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
+sensitive_params_qc = STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
+sensitive_params_velocyto = ALIGNMENT_TOOL STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
+sensitive_params_filtering = \
+	ORGANISM GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
+	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
+	MAD_DEVIATION NORM_MAD MT
+sensitive_params_normalization = ORGANISM CC_CORRECTION
+sensitive_params_clustering = \
+	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
+	ANALYSIS_HVG_BINS DIM_PCA DIM_CLUSTERING DIM_EMBEDDING PCA_ONLY_HVG \
+	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD SEED USE_REP
+sensitive_params_dea = LOGFC CORRECTION ALPHA
+sensitive_params_scoring = LABEL_COL
+sensitive_params_goea = ORGANISM
+sensitive_params_annotation = LABEL LABEL_COL USE_REP
+sensitive_params_velocity = DIM_MOMENT VELOCITY_ONLY_HVG SMM_MODE USE_REP LABEL_COL
+sensitive_params_potency = BATCH_SIZE SMOOTH_BATCH_SIZE ORGANISM USE_REP LABEL_COL SEED
+sensitive_params_cotan = MACROSTATE_SIZE COTAN_METHOD COTAN_ONLY_HVG MAX_ITER USE_REP LABEL_COL
+sensitive_params_cellrank = \
+	MACROSTATE_SIZE CELLRANK_METHOD STATES INITIAL_STATES TERMINAL_STATES \
+	CELLRANK_STABILITY CELLRANK_ALPHA SEED LABEL_COL
+sensitive_params_stream = \
+	MACROSTATE_SIZE CLUSTERING_METHOD CLUSTER_NUMBER \
+	ALPHA_EPG MU_EPG LAMBDA_EPG EXTEND_EPG EXTEND_MODE \
+	EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER USE_REP LABEL_COL
+sensitive_params_knnbs = \
+	MACROSTATE_SIZE KNNBS_EMBEDDING KNNBS_DIMENSION KNNBS_NEIGHBORS \
+	METRIC LABEL_COL USE_REP
+sensitive_params_macrostates =
+sensitive_params_bin-cells = \
+	MACROSTATE_FILE USE_REP \
+	BIN_SCBOOLSEQ_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES
+sensitive_params_bin-macrostates = \
+	MACROSTATE_FILE USE_REP \
+	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD
+sensitive_params_bin-dea = \
+	MACROSTATE_FILE USE_REP \
+	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
+sensitive_params_bin-consensus = \
+	MACROSTATE_FILE USE_REP \
+	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD \
+	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
+sensitive_params_binarization =
+sensitive_params_spec = \
+	SPEC_FILE SPEC_ONLY_HVG \
+	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	$(prior_knowledge_params)
+sensitive_params_max-nodes-soft = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	CLINGO_CONFIG_SOFT CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT \
+	JOBS_SOFT TIMEOUT_SOFT SEED
+sensitive_params_max-consts-soft = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER MIN_SELF_LOOP_CONSTS \
+	CLINGO_CONFIG_CONSTS CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS \
+	JOBS_CONSTS TIMEOUT_CONSTS SEED
+sensitive_params_max-nodes-relaxed = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	CLINGO_CONFIG_RELAXED CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED \
+	JOBS_RELAXED TIMEOUT_RELAXED SEED
+sensitive_params_max-nodes-seed = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	CLINGO_CONFIG_SEED CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED \
+	JOBS_SEED TIMEOUT_SEED SEED
+sensitive_params_max-nodes-lock = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	CLINGO_CONFIG_LOCK CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK \
+	JOBS_LOCK TIMEOUT_LOCK SEED
+sensitive_params_bn-min = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER MIN_SELF_LOOP_INFER \
+	CLINGO_OPT_MODE_MIN GRAPH_FORMATS SEED
+sensitive_params_bn-submin = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER \
+	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS SEED
+sensitive_params_bn-diverse = \
+	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER \
+	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS SEED
+
 use_rep_check_pattern = $(use_rep_check_pattern_1)$(use_rep_check_pattern_2)$(use_rep_check_pattern_3)
-use_rep_check_pattern_1 = scripts/(clustering/annotation|utils/pipe_its|trajectories/potency
-use_rep_check_pattern_2 = |macrostates/stream_mstates|binarization/(bin_cells_scboolseq
+use_rep_check_pattern_1 = scripts/(clust/annotation|utils/pipe_its|traj/potency
+use_rep_check_pattern_2 = |mstates/stream_mstates|bin/(bin_cells_scboolseq
 use_rep_check_pattern_3 = |bin_clusters_scboolseq|bin_dea)).py
 
 label_col_check_pattern = $(label_col_check_pattern_1)$(label_col_check_pattern_2)
@@ -532,10 +614,6 @@ config_core_params = $(call uniq,$(filter $(core_config_param_set),$(1)))
 config_method_params = $(call uniq,$(filter $(method_config_param_set),$(1)))
 config_external_resource_params = $(call uniq,$(filter $(external_resource_config_param_set),$(1)))
 target_dry_run_modules = $(shell $(nested_make) --always-make --dry-run LOGGING=false \
-	__check_mode=true __$(1) PARAMS="$(PARAMS)" LOGFILE="$(LOGFILE)" 2>/dev/null \
-	| sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' \
-	| awk '!seen[$$0]++')
-target_pending_modules = $(shell $(nested_make) --dry-run LOGGING=false \
 	__check_mode=true __$(1) PARAMS="$(PARAMS)" LOGFILE="$(LOGFILE)" 2>/dev/null \
 	| sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' \
 	| awk '!seen[$$0]++')

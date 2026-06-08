@@ -50,8 +50,6 @@ progress_default_targets = bn-min bn-submin bn-diverse
 progress_targets = $(strip $(if $(TARGET),$(TARGET),$(progress_default_targets)))
 progress_modules = $(call uniq,\
 	$(foreach target,$(progress_targets),$(call target_dry_run_modules,$(target))))
-progress_pending_modules = $(call uniq,\
-	$(foreach target,$(progress_targets),$(call target_pending_modules,$(target))))
 progress_unknown_targets = $(filter-out $(reset_stages),$(progress_targets))
 progress_deps_alignment = $(ALIGNMENT_TOOL)
 progress_deps_cellranger = load-fastq
@@ -71,7 +69,7 @@ progress_deps_cotan = annotation
 progress_deps_cellrank = velocity potency
 progress_deps_stream = annotation
 progress_deps_knnbs = annotation
-progress_deps_mstates = $(if $(MACROSTATE_FILE),,$(MACROSTATE_METHOD))
+progress_deps_macrostates = $(if $(MACROSTATE_FILE),,$(MACROSTATE_METHOD))
 progress_deps_bin-cells = $(if $(MACROSTATE_FILE),,annotation)
 progress_deps_bin-macrostates = \
 	bin-cells $(if $(MACROSTATE_FILE),,macrostates)
@@ -528,25 +526,23 @@ ifneq ($(filter $(PROGRESS_ALL),true false),$(PROGRESS_ALL))
 	$(call print_error,unsupported PROGRESS_ALL=$(PROGRESS_ALL) \(supported values: true, false\))
 endif
 	@done_file="$$(mktemp)"; \
+	stale_file="$$(mktemp)"; \
 	pending_file="$$(mktemp)"; \
 	extra_done_file="$$(mktemp)"; \
+	extra_stale_file="$$(mktemp)"; \
 	skipped_file="$$(mktemp)"; \
-	trap 'rm -f "$${done_file}" "$${pending_file}" "$${extra_done_file}" "$${skipped_file}"' EXIT; \
+	trap 'rm -f "$${done_file}" "$${stale_file}" "$${pending_file}" \
+		"$${extra_done_file}" "$${extra_stale_file}" "$${skipped_file}"' EXIT; \
 	selected_modules=" $(progress_modules) "; \
-	pending_modules=" $(progress_pending_modules) "; \
+	pending_modules=" "; \
+	stale_modules=" "; \
 	workflow_total=0; \
 	workflow_done=0; \
 	is_pending() { \
 		case "$${pending_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 	}; \
-	module_done() { \
-		if [ "$$#" -eq 0 ]; then \
-			return 1; \
-		fi; \
-		for path in "$$@"; do \
-			[ -e "$${path}" ] || [ -L "$${path}" ] || return 1; \
-		done; \
-		return 0; \
+	is_stale() { \
+		case "$${stale_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 	}; \
 	print_list() { \
 		if [ -s "$$1" ]; then \
@@ -557,14 +553,18 @@ endif
 	}; \
 	$(foreach module,$(reset_stages),\
 		if [[ "$${selected_modules}" == *" $(module) "* ]]; then \
+			module_status="$$( $(call metadata_state_make,$(module),status) )"; \
 			module_pending=0; \
+			module_stale=0; \
 			module_deps=( $(foreach dep,$(strip $(progress_deps_$(module))),"$(dep)") ); \
-			if is_pending "$(module)"; then \
+			if [ "$${module_status}" = "pending" ]; then \
 				module_pending=1; \
+			elif [ "$${module_status}" = "stale" ]; then \
+				module_stale=1; \
 			else \
 				for dependency in "$${module_deps[@]}"; do \
-					if is_pending "$${dependency}"; then \
-						module_pending=1; \
+					if is_pending "$${dependency}" || is_stale "$${dependency}"; then \
+						module_stale=1; \
 						break; \
 					fi; \
 				done; \
@@ -573,28 +573,41 @@ endif
 			if [ "$${module_pending}" -eq 1 ]; then \
 				printf '%s\n' '- $(module)' >> "$${pending_file}"; \
 				pending_modules="$${pending_modules}$(module) "; \
+			elif [ "$${module_stale}" -eq 1 ]; then \
+				printf '%s\n' '- $(module)' >> "$${stale_file}"; \
+				stale_modules="$${stale_modules}$(module) "; \
 			else \
 				workflow_done=$$((workflow_done + 1)); \
 				printf '%s\n' '- $(module)' >> "$${done_file}"; \
 			fi; \
 		elif [ "$(PROGRESS_ALL)" = "true" ]; then \
-			module_paths=( $(foreach path,$(strip $(RESET_TARGET_$(module))),"$(path)") ); \
-			if module_done "$${module_paths[@]}"; then \
+			module_status="$$( $(call metadata_state_make,$(module),status) )"; \
+			if [ "$${module_status}" = "done" ]; then \
 				printf '%s\n' '- $(module)' >> "$${extra_done_file}"; \
+			elif [ "$${module_status}" = "stale" ]; then \
+				printf '%s\n' '- $(module)' >> "$${extra_stale_file}"; \
 			else \
 				printf '%s\n' '- $(module)' >> "$${skipped_file}"; \
 			fi; \
 		fi;) \
 	printf 'PROGRESS\n'; \
 	printf '  final modules: %s\n' "$(progress_targets)"; \
-	printf '  completed modules: %s/%s\n' "$${workflow_done}" "$${workflow_total}"; \
+	printf '  up-to-date modules: %s/%s\n' "$${workflow_done}" "$${workflow_total}"; \
 	printf '\nDONE\n'; \
 	print_list "$${done_file}"; \
+	if [ -s "$${stale_file}" ]; then \
+		printf '\nSTALE\n'; \
+		print_list "$${stale_file}"; \
+	fi; \
 	printf '\nPENDING\n'; \
 	print_list "$${pending_file}"; \
 	if [ "$(PROGRESS_ALL)" = "true" ]; then \
 		printf '\nEXTRA COMPLETED\n'; \
 		print_list "$${extra_done_file}"; \
+		if [ -s "$${extra_stale_file}" ]; then \
+			printf '\nEXTRA STALE\n'; \
+			print_list "$${extra_stale_file}"; \
+		fi; \
 		printf '\nSKIPPED\n'; \
 		print_list "$${skipped_file}"; \
 	fi
@@ -748,10 +761,10 @@ knnbs: ## estimate macrostates with KNNBS
 	$(call run_logged,knnbs)
 __knnbs: $(knnbs_target)
 
-.PHONY: macrostates __mstates
+.PHONY: macrostates __macrostates
 macrostates: ## estimate macrostates with MACROSTATE_METHOD
 	$(call run_logged,macrostates)
-__mstates: $(macrostates_target)
+__macrostates: $(macrostates_target)
 
 ##@ Binarization
 

@@ -44,6 +44,9 @@ outside the selected workflow are hidden by default, even if their outputs
 exist. This makes the reported progress reflect the current workflow rather
 than every file present on disk.
 
+See [`output_states.md`](output_states.md) for the exact `DONE`, `STALE`, and
+`PENDING` state semantics.
+
 ```bash
 scbolt progress
 scbolt progress <module...>
@@ -79,6 +82,8 @@ scbolt dry-run <module>
 The default mode is interactive and only asks about cache and logs.
 Module-specific cleaning removes generated outputs for selected modules without
 deleting upstream data.
+Stale cleaning removes stale outputs explicitly; after removal, these modules
+become pending until they are rebuilt.
 
 ```bash
 scbolt clean

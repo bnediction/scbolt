@@ -676,15 +676,33 @@ case "${cmd}" in
             run_make_help "clean"
         fi
         clean_all=false
+        clean_stale=false
+        clean_force=false
         clean_args=()
         for arg in "$@"; do
             case "${arg}" in
                 --all)
                     clean_all=true
                     ;;
+                --stale)
+                    clean_stale=true
+                    ;;
+                --force)
+                    clean_force=true
+                    ;;
                 --all=*)
                     print_error "Unsupported scbolt option with value: --all"
                     printf '%s\n' "Use '--all' without a value." >&2
+                    exit 1
+                    ;;
+                --stale=*)
+                    print_error "Unsupported scbolt option with value: --stale"
+                    printf '%s\n' "Use '--stale' without a value." >&2
+                    exit 1
+                    ;;
+                --force=*)
+                    print_error "Unsupported scbolt option with value: --force"
+                    printf '%s\n' "Use '--force' without a value." >&2
                     exit 1
                     ;;
                 *)
@@ -698,8 +716,16 @@ case "${cmd}" in
             exit 1
         elif [ "${clean_all}" = "true" ]; then
             make_args+=("CLEAN_TARGET=all")
+        elif [ "${clean_stale}" = "true" ]; then
+            make_args+=("CLEAN_STALE=true")
+            if [ "${#positional_args[@]}" -gt 0 ]; then
+                make_args+=("CLEAN_TARGET=${positional_args[*]}")
+            fi
         elif [ "${#positional_args[@]}" -gt 0 ]; then
             make_args+=("CLEAN_TARGET=${positional_args[*]}")
+        fi
+        if [ "${clean_force}" = "true" ]; then
+            make_args+=("CLEAN_FORCE=true")
         fi
         run_make_with_params "${params_assignment}" clean "${make_args[@]}"
         ;;

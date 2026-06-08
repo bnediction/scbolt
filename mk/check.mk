@@ -57,6 +57,7 @@ else ifeq ($(HELP),false)
 			method\ parameter*|*method\ parameter*) printf '%s\n' "$${method_checks}";; \
 			external\ resource\ parameter*|*external\ resource\ parameter*) \
 				printf '%s\n' "$${external_resource_checks}";; \
+			stale\ module\ output*) printf '%s\n' "$${file_checks}";; \
 			h5ad\ metadata*|*h5ad\ metadata*) printf '%s\n' "$${file_checks}";; \
 			file\ found*|*file*) printf '%s\n' "$${file_checks}";; \
 			conda\ environment*|command\ found:\ conda|*conda*) printf '%s\n' "$${conda_checks}";; \
@@ -70,8 +71,51 @@ else ifeq ($(HELP),false)
 	missing=0; \
 	$(nested_make) --dry-run LOGGING=false \
 		__check_mode=true __$(TARGET) LOGFILE="$(LOGFILE)" > "$${target_dry_run}"; \
+	selected_modules=" $(call target_dry_run_modules,$(TARGET)) "; \
+	pending_modules=" "; \
+	stale_modules=" "; \
+	is_pending() { \
+		case "$${pending_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
+	}; \
+	is_stale() { \
+		case "$${stale_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
+	}; \
+	$(foreach module,$(reset_stages),\
+		if [[ "$${selected_modules}" == *" $(module) "* ]]; then \
+			module_state="$$( $(call metadata_state_make,$(module),all) )"; \
+			module_status="$${module_state%%	*}"; \
+			module_message="$${module_state#*	}"; \
+			module_pending=0; \
+			module_stale=0; \
+			if [ "$${module_status}" = "pending" ]; then \
+				module_pending=1; \
+			elif [ "$${module_status}" = "stale" ]; then \
+				module_stale=1; \
+			elif [ "$${module_status}" = "done" ]; then \
+				module_deps=( $(foreach dep,$(strip $(progress_deps_$(module))),"$(dep)") ); \
+				for dependency in "$${module_deps[@]}"; do \
+					if is_stale "$${dependency}"; then \
+						module_message="$(module) (depends on stale $${dependency})"; \
+						module_stale=1; \
+						break; \
+					elif is_pending "$${dependency}"; then \
+						module_message="$(module) (depends on pending $${dependency})"; \
+						module_stale=1; \
+						break; \
+					fi; \
+				done; \
+			fi; \
+			if [ "$${module_pending}" -eq 1 ]; then \
+				pending_modules="$${pending_modules}$(module) "; \
+			elif [ "$${module_stale}" -eq 1 ]; then \
+				check_warning "stale module output: $${module_message}"; \
+				stale_modules="$${stale_modules}$(module) "; \
+			fi; \
+		fi;) \
 	if [ ! -s "$${target_dry_run}" ]; then \
-		printf '$(success_label) %s\n' "target '$(TARGET)' already up to date"; \
+		$(call check_success,target '$(TARGET)' already up to date); \
+		$(call check_success,check passed for target '$(TARGET)'); \
+		$(print_check_reports); \
 		exit 0; \
 	fi; \
 	cp "$${target_dry_run}" "$${dry_run}"; \
@@ -87,7 +131,9 @@ else ifeq ($(HELP),false)
 	if grep -qE '$(use_rep_check_pattern)' "$${dry_run}" \
 			|| grep -q 'scripts/mstates/knnbs_mstates.py' "$${dry_run}" \
 			|| grep -q '/cotan/barcts.csv' "$${dry_run}"; then \
-		$(call check_parameter_diagnostic,$(USE_REP),USE_REP,core); \
+		if ! grep -qE 'scripts/clust/(clustering|integration).py' "$${dry_run}"; then \
+			$(call check_parameter_diagnostic,$(USE_REP),USE_REP,core); \
+		fi; \
 	fi; \
 	if grep -qE '$(label_col_check_pattern)' "$${dry_run}"; then \
 		$(call check_parameter_diagnostic,$(LABEL_COL),LABEL_COL,core); \

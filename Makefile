@@ -174,6 +174,7 @@ $(star_$(1))&: $(fastq_$(1)) $(star_index)
 	rm -rf $$(@D)
 	mkdir -p $$(@D)
 	mv $(tmpdir)/star/$(1)/* $$(@D)/
+	$$(call write_scbolt_metadata,star,$$(star_$(1)))
 
 ifeq ($(ALIGNMENT_TOOL),cellranger)
 $(velocyto_$(1)): $(cellranger_$(1)) $(genome_ref)
@@ -193,6 +194,7 @@ $(velocyto_$(1)): $(cellranger_$(1)) $(genome_ref)
 		$$(@D)/counts.loom $(tmpdir)/$(1)/velocyto/counts.h5ad --from loom --to h5ad \
 		--remove-positions --sort --standardization
 	$(call finalize_velocyto_h5ad,$(tmpdir)/$(1)/velocyto/counts.h5ad,$$@)
+	$$(call write_scbolt_metadata,velocyto,$$(velocyto_$(1)))
 else ifeq ($(ALIGNMENT_TOOL),star)
 $(qc_$(1)): $(star_$(1))
 	$(call print_rule,qc,$(1))
@@ -214,6 +216,7 @@ $(qc_$(1)): $(star_$(1))
 		--tag CR:CB UR:UB \
 		--jobs $(JOBS)
 	mv $(tmpdir)/$(1)/qc/star.velocyto.bam $$@
+	$$(call write_scbolt_metadata,qc,$$(qc_$(1)))
 
 $(velocyto_$(1)): $(qc_$(1)) $(genome_ref)
 	$(call print_rule,velocyto,$(1))
@@ -238,6 +241,7 @@ $(velocyto_$(1)): $(qc_$(1)) $(genome_ref)
 		$$(@D)/counts.loom $(tmpdir)/$(1)/velocyto/counts.h5ad --from loom --to h5ad \
 		--remove-positions --sort --standardization
 	$(call finalize_velocyto_h5ad,$(tmpdir)/$(1)/velocyto/counts.h5ad,$$@)
+	$$(call write_scbolt_metadata,velocyto,$$(velocyto_$(1)))
 endif
 
 $(filtering_$(1)): $(velocyto_$(1)) $(if $(filter mouse,$(ORGANISM)),$(cc_markers))
@@ -249,6 +253,7 @@ $(filtering_$(1)): $(velocyto_$(1)) $(if $(filter mouse,$(ORGANISM)),$(cc_marker
 		--gene-dropout $(GENE_DROPOUT) --gene-expression $(GENE_EXPRESSION) --gene-counts $(GENE_COUNTS) \
 		--cell-dropout $(CELL_DROPOUT) --cell-expression $(CELL_EXPRESSION) --cell-reads $(CELL_READS) \
 		--mad-deviation $(MAD_DEVIATION) $(norm_mad) --mt $(MT)
+	$$(call write_scbolt_metadata,filtering,$$(filtering_$(1)))
 
 $(normalization_$(1)): $(filtering_$(1))
 	$(call print_rule,normalization,$(1))
@@ -256,6 +261,7 @@ $(normalization_$(1)): $(filtering_$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/prep/norm.py \
 		$$< $$@ $(cc_scores) --layer counts --jobs $(JOBS)
+	$$(call write_scbolt_metadata,normalization,$$(normalization_$(1)))
 
 $(clustering_$(1)): $(normalization_$(1))
 	$(call print_rule,clustering,$(1))
@@ -275,6 +281,7 @@ $(clustering_$(1)): $(normalization_$(1))
 	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/cc.json \
 		--infile $$@ --outfile $$(@D)/cc.pdf \
 		--use-rep $(USE_REP)
+	$$(call write_scbolt_metadata,clustering,$$(clustering_$(1)))
 
 ifeq ($(words $(conditions)),1)
 $(annotation_$(1)): $(clustering_$(1))
@@ -290,6 +297,7 @@ $(annotation_$(1)): $(clustering_$(1))
 	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/generic.json \
 		--infile $$@ --outfile $$(@D)/labels.pdf \
 		--obs $(LABEL_COL) --use-rep $(USE_REP)
+	$$(call write_scbolt_metadata,annotation,$$(annotation_$(1)))
 else
 $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 	$(call print_rule,annotation,$(1))
@@ -301,6 +309,7 @@ $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/generic.json \
 		--infile $$@ --outfile $$(@D)/labels.pdf \
 		--obs $(LABEL_COL) --use-rep $(USE_REP)
+	$$(call write_scbolt_metadata,annotation,$$(annotation_$(1)))
 endif
 
 $(velocity_$(1)): $(annotation_$(1))
@@ -310,6 +319,7 @@ $(velocity_$(1)): $(annotation_$(1))
 	$(call conda_run,scbolt-velocity) python $(scripts_dir)/traj/velocity.py $$< $$@ \
 		--layer counts --cluster $(LABEL_COL) --moment-dimension $(DIM_MOMENT) \
 		$(velocity_only_hvg) --mode $(SMM_MODE) --use-rep $(USE_REP) --jobs $(JOBS)
+	$$(call write_scbolt_metadata,velocity,$$(velocity_$(1)))
 
 $(potency_$(1)): $(annotation_$(1))
 	$(call print_rule,potency,$(1))
@@ -318,6 +328,7 @@ $(potency_$(1)): $(annotation_$(1))
 		--csv $$(notdir $$@) --h5ad $$(basename $$(notdir $$@)).h5ad \
 		--layer counts --cluster $(LABEL_COL) --batch-size $(BATCH_SIZE) --smooth-batch-size $(SMOOTH_BATCH_SIZE) \
 		--organism $(ORGANISM) --use-rep $(USE_REP) --seed $(SEED) --jobs $(JOBS)
+	$$(call write_scbolt_metadata,potency,$$(potency_$(1)))
 
 $(cotan_$(1))&: $(annotation_$(1))
 	$(call print_rule,cotan,$(1))
@@ -344,6 +355,7 @@ $(cotan_$(1))&: $(annotation_$(1))
 		--infile $$(firstword $$(cotan_$(1))) \
 		--outfile $$(@D)/umap_cotan.pdf \
 		--use-rep $(USE_REP)
+	$$(call write_scbolt_metadata,cotan,$$(cotan_$(1)))
 
 $(cellrank_$(1))&: $(velocity_$(1)) $(potency_$(1))
 	$(call print_rule,cellrank,$(1))
@@ -364,6 +376,7 @@ $(cellrank_$(1))&: $(velocity_$(1)) $(potency_$(1))
 		--cytotrace-score cytotrace_score --scvelo-velocity velocity \
 		--states $(STATES) --initial-states $(INITIAL_STATES) --terminal-states $(TERMINAL_STATES) \
 		--stability $(CELLRANK_STABILITY) --alpha $(CELLRANK_ALPHA) --size $(MACROSTATE_SIZE) --seed $(SEED)
+	$$(call write_scbolt_metadata,cellrank,$$(cellrank_$(1)))
 
 $(stream_$(1))&: $(annotation_$(1))
 	$(call print_rule,stream,$(1))
@@ -381,6 +394,7 @@ $(stream_$(1))&: $(annotation_$(1))
 		$(prune_epg) \
 		$(if $(filter $(PRUNE_EPG),true),--collapse-parameter $(COLLAPSE_PARAMETER),) \
 		--size $(MACROSTATE_SIZE) --jobs $(JOBS)
+	$$(call write_scbolt_metadata,stream,$$(stream_$(1)))
 
 ifeq ($(or $(call knnbs_centrality,$(1)),$(call knnbs_periphery,$(1))),)
 $(knnbs_$(1))&: $(annotation_$(1))
@@ -404,6 +418,7 @@ $(knnbs_$(1))&: $(annotation_$(1))
 		--infile $$(firstword $$(knnbs_$(1))) \
 		--outfile $$(@D)/knnbs.pdf \
 		--use-rep $(USE_REP)
+	$$(call write_scbolt_metadata,knnbs,$$(knnbs_$(1)))
 endif
 
 endef
@@ -419,24 +434,28 @@ $(dea_$(1))&: $(clustering_$(1))
 		--xlsx $(lastword $(dea_$(1))) \
 		--cluster cluster --layer log-norm --is-log \
 		--logfc $(LOGFC) --alpha $(ALPHA) --correction $(CORRECTION)
+	$$(call write_scbolt_metadata,dea,$$(dea_$(1)))
 
 $(scoring_$(1)): $(clustering_$(1)) $(lastword $(signatures)) $(lastword $(dea_$(1)))
 	$(call print_rule,scoring,$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/scoring.py \
 		$$^ $$@ --cluster cluster --ignore-sheets background
+	$$(call write_scbolt_metadata,scoring,$$(scoring_$(1)))
 
 $(goea_basic_$(1)): $(lastword $(dea_$(1))) $(go_basic) $(gene2go)
 	$(call print_rule,goea,go_basic/$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/goea.py $$< $$@ \
 		--background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
+	$$(call write_scbolt_metadata,goea,$$@)
 
 $(goea_organism_$(1)): $(lastword $(dea_$(1))) $(go_organism) $(gene2go)
 	$(call print_rule,goea,go_$(ORGANISM)/$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/goea.py $$< $$@ \
 		--background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
+	$$(call write_scbolt_metadata,goea,$$@)
 
 endef
 
@@ -452,6 +471,7 @@ $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(co
 		--span $(ANALYSIS_HVG_SPAN) --bins $(ANALYSIS_HVG_BINS) $(pca_only_hvg) \
 		--neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) \
 		--min-dist $(MIN_DIST) --spread $(SPREAD) --seed $(SEED) --jobs $(JOBS)
+	$(call write_scbolt_metadata,clustering,$@)
 
 $(annotation_integrated): $(clustering_integrated)
 	$(call print_rule,annotation,integrated)
@@ -466,6 +486,7 @@ $(annotation_integrated): $(clustering_integrated)
 	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(fig_dir)/generic.json \
 		--infile $@ --outfile $(@D)/labels.pdf \
 		--obs $(LABEL_COL) --use-rep $(USE_REP)
+	$(call write_scbolt_metadata,annotation,$@)
 
 ifneq ($(strip $(MACROSTATE_FILE)),)
 $(macrostate_h5ad):
@@ -510,6 +531,7 @@ $(bin_cells)&: $(bin_input_h5ads) \
 		--infile $(firstword $(bin_cells)) \
 		--outfile $(@D)/pct_bin.pdf \
 		--use-rep $(USE_REP)
+	$(call write_scbolt_metadata,bin-cells,$(bin_cells))
 
 ifeq ($(strip $(MACROSTATE_FILE)),)
 $(bin_mstates): $(firstword $(bin_cells)) \
@@ -539,6 +561,7 @@ $(bin_mstates): $(firstword $(bin_cells)) \
 		--infile $(tmpdir)/integrated/bin/aggr/mcts.h5ad \
 		--outfile $(@D)/macrostates.pdf \
 		--use-rep $(USE_REP)
+	$(call write_scbolt_metadata,bin-macrostates,$@)
 else
 $(bin_mstates): $(firstword $(bin_cells))
 	$(call print_rule,bin-macrostates)
@@ -558,6 +581,7 @@ $(bin_mstates): $(firstword $(bin_cells))
 		--infile $< \
 		--outfile $(@D)/macrostates.pdf \
 		--use-rep $(USE_REP)
+	$(call write_scbolt_metadata,bin-macrostates,$@)
 endif
 
 ifeq ($(strip $(MACROSTATE_FILE)),)
@@ -586,6 +610,7 @@ $(bin_dea): \
 		--infile $(tmpdir)/integrated/bin/dea/mcts.h5ad \
 		--outfile $(@D)/macrostates.pdf \
 		--use-rep $(USE_REP)
+	$(call write_scbolt_metadata,bin-dea,$@)
 else
 $(bin_dea): $(bin_input_h5ads) \
     $(if $(filter true,$(BIN_DEA_ONLY_HVG)),| $(bin_hvg))
@@ -602,6 +627,7 @@ $(bin_dea): $(bin_input_h5ads) \
 		--infile $< \
 		--outfile $(@D)/macrostates.pdf \
 		--use-rep $(USE_REP)
+	$(call write_scbolt_metadata,bin-dea,$@)
 endif
 
 $(bin_consensus): $(bin_mstates) $(lastword $(bin_cells)) $(bin_dea)
@@ -619,6 +645,7 @@ $(bin_consensus): $(bin_mstates) $(lastword $(bin_cells)) $(bin_dea)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_consensus.py \
 		--scboolseq $< $(tmpdir)/bin/consensus/distributions.csv --dea $(lastword $^) \
 		--outfile $@ --pct-bin $(@D)/pct_bin.csv
+	$(call write_scbolt_metadata,bin-consensus,$@)
 
 $(bonesis_model)&: $(bin) \
     $(if $(filter true,$(SPEC_ONLY_HVG)),$(bin_hvg)) \
@@ -636,6 +663,7 @@ $(bonesis_model)&: $(bin) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg)
 	sort -u $(word 3,$(bonesis_model)) -o $(word 3,$(bonesis_model))
 	sort -u $(word 4,$(bonesis_model)) -o $(word 4,$(bonesis_model))
+	$(call write_scbolt_metadata,spec,$(bonesis_model))
 
 $(max_nodes_soft): $(bonesis_model)
 	$(call print_rule,max-nodes-soft)
@@ -659,6 +687,7 @@ $(max_nodes_soft): $(bonesis_model)
 	trap - INT TERM; \
 	set -e; \
 	$(call check_inference_status, $(TIMEOUT_SOFT))
+	$(call write_scbolt_metadata,max-nodes-soft,$@)
 
 $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 	$(call print_rule,max-consts-soft)
@@ -683,6 +712,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 	trap - INT TERM; \
 	set -e; \
 	$(call check_inference_status, $(TIMEOUT_CONSTS))
+	$(call write_scbolt_metadata,max-consts-soft,$@)
 
 $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 	$(call print_rule,max-nodes-relaxed)
@@ -707,6 +737,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 	trap - INT TERM; \
 	set -e; \
 	$(call check_inference_status, $(TIMEOUT_RELAXED))
+	$(call write_scbolt_metadata,max-nodes-relaxed,$@)
 
 $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 	$(call print_rule,max-nodes-seed)
@@ -732,6 +763,7 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 	trap - INT TERM; \
 	set -e; \
 	$(call check_inference_status, $(TIMEOUT_SEED))
+	$(call write_scbolt_metadata,max-nodes-seed,$@)
 
 $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 	$(call print_rule,max-nodes-lock)
@@ -763,6 +795,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 		set -e; \
 		$(call check_inference_status,$(TIMEOUT_LOCK)); \
 	fi
+	$(call write_scbolt_metadata,max-nodes-lock,$@)
 
 $(bn_min): $(bonesis_model) $(max_nodes_lock)
 	$(call print_rule,bn-min)
@@ -786,6 +819,7 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock)
 		        dot -Tpdf "$${file}" -o "$${file%.dot}.pdf"
 		    done
 		fi
+	$(call write_scbolt_metadata,bn-min,$@)
 
 $(bn_submin)&: $(bonesis_model) $(max_nodes_lock)
 	$(call print_rule,bn-submin)
@@ -807,6 +841,7 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock)
 		--config-formats $(CONFIG_FORMATS) \
 		--graph-formats $(GRAPH_FORMATS) \
 		--remove-isolated-nodes
+	$(call write_scbolt_metadata,bn-submin,$(bn_submin))
 
 $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock)
 	$(call print_rule,bn-diverse)
@@ -828,6 +863,7 @@ $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock)
 		--config-formats $(CONFIG_FORMATS) \
 		--graph-formats $(GRAPH_FORMATS) \
 		--remove-isolated-nodes
+	$(call write_scbolt_metadata,bn-diverse,$(bn_diverse))
 
 $(foreach condition,$(conditions),$(eval $(call compute_rules_for_conditions,$(condition))))
 $(foreach reference,$(references_default),$(eval $(call compute_rules_for_references,$(reference))))

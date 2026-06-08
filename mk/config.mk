@@ -5,7 +5,7 @@ params_optional_mode := $(filter help,$(MAKECMDGOALS))$(if $(filter true,$(HELP)
 launch_dir := $(CURDIR)
 lib_dir := $(scbolt_root)/lib
 scripts_dir := $(scbolt_root)/scripts
-fig_dir := $(scbolt_root)/fig
+fig_dir := $(scbolt_root)/scripts/fig
 public_dir := $(scbolt_root)/public
 
 strip_trailing_slash = $(if $(filter /,$(strip $(1))),/,$(patsubst %/,%,$(strip $(1))))
@@ -555,6 +555,75 @@ endef
 knnbs_centrality = $(KNNBS_CENTRALITY_$(call toupper,$(1)))
 knnbs_periphery = $(KNNBS_PERIPHERY_$(call toupper,$(1)))
 log_parameters = $(foreach var,$(strip $(1)),printf '%s=%s\n' '$(var)' "$($(var))"; )
+metadata_target_args = $(foreach target,$(strip $(RESET_TARGET_$(1))),--target "$(target)")
+metadata_custom_target_args = $(foreach target,$(strip $(2)),--target "$(target)")
+metadata_param_args = $(foreach param,$(strip $(sensitive_params_$(1))),--param '$(param)=$($(param))')
+metadata_git_hash = $$(git -C "$(scbolt_root)" rev-parse HEAD 2>/dev/null || echo unknown)
+metadata_state = python3 $(scripts_dir)/utils/scbolt_metadata.py state \
+	--module "$(1)" \
+	$(call metadata_target_args,$(1)) \
+	$(call metadata_param_args,$(1))
+metadata_state_field = $(call metadata_state,$(1)) --field "$(2)"
+metadata_state_make = $(nested_make) LOGGING=false __reset_disabled=metadata \
+	__metadata-state METADATA_MODULE="$(1)" METADATA_FIELD="$(2)" PARAMS="$(PARAMS)"
+
+.PHONY: __metadata-state
+__metadata-state:
+	@$(call metadata_state_field,$(METADATA_MODULE),$(or $(METADATA_FIELD),all))
+
+define warn_stale_outputs
+selected_modules=" $(call target_dry_run_modules,$(1)) "; \
+pending_modules=" "; \
+stale_modules=" "; \
+is_pending() { \
+	case "$${pending_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
+}; \
+is_stale() { \
+	case "$${stale_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
+}; \
+$(foreach module,$(reset_stages),\
+	if [[ "$${selected_modules}" == *" $(module) "* ]]; then \
+		module_state="$$( $(call metadata_state_make,$(module),all) )"; \
+		module_status="$${module_state%%	*}"; \
+		module_message="$${module_state#*	}"; \
+		module_pending=0; \
+		module_stale=0; \
+		if [ "$${module_status}" = "pending" ]; then \
+			module_pending=1; \
+		elif [ "$${module_status}" = "stale" ]; then \
+			module_stale=1; \
+		elif [ "$${module_status}" = "done" ]; then \
+			module_deps=( $(foreach dep,$(strip $(progress_deps_$(module))),"$(dep)") ); \
+			for dependency in "$${module_deps[@]}"; do \
+				if is_stale "$${dependency}"; then \
+					module_message="$(module) (depends on stale $${dependency})"; \
+					module_stale=1; \
+					break; \
+				elif is_pending "$${dependency}"; then \
+					module_message="$(module) (depends on pending $${dependency})"; \
+					module_stale=1; \
+					break; \
+				fi; \
+			done; \
+		fi; \
+		if [ "$${module_pending}" -eq 1 ]; then \
+			pending_modules="$${pending_modules}$(module) "; \
+		elif [ "$${module_stale}" -eq 1 ]; then \
+			$(call print_warning,stale module output: $${module_message}); \
+			stale_modules="$${stale_modules}$(module) "; \
+		fi; \
+	fi;)
+endef
+
+define write_scbolt_metadata
+$(if $(strip $(sensitive_params_$(1))),\
+python3 $(scripts_dir)/utils/scbolt_metadata.py write \
+	--module "$(1)" \
+	$(call metadata_custom_target_args,$(1),$(2)) \
+	--params-file "$(PARAMS)" \
+	--git-hash "$(metadata_git_hash)" \
+	$(call metadata_param_args,$(1)))
+endef
 
 PYTHONUNBUFFERED ?= 1
 TQDM_DISABLE ?= 0
@@ -583,7 +652,9 @@ nested_make = env \
 inference_timeout = $(if $(filter-out 0,$(strip $(1))),timeout --foreground $(strip $(1)),)
 
 ifndef LOGGING
-run_logged = $(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
+run_logged = \
+	$(call warn_stale_outputs,$(1)) \
+	$(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
 else ifeq ($(LOGGING),true)
 run_logged = \
 	mkdir -p $(log_dir); \
@@ -608,17 +679,23 @@ run_logged = \
 			printf '\n';) \
 		printf '%s\n' '[OUTPUT]'; \
 	} >> "$(LOGFILE)"; \
-	env \
-		$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
-		PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
-		TQDM_DISABLE="$(TQDM_DISABLE)" \
-		TQDM_TO_TTY="1" \
-		$(MAKE) -f "$(makefile_path)" LOGGING=false __$(1) LOGFILE="$(LOGFILE)" 2>&1 \
-		| tee -a "$(LOGFILE)"
+	{ \
+		$(call warn_stale_outputs,$(1)) \
+		env \
+			$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
+			PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
+			TQDM_DISABLE="$(TQDM_DISABLE)" \
+			TQDM_TO_TTY="1" \
+			$(MAKE) -f "$(makefile_path)" LOGGING=false __$(1) LOGFILE="$(LOGFILE)"; \
+	} 2>&1 | tee -a "$(LOGFILE)"
 else ifeq ($(LOGGING),false)
-run_logged = $(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
+run_logged = \
+	$(call warn_stale_outputs,$(1)) \
+	$(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
 else
-run_logged = $(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
+run_logged = \
+	$(call warn_stale_outputs,$(1)) \
+	$(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
 endif
 
 define fastq_naming
