@@ -1,5 +1,9 @@
+<img align="right" src="man/fig/logo-scbolt.svg" alt="scBOLT logo" height="95">
+
 [![tests](https://github.com/bnediction/scbolt/actions/workflows/tests.yml/badge.svg)](https://github.com/bnediction/scbolt/actions/workflows/tests.yml)
 [![Make >= 4.3](https://img.shields.io/badge/Make-%3E%3D4.3-red?style=flat)](https://www.gnu.org/software/make)
+
+<br>
 
 # scBOLT
 
