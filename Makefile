@@ -101,6 +101,11 @@ $(bin_method_error):
 	$(call print_rule,binarization)
 	$(call require_binarization_parameters)
 
+ifneq ($(strip $(COUNT_FILES)),)
+$(COUNT_FILES):
+	$(call print_error,required COUNT_FILES input not found: $@)
+endif
+
 define compute_rules_for_conditions
 
 $(fastq_$(1)):
@@ -144,7 +149,7 @@ $(load_matrix_$(1)) $(geo_files_$(1))&:
 	mv $(tmpdir)/$(1)/geo/genes.tsv.gz $$(geo_genes_$(1))
 	$(call conda_run,scbolt-core) python $(scripts_dir)/download/import_matrix.py \
 		$$(geo_matrix_$(1)) $$(geo_barcodes_$(1)) $$(geo_genes_$(1)) $$(load_matrix_$(1)) \
-		--condition $(1) --gsm $(GSM_$(call toupper,$(1)))
+		--gsm $(GSM_$(call toupper,$(1)))
 	$$(call write_scbolt_metadata,load-matrix,$$(load_matrix_$(1)) $$(geo_files_$(1)))
 endif
 
@@ -212,11 +217,11 @@ $(velocyto_$(1)): $(cellranger_$(1)) $(genome_ref)
 	mkdir -p $$(@D)
 	mv $$(<D)/velocyto/cellranger.loom $$(@D)/counts.loom
 	rm -rf $$(<D)/velocyto
-	$(call print_debug,standardizing gene names and converting loom to h5ad)
+	$(call print_debug,converting loom to h5ad)
 	mkdir -p $(tmpdir)/$(1)/velocyto
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/adata_conversion.py \
 		$$(@D)/counts.loom $(tmpdir)/$(1)/velocyto/counts.h5ad --from loom --to h5ad \
-		--remove-positions --sort --standardization
+		--remove-positions --sort
 	$(call finalize_velocyto_h5ad,$(tmpdir)/$(1)/velocyto/counts.h5ad,$$@)
 	$$(call write_scbolt_metadata,velocyto,$$(velocyto_$(1)))
 else ifeq ($(ALIGNMENT_TOOL),star)
@@ -259,11 +264,11 @@ $(velocyto_$(1)): $(qc_$(1)) $(genome_ref)
 	mkdir -p $$(@D)
 	mv $(tmpdir)/velocyto/$(1)/star.loom $$(@D)/counts.loom
 	rm -rf $(tmpdir)/velocyto/$(1)
-	$(call print_debug,standardizing gene names and converting loom to h5ad)
+	$(call print_debug,converting loom to h5ad)
 	mkdir -p $(tmpdir)/$(1)/velocyto
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/adata_conversion.py \
 		$$(@D)/counts.loom $(tmpdir)/$(1)/velocyto/counts.h5ad --from loom --to h5ad \
-		--remove-positions --sort --standardization
+		--remove-positions --sort
 	$(call finalize_velocyto_h5ad,$(tmpdir)/$(1)/velocyto/counts.h5ad,$$@)
 	$$(call write_scbolt_metadata,velocyto,$$(velocyto_$(1)))
 endif
@@ -371,7 +376,7 @@ $(cotan_$(1))&: $(annotation_$(1))
 		--csv $$(lastword $$(cotan_$(1))) \
 		--axis 0 --sep , --type category
 	$$(call plot_embeddings,\
-		$(fig_dir)/macrostates.json,$$(firstword $$(cotan_$(1))),$$(@D)/umap_cotan.pdf,\
+		$(fig_dir)/macrostates.json,$$(firstword $$(cotan_$(1))),$$(@D)/macrostates.pdf,\
 		--use-rep $(USE_REP))
 	$$(call write_scbolt_metadata,cotan,$$(cotan_$(1)))
 
@@ -503,15 +508,36 @@ $(annotation_integrated): $(clustering_integrated)
 		--obs $(LABEL_COL) --use-rep $(USE_REP))
 	$(call write_scbolt_metadata,annotation,$@)
 
-ifneq ($(strip $(MACROSTATE_FILE)),)
+ifneq ($(strip $(MACROSTATE_FILES)),)
+ifneq ($(filter-out 1,$(words $(MACROSTATE_FILES))),)
+$(macrostate_h5ad_$(1)):
+	$(call print_task,preparing macrostate AnnData (reference=$(1)))
+	$(call check_file,$$(macrostate_file_$(1)),MACROSTATE_FILES)
+	mkdir -p $$(@D)
+	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/prepare_macrostate_h5ad.py \
+		$$(macrostate_file_$(1)) $$@ \
+		--macrostate-obs macrostate --condition $(1) --condition-obs condition \
+		--prefix-macrostates --use-rep $(USE_REP)
+endif
+endif
+
+ifneq ($(strip $(MACROSTATE_FILES)),)
+ifeq ($(words $(MACROSTATE_FILES)),1)
 $(macrostate_h5ad):
 	$(call print_task,preparing macrostate AnnData)
-	$(call check_file,$(MACROSTATE_FILE),MACROSTATE_FILE)
+	$(call check_file,$(firstword $(MACROSTATE_FILES)),MACROSTATE_FILES)
 	mkdir -p $(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/prepare_macrostate_h5ad.py \
-		$(MACROSTATE_FILE) $@ \
+		$(firstword $(MACROSTATE_FILES)) $@ \
 		--macrostate-obs macrostate --use-rep $(USE_REP) \
 		$(if $(filter-out 1,$(words $(conditions))),--condition-obs condition --prefix-macrostates)
+else
+$(macrostate_h5ad): $(macrostate_h5ads)
+	$(call print_task,concatenating macrostate AnnData files)
+	mkdir -p $(@D)
+	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/concat_h5ad.py \
+		$^ --outfile $@
+endif
 endif
 
 define build_bin_hvg
@@ -552,7 +578,7 @@ $(bin_cells)&: $(bin_input_h5ads)
 		--use-rep $(USE_REP))
 	$(call write_scbolt_metadata,bin-cells,$(bin_cells))
 
-ifeq ($(strip $(MACROSTATE_FILE)),)
+ifeq ($(strip $(MACROSTATE_FILES)),)
 $(bin_mstates): $(firstword $(bin_cells)) \
     $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))
 	$(call print_rule,bin-macrostates)
@@ -599,7 +625,7 @@ $(bin_mstates): $(firstword $(bin_cells))
 	$(call write_scbolt_metadata,bin-macrostates,$@)
 endif
 
-ifeq ($(strip $(MACROSTATE_FILE)),)
+ifeq ($(strip $(MACROSTATE_FILES)),)
 $(bin_dea): \
     $(bin_input_h5ads) \
     $(foreach condition,$(conditions),$(lastword $(macrostates_$(condition))))

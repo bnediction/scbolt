@@ -1,4 +1,4 @@
-RESULTS = tests/output-matrix
+RESULTS_DIR = tests/output-matrix
 PUBLIC_DIR = tests/public
 CONDITIONS = ctrl
 ORGANISM = human

@@ -1,14 +1,25 @@
 ## BEGIN CHECK ##
 
+check_default_targets = $(progress_default_targets)
+check_targets = $(strip $(if $(TARGET),$(TARGET),$(check_default_targets)))
+check_unknown_targets = $(filter-out $(reset_stages),$(check_targets))
+check_target_label = $(if $(filter 1,$(words $(check_targets))),target '$(check_targets)',targets '$(check_targets)')
+
 define check_help
 	$(call command_help_header,\
 		$(if $(filter true,$(SCBOLT_CLI)),\
-			scbolt check <module> [options],\
-			make check TARGET=<module> [HELP=true]),\
-		Check the inputs required by a module before running it.)
+			scbolt check [<module>] [options],\
+			make check [TARGET=<module>] [HELP=true]),\
+		Check the inputs required before running a workflow.)
+	@if [ "$(SCBOLT_CLI)" = "true" ]; then \
+		printf '%s\n' 'Without a module, check validates the workflows ending at bn-min, bn-submin, and bn-diverse.'; \
+	else \
+		printf '%s\n' 'Without TARGET, check validates the workflows ending at bn-min, bn-submin, and bn-diverse.'; \
+	fi
+	@printf '\n'
 	@printf '$(bold)Parameters$(nc)\n'
 	@if [ "$(SCBOLT_CLI)" = "true" ]; then \
-		printf '  %-31s %s\n' '<module>' 'select module to validate'; \
+		printf '  %-31s %s\n' '<module>' 'final module to validate'; \
 		printf '  %-31s %s\n' '--help, -h' 'display this help'; \
 		printf '  %-31s %s\n' '--params=<file>' 'select the parameter file'; \
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict checks to selected references'; \
@@ -17,7 +28,7 @@ define check_help
 		printf '  %-31s %s\n' '-o <file>, --old-file=<file>' 'check while trusting one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
-		printf '  %-31s %s\n' 'TARGET=<module>' 'select module to validate'; \
+		printf '  %-31s %s\n' 'TARGET=<module>' 'final module to validate'; \
 		printf '  %-31s %s\n' 'HELP=true' 'display this help'; \
 		printf '  %-31s %s\n' 'REFERENCES=<condition...>' 'restrict checks to selected references'; \
 		printf '  %-31s %s\n' 'RESET_TARGET=<module...>' 'check what would be required after rebuilding from these modules'; \
@@ -32,8 +43,8 @@ check:
 ifeq ($(HELP),true)
 	$(check_help)
 else ifeq ($(HELP),false)
-	@if [ -z "$(TARGET)" ]; then \
-		printf '$(failure_label) %s\n' "missing TARGET (usage: make check TARGET=<module>)"; \
+	@if [ -n "$(check_unknown_targets)" ]; then \
+		printf '$(failure_label) %s\n' "unknown TARGET=$(check_unknown_targets); supported values: $(reset_stages)"; \
 		exit 1; \
 	fi
 	@target_dry_run="$$(mktemp)"; \
@@ -54,6 +65,7 @@ else ifeq ($(HELP),false)
 	route_check_report() { \
 		case "$$1" in \
 			project\ parameter*|*project\ parameter*) printf '%s\n' "$${project_checks}";; \
+			input\ route*|*input\ route*) printf '%s\n' "$${project_checks}";; \
 			core\ parameter*|*core\ parameter*) printf '%s\n' "$${core_checks}";; \
 			method\ parameter*|*method\ parameter*) printf '%s\n' "$${method_checks}";; \
 			external\ resource\ parameter*|*external\ resource\ parameter*) \
@@ -81,7 +93,7 @@ else ifeq ($(HELP),false)
 		fi; \
 		$(if $(filter $(path),$(known_scbolt_targets)),,\
 			check_warning "old file is not a known scBOLT target: $(path)";)) \
-	if [ "$(TARGET)" = "load-matrix" ]; then \
+	if [ -n "$(filter load-matrix,$(check_targets))" ]; then \
 		:; \
 		$(foreach condition,$(running_conditions),\
 			if [ -n "$(call sra_value,$(condition))" ] && [ -n "$(call gsm_value,$(condition))" ]; then \
@@ -93,9 +105,11 @@ else ifeq ($(HELP),false)
 				GSM_$(call toupper,$(condition)) \
 					(needed by target 'load-matrix'),project);) \
 	fi; \
-	$(nested_make) --dry-run LOGGING=false \
-		__check_mode=true __$(TARGET) LOGFILE="$(LOGFILE)" > "$${target_dry_run}"; \
-	selected_modules=" $(call target_dry_run_modules,$(TARGET)) "; \
+	: > "$${target_dry_run}"; \
+	$(foreach target,$(check_targets),\
+		$(nested_make) --dry-run LOGGING=false \
+			__check_mode=true __$(target) LOGFILE="$(LOGFILE)" >> "$${target_dry_run}";) \
+	selected_modules=" $(call uniq,$(foreach target,$(check_targets),$(call target_dry_run_modules,$(target)))) "; \
 	running_modules=" $$(sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' "$${target_dry_run}" \
 		| awk '$$0 != "bin-hvg" && !seen[$$0]++') "; \
 	pending_modules=" "; \
@@ -165,18 +179,59 @@ else ifeq ($(HELP),false)
 				fi; \
 			fi; \
 		fi;) \
+	if [ "$(matrix_mode)" = "true" ]; then \
+		:; \
+		$(foreach condition,$(running_conditions),\
+			if [ -f "$(load_matrix_$(condition))" ] && ! is_running "load-matrix"; then \
+				matrix_h5ad_report="$$(mktemp)"; \
+				if $(call conda_run,scbolt-core) python $(scripts_dir)/utils/check_h5ad.py \
+						$(load_matrix_$(condition)) --layers counts --non-empty \
+						> /dev/null 2> "$${matrix_h5ad_report}"; then \
+					check_success "h5ad metadata: matrix input valid (reference: $(condition))"; \
+				else \
+					check_failure "h5ad metadata: matrix input invalid \
+						(reference: $(condition), file=$(load_matrix_$(condition)))"; \
+					missing=1; \
+				fi; \
+				rm -f "$${matrix_h5ad_report}"; \
+			fi;) \
+	fi; \
 	if [ ! -s "$${target_dry_run}" ]; then \
 		if [ "$${missing}" -ne 0 ]; then \
-			$(call check_failure,check failed for target '$(TARGET)'); \
+			$(call check_failure,check failed for $(check_target_label)); \
 			$(print_check_reports); \
 			exit 1; \
 		fi; \
-		$(call check_success,target '$(TARGET)' already up to date); \
-		$(call check_success,check passed for target '$(TARGET)'); \
+		$(call check_success,$(check_target_label) already up to date); \
+		$(call check_success,check passed for $(check_target_label)); \
 		$(print_check_reports); \
 		exit 0; \
 	fi; \
 	cp "$${target_dry_run}" "$${dry_run}"; \
+	$(call check_parameter_diagnostic,$(CONDITIONS),CONDITIONS,project); \
+	$(call check_parameter_diagnostic,$(ORGANISM),ORGANISM,project); \
+	if [ -z "$(input_route_parameters)" ]; then \
+		$(call report_check_error,required input route not defined: define SRA_<CONDITION> or GSM_<CONDITION> or COUNT_FILES or MACROSTATE_FILES or BINARIZATION_FILE); \
+	fi; \
+	if [ -n "$(COUNT_FILES)" ]; then \
+		if [ "$(words $(COUNT_FILES))" -ne "$(words $(conditions))" ]; then \
+			$(call report_check_error,COUNT_FILES must contain one file per condition \(conditions: $(conditions)\)); \
+		else \
+			:; \
+			$(foreach condition,$(conditions),\
+				$(call check_file_diagnostic,$(count_file_$(condition)),COUNT_FILES,external resource);) \
+		fi; \
+	fi; \
+	if [ -n "$(MACROSTATE_FILES)" ]; then \
+		if [ "$(words $(MACROSTATE_FILES))" -ne 1 ] \
+				&& [ "$(words $(MACROSTATE_FILES))" -ne "$(words $(conditions))" ]; then \
+			$(call report_check_error,MACROSTATE_FILES must contain either one multi-condition file or one file per condition \(conditions: $(conditions)\)); \
+		else \
+			:; \
+			$(foreach path,$(MACROSTATE_FILES),\
+				$(call check_file_diagnostic,$(path),MACROSTATE_FILES,external resource);) \
+		fi; \
+	fi; \
 	$(call check_path_diagnostic,$(PUBLIC_DIR),PUBLIC_DIR,core); \
 	if grep -qE -- '--samtools-memory|--localmem|--memory' "$${dry_run}"; then \
 		$(call check_positive_integer_diagnostic,$(MEMORY),MEMORY,core); \
@@ -238,7 +293,7 @@ else ifeq ($(HELP),false)
 	fi; \
 	if grep -q 'scripts/utils/prepare_macrostate_h5ad.py' "$${dry_run}"; then \
 		$(call check_parameter_diagnostic,\
-			$(MACROSTATE_FILE),$(call needed_by,MACROSTATE_FILE,$(TARGET)),external resource); \
+			$(MACROSTATE_FILES),$(call needed_by,MACROSTATE_FILES,$(check_targets)),external resource); \
 	fi; \
 	if grep -q 'scripts/prep/filter.py' "$${dry_run}"; then \
 		$(call check_bool_diagnostic,$(NORM_MAD),$(call needed_by,NORM_MAD,filtering),method); \
@@ -384,7 +439,7 @@ else ifeq ($(HELP),false)
 	if grep -q 'MIN_SELF_LOOP_INFER' "$${dry_run}"; then \
 		$(call check_bool_diagnostic,$(MIN_SELF_LOOP_INFER),MIN_SELF_LOOP_INFER,method); \
 	fi; \
-	if [ "$(TARGET)" = "max-nodes-seed" ] || grep -q '"RULE" "max-nodes-seed' "$${dry_run}"; then \
+	if [ -n "$(filter max-nodes-seed,$(check_targets))" ] || grep -q '"RULE" "max-nodes-seed' "$${dry_run}"; then \
 		$(call check_parameter_diagnostic,$(TIMEOUT_SEED),TIMEOUT_SEED (needed by target 'max-nodes-seed'),method); \
 	fi; \
 	if grep -q 'parallel-fastq-dump' "$${dry_run}"; then \
@@ -399,7 +454,7 @@ else ifeq ($(HELP),false)
 				SRA_$(call toupper,$(condition)) \
 					(needed by target 'load-fastq'),project);) \
 	fi; \
-	if [ "$(TARGET)" != "load-matrix" ] && grep -q 'download_gsm.sh' "$${dry_run}"; then \
+	if [ -z "$(filter load-matrix,$(check_targets))" ] && grep -q 'download_gsm.sh' "$${dry_run}"; then \
 		:; \
 		$(foreach condition,$(running_conditions),\
 			if [ -n "$(call sra_value,$(condition))" ] && [ -n "$(call gsm_value,$(condition))" ]; then \
@@ -416,23 +471,6 @@ else ifeq ($(HELP),false)
 				|| grep -q 'scripts/mstates/cellrank_mstates.py' "$${dry_run}"; }; then \
 		$(call report_check_error,matrix input mode does not provide spliced/unspliced layers \
 			required by velocity-dependent modules); \
-	fi; \
-	if [ "$(matrix_mode)" = "true" ]; then \
-		:; \
-		$(foreach condition,$(running_conditions),\
-			if [ -f "$(load_matrix_$(condition))" ] && ! is_running "load-matrix"; then \
-				matrix_h5ad_report="$$(mktemp)"; \
-				if $(call conda_run,scbolt-core) python $(scripts_dir)/utils/check_h5ad.py \
-						$(load_matrix_$(condition)) --obs condition --layers counts --non-empty \
-						> /dev/null 2> "$${matrix_h5ad_report}"; then \
-					check_success "h5ad metadata: matrix input valid (reference: $(condition))"; \
-				else \
-					check_failure "h5ad metadata: matrix input invalid \
-						(reference: $(condition), file=$(load_matrix_$(condition)))"; \
-					missing=1; \
-				fi; \
-				rm -f "$${matrix_h5ad_report}"; \
-			fi;) \
 	fi; \
 	if grep -q 'scripts/clust/annotation.py' "$${dry_run}"; then \
 		$(call check_parameter_diagnostic,$(LABEL),LABEL (needed by target 'annotation'),project); \
@@ -514,11 +552,11 @@ else ifeq ($(HELP),false)
 		fi; \
 	fi; \
 	if [ "$${missing}" -ne 0 ]; then \
-		$(call check_failure,check failed for target '$(TARGET)'); \
+		$(call check_failure,check failed for $(check_target_label)); \
 		$(print_check_reports); \
 		exit 1; \
 	fi; \
-	$(call check_success,check passed for target '$(TARGET)'); \
+	$(call check_success,check passed for $(check_target_label)); \
 	$(print_check_reports)
 else
 	$(call print_error,unsupported HELP=$(HELP) \(supported values: true, false\))

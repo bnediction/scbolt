@@ -15,8 +15,8 @@ _scbolt_boolean_options="--logging= --spec-only-hvg= --pca-only-hvg= --velocity-
 --bin-scboolseq-only-hvg= --zeroes-are-zeroes= --bin-dea-only-hvg=
 --canonic-filter= --canonic-infer= --min-self-loop-consts= --min-self-loop-infer=
 --norm-mad= --cc-correction="
-_scbolt_file_options="-o= --params= --old-file= --results= --public-dir= --star-whitelist=
---binarization-file= --macrostate-file= --prior-knowledge= --spec-file="
+_scbolt_file_options="-o= --params= --old-file= --results-dir= --public-dir= --star-whitelist=
+--binarization-file= --macrostate-files= --prior-knowledge= --spec-file="
 
 _scbolt_complete_words() {
     local choices="$1"
@@ -188,14 +188,14 @@ _scbolt_module_options() {
     local target="$1"
 
     printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= -o \
-        --results= --public-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
+        --results-dir= --public-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
         --logging= --help help -h
     _scbolt_help_parameters "${target}"
 }
 
 _scbolt_run_options() {
     printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= -o \
-        --results= --public-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
+        --results-dir= --public-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
         --logging= --help -h
 }
 

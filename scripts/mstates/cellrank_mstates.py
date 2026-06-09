@@ -284,9 +284,9 @@ std.print_task(
     f"plotting CellRank outputs (directory={os.path.relpath(cellrank_plot_dir)})"
 )
 macrostate_files = {
-    "macrostate": cellrank_plot_dir / "umap_cellrank.pdf",
-    "init_states": cellrank_plot_dir / "umap_init_states.pdf",
-    "final_states": cellrank_plot_dir / "umap_final_states.pdf",
+    "macrostate": cellrank_plot_dir / "macrostates.pdf",
+    "init_states": cellrank_plot_dir / "initial_states.pdf",
+    "final_states": cellrank_plot_dir / "final_states.pdf",
 }
 
 for obs, file in macrostate_files.items():

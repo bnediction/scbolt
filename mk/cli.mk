@@ -72,11 +72,11 @@ progress_deps_cotan = annotation
 progress_deps_cellrank = velocity potency
 progress_deps_stream = annotation
 progress_deps_knnbs = annotation
-progress_deps_macrostates = $(if $(MACROSTATE_FILE),,$(MACROSTATE_METHOD))
-progress_deps_bin-cells = $(if $(MACROSTATE_FILE),,annotation)
+progress_deps_macrostates = $(if $(MACROSTATE_FILES),,$(MACROSTATE_METHOD))
+progress_deps_bin-cells = $(if $(MACROSTATE_FILES),,annotation)
 progress_deps_bin-macrostates = \
-	bin-cells $(if $(MACROSTATE_FILE),,macrostates)
-progress_deps_bin-dea = annotation $(if $(MACROSTATE_FILE),,macrostates)
+	bin-cells $(if $(MACROSTATE_FILES),,macrostates)
+progress_deps_bin-dea = $(if $(MACROSTATE_FILES),,annotation macrostates)
 progress_deps_bin-consensus = bin-macrostates bin-cells bin-dea
 progress_deps_binarization = $(if $(BINARIZATION_FILE),,\
 	$(if $(filter scboolseq,$(BIN_METHOD)),bin-macrostates,\
@@ -526,7 +526,6 @@ else
 		if [ -n "$${note3}" ]; then \
 			printf '    %s\n' "$${note3}"; \
 		fi; \
-		printf '\n'; \
 	}; \
 	if [ "$(SCBOLT_CLI)" = "true" ]; then \
 		printf 'usage: scbolt %s [options]\n\n' "$(module_help_target)"; \
@@ -587,6 +586,7 @@ else
 				'$(parameter_help_note3_$(param))';) \
 	fi; \
 	if [ -n "$(module_help_has_bin_hvg)" ]; then \
+		printf '\n'; \
 		printf '%s\n' 'Notes'; \
 		printf '%s\n' '-----'; \
 		printf '%s\n' 'Empty top HVG count means automatic estimation.'; \

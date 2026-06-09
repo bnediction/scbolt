@@ -234,6 +234,22 @@ std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(Path(f"{args.infile}").resolve())
 
+std.print_info("standardizing gene names")
+adata.var["symbol"] = list(adata.var.index)
+for input_identifier_type in ["name", "gene_id", "ensembl_id"]:
+    bt.sct.pp.convert_gene_identifiers(
+        adata,
+        axis="var",
+        input_identifier_type=input_identifier_type,
+        copy=False,
+    )
+merged_adata = bt.sct.pp.var_names_merge_duplicates(
+    adata,
+    var_names_column="symbol",
+)
+if merged_adata is not None:
+    adata = merged_adata
+
 adata.var_names_make_unique()
 
 shape = {"init": adata.shape}

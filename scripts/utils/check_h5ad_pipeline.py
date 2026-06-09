@@ -253,7 +253,6 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
             [outfile],
             {},
             {
-                ("obs", "condition"),
                 ("layers", "counts"),
             },
             None,

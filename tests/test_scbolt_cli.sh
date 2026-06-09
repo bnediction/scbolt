@@ -77,8 +77,21 @@ expect_make_args -f "${makefile}" show-config HELP=true SCBOLT_CLI=true PARAMS=p
 run_scbolt "${project}" check --help
 expect_make_args -f "${makefile}" check HELP=true SCBOLT_CLI=true PARAMS=params.mk
 
+run_scbolt "${project}" check
+expect_make_args -f "${makefile}" check PARAMS=params.mk
+
 run_scbolt "${project}" dry-run help
 expect_make_args -f "${makefile}" dry-run HELP=true SCBOLT_CLI=true PARAMS=params.mk
+
+if run_scbolt "${project}" dry-run > "${tmpdir}/missing-dry-run.out" \
+    2> "${tmpdir}/missing-dry-run.err"; then
+    printf '%s\n' "expected dry-run without module to fail" >&2
+    exit 1
+fi
+test ! -e "${record}"
+grep -qx '✗ Missing module for scbolt dry-run.' "${tmpdir}/missing-dry-run.err"
+grep -qx 'Usage: scbolt dry-run <module>' "${tmpdir}/missing-dry-run.err"
+grep -qx "Run 'scbolt dry-run --help' for details." "${tmpdir}/missing-dry-run.err"
 
 run_scbolt "${project}" annotation help --params=params.mk
 expect_make_args \
@@ -154,6 +167,16 @@ grep -qx '✓ scBOLT project updated.' "${tmpdir}/spaced-init.out"
 grep -qx 'PARAMS=spaced.mk' "${project}/.scbolt"
 grep -q '^Parameter file: spaced.mk$' "${tmpdir}/unchanged-init.out"
 grep -qx '⚠ scBOLT project unchanged.' "${tmpdir}/unchanged-init.out"
+
+rm "${project}/spaced.mk"
+(
+    cd "${project}"
+    printf '\n' | "${scbolt}" init > "${tmpdir}/recreate-init.out"
+)
+grep -qx 'PARAMS=spaced.mk' "${project}/.scbolt"
+test -f "${project}/spaced.mk"
+grep -q '^Parameter file: spaced.mk (created)$' "${tmpdir}/recreate-init.out"
+grep -qx '✓ scBOLT project updated.' "${tmpdir}/recreate-init.out"
 
 mkdir -p "${project}/nested/path"
 (
@@ -265,16 +288,46 @@ grep -qx '✗ scBOLT project update failed.' "${tmpdir}/missing-init.err"
 
 fresh_project="${tmpdir}/fresh-project"
 mkdir -p "${fresh_project}"
-if (
+(
     cd "${fresh_project}"
     "${scbolt}" init missing.mk > "${tmpdir}/fresh-missing-init.out" \
         2> "${tmpdir}/fresh-missing-init.err"
+)
+grep -qx 'PARAMS=missing.mk' "${fresh_project}/.scbolt"
+test -f "${fresh_project}/missing.mk"
+grep -q '^#######################################################$' "${fresh_project}/missing.mk"
+grep -q '^### Fill required parameters before running scBOLT\. ###$' "${fresh_project}/missing.mk"
+grep -q '^### Fill when reaching module-specific steps\. ###$' "${fresh_project}/missing.mk"
+grep -q '^### Optional parameters\. ###$' "${fresh_project}/missing.mk"
+grep -q '^# Define one input route before running scBOLT\.$' "${fresh_project}/missing.mk"
+grep -q '^# COUNT_FILES takes precedence over GSM_<CONDITION> and SRA_<CONDITION>\.$' \
+    "${fresh_project}/missing.mk"
+grep -q '^# Do not define both SRA_<CONDITION> and GSM_<CONDITION> for the same condition\.$' \
+    "${fresh_project}/missing.mk"
+grep -q '^CONDITIONS =$' "${fresh_project}/missing.mk"
+grep -q '^ORGANISM =$' "${fresh_project}/missing.mk"
+grep -q '^LABEL =$' "${fresh_project}/missing.mk"
+grep -q '^SPEC_FILE = spec.yml$' "${fresh_project}/missing.mk"
+grep -q '^COUNT_FILES =$' "${fresh_project}/missing.mk"
+grep -q '^MACROSTATE_FILES =$' "${fresh_project}/missing.mk"
+grep -q '^BINARIZATION_FILE =$' "${fresh_project}/missing.mk"
+grep -q '^RESULTS_DIR =$' "${fresh_project}/missing.mk"
+grep -q '^PUBLIC_DIR =$' "${fresh_project}/missing.mk"
+grep -qx 'Parameter file: missing.mk (created)' "${tmpdir}/fresh-missing-init.out"
+grep -qx '✓ scBOLT project initialized.' "${tmpdir}/fresh-missing-init.out"
+
+missing_dir_project="${tmpdir}/missing-dir-project"
+mkdir -p "${missing_dir_project}"
+if (
+    cd "${missing_dir_project}"
+    "${scbolt}" init missing/params.mk > "${tmpdir}/missing-dir-init.out" \
+        2> "${tmpdir}/missing-dir-init.err"
 ); then
-    printf '%s\n' "expected fresh init with missing file to fail" >&2
+    printf '%s\n' "expected init with missing parent directory to fail" >&2
     exit 1
 fi
-grep -qx 'Parameter file not found: missing.mk' "${tmpdir}/fresh-missing-init.err"
-grep -qx '✗ scBOLT project initialization failed.' "${tmpdir}/fresh-missing-init.err"
+grep -qx 'Parameter file directory not found: missing' "${tmpdir}/missing-dir-init.err"
+grep -qx '✗ scBOLT project initialization failed.' "${tmpdir}/missing-dir-init.err"
 
 empty_project="${tmpdir}/empty-project"
 mkdir -p "${empty_project}"
@@ -314,6 +367,13 @@ expect_make_args \
     -f "${makefile}" \
     bn-submin \
     PUBLIC_DIR=shared-public \
+    "PARAMS=${project}/spaced.mk"
+
+run_scbolt "${project}" bn-submin --results-dir=shared-results
+expect_make_args \
+    -f "${makefile}" \
+    bn-submin \
+    RESULTS_DIR=shared-results \
     "PARAMS=${project}/spaced.mk"
 
 run_scbolt "${project}" bn-submin reset_target=clustering --reset-target=annotation \

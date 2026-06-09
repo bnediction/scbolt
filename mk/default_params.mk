@@ -25,7 +25,7 @@ LOGGING ?= true
 # Empty CONDITIONS is treated as one implicit condition named unique.
 $(eval ORGANISM ?=)                         # organism used for gene resources
 $(eval CONDITIONS ?= unique)                # experimental conditions
-$(eval RESULTS ?= project/)                 # output directory
+$(eval RESULTS_DIR ?= project/)             # output directory
 # Public data directory. In params.mk, relative paths are resolved relative to
 # params.mk; on the command line, they are resolved relative to launch_dir.
 # When omitted, PUBLIC_DIR defaults to public/ relative to the scBOLT root.
@@ -42,7 +42,7 @@ go_organism_url ?= https://current.geneontology.org/ontology/subsets/goslim_$(OR
 # STAR_BARCODE_FILTER values: auto, threshold, top.
 # auto estimates a knee point; threshold requires STAR_MIN_UMI; top requires
 # STAR_TOP_BARCODES.
-$(eval ALIGNMENT_TOOL ?= cellranger)       # alignment/counting backend
+$(eval ALIGNMENT_TOOL ?= star)            # alignment/counting backend
 $(eval STAR_CB_LEN ?= 16)                  # cell-barcode length
 $(eval STAR_UMI_LEN ?= 10)                 # UMI length
 $(eval STAR_WHITELIST ?=)                  # barcode whitelist file
@@ -52,16 +52,23 @@ $(eval STAR_TOP_BARCODES ?=)               # optional number of top barcodes
 
 ## EXTRA PARAMETERS ##
 # Useful when starting from user-provided or precomputed upstream analyses.
+# Count-level input priority is COUNT_FILES > GSM_<CONDITION> > SRA_<CONDITION>.
+# COUNT_FILES is therefore treated as the authoritative count input when set.
+# COUNT_FILES skips alignment/counting and restarts from one count AnnData file
+# per condition, ordered like CONDITIONS.
 # BINARIZATION_FILE overrides the binarization target when set.
-# MACROSTATE_FILE skips macrostate inference and restarts from one AnnData file.
-# It must contain layer 'log-norm', obs 'macrostate', obsm USE_REP, and obs
-# 'condition' for multi-condition projects. If BIN_HVG_FLAVOR=seurat_v3 is used
-# downstream, it must also contain layer 'counts'.
+# MACROSTATE_FILES skips macrostate inference and restarts from either one
+# multi-condition AnnData file or one AnnData file per condition, ordered like
+# CONDITIONS. Files must contain layer 'log-norm', obs 'macrostate', and obsm
+# USE_REP. A single multi-condition file must also contain obs 'condition'.
+# If BIN_HVG_FLAVOR=seurat_v3 is used downstream, macrostate files must also
+# contain layer 'counts'.
 # USE_REP must name an embedding in adata.obsm, usually created by clustering.
 # LABEL_COL is created by annotation, copied per condition, and used by
 # downstream macrostate methods.
+$(eval COUNT_FILES ?=)                     # precomputed count AnnData files
 $(eval BINARIZATION_FILE ?=)                # precomputed macrostate binarization
-$(eval MACROSTATE_FILE ?=)                  # precomputed macrostate AnnData file
+$(eval MACROSTATE_FILES ?=)                 # precomputed macrostate AnnData files
 $(eval USE_REP ?= X_umap)                   # embedding key in adata.obsm
 $(eval LABEL_COL ?= label)                  # annotated cell-type column in adata.obs
 $(eval OLD_FILES ?=)                        # trusted existing scBOLT DAG files

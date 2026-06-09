@@ -18,7 +18,7 @@ Examples:
 ```bash
 make check TARGET=velocity
 make check TARGET=bin-dea RESET_TARGET=bin-dea
-make check TARGET=bin-cells MACROSTATE_FILE=case/macrostate.h5ad
+make check TARGET=bin-cells MACROSTATE_FILES=case/macrostate.h5ad
 make check TARGET=max-nodes-seed __check_externals__=false
 ```
 
@@ -118,7 +118,7 @@ Examples:
 
 - `PARAMS`
 - `REFERENCES`
-- `RESULTS`
+- `RESULTS_DIR`
 - `PUBLIC_DIR`
 - `MEMORY`
 - `JOBS`
@@ -180,8 +180,9 @@ artifacts used by the pipeline.
 Examples:
 
 - `STAR_WHITELIST`
+- `COUNT_FILES`
 - `BINARIZATION_FILE`
-- `MACROSTATE_FILE`
+- `MACROSTATE_FILES`
 - `PRIOR_KNOWLEDGE`
 - `CLINGO_CONFIG_*`
 
@@ -196,7 +197,7 @@ resource or file is effectively required by the selected target.
 Example output:
 
 ```text
-SUCCESS external resource parameter valid: MACROSTATE_FILE=case/macrostate.h5ad (needed by target 'bin-dea')
+SUCCESS external resource parameter valid: MACROSTATE_FILES=case/macrostate.h5ad (needed by target 'bin-dea')
 FAIL required file not found: case/macrostate.h5ad
 ```
 
@@ -209,7 +210,7 @@ File checks include resources such as:
 
 - model specification files;
 - repeat masker annotation for Velocyto;
-- user-provided `MACROSTATE_FILE`;
+- user-provided `COUNT_FILES` or `MACROSTATE_FILES`;
 - custom prior networks;
 - custom Clingo configuration files.
 
@@ -307,18 +308,37 @@ by existing file or target dependency checks. For example, CellRank uses
 column and inserts it into a temporary H5AD as `cytotrace_score` before running
 the CellRank script.
 
-### `MACROSTATE_FILE`
+### `COUNT_FILES`
 
-`MACROSTATE_FILE` is a special external AnnData boundary for users restarting
-the pipeline at binarization. When defined, `bin-cells`, `bin-macrostates`, and
-`bin-dea` depend on a prepared temporary copy of this file instead of depending
-on internally generated macrostate H5AD/CSV pairs.
+`COUNT_FILES` is a count-level AnnData entry point. It must contain one H5AD
+file per condition, ordered like `CONDITIONS`. When defined, filtering consumes
+these files directly instead of depending on Velocyto or public GEO matrix
+loading. Gene-name standardization is applied by `filter.py`, so count files,
+GEO matrices, and Velocyto outputs share the same downstream contract.
+
+For count-level inputs, scBOLT uses this priority order:
+
+```text
+COUNT_FILES > GSM_<CONDITION> > SRA_<CONDITION>
+```
+
+`COUNT_FILES` is the authoritative count-level entry point when defined.
+
+### `MACROSTATE_FILES`
+
+`MACROSTATE_FILES` is a special external AnnData boundary for users restarting
+the pipeline at binarization. It accepts either one multi-condition AnnData file
+or one AnnData file per condition, ordered like `CONDITIONS`. When defined,
+`bin-cells`, `bin-macrostates`, and `bin-dea` depend on a prepared temporary
+copy of these files instead of depending on internally generated macrostate
+H5AD/CSV pairs.
 
 The user-provided file must contain:
 
 - `log-norm` in `layers`;
 - `macrostate` in `obs`;
-- `condition` in `obs`, required for multi-condition projects;
+- `condition` in `obs`, required when a single file is used for a
+  multi-condition project;
 - `$(USE_REP)` in `obsm`.
 
 If downstream HVG selection uses `BIN_HVG_FLAVOR=seurat_v3`, the file must also
@@ -327,9 +347,9 @@ contain:
 - `counts` in `layers`.
 
 For multi-condition projects, the preparation step prefixes `macrostate` values
-with `condition` values so that downstream binarization sees globally unique
-macrostate labels. This matches the behavior of internally generated
-macrostate CSVs.
+with condition values so that downstream binarization sees globally unique
+macrostate labels. This matches the behavior of internally generated macrostate
+CSVs.
 
 ## AnnData Target Dependency Specification
 
@@ -535,7 +555,7 @@ Requires:
 
 - `log-norm` in `layers`
 - `$(USE_REP)` in `obsm`
-- `macrostate` in `obs`, only when starting from `MACROSTATE_FILE` and needed
+- `macrostate` in `obs`, only when starting from `MACROSTATE_FILES` and needed
   downstream
 
 Provides:

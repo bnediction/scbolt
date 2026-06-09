@@ -2,9 +2,9 @@
 
 ## Introduction ##
 
-The semi-automatic workflow sc-bridge (pipeline for Boolean network Reconstruction and Inference
-from multiple experimental Data in Gene Expression) proposes a general methodology for inferring executable models reproducing the
-observed cellular dynamics from multiple biological experiments, using scRNA-seq data.
+The semi-automatic workflow scBOLT proposes a general methodology for inferring
+executable Boolean models reproducing the observed cellular dynamics from
+multiple biological experiments, using scRNA-seq data.
 Its implementation in `make`, in addition to make its use easy and intuitive,
 offers a wide range of advanced features for guiding and helping users in
 modelling the desired biological processes.

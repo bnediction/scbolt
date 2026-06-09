@@ -3,7 +3,7 @@
 
 ORGANISM = mouse
 CONDITIONS = ctrl treated
-RESULTS = ../../project
+RESULTS_DIR = ../../project
 
 SRA_CTRL = SRR000001 SRR000002
 SRA_TREATED = SRR000003 SRR000004

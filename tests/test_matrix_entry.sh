@@ -63,7 +63,7 @@ GENES
         "${tmpdir}/mex/barcodes.tsv.gz" \
         "${tmpdir}/mex/genes.tsv.gz" \
         "${tmpdir}/counts.h5ad" \
-        --condition ctrl --gsm GSM5492245
+        --gsm GSM5492245
     python3 - "${tmpdir}/counts.h5ad" <<'PY'
 from pathlib import Path
 import sys
@@ -72,11 +72,10 @@ import anndata as ad
 
 adata = ad.read_h5ad(Path(sys.argv[1]))
 assert adata.shape == (2, 3)
-assert "condition" in adata.obs
-assert set(adata.obs["condition"]) == {"ctrl"}
 assert "counts" in adata.layers
 assert adata.uns["scbolt"]["gsm"] == "GSM5492245"
 PY
+
 fi
 
 dry_run="$(
@@ -90,7 +89,7 @@ grep -q 'download/import_matrix.py' <<< "${dry_run}"
 
 conflict_params="${tmpdir}/conflict.mk"
 cat > "${conflict_params}" <<'MK'
-RESULTS = tests/output-matrix
+RESULTS_DIR = tests/output-matrix
 PUBLIC_DIR = tests/public
 CONDITIONS = ctrl
 ORGANISM = human

@@ -58,6 +58,16 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--condition",
+    dest="condition",
+    type=str,
+    required=False,
+    default=None,
+    metavar="LITERAL",
+    help="condition assigned to all cells (default: None)",
+)
+
+parser.add_argument(
     "--prefix-macrostates",
     dest="prefix_macrostates",
     action="store_true",
@@ -82,6 +92,14 @@ std.print_task("validating macrostate AnnData metadata")
 require_key(adata.layers, "log-norm", "layers")
 require_key(adata.obs, args.macrostate_obs, "obs")
 require_key(adata.obsm, args.use_rep, "obsm")
+
+if args.condition is not None:
+    if args.condition_obs is None:
+        args.condition_obs = "condition"
+    std.print_task(
+        f"assigning condition (condition={args.condition}, obs={args.condition_obs})"
+    )
+    adata.obs[args.condition_obs] = args.condition
 
 if args.prefix_macrostates:
     if args.condition_obs is None:

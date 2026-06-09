@@ -280,6 +280,102 @@ default_init_params() {
     return 0
 }
 
+write_minimal_params_file() {
+    local params_path="$1"
+
+    cat > "${params_path}" <<'EOF'
+#######################################################
+### Fill required parameters before running scBOLT. ###
+#######################################################
+
+# Experimental conditions. Use "unique" for a single-condition project.
+CONDITIONS =
+
+# Organism used for gene resources, e.g. mouse or human.
+ORGANISM =
+
+# Define one input route before running scBOLT.
+# Supported entry points:
+# - SRA_<CONDITION>      : list of SRA run IDs
+# - GSM_<CONDITION>      : GEO sample ID for public count matrices
+# - COUNT_FILES          : precomputed count AnnData files
+# - MACROSTATE_FILES     : precomputed macrostates
+# - BINARIZATION_FILE    : precomputed binarization
+
+# COUNT_FILES takes precedence over GSM_<CONDITION> and SRA_<CONDITION>.
+
+# Do not define both SRA_<CONDITION> and GSM_<CONDITION> for the same condition.
+# SRA_UNIQUE =
+# GSM_UNIQUE =
+COUNT_FILES =
+MACROSTATE_FILES =
+BINARIZATION_FILE =
+
+#################################################
+### Fill when reaching module-specific steps. ###
+#################################################
+
+# Required by annotation.
+LABEL =
+
+# Required by Boolean specification.
+SPEC_FILE = spec.yml
+
+############################
+### Optional parameters. ###
+############################
+
+# Output directory. Defaults to the current project name when omitted.
+RESULTS_DIR =
+
+# Public resource directory. Defaults to public/ when omitted.
+PUBLIC_DIR =
+EOF
+}
+
+ensure_init_params_file() {
+    local params="$1"
+    local failure_message="$2"
+    local params_path
+    local params_dir
+
+    if [[ "${params}" = /* ]]; then
+        params_path="${params}"
+    else
+        params_path="${PWD}/${params}"
+    fi
+
+    if [ -f "${params_path}" ]; then
+        case "${params}" in
+            *.mk) ;;
+            *)
+                printf '%s\n' "Parameter file must have a .mk extension: ${params}" >&2
+                print_error "${failure_message}"
+                exit 1
+                ;;
+        esac
+        return 0
+    fi
+
+    case "${params}" in
+        *.mk) ;;
+        *)
+            printf '%s\n' "Parameter file not found: ${params}" >&2
+            print_error "${failure_message}"
+            exit 1
+            ;;
+    esac
+
+    params_dir="$(dirname "${params_path}")"
+    if [ ! -d "${params_dir}" ]; then
+        printf '%s\n' "Parameter file directory not found: $(dirname "${params}")" >&2
+        print_error "${failure_message}"
+        exit 1
+    fi
+
+    write_minimal_params_file "${params_path}"
+}
+
 read_prompt_value() {
     local variable="$1"
     local prompt="$2"
@@ -317,6 +413,8 @@ init_project() {
     local params="${1:-}"
     local default_params
     local failure_message
+    local params_abs
+    local params_created=false
     local previous_params=""
     local stored_params
 
@@ -349,20 +447,41 @@ init_project() {
         exit 1
     fi
 
+    params_abs="$(absolute_path "${params}")"
+    if [ ! -f "${params_abs}" ]; then
+        params_created=true
+    fi
+
+    ensure_init_params_file "${params}" "${failure_message}"
     require_params_file "${params}" "${failure_message}"
     stored_params="$(stored_params_path "${params}")"
     printf 'PARAMS=%s\n' "${stored_params}" > "${PWD}/.scbolt"
 
     if [ -n "${previous_params}" ]; then
         if [ "${previous_params}" = "${stored_params}" ]; then
-            printf '%s %s\n' "Parameter file:" "${stored_params}"
-            print_warning "scBOLT project unchanged."
+            if [ "${params_created}" = "true" ]; then
+                printf '%s %s (created)\n' "Parameter file:" "${stored_params}"
+                print_success "scBOLT project updated."
+            else
+                printf '%s %s\n' "Parameter file:" "${stored_params}"
+                print_warning "scBOLT project unchanged."
+            fi
         else
-            printf '%s %s -> %s\n' "Parameter file:" "${previous_params}" "${stored_params}"
+            if [ "${params_created}" = "true" ]; then
+                printf '%s %s -> %s (created)\n' \
+                    "Parameter file:" "${previous_params}" "${stored_params}"
+            else
+                printf '%s %s -> %s\n' \
+                    "Parameter file:" "${previous_params}" "${stored_params}"
+            fi
             print_success "scBOLT project updated."
         fi
     else
-        printf '%s %s\n' "Parameter file:" "${stored_params}"
+        if [ "${params_created}" = "true" ]; then
+            printf '%s %s (created)\n' "Parameter file:" "${stored_params}"
+        else
+            printf '%s %s\n' "Parameter file:" "${stored_params}"
+        fi
         print_success "scBOLT project initialized."
     fi
 }
@@ -633,6 +752,23 @@ run_make_with_params() {
     exit "$?"
 }
 
+run_make_check_with_params() {
+    local params="$1"
+    local stderr_file
+    local status=0
+    shift
+
+    require_params_file "${params}"
+    stderr_file="$(mktemp)"
+    set +e
+    make -f "${SCBOLT_MAKEFILE}" check "$@" "PARAMS=${params}" 2> "${stderr_file}"
+    status=$?
+    set -e
+    grep -vE '^make(\[[0-9]+\])?: \*\*\*' "${stderr_file}" >&2 || true
+    rm -f "${stderr_file}"
+    exit "${status}"
+}
+
 run_make_help() {
     local command="$1"
     local params_arg
@@ -644,6 +780,33 @@ run_make_help() {
         make -f "${SCBOLT_MAKEFILE}" "${command}" HELP=true SCBOLT_CLI=true
     fi
     exit "$?"
+}
+
+has_target_assignment() {
+    local arg
+    local value
+
+    for arg in "$@"; do
+        case "${arg}" in
+            TARGET=*)
+                value="${arg#TARGET=}"
+                if [ -n "${value}" ]; then
+                    return 0
+                fi
+                ;;
+        esac
+    done
+
+    return 1
+}
+
+require_module_argument() {
+    local command="$1"
+
+    print_error "Missing module for scbolt ${command}."
+    printf '%s\n' "Usage: scbolt ${command} <module>" >&2
+    printf '%s\n' "Run 'scbolt ${command} --help' for details." >&2
+    exit 1
 }
 
 has_help_request() {
@@ -844,7 +1007,22 @@ case "${cmd}" in
         fi
         translate_args "${leading_args[@]}" "$@"
         make_target="${cmd}"
-        if [ "${#positional_args[@]}" -gt 0 ]; then
+        if [ "${cmd}" = "dry-run" ] \
+                && [ "${#positional_args[@]}" -eq 0 ] \
+                && ! has_target_assignment "${make_args[@]}"; then
+            require_module_argument "${cmd}"
+        fi
+        if [ "${cmd}" = "check" ] && [ "${#positional_args[@]}" -gt 0 ]; then
+            target="${positional_args[0]}"
+            positional_args=("${positional_args[@]:1}")
+            run_make_check_with_params \
+                "${params_assignment}" \
+                "TARGET=${target}" \
+                "${positional_args[@]}" \
+                "${make_args[@]}"
+        elif [ "${cmd}" = "check" ]; then
+            run_make_check_with_params "${params_assignment}" "${make_args[@]}"
+        elif [ "${#positional_args[@]}" -gt 0 ]; then
             target="${positional_args[0]}"
             positional_args=("${positional_args[@]:1}")
             run_make_with_params \

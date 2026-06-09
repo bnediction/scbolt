@@ -95,7 +95,7 @@ Examples include:
 
 - macrostate methods not selected by `MACROSTATE_METHOD`;
 - upstream modules bypassed by entry-point parameters such as
-  `MACROSTATE_FILE` or `BINARIZATION_FILE`.
+  `COUNT_FILES`, `MACROSTATE_FILES`, or `BINARIZATION_FILE`.
 
 ## Progress Counter
 

@@ -347,7 +347,7 @@ elif args.embedding == "tsne":
         copy=False,
     )
 
-embedding_plot = Path(f"{os.path.dirname(args.outfile)}/{args.embedding}_cluster.pdf")
+embedding_plot = Path(f"{os.path.dirname(args.outfile)}/clusters.pdf")
 std.print_info(
     f"plotting embeddings (directory={os.path.relpath(os.path.dirname(args.outfile))})"
 )

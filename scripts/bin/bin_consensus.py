@@ -96,12 +96,12 @@ if not Path(os.path.dirname(args.outfile)).exists():
 
 std.print_task("loading binarization inputs")
 std.print_info(
-    f"loading scBoolSeq binarisation (file={std.format_path(args.scboolseq[0])})"
+    f"loading scBoolSeq binarization (file={std.format_path(args.scboolseq[0])})"
 )
 std.print_info(
     f"loading scBoolSeq distributions (file={Path(args.scboolseq[1]).resolve()})"
 )
-std.print_info(f"loading DEA binarisation (file={std.format_path(args.dea)})")
+std.print_info(f"loading DEA binarization (file={std.format_path(args.dea)})")
 
 scboolseq_bin = pd.read_csv(args.scboolseq[0], index_col=0, sep=",")
 

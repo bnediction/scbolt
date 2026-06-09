@@ -649,7 +649,7 @@ elif args.integration == "scanorama":
             copy=False,
         )
 
-pc_plot = Path(f"{os.path.dirname(args.outfile)}/pc_condition.pdf")
+pc_plot = Path(f"{os.path.dirname(args.outfile)}/conditions_pc.pdf")
 std.print_info(
     f"plotting embeddings (directory={os.path.relpath(os.path.dirname(args.outfile))})"
 )
@@ -676,8 +676,12 @@ bt.sct.pl.embedding_plot(
     outfile=pc_plot,
 )
 
-for obs in ["condition", "cluster"]:
-    embedding_plot = Path(f"{os.path.dirname(args.outfile)}/{args.embedding}_{obs}.pdf")
+embedding_plots = {
+    "condition": "conditions.pdf",
+    "cluster": "clusters.pdf",
+}
+for obs, filename in embedding_plots.items():
+    embedding_plot = Path(f"{os.path.dirname(args.outfile)}/{filename}")
     bt.sct.pl.embedding_plot(
         adata,
         obs=obs,

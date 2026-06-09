@@ -2,8 +2,11 @@
 
 h5ads_for_conditions = $(foreach condition,$(running_conditions),$($(1)_$(condition)))
 default_bin_input_h5ads = $(if $(multi_condition),$(annotation_integrated),$(annotation_$(conditions)))
-macrostate_h5ad = $(if $(MACROSTATE_FILE),$(tmpdir)/bin/macrostates.h5ad)
-bin_input_h5ads = $(if $(MACROSTATE_FILE),$(macrostate_h5ad),$(default_bin_input_h5ads))
+macrostate_h5ad = $(if $(MACROSTATE_FILES),$(tmpdir)/bin/macrostates.h5ad)
+macrostate_h5ads = $(if $(filter 1,$(words $(MACROSTATE_FILES))),\
+	$(macrostate_h5ad),\
+	$(foreach condition,$(conditions),$(macrostate_h5ad_$(condition))))
+bin_input_h5ads = $(if $(MACROSTATE_FILES),$(macrostate_h5ad),$(default_bin_input_h5ads))
 
 clustering_integrated = $(results)/integrated/clust/clust.h5ad
 annotation_integrated = $(results)/integrated/clust/annot.h5ad
@@ -30,6 +33,7 @@ geo_matrix_$(1) =               $$(geo_dir_$(1))/matrix.mtx.gz
 geo_barcodes_$(1) =             $$(geo_dir_$(1))/barcodes.tsv.gz
 geo_genes_$(1) =                $$(geo_dir_$(1))/genes.tsv.gz
 geo_files_$(1) =                $$(geo_matrix_$(1)) $$(geo_barcodes_$(1)) $$(geo_genes_$(1))
+count_file_$(1) =               $(call file_for_condition,$(1),$(COUNT_FILES))
 load_matrix_$(1) =              $(results)/$(1)/count/counts.h5ad
 cellranger_$(1) =               $(results)/$(1)/count/cellranger/$(1).mri.tgz
 star_$(1) =                     $(results)/$(1)/count/star/Aligned.sortedByCoord.out.bam \
@@ -70,7 +74,10 @@ else
 alignment_$(1) =                $(results)/$(1)/count/invalid-alignment/.error
 endif
 
-count_input_$(1) =              $(if $(filter true,$(matrix_mode)),$$(load_matrix_$(1)),$$(velocyto_$(1)))
+macrostate_file_$(1) =          $(call file_for_condition,$(1),$(MACROSTATE_FILES))
+macrostate_h5ad_$(1) =          $(tmpdir)/$(1)/bin/macrostates.h5ad
+count_input_$(1) =              $(if $(filter true,$(count_files_mode)),$$(count_file_$(1)),\
+                                $(if $(filter true,$(matrix_mode)),$$(load_matrix_$(1)),$$(velocyto_$(1))))
 
 endef
 
@@ -158,7 +165,7 @@ $(eval alignment_target := $(alignment_target) $(alignment_$(1)))
 $(eval cellranger_target := $(cellranger_target) $(cellranger_$(1)))
 $(eval star_target := $(star_target) $(star_$(1)))
 $(eval qc_target := $(qc_target) $(qc_$(1)))
-$(eval velocyto_target := $(velocyto_target) $(if $(filter true,$(matrix_mode)),,$(velocyto_$(1))))
+$(eval velocyto_target := $(velocyto_target) $(if $(filter true,$(count_files_mode) $(matrix_mode)),,$(velocyto_$(1))))
 $(eval filtering_target := $(filtering_target) $(filtering_$(1)))
 $(eval normalization_target := $(normalization_target) $(normalization_$(1)))
 $(eval velocity_target := $(velocity_target) $(velocity_$(1)))
@@ -184,7 +191,7 @@ endef
 $(foreach condition,$(target_conditions),$(eval $(call find_targets_for_conditions,$(condition))))
 $(foreach reference,$(running_references),$(eval $(call find_targets_for_references,$(reference))))
 
-ifneq ($(strip $(MACROSTATE_FILE)),)
+ifneq ($(strip $(MACROSTATE_FILES)),)
 macrostates_target := $(macrostate_h5ad)
 endif
 
@@ -211,8 +218,8 @@ endif
 ifneq ($(filter $(LOGGING),true false),$(LOGGING))
 $(error unsupported value for parameter LOGGING (supported values: true, false))
 endif
-ifneq ($(call is_creatable_path,$(RESULTS)),true)
-$(error parameter RESULTS must be a valid output path (current: $(RESULTS)))
+ifneq ($(call is_creatable_path,$(RESULTS_DIR)),true)
+$(error parameter RESULTS_DIR must be a valid output path (current: $(RESULTS_DIR)))
 endif
 ifneq ($(call is_creatable_path,$(PUBLIC_DIR)),true)
 $(error parameter PUBLIC_DIR must be a valid output path (current: $(PUBLIC_DIR)))
@@ -232,7 +239,7 @@ endif
 endif
 endif
 
-$(if $(filter true,$(call is_creatable_path,$(RESULTS))),$(shell mkdir -p "$(results)"))
+$(if $(filter true,$(call is_creatable_path,$(RESULTS_DIR))),$(shell mkdir -p "$(results)"))
 $(if $(filter true,$(call is_creatable_path,$(PUBLIC_DIR))),$(shell mkdir -p "$(public_dir)"))
 
 check_mode := $(filter check,$(MAKECMDGOALS))$(__check_mode)
@@ -416,6 +423,7 @@ target_params_star = MEMORY STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
 target_params_qc = STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
 target_params_velocyto = ALIGNMENT_TOOL MEMORY STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
 target_params_filtering = \
+	COUNT_FILES \
 	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
 	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
 	MAD_DEVIATION NORM_MAD MT
@@ -437,24 +445,24 @@ target_params_stream = \
 	ALPHA_EPG MU_EPG LAMBDA_EPG EXTEND_EPG EXTEND_MODE \
 	EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER
 target_params_knnbs = MACROSTATE_SIZE KNNBS_EMBEDDING KNNBS_DIMENSION KNNBS_NEIGHBORS
-target_params_macrostates = MACROSTATE_METHOD MACROSTATE_SIZE MACROSTATE_FILE
+target_params_macrostates = MACROSTATE_METHOD MACROSTATE_SIZE MACROSTATE_FILES
 target_params_bin-cells = \
-	MACROSTATE_FILE \
+	MACROSTATE_FILES \
 	BIN_SCBOOLSEQ_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
 	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES
 target_params_bin-macrostates = \
-	MACROSTATE_FILE NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD
+	MACROSTATE_FILES NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD
 target_params_bin-dea = \
-	MACROSTATE_FILE \
+	MACROSTATE_FILES \
 	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
 	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
 target_params_bin-consensus = \
-	MACROSTATE_FILE \
+	MACROSTATE_FILES \
 	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD \
 	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
 	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
 target_params_binarization = \
-	BIN_METHOD BINARIZATION_FILE MACROSTATE_FILE \
+	BIN_METHOD BINARIZATION_FILE MACROSTATE_FILES \
 	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS
 target_params_spec = \
 	SPEC_FILE SPEC_ONLY_HVG \
@@ -496,7 +504,7 @@ sensitive_params_star = STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
 sensitive_params_qc = STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
 sensitive_params_velocyto = ALIGNMENT_TOOL STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
 sensitive_params_filtering = \
-	ORGANISM GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
+	COUNT_FILES ORGANISM GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
 	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
 	MAD_DEVIATION NORM_MAD MT
 sensitive_params_normalization = ORGANISM CC_CORRECTION
@@ -523,18 +531,18 @@ sensitive_params_knnbs = \
 	METRIC LABEL_COL USE_REP
 sensitive_params_macrostates =
 sensitive_params_bin-cells = \
-	MACROSTATE_FILE USE_REP \
+	MACROSTATE_FILES USE_REP \
 	BIN_SCBOOLSEQ_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
 	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES
 sensitive_params_bin-macrostates = \
-	MACROSTATE_FILE USE_REP \
+	MACROSTATE_FILES USE_REP \
 	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD
 sensitive_params_bin-dea = \
-	MACROSTATE_FILE USE_REP \
+	MACROSTATE_FILES USE_REP \
 	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
 	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
 sensitive_params_bin-consensus = \
-	MACROSTATE_FILE USE_REP \
+	MACROSTATE_FILES USE_REP \
 	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD \
 	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
 	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
@@ -588,7 +596,7 @@ project_config_param_set = \
 	$(foreach condition,$(conditions),GSM_$(call toupper,$(condition))) \
 	LABEL SPEC_FILE
 core_config_param_set = \
-	PARAMS REFERENCES RESULTS PUBLIC_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
+	PARAMS REFERENCES RESULTS_DIR PUBLIC_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
 method_config_param_set = \
 	ALIGNMENT_TOOL STAR_CB_LEN STAR_UMI_LEN \
 	STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES \
@@ -625,7 +633,7 @@ method_config_param_set = \
 	CLINGO_OPT_MODE_MIN CONFIG_FORMATS GRAPH_FORMATS MIN_SELF_LOOP_CONSTS \
 	MIN_SELF_LOOP_INFER INFER_LIMIT
 external_resource_config_param_set = \
-	STAR_WHITELIST BINARIZATION_FILE MACROSTATE_FILE PRIOR_KNOWLEDGE \
+	STAR_WHITELIST COUNT_FILES BINARIZATION_FILE MACROSTATE_FILES PRIOR_KNOWLEDGE \
 	CLINGO_CONFIG_SOFT CLINGO_CONFIG_CONSTS CLINGO_CONFIG_RELAXED \
 	CLINGO_CONFIG_SEED CLINGO_CONFIG_LOCK
 config_default_modules = \
@@ -638,7 +646,7 @@ config_base_params = \
 	ORGANISM CONDITIONS \
 	$(foreach condition,$(conditions),SRA_$(call toupper,$(condition))) \
 	$(foreach condition,$(conditions),GSM_$(call toupper,$(condition))) \
-	PARAMS REFERENCES RESULTS PUBLIC_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
+	PARAMS REFERENCES RESULTS_DIR PUBLIC_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
 config_params_from_modules = $(strip $(foreach module,$(1),$(target_params_$(module))))
 config_project_params = $(call uniq,$(filter $(project_config_param_set),$(1)))
 config_core_params = $(call uniq,$(filter $(core_config_param_set),$(1)))

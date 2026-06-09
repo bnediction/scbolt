@@ -1,139 +1,45 @@
 [![tests](https://github.com/bnediction/scbolt/actions/workflows/tests.yml/badge.svg)](https://github.com/bnediction/scbolt/actions/workflows/tests.yml)
 [![Make >= 4.3](https://img.shields.io/badge/Make-%3E%3D4.3-red?style=flat)](https://www.gnu.org/software/make)
 
-# scBOLT (BOolean network Learning from multi-condition Transcriptomes)
+# scBOLT
 
-scBOLT is a software framework for Boolean network inference from single-cell transcriptomic data.
+scBOLT is a software framework for inferring Boolean networks from multi-condition single-cell transcriptomic data.
 
-Built upon the BoNesis engine, it provides a reproducible workflow for transforming transcriptomic observations into executable Boolean models through state abstractions, dynamical constraint engineering, and exact logical model inference.
+Its main goal is to transform complex transcriptomic observations into biologically meaningful Boolean abstractions and dynamical constraints suitable for exact logical model inference. This remains a major challenge in data-driven logical modelling, particularly for poorly characterised biological systems and non-canonical cellular processes.
 
-scBOLT was designed for:
+scBOLT combines transcriptome-derived state abstractions, user-defined dynamical constraints, and prior regulatory knowledge to generate inference-ready logical models through a reproducible and modular workflow.
 
-* multi-condition single-cell transcriptomic datasets;
-* poorly characterized biological processes;
-* non-canonical signaling systems;
-* users who wish to construct Boolean networks without manually assembling every intermediate step.
+### Key features
 
-<p align="center">
-  <img src="man/fig/logo-scbolt.svg" alt="scBOLT logo" width="200"/>
-</p>
-
----
-
-# Why scBOLT?
-
-BoNesis provides a powerful framework for synthesizing Boolean networks from structural and dynamical constraints.
-
-However, translating transcriptomic data into biologically meaningful Boolean abstractions remains challenging. Users typically need to:
-
-* identify biologically relevant cellular states;
-* derive Boolean state abstractions;
-* define dynamical constraints;
-* prepare compatible regulatory domains;
-* configure Boolean network inference.
-
-scBOLT addresses these challenges by providing:
-
-* transcriptome-driven Boolean constraint engineering;
-* multiple macrostate characterization strategies;
-* multiple binarization strategies;
-* multi-condition modelling;
-* scalable exact Boolean network inference;
-* reusable intermediate outputs;
-* reproducible workflow execution.
-
----
-
-# Workflow overview
-
-Boolean network inference in scBOLT is driven by:
-
-* transcriptome-derived state abstractions;
-* user-defined dynamical constraints;
-* prior regulatory knowledge (CollecTRI, DoRothEA, custom GRNs).
-
-The workflow includes:
-
-1. alignment and counting;
-2. preprocessing and integration;
-3. clustering and annotation;
-4. trajectory inference;
-5. macrostate characterization;
-6. state abstractions;
-7. Boolean constraint specification;
-8. Boolean network inference.
-
-Some stages are fully automated, whereas others intentionally require user intervention to incorporate biological expertise.
+* multi-condition logical modelling
+* transcriptome-driven constraint engineering
+* scalable exact Boolean network inference
+* multiple macrostate characterisation and binarization strategies
+* reusable intermediate entry points
+* reproducible execution and dependency management
 
 <p align="center">
-<img src="man/fig/scbolt-overview.png" alt="scbolt-overview" width="700"/>
+  <img src="man/fig/scbolt-overview.png" alt="scbolt-overview" width="700"/>
 </p>
 
----
+### Under the hood
 
-# Main features
-
-### Multi-condition modelling
-
-Joint analysis of multiple experimental conditions through integrated state abstractions and dynamical constraints.
-
-### Multiple macrostate characterization strategies
-
-* CellRank
-* STREAM
-* COTAN
-* KNNbs
-
-### Multiple binarization strategies
-
-* scBoolSeq-based
-* DEA-based
-* consensus
-
-### Exact Boolean network inference
-
-Inference of sparsest Boolean networks using BoNesis engine.
-
-### Flexible workflow entry points
-
-scBOLT can either run the full workflow or resume from user-provided
-intermediate analyses. It supports entry points from:
-
-* raw FASTQ files;
-* public count matrices such as GEO/GSM supplementary MEX files;
-* normalized AnnData objects;
-* custom macrostate AnnData files;
-* precomputed binarizations;
-* custom regulatory interaction networks.
-
----
+scBOLT relies on the BoNesis framework for exact Boolean network synthesis.
 
 # Installation
 
-## Prerequisites
+## Required dependencies
 
-Install the following dependencies:
-
+scBOLT requires:
 1. GNU Make (>= 4.3)
 2. LaTeX
-3. Anaconda
-4. Cell Ranger (optional, only if used instead of STAR)
+3. [Anaconda](https://www.anaconda.com/download/)
 
-Example installation commands:
-
+Install the required system dependencies:
 ```sh
 apt-get install build-essential
 apt-get install texlive dvipng texlive-latex-extra texlive-fonts-recommended cm-super texlive-extra-utils
 ```
-
-Download and configure Anaconda:
-
-* [https://www.anaconda.com/download/](https://www.anaconda.com/download/)
-
-If you use Cell Ranger instead of STAR, download Cell Ranger and add it to your
-`PATH` environment variable:
-
-* [https://www.10xgenomics.com/support/software/cell-ranger/downloads](https://www.10xgenomics.com/support/software/cell-ranger/downloads)
 
 ---
 
@@ -147,16 +53,29 @@ cd scbolt
 bash config.sh
 ```
 
-Download the repeat masker annotation corresponding to your organism from the UCSC Table Browser:
+Initialize a project in any working directory:
 
-- [mouse (`mm39` / `GRCm39`)](https://genome.ucsc.edu/cgi-bin/hgTables?clade=mammal&org=Mouse&db=mm39&hgta_group=allTracks&hgta_track=rmsk&hgta_table=rmsk&hgta_regionType=genome&position=&hgta_outputType=gff)
-- [human (`hg38` / `GRCh38`)](https://genome.ucsc.edu/cgi-bin/hgTables?clade=mammal&org=Human&db=hg38&hgta_group=allTracks&hgta_track=rmsk&hgta_table=rmsk&hgta_regionType=genome&position=&hgta_outputType=gff)
-
-and save it in:
-
-```text
-public/transcriptome/repeat_msk.gtf
+```sh
+mkdir my_project
+cd my_project
+scbolt init params.mk
 ```
+
+Verify the installation:
+
+```sh
+make check
+```
+
+---
+
+## Optional
+
+The following resources are only required when starting from raw sequencing data:
+* [Cell Ranger](https://www.10xgenomics.com/support/software/cell-ranger/downloads) (optional alternative to STAR for alignment and counting)
+* RepeatMasker annotations (save it in `public/transcriptome/repeat_msk.gtf`):
+  * [Mouse (mm39 / GRCm39)](https://genome.ucsc.edu/cgi-bin/hgTables?clade=mammal&org=Mouse&db=mm39&hgta_group=allTracks&hgta_track=rmsk&hgta_table=rmsk&hgta_regionType=genome&position=&hgta_outputType=gff)
+  * [Human (hg38 / GRCh38)](https://genome.ucsc.edu/cgi-bin/hgTables?clade=mammal&org=Human&db=hg38&hgta_group=allTracks&hgta_track=rmsk&hgta_table=rmsk&hgta_regionType=genome&position=&hgta_outputType=gff)
 
 ---
 
@@ -215,6 +134,8 @@ scbolt init <params.mk>
 scbolt init --show
 scbolt init --remove
 ```
+
+If `<params.mk>` does not exist, `scbolt init` creates a minimal parameter file.
 
 Run a module:
 
@@ -295,7 +216,7 @@ still call `make` directly when needed.
 ### Starting from custom macrostates
 
 ```bash
-scbolt bn-submin --macrostate-file=my_macrostates.h5ad
+scbolt bn-submin --macrostate-files=my_macrostates.h5ad
 ```
 
 Required AnnData fields:

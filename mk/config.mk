@@ -14,6 +14,8 @@ resolve_path_from = $(call strip_trailing_slash,\
 resolve_optional_path_from = $(if $(strip $(1)),$(call resolve_path_from,$(1),$(2)))
 resolve_path_list_from = $(strip \
 	$(foreach path,$(strip $(1)),$(call resolve_path_from,$(path),$(2))))
+resolve_user_path_list_var = $(eval override $(1) := \
+	$(call resolve_path_list_from,$($(1)),$(call path_origin_base,$(1))))
 uniq = $(if $(1),$(firstword $(1)) $(call uniq,$(filter-out $(firstword $(1)),$(1))))
 
 include $(scbolt_root)/mk/default_params.mk
@@ -58,10 +60,11 @@ clingo_config_vars := \
 resolve_clingo_config = $(if $(strip $($(1))),\
 	$(if $(filter $(strip $($(1))),$(clingo_named_configs)),,$(call resolve_user_path_var,$(1))))
 
-$(call resolve_user_path_var,RESULTS)
+$(call resolve_user_path_var,RESULTS_DIR)
 $(call resolve_user_path_var,SPEC_FILE)
 $(call resolve_user_path_var,BINARIZATION_FILE)
-$(call resolve_user_path_var,MACROSTATE_FILE)
+$(call resolve_user_path_list_var,COUNT_FILES)
+$(call resolve_user_path_list_var,MACROSTATE_FILES)
 $(if $(filter $(strip $(PRIOR_KNOWLEDGE)),collectri dorothea),,$(call resolve_user_path_var,PRIOR_KNOWLEDGE))
 $(call resolve_user_path_var,STAR_WHITELIST)
 $(foreach var,$(clingo_config_vars),$(call resolve_clingo_config,$(var)))
@@ -91,6 +94,9 @@ is_creatable_path = $(shell { test -n "$(strip $(1))" && mkdir -p "$(strip $(1))
 
 raw_conditions := $(strip $(call tolower, $(CONDITIONS)))
 conditions := $(if $(raw_conditions),$(raw_conditions),unique)
+condition_indices := $(shell seq 1 $(words $(conditions)))
+$(foreach i,$(condition_indices),$(eval condition_index_$(word $(i),$(conditions)) := $(i)))
+file_for_condition = $(word $(condition_index_$(1)),$(strip $(2)))
 multi_condition := $(filter-out 1,$(words $(conditions)))
 references_default := $(strip $(conditions) $(if $(multi_condition),integrated))
 REFERENCES ?= $(references_default)
@@ -103,17 +109,38 @@ gsm_value = $(strip $(GSM_$(call toupper,$(1))))
 sra_value = $(strip $(SRA_$(call toupper,$(1))))
 gsm_conditions := $(strip $(foreach condition,$(conditions),\
 	$(if $(call gsm_value,$(condition)),$(condition))))
-matrix_mode := $(if $(gsm_conditions),true,false)
-count_input_module := $(if $(filter true,$(matrix_mode)),load-matrix,velocyto)
+sra_conditions := $(strip $(foreach condition,$(conditions),\
+	$(if $(call sra_value,$(condition)),$(condition))))
+count_files_mode := $(if $(COUNT_FILES),true,false)
+input_route_parameters := $(strip $(sra_conditions) $(gsm_conditions) \
+	$(COUNT_FILES) $(MACROSTATE_FILES) $(BINARIZATION_FILE))
+matrix_mode := $(if $(COUNT_FILES),false,$(if $(gsm_conditions),true,false))
+count_input_module := $(if $(filter true,$(count_files_mode)),,\
+	$(if $(filter true,$(matrix_mode)),load-matrix,velocyto))
 
 public_dir := $(patsubst %/,%,$(PUBLIC_DIR))
-results := $(patsubst %/,%,$(RESULTS))
+results := $(patsubst %/,%,$(RESULTS_DIR))
 
 log_target := $(patsubst __%,%,$(or $(firstword $(MAKECMDGOALS)),default))
 LOGFILE := $(results)/logs/$(shell date '+%Y%m%d_%H%M%S')_$(log_target).log
 log_dir := $(patsubst %/,%,$(dir $(LOGFILE)))
 export tmpdir := $(shell mktemp -d -t scbolt-XXXXXXXXXX)
 $(shell { trap 'rm -rf $(tmpdir);' EXIT; tail --pid=$$PPID -f /dev/null; } </dev/null >/dev/null 2>/dev/null &)
+
+ifeq ($(diagnostic_mode),)
+ifneq ($(strip $(COUNT_FILES)),)
+ifneq ($(words $(COUNT_FILES)),$(words $(conditions)))
+$(error COUNT_FILES must contain one file per condition \(conditions: $(conditions)\))
+endif
+endif
+ifneq ($(strip $(MACROSTATE_FILES)),)
+ifneq ($(words $(MACROSTATE_FILES)),1)
+ifneq ($(words $(MACROSTATE_FILES)),$(words $(conditions)))
+$(error MACROSTATE_FILES must contain either one multi-condition file or one file per condition \(conditions: $(conditions)\))
+endif
+endif
+endif
+endif
 
 ## BEGIN URLS ##
 
@@ -693,10 +720,8 @@ $(foreach module,$(reset_stages),\
 				pending_modules="$${pending_modules}$(module) "; \
 			fi; \
 		elif [ "$${module_stale}" -eq 1 ]; then \
-			if ! is_running "$(module)"; then \
-				$(call print_warning,stale module output: $${module_message}); \
-				stale_modules="$${stale_modules}$(module) "; \
-			fi; \
+			$(call print_warning,stale module output: $${module_message}); \
+			stale_modules="$${stale_modules}$(module) "; \
 		elif [ "$${module_untracked}" -eq 1 ]; then \
 			if ! is_running "$(module)"; then \
 				if [ "$${module_status}" = "untracked" ]; then \
@@ -757,7 +782,7 @@ run_logged = \
 		printf '%s\n' '[RUN]'; \
 		printf 'DATE=%s\n' "`date '+%Y-%m-%d %H:%M:%S'`"; \
 		printf 'TARGET=%s\n' "$(1)"; \
-		printf 'RESULTS=%s\n' "$(RESULTS)"; \
+		printf 'RESULTS_DIR=%s\n' "$(RESULTS_DIR)"; \
 		printf 'PARAMS=%s\n' "$(PARAMS)"; \
 		printf 'LOGFILE=%s\n' "$(LOGFILE)"; \
 		printf 'GIT_HASH=%s\n' "`git rev-parse HEAD 2>/dev/null || echo unknown`"; \

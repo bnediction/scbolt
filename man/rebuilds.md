@@ -4,7 +4,7 @@ scBOLT exposes three controls for changing how existing outputs are treated by
 the build engine.
 
 They are intentionally separate from biological entry-point parameters such as
-`MACROSTATE_FILE`, `BINARIZATION_FILE`, or `SPEC_FILE`.
+`COUNT_FILES`, `MACROSTATE_FILES`, `BINARIZATION_FILE`, or `SPEC_FILE`.
 
 ## `RESET_TARGET`
 

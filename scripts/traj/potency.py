@@ -309,7 +309,7 @@ for obs in ["score", "normalized_score", "potency"]:
         },
         n_components=3 if adata.obsm[args.use_rep].shape[1] > 2 else 2,
         background_visible=False,
-        outfile=Path(f"{args.outpath}/umap_cytotrace_{obs}.pdf"),
+        outfile=Path(f"{args.outpath}/cytotrace_{obs}.pdf"),
     )
 
 fig, ax, _ = bt.sct.pl.boxplot(
