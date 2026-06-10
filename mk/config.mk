@@ -114,6 +114,21 @@ sra_conditions := $(strip $(foreach condition,$(conditions),\
 count_files_mode := $(if $(COUNT_FILES),true,false)
 input_route_parameters := $(strip $(sra_conditions) $(gsm_conditions) \
 	$(COUNT_FILES) $(MACROSTATE_FILES) $(BINARIZATION_FILE))
+input_route_variables := $(strip \
+	$(if $(sra_conditions),SRA_*) \
+	$(if $(gsm_conditions),GSM_*) \
+	$(if $(COUNT_FILES),COUNT_FILES) \
+	$(if $(MACROSTATE_FILES),MACROSTATE_FILES) \
+	$(if $(BINARIZATION_FILE),BINARIZATION_FILE))
+input_routes := $(strip \
+	$(if $(sra_conditions),SRA_<CONDITION>) \
+	$(if $(gsm_conditions),GSM_<CONDITION>) \
+	$(if $(COUNT_FILES),COUNT_FILES) \
+	$(if $(MACROSTATE_FILES),MACROSTATE_FILES) \
+	$(if $(BINARIZATION_FILE),BINARIZATION_FILE))
+input_route_choices = SRA_<CONDITION>, GSM_<CONDITION>, COUNT_FILES, MACROSTATE_FILES, BINARIZATION_FILE
+input_route_conflict = variable conflict: input routes are mutually exclusive \
+	(specified: $(subst $(space),$(comma) ,$(strip $(input_route_variables))))
 matrix_mode := $(if $(COUNT_FILES),false,$(if $(gsm_conditions),true,false))
 count_input_module := $(if $(filter true,$(count_files_mode)),,\
 	$(if $(filter true,$(matrix_mode)),load-matrix,velocyto))
@@ -128,6 +143,11 @@ export tmpdir := $(shell mktemp -d -t scbolt-XXXXXXXXXX)
 $(shell { trap 'rm -rf $(tmpdir);' EXIT; tail --pid=$$PPID -f /dev/null; } </dev/null >/dev/null 2>/dev/null &)
 
 ifeq ($(diagnostic_mode),)
+ifneq ($(words $(input_routes)),0)
+ifneq ($(words $(input_routes)),1)
+$(error $(input_route_conflict))
+endif
+endif
 ifneq ($(strip $(COUNT_FILES)),)
 ifneq ($(words $(COUNT_FILES)),$(words $(conditions)))
 $(error COUNT_FILES must contain one file per condition \(conditions: $(conditions)\))
@@ -768,7 +788,7 @@ nested_make = env \
 	PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
 	TQDM_DISABLE="$(TQDM_DISABLE)" \
 	TQDM_TO_TTY="$(TQDM_TO_TTY)" \
-	$(MAKE) -f "$(makefile_path)" $(trust_make_options)
+	$(MAKE) --no-print-directory -f "$(makefile_path)" $(trust_make_options)
 inference_timeout = $(if $(filter-out 0,$(strip $(1))),timeout --foreground $(strip $(1)),)
 
 ifndef LOGGING

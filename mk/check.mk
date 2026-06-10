@@ -121,10 +121,6 @@ else ifeq ($(HELP),false)
 	if [ -n "$(filter load-matrix,$(check_targets))" ]; then \
 		:; \
 		$(foreach condition,$(running_conditions),\
-			if [ -n "$(call sra_value,$(condition))" ] && [ -n "$(call gsm_value,$(condition))" ]; then \
-				$(call report_check_error,incompatible input sources for condition '$(condition)': \
-					both SRA_$(call toupper,$(condition)) and GSM_$(call toupper,$(condition)) are defined); \
-			fi; \
 			$(call check_parameter_diagnostic,\
 				$(GSM_$(call toupper,$(condition))),\
 				GSM_$(call toupper,$(condition)) \
@@ -251,6 +247,9 @@ else ifeq ($(HELP),false)
 	$(call check_parameter_diagnostic,$(ORGANISM),ORGANISM,project); \
 	if [ -z "$(input_route_parameters)" ]; then \
 		$(call report_check_error,required input route not defined: define SRA_<CONDITION> or GSM_<CONDITION> or COUNT_FILES or MACROSTATE_FILES or BINARIZATION_FILE); \
+	fi; \
+	if [ "$(words $(input_routes))" -gt 1 ]; then \
+		$(call report_check_error,$(input_route_conflict)); \
 	fi; \
 	if [ -n "$(COUNT_FILES)" ]; then \
 		if [ "$(words $(COUNT_FILES))" -ne "$(words $(conditions))" ]; then \
@@ -484,10 +483,6 @@ else ifeq ($(HELP),false)
 	if grep -q 'parallel-fastq-dump' "$${dry_run}"; then \
 		:; \
 		$(foreach condition,$(running_conditions),\
-			if [ -n "$(call sra_value,$(condition))" ] && [ -n "$(call gsm_value,$(condition))" ]; then \
-				$(call report_check_error,incompatible input sources for condition '$(condition)': \
-					both SRA_$(call toupper,$(condition)) and GSM_$(call toupper,$(condition)) are defined); \
-			fi; \
 			$(call check_parameter_diagnostic,\
 				$(SRA_$(call toupper,$(condition))),\
 				SRA_$(call toupper,$(condition)) \
@@ -496,10 +491,6 @@ else ifeq ($(HELP),false)
 	if [ -z "$(filter load-matrix,$(check_targets))" ] && grep -q 'download_gsm.sh' "$${dry_run}"; then \
 		:; \
 		$(foreach condition,$(running_conditions),\
-			if [ -n "$(call sra_value,$(condition))" ] && [ -n "$(call gsm_value,$(condition))" ]; then \
-				$(call report_check_error,incompatible input sources for condition '$(condition)': \
-					both SRA_$(call toupper,$(condition)) and GSM_$(call toupper,$(condition)) are defined); \
-			fi; \
 			$(call check_parameter_diagnostic,\
 				$(GSM_$(call toupper,$(condition))),\
 				GSM_$(call toupper,$(condition)) \

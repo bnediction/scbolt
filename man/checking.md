@@ -316,13 +316,13 @@ these files directly instead of depending on Velocyto or public GEO matrix
 loading. Gene-name standardization is applied by `filter.py`, so count files,
 GEO matrices, and Velocyto outputs share the same downstream contract.
 
-For count-level inputs, scBOLT uses this priority order:
+Input routes are mutually exclusive:
 
 ```text
-COUNT_FILES > GSM_<CONDITION> > SRA_<CONDITION>
+SRA_<CONDITION> | GSM_<CONDITION> | COUNT_FILES | MACROSTATE_FILES | BINARIZATION_FILE
 ```
 
-`COUNT_FILES` is the authoritative count-level entry point when defined.
+Only one input-route family should be defined at a time.
 
 ### `MACROSTATE_FILES`
 

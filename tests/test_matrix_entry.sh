@@ -102,7 +102,25 @@ if make -C "${repo_root}" check TARGET=load-matrix PARAMS="${conflict_params}" \
     printf '%s\n' "expected SRA/GSM conflict check to fail" >&2
     exit 1
 fi
-grep -q "both SRA_CTRL and GSM_CTRL are defined" "${tmpdir}/conflict.out"
+grep -q "variable conflict: input routes are mutually exclusive" \
+    "${tmpdir}/conflict.out"
+grep -q "specified: SRA_\\*, GSM_\\*" "${tmpdir}/conflict.out"
+
+cat > "${conflict_params}" <<'MK'
+RESULTS_DIR = tests/output-matrix
+PUBLIC_DIR = tests/public
+CONDITIONS = ctrl
+ORGANISM = human
+GSM_CTRL = GSM5492245
+COUNT_FILES = counts.h5ad
+MK
+
+if make -C "${repo_root}" check TARGET=load-matrix PARAMS="${conflict_params}" \
+        __check_externals__=false > "${tmpdir}/conflict-count.out" 2>&1; then
+    printf '%s\n' "expected GSM/COUNT_FILES conflict check to fail" >&2
+    exit 1
+fi
+grep -q "specified: GSM_\\*, COUNT_FILES" "${tmpdir}/conflict-count.out"
 
 if make -C "${repo_root}" check TARGET=velocity PARAMS=tests/fixtures/params-matrix.mk \
         __check_externals__=false > "${tmpdir}/velocity.out" 2>&1; then

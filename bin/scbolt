@@ -423,9 +423,7 @@ $(format_init_assignment ORGANISM "")
 # - MACROSTATE_FILES     : precomputed macrostates
 # - BINARIZATION_FILE    : precomputed binarization
 
-# COUNT_FILES takes precedence over GSM_<CONDITION> and SRA_<CONDITION>.
-
-# Do not define both SRA_<CONDITION> and GSM_<CONDITION> for the same condition.
+# Input routes are mutually exclusive. Define only one of these families.
 # SRA_UNIQUE =
 # GSM_UNIQUE =
 EOF

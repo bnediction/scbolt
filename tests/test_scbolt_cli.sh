@@ -446,9 +446,7 @@ grep -q '^### Fill required parameters before running scBOLT\. ###$' "${fresh_pr
 grep -q '^### Fill when reaching module-specific steps\. ###$' "${fresh_project}/missing.mk"
 grep -q '^### Optional parameters\. ###$' "${fresh_project}/missing.mk"
 grep -q '^# Define one input route before running scBOLT\.$' "${fresh_project}/missing.mk"
-grep -q '^# COUNT_FILES takes precedence over GSM_<CONDITION> and SRA_<CONDITION>\.$' \
-    "${fresh_project}/missing.mk"
-grep -q '^# Do not define both SRA_<CONDITION> and GSM_<CONDITION> for the same condition\.$' \
+grep -q '^# Input routes are mutually exclusive\. Define only one of these families\.$' \
     "${fresh_project}/missing.mk"
 grep -q '^CONDITIONS =$' "${fresh_project}/missing.mk"
 grep -q '^ORGANISM =$' "${fresh_project}/missing.mk"

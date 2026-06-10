@@ -52,8 +52,8 @@ $(eval STAR_TOP_BARCODES ?=)               # optional number of top barcodes
 
 ## EXTRA PARAMETERS ##
 # Useful when starting from user-provided or precomputed upstream analyses.
-# Count-level input priority is COUNT_FILES > GSM_<CONDITION> > SRA_<CONDITION>.
-# COUNT_FILES is therefore treated as the authoritative count input when set.
+# Input routes are mutually exclusive. Define only one of SRA_<CONDITION>,
+# GSM_<CONDITION>, COUNT_FILES, MACROSTATE_FILES, or BINARIZATION_FILE.
 # COUNT_FILES skips alignment/counting and restarts from one count AnnData file
 # per condition, ordered like CONDITIONS.
 # BINARIZATION_FILE overrides the binarization target when set.
