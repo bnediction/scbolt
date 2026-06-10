@@ -13,7 +13,7 @@ help_reset_option = $(if $(filter true,$(SCBOLT_CLI)),\
 help_trust_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--trust-target=<module...>], [TRUST_TARGET=<module...>])
 help_old_file_option = $(if $(filter true,$(SCBOLT_CLI)),\
-	 [--old-file=<file>...] [-o <file>...], [OLD_FILES=<file...>])
+	 [--old-file=<file>...], [OLD_FILES=<file...>])
 help_logging_option = $(if $(filter true,$(SCBOLT_CLI)), [--logging=<bool>], [LOGGING=<bool>])
 help_override_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--<parameter>=<value>...], [<PARAMETER>=<value>...])
@@ -52,6 +52,8 @@ progress_default_targets = bn-min bn-submin bn-diverse
 progress_targets = $(strip $(if $(TARGET),$(TARGET),$(progress_default_targets)))
 progress_modules = $(call uniq,\
 	$(foreach target,$(progress_targets),$(call target_dry_run_modules,$(target))))
+progress_scan_modules = $(if $(filter true,$(PROGRESS_ALL)),\
+	$(reset_stages),$(filter $(reset_stages),$(progress_modules)))
 progress_unknown_targets = $(filter-out $(reset_stages),$(progress_targets))
 progress_deps_load-matrix =
 progress_deps_alignment = $(ALIGNMENT_TOOL)
@@ -192,13 +194,13 @@ define show_config_help
 	@printf '$(bold)Parameters$(nc)\n'
 	@if [ "$(SCBOLT_CLI)" = "true" ]; then \
 		printf '  %-31s %s\n' '<module>' 'select module to summarize'; \
-		printf '  %-31s %s\n' '--help, -h' 'display this help'; \
+		printf '  %-31s %s\n' '--help' 'display this help'; \
 		printf '  %-31s %s\n' '--params=<file>' 'select the parameter file'; \
 		printf '  %-31s %s\n' '--raw' 'display raw show-config listing'; \
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict the run to selected references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'preview configuration with forced rebuild context'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'preview configuration while trusting selected outputs'; \
-		printf '  %-31s %s\n' '-o <file>, --old-file=<file>' 'trust one existing DAG file'; \
+		printf '  %-31s %s\n' '--old-file=<file>' 'trust one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module>' 'select module to summarize'; \
@@ -221,12 +223,12 @@ define dry_run_help
 	@printf '$(bold)Parameters$(nc)\n'
 	@if [ "$(SCBOLT_CLI)" = "true" ]; then \
 		printf '  %-31s %s\n' '<module>' 'select module to preview'; \
-		printf '  %-31s %s\n' '--help, -h' 'display this help'; \
+		printf '  %-31s %s\n' '--help' 'display this help'; \
 		printf '  %-31s %s\n' '--params=<file>' 'select the parameter file'; \
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict the preview to selected references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'preview rebuild from these modules'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'preview while trusting selected module outputs'; \
-		printf '  %-31s %s\n' '-o <file>, --old-file=<file>' 'preview while trusting one existing DAG file'; \
+		printf '  %-31s %s\n' '--old-file=<file>' 'preview while trusting one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module>' 'select module to preview'; \
@@ -266,12 +268,12 @@ define progress_help
 	@if [ "$(SCBOLT_CLI)" = "true" ]; then \
 		printf '  %-31s %s\n' '<module...>' 'final modules to inspect'; \
 		printf '  %-31s %s\n' '--all' 'include extra completed and skipped modules'; \
-		printf '  %-31s %s\n' '--help, -h' 'display this help'; \
+		printf '  %-31s %s\n' '--help' 'display this help'; \
 		printf '  %-31s %s\n' '--params=<file>' 'select the parameter file'; \
 		printf '  %-31s %s\n' '--references=<condition...>' 'select references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'inspect progress with forced rebuild context'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'inspect progress while trusting selected outputs'; \
-		printf '  %-31s %s\n' '-o <file>, --old-file=<file>' 'inspect progress while trusting one existing DAG file'; \
+		printf '  %-31s %s\n' '--old-file=<file>' 'inspect progress while trusting one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module...>' 'final modules to inspect'; \
@@ -430,7 +432,7 @@ help: ## display help
 					printf "  %-31s %s\n", "", "default: $(running_references)"; \
 					printf "  %-31s %s\n", "--reset-target=<module...>", "rebuild from modules"; \
 					printf "  %-31s %s\n", "--trust-target=<module...>", "skip rebuilding modules"; \
-					printf "  %-31s %s\n", "-o <file>, --old-file=<file>", "trust existing DAG file"; \
+					printf "  %-31s %s\n", "--old-file=<file>", "trust existing DAG file"; \
 					printf "  %-31s %s\n", "--logging=<bool>", "enable logging"; \
 					printf "  %-31s %s\n", "--help", "display command help"; \
 					printf "  %-31s %s\n", "--<parameter>=<value>", "override Make parameter"; \
@@ -617,12 +619,7 @@ endif
 
 .PHONY: __progress-module
 __progress-module:
-	@module_state="$$( $(call metadata_state_field,$(PROGRESS_MODULE),all) )"; \
-	printf 'status\t%s\n' "$${module_state%%	*}"; \
-	printf 'message\t%s\n' "$${module_state#*	}"; \
-	printf 'stale-label\t%s\n' "$$( $(call metadata_state_field,$(PROGRESS_MODULE),stale-label) )"; \
-	printf 'pending-message\t%s\n' "$$( $(call metadata_state_field,$(PROGRESS_MODULE),pending-message) )"; \
-	printf 'pending-label\t%s\n' "$$( $(call metadata_state_field,$(PROGRESS_MODULE),pending-label) )"; \
+	@$(call metadata_state_field,$(PROGRESS_MODULE),progress); \
 	printf 'deps\t%s\n' "$(strip $(progress_deps_$(PROGRESS_MODULE)))"
 
 .PHONY: __reference-context
@@ -649,9 +646,11 @@ endif
 	extra_stale_file="$$(mktemp)"; \
 	extra_untracked_file="$$(mktemp)"; \
 	skipped_file="$$(mktemp)"; \
+	progress_manifest="$$(mktemp)"; \
+	progress_report_dir="$$(mktemp -d)"; \
 	trap 'rm -f "$${done_file}" "$${stale_file}" "$${untracked_file}" "$${pending_file}" \
 		"$${extra_done_file}" "$${extra_stale_file}" "$${extra_untracked_file}" \
-		"$${skipped_file}"' EXIT; \
+		"$${skipped_file}" "$${progress_manifest}"; rm -rf "$${progress_report_dir}"' EXIT; \
 	for path in $(OLD_FILES); do \
 		if [ ! -e "$${path}" ] && [ ! -L "$${path}" ]; then \
 			printf '$(failure_label) %s\n' "old file not found: $${path}"; \
@@ -683,18 +682,32 @@ endif
 			printf '  (none)\n'; \
 		fi; \
 	}; \
-	for module in $(reset_stages); do \
-		module_report="$$(mktemp)"; \
-		$(nested_make) LOGGING=false __progress-module \
-			PROGRESS_MODULE="$${module}" PARAMS="$(PARAMS)" OLD_FILES="$(OLD_FILES)" \
-			> "$${module_report}"; \
+	$(foreach module,$(progress_scan_modules),\
+		{ \
+			printf 'module\t%s\n' "$(module)"; \
+			$(foreach target,$(strip $(RESET_TARGET_$(module))),\
+				printf 'target\t%s\n' "$(target)";) \
+			$(foreach param,$(strip $(sensitive_params_$(module))),\
+				printf 'param\t%s=%s\n' '$(param)' "$($(param))";) \
+			printf 'deps\t%s\n' "$(strip $(progress_deps_$(module)))"; \
+			printf 'end\n'; \
+		} >> "$${progress_manifest}";) \
+	python3 "$(scripts_dir)/utils/scbolt_metadata.py" batch-progress \
+		--manifest "$${progress_manifest}" \
+		$(metadata_old_file_args) \
+		| while IFS="	" read -r report_module report_field report_value; do \
+			printf '%s\t%s\n' "$${report_field}" "$${report_value}" \
+				>> "$${progress_report_dir}/$${report_module}"; \
+		done; \
+	for module in $(progress_scan_modules); do \
+		module_report="$${progress_report_dir}/$${module}"; \
 		module_status="$$(awk -F '\t' '$$1 == "status" { print $$2; exit }' "$${module_report}")"; \
 		module_message="$$(awk -F '\t' '$$1 == "message" { print $$2; exit }' "$${module_report}")"; \
+		module_done_label="$$(awk -F '\t' '$$1 == "done-label" { print $$2; exit }' "$${module_report}")"; \
 		module_stale_label="$$(awk -F '\t' '$$1 == "stale-label" { print $$2; exit }' "$${module_report}")"; \
 		module_pending_message="$$(awk -F '\t' '$$1 == "pending-message" { print $$2; exit }' "$${module_report}")"; \
 		module_pending_label="$$(awk -F '\t' '$$1 == "pending-label" { print $$2; exit }' "$${module_report}")"; \
 		module_deps="$$(awk -F '\t' '$$1 == "deps" { print $$2; exit }' "$${module_report}")"; \
-		rm -f "$${module_report}"; \
 		if [[ "$${selected_modules}" == *" $${module} "* ]]; then \
 			module_label="$${module}"; \
 			if [[ "$${module_message}" == *"(old file"* ]]; then \
@@ -724,9 +737,15 @@ endif
 				fi; \
 			workflow_total=$$((workflow_total + 1)); \
 			if [ "$${module_pending}" -eq 1 ]; then \
+				if [ -n "$${module_done_label}" ]; then \
+					printf '%s\n' "- $${module_done_label}" >> "$${done_file}"; \
+				fi; \
 				printf '%s\n' "- $${module_pending_label:-$${module}}" >> "$${pending_file}"; \
 				pending_modules="$${pending_modules}$${module} "; \
 				elif [ "$${module_stale}" -eq 1 ]; then \
+					if [ -n "$${module_done_label}" ]; then \
+						printf '%s\n' "- $${module_done_label}" >> "$${done_file}"; \
+					fi; \
 					printf '%s\n' "- $${module_stale_label:-$${module_message}}" >> "$${stale_file}"; \
 					stale_modules="$${stale_modules}$${module} "; \
 					if [ -n "$${module_pending_label}" ]; then \
@@ -735,6 +754,9 @@ endif
 					fi; \
 				elif [ "$${module_untracked}" -eq 1 ]; then \
 					workflow_done=$$((workflow_done + 1)); \
+					if [ -n "$${module_done_label}" ]; then \
+						printf '%s\n' "- $${module_done_label}" >> "$${done_file}"; \
+					fi; \
 					printf '%s\n' "- $${module_message}" >> "$${untracked_file}"; \
 					untracked_modules="$${untracked_modules}$${module} "; \
 					if [ -n "$${module_pending_label}" ]; then \
@@ -749,10 +771,19 @@ endif
 				if [ "$${module_status}" = "done" ]; then \
 					printf '%s\n' "- $${module}" >> "$${extra_done_file}"; \
 				elif [ "$${module_status}" = "stale" ]; then \
+					if [ -n "$${module_done_label}" ]; then \
+						printf '%s\n' "- $${module_done_label}" >> "$${extra_done_file}"; \
+					fi; \
 					printf '%s\n' "- $${module_stale_label:-$${module_message}}" >> "$${extra_stale_file}"; \
 				elif [ "$${module_status}" = "untracked" ]; then \
+					if [ -n "$${module_done_label}" ]; then \
+						printf '%s\n' "- $${module_done_label}" >> "$${extra_done_file}"; \
+					fi; \
 					printf '%s\n' "- $${module_message}" >> "$${extra_untracked_file}"; \
 				else \
+					if [ -n "$${module_done_label}" ]; then \
+						printf '%s\n' "- $${module_done_label}" >> "$${extra_done_file}"; \
+					fi; \
 					printf '%s\n' "- $${module}" >> "$${skipped_file}"; \
 				fi; \
 		fi; \

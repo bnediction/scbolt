@@ -62,12 +62,6 @@ scbolt bn-submin \
   --old-file=apl/bin/consensus/knnbs/mstates_bin.csv
 ```
 
-The short form mirrors GNU Make:
-
-```bash
-scbolt bn-submin -o apl/integrated/clust/annot.h5ad
-```
-
 Several files can also be provided as a quoted space-separated list:
 
 ```bash

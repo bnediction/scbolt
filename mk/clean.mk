@@ -19,10 +19,10 @@ define clean_help
 		printf '  %-31s %s\n' '--all' 'ask before removing all generated module outputs'; \
 		printf '  %-31s %s\n' '--stale' 'ask before removing stale module outputs'; \
 		printf '  %-31s %s\n' '--force' 'skip confirmation for --stale'; \
-		printf '  %-31s %s\n' '--help, -h' 'display this help'; \
+		printf '  %-31s %s\n' '--help' 'display this help'; \
 		printf '  %-31s %s\n' '--params=<file>' 'select parameter file'; \
 		printf '  %-31s %s\n' '--references=<condition...>' 'select references'; \
-		printf '  %-31s %s\n' '-o <file>, --old-file=<file>' 'keep one trusted file during --stale'; \
+		printf '  %-31s %s\n' '--old-file=<file>' 'keep one trusted file during --stale'; \
 	else \
 		printf '  %-31s %s\n' 'CLEAN_TARGET=<module...>' 'modules whose outputs should be removed'; \
 		printf '  %-31s %s\n' 'CLEAN_TARGET=all' 'ask before removing all generated module outputs'; \

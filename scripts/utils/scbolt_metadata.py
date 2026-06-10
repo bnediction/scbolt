@@ -10,6 +10,7 @@ from typing import Literal
 
 Status = Literal["done", "stale", "pending", "untracked"]
 State = tuple[Status, str, list[Path], list[Path]]
+ProgressRecord = dict[str, str | list[str]]
 
 
 def sidecar_path(target: Path) -> Path:
@@ -264,6 +265,35 @@ def state_for_targets(
     return "done", f"{module} (configuration up to date)", [], []
 
 
+def done_targets_for_targets(
+    *,
+    module: str,
+    targets: list[Path],
+    parameters: dict[str, str],
+    old_files: set[Path] | None = None,
+) -> list[Path]:
+    old_files = old_files or set()
+    existing_targets = [target for target in targets if target_exists(target)]
+    if not parameters:
+        return existing_targets
+
+    expected_hash = config_hash(parameters)
+    done_targets = []
+    for target in existing_targets:
+        if normalize_path(target) in old_files:
+            done_targets.append(target)
+            continue
+
+        metadata = read_metadata(sidecar_path(target))
+        if metadata is None:
+            continue
+
+        if metadata.get("module") == module and metadata.get("config_hash") == expected_hash:
+            done_targets.append(target)
+
+    return done_targets
+
+
 def write_metadata(args: argparse.Namespace) -> None:
     parameters = parse_parameters(args.param)
     metadata_hash = config_hash(parameters)
@@ -298,26 +328,44 @@ def print_state(args: argparse.Namespace) -> None:
         parameters=parameters,
         old_files=old_files,
     )
+    done_targets = done_targets_for_targets(
+        module=args.module,
+        targets=targets,
+        parameters=parameters,
+        old_files=old_files,
+    )
+    fields = progress_fields_from_state(
+        module=args.module,
+        targets=targets,
+        status=status,
+        message=message,
+        done_targets=done_targets,
+        stale_targets=stale_targets,
+        missing_targets=missing_targets,
+    )
+    stale_label = str(fields["stale-label"])
+    pending_message = str(fields["pending-message"])
+    pending_label = str(fields["pending-label"])
 
     if args.field == "status":
         print(status)
     elif args.field == "message":
         print(message)
+    elif args.field == "progress":
+        for name, value in fields.items():
+            print(f"{name}\t{value}")
     elif args.field == "pending-message":
-        message = format_missing_message(args.module, missing_targets, targets)
-        if message:
-            print(message)
+        if pending_message:
+            print(pending_message)
     elif args.field == "pending-label":
-        label = format_target_state_label(args.module, missing_targets, targets)
-        if label:
-            print(label)
+        if pending_label:
+            print(pending_label)
     elif args.field == "pending-targets":
         for target in missing_targets:
             print(target)
     elif args.field == "stale-label":
-        label = format_target_state_label(args.module, stale_targets, targets)
-        if label:
-            print(label)
+        if stale_label:
+            print(stale_label)
     elif args.field == "cleanup-paths":
         for target in stale_targets:
             print(target)
@@ -334,6 +382,119 @@ def print_state(args: argparse.Namespace) -> None:
             print(sidecar_path(target))
     else:
         print(f"{status}\t{message}")
+
+
+def progress_fields(
+    *,
+    module: str,
+    targets: list[Path],
+    parameters: dict[str, str],
+    old_files: set[Path],
+) -> dict[str, str]:
+    status, message, stale_targets, missing_targets = state_for_targets(
+        module=module,
+        targets=targets,
+        parameters=parameters,
+        old_files=old_files,
+    )
+    done_targets = done_targets_for_targets(
+        module=module,
+        targets=targets,
+        parameters=parameters,
+        old_files=old_files,
+    )
+    return progress_fields_from_state(
+        module=module,
+        targets=targets,
+        status=status,
+        message=message,
+        done_targets=done_targets,
+        stale_targets=stale_targets,
+        missing_targets=missing_targets,
+    )
+
+
+def progress_fields_from_state(
+    *,
+    module: str,
+    targets: list[Path],
+    status: Status,
+    message: str,
+    done_targets: list[Path],
+    stale_targets: list[Path],
+    missing_targets: list[Path],
+) -> dict[str, str]:
+    return {
+        "status": status,
+        "message": message,
+        "done-label": format_target_state_label(module, done_targets, targets),
+        "stale-label": format_target_state_label(module, stale_targets, targets),
+        "pending-message": format_missing_message(module, missing_targets, targets),
+        "pending-label": format_target_state_label(module, missing_targets, targets),
+    }
+
+
+def read_progress_manifest(path: Path) -> list[ProgressRecord]:
+    records: list[ProgressRecord] = []
+    current: ProgressRecord | None = None
+
+    with path.open() as file:
+        for raw_line in file:
+            line = raw_line.rstrip("\n")
+            if not line:
+                continue
+
+            key, _, value = line.partition("\t")
+            if key == "module":
+                if current is not None:
+                    records.append(current)
+                current = {
+                    "module": value,
+                    "targets": [],
+                    "params": [],
+                    "deps": "",
+                }
+            elif current is None:
+                raise SystemExit("invalid progress manifest: entry before module")
+            elif key == "target":
+                current_targets = current["targets"]
+                assert isinstance(current_targets, list)
+                current_targets.append(value)
+            elif key == "param":
+                current_params = current["params"]
+                assert isinstance(current_params, list)
+                current_params.append(value)
+            elif key == "deps":
+                current["deps"] = value
+            elif key == "end":
+                records.append(current)
+                current = None
+            else:
+                raise SystemExit(f"invalid progress manifest entry: {key}")
+
+    if current is not None:
+        records.append(current)
+
+    return records
+
+
+def print_batch_progress(args: argparse.Namespace) -> None:
+    old_files = {normalize_path(Path(path)) for path in args.old_file}
+    records = read_progress_manifest(Path(args.manifest))
+
+    for record in records:
+        module = str(record["module"])
+        targets = [Path(target) for target in record["targets"]]
+        parameters = parse_parameters(list(record["params"]))
+        fields = progress_fields(
+            module=module,
+            targets=targets,
+            parameters=parameters,
+            old_files=old_files,
+        )
+        fields["deps"] = str(record["deps"])
+        for name, value in fields.items():
+            print(f"{module}\t{name}\t{value}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -362,6 +523,7 @@ def build_parser() -> argparse.ArgumentParser:
             "all",
             "status",
             "message",
+            "progress",
             "pending-message",
             "pending-label",
             "pending-targets",
@@ -374,6 +536,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="all",
     )
     state.set_defaults(func=print_state)
+
+    batch_progress = subparsers.add_parser(
+        "batch-progress",
+        help="compare metadata sidecars for progress reports",
+    )
+    batch_progress.add_argument("--manifest", required=True)
+    batch_progress.add_argument("--old-file", action="append", default=[])
+    batch_progress.set_defaults(func=print_batch_progress)
 
     return parser
 

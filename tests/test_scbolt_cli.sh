@@ -36,6 +36,9 @@ for arg in "$@"; do
     fi
 done
 printf '%s\n' "$@" > "${SCBOLT_TEST_RECORD}"
+if [ -n "${SCBOLT_TEST_MAKE_STDOUT:-}" ]; then
+    printf '%s\n' "${SCBOLT_TEST_MAKE_STDOUT}"
+fi
 case "${status}" in
     0) ;;
     124|130|143)
@@ -161,6 +164,8 @@ grep -qx 'usage: scbolt init \[<params.mk>\] \[options\]' "${tmpdir}/init-help.o
 grep -q '^Parameters$' "${tmpdir}/init-help.out"
 grep -q '^  --remove' "${tmpdir}/init-help.out"
 grep -q '^  --show' "${tmpdir}/init-help.out"
+grep -q '^  <parameter>=<value>' "${tmpdir}/init-help.out"
+! grep -q -- '-h' "${tmpdir}/init-help.out"
 
 (
     cd "${project}"
@@ -230,9 +235,29 @@ grep -qx '✓ scBOLT project configuration removed.' "${tmpdir}/remove-init.out"
 )
 grep -qx 'PARAMS=spaced.mk' "${project}/.scbolt"
 
-run_scbolt "${project}" bn-submin > "${tmpdir}/module-success.out"
+(
+    cd "${project}"
+    PATH="${fakebin}:${PATH}" \
+        SCBOLT_TEST_RECORD="${record}" \
+        SCBOLT_TEST_MAKE_STDOUT='2026-01-01 00:00:00.000 - RULE - bn-submin' \
+        "${scbolt}" bn-submin > "${tmpdir}/module-success.out"
+)
 expect_make_args -f "${makefile}" bn-submin "PARAMS=${project}/spaced.mk"
 grep -qx '✓ Completed: bn-submin' "${tmpdir}/module-success.out"
+
+run_scbolt "${project}" bn-min > "${tmpdir}/module-up-to-date.out"
+expect_make_args -f "${makefile}" bn-min "PARAMS=${project}/spaced.mk"
+grep -qx '⚠ Up to date: bn-min' "${tmpdir}/module-up-to-date.out"
+
+(
+    cd "${project}"
+    PATH="${fakebin}:${PATH}" \
+        SCBOLT_TEST_RECORD="${record}" \
+        SCBOLT_TEST_MAKE_STDOUT='2026-01-01 00:00:00.000 - WARNING - stale module output: clustering (RESOLUTION: 0.40 -> 0.44)' \
+        "${scbolt}" clustering > "${tmpdir}/module-already-built.out"
+)
+expect_make_args -f "${makefile}" clustering "PARAMS=${project}/spaced.mk"
+grep -qx '⚠ Already built: clustering' "${tmpdir}/module-already-built.out"
 
 if (
     cd "${project}"
@@ -336,7 +361,13 @@ grep -qx '✗ No parameter file found.' "${tmpdir}/missing-show-init.err"
 run_scbolt "${project}" bn-submin
 expect_make_args -f "${makefile}" bn-submin "PARAMS=${project}/spaced.mk"
 
-run_scbolt "${project}" stream --references=ctrl > "${tmpdir}/module-reference.out"
+(
+    cd "${project}"
+    PATH="${fakebin}:${PATH}" \
+        SCBOLT_TEST_RECORD="${record}" \
+        SCBOLT_TEST_MAKE_STDOUT='2026-01-01 00:00:00.000 - RULE - stream' \
+        "${scbolt}" stream --references=ctrl > "${tmpdir}/module-reference.out"
+)
 expect_make_args \
     -f "${makefile}" \
     stream \
@@ -344,8 +375,14 @@ expect_make_args \
     "PARAMS=${project}/spaced.mk"
 grep -qx '✓ Completed: stream (ctrl)' "${tmpdir}/module-reference.out"
 
-run_scbolt "${project}" stream --references="ctrl treated integrated" \
-    > "${tmpdir}/module-full-reference.out"
+(
+    cd "${project}"
+    PATH="${fakebin}:${PATH}" \
+        SCBOLT_TEST_RECORD="${record}" \
+        SCBOLT_TEST_MAKE_STDOUT='2026-01-01 00:00:00.000 - RULE - stream' \
+        "${scbolt}" stream --references="ctrl treated integrated" \
+        > "${tmpdir}/module-full-reference.out"
+)
 expect_make_args \
     -f "${makefile}" \
     stream \
@@ -424,6 +461,43 @@ grep -q '^RESULTS_DIR = project/$' "${fresh_project}/missing.mk"
 grep -q '^PUBLIC_DIR = public/$' "${fresh_project}/missing.mk"
 grep -qx 'Parameter file: missing.mk (created)' "${tmpdir}/fresh-missing-init.out"
 grep -qx '✓ scBOLT project initialized.' "${tmpdir}/fresh-missing-init.out"
+
+filled_project="${tmpdir}/filled-project"
+mkdir -p "${filled_project}"
+(
+    cd "${filled_project}"
+    "${scbolt}" init --params=filled.mk \
+        --conditions="ctrl treated" \
+        --organism=mouse \
+        --gsm-ctrl=GSM5492245 \
+        --results-dir=results \
+        RESOLUTION=0.46 \
+        > "${tmpdir}/filled-init.out" \
+        2> "${tmpdir}/filled-init.err"
+)
+grep -qx 'PARAMS=filled.mk' "${filled_project}/.scbolt"
+test -f "${filled_project}/filled.mk"
+grep -q '^CONDITIONS = ctrl treated$' "${filled_project}/filled.mk"
+grep -q '^ORGANISM = mouse$' "${filled_project}/filled.mk"
+grep -q '^RESULTS_DIR = results$' "${filled_project}/filled.mk"
+grep -q '^### Parameters defined by user ###$' "${filled_project}/filled.mk"
+awk '
+    /^### Parameters defined by user ###$/ {
+        getline
+        getline
+        if ($0 != "") {
+            exit 1
+        }
+        found = 1
+    }
+    END {
+        exit !found
+    }
+' "${filled_project}/filled.mk"
+grep -q '^GSM_CTRL = GSM5492245$' "${filled_project}/filled.mk"
+grep -q '^RESOLUTION = 0.46$' "${filled_project}/filled.mk"
+grep -qx 'Parameter file: filled.mk (created)' "${tmpdir}/filled-init.out"
+grep -qx '✓ scBOLT project initialized.' "${tmpdir}/filled-init.out"
 
 missing_dir_project="${tmpdir}/missing-dir-project"
 mkdir -p "${missing_dir_project}"
@@ -532,22 +606,6 @@ expect_make_args \
     "CLI_OLD_FILES+=file3.h5ad file4.csv" \
     CLI_OLD_FILES+=file5.txt \
     "PARAMS=${project}/spaced.mk"
-
-run_scbolt "${project}" bn-submin -o file6.h5ad -ofile7.csv -o=file8.txt
-expect_make_args \
-    -f "${makefile}" \
-    bn-submin \
-    CLI_OLD_FILES+=file6.h5ad \
-    CLI_OLD_FILES+=file7.csv \
-    CLI_OLD_FILES+=file8.txt \
-    "PARAMS=${project}/spaced.mk"
-
-run_scbolt "${project}" -o file9.h5ad bn-submin --params=params.mk
-expect_make_args \
-    -f "${makefile}" \
-    bn-submin \
-    CLI_OLD_FILES+=file9.h5ad \
-    PARAMS=params.mk
 
 run_scbolt "${project}" --references="ctrl treated" check velocity --params=params.mk
 expect_make_args \

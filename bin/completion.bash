@@ -15,7 +15,7 @@ _scbolt_boolean_options="--logging= --spec-only-hvg= --pca-only-hvg= --velocity-
 --bin-scboolseq-only-hvg= --zeroes-are-zeroes= --bin-dea-only-hvg=
 --canonic-filter= --canonic-infer= --min-self-loop-consts= --min-self-loop-infer=
 --norm-mad= --cc-correction="
-_scbolt_file_options="-o= --params= --old-file= --results-dir= --public-dir= --star-whitelist=
+_scbolt_file_options="--params= --old-file= --results-dir= --public-dir= --star-whitelist=
 --binarization-file= --macrostate-files= --prior-knowledge= --spec-file="
 
 _scbolt_complete_words() {
@@ -66,6 +66,27 @@ _scbolt_complete_files() {
     _scbolt_keep_directory_open
 }
 
+_scbolt_complete_params_files() {
+    local prefix="$1"
+    local current="$2"
+    local item
+
+    COMPREPLY=()
+    while IFS= read -r item; do
+        if [ -d "${item}" ]; then
+            COMPREPLY+=("${prefix}${item}/")
+        elif [[ "${item}" == *.mk ]]; then
+            COMPREPLY+=("${prefix}${item}")
+        fi
+    done < <(compgen -f -- "${current}")
+
+    if [[ "params.mk" == "${current}"* ]] && [ ! -e "params.mk" ]; then
+        COMPREPLY+=("${prefix}params.mk")
+    fi
+
+    _scbolt_keep_directory_open
+}
+
 _scbolt_keep_assignment_open() {
     local reply
 
@@ -86,6 +107,11 @@ _scbolt_keep_directory_open() {
             return 0
         fi
     done
+}
+
+_scbolt_no_completion() {
+    COMPREPLY=()
+    compopt +o default +o bashdefault 2> /dev/null || true
 }
 
 _scbolt_is_module() {
@@ -187,30 +213,68 @@ _scbolt_help_parameters() {
 _scbolt_module_options() {
     local target="$1"
 
-    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= -o \
+    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
         --results-dir= --public-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
-        --logging= --help help -h
+        --logging= --help help
     _scbolt_help_parameters "${target}"
 }
 
 _scbolt_run_options() {
-    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= -o \
+    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
         --results-dir= --public-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
-        --logging= --help -h
+        --logging= --help
 }
 
 _scbolt_diagnostic_options() {
-    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= -o \
-        --public-dir= --help -h
+    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
+        --public-dir= --help
 }
 
 _scbolt_progress_options() {
-    printf '%s\n' --all --params= --public-dir= --references= --old-file= -o --help -h
+    printf '%s\n' --all --params= --public-dir= --references= --old-file= --help
 }
 
 _scbolt_clean_options() {
     printf '%s\n' --all --stale --force --params= --public-dir= --references= \
-        --old-file= -o --help -h
+        --old-file= --help
+}
+
+_scbolt_init_options() {
+    printf '%s\n' --remove --show --params= --conditions= --organism= --label= \
+        --spec-file= --count-files= --macrostate-files= --binarization-file= \
+        --results-dir= --public-dir= --references= --logging= --jobs= --memory= \
+        --seed= --use-rep= --label-col= --help
+}
+
+_scbolt_init_has_params_file() {
+    local i
+    local word
+
+    for ((i = 1; i < COMP_CWORD; i++)); do
+        word="${COMP_WORDS[i]}"
+        case "${word}" in
+            init)
+                ;;
+            --params)
+                if [ "$((i + 1))" -lt "${COMP_CWORD}" ]; then
+                    return 0
+                fi
+                ;;
+            --params=*)
+                return 0
+                ;;
+            --remove|--show|-h|--help|--*=*|*=*)
+                ;;
+            --*)
+                ((i++))
+                ;;
+            *)
+                return 0
+                ;;
+        esac
+    done
+
+    return 1
 }
 
 _scbolt_complete_multi_module_position() {
@@ -241,10 +305,10 @@ _scbolt_target_from_args() {
                 case "${word}" in
                     "${command}")
                         ;;
-                    --params|--public-dir|--references|--reset-target|--trust-target|--old-file|-o|--logging|--target)
+                    --params|--public-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target)
                         ((i++))
                         ;;
-                    --params=*|--public-dir=*|--references=*|--reset-target=*|--trust-target=*|--old-file=*|-o=*|-o?*|--logging=*|--target=*)
+                    --params=*|--public-dir=*|--references=*|--reset-target=*|--trust-target=*|--old-file=*|--logging=*|--target=*)
                         ;;
                     --*|*=*)
                         ;;
@@ -269,10 +333,10 @@ _scbolt_first_command() {
     for ((i = 1; i < COMP_CWORD; i++)); do
         word="${COMP_WORDS[i]}"
         case "${word}" in
-            --params|--public-dir|--references|--reset-target|--trust-target|--old-file|-o|--logging|--target)
+            --params|--public-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target)
                 ((i++))
                 ;;
-            -o=*|-o?*|--*|*=*)
+            --*|*=*)
                 ;;
             *)
                 printf '%s\n' "${word}"
@@ -326,21 +390,19 @@ _scbolt() {
         return 0
     fi
 
+    command="$(_scbolt_first_command || true)"
+
     case "${cur}" in
         --params=*)
-            _scbolt_complete_files "--params=" "${cur#--params=}"
+            if [ "${command}" = "init" ]; then
+                _scbolt_complete_params_files "--params=" "${cur#--params=}"
+            else
+                _scbolt_complete_files "--params=" "${cur#--params=}"
+            fi
             return 0
             ;;
         --old-file=*)
             _scbolt_complete_files "--old-file=" "${cur#--old-file=}"
-            return 0
-            ;;
-        -o=*)
-            _scbolt_complete_files "-o=" "${cur#-o=}"
-            return 0
-            ;;
-        -o?*)
-            _scbolt_complete_files "-o" "${cur#-o}"
             return 0
             ;;
         --public-dir=*)
@@ -384,6 +446,8 @@ _scbolt() {
                     return 0
                     ;;
             esac
+            _scbolt_no_completion
+            return 0
             ;;
     esac
 
@@ -394,7 +458,7 @@ _scbolt() {
                 _scbolt_complete_files "" "${cur}"
                 return 0
                 ;;
-            --old-file|-o|--public-dir)
+            --old-file|--public-dir)
                 _scbolt_complete_files "" "${cur}"
                 return 0
                 ;;
@@ -411,14 +475,20 @@ _scbolt() {
                 return 0
                 ;;
         esac
+        _scbolt_no_completion
+        return 0
     fi
 
     case "${prev}" in
         --params|--params=)
-            _scbolt_complete_files "" "${cur}"
+            if [ "${command}" = "init" ]; then
+                _scbolt_complete_params_files "" "${cur}"
+            else
+                _scbolt_complete_files "" "${cur}"
+            fi
             return 0
             ;;
-        --old-file|--old-file=|-o|-o=)
+        --old-file|--old-file=)
             _scbolt_complete_files "" "${cur}"
             return 0
             ;;
@@ -438,9 +508,12 @@ _scbolt() {
             _scbolt_complete_words "$(_scbolt_references)" "${cur}"
             return 0
             ;;
+        --*=)
+            _scbolt_no_completion
+            return 0
+            ;;
     esac
 
-    command="$(_scbolt_first_command || true)"
     target="$(_scbolt_target_from_args "${command}" || true)"
 
     if [ -z "${command}" ]; then
@@ -451,9 +524,11 @@ _scbolt() {
     case "${command}" in
         init)
             if [[ "${cur}" == --* ]]; then
-                _scbolt_complete_words "--remove --show --help -h" "${cur}"
+                _scbolt_complete_words "$(_scbolt_init_options)" "${cur}"
+            elif _scbolt_init_has_params_file; then
+                _scbolt_complete_words "$(_scbolt_init_options)" "${cur}"
             else
-                _scbolt_complete_files "" "${cur}"
+                _scbolt_complete_params_files "" "${cur}"
             fi
             ;;
         clean)

@@ -20,12 +20,12 @@ define check_help
 	@printf '$(bold)Parameters$(nc)\n'
 	@if [ "$(SCBOLT_CLI)" = "true" ]; then \
 		printf '  %-31s %s\n' '<module>' 'final module to validate'; \
-		printf '  %-31s %s\n' '--help, -h' 'display this help'; \
+		printf '  %-31s %s\n' '--help' 'display this help'; \
 		printf '  %-31s %s\n' '--params=<file>' 'select the parameter file'; \
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict checks to selected references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'check what would be required after rebuilding from these modules'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'check while trusting selected module outputs'; \
-		printf '  %-31s %s\n' '-o <file>, --old-file=<file>' 'check while trusting one existing DAG file'; \
+		printf '  %-31s %s\n' '--old-file=<file>' 'check while trusting one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module>' 'final module to validate'; \
@@ -38,6 +38,19 @@ define check_help
 	fi
 endef
 
+.PHONY: __check-metadata-manifest
+__check-metadata-manifest:
+	@$(foreach module,$(CHECK_METADATA_MODULES),\
+		{ \
+			printf 'module\t%s\n' "$(module)"; \
+			$(foreach target,$(strip $(RESET_TARGET_$(module))),\
+				printf 'target\t%s\n' "$(target)";) \
+			$(foreach param,$(strip $(sensitive_params_$(module))),\
+				printf 'param\t%s=%s\n' '$(param)' "$($(param))";) \
+			printf 'deps\t%s\n' "$(strip $(progress_deps_$(module)))"; \
+			printf 'end\n'; \
+		};)
+
 .PHONY: check
 check:
 ifeq ($(HELP),true)
@@ -47,7 +60,8 @@ else ifeq ($(HELP),false)
 		printf '$(failure_label) %s\n' "unknown TARGET=$(check_unknown_targets); supported values: $(reset_stages)"; \
 		exit 1; \
 	fi
-	@target_dry_run="$$(mktemp)"; \
+	@workflow_dry_run="$$(mktemp)"; \
+	target_dry_run="$$(mktemp)"; \
 	dry_run="$$(mktemp)"; \
 	check_report_dir="$$(mktemp -d)"; \
 	project_checks="$${check_report_dir}/01_project"; \
@@ -58,10 +72,15 @@ else ifeq ($(HELP),false)
 	conda_checks="$${check_report_dir}/06_conda"; \
 	command_checks="$${check_report_dir}/07_commands"; \
 	other_checks="$${check_report_dir}/08_other"; \
+	metadata_manifest="$$(mktemp)"; \
+	metadata_report_dir="$$(mktemp -d)"; \
+	conda_report_dir="$$(mktemp -d)"; \
 	touch "$${project_checks}" "$${core_checks}" "$${method_checks}" \
 		"$${external_resource_checks}" "$${file_checks}" "$${conda_checks}" \
 		"$${command_checks}" "$${other_checks}"; \
-	trap 'rm -f "$${target_dry_run}" "$${dry_run}"; rm -rf "$${check_report_dir}"' EXIT; \
+	trap 'rm -f "$${workflow_dry_run}" "$${target_dry_run}" "$${dry_run}" \
+		"$${metadata_manifest}"; \
+		rm -rf "$${check_report_dir}" "$${metadata_report_dir}" "$${conda_report_dir}"' EXIT; \
 	route_check_report() { \
 		case "$$1" in \
 			project\ parameter*|*project\ parameter*) printf '%s\n' "$${project_checks}";; \
@@ -83,6 +102,12 @@ else ifeq ($(HELP),false)
 	check_success() { printf '$(success_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
 	check_warning() { printf '$(warning_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
 	check_failure() { printf '$(failure_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
+	flush_check_reports() { \
+		for report in "$$@"; do \
+			cat "$${report}"; \
+			: > "$${report}"; \
+		done; \
+	}; \
 	missing=0; \
 	$(foreach path,$(OLD_FILES),\
 		if [ -e "$(path)" ] || [ -L "$(path)" ]; then \
@@ -105,11 +130,16 @@ else ifeq ($(HELP),false)
 				GSM_$(call toupper,$(condition)) \
 					(needed by target 'load-matrix'),project);) \
 	fi; \
+	: > "$${workflow_dry_run}"; \
 	: > "$${target_dry_run}"; \
+	$(foreach target,$(check_targets),\
+		$(nested_make) --always-make --dry-run LOGGING=false \
+			__check_mode=true __$(target) LOGFILE="$(LOGFILE)" >> "$${workflow_dry_run}";) \
 	$(foreach target,$(check_targets),\
 		$(nested_make) --dry-run LOGGING=false \
 			__check_mode=true __$(target) LOGFILE="$(LOGFILE)" >> "$${target_dry_run}";) \
-	selected_modules=" $(call uniq,$(foreach target,$(check_targets),$(call target_dry_run_modules,$(target)))) "; \
+	selected_modules=" $$(sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' "$${workflow_dry_run}" \
+		| awk '$$0 != "bin-hvg" && !seen[$$0]++') "; \
 	running_modules=" $$(sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' "$${target_dry_run}" \
 		| awk '$$0 != "bin-hvg" && !seen[$$0]++') $(reset_modules) "; \
 	pending_modules=" "; \
@@ -127,58 +157,67 @@ else ifeq ($(HELP),false)
 	is_untracked() { \
 		case "$${untracked_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 	}; \
-	$(foreach module,$(reset_stages),\
-		if [[ "$${selected_modules}" == *" $(module) "* ]]; then \
-			module_state="$$( $(call metadata_state_make,$(module),all) )"; \
-			module_status="$${module_state%%	*}"; \
-			module_message="$${module_state#*	}"; \
-			module_pending=0; \
-			module_stale=0; \
-			module_untracked=0; \
-			if [ "$${module_status}" = "pending" ]; then \
-				module_pending=1; \
-			elif [ "$${module_status}" = "stale" ]; then \
-				module_stale=1; \
-			elif [ "$${module_status}" = "untracked" ]; then \
-				module_untracked=1; \
-			elif [ "$${module_status}" = "done" ]; then \
-				module_deps=( $(foreach dep,$(strip $(progress_deps_$(module))),"$(dep)") ); \
-				for dependency in "$${module_deps[@]}"; do \
-					if is_stale "$${dependency}"; then \
-						module_message="$(module) (depends on module '$${dependency}')"; \
-						module_stale=1; \
-						break; \
-					elif is_untracked "$${dependency}"; then \
-						module_message="$(module) (depends on module '$${dependency}')"; \
-						module_untracked=1; \
-						break; \
-					elif is_pending "$${dependency}"; then \
-						module_message="$(module) (depends on module '$${dependency}')"; \
-						module_stale=1; \
-						break; \
-					fi; \
-				done; \
+	$(nested_make) LOGGING=false __reset_disabled=metadata \
+		__check-metadata-manifest CHECK_METADATA_MODULES="$${selected_modules}" \
+		PARAMS="$(PARAMS)" OLD_FILES="$(OLD_FILES)" > "$${metadata_manifest}"; \
+	python3 "$(scripts_dir)/utils/scbolt_metadata.py" batch-progress \
+		--manifest "$${metadata_manifest}" \
+		$(metadata_old_file_args) \
+		| while IFS="	" read -r report_module report_field report_value; do \
+			printf '%s\t%s\n' "$${report_field}" "$${report_value}" \
+				>> "$${metadata_report_dir}/$${report_module}"; \
+		done; \
+	for module in $${selected_modules}; do \
+		module_report="$${metadata_report_dir}/$${module}"; \
+		module_status="$$(awk -F '\t' '$$1 == "status" { print $$2; exit }' "$${module_report}")"; \
+		module_message="$$(awk -F '\t' '$$1 == "message" { print $$2; exit }' "$${module_report}")"; \
+		module_deps="$$(awk -F '\t' '$$1 == "deps" { print $$2; exit }' "$${module_report}")"; \
+		module_pending=0; \
+		module_stale=0; \
+		module_untracked=0; \
+		if [ "$${module_status}" = "pending" ]; then \
+			module_pending=1; \
+		elif [ "$${module_status}" = "stale" ]; then \
+			module_stale=1; \
+		elif [ "$${module_status}" = "untracked" ]; then \
+			module_untracked=1; \
+		elif [ "$${module_status}" = "done" ]; then \
+			for dependency in $${module_deps}; do \
+				if is_stale "$${dependency}"; then \
+					module_message="$${module} (depends on module '$${dependency}')"; \
+					module_stale=1; \
+					break; \
+				elif is_untracked "$${dependency}"; then \
+					module_message="$${module} (depends on module '$${dependency}')"; \
+					module_untracked=1; \
+					break; \
+				elif is_pending "$${dependency}"; then \
+					module_message="$${module} (depends on module '$${dependency}')"; \
+					module_stale=1; \
+					break; \
+				fi; \
+			done; \
+		fi; \
+		if [ "$${module_pending}" -eq 1 ]; then \
+			if ! is_running "$${module}"; then \
+				pending_modules="$${pending_modules}$${module} "; \
 			fi; \
-			if [ "$${module_pending}" -eq 1 ]; then \
-				if ! is_running "$(module)"; then \
-					pending_modules="$${pending_modules}$(module) "; \
-				fi; \
-			elif [ "$${module_stale}" -eq 1 ]; then \
-				if ! is_running "$(module)"; then \
-					check_warning "stale module output: $${module_message}"; \
-					stale_modules="$${stale_modules}$(module) "; \
-				fi; \
-			elif [ "$${module_untracked}" -eq 1 ]; then \
-				if ! is_running "$(module)"; then \
-					if [ "$${module_status}" = "untracked" ]; then \
-						check_warning "missing module metadata: $${module_message} (untracked output)"; \
-					else \
-						check_warning "untracked module output: $${module_message}"; \
-					fi; \
-					untracked_modules="$${untracked_modules}$(module) "; \
-				fi; \
+		elif [ "$${module_stale}" -eq 1 ]; then \
+			if ! is_running "$${module}"; then \
+				check_warning "stale module output: $${module_message}"; \
+				stale_modules="$${stale_modules}$${module} "; \
 			fi; \
-		fi;) \
+		elif [ "$${module_untracked}" -eq 1 ]; then \
+			if ! is_running "$${module}"; then \
+				if [ "$${module_status}" = "untracked" ]; then \
+					check_warning "missing module metadata: $${module_message} (untracked output)"; \
+				else \
+					check_warning "untracked module output: $${module_message}"; \
+				fi; \
+				untracked_modules="$${untracked_modules}$${module} "; \
+			fi; \
+		fi; \
+	done; \
 	if [ "$(matrix_mode)" = "true" ]; then \
 		:; \
 		$(foreach condition,$(running_conditions),\
@@ -483,6 +522,8 @@ else ifeq ($(HELP),false)
 				$(call knnbs_centrality,$(condition)),\
 				$(call knnbs_periphery,$(condition)),$(condition));) \
 	fi; \
+	flush_check_reports "$${project_checks}" "$${core_checks}" \
+		"$${method_checks}" "$${external_resource_checks}"; \
 	if [ "$(__check_externals__)" = "true" ]; then \
 		h5ad_report="$$(mktemp)"; \
 		if ! $(call conda_run,scbolt-core) python $(scripts_dir)/utils/check_h5ad_pipeline.py \
@@ -507,49 +548,70 @@ else ifeq ($(HELP),false)
 		if grep -q 'repeat_msk.gtf' "$${dry_run}"; then \
 			$(call check_file_diagnostic,$(public_dir)/transcriptome/repeat_msk.gtf,repeat masker annotation); \
 		fi; \
+	fi; \
+	flush_check_reports "$${file_checks}"; \
+	if [ "$(__check_externals__)" = "true" ]; then \
 		$(call check_command_diagnostic,conda); \
 		if command -v conda >/dev/null 2>&1; then \
+			conda_envs="$$(conda env list | awk '{print $$1}')"; \
+			conda_jobs=""; \
+			conda_index=0; \
 			for env in $$({ \
 				grep -oE 'conda run[^;|&]* -n [^ ]+' "$${dry_run}" || true; \
-			} | awk '{print $$NF}' | sort -u); do \
-				if conda env list | awk '{print $$1}' | grep -qx "$${env}"; then \
-					check_success "conda environment found: $${env}"; \
+			} | awk '{print $$NF}' | awk '!seen[$$0]++'); do \
+				if printf '%s\n' "$${conda_envs}" | grep -qx "$${env}"; then \
+					conda_index=$$((conda_index + 1)); \
+					conda_report="$${conda_report_dir}/$${conda_index}.report"; \
+					conda_status="$${conda_report_dir}/$${conda_index}.status"; \
+					printf 'success\t%s\n' "conda environment found: $${env}" > "$${conda_report}"; \
 					env_yaml="$(scbolt_root)/envs/$${env#scbolt-}.yml"; \
 					git_packages=""; \
 					case "$${env}" in \
 						scbolt-bonesis) git_packages="--git-package bonesis=$(BONESIS_HASH)";; \
 						scbolt-velocity) git_packages="--git-package scvelo=$(SCVELO_HASH)";; \
 					esac; \
-					conda_report="$$(mktemp)"; \
-					if ! python3 $(scripts_dir)/utils/check_conda_env.py \
+					( \
+						python3 $(scripts_dir)/utils/check_conda_env.py \
 							--env "$${env}" --yaml "$${env_yaml}" $${git_packages} \
-							> "$${conda_report}"; then \
-						missing=1; \
-					fi; \
-					while IFS=$$'\t' read -r status message; do \
-						if [ -z "$${status}" ]; then \
-							continue; \
-						elif [ "$${status}" = "success" ]; then \
-							check_success "$${message}"; \
-						elif [ "$${status}" = "warning" ]; then \
-							check_warning "$${message}"; \
-						elif [ "$${status}" = "failure" ]; then \
-							check_failure "$${message}"; \
-							missing=1; \
-						fi; \
-					done < "$${conda_report}"; \
-					rm -f "$${conda_report}"; \
+							>> "$${conda_report}"; \
+						printf '%s\n' "$$?" > "$${conda_status}"; \
+					) & \
+					conda_jobs="$${conda_jobs} $${conda_index}:$$!"; \
 				else \
 					$(call report_check_error,required conda environment not found: $${env}); \
 				fi; \
 			done; \
+			for conda_job in $${conda_jobs}; do \
+				conda_index="$${conda_job%%:*}"; \
+				conda_pid="$${conda_job#*:}"; \
+				conda_report="$${conda_report_dir}/$${conda_index}.report"; \
+				conda_status="$${conda_report_dir}/$${conda_index}.status"; \
+				wait "$${conda_pid}" || true; \
+				if [ "$$(cat "$${conda_status}" 2>/dev/null || printf '1')" -ne 0 ]; then \
+					missing=1; \
+				fi; \
+				while IFS=$$'\t' read -r status message; do \
+					if [ -z "$${status}" ]; then \
+						continue; \
+					elif [ "$${status}" = "success" ]; then \
+						check_success "$${message}"; \
+					elif [ "$${status}" = "warning" ]; then \
+						check_warning "$${message}"; \
+					elif [ "$${status}" = "failure" ]; then \
+						check_failure "$${message}"; \
+						missing=1; \
+					fi; \
+				done < "$${conda_report}"; \
+			done; \
 		fi; \
+		flush_check_reports "$${conda_checks}"; \
 		if grep -qE '(^|[[:space:]])cellranger count([[:space:]]|$$)' "$${dry_run}"; then \
 			$(call check_command_diagnostic,cellranger); \
 		fi; \
 		if grep -q -- '--graph-formats' "$${dry_run}"; then \
 			$(call check_command_diagnostic,dot); \
 		fi; \
+		flush_check_reports "$${command_checks}"; \
 	fi; \
 	if [ "$${missing}" -ne 0 ]; then \
 		$(call check_failure,check failed for $(check_target_label)); \
