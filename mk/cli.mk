@@ -620,7 +620,15 @@ __progress-module:
 	@module_state="$$( $(call metadata_state_field,$(PROGRESS_MODULE),all) )"; \
 	printf 'status\t%s\n' "$${module_state%%	*}"; \
 	printf 'message\t%s\n' "$${module_state#*	}"; \
+	printf 'stale-label\t%s\n' "$$( $(call metadata_state_field,$(PROGRESS_MODULE),stale-label) )"; \
+	printf 'pending-message\t%s\n' "$$( $(call metadata_state_field,$(PROGRESS_MODULE),pending-message) )"; \
+	printf 'pending-label\t%s\n' "$$( $(call metadata_state_field,$(PROGRESS_MODULE),pending-label) )"; \
 	printf 'deps\t%s\n' "$(strip $(progress_deps_$(PROGRESS_MODULE)))"
+
+.PHONY: __reference-context
+__reference-context:
+	@printf 'REFERENCES=%s\n' "$(running_references)"
+	@printf 'REFERENCES_DEFAULT=%s\n' "$(references_default)"
 
 .PHONY: progress
 progress: ## display module progress
@@ -682,6 +690,9 @@ endif
 			> "$${module_report}"; \
 		module_status="$$(awk -F '\t' '$$1 == "status" { print $$2; exit }' "$${module_report}")"; \
 		module_message="$$(awk -F '\t' '$$1 == "message" { print $$2; exit }' "$${module_report}")"; \
+		module_stale_label="$$(awk -F '\t' '$$1 == "stale-label" { print $$2; exit }' "$${module_report}")"; \
+		module_pending_message="$$(awk -F '\t' '$$1 == "pending-message" { print $$2; exit }' "$${module_report}")"; \
+		module_pending_label="$$(awk -F '\t' '$$1 == "pending-label" { print $$2; exit }' "$${module_report}")"; \
 		module_deps="$$(awk -F '\t' '$$1 == "deps" { print $$2; exit }' "$${module_report}")"; \
 		rm -f "$${module_report}"; \
 		if [[ "$${selected_modules}" == *" $${module} "* ]]; then \
@@ -701,9 +712,11 @@ endif
 				else \
 					for dependency in $${module_deps}; do \
 						if is_pending "$${dependency}" || is_stale "$${dependency}"; then \
+							module_message="$${module} (depends on module '$${dependency}')"; \
 							module_stale=1; \
 							break; \
 						elif is_untracked "$${dependency}"; then \
+							module_message="$${module} (depends on module '$${dependency}')"; \
 							module_untracked=1; \
 							break; \
 						fi; \
@@ -711,15 +724,23 @@ endif
 				fi; \
 			workflow_total=$$((workflow_total + 1)); \
 			if [ "$${module_pending}" -eq 1 ]; then \
-				printf '%s\n' "- $${module}" >> "$${pending_file}"; \
+				printf '%s\n' "- $${module_pending_label:-$${module}}" >> "$${pending_file}"; \
 				pending_modules="$${pending_modules}$${module} "; \
 				elif [ "$${module_stale}" -eq 1 ]; then \
-					printf '%s\n' "- $${module}" >> "$${stale_file}"; \
+					printf '%s\n' "- $${module_stale_label:-$${module_message}}" >> "$${stale_file}"; \
 					stale_modules="$${stale_modules}$${module} "; \
+					if [ -n "$${module_pending_label}" ]; then \
+						printf '%s\n' "- $${module_pending_label}" >> "$${pending_file}"; \
+						pending_modules="$${pending_modules}$${module} "; \
+					fi; \
 				elif [ "$${module_untracked}" -eq 1 ]; then \
 					workflow_done=$$((workflow_done + 1)); \
-					printf '%s\n' "- $${module}" >> "$${untracked_file}"; \
+					printf '%s\n' "- $${module_message}" >> "$${untracked_file}"; \
 					untracked_modules="$${untracked_modules}$${module} "; \
+					if [ -n "$${module_pending_label}" ]; then \
+						printf '%s\n' "- $${module_pending_label}" >> "$${pending_file}"; \
+						pending_modules="$${pending_modules}$${module} "; \
+					fi; \
 				else \
 					workflow_done=$$((workflow_done + 1)); \
 					printf '%s\n' "- $${module_label}" >> "$${done_file}"; \
@@ -728,9 +749,9 @@ endif
 				if [ "$${module_status}" = "done" ]; then \
 					printf '%s\n' "- $${module}" >> "$${extra_done_file}"; \
 				elif [ "$${module_status}" = "stale" ]; then \
-					printf '%s\n' "- $${module}" >> "$${extra_stale_file}"; \
+					printf '%s\n' "- $${module_stale_label:-$${module_message}}" >> "$${extra_stale_file}"; \
 				elif [ "$${module_status}" = "untracked" ]; then \
-					printf '%s\n' "- $${module}" >> "$${extra_untracked_file}"; \
+					printf '%s\n' "- $${module_message}" >> "$${extra_untracked_file}"; \
 				else \
 					printf '%s\n' "- $${module}" >> "$${skipped_file}"; \
 				fi; \

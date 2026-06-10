@@ -83,6 +83,18 @@ print_error() {
     printf '%s%s%s %s\n' "${stderr_red}" "✗" "${stderr_nc}" "$1" >&2
 }
 
+print_success_status() {
+    printf '%s%s Completed:%s %s\n' "${stdout_green}" "✓" "${stdout_nc}" "$1"
+}
+
+print_warning_status() {
+    printf '%s%s %s:%s %s\n' "${stdout_yellow}" "⚠" "$1" "${stdout_nc}" "$2"
+}
+
+print_failure_status() {
+    printf '%s%s Failed:%s %s\n' "${stderr_red}" "✗" "${stderr_nc}" "$1" >&2
+}
+
 print_installation_error() {
     local missing_file="$1"
 
@@ -326,10 +338,10 @@ SPEC_FILE = spec.yml
 ############################
 
 # Output directory. Defaults to the current project name when omitted.
-RESULTS_DIR =
+RESULTS_DIR = project/
 
 # Public resource directory. Defaults to public/ when omitted.
-PUBLIC_DIR =
+PUBLIC_DIR = public/
 EOF
 }
 
@@ -752,6 +764,111 @@ run_make_with_params() {
     exit "$?"
 }
 
+run_make_build_with_params() {
+    local params="$1"
+    local target_label="$2"
+    local stderr_file
+    local status=0
+    local final_status
+    local interrupted=0
+    shift 2
+
+    require_params_file "${params}"
+    stderr_file="$(mktemp)"
+    trap 'interrupted=1' INT TERM
+    set +e
+    make -f "${SCBOLT_MAKEFILE}" "$@" "PARAMS=${params}" \
+        2> >(tee "${stderr_file}" | grep -vE '^make(\[[0-9]+\])?: \*\*\*' >&2 || true)
+    status=$?
+    set -e
+    trap - INT TERM
+
+    final_status="${status}"
+    if [ "${interrupted}" -eq 1 ]; then
+        final_status=130
+    elif grep -qE 'Error 130($|[^0-9])|KeyboardInterrupt|(^|[^[:alpha:]])Interrupt($|[^[:alpha:]])' \
+            "${stderr_file}"; then
+        final_status=130
+    elif grep -qE 'Error 143($|[^0-9])' "${stderr_file}"; then
+        final_status=143
+    elif grep -qE 'Error 124($|[^0-9])|user-defined time limit reached|timed out|timeout' \
+            "${stderr_file}"; then
+        final_status=124
+    fi
+    rm -f "${stderr_file}"
+
+    case "${final_status}" in
+        0)
+            print_success_status "${target_label}"
+            ;;
+        124)
+            print_warning_status "Reached time limit" "${target_label}"
+            ;;
+        130)
+            print_warning_status "Cancelled by user" "${target_label}"
+            ;;
+        143)
+            print_warning_status "Cancelled by user" "${target_label}"
+            ;;
+        *)
+            print_failure_status "${target_label}"
+            ;;
+    esac
+
+    exit "${status}"
+}
+
+normalize_references() {
+    local value="$1"
+
+    value="${value//+/ }"
+    value="$(trim "${value}")"
+    printf '%s\n' "${value}" | awk '{$1=$1; print}'
+}
+
+format_references() {
+    local value="$1"
+
+    normalize_references "${value}" | awk '{
+        for (i = 1; i <= NF; i++) {
+            printf "%s%s", (i == 1 ? "" : ", "), $i
+        }
+        printf "\n"
+    }'
+}
+
+target_label_with_references() {
+    local params="$1"
+    local label="$2"
+    local context
+    local references
+    local references_default
+    local normalized_references
+    local normalized_default
+    local formatted_references
+    shift 2
+
+    context="$(make -f "${SCBOLT_MAKEFILE}" __reference-context "$@" "PARAMS=${params}" 2> /dev/null)" || {
+        printf '%s\n' "${label}"
+        return 0
+    }
+
+    references="$(printf '%s\n' "${context}" | sed -n 's/^REFERENCES=//p' | head -n 1)"
+    references_default="$(printf '%s\n' "${context}" | sed -n 's/^REFERENCES_DEFAULT=//p' | head -n 1)"
+    normalized_references="$(normalize_references "${references}")"
+    normalized_default="$(normalize_references "${references_default}")"
+
+    if [ -n "${normalized_references}" ] \
+        && [ -n "${normalized_default}" ] \
+        && [ "${normalized_references}" != "${normalized_default}" ]; then
+        formatted_references="$(format_references "${references}")"
+        printf '%s (%s)\n' "${label}" "${formatted_references}"
+        return 0
+    fi
+
+    printf '%s\n' "${label}"
+}
+
 run_make_check_with_params() {
     local params="$1"
     local stderr_file
@@ -1047,6 +1164,19 @@ case "${cmd}" in
                 SCBOLT_CLI=true
         fi
         translate_args "${leading_args[@]}" "$@"
-        run_make_with_params "${params_assignment}" "${cmd}" "${positional_args[@]}" "${make_args[@]}"
+        module_label="${cmd}"
+        if [ "${#positional_args[@]}" -gt 0 ]; then
+            module_label="${module_label} ${positional_args[*]}"
+        fi
+        module_label="$(target_label_with_references \
+            "${params_assignment}" \
+            "${module_label}" \
+            "${make_args[@]}")"
+        run_make_build_with_params \
+            "${params_assignment}" \
+            "${module_label}" \
+            "${cmd}" \
+            "${positional_args[@]}" \
+            "${make_args[@]}"
         ;;
 esac

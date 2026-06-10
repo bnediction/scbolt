@@ -84,7 +84,7 @@ comma := ,
 empty :=
 space := $(empty) $(empty)
 
-diagnostic_mode := $(filter check show-config progress module-help,$(MAKECMDGOALS))$(__check_mode)\
+diagnostic_mode := $(filter check show-config progress module-help __reference-context,$(MAKECMDGOALS))$(__check_mode)\
 	$(if $(filter true,$(HELP)),help)
 
 is_positive_integer = $(shell printf '%s\n' "$(strip $(1))" \
@@ -667,7 +667,7 @@ define warn_stale_outputs
 $(foreach path,$(unknown_old_files),\
 	$(call print_warning,old file is not a known scBOLT target: $(path));) \
 selected_modules=" $(call target_dry_run_modules,$(1)) "; \
-running_modules=" $(call target_run_modules,$(1)) "; \
+running_modules=" $(call target_run_modules,$(1)) $(reset_modules) "; \
 pending_modules=" "; \
 stale_modules=" "; \
 untracked_modules=" "; \

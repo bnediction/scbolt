@@ -297,20 +297,32 @@ _scbolt() {
     line_before_cursor="${line_before_cursor:0:${COMP_POINT:-${#line_before_cursor}}}"
 
     if [[ "${line_before_cursor}" =~ (^|[[:space:]])--references=([^[:space:]]*)$ ]]; then
-        _scbolt_complete_prefixed_words "--references=" "$(_scbolt_references)" \
-            "${BASH_REMATCH[2]}"
+        if [[ "${cur}" == --references=* ]]; then
+            _scbolt_complete_prefixed_words "--references=" "$(_scbolt_references)" \
+                "${BASH_REMATCH[2]}"
+        else
+            _scbolt_complete_words "$(_scbolt_references)" "${BASH_REMATCH[2]}"
+        fi
         return 0
     fi
 
     if [[ "${line_before_cursor}" =~ (^|[[:space:]])--reset-target=([^[:space:]]*)$ ]]; then
-        _scbolt_complete_prefixed_words "--reset-target=" "${_scbolt_modules}" \
-            "${BASH_REMATCH[2]}"
+        if [[ "${cur}" == --reset-target=* ]]; then
+            _scbolt_complete_prefixed_words "--reset-target=" "${_scbolt_modules}" \
+                "${BASH_REMATCH[2]}"
+        else
+            _scbolt_complete_words "${_scbolt_modules}" "${BASH_REMATCH[2]}"
+        fi
         return 0
     fi
 
     if [[ "${line_before_cursor}" =~ (^|[[:space:]])--trust-target=([^[:space:]]*)$ ]]; then
-        _scbolt_complete_prefixed_words "--trust-target=" "${_scbolt_modules}" \
-            "${BASH_REMATCH[2]}"
+        if [[ "${cur}" == --trust-target=* ]]; then
+            _scbolt_complete_prefixed_words "--trust-target=" "${_scbolt_modules}" \
+                "${BASH_REMATCH[2]}"
+        else
+            _scbolt_complete_words "${_scbolt_modules}" "${BASH_REMATCH[2]}"
+        fi
         return 0
     fi
 

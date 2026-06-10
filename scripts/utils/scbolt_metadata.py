@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Literal
 
 Status = Literal["done", "stale", "pending", "untracked"]
+State = tuple[Status, str, list[Path], list[Path]]
 
 
 def sidecar_path(target: Path) -> Path:
@@ -141,6 +142,38 @@ def format_grouped_messages(
     return messages
 
 
+def format_target_state_label(
+    module: str,
+    selected_targets: list[Path],
+    all_targets: list[Path],
+) -> str:
+    if not selected_targets:
+        return ""
+
+    multiple_targets = len(all_targets) > 1
+    all_labels = unique_values(
+        [format_target_label(target) for target in all_targets] if multiple_targets else []
+    )
+    labels = (
+        [format_target_label(target) for target in selected_targets]
+        if multiple_targets
+        else []
+    )
+    return f"{module}{format_labels(labels, all_labels)}"
+
+
+def format_missing_message(
+    module: str,
+    missing_targets: list[Path],
+    all_targets: list[Path],
+) -> str:
+    if not missing_targets:
+        return ""
+
+    label = format_target_state_label(module, missing_targets, all_targets)
+    return f"{label} (missing output)"
+
+
 def target_exists(target: Path) -> bool:
     return target.exists() or target.is_symlink()
 
@@ -151,17 +184,19 @@ def state_for_targets(
     targets: list[Path],
     parameters: dict[str, str],
     old_files: set[Path] | None = None,
-) -> tuple[Status, str, list[Path]]:
+) -> State:
     if not targets:
-        return "pending", f"{module} (no target registered)", []
+        return "pending", f"{module} (no target registered)", [], []
 
     old_files = old_files or set()
     missing = [target for target in targets if not target_exists(target)]
-    if missing:
-        return "pending", f"{module} (missing output)", []
+    if len(missing) == len(targets):
+        return "pending", format_missing_message(module, missing, targets), [], missing
 
     if not parameters:
-        return "done", f"{module} (no sensitive parameters)", []
+        if missing:
+            return "pending", format_missing_message(module, missing, targets), [], missing
+        return "done", f"{module} (no sensitive parameters)", [], []
 
     expected_hash = config_hash(parameters)
     stale_targets: list[Path] = []
@@ -175,6 +210,9 @@ def state_for_targets(
     )
 
     for target in targets:
+        if not target_exists(target):
+            continue
+
         if normalize_path(target) in old_files:
             trusted_old += 1
             continue
@@ -210,17 +248,20 @@ def state_for_targets(
         messages = format_grouped_messages(grouped_messages, all_labels)
         messages.extend(format_change_messages(grouped_changes, all_labels))
         unique_messages = unique_values(messages)
-        return "stale", f"{module} ({'; '.join(unique_messages)})", stale_targets
+        return "stale", f"{module} ({'; '.join(unique_messages)})", stale_targets, missing
 
     if untracked_targets:
         labels = grouped_messages.get("metadata missing", [])
-        return "untracked", f"{module}{format_labels(labels, all_labels)}", []
+        return "untracked", f"{module}{format_labels(labels, all_labels)}", [], missing
+
+    if missing:
+        return "pending", format_missing_message(module, missing, targets), [], missing
 
     if trusted_old:
         suffix = "old file" if trusted_old == 1 else "old files"
-        return "done", f"{module} ({suffix})", []
+        return "done", f"{module} ({suffix})", [], []
 
-    return "done", f"{module} (configuration up to date)", []
+    return "done", f"{module} (configuration up to date)", [], []
 
 
 def write_metadata(args: argparse.Namespace) -> None:
@@ -251,7 +292,7 @@ def print_state(args: argparse.Namespace) -> None:
     parameters = parse_parameters(args.param)
     targets = [Path(target) for target in args.target]
     old_files = {normalize_path(Path(path)) for path in args.old_file}
-    status, message, stale_targets = state_for_targets(
+    status, message, stale_targets, missing_targets = state_for_targets(
         module=args.module,
         targets=targets,
         parameters=parameters,
@@ -262,7 +303,29 @@ def print_state(args: argparse.Namespace) -> None:
         print(status)
     elif args.field == "message":
         print(message)
+    elif args.field == "pending-message":
+        message = format_missing_message(args.module, missing_targets, targets)
+        if message:
+            print(message)
+    elif args.field == "pending-label":
+        label = format_target_state_label(args.module, missing_targets, targets)
+        if label:
+            print(label)
+    elif args.field == "pending-targets":
+        for target in missing_targets:
+            print(target)
+    elif args.field == "stale-label":
+        label = format_target_state_label(args.module, stale_targets, targets)
+        if label:
+            print(label)
     elif args.field == "cleanup-paths":
+        for target in stale_targets:
+            print(target)
+            print(sidecar_path(target))
+    elif args.field == "stale-targets":
+        for target in stale_targets:
+            print(target)
+    elif args.field == "stale-cleanup":
         for target in stale_targets:
             print(target)
             print(sidecar_path(target))
@@ -295,7 +358,19 @@ def build_parser() -> argparse.ArgumentParser:
     state.add_argument("--param", action="append", default=[])
     state.add_argument(
         "--field",
-        choices=["all", "status", "message", "cleanup-paths", "sidecars"],
+        choices=[
+            "all",
+            "status",
+            "message",
+            "pending-message",
+            "pending-label",
+            "pending-targets",
+            "stale-label",
+            "cleanup-paths",
+            "stale-targets",
+            "stale-cleanup",
+            "sidecars",
+        ],
         default="all",
     )
     state.set_defaults(func=print_state)

@@ -111,7 +111,7 @@ else ifeq ($(HELP),false)
 			__check_mode=true __$(target) LOGFILE="$(LOGFILE)" >> "$${target_dry_run}";) \
 	selected_modules=" $(call uniq,$(foreach target,$(check_targets),$(call target_dry_run_modules,$(target)))) "; \
 	running_modules=" $$(sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' "$${target_dry_run}" \
-		| awk '$$0 != "bin-hvg" && !seen[$$0]++') "; \
+		| awk '$$0 != "bin-hvg" && !seen[$$0]++') $(reset_modules) "; \
 	pending_modules=" "; \
 	stale_modules=" "; \
 	untracked_modules=" "; \

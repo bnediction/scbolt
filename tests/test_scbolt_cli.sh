@@ -16,7 +16,37 @@ ln -s "${scbolt}" "${fakebin}/scbolt"
 cat > "${fakebin}/make" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+status="${SCBOLT_TEST_MAKE_STATUS:-0}"
+for arg in "$@"; do
+    if [ "${arg}" = "__reference-context" ]; then
+        references="${SCBOLT_TEST_REFERENCES:-}"
+        if [ -z "${references}" ]; then
+            for make_arg in "$@"; do
+                case "${make_arg}" in
+                    REFERENCES=*)
+                        references="${make_arg#REFERENCES=}"
+                        ;;
+                esac
+            done
+        fi
+        references="${references:-${SCBOLT_TEST_FULL_REFERENCES:-ctrl treated integrated}}"
+        printf 'REFERENCES=%s\n' "${references}"
+        printf 'REFERENCES_DEFAULT=%s\n' "${SCBOLT_TEST_FULL_REFERENCES:-ctrl treated integrated}"
+        exit 0
+    fi
+done
 printf '%s\n' "$@" > "${SCBOLT_TEST_RECORD}"
+case "${status}" in
+    0) ;;
+    124|130|143)
+        printf 'make: *** [mk/cli.mk:999: %s] Error %s\n' "${2:-target}" "${status}" >&2
+        ;;
+    *)
+        printf '%s\n' "${SCBOLT_TEST_MAKE_STDERR:-real underlying error}" >&2
+        printf 'make: *** [mk/cli.mk:999: %s] Error %s\n' "${2:-target}" "${status}" >&2
+        ;;
+esac
+exit "${status}"
 EOF
 chmod +x "${fakebin}/make"
 
@@ -200,6 +230,68 @@ grep -qx '✓ scBOLT project configuration removed.' "${tmpdir}/remove-init.out"
 )
 grep -qx 'PARAMS=spaced.mk' "${project}/.scbolt"
 
+run_scbolt "${project}" bn-submin > "${tmpdir}/module-success.out"
+expect_make_args -f "${makefile}" bn-submin "PARAMS=${project}/spaced.mk"
+grep -qx '✓ Completed: bn-submin' "${tmpdir}/module-success.out"
+
+if (
+    cd "${project}"
+    PATH="${fakebin}:${PATH}" \
+        SCBOLT_TEST_RECORD="${record}" \
+        SCBOLT_TEST_MAKE_STATUS=130 \
+        "${scbolt}" stream > "${tmpdir}/module-interrupted.out" \
+        2> "${tmpdir}/module-interrupted.err"
+); then
+    printf '%s\n' "expected interrupted module execution to fail" >&2
+    exit 1
+fi
+grep -qx '⚠ Cancelled by user: stream' "${tmpdir}/module-interrupted.out"
+! grep -q '^make.*\*\*\*' "${tmpdir}/module-interrupted.err"
+
+if (
+    cd "${project}"
+    PATH="${fakebin}:${PATH}" \
+        SCBOLT_TEST_RECORD="${record}" \
+        SCBOLT_TEST_MAKE_STATUS=2 \
+        SCBOLT_TEST_MAKE_STDERR=Interrupt \
+        "${scbolt}" stream > "${tmpdir}/module-generic-interrupted.out" \
+        2> "${tmpdir}/module-generic-interrupted.err"
+); then
+    printf '%s\n' "expected generic interrupted module execution to fail" >&2
+    exit 1
+fi
+grep -qx '⚠ Cancelled by user: stream' "${tmpdir}/module-generic-interrupted.out"
+! grep -q '^make.*\*\*\*' "${tmpdir}/module-generic-interrupted.err"
+
+if (
+    cd "${project}"
+    PATH="${fakebin}:${PATH}" \
+        SCBOLT_TEST_RECORD="${record}" \
+        SCBOLT_TEST_MAKE_STATUS=124 \
+        "${scbolt}" max-nodes-seed > "${tmpdir}/module-timeout.out" \
+        2> "${tmpdir}/module-timeout.err"
+); then
+    printf '%s\n' "expected timed-out module execution to fail" >&2
+    exit 1
+fi
+grep -qx '⚠ Reached time limit: max-nodes-seed' "${tmpdir}/module-timeout.out"
+! grep -q '^make.*\*\*\*' "${tmpdir}/module-timeout.err"
+
+if (
+    cd "${project}"
+    PATH="${fakebin}:${PATH}" \
+        SCBOLT_TEST_RECORD="${record}" \
+        SCBOLT_TEST_MAKE_STATUS=2 \
+        "${scbolt}" stream > "${tmpdir}/module-failed.out" \
+        2> "${tmpdir}/module-failed.err"
+); then
+    printf '%s\n' "expected failed module execution to fail" >&2
+    exit 1
+fi
+grep -qx 'real underlying error' "${tmpdir}/module-failed.err"
+grep -qx '✗ Failed: stream' "${tmpdir}/module-failed.err"
+! grep -q '^make.*\*\*\*' "${tmpdir}/module-failed.err"
+
 if (
     cd "${project}"
     "${scbolt}" init --remove spaced.mk > "${tmpdir}/bad-remove-init.out" \
@@ -243,6 +335,23 @@ grep -qx '✗ No parameter file found.' "${tmpdir}/missing-show-init.err"
 
 run_scbolt "${project}" bn-submin
 expect_make_args -f "${makefile}" bn-submin "PARAMS=${project}/spaced.mk"
+
+run_scbolt "${project}" stream --references=ctrl > "${tmpdir}/module-reference.out"
+expect_make_args \
+    -f "${makefile}" \
+    stream \
+    REFERENCES=ctrl \
+    "PARAMS=${project}/spaced.mk"
+grep -qx '✓ Completed: stream (ctrl)' "${tmpdir}/module-reference.out"
+
+run_scbolt "${project}" stream --references="ctrl treated integrated" \
+    > "${tmpdir}/module-full-reference.out"
+expect_make_args \
+    -f "${makefile}" \
+    stream \
+    "REFERENCES=ctrl treated integrated" \
+    "PARAMS=${project}/spaced.mk"
+grep -qx '✓ Completed: stream' "${tmpdir}/module-full-reference.out"
 
 run_scbolt "${project}" clean
 expect_make_args -f "${makefile}" clean "PARAMS=${project}/spaced.mk"
@@ -311,8 +420,8 @@ grep -q '^SPEC_FILE = spec.yml$' "${fresh_project}/missing.mk"
 grep -q '^COUNT_FILES =$' "${fresh_project}/missing.mk"
 grep -q '^MACROSTATE_FILES =$' "${fresh_project}/missing.mk"
 grep -q '^BINARIZATION_FILE =$' "${fresh_project}/missing.mk"
-grep -q '^RESULTS_DIR =$' "${fresh_project}/missing.mk"
-grep -q '^PUBLIC_DIR =$' "${fresh_project}/missing.mk"
+grep -q '^RESULTS_DIR = project/$' "${fresh_project}/missing.mk"
+grep -q '^PUBLIC_DIR = public/$' "${fresh_project}/missing.mk"
 grep -qx 'Parameter file: missing.mk (created)' "${tmpdir}/fresh-missing-init.out"
 grep -qx '✓ scBOLT project initialized.' "${tmpdir}/fresh-missing-init.out"
 
