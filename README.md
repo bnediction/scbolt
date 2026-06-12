@@ -125,7 +125,7 @@ Display command-specific help:
 
 ```bash
 scbolt init --help
-scbolt show-config help
+scbolt config help
 scbolt check --help
 scbolt progress --help
 scbolt clean help
@@ -150,7 +150,7 @@ scbolt <module...>
 Display effective configuration:
 
 ```bash
-scbolt show-config
+scbolt config
 ```
 
 Preview execution without running:
@@ -195,7 +195,7 @@ With `--all`, it asks before removing cache, logs, and all generated module outp
 | `--old-file=<file>` | Trust one existing scBOLT DAG file.                  |
 | `--logging=false`              | Disable persistent logging.                           |
 | `--help`                       | Display command-specific help when supported.         |
-| `--raw`                        | Display raw `show-config` listing.                    |
+| `--raw`                        | Display raw `config` listing.                         |
 | `--<parameter>=<value>`        | Override any Make parameter using dash-separated option names. |
 | `--prior-knowledge=<resource>` | Use `collectri`, `dorothea`, or a custom regulatory network. |
 

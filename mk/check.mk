@@ -101,6 +101,17 @@ else ifeq ($(HELP),false)
 	}; \
 	check_success() { printf '$(success_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
 	check_warning() { printf '$(warning_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
+	check_warning_block() { \
+		message="$$1"; \
+		details="$$2"; \
+		report="$$(route_check_report "$${message}")"; \
+		printf '$(warning_label) %s\n' "$${message}" >> "$${report}"; \
+		if [ -n "$${details}" ]; then \
+			printf '%s\n' "$${details}" \
+				| tr ';' '\n' \
+				| sed 's/^[[:space:]]*/    - /' >> "$${report}"; \
+		fi; \
+	}; \
 	check_failure() { printf '$(failure_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
 	flush_check_reports() { \
 		for report in "$$@"; do \
@@ -167,6 +178,7 @@ else ifeq ($(HELP),false)
 		module_report="$${metadata_report_dir}/$${module}"; \
 		module_status="$$(awk -F '\t' '$$1 == "status" { print $$2; exit }' "$${module_report}")"; \
 		module_message="$$(awk -F '\t' '$$1 == "message" { print $$2; exit }' "$${module_report}")"; \
+		module_details=""; \
 		module_deps="$$(awk -F '\t' '$$1 == "deps" { print $$2; exit }' "$${module_report}")"; \
 		module_pending=0; \
 		module_stale=0; \
@@ -200,7 +212,12 @@ else ifeq ($(HELP),false)
 			fi; \
 		elif [ "$${module_stale}" -eq 1 ]; then \
 			if ! is_running "$${module}"; then \
-				check_warning "stale module output: $${module_message}"; \
+				if [[ "$${module_status}" = "stale" && "$${module_message}" == "$${module} ("*")" ]]; then \
+					module_details="$${module_message#$${module} (}"; \
+					module_details="$${module_details%)}"; \
+					module_message="$${module}"; \
+				fi; \
+				check_warning_block "stale module output: $${module_message}" "$${module_details}"; \
 				stale_modules="$${stale_modules}$${module} "; \
 			fi; \
 		elif [ "$${module_untracked}" -eq 1 ]; then \
@@ -393,7 +410,7 @@ else ifeq ($(HELP),false)
 			$(KNNSC_EMBEDDING),$(call needed_by,KNNSC_EMBEDDING,knnsc),method); \
 		$(call check_positive_integer_diagnostic,\
 			$(KNNSC_NEIGHBORS),$(call needed_by,KNNSC_NEIGHBORS,knnsc),method); \
-		$(call check_positive_integer_diagnostic,\
+		$(call check_nonnegative_integer_diagnostic,\
 			$(KNNSC_MIN_CLUSTER_SIZE),$(call needed_by,KNNSC_MIN_CLUSTER_SIZE,knnsc),method); \
 	fi; \
 	if grep -q 'scripts/bin/bin_cells_scboolseq.py' "$${dry_run}" \

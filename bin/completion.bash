@@ -9,7 +9,7 @@ bin-cells bin-macrostates bin-dea bin-consensus binarization
 spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock
 bn-min bn-submin bn-diverse"
 
-_scbolt_commands="init help show-config progress check dry-run clean ${_scbolt_modules}"
+_scbolt_commands="init help config progress check dry-run clean ${_scbolt_modules}"
 _scbolt_boolean_options="--logging= --spec-only-hvg= --pca-only-hvg= --velocity-only-hvg=
 --cotan-only-hvg= --extend-epg= --prune-epg= --collapse-parameter=
 --bin-scboolseq-only-hvg= --zeroes-are-zeroes= --bin-dea-only-hvg=
@@ -163,7 +163,7 @@ _scbolt_references() {
 
     mapfile -t params_args < <(_scbolt_params_args)
     conditions="$(
-        command scbolt show-config --raw "${params_args[@]}" 2> /dev/null \
+        command scbolt config --raw "${params_args[@]}" 2> /dev/null \
             | awk -F= '$1 == "CONDITIONS" { print $2; exit }'
     )"
 
@@ -299,7 +299,7 @@ _scbolt_target_from_args() {
     fi
 
     case "${command}" in
-        check|dry-run|show-config|progress|clean)
+        check|dry-run|config|progress|clean)
             for ((i = 1; i < COMP_CWORD; i++)); do
                 word="${COMP_WORDS[i]}"
                 case "${word}" in
@@ -562,7 +562,7 @@ _scbolt() {
                 fi
             fi
             ;;
-        show-config)
+        config)
             if [[ "${cur}" == --* ]]; then
                 if [ -n "${target}" ]; then
                     _scbolt_complete_words "--raw $(_scbolt_module_options "${target}")" \

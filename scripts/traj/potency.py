@@ -310,7 +310,7 @@ for obs in ["score", "normalized_score", "potency"]:
         outfile=Path(f"{args.outpath}/cytotrace_{obs}.pdf"),
     )
 
-fig, ax, _ = bt.sct.pl.boxplot(
+fig, ax, _ = bt.sct.pl.distribution(
     adata,
     obs="cytotrace_score",
     groupby=args.cluster,
@@ -341,7 +341,7 @@ plt.hlines(
 )
 plt.savefig(Path(f"{args.outpath}/boxplot_cytotrace_score.pdf"))
 
-bt.sct.pl.boxplot(
+bt.sct.pl.distribution(
     adata,
     obs="cytotrace_normalized_score",
     groupby="cluster",

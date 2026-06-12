@@ -678,7 +678,7 @@ collect_global_args() {
                 ;;
             --level|--level=*)
                 print_error "Unsupported scbolt option: --level"
-                printf '%s\n' "Use '--raw' to display the raw show-config listing." >&2
+                printf '%s\n' "Use '--raw' to display the raw config listing." >&2
                 exit 1
                 ;;
             --*=*|*=*)
@@ -781,7 +781,7 @@ translate_args() {
                 shift
                 ;;
             --raw)
-                make_args+=("SHOW_CONFIG_RAW=true")
+                make_args+=("CONFIG_RAW=true")
                 ;;
             --raw=*)
                 print_error "Unsupported scbolt option with value: --raw"
@@ -790,7 +790,7 @@ translate_args() {
                 ;;
             --level|--level=*)
                 print_error "Unsupported scbolt option: --level"
-                printf '%s\n' "Use '--raw' to display the raw show-config listing." >&2
+                printf '%s\n' "Use '--raw' to display the raw config listing." >&2
                 exit 1
                 ;;
             --target=*)
@@ -1291,7 +1291,7 @@ case "${cmd}" in
         fi
         run_make_with_params "${params_assignment}" progress "${make_args[@]}"
         ;;
-    check|dry-run|show-config)
+    check|dry-run|config)
         if has_help_request "$@"; then
             run_make_help "${cmd}"
         fi

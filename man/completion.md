@@ -34,7 +34,7 @@ Examples:
 
 ```text
 init
-show-config
+config
 check
 dry-run
 clean
@@ -143,7 +143,7 @@ The same behavior applies to:
 
 - `scbolt check <module>`
 - `scbolt dry-run <module>`
-- `scbolt show-config <module>`
+- `scbolt config <module>`
 
 ## Value Completion
 

@@ -6,7 +6,7 @@ without running the full workflow.
 | Command | Main use |
 | ------- | -------- |
 | `help` | Documentation |
-| `show-config` | Configuration inspection |
+| `config` | Configuration inspection |
 | `progress` | Workflow state |
 | `check` | Requirement validation |
 | `dry-run` | Build preview |
@@ -23,7 +23,7 @@ scbolt help
 scbolt <module> help
 ```
 
-## `show-config`
+## `config`
 
 The configuration is resolved from the active parameter file. The default view
 is designed for users and groups settings by project, workflow, methods,
@@ -31,8 +31,8 @@ execution, and target-specific parameters. The raw view prints the underlying
 Make variables.
 
 ```bash
-scbolt show-config
-scbolt show-config <module>
+scbolt config
+scbolt config <module>
 ```
 
 Use `--raw` to print the raw Make parameter listing.

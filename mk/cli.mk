@@ -1,6 +1,7 @@
 ## BEGIN UTILITY VARIABLES ##
 
-SHOW_CONFIG_RAW ?= false
+SHOW_CONFIG_RAW ?=
+CONFIG_RAW ?= $(if $(strip $(SHOW_CONFIG_RAW)),$(SHOW_CONFIG_RAW),false)
 PROGRESS_ALL ?= false
 config_print_var = $(if $(filter undefined,$(origin $(1))),,$(info $(1)=$($(1))))
 help_command = $(if $(filter true,$(SCBOLT_CLI)),scbolt,make)
@@ -188,17 +189,17 @@ endef
 define show_config_help
 	$(call command_help_header,\
 		$(if $(filter true,$(SCBOLT_CLI)),\
-			scbolt show-config [<module>] [options],\
-			make show-config [TARGET=<module>] [SHOW_CONFIG_RAW=true] [HELP=true]),\
+			scbolt config [<module>] [options],\
+			make config [TARGET=<module>] [CONFIG_RAW=true] [HELP=true]),\
 		Display the effective scBOLT configuration without running the pipeline.)
-	@printf '%s\n' 'By default, show-config prints a readable summary.'
+	@printf '%s\n' 'By default, config prints a readable summary.'
 	@printf '%s\n\n' 'Use the raw view to print the underlying Make parameter listing.'
 	@printf '$(bold)Parameters$(nc)\n'
 	@if [ "$(SCBOLT_CLI)" = "true" ]; then \
 		printf '  %-31s %s\n' '<module>' 'select module to summarize'; \
 		printf '  %-31s %s\n' '--help' 'display this help'; \
 		printf '  %-31s %s\n' '--params=<file>' 'select the parameter file'; \
-		printf '  %-31s %s\n' '--raw' 'display raw show-config listing'; \
+		printf '  %-31s %s\n' '--raw' 'display raw config listing'; \
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict the run to selected references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'preview configuration with forced rebuild context'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'preview configuration while trusting selected outputs'; \
@@ -207,7 +208,7 @@ define show_config_help
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module>' 'select module to summarize'; \
 		printf '  %-31s %s\n' 'HELP=true' 'display this help'; \
-		printf '  %-31s %s\n' 'SHOW_CONFIG_RAW=true' 'display raw show-config listing'; \
+		printf '  %-31s %s\n' 'CONFIG_RAW=true' 'display raw config listing'; \
 		printf '  %-31s %s\n' 'REFERENCES=<condition...>' 'restrict the run to selected references'; \
 		printf '  %-31s %s\n' 'RESET_TARGET=<module...>' 'preview configuration with forced rebuild context'; \
 		printf '  %-31s %s\n' 'TRUST_TARGET=<module...>' 'preview configuration while trusting selected outputs'; \
@@ -450,13 +451,13 @@ help: ## display help
 					printf "  %-31s %s\n", "TRUST_TARGET=<module...>", "skip rebuilding modules"; \
 					printf "  %-31s %s\n", "OLD_FILES=<file...>", "trust existing DAG files"; \
 					printf "  %-31s %s\n", "LOGGING=<bool>", "enable logging"; \
-					printf "  %-31s %s\n", "SHOW_CONFIG_RAW=true", "display raw show-config listing"; \
+					printf "  %-31s %s\n", "CONFIG_RAW=true", "display raw config listing"; \
 					printf "  %-31s %s\n", "HELP=true", "display command help"; \
 					printf "  %-31s %s\n", "<PARAMETER>=<value>", "override Make parameter"; \
 				}} \
 			/^[a-zA-Z_-]+:.*?##/ { \
 				if (section == "Utilities" && \
-						($$1 == "help" || $$1 == "show-config" || $$1 == "progress" || \
+						($$1 == "help" || $$1 == "config" || $$1 == "progress" || \
 						 $$1 == "check" || $$1 == "dry-run" || $$1 == "clean")) { \
 					next; \
 				} \
@@ -470,7 +471,7 @@ help: ## display help
 				} \
 				if (section == "Utilities") { \
 					printf "  $(green)%-22s$(nc)  %s\n", "help", "display help"; \
-					printf "  $(green)%-22s$(nc)  %s\n", "show-config", "display the effective configuration"; \
+					printf "  $(green)%-22s$(nc)  %s\n", "config", "display the effective configuration"; \
 					printf "  $(green)%-22s$(nc)  %s\n", "progress", "display module progress"; \
 					printf "  $(green)%-22s$(nc)  %s\n", "check", "validate module requirements"; \
 					printf "  $(green)%-22s$(nc)  %s\n", "dry-run", "preview build dependencies"; \
@@ -602,8 +603,8 @@ else
 	fi
 endif
 
-.PHONY: show-config
-show-config: ## display the effective configuration
+.PHONY: config
+config: ## display the effective configuration
 ifeq ($(HELP),true)
 	$(show_config_help)
 else ifeq ($(HELP),false)
@@ -612,12 +613,12 @@ ifeq ($(filter $(TARGET),$(reset_stages)),)
 	$(call print_error,unknown TARGET=$(TARGET); supported values: $(reset_stages))
 endif
 endif
-ifeq ($(SHOW_CONFIG_RAW),true)
+ifeq ($(CONFIG_RAW),true)
 	$(config_print_global)
-else ifeq ($(SHOW_CONFIG_RAW),false)
+else ifeq ($(CONFIG_RAW),false)
 	$(show_config_print)
 else
-	$(call print_error,unsupported SHOW_CONFIG_RAW=$(SHOW_CONFIG_RAW) \(supported values: true, false\))
+	$(call print_error,unsupported CONFIG_RAW=$(CONFIG_RAW) \(supported values: true, false\))
 endif
 else
 	$(call print_error,unsupported HELP=$(HELP) \(supported values: true, false\))

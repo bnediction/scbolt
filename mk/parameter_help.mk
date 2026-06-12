@@ -163,7 +163,7 @@ parameter_help_hint_KNNSC_DIMENSION = dimensions, optional
 parameter_help_description_KNNSC_DIMENSION = Embedding dimensions for distances.
 parameter_help_hint_KNNSC_NEIGHBORS = $(parameter_help_positive_integer)
 parameter_help_description_KNNSC_NEIGHBORS = KNN graph neighbor number.
-parameter_help_hint_KNNSC_MIN_CLUSTER_SIZE = $(parameter_help_positive_integer)
+parameter_help_hint_KNNSC_MIN_CLUSTER_SIZE = >= 0
 parameter_help_description_KNNSC_MIN_CLUSTER_SIZE = Minimum label size for KNNSC candidates.
 
 parameter_help_hint_BIN_HVG_FLAVOR = seurat | cell_ranger | seurat_v3

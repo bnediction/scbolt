@@ -18,4 +18,5 @@ from ._anndata import (
 
 from ._warnings import (
     filter_scanpy_hvg_warnings,
+    filter_scanpy_rank_genes_warnings,
 )

@@ -98,14 +98,14 @@ done
 run_scbolt_from_path "${project}" help
 expect_make_args -f "${makefile}" help SCBOLT_CLI=true PARAMS=params.mk
 
-run_scbolt "${project}" show-config help
-expect_make_args -f "${makefile}" show-config HELP=true SCBOLT_CLI=true PARAMS=params.mk
+run_scbolt "${project}" config help
+expect_make_args -f "${makefile}" config HELP=true SCBOLT_CLI=true PARAMS=params.mk
 
-run_scbolt "${project}" show-config -h
-expect_make_args -f "${makefile}" show-config HELP=true SCBOLT_CLI=true PARAMS=params.mk
+run_scbolt "${project}" config -h
+expect_make_args -f "${makefile}" config HELP=true SCBOLT_CLI=true PARAMS=params.mk
 
-run_scbolt "${project}" show-config --help
-expect_make_args -f "${makefile}" show-config HELP=true SCBOLT_CLI=true PARAMS=params.mk
+run_scbolt "${project}" config --help
+expect_make_args -f "${makefile}" config HELP=true SCBOLT_CLI=true PARAMS=params.mk
 
 run_scbolt "${project}" check --help
 expect_make_args -f "${makefile}" check HELP=true SCBOLT_CLI=true PARAMS=params.mk
@@ -644,19 +644,19 @@ expect_make_args -f "${makefile}" progress PROGRESS_ALL=true PARAMS=params.mk
 run_scbolt "${project}" progress bn-min bn-diverse --params=params.mk
 expect_make_args -f "${makefile}" progress "TARGET=bn-min bn-diverse" PARAMS=params.mk
 
-run_scbolt "${project}" show-config macrostates --params=params.mk
+run_scbolt "${project}" config macrostates --params=params.mk
 expect_make_args \
     -f "${makefile}" \
-    show-config \
+    config \
     TARGET=macrostates \
     PARAMS=params.mk
 
-run_scbolt "${project}" show-config macrostates --raw --params=params.mk
+run_scbolt "${project}" config macrostates --raw --params=params.mk
 expect_make_args \
     -f "${makefile}" \
-    show-config \
+    config \
     TARGET=macrostates \
-    SHOW_CONFIG_RAW=true \
+    CONFIG_RAW=true \
     PARAMS=params.mk
 
 fallback_project="${tmpdir}/fallback"

@@ -1,20 +1,26 @@
 #!/usr/bin/env python
 
-import os, io, sys
 import contextlib
+import os
+import sys
+import warnings
 
 import datetime
 from pathlib import Path
 from typing import Optional
 
 @contextlib.contextmanager
-def disable_print(disable: bool=True):
-    if disable is True:
-        with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
-            yield
-    else:
-        with io.StringIO() as f:
-            yield
+def disable_print(disable: bool = True, disable_warnings: bool = True):
+    with contextlib.ExitStack() as stack:
+        if disable_warnings is True:
+            stack.enter_context(warnings.catch_warnings())
+            warnings.simplefilter("ignore")
+
+        if disable is True:
+            f = stack.enter_context(open(os.devnull, "w"))
+            stack.enter_context(contextlib.redirect_stdout(f))
+
+        yield
 
 class Section(object):
 

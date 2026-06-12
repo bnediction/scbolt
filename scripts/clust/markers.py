@@ -123,24 +123,25 @@ if args.layer:
 
 std.print_task("ranking genes (scope=groups)")
 
-sc.tl.rank_genes_groups(
-    adata=adata,
-    groupby=args.cluster,
-    use_raw=False,
-    layer=args.layer,
-    reference="rest",
-    method="wilcoxon",
-    tie_correct=True,
-    corr_method=args.correction,
-)
+with std.filter_scanpy_rank_genes_warnings():
+    sc.tl.rank_genes_groups(
+        adata=adata,
+        groupby=args.cluster,
+        use_raw=False,
+        layer=args.layer,
+        reference="rest",
+        method="wilcoxon",
+        tie_correct=True,
+        corr_method=args.correction,
+    )
 
-markers_df = sc.get.rank_genes_groups_df(adata, group=None, pval_cutoff=args.alpha)
+    markers_df = sc.get.rank_genes_groups_df(adata, group=None, pval_cutoff=args.alpha)
 
 std.print_warning(
     "found inconsistent log2 fold-changes (sources=seurat::FindAllMarkers, scanpy.rank_gene_groups, see=https://www.biostars.org/p/453129/)"
 )
 std.print_debug("updating log2 fold-changes")
-logfoldchanges_df = bt.sct.tl.calculate_logfoldchanges(
+logfoldchanges_df = bt.sct.tl.logfoldchanges(
     adata,
     groupby=args.cluster,
     layer=args.layer,

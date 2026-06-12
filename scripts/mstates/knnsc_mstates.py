@@ -179,15 +179,16 @@ if adata.obs[args.obs].dtype.name != "category":
 if args.dimension is None:
     args.dimension = adata.obsm[args.embedding].shape[1]
 
-if args.min_cluster_size <= 0:
-    parser.error("--min-cluster-size must be a positive integer")
+if args.min_cluster_size < 0:
+    parser.error("--min-cluster-size must be a non-negative integer")
 
 cluster_counts = adata.obs[args.obs].value_counts()
 clusters = list(adata.obs[args.obs].cat.categories)
 eligible_clusters = {
     cluster
     for cluster in clusters
-    if int(cluster_counts.get(cluster, 0)) >= args.min_cluster_size
+    if int(cluster_counts.get(cluster, 0)) > 0
+    and int(cluster_counts.get(cluster, 0)) >= args.min_cluster_size
 }
 if not eligible_clusters:
     parser.error(
@@ -206,7 +207,9 @@ if missing_clusters:
 small_selected_clusters = [
     f"{cluster} (size={int(cluster_counts.get(cluster, 0))})"
     for cluster in clusters
-    if cluster in selected_clusters and cluster not in eligible_clusters
+    if cluster in selected_clusters
+    and int(cluster_counts.get(cluster, 0)) > 0
+    and cluster not in eligible_clusters
 ]
 if small_selected_clusters:
     parser.error(
@@ -215,34 +218,44 @@ if small_selected_clusters:
         + ", ".join(small_selected_clusters)
     )
 
-unassigned_eligible_clusters = sorted(eligible_clusters - selected_clusters)
-if unassigned_eligible_clusters:
+empty_selected_clusters = [
+    cluster
+    for cluster in clusters
+    if cluster in selected_clusters and int(cluster_counts.get(cluster, 0)) == 0
+]
+if empty_selected_clusters:
     parser.error(
-        "eligible cluster(s) not assigned to --centrality or --periphery: "
-        + ", ".join(unassigned_eligible_clusters)
+        "empty cluster(s) cannot be used as KNNSC candidates: "
+        + ", ".join(empty_selected_clusters)
     )
 
 std.print_task("estimating subclusters (method=KNNSC)")
-knnsc = bt.sct.tl.KNNSC(
+knnsc = bt.sct.tl.KNNSC()
+
+std.print_info(
+    f"initializing graph parameters "
+    f"(neighbors={args.neighbors}, embedding={args.embedding}, "
+    f"dimension={args.dimension}, metric={args.metric}, jobs={args.jobs})"
+)
+std.print_info(
+    f"initializing distance parameters "
+    f"(min_cluster_size={args.min_cluster_size}, "
+    f"method={args.method}, jobs={args.jobs})"
+)
+std.print_warning("shortest-path computation may take some time.")
+knnsc.fit(
+    adata,
+    cluster_key=args.obs,
     n_neighbors=args.neighbors,
     use_rep=args.embedding,
     n_components=args.dimension,
     metric=args.metric,
-)
-
-std.print_info("computing k-nearest neighbors graph")
-knnsc.fit(
-    adata,
-    obs=args.obs,
     min_cluster_size=args.min_cluster_size,
+    method=args.method,
     n_jobs=args.jobs,
 )
 
-std.print_info("computing pairwise shortest paths between cells and barycenters")
-std.print_warning("this may take some time.")
-knnsc.compute_shortest_path_lengths(method=args.method, n_jobs=args.jobs)
-
-std.print_info("estimating cluster-related cell manifolds")
+std.print_info("predicting macrostates")
 macrostates = knnsc.predict(
     subcluster_size=args.size,
     key="macrostate",

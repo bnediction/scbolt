@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import os
-import warnings
 import std
 import argparse
 import cli
@@ -160,13 +159,7 @@ std.print_task(f"ranking genes (scope=groups, method={args.method})")
 
 adata.obs[args.cluster] = adata.obs[args.cluster].cat.remove_unused_categories()
 
-with warnings.catch_warnings():
-    warnings.filterwarnings(
-        "ignore",
-        message=r"The behavior of DataFrame\.sum with axis=None is deprecated.*",
-        category=FutureWarning,
-        module=r"numpy\.core\.fromnumeric",
-    )
+with std.filter_scanpy_rank_genes_warnings():
     sc.tl.rank_genes_groups(
         adata=adata,
         groupby=args.cluster,
@@ -178,7 +171,7 @@ with warnings.catch_warnings():
         corr_method=args.correction,
     )
 
-dea_df = sc.get.rank_genes_groups_df(adata, group=None, pval_cutoff=args.alpha)
+    dea_df = sc.get.rank_genes_groups_df(adata, group=None, pval_cutoff=args.alpha)
 
 std.print_warning(
     "found inconsistent log2 fold-changes (sources=seurat::FindAllMarkers, scanpy.rank_gene_groups, see=https://www.biostars.org/p/453129/)"

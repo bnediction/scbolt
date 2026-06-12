@@ -86,7 +86,7 @@ empty :=
 space := $(empty) $(empty)
 
 diagnostic_mode := $(strip \
-	$(filter help check show-config progress dry-run clean module-help __reference-context,$(MAKECMDGOALS)) \
+	$(filter help check config progress dry-run clean module-help __reference-context,$(MAKECMDGOALS)) \
 	$(filter __%,$(MAKECMDGOALS)) \
 	$(__check_mode) \
 	$(if $(filter true,$(HELP)),help))
@@ -308,7 +308,13 @@ require_bool = $(call require_choice,$(1),true false,$(2))
 
 define require_positive_integer
 case "$(strip $($(1)))" in \
-	''|*[!0-9]*|0) $(call print_error,required positive integer for parameter $(1) \(current: $(strip $($(1)))\));; \
+	''|*[!0-9]*|0) $(call print_error,required positive integer for parameter $(1) (current: $(strip $($(1)))));; \
+esac
+endef
+
+define require_nonnegative_integer
+case "$(strip $($(1)))" in \
+	''|*[!0-9]*) $(call print_error,required non-negative integer for parameter $(1) (current: $(strip $($(1)))));; \
 esac
 endef
 
@@ -321,7 +327,7 @@ endef
 define require_float
 if ! printf '%s\n' "$(strip $($(1)))" \
 		| grep -Eq '^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$$$$'; then \
-	$(call print_error,required numeric value for parameter $(1) \(current: $(strip $($(1)))\)); \
+	$(call print_error,required numeric value for parameter $(1) (current: $(strip $($(1))))); \
 fi
 endef
 
@@ -439,7 +445,7 @@ endef
 define require_knnsc_parameters
 $(call require_parameter,KNNSC_EMBEDDING,knnsc); \
 $(call require_positive_integer,KNNSC_NEIGHBORS); \
-$(call require_positive_integer,KNNSC_MIN_CLUSTER_SIZE)
+$(call require_nonnegative_integer,KNNSC_MIN_CLUSTER_SIZE)
 endef
 
 define require_star_barcode_filter_parameters
@@ -509,6 +515,7 @@ require_sra_condition =
 require_choice =
 require_bool =
 require_positive_integer =
+require_nonnegative_integer =
 require_optional_positive_integer =
 require_float =
 require_optional_hvg_method =
@@ -602,6 +609,15 @@ endef
 define check_positive_integer_diagnostic
 case "$(strip $(1))" in \
 	''|*[!0-9]*|0) $(call report_check_error,required positive integer for \
+		$(call parameter_description,$(1),$(2),$(3)) (current: $(strip $(1))));; \
+	*) $(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: \
+		$(call parameter_assignment,$(1),$(2)));; \
+esac
+endef
+
+define check_nonnegative_integer_diagnostic
+case "$(strip $(1))" in \
+	''|*[!0-9]*) $(call report_check_error,required non-negative integer for \
 		$(call parameter_description,$(1),$(2),$(3)) (current: $(strip $(1))));; \
 	*) $(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: \
 		$(call parameter_assignment,$(1),$(2)));; \
@@ -752,6 +768,7 @@ $(foreach module,$(reset_stages),\
 		module_state="$$( $(call metadata_state_make,$(module),all) )"; \
 		module_status="$${module_state%%	*}"; \
 		module_message="$${module_state#*	}"; \
+		module_details=""; \
 		module_pending=0; \
 		module_stale=0; \
 		module_untracked=0; \
@@ -784,7 +801,17 @@ $(foreach module,$(reset_stages),\
 				pending_modules="$${pending_modules}$(module) "; \
 			fi; \
 		elif [ "$${module_stale}" -eq 1 ]; then \
+			if [[ "$${module_status}" = "stale" && "$${module_message}" == "$(module) ("*")" ]]; then \
+				module_details="$${module_message#$(module) (}"; \
+				module_details="$${module_details%)}"; \
+				module_message="$(module)"; \
+			fi; \
 			$(call print_warning,stale module output: $${module_message}); \
+			if [ -n "$${module_details}" ]; then \
+				printf '%s\n' "$${module_details}" \
+					| tr ';' '\n' \
+					| sed 's/^[[:space:]]*/    - /'; \
+			fi; \
 			stale_modules="$${stale_modules}$(module) "; \
 		elif [ "$${module_untracked}" -eq 1 ]; then \
 			if ! is_running "$(module)"; then \
