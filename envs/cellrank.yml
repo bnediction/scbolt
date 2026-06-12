@@ -188,7 +188,7 @@ dependencies:
   - zstandard=0.23.0=py312hef9b889_1
   - zstd=1.5.6=ha6fb4c9_0
   - pip:
-      - bonesistools=1.2.4
+      - bonesistools==1.2.4
       - cellrank==2.0.6
       - click==8.1.7
       - jinja2==3.0.3

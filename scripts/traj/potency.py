@@ -286,7 +286,7 @@ except IndexError:
 plot_dir = os.path.relpath(args.outpath)
 std.print_task(f"plotting potency outputs (directory={plot_dir})")
 for obs in ["score", "normalized_score", "potency"]:
-    bt.sct.pl.embedding_plot(
+    bt.sct.pl.embedding(
         adata,
         obs=f"cytotrace_{obs}",
         use_rep=args.use_rep,
@@ -296,7 +296,7 @@ for obs in ["score", "normalized_score", "potency"]:
         figwidth=6 if obs == "potency" else 8,
         s=8,
         alpha=1,
-        add_legend=True,
+        show_legend=True,
         lgd_params={
             "title": obs,
             "ncol": 1,

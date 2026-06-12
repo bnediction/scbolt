@@ -87,7 +87,7 @@ $(results)/%/count/invalid-alignment/.error:
 
 $(results)/%/mstates/invalid-method/.error:
 	$(call print_rule,macrostates,$*)
-	$(call require_choice,MACROSTATE_METHOD,cotan cellrank stream knnbs,macrostates)
+	$(call require_choice,MACROSTATE_METHOD,cotan cellrank stream knnsc,macrostates)
 
 $(bin_method_error):
 	$(call print_rule,binarization)
@@ -412,27 +412,28 @@ $(stream_$(1))&: $(annotation_$(1))
 		--size $(MACROSTATE_SIZE) --jobs $(JOBS)
 	$$(call write_scbolt_metadata,stream,$$(stream_$(1)))
 
-ifeq ($(or $(call knnbs_centrality,$(1)),$(call knnbs_periphery,$(1))),)
-$(knnbs_$(1))&: $(annotation_$(1))
-	$(call print_error,required parameter not defined: KNNBS_CENTRALITY_$(call toupper,$(1)) \
-		or KNNBS_PERIPHERY_$(call toupper,$(1)) \(needed by target 'knnbs'\))
+ifeq ($(or $(call knnsc_centrality,$(1)),$(call knnsc_periphery,$(1))),)
+$(knnsc_$(1))&: $(annotation_$(1))
+	$(call print_error,required parameter not defined: KNNSC_CENTRALITY_$(call toupper,$(1)) \
+		or KNNSC_PERIPHERY_$(call toupper,$(1)) \(needed by target 'knnsc'\))
 else
-$(knnbs_$(1))&: $(annotation_$(1))
-	$(call print_rule,knnbs,$(1))
-	$(call require_knnbs_parameters)
+$(knnsc_$(1))&: $(annotation_$(1))
+	$(call print_rule,knnsc,$(1))
+	$(call require_knnsc_parameters)
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/mstates/knnbs_mstates.py \
-		$$< $$(firstword $$(knnbs_$(1))) \
-		--csv $$(lastword $$(knnbs_$(1))) \
-		--obs $(LABEL_COL) --embedding $(KNNBS_EMBEDDING) --neighbors $(KNNBS_NEIGHBORS) \
-		$(knnbs_dimension) --metric $(METRIC) --size $(MACROSTATE_SIZE) \
-		$(if $(call knnbs_centrality,$(1)),--centrality $(call knnbs_centrality,$(1)),) \
-		$(if $(call knnbs_periphery,$(1)),--periphery $(call knnbs_periphery,$(1)),) \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/mstates/knnsc_mstates.py \
+		$$< $$(firstword $$(knnsc_$(1))) \
+		--csv $$(lastword $$(knnsc_$(1))) \
+		--obs $(LABEL_COL) --embedding $(KNNSC_EMBEDDING) --neighbors $(KNNSC_NEIGHBORS) \
+		$(knnsc_dimension) --metric $(METRIC) --size $(MACROSTATE_SIZE) \
+		--min-cluster-size $(KNNSC_MIN_CLUSTER_SIZE) \
+		$(if $(call knnsc_centrality,$(1)),--centrality $(call knnsc_centrality,$(1)),) \
+		$(if $(call knnsc_periphery,$(1)),--periphery $(call knnsc_periphery,$(1)),) \
 		--jobs $(JOBS)
 	$$(call plot_embeddings,\
-		$(fig_dir)/macrostates.json,$$(firstword $$(knnbs_$(1))),$$(@D)/knnbs.pdf,\
+		$(fig_dir)/macrostates.json,$$(firstword $$(knnsc_$(1))),$$(@D)/knnsc.pdf,\
 		--use-rep $(USE_REP))
-	$$(call write_scbolt_metadata,knnbs,$$(knnbs_$(1)))
+	$$(call write_scbolt_metadata,knnsc,$$(knnsc_$(1)))
 endif
 
 endef
@@ -501,6 +502,12 @@ $(annotation_integrated): $(clustering_integrated)
 	$(call plot_embeddings,\
 		$(fig_dir)/generic.json,$@,$(@D)/labels.pdf,\
 		--obs $(LABEL_COL) --use-rep $(USE_REP))
+	$(call plot_composition,\
+		$(fig_dir)/composition.json,$@,$(@D)/condition_by_label.pdf,\
+		--obs condition --groupby $(LABEL_COL))
+	$(call plot_composition,\
+		$(fig_dir)/composition.json,$@,$(@D)/label_by_condition.pdf,\
+		--obs $(LABEL_COL) --groupby condition)
 	$(call write_scbolt_metadata,annotation,$@)
 
 ifneq ($(strip $(MACROSTATE_FILES)),)

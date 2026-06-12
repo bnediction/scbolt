@@ -1,18 +1,15 @@
 #!/usr/bin/env python
 
 import inspect
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 from pandas._typing import Axis
 from pandas import DataFrame
 import bonesis
 import bonesistools as bt
 import std
-from bonesistools.databases.ncbi import GeneSynonyms
 
 
-def get_cfg(
-    df: DataFrame, axis: Axis = 0, genesyn: Optional[GeneSynonyms] = None
-) -> dict:
+def get_cfg(df: DataFrame, axis: Axis = 0, genesyn: Optional[Any] = None) -> dict:
     """
     Convert configurations from dataframe format into dictionary format.
 
@@ -22,8 +19,8 @@ def get_cfg(
         DataFrame object.
     axis: pd.Axis (default: 0)
         Whether configuration names are df.index (0 or 'index') or df.obs (1 or 'column').
-    gensyn: bt.dbs.ncbi.GeneSynonyms (optional, default: None)
-        GeneSynonyms object used for standardizing gene names.
+    gensyn: callable (optional, default: None)
+        Gene synonym converter used for standardizing gene names.
 
     Returns
     -------
@@ -39,7 +36,7 @@ def get_cfg(
             f"invalid value for 'axis' (got {axis}, expected 'index' or 'column')"
         )
 
-    if genesyn is not None and isinstance(genesyn, GeneSynonyms):
+    if genesyn is not None:
         genesyn(df, axis=0, copy=False)
 
     return {config: genes.to_dict() for config, genes in df.items()}
@@ -82,7 +79,7 @@ def load_bonesis_code(
 def load_prior_network(
     domain: str,
     organism: str,
-    genesyn: GeneSynonyms,
+    genesyn: Any,
     dorothea_levels: Optional[Sequence[str]] = None,
     omnipath_version: str = "latest",
     hcop_version: str = "bundled",

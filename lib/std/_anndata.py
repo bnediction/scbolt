@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import os
+import tempfile
 from collections.abc import Iterable
 from typing import Any
 
@@ -29,6 +31,17 @@ def canonicalize_anndata(adata: Any) -> None:
         _canonicalize_sparse_matrix(adata.raw.X)
 
 
+def _is_tmp_path(filename: Any) -> bool:
+    try:
+        path = os.path.abspath(os.fspath(filename))
+    except TypeError:
+        return False
+    tmpdir = os.path.abspath(tempfile.gettempdir())
+    return os.path.commonpath([path, tmpdir]) == tmpdir
+
+
 def write_h5ad(adata: Any, filename: Any, **kwargs: Any) -> None:
     canonicalize_anndata(adata)
+    if "compression" not in kwargs and not _is_tmp_path(filename):
+        kwargs["compression"] = "gzip"
     adata.write_h5ad(filename=filename, **kwargs)

@@ -69,4 +69,4 @@ dependencies:
   - xz=5.2.6=h166bdaf_0
   - zstd=1.5.6=ha6fb4c9_0
   - pip:
-      - bonesistools=1.2.4
+      - bonesistools==1.2.4

@@ -5,7 +5,7 @@ import std
 import argparse
 from pathlib import Path
 
-from bonesistools.databases.ncbi import GeneSynonyms
+import bonesistools as bt
 
 import scanpy as sc
 
@@ -71,7 +71,7 @@ else:
 
 if args.standardization:
     std.print_info("standardizing gene names")
-    gene_list = GeneSynonyms()(gene_list)
+    gene_list = bt.dbs.ncbi.genesyn()(gene_list)
 
 std.print_task(f"saving gene list (file={std.format_path(args.outfile)})")
 with open(args.outfile, "w") as file:

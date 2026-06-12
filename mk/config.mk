@@ -231,13 +231,33 @@ print(f"reads: spliced+unspliced+ambiguous={spliced + unspliced + ambiguous:.0f}
 $(1) $(2) | while IFS= read -r line; do $(call print_result,$$$$line); done
 endef
 
-plot_embeddings = outfile="$(3)"; \
-	display_file="$$(realpath --relative-to="$(launch_dir)" "$$outfile" 2>/dev/null \
-		|| printf '%s' "$$outfile")"; \
-	$(call print_task,plotting embeddings (file=$$display_file)); \
-	$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(1) \
-		--infile $(2) --outfile "$$outfile" \
-		$(4)
+define plot_embeddings_command
+$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(1) \
+	--infile $(2) --outfile "$$outfile" \
+	$(4)
+endef
+
+define plot_composition_command
+$(call conda_run,scbolt-core) python $(fig_dir)/plot_composition.py $(1) \
+	--infile $(2) --outfile "$$outfile" \
+	$(4)
+endef
+
+define plot_embeddings
+outfile="$(3)"
+display_file="$$(realpath --relative-to="$(launch_dir)" "$$outfile" 2>/dev/null \
+	|| printf '%s' "$$outfile")"
+$(call print_task,plotting embeddings (file=$$display_file))
+$(call plot_embeddings_command,$(1),$(2),$(3),$(4))
+endef
+
+define plot_composition
+outfile="$(3)"
+display_file="$$(realpath --relative-to="$(launch_dir)" "$$outfile" 2>/dev/null \
+	|| printf '%s' "$$outfile")"
+$(call print_task,plotting composition (file=$$display_file))
+$(call plot_composition_command,$(1),$(2),$(3),$(4))
+endef
 
 define check_file
 [ -n "$(1)" ] || { $(call print_error,required file parameter not defined: $(2)); }; \
@@ -416,9 +436,10 @@ $(call require_bool,PRUNE_EPG,stream); \
 $(call require_bool,COLLAPSE_PARAMETER,stream)
 endef
 
-define require_knnbs_parameters
-$(call require_parameter,KNNBS_EMBEDDING,knnbs); \
-$(call require_positive_integer,KNNBS_NEIGHBORS)
+define require_knnsc_parameters
+$(call require_parameter,KNNSC_EMBEDDING,knnsc); \
+$(call require_positive_integer,KNNSC_NEIGHBORS); \
+$(call require_positive_integer,KNNSC_MIN_CLUSTER_SIZE)
 endef
 
 define require_star_barcode_filter_parameters
@@ -504,7 +525,7 @@ require_velocity_parameters =
 require_cellrank_parameters =
 require_dea_parameters =
 require_stream_parameters =
-require_knnbs_parameters =
+require_knnsc_parameters =
 require_star_barcode_filter_parameters =
 require_bin_cells_parameters =
 require_bin_hvg_parameters =
@@ -561,20 +582,20 @@ else \
 fi
 endef
 
-define check_knnbs_seed_diagnostic
+define check_knnsc_seed_diagnostic
 if [ -n "$(strip $(1))" ] || [ -n "$(strip $(2))" ]; then \
 	if [ -n "$(strip $(1))" ]; then \
 		$(call check_success,method parameter valid: \
-			KNNBS_CENTRALITY_$(call toupper,$(3))=$(strip $(1)) (needed by target 'knnbs')); \
+			KNNSC_CENTRALITY_$(call toupper,$(3))=$(strip $(1)) (needed by target 'knnsc')); \
 	fi; \
 	if [ -n "$(strip $(2))" ]; then \
 		$(call check_success,method parameter valid: \
-			KNNBS_PERIPHERY_$(call toupper,$(3))=$(strip $(2)) (needed by target 'knnbs')); \
+			KNNSC_PERIPHERY_$(call toupper,$(3))=$(strip $(2)) (needed by target 'knnsc')); \
 	fi; \
 else \
 	$(call report_check_error,required method parameter not defined: \
-		KNNBS_CENTRALITY_$(call toupper,$(3)) or \
-		KNNBS_PERIPHERY_$(call toupper,$(3)) (needed by target 'knnbs')); \
+		KNNSC_CENTRALITY_$(call toupper,$(3)) or \
+		KNNSC_PERIPHERY_$(call toupper,$(3)) (needed by target 'knnsc')); \
 fi
 endef
 
@@ -684,8 +705,8 @@ if [ "$(strip $(1))" = "seurat_v3" ] && [ -z "$(strip $(2))" ]; then \
 fi
 endef
 
-knnbs_centrality = $(KNNBS_CENTRALITY_$(call toupper,$(1)))
-knnbs_periphery = $(KNNBS_PERIPHERY_$(call toupper,$(1)))
+knnsc_centrality = $(KNNSC_CENTRALITY_$(call toupper,$(1)))
+knnsc_periphery = $(KNNSC_PERIPHERY_$(call toupper,$(1)))
 log_parameters = $(foreach var,$(strip $(1)),printf '%s=%s\n' '$(var)' "$($(var))"; )
 metadata_target_args = $(foreach target,$(strip $(RESET_TARGET_$(1))),--target "$(target)")
 metadata_custom_target_args = $(foreach target,$(strip $(2)),--target "$(target)")
@@ -778,14 +799,19 @@ $(foreach module,$(reset_stages),\
 	fi;)
 endef
 
-define write_scbolt_metadata
-$(if $(strip $(sensitive_params_$(1))),\
+define write_scbolt_metadata_command
 python3 $(scripts_dir)/utils/scbolt_metadata.py write \
 	--module "$(1)" \
 	$(call metadata_custom_target_args,$(1),$(2)) \
 	--params-file "$(PARAMS)" \
 	--git-hash "$(metadata_git_hash)" \
-	$(call metadata_param_args,$(1)))
+	$(call metadata_param_args,$(1))
+endef
+
+define write_scbolt_metadata
+$(if $(strip $(sensitive_params_$(1))),\
+$(if $(filter true,$(__dry_run_output)),,\
+$(call write_scbolt_metadata_command,$(1),$(2))))
 endef
 
 PYTHONUNBUFFERED ?= 1

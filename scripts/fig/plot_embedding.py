@@ -36,6 +36,16 @@ def do_eval(_eval_params, _figure_params):
                 )
 
 
+def remove_unused_obs_categories(adata, obs):
+    if obs is None:
+        return
+
+    obs_keys = [obs] if isinstance(obs, str) else obs
+    for obs_key in obs_keys:
+        if obs_key in adata.obs and hasattr(adata.obs[obs_key], "cat"):
+            adata.obs[obs_key] = adata.obs[obs_key].cat.remove_unused_categories()
+
+
 parser = argparse.ArgumentParser(
     prog="figure plotting",
     description="""plot figure from anndata object""",
@@ -121,21 +131,23 @@ if "modules" in params:
             for name, alias in module.items():
                 import_module_as(name, alias)
 
-if "eval" in params:
-    do_eval(params["eval"], params["figure"])
-
 if args.obs:
     params["figure"]["obs"] = args.obs
 
 if args.use_rep:
     params["figure"]["use_rep"] = args.use_rep
 
+remove_unused_obs_categories(adata, params["figure"].get("obs"))
+
+if "eval" in params:
+    do_eval(params["eval"], params["figure"])
+
 if "n_components" not in params["figure"]:
     params["figure"]["n_components"] = (
         3 if adata.obsm[params["figure"]["use_rep"]].shape[1] > 2 else 2
     )
 
-figure = sct.pl.embedding_plot(adata, **params["figure"])
+figure = sct.pl.embedding(adata, **params["figure"])
 if figure is None:
     raise RuntimeError("embedding plot did not return a figure and axis")
 fig, ax = figure

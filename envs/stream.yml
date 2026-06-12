@@ -506,5 +506,5 @@ dependencies:
   - zlib=1.2.13=hd590300_5
   - zstd=1.5.5=hfc55251_0
   - pip:
-      - bonesistools=1.2.4
+      - bonesistools==1.2.4
       - decoupler==1.6.0

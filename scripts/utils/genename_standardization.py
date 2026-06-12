@@ -5,7 +5,7 @@ import std
 import argparse
 from pathlib import Path
 
-from bonesistools.databases.ncbi import GeneSynonyms
+import bonesistools as bt
 
 import pandas as pd
 
@@ -103,7 +103,7 @@ if not Path(os.path.dirname(args.outfile)).exists():
 
 file_extension = str(args.infile).split(".")[-1]
 
-genesynonyms = GeneSynonyms(organism=args.organism)
+genesynonyms = bt.dbs.ncbi.genesyn(organism=args.organism)
 
 std.print_task(f"loading gene data (file={std.format_path(args.infile)})")
 std.print_info(

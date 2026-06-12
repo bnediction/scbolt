@@ -9,7 +9,7 @@ macrostate_h5ads = $(if $(filter 1,$(words $(MACROSTATE_FILES))),\
 bin_input_h5ads = $(if $(MACROSTATE_FILES),$(macrostate_h5ad),$(default_bin_input_h5ads))
 
 clustering_integrated = $(results)/integrated/clust/clust.h5ad
-annotation_integrated = $(results)/integrated/clust/annot.h5ad
+annotation_integrated = $(results)/integrated/annot/annot.h5ad
 
 cc_markers  = $(public_dir)/cycle/mouse_cycle_markers.rds
 signatures  = $(public_dir)/signatures/geiger.xls \
@@ -50,8 +50,8 @@ cellrank_$(1) =                 $(results)/$(1)/mstates/cellrank/mstates.h5ad \
                                 $(results)/$(1)/mstates/cellrank/mstates.csv
 stream_$(1) =                   $(results)/$(1)/mstates/stream/mstates.h5ad \
                                 $(results)/$(1)/mstates/stream/mstates.csv
-knnbs_$(1) =                    $(results)/$(1)/mstates/knnbs/mstates.h5ad \
-                                $(results)/$(1)/mstates/knnbs/mstates.csv
+knnsc_$(1) =                    $(results)/$(1)/mstates/knnsc/mstates.h5ad \
+                                $(results)/$(1)/mstates/knnsc/mstates.csv
 
 ifeq ($(MACROSTATE_METHOD),cotan)
 macrostates_$(1) =              $$(cotan_$(1))
@@ -59,8 +59,8 @@ else ifeq ($(MACROSTATE_METHOD),cellrank)
 macrostates_$(1) =              $$(cellrank_$(1))
 else ifeq ($(MACROSTATE_METHOD),stream)
 macrostates_$(1) =              $$(stream_$(1))
-else ifeq ($(MACROSTATE_METHOD),knnbs)
-macrostates_$(1) =              $$(knnbs_$(1))
+else ifeq ($(MACROSTATE_METHOD),knnsc)
+macrostates_$(1) =              $$(knnsc_$(1))
 else
 macrostates_$(1) =              $(results)/$(1)/mstates/invalid-method/.error
 endif
@@ -88,7 +88,7 @@ dea_$(1) =                      $(results)/$(1)/clust/dea/markers.csv \
 scoring_$(1) =                  $(results)/$(1)/clust/sig.csv
 goea_basic_$(1) =               $(results)/$(1)/clust/goea/basic.xlsx
 goea_organism_$(1) =            $(results)/$(1)/clust/goea/$(ORGANISM).xlsx
-annotation_$(1) =               $(results)/$(1)/clust/annot.h5ad
+annotation_$(1) =               $(results)/$(1)/annot/annot.h5ad
 
 endef
 
@@ -153,7 +153,7 @@ potency_target :=
 macrostates_target :=
 stream_target :=
 cellrank_target :=
-knnbs_target :=
+knnsc_target :=
 cotan_target :=
 
 define find_targets_for_conditions
@@ -172,7 +172,7 @@ $(eval potency_target := $(potency_target) $(potency_$(1)))
 $(eval cotan_target := $(cotan_target) $(cotan_$(1)))
 $(eval cellrank_target := $(cellrank_target) $(cellrank_$(1)))
 $(eval stream_target := $(stream_target) $(stream_$(1)))
-$(eval knnbs_target := $(knnbs_target) $(knnbs_$(1)))
+$(eval knnsc_target := $(knnsc_target) $(knnsc_$(1)))
 $(eval macrostates_target := $(macrostates_target) $(macrostates_$(1)))
 
 endef
@@ -272,10 +272,10 @@ cotan_only_hvg = $(if $(filter true,$(COTAN_ONLY_HVG)),--only-hvg)
 extend_epg = $(if $(filter true,$(EXTEND_EPG)),--extend-epg)
 prune_epg = $(if $(filter true,$(PRUNE_EPG)),--prune-epg)
 
-ifeq ($(KNNBS_DIMENSION),)
-knnbs_dimension=
+ifeq ($(KNNSC_DIMENSION),)
+knnsc_dimension=
 else
-knnbs_dimension=--dimension $(KNNBS_DIMENSION)
+knnsc_dimension=--dimension $(KNNSC_DIMENSION)
 endif
 
 hvg_layer_name = $(if $(filter seurat_v3,$(1)),counts,log-norm)
@@ -341,7 +341,7 @@ min_self_loop_infer = $(if $(filter true,$(MIN_SELF_LOOP_INFER)),--minimize-self
 reset_stages = \
 	load-fastq load-matrix alignment cellranger star qc velocyto \
 	filtering normalization clustering dea scoring goea annotation \
-	velocity potency cotan cellrank stream knnbs macrostates \
+	velocity potency cotan cellrank stream knnsc macrostates \
 	bin-cells bin-macrostates bin-dea bin-consensus binarization \
 	spec max-nodes-soft max-consts-soft max-nodes-relaxed \
 	max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
@@ -364,7 +364,7 @@ RESET_TARGET_potency = $(potency_target)
 RESET_TARGET_cotan = $(cotan_target)
 RESET_TARGET_cellrank = $(cellrank_target)
 RESET_TARGET_stream = $(stream_target)
-RESET_TARGET_knnbs = $(knnbs_target)
+RESET_TARGET_knnsc = $(knnsc_target)
 RESET_TARGET_macrostates = $(macrostates_target)
 RESET_TARGET_bin-cells = $(bin_cells)
 RESET_TARGET_bin-macrostates = $(bin_mstates)
@@ -460,7 +460,9 @@ target_params_stream = \
 	MACROSTATE_SIZE CLUSTERING_METHOD CLUSTER_NUMBER \
 	ALPHA_EPG MU_EPG LAMBDA_EPG EXTEND_EPG EXTEND_MODE \
 	EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER
-target_params_knnbs = MACROSTATE_SIZE KNNBS_EMBEDDING KNNBS_DIMENSION KNNBS_NEIGHBORS
+target_params_knnsc = \
+	MACROSTATE_SIZE KNNSC_EMBEDDING KNNSC_DIMENSION KNNSC_NEIGHBORS \
+	KNNSC_MIN_CLUSTER_SIZE
 target_params_macrostates = MACROSTATE_METHOD MACROSTATE_SIZE MACROSTATE_FILES
 target_params_bin-cells = \
 	MACROSTATE_FILES \
@@ -543,9 +545,9 @@ sensitive_params_stream = \
 	MACROSTATE_SIZE CLUSTERING_METHOD CLUSTER_NUMBER \
 	ALPHA_EPG MU_EPG LAMBDA_EPG EXTEND_EPG EXTEND_MODE \
 	EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER USE_REP LABEL_COL
-sensitive_params_knnbs = \
-	MACROSTATE_SIZE KNNBS_EMBEDDING KNNBS_DIMENSION KNNBS_NEIGHBORS \
-	METRIC LABEL_COL USE_REP
+sensitive_params_knnsc = \
+	MACROSTATE_SIZE KNNSC_EMBEDDING KNNSC_DIMENSION KNNSC_NEIGHBORS \
+	KNNSC_MIN_CLUSTER_SIZE METRIC LABEL_COL USE_REP
 sensitive_params_macrostates =
 sensitive_params_bin-cells = \
 	MACROSTATE_FILES USE_REP \
@@ -605,7 +607,7 @@ use_rep_check_pattern_3 = |bin_clust_scboolseq|bin_dea)).py
 
 label_col_check_pattern = $(label_col_check_pattern_1)$(label_col_check_pattern_2)
 label_col_check_pattern_1 = scripts/(clust/annotation|utils/pipe_its|traj/velocity
-label_col_check_pattern_2 = |traj/potency|mstates/(stream|knnbs)_mstates).py
+label_col_check_pattern_2 = |traj/potency|mstates/(stream|knnsc)_mstates).py
 
 project_config_param_set = \
 	ORGANISM CONDITIONS \
@@ -633,7 +635,7 @@ method_config_param_set = \
 	CELLRANK_STABILITY CELLRANK_ALPHA \
 	CLUSTERING_METHOD CLUSTER_NUMBER ALPHA_EPG MU_EPG LAMBDA_EPG \
 	EXTEND_EPG EXTEND_MODE EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER \
-	KNNBS_EMBEDDING KNNBS_DIMENSION KNNBS_NEIGHBORS \
+	KNNSC_EMBEDDING KNNSC_DIMENSION KNNSC_NEIGHBORS KNNSC_MIN_CLUSTER_SIZE \
 	BIN_SCBOOLSEQ_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
 	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES \
 	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD \
@@ -658,7 +660,7 @@ external_resource_config_param_set = \
 config_default_modules = \
 	load-fastq load-matrix alignment cellranger star qc velocyto \
 	filtering normalization clustering dea annotation velocity potency \
-	macrostates cotan cellrank stream knnbs bin-cells bin-macrostates \
+	macrostates cotan cellrank stream knnsc bin-cells bin-macrostates \
 	bin-dea bin-consensus binarization spec max-nodes-soft max-consts-soft \
 	max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
 config_base_params = \

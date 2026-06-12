@@ -100,7 +100,7 @@ list_signatures_d = df2signatures(list_signatures_df)
 signatures_d = {**table_signatures_d, **list_signatures_d}
 
 std.print_info("standardizing signature gene names")
-genesyn = bt.dbs.ncbi.GeneSynonyms(version=args.geneinfo_version)
+genesyn = bt.dbs.ncbi.genesyn(version=args.geneinfo_version)
 for k, v in signatures_d.items():
     signatures_d[k] = genesyn(v)
 signatures_d = {

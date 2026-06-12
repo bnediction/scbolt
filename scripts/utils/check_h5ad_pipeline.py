@@ -297,7 +297,7 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
         required |= field("obsm", option(tokens, "--use-rep"))
         return Operation([infile], [outfile], {0: required}, {("obs", "macrostate")})
 
-    if name == "knnbs_mstates.py":
+    if name == "knnsc_mstates.py":
         infile, outfile = map(h5ad, args[:2])
         required = field("obs", option(tokens, "--obs"))
         required |= field("obsm", option(tokens, "--embedding"))
@@ -357,6 +357,12 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
         infile = h5ad(option(tokens, "--infile"))
         required = field("obs", option(tokens, "--obs"))
         required |= field("obsm", option(tokens, "--use-rep"))
+        return Operation([infile], [], {0: required}, set(), None)
+
+    if name == "plot_composition.py":
+        infile = h5ad(option(tokens, "--infile"))
+        required = field("obs", option(tokens, "--obs"))
+        required |= field("obs", option(tokens, "--groupby"))
         return Operation([infile], [], {0: required}, set(), None)
 
     return None

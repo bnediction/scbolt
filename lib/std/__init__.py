@@ -15,3 +15,7 @@ from ._anndata import (
     canonicalize_anndata,
     write_h5ad,
 )
+
+from ._warnings import (
+    filter_scanpy_hvg_warnings,
+)

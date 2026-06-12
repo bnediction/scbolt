@@ -73,7 +73,7 @@ progress_deps_potency = annotation
 progress_deps_cotan = annotation
 progress_deps_cellrank = velocity potency
 progress_deps_stream = annotation
-progress_deps_knnbs = annotation
+progress_deps_knnsc = annotation
 progress_deps_macrostates = $(if $(MACROSTATE_FILES),,$(MACROSTATE_METHOD))
 progress_deps_bin-cells = $(if $(MACROSTATE_FILES),,annotation)
 progress_deps_bin-macrostates = \
@@ -141,10 +141,10 @@ show_config_embedding_label_X_pacmap = PaCMAP
 show_config_embedding_label = $(strip $(if $(show_config_embedding_label_$(1)),\
 	$(show_config_embedding_label_$(1)),\
 	$(patsubst X_%,%,$(1))))
-show_config_embedding = $(if $(filter knnbs,$(MACROSTATE_METHOD)),$(KNNBS_EMBEDDING),$(USE_REP))
+show_config_embedding = $(if $(filter knnsc,$(MACROSTATE_METHOD)),$(KNNSC_EMBEDDING),$(USE_REP))
 show_config_macrostate_embedding = $(call show_config_embedding_label,$(show_config_embedding))
 show_config_analytic_modules = \
-	velocity potency cotan cellrank stream knnbs \
+	velocity potency cotan cellrank stream knnsc \
 	bin-cells bin-macrostates bin-dea bin-consensus binarization spec \
 	max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock \
 	bn-min bn-submin bn-diverse
@@ -363,7 +363,8 @@ define show_config_print
 @printf '%-14s : %s\n' 'Integration' "$(show_config_integration)"
 @printf '%-14s : %s\n' 'Macrostate' "$(MACROSTATE_METHOD)"
 @printf '%-14s : %s\n' 'Binarization' "$(BIN_METHOD)"
-$(if $(filter knnbs,$(MACROSTATE_METHOD)),@printf '%-14s : %s\n' 'Neighbors' "$(KNNBS_NEIGHBORS)")
+$(if $(filter knnsc,$(MACROSTATE_METHOD)),@printf '%-14s : %s\n' 'Neighbors' "$(KNNSC_NEIGHBORS)")
+$(if $(filter knnsc,$(MACROSTATE_METHOD)),@printf '%-14s : %s\n' 'Min cluster' "$(KNNSC_MIN_CLUSTER_SIZE)")
 @printf '\n'
 @printf 'Execution\n'
 @printf '%s\n' '---------'
@@ -835,7 +836,9 @@ else ifeq ($(HELP),false)
 		$(call print_error,missing TARGET \(usage: make dry-run TARGET=<module>\)); \
 	fi
 	$(nested_make) --dry-run LOGGING=false __dry_run_output=true __$(TARGET) LOGFILE="$(LOGFILE)" \
-		| sed '/^[[:space:]]*$$/d'
+		| sed -e 's#$(launch_dir)/##g' \
+			-e 's#$(launch_dir)#.#g' \
+			-e '/^[[:space:]]*$$/d'
 else
 	$(call print_error,unsupported HELP=$(HELP) \(supported values: true, false\))
 endif
@@ -971,10 +974,10 @@ stream: ## estimate macrostates with STREAM
 	$(call run_logged,stream)
 __stream: $(stream_target)
 
-.PHONY: knnbs __knnbs
-knnbs: ## estimate macrostates with KNNBS
-	$(call run_logged,knnbs)
-__knnbs: $(knnbs_target)
+.PHONY: knnsc __knnsc
+knnsc: ## estimate macrostates with KNNSC
+	$(call run_logged,knnsc)
+__knnsc: $(knnsc_target)
 
 .PHONY: macrostates __macrostates
 macrostates: ## estimate macrostates with MACROSTATE_METHOD

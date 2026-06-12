@@ -75,7 +75,7 @@ The module does not belong to the current workflow, but its outputs exist and
 are not stale relative to their own current module configuration.
 
 This can happen when a user previously ran an alternative branch, for example
-`stream`, while the current workflow uses `knnbs`.
+`stream`, while the current workflow uses `knnsc`.
 
 ### `EXTRA STALE`
 

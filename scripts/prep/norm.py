@@ -96,7 +96,7 @@ sc.pp.scale(adata, layer="scale", copy=False)
 if args.correction:
     std.print_info("correcting unwanted effects (layer: correct)")
     adata.layers["correct"] = adata.layers["log-norm"].copy()
-    bt.sct.pp.regress_out(
+    bt.sct.tl.regress_out(
         adata,
         keys=args.correction,
         layer="correct",

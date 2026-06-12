@@ -4,6 +4,7 @@ import os
 import std
 import argparse
 import cli
+import warnings
 from pathlib import Path
 
 import math
@@ -244,7 +245,7 @@ if not outpath.exists():
 std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(Path(f"{args.infile}").resolve())
-genesyn = bt.dbs.ncbi.GeneSynonyms(version=args.geneinfo_version)
+genesyn = bt.dbs.ncbi.genesyn(version=args.geneinfo_version)
 
 std.print_info("standardizing gene names")
 adata.var["symbol"] = list(adata.var.index)
@@ -284,7 +285,13 @@ else:
     marker_pairs = rdata.conversion.convert(parser)
     std.print_info("scoring cell cycle phases")
     marker_pairs = marker_pairs_converter(marker_pairs, genesyn, "official_name")
-    scores = pypairs.pairs.cyclone(adata, marker_pairs)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=FutureWarning,
+            module=r"pypairs(\.|$)",
+        )
+        scores = pypairs.pairs.cyclone(adata, marker_pairs)
     adata.obs.rename(
         columns={
             "pypairs_G1": "G1_score",

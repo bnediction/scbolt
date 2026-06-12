@@ -56,6 +56,20 @@ def clean_adata(
     return adata if copy else None
 
 
+def namespace_obs_names(
+    adata: AnnData,
+    condition: str,
+    sep: str = ":",
+    copy: bool = False,
+) -> Optional[AnnData]:
+    adata = adata.copy() if copy else adata
+    barcodes = adata.obs_names.astype(str)
+    adata.obs["barcode"] = barcodes
+    adata.obs["condition"] = condition
+    adata.obs_names = [f"{condition}{sep}{barcode}" for barcode in barcodes]
+    return adata if copy else None
+
+
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
@@ -329,7 +343,9 @@ for infile, label in zip(args.infiles, args.labels):
     std.print_task(
         f"loading AnnData (condition={label}, file={std.format_path(infile)})"
     )
-    adatas.append(ad.read_h5ad(infile))
+    adata = ad.read_h5ad(infile)
+    namespace_obs_names(adata, condition=label)
+    adatas.append(adata)
 
 for adata in adatas:
     adata.X = adata.layers[args.layer].copy()
@@ -353,16 +369,17 @@ std.print_task(
     "estimating highly variable genes "
     f"(flavor={args.flavor}, number={args.top_hvg if args.top_hvg else 'none'})"
 )
-sc.pp.highly_variable_genes(
-    adata,
-    layer="counts" if args.flavor == "seurat_v3" else "log-norm",
-    flavor=args.flavor,
-    span=args.span,
-    n_bins=args.bins,
-    n_top_genes=args.top_hvg,
-    batch_key="condition",
-    inplace=True,
-)
+with std.filter_scanpy_hvg_warnings():
+    sc.pp.highly_variable_genes(
+        adata,
+        layer="counts" if args.flavor == "seurat_v3" else "log-norm",
+        flavor=args.flavor,
+        span=args.span,
+        n_bins=args.bins,
+        n_top_genes=args.top_hvg,
+        batch_key="condition",
+        inplace=True,
+    )
 
 if args.integration == "ingest":
 
@@ -646,11 +663,11 @@ elif args.integration == "scanorama":
             copy=False,
         )
 
-pc_plot = Path(f"{os.path.dirname(args.outfile)}/conditions_pc.pdf")
 std.print_info(
     f"plotting embeddings (directory={os.path.relpath(os.path.dirname(args.outfile))})"
 )
-bt.sct.pl.embedding_plot(
+pc_plot = Path(f"{os.path.dirname(args.outfile)}/conditions_pc.pdf")
+bt.sct.pl.embedding(
     adata,
     obs="condition",
     use_rep="X_pca" if args.integration != "scanorama" else "X_scanorama",
@@ -659,9 +676,9 @@ bt.sct.pl.embedding_plot(
     figwidth=6,
     s=2,
     alpha=1,
-    add_legend=True,
+    show_legend=True,
     lgd_params={
-        "title": "conditions",
+        "title": "condition",
         "ncol": 1,
         "markerscale": 5,
         "frameon": True,
@@ -679,7 +696,7 @@ embedding_plots = {
 }
 for obs, filename in embedding_plots.items():
     embedding_plot = Path(f"{os.path.dirname(args.outfile)}/{filename}")
-    bt.sct.pl.embedding_plot(
+    bt.sct.pl.embedding(
         adata,
         obs=obs,
         use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
@@ -689,9 +706,9 @@ for obs, filename in embedding_plots.items():
         figwidth=6,
         s=2,
         alpha=1,
-        add_legend=True,
+        show_legend=True,
         lgd_params={
-            "title": "clusters",
+            "title": obs,
             "ncol": 1,
             "markerscale": 5,
             "frameon": True,
@@ -701,6 +718,36 @@ for obs, filename in embedding_plots.items():
         n_components=3 if args.embedding_dimension > 2 else 2,
         background_visible=False,
         outfile=embedding_plot,
+    )
+
+composition_plots = {
+    "condition": ("cluster", "condition_by_cluster.pdf"),
+    "cluster": ("condition", "cluster_by_condition.pdf"),
+}
+
+for obs, (groupby, filename) in composition_plots.items():
+    composition_plot = Path(f"{os.path.dirname(args.outfile)}/{filename}")
+    bt.sct.pl.composition(
+        adata,
+        obs=obs,
+        groupby=groupby,
+        normalize=True,
+        percent=True,
+        dropna=False,
+        orientation="vertical",
+        width=0.8,
+        showlegend=True,
+        figwidth=6,
+        figheight=3,
+        xlabel=groupby,
+        labelsize=12,
+        legend={
+            "title": obs,
+            "bbox_to_anchor": (1.0, 0.5),
+            "loc": "center left",
+            "frameon": False,
+        },
+        outfile=composition_plot,
     )
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")

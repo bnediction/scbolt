@@ -223,9 +223,10 @@ def count_binarized_values(
 
     for column in columns:
         series = counts(
-            obs_df.groupby(by=group if condition is None else [group, condition])[
-                column
-            ],
+            obs_df.groupby(
+                by=group if condition is None else [group, condition],
+                observed=False,
+            )[column],
             dropna=dropna,
         )
         group_df = group_df.join(series)
@@ -461,7 +462,7 @@ if args.use_rep:
     )
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
     adata.obs[f"pct_bin_{args.cluster}"] = adata.obs[args.cluster].map(pct_bin)
-    bt.sct.pl.embedding_plot(
+    bt.sct.pl.embedding(
         adata,
         obs=f"pct_bin_{args.cluster}",
         use_rep=args.use_rep,
@@ -471,7 +472,7 @@ if args.use_rep:
         figwidth=6,
         s=4,
         alpha=1,
-        add_legend=True,
+        show_legend=True,
         lgd_params={
             "title": "pct bin",
             "ncol": 1,
@@ -486,7 +487,7 @@ if args.use_rep:
     )
     if args.condition:
         for condition in adata.obs[args.condition].cat.categories:
-            bt.sct.pl.embedding_plot(
+            bt.sct.pl.embedding(
                 adata[adata.obs[args.condition] == condition],
                 obs=f"pct_bin_{args.cluster}",
                 use_rep=args.use_rep,
@@ -496,7 +497,7 @@ if args.use_rep:
                 figwidth=6,
                 s=4,
                 alpha=1,
-                add_legend=True,
+                show_legend=True,
                 lgd_params={
                     "title": "pct bin",
                     "ncol": 1,

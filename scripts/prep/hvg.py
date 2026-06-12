@@ -125,16 +125,17 @@ if "variances" in adata.var:
     del adata.var["variances"]
 if "variances_norm" in adata.var:
     del adata.var["variances_norm"]
-sc.pp.highly_variable_genes(
-    adata,
-    layer=args.layer,
-    flavor=args.method,
-    span=args.span,
-    n_bins=args.bins,
-    n_top_genes=args.hvg,
-    batch_key=args.batch,
-    inplace=True,
-)
+with std.filter_scanpy_hvg_warnings():
+    sc.pp.highly_variable_genes(
+        adata,
+        layer=args.layer,
+        flavor=args.method,
+        span=args.span,
+        n_bins=args.bins,
+        n_top_genes=args.hvg,
+        batch_key=args.batch,
+        inplace=True,
+    )
 if args.method == "seurat_v3":
     adata._inplace_subset_var(adata.var.highly_variable_rank < args.hvg)
 else:

@@ -20,8 +20,8 @@
         "zlabel": "r'$\\mathrm{dim_{3}}$'",
         "s": 4,
         "alpha": 1,
-        "add_labels": true,
-        "add_legend": true,
+        "show_labels": true,
+        "show_legend": true,
         "lgd_params": {
             "title": "macrostate",
             "ncol": "math.ceil(len(adata.obs['macrostate'].astype('category').cat.categories) / 16)",

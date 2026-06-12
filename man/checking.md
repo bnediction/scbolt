@@ -155,7 +155,8 @@ Examples:
 - `DIM_PCA`
 - `VELOCITY_ONLY_HVG`
 - `MACROSTATE_METHOD`
-- `KNNBS_EMBEDDING`
+- `KNNSC_EMBEDDING`
+- `KNNSC_MIN_CLUSTER_SIZE`
 - `BIN_METHOD`
 - `BIN_HVG_FLAVOR`
 - `MAX_CLAUSE`
@@ -168,7 +169,7 @@ method or module.
 Example output:
 
 ```text
-SUCCESS method parameter valid: KNNBS_EMBEDDING=X_umap (needed by target 'knnbs')
+SUCCESS method parameter valid: KNNSC_EMBEDDING=X_umap (needed by target 'knnsc')
 FAIL unsupported value for method parameter BIN_METHOD (supported values: scboolseq, dea, consensus)
 ```
 
@@ -543,11 +544,11 @@ Provides:
 
 - `macrostate` in `obs`
 
-### KNNBS
+### KNNSC
 
 Requires:
 
-- `$(KNNBS_EMBEDDING)` in `obsm`
+- `$(KNNSC_EMBEDDING)` in `obsm`
 - `$(USE_REP)` in `obsm`
 - `$(LABEL_COL)` in `obs`
 

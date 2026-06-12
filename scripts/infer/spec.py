@@ -196,7 +196,7 @@ for outfile in [
     if not Path(os.path.dirname(outfile)).exists():
         os.makedirs(Path(os.path.dirname(outfile)))
 
-genesyn = bt.dbs.ncbi.GeneSynonyms(
+genesyn = bt.dbs.ncbi.genesyn(
     organism=args.organism,
     version=args.geneinfo_version,
 )

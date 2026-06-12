@@ -20,7 +20,7 @@
         "s": 3,
         "alpha": 1,
         "colors": "[sct.pl.get_color('blue'), sct.pl.get_color('red'), sct.pl.get_color('green')]",
-        "add_legend": true,
+        "show_legend": true,
         "lgd_params": {
             "title": "cell cycle",
             "ncol": 1,

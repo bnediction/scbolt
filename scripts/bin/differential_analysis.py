@@ -200,7 +200,7 @@ grn = collectri_to_grn(collectri_db, sign_label="weight", remove_pmid=True)
 
 std.print_info(f"grn: {len(grn.nodes)} genes; {len(grn.edges)} interactions")
 
-gene_synonyms = bt.dbs.ncbi.GeneSynonyms()
+gene_synonyms = bt.dbs.ncbi.genesyn()
 gene_synonyms(data=meta_bin, axis=1, copy=False)
 gene_synonyms(data=grn, copy=False)
 gene_set_before_cleaning = set(meta_bin.columns)

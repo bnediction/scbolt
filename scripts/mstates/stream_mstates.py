@@ -333,17 +333,18 @@ groups = set([args.obs]).union({"kmeans", "macrostate"})
 std.print_task(f"plotting STREAM outputs (directory={os.path.relpath(outpath)})")
 for group in groups:
     epg_plot = Path(f"{outpath}/epg_{group}.pdf")
-    bt.sct.pl.embedding_plot(
+    bt.sct.pl.trajectory(
         adata,
         obs=group,
         use_rep=args.use_rep,
+        graph_key="epg",
         xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
         ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
         zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
         figwidth=6,
         s=2,
         alpha=0.7,
-        add_legend=True,
+        show_legend=True,
         lgd_params={
             "title": group,
             "ncol": 1,
@@ -353,8 +354,7 @@ for group in groups:
             "shadow": False,
         },
         text={"fontsize": 14, "fontweight": "extra bold"},
-        add_graph=True,
-        add_labels_to_graph=True,
+        show_labels=True,
         n_components=3 if adata.obsm["X_dr"].shape[1] > 2 else 2,
         background_visible=False,
         outfile=epg_plot,

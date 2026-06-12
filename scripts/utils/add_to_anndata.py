@@ -15,17 +15,33 @@ PathLike = Union[str, Path]
 category = pd.Categorical
 
 
-def generate_unique_index_name(dfs: Union[pd.DataFrame, Sequence[pd.DataFrame]]) -> str:
+def generate_unique_index_name(
+    dfs: Union[pd.DataFrame, Sequence[pd.DataFrame]],
+    base: str = "index",
+) -> str:
     dfs = [dfs] if isinstance(dfs, pd.DataFrame) else dfs
     column_names = set()
     for df in dfs:
         column_names.update(set(df.columns))
-    index_name = "index"
+    index_name = base
     _i = 0
     while index_name in column_names:
-        index_name = f"index_{_i}"
+        index_name = f"{base}_{_i}"
         _i += 1
     return index_name
+
+
+def add_label_prefix(values: pd.Series, label: str) -> pd.Series:
+    values = values.astype(object)
+    return values.where(values.isna(), label + "_" + values.astype(str))
+
+
+def strip_label_prefix(value: object, label: object) -> str:
+    text = str(value)
+    prefix = f"{label}:"
+    if text.startswith(prefix):
+        return text[len(prefix) :]
+    return text
 
 
 script_name = Path(__file__).name
@@ -222,12 +238,17 @@ else:
     for name, file in zip(labels, args.csv):
         df = pd.read_csv(file, sep=args.sep, index_col=args.index).astype(args.type)
         for col in add_prefix:
-            df[col] = df[col].apply(lambda x: f"{name}_{x}")
+            df[col] = add_label_prefix(df[col], name)
+            if args.type == "category":
+                df[col] = df[col].astype("category")
         dfs[name] = df.copy(deep=True)
     for name, df in dfs.items():
         df[label_column] = name
     csv_df = pd.concat(dfs.values(), axis=0)
     del df, dfs
+    value_columns = [
+        column for column in csv_df.columns if column != label_column
+    ]
     if args.axis in [0, "obs"]:
         adata_df = adata.obs.copy()
         cols_to_remove = set(adata_df.columns) & set(csv_df.columns) - set(
@@ -253,15 +274,31 @@ else:
             )
             adata_df = adata_df.drop(list(cols_to_remove), axis=1)
     index_name = generate_unique_index_name([csv_df, adata_df])
+    original_index_name = generate_unique_index_name(
+        [csv_df, adata_df],
+        base=f"{index_name}_original",
+    )
     csv_df[index_name] = csv_df.index
     csv_df.set_index([index_name, label_column], inplace=True)
+    adata_df[original_index_name] = adata_df.index
     adata_df[index_name] = adata_df.index
+    if args.axis in [0, "obs"]:
+        adata_df[index_name] = [
+            strip_label_prefix(index, label)
+            for index, label in zip(adata_df[index_name], adata_df[label_column])
+        ]
     adata_df.set_index([index_name, label_column], inplace=True)
     adata_df = adata_df.merge(
         right=csv_df, how="left", left_index=True, right_index=True
     )
     adata_df.reset_index(level=(label_column,), inplace=True)
+    adata_df.index = adata_df[original_index_name]
+    adata_df.drop(columns=[original_index_name], inplace=True)
     adata_df.index.name = None
+    if args.type is not None:
+        for column in value_columns:
+            if column in adata_df.columns:
+                adata_df[column] = adata_df[column].astype(args.type)
     if args.axis in [0, "obs"]:
         adata.obs = adata_df
     else:

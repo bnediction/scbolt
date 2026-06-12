@@ -281,7 +281,7 @@ else ifeq ($(HELP),false)
 		$(call check_positive_integer_diagnostic,$(SEED),SEED,core); \
 	fi; \
 	if grep -qE '$(use_rep_check_pattern)' "$${dry_run}" \
-			|| grep -q 'scripts/mstates/knnbs_mstates.py' "$${dry_run}" \
+			|| grep -q 'scripts/mstates/knnsc_mstates.py' "$${dry_run}" \
 			|| grep -q '/cotan/barcts.csv' "$${dry_run}"; then \
 		if ! grep -qE 'scripts/clust/(clustering|integration).py' "$${dry_run}"; then \
 			$(call check_parameter_diagnostic,$(USE_REP),USE_REP,core); \
@@ -323,7 +323,7 @@ else ifeq ($(HELP),false)
 	fi; \
 	if grep -q 'MACROSTATE_METHOD' "$${dry_run}"; then \
 		$(call check_choice_diagnostic,\
-			$(MACROSTATE_METHOD),cotan cellrank stream knnbs,$(call needed_by,MACROSTATE_METHOD,macrostates),method); \
+			$(MACROSTATE_METHOD),cotan cellrank stream knnsc,$(call needed_by,MACROSTATE_METHOD,macrostates),method); \
 	fi; \
 	if grep -q 'BIN_METHOD' "$${dry_run}"; then \
 		$(call check_choice_diagnostic,\
@@ -388,11 +388,13 @@ else ifeq ($(HELP),false)
 		$(call check_bool_diagnostic,$(PRUNE_EPG),$(call needed_by,PRUNE_EPG,stream),method); \
 		$(call check_bool_diagnostic,$(COLLAPSE_PARAMETER),$(call needed_by,COLLAPSE_PARAMETER,stream),method); \
 	fi; \
-	if grep -q 'scripts/mstates/knnbs_mstates.py' "$${dry_run}"; then \
+	if grep -q 'scripts/mstates/knnsc_mstates.py' "$${dry_run}"; then \
 		$(call check_parameter_diagnostic,\
-			$(KNNBS_EMBEDDING),$(call needed_by,KNNBS_EMBEDDING,knnbs),method); \
+			$(KNNSC_EMBEDDING),$(call needed_by,KNNSC_EMBEDDING,knnsc),method); \
 		$(call check_positive_integer_diagnostic,\
-			$(KNNBS_NEIGHBORS),$(call needed_by,KNNBS_NEIGHBORS,knnbs),method); \
+			$(KNNSC_NEIGHBORS),$(call needed_by,KNNSC_NEIGHBORS,knnsc),method); \
+		$(call check_positive_integer_diagnostic,\
+			$(KNNSC_MIN_CLUSTER_SIZE),$(call needed_by,KNNSC_MIN_CLUSTER_SIZE,knnsc),method); \
 	fi; \
 	if grep -q 'scripts/bin/bin_cells_scboolseq.py' "$${dry_run}" \
 			|| grep -q '"RULE" "bin-cells' "$${dry_run}"; then \
@@ -511,13 +513,13 @@ else ifeq ($(HELP),false)
 	if grep -q 'scripts/clust/annotation.py' "$${dry_run}"; then \
 		$(call check_parameter_diagnostic,$(LABEL),LABEL (needed by target 'annotation'),project); \
 	fi; \
-	if grep -q 'scripts/mstates/knnbs_mstates.py' "$${dry_run}" \
-			|| grep -q 'KNNBS_CENTRALITY_' "$${dry_run}"; then \
+	if grep -q 'scripts/mstates/knnsc_mstates.py' "$${dry_run}" \
+			|| grep -q 'KNNSC_CENTRALITY_' "$${dry_run}"; then \
 		:; \
 		$(foreach condition,$(running_conditions),\
-			$(call check_knnbs_seed_diagnostic,\
-				$(call knnbs_centrality,$(condition)),\
-				$(call knnbs_periphery,$(condition)),$(condition));) \
+			$(call check_knnsc_seed_diagnostic,\
+				$(call knnsc_centrality,$(condition)),\
+				$(call knnsc_periphery,$(condition)),$(condition));) \
 	fi; \
 	flush_check_reports "$${project_checks}" "$${core_checks}" \
 		"$${method_checks}" "$${external_resource_checks}"; \

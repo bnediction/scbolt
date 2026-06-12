@@ -15,7 +15,7 @@
         "xlabel": "r'$\\mathrm{dim_{1}}$'",
         "ylabel": "r'$\\mathrm{dim_{2}}$'",
         "zlabel": "r'$\\mathrm{dim_{3}}$'",
-        "add_legend": true,
+        "show_legend": true,
         "s": 2,
         "alpha": 1,
         "lgd_params": {

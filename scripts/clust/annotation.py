@@ -7,6 +7,7 @@ import cli
 from pathlib import Path
 
 import anndata as ad
+import pandas as pd
 
 
 script_name = Path(__file__).name
@@ -87,10 +88,31 @@ elif not hasattr(adata.obs[args.obs], "cat"):
 
 std.print_task(f"renaming labels (column={args.obs}, labels={dict_to_str})")
 
+categories = list(adata.obs[args.obs].cat.categories)
+category_by_name = {str(category): category for category in categories}
+missing_labels = sorted(set(args.labels) - set(category_by_name))
+if missing_labels:
+    raise KeyError(
+        "labels not found in categorical column "
+        f"'{args.obs}': {', '.join(missing_labels)}"
+    )
+
+labels = {category_by_name[key]: value for key, value in args.labels.items()}
+renamed_values = adata.obs[args.obs].astype(object).replace(labels)
+renamed_categories = []
+for category in categories:
+    renamed_category = labels.get(category, category)
+    if renamed_category not in renamed_categories:
+        renamed_categories.append(renamed_category)
+renamed_labels = pd.Categorical(
+    renamed_values,
+    categories=renamed_categories,
+    ordered=adata.obs[args.obs].cat.ordered,
+)
 if args.new_obs is None:
-    adata.obs[args.obs].replace(args.labels, inplace=True)
+    adata.obs[args.obs] = renamed_labels
 else:
-    adata.obs[args.new_obs] = adata.obs[args.obs].replace(args.labels, inplace=False)
+    adata.obs[args.new_obs] = renamed_labels
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 std.write_h5ad(adata, filename=args.outfile, compression="gzip")

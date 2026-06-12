@@ -236,7 +236,7 @@ with warnings.catch_warnings():
             plt.savefig(Path(f"{outpath}/stream_plot.png"))
         plt.close()
 
-    bt.sct.pl.embedding_plot(
+    bt.sct.pl.embedding(
         adata,
         obs="velocity_pseudotime",
         use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
@@ -246,7 +246,7 @@ with warnings.catch_warnings():
         figwidth=6,
         s=4,
         alpha=1,
-        add_legend=True,
+        show_legend=True,
         lgd_params={
             "title": "pseudotime",
             "ncol": 1,
@@ -262,7 +262,7 @@ with warnings.catch_warnings():
         outfile=Path(f"{outpath}/velocity_pseudotime.pdf"),
     )
 
-    fig, ax = bt.sct.pl.embedding_plot(
+    fig, ax = bt.sct.pl.embedding(
         adata,
         obs=args.cluster,
         use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
@@ -272,7 +272,7 @@ with warnings.catch_warnings():
         figwidth=6,
         s=4,
         alpha=1,
-        add_legend=True,
+        show_legend=True,
         lgd_params={
             "title": "clusters",
             "ncol": 1,

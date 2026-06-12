@@ -257,15 +257,16 @@ if args.only_hvg:
         "estimating highly variable genes "
         f"(flavor={args.flavor}, number={args.top_hvg if args.top_hvg else 'none'})"
     )
-    sc.pp.highly_variable_genes(
-        adata,
-        layer="counts" if args.flavor == "seurat_v3" else "log-norm",
-        flavor=args.flavor,
-        span=args.span,
-        n_bins=args.bins,
-        n_top_genes=args.top_hvg,
-        inplace=True,
-    )
+    with std.filter_scanpy_hvg_warnings():
+        sc.pp.highly_variable_genes(
+            adata,
+            layer="counts" if args.flavor == "seurat_v3" else "log-norm",
+            flavor=args.flavor,
+            span=args.span,
+            n_bins=args.bins,
+            n_top_genes=args.top_hvg,
+            inplace=True,
+        )
 
 std.print_task(f"computing principal components (dimensions={args.pca_dimension})")
 if args.only_hvg:
@@ -348,7 +349,7 @@ embedding_plot = Path(f"{os.path.dirname(args.outfile)}/clusters.pdf")
 std.print_info(
     f"plotting embeddings (directory={os.path.relpath(os.path.dirname(args.outfile))})"
 )
-bt.sct.pl.embedding_plot(
+bt.sct.pl.embedding(
     adata,
     obs="cluster",
     use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
@@ -358,7 +359,7 @@ bt.sct.pl.embedding_plot(
     figwidth=6,
     s=2,
     alpha=1,
-    add_legend=True,
+    show_legend=True,
     lgd_params={
         "title": "clusters",
         "ncol": 1,

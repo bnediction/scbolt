@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import warnings
 import std
 import argparse
 import cli
@@ -153,22 +154,29 @@ features = list(adata.var_names)
 if args.filter_genes:
     std.print_info(f"filtering genes (file={std.format_path(args.filter_genes)})")
     with open(args.filter_genes) as file:
-        adata = adata[:, [line.strip() for line in file.readlines()]]
+        adata = adata[:, [line.strip() for line in file.readlines()]].copy()
 
 std.print_task(f"ranking genes (scope=groups, method={args.method})")
 
 adata.obs[args.cluster] = adata.obs[args.cluster].cat.remove_unused_categories()
 
-sc.tl.rank_genes_groups(
-    adata=adata,
-    groupby=args.cluster,
-    use_raw=False,
-    layer=args.layer,
-    reference="rest",
-    method=args.method,
-    tie_correct=True,
-    corr_method=args.correction,
-)
+with warnings.catch_warnings():
+    warnings.filterwarnings(
+        "ignore",
+        message=r"The behavior of DataFrame\.sum with axis=None is deprecated.*",
+        category=FutureWarning,
+        module=r"numpy\.core\.fromnumeric",
+    )
+    sc.tl.rank_genes_groups(
+        adata=adata,
+        groupby=args.cluster,
+        use_raw=False,
+        layer=args.layer,
+        reference="rest",
+        method=args.method,
+        tie_correct=True,
+        corr_method=args.correction,
+    )
 
 dea_df = sc.get.rank_genes_groups_df(adata, group=None, pval_cutoff=args.alpha)
 
@@ -177,7 +185,7 @@ std.print_warning(
 )
 std.print_debug("updating log2 fold-changes")
 
-logfoldchanges_df = bt.sct.tl.calculate_logfoldchanges(
+logfoldchanges_df = bt.sct.tl.logfoldchanges(
     adata,
     groupby=args.cluster,
     layer=args.layer,
@@ -224,7 +232,7 @@ if args.use_rep:
     )
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
     adata.obs[f"pct_bin_{args.cluster}"] = adata.obs[args.cluster].map(pct_bin)
-    bt.sct.pl.embedding_plot(
+    bt.sct.pl.embedding(
         adata,
         obs=f"pct_bin_{args.cluster}",
         use_rep=args.use_rep,
@@ -234,7 +242,7 @@ if args.use_rep:
         figwidth=6,
         s=4,
         alpha=1,
-        add_legend=True,
+        show_legend=True,
         lgd_params={
             "title": "pct bin",
             "ncol": 1,

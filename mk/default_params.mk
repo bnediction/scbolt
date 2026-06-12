@@ -134,7 +134,7 @@ $(eval BATCH_SIZE ?= 20000)                 # cells processed per batch
 $(eval SMOOTH_BATCH_SIZE ?= 1000)           # cells subsampled for diffusion smoothing
 
 ## MACROSTATES ##
-# MACROSTATE_METHOD values: knnbs, stream, cotan, cellrank.
+# MACROSTATE_METHOD values: knnsc, stream, cotan, cellrank.
 # For stream, macrostates smaller than MACROSTATE_SIZE are extended to
 # neighbouring elastic principal graph nodes.
 $(eval MACROSTATE_SIZE ?= 100)              # target macrostate size
@@ -171,14 +171,15 @@ $(eval EXTEND_PARAMETER ?= 0.8)             # extension parameter
 $(eval PRUNE_EPG ?= false)                  # prune trivial branches
 $(eval COLLAPSE_PARAMETER ?= false)         # pruning collapse parameter
 
-## KNNBS ##
-# KNNBS_EMBEDDING must name an embedding in adata.obsm.
-# Each condition needs KNNBS_CENTRALITY_<CONDITION>, KNNBS_PERIPHERY_<CONDITION>, or both.
+## KNNSC ##
+# KNNSC_EMBEDDING must name an embedding in adata.obsm.
+# Each condition needs KNNSC_CENTRALITY_<CONDITION>, KNNSC_PERIPHERY_<CONDITION>, or both.
 # CENTRALITY minimizes distances to the cluster's own barycenter.
 # PERIPHERY maximizes distances to other clusters' barycenters.
-$(eval KNNBS_EMBEDDING ?= X_umap)           # embedding key used for distances
-$(eval KNNBS_DIMENSION ?=)                  # embedding dimensions used for distances
-$(eval KNNBS_NEIGHBORS ?= 20)               # KNN graph neighbor number
+$(eval KNNSC_EMBEDDING ?= X_umap)           # embedding key used for distances
+$(eval KNNSC_DIMENSION ?=)                  # embedding dimensions used for distances
+$(eval KNNSC_NEIGHBORS ?= 20)               # KNN graph neighbor number
+$(eval KNNSC_MIN_CLUSTER_SIZE ?= 100)       # minimum label size for KNNSC candidates
 
 ## BINARIZATION ##
 # If BIN_HVG_TOP is empty, the number of HVGs is estimated automatically,

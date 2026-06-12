@@ -4,7 +4,7 @@ _scbolt_modules="load-genome load-fastq load-matrix load-signatures load-cc load
 alignment cellranger star qc velocyto
 filtering normalization clustering dea scoring goea annotation
 velocity potency
-cotan cellrank stream knnbs macrostates
+cotan cellrank stream knnsc macrostates
 bin-cells bin-macrostates bin-dea bin-consensus binarization
 spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock
 bn-min bn-submin bn-diverse"

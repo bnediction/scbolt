@@ -45,6 +45,26 @@ print_install_failure() {
     printf '%s✗%s %s failed to install.\n' "${stderr_red}" "${stderr_nc}" "$1" >&2
 }
 
+handle_interrupt() {
+    trap - INT TERM
+    echo >&2
+    printf '%s✗%s installation cancelled by user.\n' "${stderr_red}" "${stderr_nc}" >&2
+    exit 130
+}
+
+trap handle_interrupt INT TERM
+
+return_or_interrupt() {
+    local status="$1"
+
+    if [ "${status}" -ge 128 ];
+    then
+        handle_interrupt
+    fi
+
+    return "${status}"
+}
+
 run_quiet() {
     local logfile
     local status
@@ -57,9 +77,15 @@ run_quiet() {
     fi
 
     status=$?
+    if [ "${status}" -ge 128 ];
+    then
+        rm -f "${logfile}"
+        handle_interrupt
+    fi
+
     cat "${logfile}" >&2
     rm -f "${logfile}"
-    return "${status}"
+    return_or_interrupt "${status}"
 }
 
 install_bonesis_git() {
@@ -84,11 +110,11 @@ develop_scbolt_lib() {
 }
 
 configure_env() {
-    develop_scbolt_lib "$1"
+    develop_scbolt_lib "$1" || return_or_interrupt "$?"
 
     if [ "$1" == "scbolt-bonesis" ];
     then
-        install_bonesis_git "$1"
+        install_bonesis_git "$1" || return_or_interrupt "$?"
     fi
 }
 
@@ -98,11 +124,13 @@ install_env_steps() {
 
     echo "creating conda environment '${env}'."
     echo "resolving conda environment '${env}'."
-    run_quiet conda env create -f "${env_file}" --yes
-    configure_env "${env}"
+    run_quiet conda env create -f "${env_file}" --yes || return_or_interrupt "$?"
+    configure_env "${env}" || return_or_interrupt "$?"
 }
 
 install_env() {
+    local status
+
     if conda env list | grep -q "^$1 ";
     then
         echo "conda environment '$1' already exists."
@@ -115,6 +143,8 @@ install_env() {
                 print_install_success "$1"
                 echo
             else
+                status=$?
+                return_or_interrupt "${status}"
                 print_install_failure "$1"
                 return 1
             fi
@@ -129,6 +159,8 @@ install_env() {
             print_install_success "$1"
             echo
         else
+            status=$?
+            return_or_interrupt "${status}"
             print_install_failure "$1"
             return 1
         fi
@@ -137,6 +169,7 @@ install_env() {
 
 install_scbolt_command() {
     local choice
+    local installed_command="${local_bin}/scbolt"
 
     if [ ! -x "${scbolt_command}" ];
     then
@@ -147,15 +180,21 @@ install_scbolt_command() {
     read -r -p $"Install the scbolt command in ~/.local/bin? ([y]/n): " choice
     if [[ $choice != "y" && $choice != "Y" && $choice != "yes" && -n $choice ]];
     then
-        echo "scBOLT command not installed."
+        if [ -e "${installed_command}" ];
+        then
+            echo "scBOLT command unchanged:"
+            echo "  ${installed_command}"
+        else
+            echo "scBOLT command not installed."
+        fi
         return 1
     fi
 
     mkdir -p "${local_bin}"
-    ln -sfn "${scbolt_command}" "${local_bin}/scbolt"
+    ln -sfn "${scbolt_command}" "${installed_command}"
 
     echo "Installed:"
-    echo "  ${local_bin}/scbolt -> ${scbolt_command}"
+    echo "  ${installed_command} -> ${scbolt_command}"
 
     case ":${PATH}:" in
         *":${local_bin}:"*) ;;

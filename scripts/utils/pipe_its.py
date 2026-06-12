@@ -98,14 +98,55 @@ parser.add_argument(
 args = parser.parse_args()
 
 
+def reindex_boolean_series(series, target_index):
+    values = pd.Series(False, index=target_index, dtype=bool)
+    aligned = series.reindex(target_index)
+    present = aligned.notna()
+    values.loc[present] = aligned.loc[present].astype(bool)
+    return values
+
+
 def transfer_dataframe_columns(source, target_index, columns):
     values = source[columns].reindex(target_index)
 
     for column in columns:
         source_column = source[column]
         if pd.api.types.is_bool_dtype(source_column):
-            values[column] = values[column].fillna(False).astype(bool)
+            values[column] = reindex_boolean_series(source_column, target_index)
 
+    return values
+
+
+def remove_obs_name_prefix(adata, sep=":"):
+    obs_names = pd.Index(
+        [str(obs_name).split(sep, 1)[-1] for obs_name in adata.obs_names],
+        name=adata.obs.index.name,
+    )
+    adata.obs.index = obs_names
+
+
+def transfer_obs_columns(source, target, columns, source_label, target_label):
+    source_index = pd.Index(source.obs_names.astype(str), name="barcode")
+    target_index = pd.Index(target.obs_names.astype(str), name="barcode")
+
+    if source_index.has_duplicates:
+        duplicates = source_index[source_index.duplicated()].unique()
+        raise ValueError(
+            "duplicated observation transfer keys in integrated dataset "
+            f"(label={source_label}, keys={'+'.join(map(str, duplicates[:5]))})"
+        )
+
+    missing = target_index[~target_index.isin(source_index)]
+    if len(missing) > 0:
+        raise KeyError(
+            "observations not found in integrated dataset "
+            f"(label={target_label}, keys={'+'.join(map(str, missing[:5]))})"
+        )
+
+    source_obs = source.obs.copy()
+    source_obs.index = source_index
+    values = transfer_dataframe_columns(source_obs, target_index, columns)
+    values.index = target.obs.index
     return values
 
 
@@ -144,6 +185,16 @@ if args.var is not None:
 
 std.print_task("transferring observations (source=integrated, target=specific)")
 for name, adata in specific_ad.items():
+    source_ad = integrated_ad[integrated_ad.obs[args.obs_label] == name].copy()
+    remove_obs_name_prefix(source_ad)
+    transferred_obs = transfer_obs_columns(
+        source=source_ad,
+        target=adata,
+        columns=args.obs,
+        source_label=name,
+        target_label=name,
+    )
+
     cols_to_remove = set(args.obs).intersection(set(adata.obs.columns))
     if cols_to_remove:
         std.print_debug(
@@ -152,12 +203,7 @@ for name, adata in specific_ad.items():
             )
         )
         adata.obs = adata.obs.drop(list(cols_to_remove), axis=1)
-    adata.obs = adata.obs.merge(
-        right=integrated_ad[integrated_ad.obs[args.obs_label] == name].obs[args.obs],
-        how="left",
-        left_index=True,
-        right_index=True,
-    )
+    adata.obs = adata.obs.join(transferred_obs, how="left")
 
 if args.var is not None:
     std.print_task("transferring variables (source=integrated, target=specific)")

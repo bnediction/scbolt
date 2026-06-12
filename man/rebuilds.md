@@ -58,16 +58,16 @@ Repeated `--trust-target=<module>` options are appended to Make-style
 
 ```bash
 scbolt bn-submin \
-  --old-file=apl/integrated/clust/annot.h5ad \
-  --old-file=apl/bin/consensus/knnbs/mstates_bin.csv
+  --old-file=apl/integrated/annot/annot.h5ad \
+  --old-file=apl/bin/consensus/knnsc/mstates_bin.csv
 ```
 
 Several files can also be provided as a quoted space-separated list:
 
 ```bash
 scbolt bn-submin \
-  --old-file="apl/integrated/clust/annot.h5ad apl/bin/consensus/knnbs/mstates_bin.csv"
-scbolt bn-submin OLD_FILES="apl/integrated/clust/annot.h5ad apl/bin/consensus/knnbs/mstates_bin.csv"
+  --old-file="apl/integrated/annot/annot.h5ad apl/bin/consensus/knnsc/mstates_bin.csv"
+scbolt bn-submin OLD_FILES="apl/integrated/annot/annot.h5ad apl/bin/consensus/knnsc/mstates_bin.csv"
 ```
 
 The singular Make-style alias `old_file=<file>` appends one trusted file, like
@@ -76,8 +76,8 @@ The singular Make-style alias `old_file=<file>` appends one trusted file, like
 Permanent project-level declarations can be added to `params.mk`:
 
 ```make
-OLD_FILES += apl/integrated/clust/annot.h5ad
-OLD_FILES += apl/bin/consensus/knnbs/mstates_bin.csv
+OLD_FILES += apl/integrated/annot/annot.h5ad
+OLD_FILES += apl/bin/consensus/knnsc/mstates_bin.csv
 ```
 
 Relative paths in `params.mk` are resolved relative to the parameter-file
@@ -102,8 +102,8 @@ Trusted old files must exist.
 `scbolt check <module>` reports:
 
 ```text
-SUCCESS old file found: apl/integrated/clust/annot.h5ad
-FAIL old file not found: apl/bin/consensus/knnbs/mstates_bin.csv
+SUCCESS old file found: apl/integrated/annot/annot.h5ad
+FAIL old file not found: apl/bin/consensus/knnsc/mstates_bin.csv
 ```
 
 If an old file is not a known scBOLT target, scBOLT warns but does not fail.

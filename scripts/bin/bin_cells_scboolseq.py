@@ -137,11 +137,10 @@ std.print_info("converting counting values into Boolean values")
 with std.disable_print():
     cell_df = scbool.binarize(counts_df)
     criteria_df = scbool.criteria_.copy()
-for gene in set(adata.var.index) - set(cell_df):
-    cell_df[gene] = np.nan
-    criteria_df.loc[gene] = [*[np.nan] * 15, "Discarded"]
-cell_df = cell_df[adata.var.index]
-criteria_df = criteria_df.loc[adata.var.index]
+missing_genes = [gene for gene in adata.var.index if gene not in cell_df.columns]
+cell_df = cell_df.reindex(columns=adata.var.index)
+criteria_df = criteria_df.reindex(index=adata.var.index)
+criteria_df.loc[missing_genes, "Category"] = "Discarded"
 if not list(cell_df.index) == list(adata.obs.index):
     raise pd.errors.IndexingError(
         "Index values in 'cell_df' not sorted with observations in 'adata'"

@@ -288,7 +288,7 @@ macrostate_files = {
 
 for obs, file in macrostate_files.items():
     if len(adata.obs[obs].cat.categories) > 0:
-        bt.sct.pl.embedding_plot(
+        bt.sct.pl.embedding(
             adata,
             obs=obs,
             use_rep="X_umap",
@@ -299,8 +299,8 @@ for obs, file in macrostate_files.items():
             zlabel=r"$\mathrm{UMAP_{3}}$",
             s=4,
             alpha=1,
-            add_labels=True,
-            add_legend=True,
+            show_labels=True,
+            show_legend=True,
             lgd_params={
                 "title": obs,
                 "ncol": math.ceil(

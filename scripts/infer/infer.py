@@ -925,7 +925,7 @@ if args.bonesis_mode != "hard":
 clingo_parallel_jobs, clingo_parallel_option = get_clingo_parallel_mode(args.jobs)
 bonesis.settings["parallel"] = clingo_parallel_jobs
 
-genesyn = bt.dbs.ncbi.GeneSynonyms(
+genesyn = bt.dbs.ncbi.genesyn(
     organism=args.organism,
     version=args.geneinfo_version,
 )
