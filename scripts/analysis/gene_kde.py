@@ -10,9 +10,6 @@ from bonesistools import anndatatools as sct
 
 import matplotlib.pyplot as plt
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 script_name = Path(__file__).name
 

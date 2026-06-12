@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from typing import Any, Callable, Optional, Mapping, Iterable, Sequence, cast
+from typing import Any, Callable, Optional, Mapping, Iterable, Sequence
 from collections import defaultdict
 
 import sys
@@ -21,7 +21,7 @@ from mpbn import MPBooleanNetwork
 
 import bonesistools as bt
 
-from utils import get_cfg, load_bonesis_code
+from utils import get_cfg, load_bonesis_code, load_prior_network
 
 bonesis.settings["quiet"] = True
 
@@ -294,40 +294,6 @@ def next_solution(view):
         raise
     close_progress(view)
     return solution
-
-
-# Workaround for bonesis.NodesView in mode="opt":
-# clingo may find and write the optimal intermediate model, but the final
-# model parsing can fail with RuntimeError/double free. This view returns
-# the last intermediate model directly instead of reparsing the final one.
-def load_prior_network(
-    domain,
-    organism,
-    genesyn,
-    dorothea_levels: Optional[Sequence[str]] = None,
-):
-    if domain == "collectri":
-        std.print_info(f"loading CollecTRI prior network (organism: {organism})")
-        return bt.dbs.omnipath.load_collectri_grn(
-            organism=organism,
-            genesyn=genesyn,
-        )
-    if domain == "dorothea":
-        levels = cast(list[str], dorothea_levels)
-        std.print_info(
-            f"loading DoRothEA prior network "
-            f"(organism: {organism}, levels: {', '.join(levels)})"
-        )
-        return bt.dbs.omnipath.load_dorothea_grn(
-            organism=organism,
-            levels=levels,
-            genesyn=genesyn,
-        )
-    std.print_task(f"loading custom prior network (file={std.format_path(domain)})")
-    return bt.bpy.ig.read_interaction_graph(
-        infile=domain,
-        genesyn=genesyn,
-    )
 
 
 def write_noi(bn: MPBooleanNetwork, outfile):
@@ -786,9 +752,62 @@ parser.add_argument(
     dest="dorothea_levels",
     nargs="+",
     choices=["A", "B", "C", "D"],
-    default=["A", "B", "C"],
+    default=None,
     metavar="[A | B | C | D]",
-    help="DoRothEA confidence levels used when --domain dorothea (default: A B C)",
+    help=(
+        "DoRothEA confidence levels used when --domain dorothea "
+        "(default: A B C for current API; A B C D for legacy API)"
+    ),
+)
+
+parser.add_argument(
+    "--geneinfo-version",
+    dest="geneinfo_version",
+    action=cli.Store_version,
+    allow_current=False,
+    allow_bundled=True,
+    allow_date=False,
+    allow_path=True,
+    required=False,
+    default="latest",
+    help="NCBI gene_info source used for gene name standardization (default: latest)",
+)
+
+parser.add_argument(
+    "--omnipath-version",
+    dest="omnipath_version",
+    action=cli.Store_version,
+    allow_current=False,
+    required=False,
+    default="latest",
+    help="OmniPath resource version used when --domain is collectri or dorothea (default: latest)",
+)
+
+parser.add_argument(
+    "--hcop-version",
+    dest="hcop_version",
+    type=str,
+    required=False,
+    default="bundled",
+    help="HCOP orthology version used when --domain is collectri or dorothea (default: bundled)",
+)
+
+parser.add_argument(
+    "--dorothea-api",
+    dest="dorothea_api",
+    choices=["current", "legacy"],
+    required=False,
+    default="current",
+    help="DoRothEA API flavor used when --domain dorothea (default: current)",
+)
+
+parser.add_argument(
+    "--dorothea-compatibility",
+    dest="dorothea_compatibility",
+    action=cli.Store_boolean,
+    required=False,
+    default=True,
+    help="reproduce decoupler DoRothEA duplicated-pair handling (default: true)",
 )
 
 parser.add_argument("--bonesis-mode", dest="bonesis_mode", action=cli.Bonesis_mode)
@@ -906,7 +925,10 @@ if args.bonesis_mode != "hard":
 clingo_parallel_jobs, clingo_parallel_option = get_clingo_parallel_mode(args.jobs)
 bonesis.settings["parallel"] = clingo_parallel_jobs
 
-genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
+genesyn = bt.dbs.ncbi.GeneSynonyms(
+    organism=args.organism,
+    version=args.geneinfo_version,
+)
 
 std.print_task(
     f"loading partially binarized metastates (file={std.format_path(args.mstates)})"
@@ -929,7 +951,16 @@ pkn_options = {
 if args.action == "filter-nodes":
     pkn_options["allow_skipping_nodes"] = True
 
-grn = load_prior_network(args.domain, args.organism, genesyn, args.dorothea_levels)
+grn = load_prior_network(
+    args.domain,
+    args.organism,
+    genesyn,
+    args.dorothea_levels,
+    args.omnipath_version,
+    args.hcop_version,
+    args.dorothea_api,
+    args.dorothea_compatibility,
+)
 
 if args.filter_grn:
     std.print_info(f"filtering prior network (genes={args.filter_grn})")

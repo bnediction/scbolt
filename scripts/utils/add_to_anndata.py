@@ -10,9 +10,6 @@ import cli
 import pandas as pd
 import anndata as ad
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 PathLike = Union[str, Path]
 category = pd.Categorical
@@ -272,7 +269,7 @@ else:
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 if str(args.outfile).endswith("h5ad"):
-    adata.write_h5ad(filename=args.outfile, compression="gzip")
+    std.write_h5ad(adata, filename=args.outfile, compression="gzip")
 elif str(args.outfile).endswith("loom"):
     adata.write_loom(filename=args.outfile, write_obsm_varm=True)
 else:

@@ -223,9 +223,12 @@ $(eval SPEC_ONLY_HVG ?= true)               # use only binarization HVGs for mod
 
 ## INFERENCE ##
 # PRIOR_KNOWLEDGE values: collectri, dorothea, or an existing file path.
+# GENEINFO_VERSION values: bundled, latest, or file path.
+# OMNIPATH_VERSION values: latest, YYYY-MM-DD, or YYYYMMDD.
+# HCOP_VERSION values: bundled, latest, or file path.
 # DOROTHEA_API values: current, legacy. Used only when PRIOR_KNOWLEDGE=dorothea.
-# DOROTHEA_LEVELS values: A, B, C, D. Used only with current DoRothEA API.
-# current loads DoRothEA in scbolt-bonesis; legacy first exports a CSV file.
+# DOROTHEA_COMPATIBILITY values: true, false. Used only when PRIOR_KNOWLEDGE=dorothea.
+# DOROTHEA_LEVELS values: A, B, C, D.
 # Clingo filter configs: auto, frumpy, jumpy, tweety, handy, crafty, trendy, many, or file path.
 # Clingo filter opt modes: opt, optN, ignore.
 # Clingo opt strategies: bb[,<method>] or usc[,<method>].
@@ -236,7 +239,11 @@ $(eval SPEC_ONLY_HVG ?= true)               # use only binarization HVGs for mod
 # TIMEOUT_* values are passed to GNU timeout; empty means no timeout.
 $(eval MAX_CLAUSE ?= 8)                     # maximum literals per propositional formula
 $(eval PRIOR_KNOWLEDGE ?= collectri)        # prior GRN domain
+$(eval GENEINFO_VERSION ?= latest)          # NCBI gene_info source
+$(eval OMNIPATH_VERSION ?= latest)          # OmniPath resource version
+$(eval HCOP_VERSION ?= bundled)             # HCOP orthology version
 $(eval DOROTHEA_API ?= current)             # DoRothEA API source
+$(eval DOROTHEA_COMPATIBILITY ?= true)      # reproduce decoupler DoRothEA deduplication
 $(eval DOROTHEA_LEVELS ?= A B C)            # DoRothEA confidence levels
 $(eval CANONIC_FILTER ?= false)             # canonical functions during filtering
 $(eval CANONIC_INFER ?= true)               # canonical functions during BN inference

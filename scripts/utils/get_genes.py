@@ -9,9 +9,6 @@ from bonesistools.databases.ncbi import GeneSynonyms
 
 import scanpy as sc
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 script_name = Path(__file__).name
 

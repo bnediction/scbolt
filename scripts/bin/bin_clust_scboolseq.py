@@ -15,9 +15,6 @@ import bonesistools as bt
 
 import numpy as np
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()
 

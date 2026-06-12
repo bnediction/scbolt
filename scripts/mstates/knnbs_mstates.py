@@ -9,9 +9,6 @@ from pathlib import Path
 import anndata as ad
 import bonesistools as bt
 
-import warnings
-
-warnings.filterwarnings("ignore")
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
@@ -211,7 +208,7 @@ adata.obs["macrostate"] = knnbs.knnbs(
 )
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-adata.write_h5ad(filename=args.outfile, compression="gzip")
+std.write_h5ad(adata, filename=args.outfile, compression="gzip")
 
 if args.csv:
     std.print_task(f"saving KNNbs macrostates (file={std.format_path(args.csv)})")

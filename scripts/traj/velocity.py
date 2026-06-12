@@ -10,10 +10,8 @@ import bonesistools as bt
 import scvelo as scv
 
 import matplotlib.pyplot as plt
-
 import warnings
 
-warnings.filterwarnings("ignore")
 
 warnings.filterwarnings(
     "ignore",
@@ -310,4 +308,4 @@ with warnings.catch_warnings():
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 if args.cluster != "clusters":
     del adata.obs["clusters"]
-adata.write_h5ad(filename=args.outfile, compression="gzip")
+std.write_h5ad(adata, filename=args.outfile, compression="gzip")

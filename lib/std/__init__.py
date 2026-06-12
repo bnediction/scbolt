@@ -10,3 +10,8 @@ from ._stdout import (
     print_debug,
     print_result
 )
+
+from ._anndata import (
+    canonicalize_anndata,
+    write_h5ad,
+)

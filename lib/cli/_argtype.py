@@ -6,10 +6,113 @@ from typing import (
     cast,
 )
 from pathlib import Path
+from datetime import date
 
 import math
+import re
 
 import argparse
+
+class Store_version(argparse.Action):
+
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ):
+        self.allow_current = kwargs.pop("allow_current", True)
+        self.allow_bundled = kwargs.pop("allow_bundled", False)
+        self.allow_date = kwargs.pop("allow_date", True)
+        self.allow_path = kwargs.pop("allow_path", False)
+        default = kwargs["default"] if "default" in kwargs else None
+        values = ["latest"]
+        if self.allow_current:
+            values.insert(0, "current")
+        if self.allow_bundled:
+            values.insert(0, "bundled")
+        if self.allow_date:
+            values.append("YYYY-MM-DD")
+        if self.allow_path:
+            values.append("FILE")
+        kwargs.update(
+            {
+                "type": str,
+                "metavar": f"[{' | '.join(values)}]",
+                "default": default,
+                "help": kwargs["help"]
+                if "help" in kwargs
+                else f"database version (default: {default})",
+            }
+        )
+        super(Store_version, self).__init__(*args, **kwargs)
+
+    def __call__(
+        self,
+        parser,
+        namespace,
+        value,
+        option_string=None,
+    ):
+        value = value.strip()
+        normalized_value = value.lower()
+
+        if normalized_value == "current" and self.allow_current:
+            setattr(namespace, self.dest, normalized_value)
+            return
+
+        if normalized_value == "bundled" and self.allow_bundled:
+            setattr(namespace, self.dest, normalized_value)
+            return
+
+        if normalized_value == "latest":
+            setattr(namespace, self.dest, normalized_value)
+            return
+
+        if self.allow_date and (
+            re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value)
+            or re.fullmatch(r"[0-9]{8}", value)
+        ):
+            try:
+                self._validate_date(value)
+            except ValueError as error:
+                raise argparse.ArgumentError(
+                    self,
+                    f"invalid database version date: {value}",
+                ) from error
+            setattr(namespace, self.dest, value)
+            return
+
+        if self.allow_path and Path(value).expanduser().exists():
+            setattr(namespace, self.dest, value)
+            return
+
+        raise argparse.ArgumentError(
+            self,
+            self._error_message(),
+        )
+
+    def _error_message(self):
+        labels = []
+        if self.allow_bundled:
+            labels.append("'bundled'")
+        if self.allow_current:
+            labels.append("'current'")
+        labels.append("'latest'")
+        if self.allow_date:
+            labels.append("a date formatted as YYYY-MM-DD")
+        if self.allow_path:
+            labels.append("an existing file")
+        return "expected " + ", ".join(labels)
+
+    @staticmethod
+    def _validate_date(value):
+        date_parts = re.fullmatch(
+            r"([0-9]{4})-?([0-9]{2})-?([0-9]{2})",
+            value,
+        )
+        if date_parts is None:
+            return
+        date(*(int(part) for part in date_parts.groups()))
 
 class Range(argparse.Action):
     
@@ -78,7 +181,7 @@ class Min_and_max(argparse.Action):
         kwargs.update({
             "nargs":2,
             "type":str,
-            "metavar":f"INT" if self.to_type==int else "FLOAT"
+            "metavar": "INT" if self.to_type is int else "FLOAT"
         })
         if "default" not in kwargs:
             kwargs["default"] = [self.min, self.max]
@@ -169,7 +272,7 @@ class Str_or_min_and_max(argparse.Action):
         kwargs.update({
             "nargs":"+",
             "type":str,
-            "metavar": f"INT | LITERAL" if self.to_type == int else "FLOAT | LITERAL"
+            "metavar": "INT | LITERAL" if self.to_type is int else "FLOAT | LITERAL"
         })
         if "default" not in kwargs:
             kwargs["default"] = [self.min, self.max]
@@ -290,13 +393,13 @@ class Store_dict(argparse.Action):
     ):
 
         if isinstance(type_key, type):
-            metavar_key = "LITERAL" if type_key == str else type_key.__name__.upper()
+            metavar_key = "LITERAL" if type_key is str else type_key.__name__.upper()
             self.type_key = type_key
         else:
             raise TypeError(f"unsupported parameter type for 'type_key': expected '{type}' but received '{type(type_key)}'")
 
         if isinstance(type_value, type):
-            metavar_value = "LITERAL" if type_value == str else type_value.__name__.upper()
+            metavar_value = "LITERAL" if type_value is str else type_value.__name__.upper()
             self.type_value = type_value
         else:
             raise TypeError(f"unsupported parameter type for 'type_key': expected '{type}' but received '{type(type_value)}'")

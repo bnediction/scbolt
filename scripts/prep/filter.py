@@ -18,9 +18,6 @@ import pypairs
 
 import matplotlib.pyplot as plt
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()
 
@@ -29,10 +26,11 @@ script_name = Path(__file__).name
 
 
 def marker_pairs_converter(
-    ensembl_id_marker_pairs, output_identifier_type: str = "official_name"
+    ensembl_id_marker_pairs,
+    genesyn,
+    output_identifier_type: str = "official_name",
 ):
     """Convert marker pairs from ensembl_id into their corresponding aliases."""
-    genesyn = bt.dbs.ncbi.GeneSynonyms()
     converted_marker_pairs = dict()
     for cc, pairs in ensembl_id_marker_pairs.items():
         cycle_pairs = list()
@@ -221,6 +219,19 @@ parser.add_argument(
     help="maximum proportion of mitochondrial gene expression required for a cell to pass filtering (default: 1)",
 )
 
+parser.add_argument(
+    "--geneinfo-version",
+    dest="geneinfo_version",
+    action=cli.Store_version,
+    allow_current=False,
+    allow_bundled=True,
+    allow_date=False,
+    allow_path=True,
+    required=False,
+    default="latest",
+    help="NCBI gene_info source used for gene name standardization (default: latest)",
+)
+
 args = parser.parse_args()
 
 if any(v < 0 for v in args.mad_deviation):
@@ -233,6 +244,7 @@ if not outpath.exists():
 std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(Path(f"{args.infile}").resolve())
+genesyn = bt.dbs.ncbi.GeneSynonyms(version=args.geneinfo_version)
 
 std.print_info("standardizing gene names")
 adata.var["symbol"] = list(adata.var.index)
@@ -241,16 +253,16 @@ for input_identifier_type in ["name", "gene_id", "ensembl_id"]:
         adata,
         axis="var",
         input_identifier_type=input_identifier_type,
+        genesyn=genesyn,
         copy=False,
     )
-merged_adata = bt.sct.pp.var_names_merge_duplicates(
+bt.sct.pp.merge_duplicate_vars(
     adata,
-    var_names_column="symbol",
+    copy=False,
 )
-if merged_adata is not None:
-    adata = merged_adata
 
 adata.var_names_make_unique()
+bt.sct.pp.sort_anndata(adata, on="both", copy=False)
 
 shape = {"init": adata.shape}
 
@@ -271,7 +283,7 @@ else:
     std.print_debug("decoding marker data (format=RDS)")
     marker_pairs = rdata.conversion.convert(parser)
     std.print_info("scoring cell cycle phases")
-    marker_pairs = marker_pairs_converter(marker_pairs, "official_name")
+    marker_pairs = marker_pairs_converter(marker_pairs, genesyn, "official_name")
     scores = pypairs.pairs.cyclone(adata, marker_pairs)
     adata.obs.rename(
         columns={
@@ -447,4 +459,4 @@ if args.marker_infile:
     plt.savefig(f"{outpath}/cell-cycles-counting.pdf")
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-adata.write_h5ad(filename=args.outfile, compression="gzip")
+std.write_h5ad(adata, filename=args.outfile, compression="gzip")

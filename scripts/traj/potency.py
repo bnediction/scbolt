@@ -21,10 +21,8 @@ import torch
 import cytotrace2_py as cytotrace
 
 import matplotlib.pyplot as plt
-
 import warnings
 
-warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()
 
@@ -356,4 +354,4 @@ bt.sct.pl.boxplot(
 if args.h5ad:
     h5ad_outfile = args.outpath / args.h5ad
     std.print_task(f"saving AnnData (file={std.format_path(h5ad_outfile)})")
-    adata.write_h5ad(filename=h5ad_outfile, compression="gzip")
+    std.write_h5ad(adata, filename=h5ad_outfile, compression="gzip")

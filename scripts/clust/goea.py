@@ -5,6 +5,7 @@ import std
 import argparse
 from pathlib import Path
 
+import cli
 import re
 
 from pandas import ExcelFile, ExcelWriter, read_excel
@@ -16,9 +17,6 @@ from goatools.anno.gaf_reader import GafReader
 from goatools.anno.genetogo_reader import Gene2GoReader
 from goatools.goea.go_enrichment_ns import GOEnrichmentStudyNS
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 script_name = Path(__file__).name
 
@@ -101,6 +99,19 @@ parser.add_argument(
     help="gene identifier input format in infile (default: name)",
 )
 
+parser.add_argument(
+    "--geneinfo-version",
+    dest="geneinfo_version",
+    action=cli.Store_version,
+    allow_current=False,
+    allow_bundled=True,
+    allow_date=False,
+    allow_path=True,
+    required=False,
+    default="latest",
+    help="NCBI gene_info source used for gene name standardization (default: latest)",
+)
+
 args = parser.parse_args()
 
 if args.gene2go is None and args.annotations is None:
@@ -117,7 +128,10 @@ else:
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
+genesyn = bt.dbs.ncbi.GeneSynonyms(
+    organism=args.organism,
+    version=args.geneinfo_version,
+)
 
 std.print_task(f"loading gene set workbook (file={std.format_path(args.infile)})")
 with ExcelFile(args.infile) as file:
@@ -178,10 +192,10 @@ go_dag = GODag(obo_file=go_file, prt=open(os.devnull, "w"))
 with open(go_file, "r") as go_reader:
     go_definitions = dict()
     for line in go_reader:
-        if re.search("^id: GO:[0-9]{7}", line):
+        if re.search(r"^id: GO:[0-9]{7}", line):
             _id = re.findall("GO:[0-9]{7}|$", line)[0]
-        elif re.search('^def: ".+\."', line):
-            _definition = re.findall('^def: ".+\."|$', line)[0]
+        elif re.search(r'^def: ".+\."', line):
+            _definition = re.findall(r'^def: ".+\."|$', line)[0]
             _definition = re.sub('^def: "', "", _definition)
             _definition = re.sub('"$', "", _definition)
         elif line == "\n":

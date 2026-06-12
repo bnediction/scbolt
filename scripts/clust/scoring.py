@@ -11,9 +11,6 @@ import anndata as ad
 import bonesistools as bt
 from anndata import AnnData
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 
 def multiple_hypergeometric_test(

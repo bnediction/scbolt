@@ -155,7 +155,9 @@ show_config_inference_modules = \
 	spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock \
 	bn-min bn-submin bn-diverse
 show_config_has_inference = $(filter $(show_config_inference_modules),$(show_config_param_modules))
-show_config_inference_params = PRIOR_KNOWLEDGE DOROTHEA_API DOROTHEA_LEVELS MAX_CLAUSE
+show_config_inference_params = \
+	PRIOR_KNOWLEDGE OMNIPATH_VERSION HCOP_VERSION \
+	DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS MAX_CLAUSE
 show_config_has_analysis_hvg = $(filter clustering,$(show_config_modules))
 show_config_binarization_hvg_modules = bin-cells bin-dea bin-consensus spec
 show_config_has_binarization_hvg = \
@@ -315,8 +317,11 @@ $(if $(strip $(show_config_has_inference)),\
 @printf '\nInference\n'
 @printf '%s\n' '---------'
 @printf '%-16s : %s\n' 'Prior knowledge' "$(PRIOR_KNOWLEDGE)"
+$(if $(filter collectri dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'OmniPath' "$(OMNIPATH_VERSION)")
+$(if $(filter collectri dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'HCOP' "$(HCOP_VERSION)")
 $(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'DoRothEA API' "$(DOROTHEA_API)")
-$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Levels' "$(DOROTHEA_LEVELS)")
+$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Compatibility' "$(DOROTHEA_COMPATIBILITY)")
+$(if $(and $(filter dorothea,$(PRIOR_KNOWLEDGE)),$(filter current,$(DOROTHEA_API))),@printf '%-16s : %s\n' 'Levels' "$(DOROTHEA_LEVELS)")
 @printf '%-16s : %s\n' 'Max clause' "$(MAX_CLAUSE)")
 endef
 
@@ -870,11 +875,6 @@ __load-cc: $(cc_markers)
 load-go: ## download Gene Ontology resources
 	$(call run_logged,load-go)
 __load-go: $(go_basic) $(go_organism) $(gene2go)
-
-.PHONY: load-dorothea __load-dorothea
-load-dorothea: ## download legacy DoRothEA regulatory interactions
-	$(call run_logged,load-dorothea)
-__load-dorothea: $(dorothea_legacy)
 
 ##@ Alignment/Counting
 

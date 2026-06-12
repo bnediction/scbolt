@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 
-_scbolt_modules="load-genome load-fastq load-matrix load-signatures load-cc load-go load-dorothea
+_scbolt_modules="load-genome load-fastq load-matrix load-signatures load-cc load-go
 alignment cellranger star qc velocyto
 filtering normalization clustering dea scoring goea annotation
 velocity potency
@@ -14,7 +14,7 @@ _scbolt_boolean_options="--logging= --spec-only-hvg= --pca-only-hvg= --velocity-
 --cotan-only-hvg= --extend-epg= --prune-epg= --collapse-parameter=
 --bin-scboolseq-only-hvg= --zeroes-are-zeroes= --bin-dea-only-hvg=
 --canonic-filter= --canonic-infer= --min-self-loop-consts= --min-self-loop-infer=
---norm-mad= --cc-correction="
+--norm-mad= --cc-correction= --dorothea-compatibility="
 _scbolt_file_options="--params= --old-file= --results-dir= --public-dir= --star-whitelist=
 --binarization-file= --macrostate-files= --prior-knowledge= --spec-file="
 

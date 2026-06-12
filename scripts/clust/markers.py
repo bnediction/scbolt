@@ -14,9 +14,6 @@ import scanpy as sc
 import bonesistools as bt
 from pandas import ExcelWriter
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 script_name = Path(__file__).name
 

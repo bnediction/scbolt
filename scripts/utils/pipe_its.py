@@ -8,9 +8,6 @@ from pathlib import Path
 import anndata as ad
 import pandas as pd
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 script_name = Path(__file__).name
 
@@ -184,4 +181,4 @@ if args.var is not None:
 
 for name, outfile in zip(args.labels, args.outfiles):
     std.print_task(f"saving AnnData (dataset={name}, file={std.format_path(outfile)})")
-    specific_ad[name].write_h5ad(filename=outfile, compression="gzip")
+    std.write_h5ad(specific_ad[name], filename=outfile, compression="gzip")

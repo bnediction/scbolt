@@ -8,9 +8,6 @@ from pathlib import Path
 import anndata as ad
 import bonesistools as bt
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 script_name = Path(__file__).name
 
@@ -132,4 +129,4 @@ bt.sct.pp.transfer_obs_sti(
 std.print_task(
     f"saving AnnData (dataset=integrated, file={std.format_path(args.outfile)})"
 )
-integrated_ad.write_h5ad(filename=args.outfile, compression="gzip")
+std.write_h5ad(integrated_ad, filename=args.outfile, compression="gzip")

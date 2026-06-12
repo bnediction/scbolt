@@ -9,9 +9,6 @@ from pathlib import Path
 import anndata as ad
 import scanpy as sc
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 script_name = Path(__file__).name
 

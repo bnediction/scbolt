@@ -14,9 +14,6 @@ import pandas as pd
 
 from scboolseq import scBoolSeq
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 script_name = Path(__file__).name
 
@@ -162,7 +159,7 @@ adata.obs["pct_bin"] = (~cell_df.isna()).mean(axis=1)
 adata.var["distribution"] = criteria_df["Category"]
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-adata.write_h5ad(filename=args.outfile, compression="gzip")
+std.write_h5ad(adata, filename=args.outfile, compression="gzip")
 
 if args.bin:
     std.print_task(f"saving binarized matrix (file={std.format_path(args.bin)})")

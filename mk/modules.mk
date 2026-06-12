@@ -18,7 +18,6 @@ signatures  = $(public_dir)/signatures/geiger.xls \
 go_basic    = $(public_dir)/go/go_basic.obo
 go_organism = $(public_dir)/go/goslim_$(ORGANISM).obo
 gene2go     = $(public_dir)/go/gene2go
-dorothea_legacy = $(public_dir)/omnipath/dorothea_legacy_$(ORGANISM).csv
 
 genome_ref_name = $(if $(strip $(genome_url)),$(notdir $(genome_url)),missing-genome-url)
 $(eval genome_ref := $(public_dir)/ref/$(genome_ref_name))
@@ -297,17 +296,12 @@ dorothea_apis = current legacy
 dorothea_levels = A B C D
 
 # Resolve the user-facing prior knowledge parameter to the actual domain passed
-# to BoNesis scripts. Only dorothea+legacy is materialized as a custom file,
-# because decoupler.get_dorothea lives in the legacy environment.
+# to BoNesis scripts.
 ifeq ($(PRIOR_KNOWLEDGE),collectri)
 prior_knowledge = collectri
 else ifeq ($(PRIOR_KNOWLEDGE),dorothea)
 ifneq ($(filter $(strip $(DOROTHEA_API)),$(dorothea_apis)),)
-ifeq ($(strip $(DOROTHEA_API)),legacy)
-prior_knowledge = $(dorothea_legacy)
-else
 prior_knowledge = dorothea
-endif
 else
 prior_knowledge =
 endif
@@ -315,10 +309,31 @@ else ifneq ($(wildcard $(PRIOR_KNOWLEDGE)),)
 prior_knowledge = $(PRIOR_KNOWLEDGE)
 endif
 dorothea_levels_arg = $(if $(filter dorothea,$(prior_knowledge)),\
-	$(if $(strip $(DOROTHEA_LEVELS)),--dorothea-levels $(DOROTHEA_LEVELS)))
+	$(if $(filter current,$(DOROTHEA_API)),\
+	$(if $(strip $(DOROTHEA_LEVELS)),--dorothea-levels $(DOROTHEA_LEVELS))))
+dorothea_api_arg = $(if $(filter dorothea,$(prior_knowledge)),\
+	--dorothea-api $(DOROTHEA_API))
+dorothea_compatibility_arg = $(if $(filter dorothea,$(prior_knowledge)),\
+	--dorothea-compatibility $(DOROTHEA_COMPATIBILITY))
+geneinfo_version_arg = --geneinfo-version $(GENEINFO_VERSION)
+omnipath_version_arg = $(if $(filter collectri dorothea,$(prior_knowledge)),\
+	--omnipath-version $(OMNIPATH_VERSION))
+hcop_version_arg = $(if $(filter collectri dorothea,$(prior_knowledge)),\
+	--hcop-version $(HCOP_VERSION))
+prior_knowledge_args = \
+	$(geneinfo_version_arg) \
+	$(omnipath_version_arg) \
+	$(hcop_version_arg) \
+	$(dorothea_api_arg) \
+	$(dorothea_compatibility_arg) \
+	$(dorothea_levels_arg)
 prior_knowledge_params = PRIOR_KNOWLEDGE \
+	GENEINFO_VERSION \
+	$(if $(filter collectri dorothea,$(PRIOR_KNOWLEDGE)),OMNIPATH_VERSION HCOP_VERSION) \
 	$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),\
-	DOROTHEA_API DOROTHEA_LEVELS)
+	DOROTHEA_API DOROTHEA_COMPATIBILITY) \
+	$(if $(and $(filter dorothea,$(PRIOR_KNOWLEDGE)),$(filter current,$(DOROTHEA_API))),\
+	DOROTHEA_LEVELS)
 
 min_self_loop_consts = $(if $(filter true,$(MIN_SELF_LOOP_CONSTS)),--minimize-self-loops)
 min_self_loop_infer = $(if $(filter true,$(MIN_SELF_LOOP_INFER)),--minimize-self-loops)
@@ -415,7 +430,6 @@ endif
 endif
 endif
 
-target_params_load-dorothea = ORGANISM
 target_params_load-matrix = $(foreach condition,$(conditions),GSM_$(call toupper,$(condition)))
 target_params_alignment = ALIGNMENT_TOOL MEMORY STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
 target_params_cellranger = MEMORY
@@ -424,6 +438,7 @@ target_params_qc = STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
 target_params_velocyto = ALIGNMENT_TOOL MEMORY STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
 target_params_filtering = \
 	COUNT_FILES \
+	GENEINFO_VERSION \
 	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
 	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
 	MAD_DEVIATION NORM_MAD MT
@@ -433,6 +448,7 @@ target_params_clustering = \
 	ANALYSIS_HVG_BINS DIM_PCA DIM_CLUSTERING DIM_EMBEDDING PCA_ONLY_HVG \
 	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD
 target_params_dea = LOGFC CORRECTION ALPHA
+target_params_goea = GENEINFO_VERSION
 target_params_annotation = LABEL
 target_params_velocity = DIM_MOMENT VELOCITY_ONLY_HVG SMM_MODE
 target_params_potency = BATCH_SIZE SMOOTH_BATCH_SIZE
@@ -504,7 +520,8 @@ sensitive_params_star = STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
 sensitive_params_qc = STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
 sensitive_params_velocyto = ALIGNMENT_TOOL STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
 sensitive_params_filtering = \
-	COUNT_FILES ORGANISM GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
+	COUNT_FILES ORGANISM GENEINFO_VERSION \
+	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
 	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
 	MAD_DEVIATION NORM_MAD MT
 sensitive_params_normalization = ORGANISM CC_CORRECTION
@@ -514,7 +531,7 @@ sensitive_params_clustering = \
 	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD SEED USE_REP
 sensitive_params_dea = LOGFC CORRECTION ALPHA
 sensitive_params_scoring = LABEL_COL
-sensitive_params_goea = ORGANISM
+sensitive_params_goea = ORGANISM GENEINFO_VERSION
 sensitive_params_annotation = LABEL LABEL_COL USE_REP
 sensitive_params_velocity = DIM_MOMENT VELOCITY_ONLY_HVG SMM_MODE USE_REP LABEL_COL
 sensitive_params_potency = BATCH_SIZE SMOOTH_BATCH_SIZE ORGANISM USE_REP LABEL_COL SEED
@@ -624,7 +641,8 @@ method_config_param_set = \
 	BIN_LOGFC BIN_CORRECTION BIN_ALPHA \
 	BIN_METHOD \
 	SPEC_ONLY_HVG \
-	MAX_CLAUSE DOROTHEA_API DOROTHEA_LEVELS CANONIC_FILTER CANONIC_INFER \
+	MAX_CLAUSE DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS \
+	CANONIC_FILTER CANONIC_INFER \
 	CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT JOBS_SOFT TIMEOUT_SOFT \
 	CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS JOBS_CONSTS TIMEOUT_CONSTS \
 	CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED JOBS_RELAXED TIMEOUT_RELAXED \
@@ -634,10 +652,11 @@ method_config_param_set = \
 	MIN_SELF_LOOP_INFER INFER_LIMIT
 external_resource_config_param_set = \
 	STAR_WHITELIST COUNT_FILES BINARIZATION_FILE MACROSTATE_FILES PRIOR_KNOWLEDGE \
+	GENEINFO_VERSION OMNIPATH_VERSION HCOP_VERSION \
 	CLINGO_CONFIG_SOFT CLINGO_CONFIG_CONSTS CLINGO_CONFIG_RELAXED \
 	CLINGO_CONFIG_SEED CLINGO_CONFIG_LOCK
 config_default_modules = \
-	load-fastq load-matrix load-dorothea alignment cellranger star qc velocyto \
+	load-fastq load-matrix alignment cellranger star qc velocyto \
 	filtering normalization clustering dea annotation velocity potency \
 	macrostates cotan cellrank stream knnbs bin-cells bin-macrostates \
 	bin-dea bin-consensus binarization spec max-nodes-soft max-consts-soft \

@@ -12,9 +12,6 @@ import pandas as pd
 import scanpy as sc
 import bonesistools as bt
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 script_name = Path(__file__).name
 
@@ -193,19 +190,20 @@ if args.standardization:
         bt.sct.pp.convert_gene_identifiers(
             adata, axis="var", input_identifier_type=input_identifier_type, copy=False
         )
-    merged_adata = bt.sct.pp.var_names_merge_duplicates(
-        adata, var_names_column="symbol"
+    bt.sct.pp.merge_duplicate_vars(
+        adata,
+        copy=False,
     )
-    if merged_adata is not None:
-        adata = merged_adata
 
 if args.sort:
     adata = adata[sorted(adata.obs.index), sorted(adata.var.index)].to_memory()
 
 std.print_task(f"saving data (file={std.format_path(args.output)})")
 if to_format == "h5ad":
-    adata.write_h5ad(
-        filename=args.output, compression="gzip" if args.compression else None
+    std.write_h5ad(
+        adata,
+        filename=args.output,
+        compression="gzip" if args.compression else None,
     )
 elif to_format == "loom":
     adata.write_loom(filename=args.output, write_obsm_varm=True)

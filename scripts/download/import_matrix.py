@@ -103,12 +103,10 @@ if has_duplicated_vars:
             message="Variable names are not unique.*",
             category=UserWarning,
         )
-        merged_adata = bt.sct.pp.var_names_merge_duplicates(
+        bt.sct.pp.merge_duplicate_vars(
             adata,
-            var_names_column="symbol",
+            copy=False,
         )
-    if merged_adata is not None:
-        adata = merged_adata
 
 adata.obs.index.name = None
 adata.var.index.name = None
@@ -130,4 +128,4 @@ if adata.n_vars == 0:
 
 args.outfile.parent.mkdir(parents=True, exist_ok=True)
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-adata.write_h5ad(args.outfile)
+std.write_h5ad(adata, filename=args.outfile)

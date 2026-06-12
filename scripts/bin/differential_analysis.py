@@ -18,9 +18,6 @@ import bonesistools as bt
 import itertools
 import networkx as nx
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 
 def collectri_to_grn(

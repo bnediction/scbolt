@@ -119,4 +119,4 @@ if args.prefix_macrostates:
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 args.outfile.parent.mkdir(parents=True, exist_ok=True)
-adata.write_h5ad(filename=args.outfile, compression="gzip")
+std.write_h5ad(adata, filename=args.outfile, compression="gzip")

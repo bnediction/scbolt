@@ -184,11 +184,17 @@ Examples:
 - `BINARIZATION_FILE`
 - `MACROSTATE_FILES`
 - `PRIOR_KNOWLEDGE`
+- `GENEINFO_VERSION`
+- `OMNIPATH_VERSION`
+- `HCOP_VERSION`
 - `CLINGO_CONFIG_*`
 
 `PRIOR_KNOWLEDGE` may refer to symbolic built-in resources (`collectri`,
-`dorothea`) or to a user-provided file. `CLINGO_CONFIG_*` may refer to named
-Clingo configurations (`auto`, `frumpy`, `jumpy`, `tweety`, `handy`, `crafty`,
+`dorothea`) or to a user-provided file. `GENEINFO_VERSION` and
+`OMNIPATH_VERSION` select the database versions used for gene identifiers and
+OmniPath-derived priors. `HCOP_VERSION` selects the orthology resource used for
+non-human CollecTRI/DoRothEA priors. `CLINGO_CONFIG_*` may refer to named Clingo
+configurations (`auto`, `frumpy`, `jumpy`, `tweety`, `handy`, `crafty`,
 `trendy`, `many`) or to custom configuration files.
 
 External resource parameters should only be validated when the corresponding

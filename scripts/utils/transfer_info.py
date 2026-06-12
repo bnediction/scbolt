@@ -7,9 +7,6 @@ from pathlib import Path
 import anndata as ad
 import bonesistools as bt
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 
 def make_composite_obs_index(adata, keys, sep="|"):
@@ -151,7 +148,8 @@ std.print_task(
     f"saving AnnData (file={std.format_path(args.outfile if args.outfile else args.left)})"
 )
 
-left_ad.write_h5ad(
+std.write_h5ad(
+    left_ad,
     filename=args.outfile if args.outfile else args.left,
     compression="gzip",
 )

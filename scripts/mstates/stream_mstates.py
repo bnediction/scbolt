@@ -18,9 +18,6 @@ import matplotlib.pyplot as plt
 from networkx.classes.graph import Graph
 from rpy2.rinterface import ListSexpVector
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()
 script_name = Path(__file__).name
@@ -411,7 +408,7 @@ for key in list(adata.uns.keys()):
         del adata.uns[key]
     if key.startswith("stream_S"):
         del adata.uns[key]
-adata.write_h5ad(filename=args.outfile, compression="gzip")
+std.write_h5ad(adata, filename=args.outfile, compression="gzip")
 
 if args.csv:
     std.print_task(f"saving STREAM macrostates (file={std.format_path(args.csv)})")

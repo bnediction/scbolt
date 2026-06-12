@@ -63,7 +63,7 @@ $(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures))
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/load_signatures.py \
 		--list-infile $(firstword $^) \
 		--table-infile $(lastword $^) \
-		--outfile $@
+		--outfile $@ $(geneinfo_version_arg)
 
 $(go_basic):
 	$(call print_rule,load-go,go_basic)
@@ -80,14 +80,6 @@ $(gene2go):
 	mkdir -p $(@D)
 	wget --quiet --show-progress --progress=bar:force:noscroll --directory-prefix=$(@D) $(gene2go_url)
 	[ -f $@.gz ] && gunzip $@.gz
-
-$(dorothea_legacy):
-	$(call print_rule,load-dorothea)
-	$(call require_prior_parameters,load-dorothea)
-	mkdir -p $(@D)
-	$(call conda_run,scbolt-decoupler-legacy) python $(scripts_dir)/utils/load_dorothea_legacy.py \
-		--organism $(ORGANISM) \
-		--outfile $@
 
 $(results)/%/count/invalid-alignment/.error:
 	$(call print_rule,alignment,$*)
@@ -282,7 +274,8 @@ $(filtering_$(1)): $(count_input_$(1)) $(if $(filter mouse,$(ORGANISM)),$(cc_mar
 		$$(firstword $$^) $$@ $(if $(filter mouse,$(ORGANISM)),--marker $$(lastword $$^)) \
 		--gene-dropout $(GENE_DROPOUT) --gene-expression $(GENE_EXPRESSION) --gene-counts $(GENE_COUNTS) \
 		--cell-dropout $(CELL_DROPOUT) --cell-expression $(CELL_EXPRESSION) --cell-reads $(CELL_READS) \
-		--mad-deviation $(MAD_DEVIATION) $(norm_mad) --mt $(MT)
+		--mad-deviation $(MAD_DEVIATION) $(norm_mad) --mt $(MT) \
+		$(geneinfo_version_arg)
 	$$(call write_scbolt_metadata,filtering,$$(filtering_$(1)))
 
 $(normalization_$(1)): $(filtering_$(1))
@@ -468,14 +461,16 @@ $(goea_basic_$(1)): $(lastword $(dea_$(1))) $(go_basic) $(gene2go)
 	$(call print_rule,goea,go_basic/$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/goea.py $$< $$@ \
-		--background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
+		--background background --go $$(word 2,$$^) --gene2go $$(lastword $$^) \
+		--organism $(ORGANISM) $(geneinfo_version_arg)
 	$$(call write_scbolt_metadata,goea,$$@)
 
 $(goea_organism_$(1)): $(lastword $(dea_$(1))) $(go_organism) $(gene2go)
 	$(call print_rule,goea,go_$(ORGANISM)/$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/goea.py $$< $$@ \
-		--background background --go $$(word 2,$$^) --gene2go $$(lastword $$^)
+		--background background --go $$(word 2,$$^) --gene2go $$(lastword $$^) \
+		--organism $(ORGANISM) $(geneinfo_version_arg)
 	$$(call write_scbolt_metadata,goea,$$@)
 
 endef
@@ -684,8 +679,7 @@ $(bin_consensus): $(bin_mstates) $(lastword $(bin_cells)) $(bin_dea)
 		--outfile $@ --pct-bin $(@D)/pct_bin.csv
 	$(call write_scbolt_metadata,bin-consensus,$@)
 
-$(bonesis_model)&: $(bin) \
-    | $(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),$(if $(filter legacy,$(DOROTHEA_API)),$(dorothea_legacy)))
+$(bonesis_model)&: $(bin)
 	$(call print_rule,spec)
 	$(call require_bool,SPEC_ONLY_HVG,spec)
 	$(if $(filter true,$(SPEC_ONLY_HVG)),$(call require_bin_hvg_parameters,spec))
@@ -697,7 +691,8 @@ $(bonesis_model)&: $(bin) \
 		--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 		--important-genes $(word 3,$(bonesis_model)) --mandatory-genes $(word 4,$(bonesis_model)) \
 		$(if $(filter true,$(SPEC_ONLY_HVG)),--filter-genes $(bin_hvg)) \
-		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg)
+		--domain $(prior_knowledge) --organism $(ORGANISM) \
+		$(prior_knowledge_args)
 	sort -u $(word 3,$(bonesis_model)) -o $(word 3,$(bonesis_model))
 	sort -u $(word 4,$(bonesis_model)) -o $(word 4,$(bonesis_model))
 	$(call write_scbolt_metadata,spec,$(bonesis_model))
@@ -713,7 +708,8 @@ $(max_nodes_soft): $(bonesis_model)
 		$(word 1,$^) $(word 2,$^) \
 		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
 		--asp $(@D)/nodes.sh --solution $@ --status $(@D)/__SOLUTION \
-		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) \
+		--domain $(prior_knowledge) --organism $(ORGANISM) \
+		$(prior_knowledge_args) \
 		--bonesis-mode soft --max-clause $(MAX_CLAUSE) \
 		--canonic $(CANONIC_FILTER) \
 		$(if $(strip $(CLINGO_CONFIG_SOFT)),--clingo-configuration $(CLINGO_CONFIG_SOFT)) \
@@ -739,7 +735,8 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
 		--filter-grn $(lastword $^) \
 		--asp $(@D)/nodes.sh --solution $@ --status $(@D)/__SOLUTION \
-		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) \
+		--domain $(prior_knowledge) --organism $(ORGANISM) \
+		$(prior_knowledge_args) \
 		--bonesis-mode soft --max-clause $(MAX_CLAUSE) $(min_self_loop_consts) \
 		--canonic $(CANONIC_FILTER) \
 		$(if $(strip $(CLINGO_CONFIG_CONSTS)),--clingo-configuration $(CLINGO_CONFIG_CONSTS)) \
@@ -764,7 +761,8 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
 		--solution $@ --status $(@D)/__SOLUTION \
-		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) \
+		--domain $(prior_knowledge) --organism $(ORGANISM) \
+		$(prior_knowledge_args) \
 		--bonesis-mode relaxed --max-clause $(MAX_CLAUSE) \
 		--canonic $(CANONIC_FILTER) \
 		$(if $(strip $(CLINGO_CONFIG_RELAXED)),--clingo-configuration $(CLINGO_CONFIG_RELAXED)) \
@@ -790,7 +788,8 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
 		--solution $@ --status $(@D)/__SOLUTION \
-		--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) \
+		--domain $(prior_knowledge) --organism $(ORGANISM) \
+		$(prior_knowledge_args) \
 		--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
 		--canonic $(CANONIC_FILTER) \
 		$(if $(strip $(CLINGO_CONFIG_SEED)),--clingo-configuration $(CLINGO_CONFIG_SEED)) \
@@ -821,7 +820,8 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 			--important-genes $(word 3,$^) --mandatory-genes $(@D)/mandatory.txt \
 			--filter-grn $(word 5,$^) --asp $(@D)/nodes.sh \
 			--solution $@ --status $(@D)/__SOLUTION \
-			--domain $(prior_knowledge) --organism $(ORGANISM) $(dorothea_levels_arg) \
+			--domain $(prior_knowledge) --organism $(ORGANISM) \
+			$(prior_knowledge_args) \
 			--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
 			--canonic $(CANONIC_FILTER) \
 			$(if $(strip $(CLINGO_CONFIG_LOCK)),--clingo-configuration $(CLINGO_CONFIG_LOCK)) \
@@ -846,7 +846,8 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock)
 		--asp $(@D)/min.sh \
 		--solution $(basename $@) \
 		--domain $(prior_knowledge) \
-		--organism $(ORGANISM) $(dorothea_levels_arg) \
+		--organism $(ORGANISM) \
+		$(prior_knowledge_args) \
 		--max-clause $(MAX_CLAUSE) $(min_self_loop_infer) \
 		--canonic $(CANONIC_INFER) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_MIN) --jobs 1 \
@@ -871,7 +872,7 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock)
 		--solution $(bn_submin_dir) \
 		--domain $(prior_knowledge) \
 		--organism $(ORGANISM) \
-		$(dorothea_levels_arg) \
+		$(prior_knowledge_args) \
 		--max-clause $(MAX_CLAUSE) \
 		--canonic $(CANONIC_INFER) \
 		--jobs $(JOBS) \
@@ -893,7 +894,7 @@ $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock)
 		--solution $(bn_diverse_dir) \
 		--domain $(prior_knowledge) \
 		--organism $(ORGANISM) \
-		$(dorothea_levels_arg) \
+		$(prior_knowledge_args) \
 		--max-clause $(MAX_CLAUSE) \
 		--canonic $(CANONIC_INFER) \
 		--jobs $(JOBS) \

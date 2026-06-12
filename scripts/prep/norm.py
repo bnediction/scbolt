@@ -10,9 +10,6 @@ import scanpy as sc
 import numpy as np
 import bonesistools as bt
 
-import warnings
-
-warnings.filterwarnings("ignore")
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
@@ -113,4 +110,4 @@ else:
     adata.layers["correct"] = adata.layers["scale"].copy()
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-adata.write_h5ad(filename=args.outfile, compression="gzip")
+std.write_h5ad(adata, filename=args.outfile, compression="gzip")

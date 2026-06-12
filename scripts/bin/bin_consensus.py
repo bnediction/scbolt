@@ -9,9 +9,6 @@ import numpy as np
 
 import pandas as pd
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 
 def merge(scboolseq_val, dea_val, scboolseq_distribution):

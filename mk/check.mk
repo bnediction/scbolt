@@ -451,7 +451,13 @@ else ifeq ($(HELP),false)
 	if grep -q 'DOROTHEA_API' "$${dry_run}" && [ "$(PRIOR_KNOWLEDGE)" = "dorothea" ]; then \
 		$(call check_choice_diagnostic,$(DOROTHEA_API),$(dorothea_apis),DOROTHEA_API,method); \
 	fi; \
-	if grep -q 'DOROTHEA_LEVELS' "$${dry_run}"; then \
+	if grep -q 'DOROTHEA_COMPATIBILITY' "$${dry_run}" && [ "$(PRIOR_KNOWLEDGE)" = "dorothea" ]; then \
+		$(call check_bool_diagnostic,$(DOROTHEA_COMPATIBILITY),DOROTHEA_COMPATIBILITY,method); \
+	fi; \
+	if grep -q -- '--hcop-version' "$${dry_run}" && { [ "$(PRIOR_KNOWLEDGE)" = "collectri" ] || [ "$(PRIOR_KNOWLEDGE)" = "dorothea" ]; }; then \
+		$(call check_parameter_diagnostic,$(HCOP_VERSION),HCOP_VERSION,external resource); \
+	fi; \
+	if grep -q 'DOROTHEA_LEVELS' "$${dry_run}" && [ "$(DOROTHEA_API)" = "current" ]; then \
 		invalid_dorothea_levels=0; \
 		for level in $(DOROTHEA_LEVELS); do \
 			case "$${level}" in \

@@ -66,6 +66,7 @@ $(call resolve_user_path_var,BINARIZATION_FILE)
 $(call resolve_user_path_list_var,COUNT_FILES)
 $(call resolve_user_path_list_var,MACROSTATE_FILES)
 $(if $(filter $(strip $(PRIOR_KNOWLEDGE)),collectri dorothea),,$(call resolve_user_path_var,PRIOR_KNOWLEDGE))
+$(if $(filter $(strip $(GENEINFO_VERSION)),bundled latest),,$(call resolve_user_path_var,GENEINFO_VERSION))
 $(call resolve_user_path_var,STAR_WHITELIST)
 $(foreach var,$(clingo_config_vars),$(call resolve_clingo_config,$(var)))
 old_files_from_params := $(call resolve_path_list_from,$(OLD_FILES),$(call path_origin_base,OLD_FILES))
@@ -84,8 +85,37 @@ comma := ,
 empty :=
 space := $(empty) $(empty)
 
-diagnostic_mode := $(filter check show-config progress module-help __reference-context,$(MAKECMDGOALS))$(__check_mode)\
-	$(if $(filter true,$(HELP)),help)
+diagnostic_mode := $(strip \
+	$(filter help check show-config progress dry-run clean module-help __reference-context,$(MAKECMDGOALS)) \
+	$(filter __%,$(MAKECMDGOALS)) \
+	$(__check_mode) \
+	$(if $(filter true,$(HELP)),help))
+
+## BEGIN TERMINAL OUTPUT ##
+
+interactive_output := $(if $(MAKE_TERMOUT),true,false)
+
+ifeq ($(interactive_output),true)
+nc        = \033[0m
+green     = \033[0;32m
+red       = \033[0;31m
+yellow    = \033[0;33m
+bold      = \033[1m
+success_label = $(green)✓ SUCCESS$(nc)
+warning_label = $(yellow)⚠ WARNING$(nc)
+failure_label = $(red)✗ FAIL$(nc)
+else
+nc        =
+green     =
+red       =
+yellow    =
+bold      =
+success_label = SUCCESS
+warning_label = WARNING
+failure_label = FAIL
+endif
+
+## END TERMINAL OUTPUT ##
 
 is_positive_integer = $(shell printf '%s\n' "$(strip $(1))" \
 	| grep -Eq '^[1-9][0-9]*$$' && echo true || echo false)
@@ -145,7 +175,7 @@ $(shell { trap 'rm -rf $(tmpdir);' EXIT; tail --pid=$$PPID -f /dev/null; } </dev
 ifeq ($(diagnostic_mode),)
 ifneq ($(words $(input_routes)),0)
 ifneq ($(words $(input_routes)),1)
-$(error $(input_route_conflict))
+$(error $(failure_label) $(input_route_conflict))
 endif
 endif
 ifneq ($(strip $(COUNT_FILES)),)
@@ -172,32 +202,6 @@ gene2go_url := ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
 
 ## END URLS ##
 
-## BEGIN TERMINAL OUTPUT ##
-
-interactive_output := $(if $(MAKE_TERMOUT),true,false)
-
-ifeq ($(interactive_output),true)
-nc        = \033[0m
-green     = \033[0;32m
-red       = \033[0;31m
-yellow    = \033[0;33m
-bold      = \033[1m
-success_label = $(green)✓ SUCCESS$(nc)
-warning_label = $(yellow)⚠ WARNING$(nc)
-failure_label = $(red)✗ FAIL$(nc)
-else
-nc        =
-green     =
-red       =
-yellow    =
-bold      =
-success_label = SUCCESS
-warning_label = WARNING
-failure_label = FAIL
-endif
-
-## END TERMINAL OUTPUT ##
-
 ## BEGIN FUNCTIONS ##
 
 log = printf '%s - %s - %s\n' "`date '+%Y-%m-%d %H:%M:%S.%3N'`" "$(1)" "$(2)"
@@ -214,9 +218,10 @@ define finalize_velocyto_h5ad
 $(call conda_run,scbolt-core) python -c '\
 import sys; \
 import anndata as ad; \
+import std; \
 adata = ad.read_h5ad(sys.argv[1]); \
 adata.layers["counts"] = adata.X.copy(); \
-adata.write_h5ad(filename=sys.argv[2], compression="gzip"); \
+std.write_h5ad(adata, filename=sys.argv[2], compression="gzip"); \
 spliced = float(adata.layers["spliced"].sum()); \
 unspliced = float(adata.layers["unspliced"].sum()); \
 ambiguous = float(adata.layers["ambiguous"].sum()); \
@@ -332,14 +337,28 @@ if [ "$(strip $(PRIOR_KNOWLEDGE))" = "dorothea" ]; then \
 fi
 endef
 
+define require_hcop_version
+if [ "$(strip $(prior_knowledge))" = "collectri" ] || [ "$(strip $(prior_knowledge))" = "dorothea" ]; then \
+	$(call require_parameter,HCOP_VERSION,$(1)); \
+fi
+endef
+
+define require_dorothea_compatibility
+if [ "$(strip $(PRIOR_KNOWLEDGE))" = "dorothea" ]; then \
+	$(call require_bool,DOROTHEA_COMPATIBILITY,$(1)); \
+fi
+endef
+
 define require_dorothea_levels
+if [ "$(strip $(PRIOR_KNOWLEDGE))" = "dorothea" ] && [ "$(strip $(DOROTHEA_API))" = "current" ]; then \
 for level in $(DOROTHEA_LEVELS); do \
 	case "$${level}" in \
 		$(subst $(space),|,$(dorothea_levels))) ;; \
 		*) $(call print_error,unsupported value for parameter DOROTHEA_LEVELS \
 			(supported values: $(subst $(space),$(comma) ,$(dorothea_levels))));; \
 	esac; \
-done
+done; \
+fi
 endef
 
 define require_cc_correction
@@ -446,7 +465,9 @@ require_binarization_parameters = $(call require_choice,BIN_METHOD,scboolseq dea
 
 define require_prior_parameters
 $(call require_prior_knowledge,$(1)); \
+$(call require_hcop_version,$(1)); \
 $(call require_dorothea_api,$(1)); \
+$(call require_dorothea_compatibility,$(1)); \
 $(call require_dorothea_levels)
 endef
 
@@ -473,6 +494,8 @@ require_optional_hvg_method =
 require_hvg_method =
 require_prior_knowledge =
 require_dorothea_api =
+require_hcop_version =
+require_dorothea_compatibility =
 require_dorothea_levels =
 require_cc_correction =
 require_filtering_parameters =

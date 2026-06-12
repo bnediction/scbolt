@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 
-from typing import Optional
+import inspect
+from typing import Optional, Sequence
 from pandas._typing import Axis
 from pandas import DataFrame
 import bonesis
+import bonesistools as bt
+import std
 from bonesistools.databases.ncbi import GeneSynonyms
 
 
@@ -74,3 +77,57 @@ def load_bonesis_code(
                 "`load_code(..., safe=True)` support"
             ) from error
         raise
+
+
+def load_prior_network(
+    domain: str,
+    organism: str,
+    genesyn: GeneSynonyms,
+    dorothea_levels: Optional[Sequence[str]] = None,
+    omnipath_version: str = "latest",
+    hcop_version: str = "bundled",
+    dorothea_api: str = "current",
+    dorothea_compatibility: bool = True,
+):
+    if domain == "collectri":
+        std.print_info(
+            f"loading CollecTRI prior network "
+            f"(organism={organism}, version={omnipath_version}, "
+            f"hcop={hcop_version})"
+        )
+        kwargs = {
+            "organism": organism,
+            "version": omnipath_version,
+            "genesyn": genesyn,
+        }
+        if "hcop_version" in inspect.signature(bt.dbs.omnipath.collectri).parameters:
+            kwargs["hcop_version"] = hcop_version
+        return bt.dbs.omnipath.collectri(**kwargs)
+
+    if domain == "dorothea":
+        flavor = {"current": "modern", "legacy": "legacy"}[dorothea_api]
+        if dorothea_levels is None:
+            levels = ["A", "B", "C", "D"] if flavor == "legacy" else ["A", "B", "C"]
+        else:
+            levels = list(dorothea_levels)
+        std.print_info(
+            f"loading DoRothEA prior network "
+            f"(organism={organism}, levels={','.join(levels)}, "
+            f"version={omnipath_version}, hcop={hcop_version}, "
+            f"flavor={flavor}, compatibility={str(dorothea_compatibility).lower()})"
+        )
+        return bt.dbs.omnipath.dorothea(
+            organism=organism,
+            levels=levels,
+            version=omnipath_version,
+            hcop_version=hcop_version,
+            flavor=flavor,
+            compatibility=dorothea_compatibility,
+            genesyn=genesyn,
+        )
+
+    std.print_task(f"loading custom prior network (file={std.format_path(domain)})")
+    return bt.bpy.ig.read_interaction_graph(
+        infile=domain,
+        genesyn=genesyn,
+    )

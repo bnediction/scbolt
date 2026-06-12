@@ -13,9 +13,6 @@ import anndata as ad
 import cellrank as cr
 import bonesistools as bt
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()
 script_name = Path(__file__).name
@@ -323,7 +320,7 @@ for obs, file in macrostate_files.items():
         std.print_warning(f"no plotting for '{obs}': no state found")
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-adata.write_h5ad(filename=args.outfile, compression="gzip")
+std.write_h5ad(adata, filename=args.outfile, compression="gzip")
 
 if args.csv:
     std.print_task(f"saving CellRank macrostates (file={std.format_path(args.csv)})")

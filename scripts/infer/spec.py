@@ -5,47 +5,16 @@ import std
 import argparse
 import cli
 import yaml
-from typing import Optional, Sequence, cast
 from pathlib import Path
 
 import pandas as pd
 import bonesistools as bt
 
 import bonesis
-from utils import get_cfg, load_bonesis_code
+from utils import get_cfg, load_bonesis_code, load_prior_network
 
 bonesis.settings["quiet"] = True
 script_name = Path(__file__).name
-
-
-def load_prior_network(
-    domain,
-    organism,
-    genesyn,
-    dorothea_levels: Optional[Sequence[str]] = None,
-):
-    if domain == "collectri":
-        std.print_info(f"loading CollecTRI prior network (organism: {organism})")
-        return bt.dbs.omnipath.load_collectri_grn(
-            organism=organism,
-            genesyn=genesyn,
-        )
-    if domain == "dorothea":
-        levels = cast(list[str], dorothea_levels)
-        std.print_info(
-            f"loading DoRothEA prior network "
-            f"(organism: {organism}, levels: {', '.join(levels)})"
-        )
-        return bt.dbs.omnipath.load_dorothea_grn(
-            organism=organism,
-            levels=levels,
-            genesyn=genesyn,
-        )
-    std.print_task(f"loading custom prior network (file={std.format_path(domain)})")
-    return bt.bpy.ig.read_interaction_graph(
-        infile=domain,
-        genesyn=genesyn,
-    )
 
 
 parser = argparse.ArgumentParser(
@@ -158,9 +127,62 @@ parser.add_argument(
     dest="dorothea_levels",
     nargs="+",
     choices=["A", "B", "C", "D"],
-    default=["A", "B", "C"],
+    default=None,
     metavar="[A | B | C | D]",
-    help="DoRothEA confidence levels used when --domain dorothea (default: A B C)",
+    help=(
+        "DoRothEA confidence levels used when --domain dorothea "
+        "(default: A B C for current API; A B C D for legacy API)"
+    ),
+)
+
+parser.add_argument(
+    "--geneinfo-version",
+    dest="geneinfo_version",
+    action=cli.Store_version,
+    allow_current=False,
+    allow_bundled=True,
+    allow_date=False,
+    allow_path=True,
+    required=False,
+    default="latest",
+    help="NCBI gene_info source used for gene name standardization (default: latest)",
+)
+
+parser.add_argument(
+    "--omnipath-version",
+    dest="omnipath_version",
+    action=cli.Store_version,
+    allow_current=False,
+    required=False,
+    default="latest",
+    help="OmniPath resource version used when --domain is collectri or dorothea (default: latest)",
+)
+
+parser.add_argument(
+    "--hcop-version",
+    dest="hcop_version",
+    type=str,
+    required=False,
+    default="bundled",
+    help="HCOP orthology version used when --domain is collectri or dorothea (default: bundled)",
+)
+
+parser.add_argument(
+    "--dorothea-api",
+    dest="dorothea_api",
+    choices=["current", "legacy"],
+    required=False,
+    default="current",
+    help="DoRothEA API flavor used when --domain dorothea (default: current)",
+)
+
+parser.add_argument(
+    "--dorothea-compatibility",
+    dest="dorothea_compatibility",
+    action=cli.Store_boolean,
+    required=False,
+    default=True,
+    help="reproduce decoupler DoRothEA duplicated-pair handling (default: true)",
 )
 
 args = parser.parse_args()
@@ -174,7 +196,10 @@ for outfile in [
     if not Path(os.path.dirname(outfile)).exists():
         os.makedirs(Path(os.path.dirname(outfile)))
 
-genesyn = bt.dbs.ncbi.GeneSynonyms(organism=args.organism)
+genesyn = bt.dbs.ncbi.GeneSynonyms(
+    organism=args.organism,
+    version=args.geneinfo_version,
+)
 
 std.print_task(
     f"loading model specification (file={std.format_path(args.model_specification)})"
@@ -241,7 +266,16 @@ macrostates_cfg = get_cfg(macrostates_df, axis="index", genesyn=genesyn)
 
 std.print_info("checking Boolean properties")
 
-grn = load_prior_network(args.domain, args.organism, genesyn, args.dorothea_levels)
+grn = load_prior_network(
+    args.domain,
+    args.organism,
+    genesyn,
+    args.dorothea_levels,
+    args.omnipath_version,
+    args.hcop_version,
+    args.dorothea_api,
+    args.dorothea_compatibility,
+)
 pkn_options = {
     "canonic": True,
     "maxclause": 8,

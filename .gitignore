@@ -22,6 +22,14 @@ eggs/
 *.egg-info/
 *.egg
 lib/
+!lib/
+lib/*
+!lib/cli/
+lib/cli/*
+!lib/cli/_argparse.py
+!lib/std/
+lib/std/*
+!lib/std/_anndata.py
 lib64/
 parts/
 sdist/

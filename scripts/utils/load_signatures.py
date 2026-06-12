@@ -6,6 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
+import cli
 import bonesistools as bt
 import pandas as pd
 
@@ -67,6 +68,19 @@ parser.add_argument(
     help="output file storing signatures (format: json)",
 )
 
+parser.add_argument(
+    "--geneinfo-version",
+    dest="geneinfo_version",
+    action=cli.Store_version,
+    allow_current=False,
+    allow_bundled=True,
+    allow_date=False,
+    allow_path=True,
+    required=False,
+    default="latest",
+    help="NCBI gene_info source used for gene name standardization (default: latest)",
+)
+
 args = parser.parse_args()
 
 outpath = os.path.dirname(args.outfile)
@@ -86,7 +100,7 @@ list_signatures_d = df2signatures(list_signatures_df)
 signatures_d = {**table_signatures_d, **list_signatures_d}
 
 std.print_info("standardizing signature gene names")
-genesyn = bt.dbs.ncbi.GeneSynonyms()
+genesyn = bt.dbs.ncbi.GeneSynonyms(version=args.geneinfo_version)
 for k, v in signatures_d.items():
     signatures_d[k] = genesyn(v)
 signatures_d = {

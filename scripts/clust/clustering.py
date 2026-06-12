@@ -13,9 +13,6 @@ import anndata as ad
 import scanpy as sc
 import bonesistools as bt
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()
 
@@ -376,4 +373,4 @@ bt.sct.pl.embedding_plot(
 )
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-adata.write_h5ad(filename=args.outfile, compression="gzip")
+std.write_h5ad(adata, filename=args.outfile, compression="gzip")

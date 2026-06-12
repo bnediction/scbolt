@@ -17,14 +17,11 @@ import scanpy as sc
 import bonesistools as bt
 import scanorama
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 bt.sct.pl.set_default_params()
 
 
-@bt.sct.anndata_checker
+@bt.sct.typing.anndata_checker
 def clean_adata(
     adata: AnnData,
     obs: Optional[Sequence[str]] = None,
@@ -707,4 +704,4 @@ for obs, filename in embedding_plots.items():
     )
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-adata.write_h5ad(filename=args.outfile, compression="gzip")
+std.write_h5ad(adata, filename=args.outfile, compression="gzip")

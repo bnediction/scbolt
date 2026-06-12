@@ -8,6 +8,7 @@ from ._argtype import (
     Store_prefix,
     Store_dict,
     Store_organism,
+    Store_version,
     Required_length,
     Store_axis,
     Store_type,
@@ -16,5 +17,25 @@ from ._argtype import (
     Bonesis_mode,
     Clingo_opt_mode,
     Clingo_opt_strategy,
-    Clingo_parallel_mode
+    Clingo_parallel_mode,
 )
+
+__all__ = [
+    "Bonesis_domain",
+    "Bonesis_mode",
+    "Clingo_opt_mode",
+    "Clingo_opt_strategy",
+    "Clingo_parallel_mode",
+    "Min_and_max",
+    "Range",
+    "Required_length",
+    "Store_axis",
+    "Store_boolean",
+    "Store_dict",
+    "Store_metric",
+    "Store_organism",
+    "Store_prefix",
+    "Store_version",
+    "Store_type",
+    "Str_or_min_and_max",
+]

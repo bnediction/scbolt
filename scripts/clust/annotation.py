@@ -8,9 +8,6 @@ from pathlib import Path
 
 import anndata as ad
 
-import warnings
-
-warnings.filterwarnings("ignore")
 
 script_name = Path(__file__).name
 
@@ -96,4 +93,4 @@ else:
     adata.obs[args.new_obs] = adata.obs[args.obs].replace(args.labels, inplace=False)
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-adata.write_h5ad(filename=args.outfile, compression="gzip")
+std.write_h5ad(adata, filename=args.outfile, compression="gzip")
