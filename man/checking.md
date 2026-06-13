@@ -118,8 +118,8 @@ Examples:
 
 - `PARAMS`
 - `REFERENCES`
-- `RESULTS_DIR`
-- `PUBLIC_DIR`
+- `PROJECT_DIR`
+- `RESOURCES_DIR`
 - `MEMORY`
 - `JOBS`
 - `SEED`
@@ -216,7 +216,8 @@ by the rebuilt segment.
 File checks include resources such as:
 
 - model specification files;
-- repeat masker annotation for Velocyto;
+- reference genome archive sources;
+- RepeatMasker annotation source for Velocyto;
 - user-provided `COUNT_FILES` or `MACROSTATE_FILES`;
 - custom prior networks;
 - custom Clingo configuration files.

@@ -291,7 +291,7 @@ else ifeq ($(HELP),false)
 				$(call check_file_diagnostic,$(path),MACROSTATE_FILES,external resource);) \
 		fi; \
 	fi; \
-	$(call check_path_diagnostic,$(PUBLIC_DIR),PUBLIC_DIR,core); \
+	$(call check_path_diagnostic,$(RESOURCES_DIR),RESOURCES_DIR,core); \
 	if grep -qE -- '--samtools-memory|--localmem|--memory' "$${dry_run}"; then \
 		$(call check_positive_integer_diagnostic,$(MEMORY),MEMORY,core); \
 	fi; \
@@ -565,8 +565,11 @@ else ifeq ($(HELP),false)
 		rm -f "$${h5ad_report}"; \
 	fi; \
 	if [ "$(__check_externals__)" = "true" ]; then \
-		if grep -q 'repeat_msk.gtf' "$${dry_run}"; then \
-			$(call check_file_diagnostic,$(public_dir)/transcriptome/repeat_msk.gtf,repeat masker annotation); \
+		if grep -q 'extracting reference genome' "$${dry_run}"; then \
+			$(call check_parameter_diagnostic,$(genome_url),genome_url,external resource); \
+		fi; \
+		if grep -q 'repeat_msk.gtf.gz' "$${dry_run}"; then \
+			$(call check_parameter_diagnostic,$(repeat_msk_url),repeat_msk_url,external resource); \
 		fi; \
 	fi; \
 	flush_check_reports "$${file_checks}"; \

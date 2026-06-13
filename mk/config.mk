@@ -1,5 +1,6 @@
 __check_externals__ ?= true
 HELP ?= false
+DEFAULT_CONFIG ?= false
 params_optional_mode := $(filter help,$(MAKECMDGOALS))$(if $(filter true,$(HELP)),help)
 
 launch_dir := $(CURDIR)
@@ -19,8 +20,11 @@ resolve_user_path_list_var = $(eval override $(1) := \
 uniq = $(if $(1),$(firstword $(1)) $(call uniq,$(filter-out $(firstword $(1)),$(1))))
 
 include $(scbolt_root)/mk/default_params.mk
-default_public_dir := $(PUBLIC_DIR)
 
+ifeq ($(DEFAULT_CONFIG),true)
+override PARAMS := (defaults)
+params_dir := $(launch_dir)
+else
 params_base := $(if $(filter command line,$(origin PARAMS)),$(launch_dir),$(scbolt_root))
 override PARAMS := $(call resolve_path_from,$(PARAMS),$(params_base))
 params_dir := $(call strip_trailing_slash,$(dir $(PARAMS)))
@@ -33,6 +37,7 @@ $(error parameter file not found: $(PARAMS))
 endif
 include $(PARAMS)
 endif
+endif
 
 ifeq ($(strip $(genome_url)),)
 ifeq ($(ORGANISM),mouse)
@@ -43,16 +48,24 @@ else
 override genome_url :=
 endif
 endif
+ifeq ($(strip $(repeat_msk_url)),)
+ifeq ($(ORGANISM),mouse)
+override repeat_msk_url := https://hgdownload.soe.ucsc.edu/goldenPath/mm39/database/rmsk.txt.gz
+else ifeq ($(ORGANISM),human)
+override repeat_msk_url := https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/rmsk.txt.gz
+else
+override repeat_msk_url :=
+endif
+endif
 
 path_origin_base = $(if $(filter command line,$(origin $(1))),$(launch_dir),$(params_dir))
 resolve_user_path_var = $(eval override $(1) := \
 	$(call resolve_optional_path_from,$($(1)),$(call path_origin_base,$(1))))
-public_dir_is_default = $(filter \
-	$(call strip_trailing_slash,$(default_public_dir)),\
-	$(call strip_trailing_slash,$(PUBLIC_DIR)))
-public_dir_base := $(if $(filter command line,$(origin PUBLIC_DIR)),$(launch_dir),\
-	$(if $(public_dir_is_default),$(scbolt_root),$(params_dir)))
-override PUBLIC_DIR := $(call resolve_optional_path_from,$(PUBLIC_DIR),$(public_dir_base))
+SCBOLT_PROJECT_ROOT ?=
+resolved_scbolt_project_root := $(call resolve_optional_path_from,$(SCBOLT_PROJECT_ROOT),$(launch_dir))
+resources_dir_base := $(if $(filter command line,$(origin RESOURCES_DIR)),$(launch_dir),\
+	$(if $(strip $(resolved_scbolt_project_root)),$(resolved_scbolt_project_root),$(params_dir)))
+override RESOURCES_DIR := $(call resolve_optional_path_from,$(RESOURCES_DIR),$(resources_dir_base))
 clingo_named_configs := auto frumpy jumpy tweety handy crafty trendy many
 clingo_config_vars := \
 	CLINGO_CONFIG_SOFT CLINGO_CONFIG_CONSTS CLINGO_CONFIG_RELAXED \
@@ -60,7 +73,7 @@ clingo_config_vars := \
 resolve_clingo_config = $(if $(strip $($(1))),\
 	$(if $(filter $(strip $($(1))),$(clingo_named_configs)),,$(call resolve_user_path_var,$(1))))
 
-$(call resolve_user_path_var,RESULTS_DIR)
+$(call resolve_user_path_var,PROJECT_DIR)
 $(call resolve_user_path_var,SPEC_FILE)
 $(call resolve_user_path_var,BINARIZATION_FILE)
 $(call resolve_user_path_list_var,COUNT_FILES)
@@ -182,8 +195,8 @@ matrix_mode := $(if $(COUNT_FILES),false,$(if $(gsm_conditions),true,false))
 count_input_module := $(if $(filter true,$(count_files_mode)),,\
 	$(if $(filter true,$(matrix_mode)),load-matrix,velocyto))
 
-public_dir := $(patsubst %/,%,$(PUBLIC_DIR))
-results := $(patsubst %/,%,$(RESULTS_DIR))
+resources_dir := $(patsubst %/,%,$(RESOURCES_DIR))
+results := $(patsubst %/,%,$(PROJECT_DIR))
 
 log_target := $(patsubst __%,%,$(or $(firstword $(MAKECMDGOALS)),default))
 LOGFILE := $(results)/logs/$(shell date '+%Y%m%d_%H%M%S')_$(log_target).log
@@ -899,7 +912,7 @@ run_logged = \
 		printf '%s\n' '[RUN]'; \
 		printf 'DATE=%s\n' "`date '+%Y-%m-%d %H:%M:%S'`"; \
 		printf 'TARGET=%s\n' "$(1)"; \
-		printf 'RESULTS_DIR=%s\n' "$(RESULTS_DIR)"; \
+		printf 'PROJECT_DIR=%s\n' "$(PROJECT_DIR)"; \
 		printf 'PARAMS=%s\n' "$(PARAMS)"; \
 		printf 'LOGFILE=%s\n' "$(LOGFILE)"; \
 		printf 'GIT_HASH=%s\n' "`git rev-parse HEAD 2>/dev/null || echo unknown`"; \

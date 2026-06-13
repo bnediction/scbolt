@@ -15,7 +15,7 @@ _scbolt_boolean_options="--logging= --spec-only-hvg= --pca-only-hvg= --velocity-
 --bin-scboolseq-only-hvg= --zeroes-are-zeroes= --bin-dea-only-hvg=
 --canonic-filter= --canonic-infer= --min-self-loop-consts= --min-self-loop-infer=
 --norm-mad= --cc-correction= --dorothea-compatibility="
-_scbolt_file_options="--params= --old-file= --results-dir= --public-dir= --star-whitelist=
+_scbolt_file_options="--params= --old-file= --project-dir= --resources-dir= --star-whitelist=
 --binarization-file= --macrostate-files= --prior-knowledge= --spec-file="
 
 _scbolt_complete_words() {
@@ -212,29 +212,33 @@ _scbolt_module_options() {
     local target="$1"
 
     printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
-        --results-dir= --public-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
+        --project-dir= --resources-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
         --logging= --help help
     _scbolt_help_parameters "${target}"
 }
 
 _scbolt_run_options() {
     printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
-        --results-dir= --public-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
+        --project-dir= --resources-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
         --logging= --help
 }
 
 _scbolt_diagnostic_options() {
     printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
-        --public-dir= --help
+        --resources-dir= --help
 }
 
 _scbolt_progress_options() {
-    printf '%s\n' --all --params= --public-dir= --references= --old-file= --help
+    printf '%s\n' --all --params= --resources-dir= --references= --old-file= --help
 }
 
 _scbolt_clean_options() {
-    printf '%s\n' --all --stale --force --params= --public-dir= --references= \
+    printf '%s\n' --all --stale --force --params= --resources-dir= --references= \
         --old-file= --help
+}
+
+_scbolt_config_options() {
+    printf '%s\n' --default --raw "$(_scbolt_diagnostic_options)"
 }
 
 _scbolt_init_selection_options() {
@@ -243,7 +247,7 @@ _scbolt_init_selection_options() {
 
 _scbolt_init_parameter_options() {
     printf '%s\n' --conditions= --organism= --label= --spec-file= --count-files= \
-        --macrostate-files= --binarization-file= --results-dir= --public-dir= \
+        --macrostate-files= --binarization-file= --project-dir= --resources-dir= \
         --references= --logging= --jobs= --memory= --seed= --use-rep= --label-col=
 }
 
@@ -325,10 +329,10 @@ _scbolt_target_from_args() {
                 case "${word}" in
                     "${command}")
                         ;;
-                    --params|--public-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target)
+                    --params|--project-dir|--resources-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target)
                         ((i++))
                         ;;
-                    --params=*|--public-dir=*|--references=*|--reset-target=*|--trust-target=*|--old-file=*|--logging=*|--target=*)
+                    --params=*|--project-dir=*|--resources-dir=*|--references=*|--reset-target=*|--trust-target=*|--old-file=*|--logging=*|--target=*)
                         ;;
                     --*|*=*)
                         ;;
@@ -353,7 +357,7 @@ _scbolt_first_command() {
     for ((i = 1; i < COMP_CWORD; i++)); do
         word="${COMP_WORDS[i]}"
         case "${word}" in
-            --params|--public-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target)
+            --params|--project-dir|--resources-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target)
                 ((i++))
                 ;;
             --*|*=*)
@@ -425,8 +429,12 @@ _scbolt() {
             _scbolt_complete_files "--old-file=" "${cur#--old-file=}"
             return 0
             ;;
-        --public-dir=*)
-            _scbolt_complete_files "--public-dir=" "${cur#--public-dir=}"
+        --resources-dir=*)
+            _scbolt_complete_files "--resources-dir=" "${cur#--resources-dir=}"
+            return 0
+            ;;
+        --project-dir=*)
+            _scbolt_complete_files "--project-dir=" "${cur#--project-dir=}"
             return 0
             ;;
         --logging=*)
@@ -478,7 +486,7 @@ _scbolt() {
                 _scbolt_complete_files "" "${cur}"
                 return 0
                 ;;
-            --old-file|--public-dir)
+            --old-file|--project-dir|--resources-dir)
                 _scbolt_complete_files "" "${cur}"
                 return 0
                 ;;
@@ -512,7 +520,11 @@ _scbolt() {
             _scbolt_complete_files "" "${cur}"
             return 0
             ;;
-        --public-dir|--public-dir=)
+        --resources-dir|--resources-dir=)
+            _scbolt_complete_files "" "${cur}"
+            return 0
+            ;;
+        --project-dir|--project-dir=)
             _scbolt_complete_files "" "${cur}"
             return 0
             ;;
@@ -589,17 +601,17 @@ _scbolt() {
         config)
             if [[ "${cur}" == --* ]]; then
                 if [ -n "${target}" ]; then
-                    _scbolt_complete_words "--raw $(_scbolt_module_options "${target}")" \
+                    _scbolt_complete_words "--default --raw $(_scbolt_module_options "${target}")" \
                         "${cur}"
                 else
-                    _scbolt_complete_words "--raw $(_scbolt_diagnostic_options)" "${cur}"
+                    _scbolt_complete_words "$(_scbolt_config_options)" "${cur}"
                 fi
             else
                 if [ -n "${target}" ]; then
-                    _scbolt_complete_words "--raw $(_scbolt_module_options "${target}")" \
+                    _scbolt_complete_words "--default --raw $(_scbolt_module_options "${target}")" \
                         "${cur}"
                 else
-                    _scbolt_complete_words "${_scbolt_modules} --raw $(_scbolt_diagnostic_options)" "${cur}"
+                    _scbolt_complete_words "${_scbolt_modules} $(_scbolt_config_options)" "${cur}"
                 fi
             fi
             ;;

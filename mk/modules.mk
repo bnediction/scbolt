@@ -11,16 +11,19 @@ bin_input_h5ads = $(if $(MACROSTATE_FILES),$(macrostate_h5ad),$(default_bin_inpu
 clustering_integrated = $(results)/integrated/clust/clust.h5ad
 annotation_integrated = $(results)/integrated/annot/annot.h5ad
 
-cc_markers  = $(public_dir)/cycle/mouse_cycle_markers.rds
-signatures  = $(public_dir)/signatures/geiger.xls \
-              $(public_dir)/signatures/chambers.xls \
-              $(public_dir)/signatures/sig.json
-go_basic    = $(public_dir)/go/go_basic.obo
-go_organism = $(public_dir)/go/goslim_$(ORGANISM).obo
-gene2go     = $(public_dir)/go/gene2go
+cc_markers  = $(resources_dir)/cycle/mouse_cycle_markers.rds
+signatures  = $(resources_dir)/signatures/geiger.xls \
+              $(resources_dir)/signatures/chambers.xls \
+              $(resources_dir)/signatures/sig.json
+go_basic    = $(resources_dir)/go/go_basic.obo
+go_organism = $(resources_dir)/go/goslim_$(ORGANISM).obo
+gene2go     = $(resources_dir)/go/gene2go
+repeat_msk_table = $(resources_dir)/ref/rmsk.txt.gz
+repeat_msk  = $(resources_dir)/ref/repeat_msk.gtf.gz
 
 genome_ref_name = $(if $(strip $(genome_url)),$(notdir $(genome_url)),missing-genome-url)
-$(eval genome_ref := $(public_dir)/ref/$(genome_ref_name))
+genome_ref_archive = $(resources_dir)/ref/$(genome_ref_name)
+$(eval genome_ref := $(tmpdir)/ref/$(genome_ref_name))
 genome_ref := $(genome_ref:.tar.gz=)
 star_index = $(genome_ref)/star/Genome
 
@@ -217,11 +220,11 @@ endif
 ifneq ($(filter $(LOGGING),true false),$(LOGGING))
 $(error unsupported value for parameter LOGGING (supported values: true, false))
 endif
-ifneq ($(call is_creatable_path,$(RESULTS_DIR)),true)
-$(error parameter RESULTS_DIR must be a valid output path (current: $(RESULTS_DIR)))
+ifneq ($(call is_creatable_path,$(PROJECT_DIR)),true)
+$(error parameter PROJECT_DIR must be a valid output path (current: $(PROJECT_DIR)))
 endif
-ifneq ($(call is_creatable_path,$(PUBLIC_DIR)),true)
-$(error parameter PUBLIC_DIR must be a valid output path (current: $(PUBLIC_DIR)))
+ifneq ($(call is_creatable_path,$(RESOURCES_DIR)),true)
+$(error parameter RESOURCES_DIR must be a valid output path (current: $(RESOURCES_DIR)))
 endif
 ifeq ($(strip $(REFERENCES)),)
 $(error parameter REFERENCES not defined)
@@ -238,8 +241,8 @@ endif
 endif
 endif
 
-$(if $(filter true,$(call is_creatable_path,$(RESULTS_DIR))),$(shell mkdir -p "$(results)"))
-$(if $(filter true,$(call is_creatable_path,$(PUBLIC_DIR))),$(shell mkdir -p "$(public_dir)"))
+$(if $(filter true,$(call is_creatable_path,$(PROJECT_DIR))),$(shell mkdir -p "$(results)"))
+$(if $(filter true,$(call is_creatable_path,$(RESOURCES_DIR))),$(shell mkdir -p "$(resources_dir)"))
 
 check_mode := $(filter check,$(MAKECMDGOALS))$(__check_mode)
 
@@ -515,9 +518,10 @@ target_params_bn-diverse = \
 
 sensitive_params_alignment =
 sensitive_params_load-matrix = $(foreach condition,$(conditions),$(call gsm_var,$(condition)))
-sensitive_params_star = STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
+sensitive_params_cellranger = genome_url
+sensitive_params_star = genome_url STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
 sensitive_params_qc = STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
-sensitive_params_velocyto = ALIGNMENT_TOOL STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
+sensitive_params_velocyto = ALIGNMENT_TOOL genome_url repeat_msk_url STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
 sensitive_params_filtering = \
 	COUNT_FILES ORGANISM GENEINFO_VERSION \
 	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
@@ -612,7 +616,7 @@ project_config_param_set = \
 	$(foreach condition,$(conditions),$(call gsm_var,$(condition))) \
 	LABEL SPEC_FILE
 core_config_param_set = \
-	PARAMS REFERENCES RESULTS_DIR PUBLIC_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
+	PARAMS REFERENCES PROJECT_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
 method_config_param_set = \
 	ALIGNMENT_TOOL STAR_CB_LEN STAR_UMI_LEN \
 	STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES \
@@ -654,17 +658,26 @@ external_resource_config_param_set = \
 	GENEINFO_VERSION OMNIPATH_VERSION HCOP_VERSION \
 	CLINGO_CONFIG_SOFT CLINGO_CONFIG_CONSTS CLINGO_CONFIG_RELAXED \
 	CLINGO_CONFIG_SEED CLINGO_CONFIG_LOCK
-config_default_modules = \
+config_all_modules = \
+	load-genome load-fastq load-matrix load-signatures load-cc load-go \
+	alignment cellranger star qc velocyto \
+	filtering normalization clustering dea scoring goea annotation \
+	velocity potency cotan cellrank stream knnsc macrostates \
+	bin-cells bin-macrostates bin-dea bin-consensus binarization \
+	spec max-nodes-soft max-consts-soft max-nodes-relaxed \
+	max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
+config_workflow_modules = \
 	load-fastq load-matrix alignment cellranger star qc velocyto \
 	filtering normalization clustering dea annotation velocity potency \
 	macrostates cotan cellrank stream knnsc bin-cells bin-macrostates \
 	bin-dea bin-consensus binarization spec max-nodes-soft max-consts-soft \
 	max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
+config_default_modules = $(if $(strip $(input_routes)),$(config_workflow_modules),$(config_all_modules))
 config_base_params = \
 	ORGANISM CONDITIONS \
 	$(foreach condition,$(conditions),$(call sra_var,$(condition))) \
 	$(foreach condition,$(conditions),$(call gsm_var,$(condition))) \
-	PARAMS REFERENCES RESULTS_DIR PUBLIC_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
+	PARAMS REFERENCES PROJECT_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
 config_params_from_modules = $(strip $(foreach module,$(1),$(target_params_$(module))))
 config_project_params = $(call uniq,$(filter $(project_config_param_set),$(1)))
 config_core_params = $(call uniq,$(filter $(core_config_param_set),$(1)))

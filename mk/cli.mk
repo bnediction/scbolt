@@ -126,8 +126,11 @@ relative_to_launch = $(shell realpath --relative-to="$(launch_dir)" "$(1)" 2>/de
 show_config_target = $(if $(TARGET),$(TARGET),all)
 show_config_modules = $(if $(TARGET),$(call target_dry_run_modules,$(TARGET)),$(config_default_modules))
 show_config_params_file = $(call relative_to_launch,$(PARAMS))
-show_config_results = $(call relative_to_launch,$(results))
-show_config_public_dir = $(call relative_to_launch,$(public_dir))
+show_config_none = (none)
+show_config_display_value = $(if $(strip $(1)),$(1),$(show_config_none))
+show_config_conditions = $(if $(filter true,$(unnamed_condition)),(none),$(display_conditions_label))
+show_config_project_dir = $(call relative_to_launch,$(results))
+show_config_resources_dir = $(call relative_to_launch,$(resources_dir))
 show_config_old_files = $(foreach path,$(OLD_FILES),$(call relative_to_launch,$(path)))
 show_config_logging = $(if $(filter true,$(LOGGING)),enabled,$(if $(filter false,$(LOGGING)),disabled,$(LOGGING)))
 show_config_integration = $(if $(filter-out 1,$(words $(conditions))),$(INTEGRATION),none)
@@ -150,8 +153,9 @@ show_config_analytic_modules = \
 	bin-cells bin-macrostates bin-dea bin-consensus binarization spec \
 	max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock \
 	bn-min bn-submin bn-diverse
+show_config_visible_modules = $(if $(strip $(input_routes)),$(show_config_analytic_modules),$(show_config_modules))
 show_config_param_modules = $(call uniq,$(strip \
-	$(filter $(show_config_analytic_modules),$(show_config_modules)) \
+	$(filter $(show_config_visible_modules),$(show_config_modules)) \
 	$(if $(filter macrostates,$(show_config_modules)),$(MACROSTATE_METHOD))))
 show_config_inference_modules = \
 	spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock \
@@ -168,7 +172,11 @@ show_config_has_hvg = $(strip $(show_config_has_analysis_hvg) $(show_config_has_
 show_config_hvg_params = \
 	ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN ANALYSIS_HVG_BINS \
 	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS
-show_config_var_value = $(if $(filter REFERENCES,$(1)),$(display_references_label),$($(1)))
+show_config_relative_path = $(if $(strip $(1)),$(call relative_to_launch,$(1)))
+show_config_var_value = $(call show_config_display_value,\
+	$(if $(filter MEMORY,$(1)),$(if $(strip $(MEMORY)),$(MEMORY) GB,),\
+	$(if $(filter SPEC_FILE,$(1)),$(call show_config_relative_path,$(SPEC_FILE)),\
+	$(if $(filter REFERENCES,$(1)),$(display_references_label),$($(1))))))
 show_config_var_label = $(call tolower,$(subst _, ,$(1)))
 show_config_label_width = $(shell printf '%s\n' \
 	$(foreach var,$(strip $(1)),'$(call show_config_var_label,$(var))') \
@@ -200,6 +208,7 @@ define show_config_help
 		printf '  %-31s %s\n' '<module>' 'select module to summarize'; \
 		printf '  %-31s %s\n' '--help' 'display this help'; \
 		printf '  %-31s %s\n' '--params=<file>' 'select the parameter file'; \
+		printf '  %-31s %s\n' '--default' 'display default values'; \
 		printf '  %-31s %s\n' '--raw' 'display raw config listing'; \
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict the run to selected references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'preview configuration with forced rebuild context'; \
@@ -209,6 +218,7 @@ define show_config_help
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module>' 'select module to summarize'; \
 		printf '  %-31s %s\n' 'HELP=true' 'display this help'; \
+		printf '  %-31s %s\n' 'DEFAULT_CONFIG=true' 'display default values'; \
 		printf '  %-31s %s\n' 'CONFIG_RAW=true' 'display raw config listing'; \
 		printf '  %-31s %s\n' 'REFERENCES=<condition...>' 'restrict the run to selected references'; \
 		printf '  %-31s %s\n' 'RESET_TARGET=<module...>' 'preview configuration with forced rebuild context'; \
@@ -318,13 +328,13 @@ define show_config_print_inference
 $(if $(strip $(show_config_has_inference)),\
 @printf '\nInference\n'
 @printf '%s\n' '---------'
-@printf '%-16s : %s\n' 'Prior knowledge' "$(PRIOR_KNOWLEDGE)"
-$(if $(filter collectri dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'OmniPath' "$(OMNIPATH_VERSION)")
-$(if $(filter collectri dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'HCOP' "$(HCOP_VERSION)")
-$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'DoRothEA API' "$(DOROTHEA_API)")
-$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Compatibility' "$(DOROTHEA_COMPATIBILITY)")
-$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Levels' "$(DOROTHEA_LEVELS)")
-@printf '%-16s : %s\n' 'Max clause' "$(MAX_CLAUSE)")
+@printf '%-16s : %s\n' 'Prior knowledge' "$(call show_config_display_value,$(PRIOR_KNOWLEDGE))"
+$(if $(filter collectri dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'OmniPath' "$(call show_config_display_value,$(OMNIPATH_VERSION))")
+$(if $(filter collectri dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'HCOP' "$(call show_config_display_value,$(HCOP_VERSION))")
+$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'DoRothEA API' "$(call show_config_display_value,$(DOROTHEA_API))")
+$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Compatibility' "$(call show_config_display_value,$(DOROTHEA_COMPATIBILITY))")
+$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Levels' "$(call show_config_display_value,$(DOROTHEA_LEVELS))")
+@printf '%-16s : %s\n' 'Max clause' "$(call show_config_display_value,$(MAX_CLAUSE))")
 endef
 
 define show_config_print_hvg
@@ -333,17 +343,17 @@ $(if $(strip $(show_config_has_hvg)),\
 @printf '%s\n' 'highly variable genes' | sed 's/./-/g')
 $(if $(strip $(show_config_has_analysis_hvg)),\
 @printf 'analysis:\n'
-@printf '  - %-6s : %s\n' 'flavor' "$(ANALYSIS_HVG_FLAVOR)"
-@printf '  - %-6s : %s\n' 'top' "$(ANALYSIS_HVG_TOP)"
-@printf '  - %-6s : %s\n' 'span' "$(ANALYSIS_HVG_SPAN)"
-@printf '  - %-6s : %s\n' 'bins' "$(ANALYSIS_HVG_BINS)")
+@printf '  - %-6s : %s\n' 'flavor' "$(call show_config_display_value,$(ANALYSIS_HVG_FLAVOR))"
+@printf '  - %-6s : %s\n' 'top' "$(call show_config_display_value,$(ANALYSIS_HVG_TOP))"
+@printf '  - %-6s : %s\n' 'span' "$(call show_config_display_value,$(ANALYSIS_HVG_SPAN))"
+@printf '  - %-6s : %s\n' 'bins' "$(call show_config_display_value,$(ANALYSIS_HVG_BINS))")
 $(if $(strip $(show_config_has_binarization_hvg)),\
 $(if $(strip $(show_config_has_analysis_hvg)),@printf '\n')
 @printf 'binarization:\n'
-@printf '  - %-6s : %s\n' 'flavor' "$(BIN_HVG_FLAVOR)"
-@printf '  - %-6s : %s\n' 'top' "$(BIN_HVG_TOP)"
-@printf '  - %-6s : %s\n' 'span' "$(BIN_HVG_SPAN)"
-@printf '  - %-6s : %s\n' 'bins' "$(BIN_HVG_BINS)")
+@printf '  - %-6s : %s\n' 'flavor' "$(call show_config_display_value,$(BIN_HVG_FLAVOR))"
+@printf '  - %-6s : %s\n' 'top' "$(call show_config_display_value,$(BIN_HVG_TOP))"
+@printf '  - %-6s : %s\n' 'span' "$(call show_config_display_value,$(BIN_HVG_SPAN))"
+@printf '  - %-6s : %s\n' 'bins' "$(call show_config_display_value,$(BIN_HVG_BINS))")
 endef
 
 define show_config_print
@@ -351,29 +361,29 @@ define show_config_print
 @printf 'Project\n'
 @printf '%s\n' '-------'
 @printf '%-13s : %s\n' 'Params file' "$(show_config_params_file)"
-@printf '%-13s : %s\n' 'Organism' "$(ORGANISM)"
-@printf '%-13s : %s\n' 'Conditions' "$(display_conditions_label)"
-@printf '%-13s : %s\n' 'Public dir' "$(show_config_public_dir)"
-@printf '%-13s : %s\n\n' 'Results' "$(show_config_results)"
+@printf '%-13s : %s\n' 'Organism' "$(call show_config_display_value,$(ORGANISM))"
+@printf '%-13s : %s\n' 'Conditions' "$(show_config_conditions)"
+@printf '%-13s : %s\n' 'Resources dir' "$(show_config_resources_dir)"
+@printf '%-13s : %s\n\n' 'Project dir' "$(show_config_project_dir)"
 @printf 'Workflow\n'
 @printf '%s\n' '--------'
-@printf '%-14s : %s\n' 'Representation' "$(USE_REP)"
-@printf '%-14s : %s\n\n' 'Label column' "$(LABEL_COL)"
+@printf '%-14s : %s\n' 'Representation' "$(call show_config_display_value,$(USE_REP))"
+@printf '%-14s : %s\n\n' 'Label column' "$(call show_config_display_value,$(LABEL_COL))"
 @printf 'Methods\n'
 @printf '%s\n' '-------'
-@printf '%-14s : %s\n' 'Embedding' "$(show_config_macrostate_embedding)"
-@printf '%-14s : %s\n' 'Integration' "$(show_config_integration)"
-@printf '%-14s : %s\n' 'Macrostate' "$(MACROSTATE_METHOD)"
-@printf '%-14s : %s\n' 'Binarization' "$(BIN_METHOD)"
-$(if $(filter knnsc,$(MACROSTATE_METHOD)),@printf '%-14s : %s\n' 'Neighbors' "$(KNNSC_NEIGHBORS)")
-$(if $(filter knnsc,$(MACROSTATE_METHOD)),@printf '%-14s : %s\n' 'Min cluster' "$(KNNSC_MIN_CLUSTER_SIZE)")
+@printf '%-14s : %s\n' 'Embedding' "$(call show_config_display_value,$(show_config_macrostate_embedding))"
+@printf '%-14s : %s\n' 'Integration' "$(call show_config_display_value,$(show_config_integration))"
+@printf '%-14s : %s\n' 'Macrostate' "$(call show_config_display_value,$(MACROSTATE_METHOD))"
+@printf '%-14s : %s\n' 'Binarization' "$(call show_config_display_value,$(BIN_METHOD))"
+$(if $(filter knnsc,$(MACROSTATE_METHOD)),@printf '%-14s : %s\n' 'Neighbors' "$(call show_config_display_value,$(KNNSC_NEIGHBORS))")
+$(if $(filter knnsc,$(MACROSTATE_METHOD)),@printf '%-14s : %s\n' 'Min cluster' "$(call show_config_display_value,$(KNNSC_MIN_CLUSTER_SIZE))")
 @printf '\n'
 @printf 'Execution\n'
 @printf '%s\n' '---------'
-@printf '%-12s : %s\n' 'Jobs' "$(JOBS)"
-@printf '%-12s : %s GB\n' 'Memory' "$(MEMORY)"
-@printf '%-12s : %s\n' 'Seed' "$(SEED)"
-@printf '%-12s : %s\n' 'Logging' "$(show_config_logging)"
+@printf '%-12s : %s\n' 'Jobs' "$(call show_config_display_value,$(JOBS))"
+@printf '%-12s : %s GB\n' 'Memory' "$(call show_config_display_value,$(MEMORY))"
+@printf '%-12s : %s\n' 'Seed' "$(call show_config_display_value,$(SEED))"
+@printf '%-12s : %s\n' 'Logging' "$(call show_config_display_value,$(show_config_logging))"
 $(show_config_print_hvg)
 $(show_config_print_inference)
 $(show_config_print_old_files)
@@ -435,7 +445,8 @@ help: ## display help
 			printf "$(bold)Special parameters$(nc)\n"; \
 				if ("$(SCBOLT_CLI)" == "true") { \
 					printf "  %-31s %s\n", "--params=<file>", "select parameter file"; \
-					printf "  %-31s %s\n", "--public-dir=<dir>", "select public resource directory"; \
+					printf "  %-31s %s\n", "--project-dir=<dir>", "select project output directory"; \
+					printf "  %-31s %s\n", "--resources-dir=<dir>", "select resource directory"; \
 					printf "  %-31s %s\n", "--references=<condition...>", "select references"; \
 					printf "  %-31s %s\n", "", "default: $(display_references_label)"; \
 					printf "  %-31s %s\n", "--reset-target=<module...>", "rebuild from modules"; \
@@ -447,7 +458,8 @@ help: ## display help
 			} else { \
 					printf "  %-31s %s\n", "REFERENCES=<condition...>", "select references"; \
 					printf "  %-31s %s\n", "", "default: $(display_references_label)"; \
-					printf "  %-31s %s\n", "PUBLIC_DIR=<dir>", "select public resource directory"; \
+					printf "  %-31s %s\n", "PROJECT_DIR=<dir>", "select project output directory"; \
+					printf "  %-31s %s\n", "RESOURCES_DIR=<dir>", "select resource directory"; \
 					printf "  %-31s %s\n", "RESET_TARGET=<module...>", "rebuild from modules"; \
 					printf "  %-31s %s\n", "TRUST_TARGET=<module...>", "skip rebuilding modules"; \
 					printf "  %-31s %s\n", "OLD_FILES=<file...>", "trust existing DAG files"; \
@@ -864,7 +876,7 @@ endif
 .PHONY: load-genome __load-genome
 load-genome: ## download the reference genome
 	$(call run_logged,load-genome)
-__load-genome: $(genome_ref)
+__load-genome: $(genome_ref) $(repeat_msk)
 
 .PHONY: load-fastq __load-fastq
 load-fastq: ## download FASTQ files

@@ -29,16 +29,58 @@ $(bin_cells)&: export OMP_NUM_THREADS = $(open_allocated_cpu)
 
 ## BEGIN RULES ##
 
-$(genome_ref):
+$(genome_ref_archive):
 	$(call print_rule,load-genome)
 ifeq ($(strip $(genome_url)),)
 	$(call print_error,no default genome_url for ORGANISM=$(ORGANISM). Set genome_url in your parameter file)
 else
 	mkdir -p $(@D)
-	wget --quiet --show-progress --progress=bar:force:noscroll -cO $@.tar.gz $(genome_url)
-	tar -zxvf $@.tar.gz -C $(@D)
-	[ -f $@/genes/genes.gtf.gz ] && gunzip $@/genes/genes.gtf.gz
+	wget --quiet --show-progress --progress=bar:force:noscroll -cO $@.tmp $(genome_url)
+	mv $@.tmp $@
 endif
+
+$(genome_ref): $(genome_ref_archive)
+	$(call print_rule,load-genome)
+	$(call print_task,extracting reference genome)
+	rm -rf $@
+	mkdir -p $(@D)
+	tar -zxf $< -C $(@D)
+	if [ ! -d $@ ]; then \
+		$(call print_error,reference archive did not extract expected directory: $@); \
+	fi
+	if [ -f $@/genes/genes.gtf.gz ]; then \
+		$(call print_debug,decompressing reference gene annotation); \
+		gzip -cd $@/genes/genes.gtf.gz > $@/genes/genes.gtf.tmp; \
+		mv $@/genes/genes.gtf.tmp $@/genes/genes.gtf; \
+	fi
+
+$(repeat_msk_table):
+	$(call print_rule,load-genome,repeat_msk)
+ifeq ($(strip $(repeat_msk_url)),)
+	$(call print_error,no default repeat_msk_url for ORGANISM=$(ORGANISM). Set repeat_msk_url in your parameter file)
+else
+	mkdir -p $(@D)
+	wget --quiet --show-progress --progress=bar:force:noscroll -cO $@.tmp $(repeat_msk_url)
+	mv $@.tmp $@
+endif
+
+$(repeat_msk): $(repeat_msk_table)
+	$(call print_rule,load-genome,repeat_msk)
+	$(call print_task,converting RepeatMasker table to GTF)
+	gzip -cd $< \
+		| awk -F '\t' 'BEGIN { OFS = "\t" } \
+			NF >= 17 { \
+				id = $$6 ":" ($$7 + 1) "-" $$8 ":" $$10 ":" $$17; \
+				gsub(/\\/, "\\\\", id); gsub(/"/, "\\\"", id); \
+				name = $$11; gsub(/\\/, "\\\\", name); gsub(/"/, "\\\"", name); \
+				class = $$12; gsub(/\\/, "\\\\", class); gsub(/"/, "\\\"", class); \
+				family = $$13; gsub(/\\/, "\\\\", family); gsub(/"/, "\\\"", family); \
+				print $$6, "UCSC_rmsk", "repeat_region", $$7 + 1, $$8, $$2, $$10, ".", \
+					"gene_id \"" id "\"; transcript_id \"" id "\"; repeat_name \"" name \
+					"\"; repeat_class \"" class "\"; repeat_family \"" family "\";" \
+			}' \
+		| gzip -c > $@.tmp
+	mv $@.tmp $@
 
 $(star_index): | $(genome_ref)
 	$(call check_file,$@,STAR genome index)
@@ -198,19 +240,21 @@ $(star_$(1))&: $(fastq_$(1)) $(star_index)
 
 ifneq ($(matrix_mode),true)
 ifeq ($(ALIGNMENT_TOOL),cellranger)
-$(velocyto_$(1)): $(cellranger_$(1)) $(genome_ref)
+$(velocyto_$(1)): $(cellranger_$(1)) $(genome_ref) $(repeat_msk)
 	$(call print_rule,velocyto,$(1))
 	$(call require_choice,ALIGNMENT_TOOL,cellranger star,velocyto)
-	$(call check_file,$(public_dir)/transcriptome/repeat_msk.gtf,repeat_msk.gtf)
+	mkdir -p $(tmpdir)/$(1)/velocyto
+	repeat_mask="$(tmpdir)/$(1)/velocyto/repeat_msk.gtf"
+	$(call print_debug,decompressing RepeatMasker annotation)
+	gzip -cd $$(lastword $$^) > "$$$${repeat_mask}"
 	$(call conda_run,scbolt-velocyto) velocyto run10x \
-		-m $(public_dir)/transcriptome/repeat_msk.gtf \
+		-m "$$$${repeat_mask}" \
 		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
-		$$(dir $$(firstword $$^)) $$(lastword $$^)/genes/genes.gtf
+		$$(dir $$(firstword $$^)) $$(word 2,$$^)/genes/genes.gtf
 	mkdir -p $$(@D)
 	mv $$(<D)/velocyto/cellranger.loom $$(@D)/counts.loom
 	rm -rf $$(<D)/velocyto
 	$(call print_debug,converting loom to h5ad)
-	mkdir -p $(tmpdir)/$(1)/velocyto
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/adata_conversion.py \
 		$$(@D)/counts.loom $(tmpdir)/$(1)/velocyto/counts.h5ad --from loom --to h5ad \
 		--remove-positions --sort
@@ -239,20 +283,22 @@ $(qc_$(1)): $(star_$(1))
 	mv $(tmpdir)/$(1)/qc/star.velocyto.bam $$@
 	$$(call write_scbolt_metadata,qc,$$(qc_$(1)))
 
-$(velocyto_$(1)): $(qc_$(1)) $(genome_ref)
+$(velocyto_$(1)): $(qc_$(1)) $(genome_ref) $(repeat_msk)
 	$(call print_rule,velocyto,$(1))
 	$(call require_choice,ALIGNMENT_TOOL,cellranger star,velocyto)
 	$(call require_star_barcode_filter_parameters,velocyto)
-	$(call check_file,$(public_dir)/transcriptome/repeat_msk.gtf,repeat_msk.gtf)
 	mkdir -p $(tmpdir)/velocyto/$(1)
+	repeat_mask="$(tmpdir)/velocyto/$(1)/repeat_msk.gtf"
+	$(call print_debug,decompressing RepeatMasker annotation)
+	gzip -cd $$(lastword $$^) > "$$$${repeat_mask}"
 	$(call print_task,estimating spliced and unspliced counts with velocyto)
 	$(call conda_run,scbolt-velocyto) velocyto run \
-		-m $(public_dir)/transcriptome/repeat_msk.gtf \
+		-m "$$$${repeat_mask}" \
 		-b $$(<D)/filtered_barcodes.tsv \
 		-o $(tmpdir)/velocyto/$(1) \
 		-e star \
 		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
-		$$(firstword $$^) $$(lastword $$^)/genes/genes.gtf
+		$$(firstword $$^) $$(word 2,$$^)/genes/genes.gtf
 	mkdir -p $$(@D)
 	mv $(tmpdir)/velocyto/$(1)/star.loom $$(@D)/counts.loom
 	rm -rf $(tmpdir)/velocyto/$(1)

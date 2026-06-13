@@ -1,5 +1,5 @@
-RESULTS_DIR = tests/output-matrix
-PUBLIC_DIR = tests/public
+PROJECT_DIR = tests/output-matrix
+RESOURCES_DIR = tests/resources
 CONDITIONS = ctrl
 ORGANISM = human
 GSM_CTRL = GSM5492245

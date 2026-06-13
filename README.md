@@ -77,9 +77,12 @@ make check
 
 The following resources are only required when starting from raw sequencing data:
 * [Cell Ranger](https://www.10xgenomics.com/support/software/cell-ranger/downloads) (optional alternative to STAR for alignment and counting)
-* RepeatMasker annotations (save it in `public/transcriptome/repeat_msk.gtf`):
-  * [Mouse (mm39 / GRCm39)](https://genome.ucsc.edu/cgi-bin/hgTables?clade=mammal&org=Mouse&db=mm39&hgta_group=allTracks&hgta_track=rmsk&hgta_table=rmsk&hgta_regionType=genome&position=&hgta_outputType=gff)
-  * [Human (hg38 / GRCh38)](https://genome.ucsc.edu/cgi-bin/hgTables?clade=mammal&org=Human&db=hg38&hgta_group=allTracks&hgta_track=rmsk&hgta_table=rmsk&hgta_regionType=genome&position=&hgta_outputType=gff)
+* Reference genomes and RepeatMasker annotations are downloaded automatically
+  for supported organisms when needed.
+
+For long-term reproducibility in raw FASTQ mode, back up `RESOURCES_DIR`
+together with the project. scBOLT does not redistribute large third-party
+reference archives.
 
 ---
 

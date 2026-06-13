@@ -361,7 +361,7 @@ BINARIZATION_FILE|LABEL|SPEC_FILE)
 
 is_init_project_setting() {
     case "$1" in
-        ORGANISM|CONDITIONS|RESULTS_DIR|PUBLIC_DIR|MEMORY|JOBS|SEED|LOGGING)
+        ORGANISM|CONDITIONS|PROJECT_DIR|RESOURCES_DIR|MEMORY|JOBS|SEED|LOGGING)
             return 0
             ;;
         *)
@@ -786,6 +786,7 @@ translate_args() {
     local arg
     local option
     local value
+    local project_file
 
     make_args=()
     positional_args=()
@@ -926,6 +927,11 @@ translate_args() {
         value="$(resolve_project_params)" || true
     fi
     params_assignment="${value}"
+
+    if project_file="$(find_project_file)"; then
+        export SCBOLT_PROJECT_ROOT
+        SCBOLT_PROJECT_ROOT="$(dirname "${project_file}")"
+    fi
 }
 
 run_make_with_params() {
@@ -1378,6 +1384,26 @@ case "${cmd}" in
         if has_help_request "$@"; then
             run_make_help "${cmd}"
         fi
+        config_default=false
+        if [ "${cmd}" = "config" ]; then
+            config_args=()
+            for arg in "$@"; do
+                case "${arg}" in
+                    --default)
+                        config_default=true
+                        ;;
+                    --default=*)
+                        print_error "Unsupported scbolt option with value: --default"
+                        printf '%s\n' "Use '--default' without a value." >&2
+                        exit 1
+                        ;;
+                    *)
+                        config_args+=("${arg}")
+                        ;;
+                esac
+            done
+            set -- "${config_args[@]}"
+        fi
         translate_args "${leading_args[@]}" "$@"
         make_target="${cmd}"
         if [ "${cmd}" = "dry-run" ] \
@@ -1385,7 +1411,18 @@ case "${cmd}" in
                 && ! has_target_assignment "${make_args[@]}"; then
             require_module_argument "${cmd}"
         fi
-        if [ "${cmd}" = "check" ] && [ "${#positional_args[@]}" -gt 0 ]; then
+        if [ "${cmd}" = "config" ]; then
+            if [ "${#positional_args[@]}" -gt 0 ]; then
+                target="${positional_args[0]}"
+                positional_args=("${positional_args[@]:1}")
+                make_args=("TARGET=${target}" "${positional_args[@]}" "${make_args[@]}")
+            fi
+            if [ "${config_default}" = "true" ]; then
+                make -f "${SCBOLT_MAKEFILE}" "${make_target}" DEFAULT_CONFIG=true "${make_args[@]}"
+                exit "$?"
+            fi
+            run_make_with_params "${params_assignment}" "${make_target}" "${make_args[@]}"
+        elif [ "${cmd}" = "check" ] && [ "${#positional_args[@]}" -gt 0 ]; then
             target="${positional_args[0]}"
             positional_args=("${positional_args[@]:1}")
             run_make_check_with_params \

@@ -127,6 +127,12 @@ expect_make_args -f "${makefile}" config HELP=true SCBOLT_CLI=true PARAMS=params
 run_scbolt "${project}" config --help
 expect_make_args -f "${makefile}" config HELP=true SCBOLT_CLI=true PARAMS=params.mk
 
+run_scbolt "${project}" config --default
+expect_make_args -f "${makefile}" config DEFAULT_CONFIG=true
+
+run_scbolt "${project}" config --default --raw
+expect_make_args -f "${makefile}" config DEFAULT_CONFIG=true CONFIG_RAW=true
+
 run_scbolt "${project}" check --help
 expect_make_args -f "${makefile}" check HELP=true SCBOLT_CLI=true PARAMS=params.mk
 
@@ -205,6 +211,10 @@ complete_scbolt "${project}" 3 scbolt init --params=params.mk "" \
 ! grep -qx -- '--show' "${tmpdir}/init-completion-after-params.out"
 ! grep -qx -- '--remove' "${tmpdir}/init-completion-after-params.out"
 grep -qx -- '--organism=' "${tmpdir}/init-completion-after-params.out"
+
+complete_scbolt "${project}" 2 scbolt config "" > "${tmpdir}/config-completion.out"
+grep -qx -- '--default' "${tmpdir}/config-completion.out"
+grep -qx -- '--raw' "${tmpdir}/config-completion.out"
 
 (
     cd "${project}"
@@ -514,7 +524,7 @@ mkdir -p "${filled_project}"
         --organism=mouse \
         --gsm-ctrl=GSM5492245 \
         --old-file=trusted.h5ad \
-        --results-dir=results \
+        --project-dir=results \
         RESOLUTION=0.46 \
         > "${tmpdir}/filled-init.out" \
         2> "${tmpdir}/filled-init.err"
@@ -529,18 +539,18 @@ grep -q '^GSM_CTRL = GSM5492245$' "${filled_project}/filled.mk"
 grep -q '^GSM_TREATED =$' "${filled_project}/filled.mk"
 ! grep -q '^SRA =$' "${filled_project}/filled.mk"
 ! grep -q '^GSM =$' "${filled_project}/filled.mk"
-grep -q '^RESULTS_DIR = results$' "${filled_project}/filled.mk"
+grep -q '^PROJECT_DIR = results$' "${filled_project}/filled.mk"
 grep -q '^OLD_FILES = trusted.h5ad$' "${filled_project}/filled.mk"
 grep -q '^RESOLUTION = 0.46$' "${filled_project}/filled.mk"
 ! grep -q '^### User-defined parameters ###$' "${filled_project}/filled.mk"
 project_settings_line="$(grep -n '^### Project settings ###$' "${filled_project}/filled.mk" | cut -d: -f1)"
 input_sources_line="$(grep -n '^### Input sources ###$' "${filled_project}/filled.mk" | cut -d: -f1)"
 module_inputs_line="$(grep -n '^### Module-specific inputs ###$' "${filled_project}/filled.mk" | cut -d: -f1)"
-results_dir_line="$(grep -n '^RESULTS_DIR = results$' "${filled_project}/filled.mk" | cut -d: -f1)"
+project_dir_line="$(grep -n '^PROJECT_DIR = results$' "${filled_project}/filled.mk" | cut -d: -f1)"
 old_files_line="$(grep -n '^OLD_FILES = trusted.h5ad$' "${filled_project}/filled.mk" | cut -d: -f1)"
 resolution_line="$(grep -n '^RESOLUTION = 0.46$' "${filled_project}/filled.mk" | cut -d: -f1)"
-test "${project_settings_line}" -lt "${results_dir_line}"
-test "${results_dir_line}" -lt "${input_sources_line}"
+test "${project_settings_line}" -lt "${project_dir_line}"
+test "${project_dir_line}" -lt "${input_sources_line}"
 test "${input_sources_line}" -lt "${old_files_line}"
 test "${old_files_line}" -lt "${module_inputs_line}"
 test "${module_inputs_line}" -lt "${resolution_line}"
@@ -593,18 +603,18 @@ expect_make_args \
     CLINGO_OPT_STRATEGY_SEED=bb,inc \
     "PARAMS=${project}/spaced.mk"
 
-run_scbolt "${project}" bn-submin --public-dir=shared-public
+run_scbolt "${project}" bn-submin --resources-dir=shared-resources
 expect_make_args \
     -f "${makefile}" \
     bn-submin \
-    PUBLIC_DIR=shared-public \
+    RESOURCES_DIR=shared-resources \
     "PARAMS=${project}/spaced.mk"
 
-run_scbolt "${project}" bn-submin --results-dir=shared-results
+run_scbolt "${project}" bn-submin --project-dir=shared-project
 expect_make_args \
     -f "${makefile}" \
     bn-submin \
-    RESULTS_DIR=shared-results \
+    PROJECT_DIR=shared-project \
     "PARAMS=${project}/spaced.mk"
 
 run_scbolt "${project}" bn-submin reset_target=clustering --reset-target=annotation \
@@ -708,6 +718,14 @@ expect_make_args \
     TARGET=macrostates \
     CONFIG_RAW=true \
     PARAMS=params.mk
+
+run_scbolt "${project}" config macrostates --default --raw
+expect_make_args \
+    -f "${makefile}" \
+    config \
+    DEFAULT_CONFIG=true \
+    TARGET=macrostates \
+    CONFIG_RAW=true
 
 fallback_project="${tmpdir}/fallback"
 mkdir -p "${fallback_project}"

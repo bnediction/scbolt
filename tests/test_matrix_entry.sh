@@ -89,8 +89,8 @@ grep -q 'download/import_matrix.py' <<< "${dry_run}"
 
 conflict_params="${tmpdir}/conflict.mk"
 cat > "${conflict_params}" <<'MK'
-RESULTS_DIR = tests/output-matrix
-PUBLIC_DIR = tests/public
+PROJECT_DIR = tests/output-matrix
+RESOURCES_DIR = tests/resources
 CONDITIONS = ctrl
 ORGANISM = human
 SRA_CTRL = SRR000001
@@ -107,8 +107,8 @@ grep -q "variable conflict: input routes are mutually exclusive" \
 grep -q "specified: SRA_\\*, GSM_\\*" "${tmpdir}/conflict.out"
 
 cat > "${conflict_params}" <<'MK'
-RESULTS_DIR = tests/output-matrix
-PUBLIC_DIR = tests/public
+PROJECT_DIR = tests/output-matrix
+RESOURCES_DIR = tests/resources
 CONDITIONS = ctrl
 ORGANISM = human
 GSM_CTRL = GSM5492245
@@ -138,8 +138,8 @@ grep -q 'GSM_CTRL' <<< "${help_output}"
 
 unnamed_params="${tmpdir}/unnamed.mk"
 cat > "${unnamed_params}" <<'MK'
-RESULTS_DIR = tests/output-unnamed
-PUBLIC_DIR = tests/public
+PROJECT_DIR = tests/output-unnamed
+RESOURCES_DIR = tests/resources
 CONDITIONS =
 ORGANISM = human
 GSM = GSM5492245
@@ -174,8 +174,8 @@ grep -q 'project parameter valid: CONDITIONS=unnamed' "${tmpdir}/unnamed-check.o
 grep -q 'project parameter valid: GSM=GSM5492245' "${tmpdir}/unnamed-check.out"
 
 cat > "${unnamed_params}" <<'MK'
-RESULTS_DIR = tests/output-unnamed
-PUBLIC_DIR = tests/public
+PROJECT_DIR = tests/output-unnamed
+RESOURCES_DIR = tests/resources
 CONDITIONS =
 ORGANISM = human
 SRA = SRR000001
@@ -191,8 +191,8 @@ grep -q "specified: SRA, GSM" "${tmpdir}/unnamed-conflict.out"
 
 unnamed_sra_params="${tmpdir}/unnamed-sra.mk"
 cat > "${unnamed_sra_params}" <<'MK'
-RESULTS_DIR = tests/output-sra
-PUBLIC_DIR = tests/public
+PROJECT_DIR = tests/output-sra
+RESOURCES_DIR = tests/resources
 CONDITIONS =
 ORGANISM = human
 SRA = SRR000001 SRR000002
@@ -218,5 +218,22 @@ if ! make -C "${repo_root}" check TARGET=load-fastq PARAMS="${unnamed_sra_params
 fi
 grep -q 'project parameter valid: SRA=SRR000001 SRR000002' \
     "${tmpdir}/unnamed-sra-check.out"
+
+no_entry_params="${tmpdir}/no-entry.mk"
+cat > "${no_entry_params}" <<'MK'
+CONDITIONS =
+ORGANISM =
+MK
+
+if ! make -C "${repo_root}" config PARAMS="${no_entry_params}" \
+        > "${tmpdir}/no-entry-config.out" 2>&1; then
+    cat "${tmpdir}/no-entry-config.out" >&2
+    exit 1
+fi
+grep -q '^- load-genome$' "${tmpdir}/no-entry-config.out"
+grep -q '^- load-matrix$' "${tmpdir}/no-entry-config.out"
+grep -q '^- scoring$' "${tmpdir}/no-entry-config.out"
+grep -q '^- goea$' "${tmpdir}/no-entry-config.out"
+grep -q '^- bn-diverse$' "${tmpdir}/no-entry-config.out"
 
 printf '%s\n' "matrix entry tests passed"

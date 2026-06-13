@@ -3,7 +3,8 @@
 #   containing params.mk;
 # - paths passed on the command line are resolved relative to the
 #   directory from which make is launched;
-# - PUBLIC_DIR defaults to public/ relative to the scBOLT root when omitted.
+# - RESOURCES_DIR defaults to resources relative to the active scBOLT project
+#   file when available, otherwise relative to the active parameter file.
 $(eval PARAMS ?= params.mk)  # user parameter file (resolved relative to scBOLT root)
 
 # Configuration policy:
@@ -25,14 +26,17 @@ LOGGING ?= true
 # Empty CONDITIONS is treated as one unnamed mono-condition project.
 $(eval ORGANISM ?=)                         # organism used for gene resources
 $(eval CONDITIONS ?=)                       # experimental conditions
-$(eval RESULTS_DIR ?= project/)             # output directory
-# Public data directory. In params.mk, relative paths are resolved relative to
+$(eval PROJECT_DIR ?= project)              # project directory
+# Resource directory. In params.mk, relative paths are resolved relative to
 # params.mk; on the command line, they are resolved relative to launch_dir.
-# When omitted, PUBLIC_DIR defaults to public/ relative to the scBOLT root.
-$(eval PUBLIC_DIR ?= public/)               # public reference/resource directory
+# When omitted, RESOURCES_DIR defaults to resources relative to the active
+# scBOLT project file when available, otherwise relative to the active
+# parameter file.
+$(eval RESOURCES_DIR ?= resources)          # reference/resource directory
 
 ## URLS ##
 genome_url ?=
+repeat_msk_url ?=
 go_organism_url ?= https://current.geneontology.org/ontology/subsets/goslim_$(ORGANISM).obo
 
 ## ALIGNMENT/COUNTING ##
@@ -182,7 +186,7 @@ $(eval COLLAPSE_PARAMETER ?= false)         # pruning collapse parameter
 $(eval KNNSC_EMBEDDING ?= X_umap)           # embedding key used for distances
 $(eval KNNSC_DIMENSION ?=)                  # embedding dimensions used for distances
 $(eval KNNSC_NEIGHBORS ?= 20)               # KNN graph neighbor number
-$(eval KNNSC_MIN_CLUSTER_SIZE ?= 100)       # minimum label size for KNNSC candidates
+$(eval KNNSC_MIN_CLUSTER_SIZE ?= 20)        # minimum label size for KNNSC candidates
 
 ## BINARIZATION ##
 # If BIN_HVG_TOP is empty, the number of HVGs is estimated automatically,
