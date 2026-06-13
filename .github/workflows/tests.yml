@@ -12,12 +12,12 @@ jobs:
       - uses: actions/checkout@v6
       - run: make help >/dev/null
 
-  make-show-config:
-    name: Make show-config
+  make-config:
+    name: Make config
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
-      - run: make show-config PARAMS=tests/fixtures/params.mk >/dev/null
+      - run: make config PARAMS=tests/fixtures/params.mk >/dev/null
 
   python-compile:
     name: Python compileall
@@ -43,12 +43,12 @@ jobs:
       - uses: actions/checkout@v6
       - run: bash tests/test_matrix_entry.sh
 
-  dry-run-knnbs:
-    name: Dry-run knnbs
+  dry-run-knnsc:
+    name: Dry-run knnsc
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
-      - run: make --always-make --dry-run LOGGING=false __knnbs PARAMS=tests/fixtures/params.mk >/dev/null
+      - run: make --always-make --dry-run LOGGING=false __knnsc PARAMS=tests/fixtures/params.mk >/dev/null
 
   dry-run-seed:
     name: Dry-run max-nodes-seed
@@ -57,12 +57,12 @@ jobs:
       - uses: actions/checkout@v6
       - run: make --always-make --dry-run LOGGING=false __max-nodes-seed PARAMS=tests/fixtures/params.mk >/dev/null
 
-  check-knnbs:
-    name: Check knnbs
+  check-knnsc:
+    name: Check knnsc
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
-      - run: make check TARGET=knnbs PARAMS=tests/fixtures/params.mk __check_externals__=false
+      - run: make check TARGET=knnsc PARAMS=tests/fixtures/params.mk __check_externals__=false
 
   check-seed:
     name: Check max-nodes-seed
@@ -71,22 +71,22 @@ jobs:
       - uses: actions/checkout@v6
       - run: make check TARGET=max-nodes-seed PARAMS=tests/fixtures/params.mk __check_externals__=false
 
-  diagnostic-knnbs:
-    name: Diagnostic missing knnbs parameters
+  diagnostic-knnsc:
+    name: Diagnostic missing knnsc parameters
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
       - name: Check complete diagnostic output
         run: |
           set +e
-          output="$(make check TARGET=knnbs PARAMS=tests/fixtures/params.mk __check_externals__=false KNNBS_CENTRALITY_CTRL= KNNBS_PERIPHERY_CTRL= KNNBS_CENTRALITY_TREATED= KNNBS_PERIPHERY_TREATED= 2>&1)"
+          output="$(make check TARGET=knnsc PARAMS=tests/fixtures/params.mk __check_externals__=false KNNSC_CENTRALITY_CTRL= KNNSC_PERIPHERY_CTRL= KNNSC_CENTRALITY_TREATED= KNNSC_PERIPHERY_TREATED= 2>&1)"
           status="$?"
           set -e
           printf '%s\n' "$output"
           test "$status" -ne 0
-          grep -q "required method parameter not defined: KNNBS_CENTRALITY_CTRL or KNNBS_PERIPHERY_CTRL" <<< "$output"
-          grep -q "required method parameter not defined: KNNBS_CENTRALITY_TREATED or KNNBS_PERIPHERY_TREATED" <<< "$output"
-          grep -q "check failed for target 'knnbs'" <<< "$output"
+          grep -q "required method parameter not defined: KNNSC_CENTRALITY_CTRL or KNNSC_PERIPHERY_CTRL" <<< "$output"
+          grep -q "required method parameter not defined: KNNSC_CENTRALITY_TREATED or KNNSC_PERIPHERY_TREATED" <<< "$output"
+          grep -q "check failed for target 'knnsc'" <<< "$output"
 
   diagnostic-seed:
     name: Diagnostic missing seed inputs
