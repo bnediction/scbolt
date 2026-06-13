@@ -101,6 +101,7 @@ module_help_params = $(call uniq,$(target_params_$(module_help_target)))
 module_help_deps = $(call uniq,$(progress_deps_$(module_help_target)))
 module_help_targets = $(RESET_TARGET_$(module_help_target))
 module_help_has_bin_hvg = $(filter BIN_HVG_TOP,$(module_help_params))
+module_help_has_spec_note = $(filter spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse,$(module_help_target))
 module_help_solution_note = $(if $(filter-out 0,$(strip $(INFER_LIMIT))),\
 	up to $(INFER_LIMIT) solutions,\
 	$(if $(strip $(INFER_LIMIT)),\
@@ -167,7 +168,7 @@ show_config_has_hvg = $(strip $(show_config_has_analysis_hvg) $(show_config_has_
 show_config_hvg_params = \
 	ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN ANALYSIS_HVG_BINS \
 	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS
-show_config_var_value = $(if $(filter REFERENCES,$(1)),$(running_references),$($(1)))
+show_config_var_value = $(if $(filter REFERENCES,$(1)),$(display_references_label),$($(1)))
 show_config_var_label = $(call tolower,$(subst _, ,$(1)))
 show_config_label_width = $(shell printf '%s\n' \
 	$(foreach var,$(strip $(1)),'$(call show_config_var_label,$(var))') \
@@ -322,7 +323,7 @@ $(if $(filter collectri dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Omn
 $(if $(filter collectri dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'HCOP' "$(HCOP_VERSION)")
 $(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'DoRothEA API' "$(DOROTHEA_API)")
 $(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Compatibility' "$(DOROTHEA_COMPATIBILITY)")
-$(if $(and $(filter dorothea,$(PRIOR_KNOWLEDGE)),$(filter current,$(DOROTHEA_API))),@printf '%-16s : %s\n' 'Levels' "$(DOROTHEA_LEVELS)")
+$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Levels' "$(DOROTHEA_LEVELS)")
 @printf '%-16s : %s\n' 'Max clause' "$(MAX_CLAUSE)")
 endef
 
@@ -351,7 +352,7 @@ define show_config_print
 @printf '%s\n' '-------'
 @printf '%-13s : %s\n' 'Params file' "$(show_config_params_file)"
 @printf '%-13s : %s\n' 'Organism' "$(ORGANISM)"
-@printf '%-13s : %s\n' 'Conditions' "$(conditions)"
+@printf '%-13s : %s\n' 'Conditions' "$(display_conditions_label)"
 @printf '%-13s : %s\n' 'Public dir' "$(show_config_public_dir)"
 @printf '%-13s : %s\n\n' 'Results' "$(show_config_results)"
 @printf 'Workflow\n'
@@ -436,7 +437,7 @@ help: ## display help
 					printf "  %-31s %s\n", "--params=<file>", "select parameter file"; \
 					printf "  %-31s %s\n", "--public-dir=<dir>", "select public resource directory"; \
 					printf "  %-31s %s\n", "--references=<condition...>", "select references"; \
-					printf "  %-31s %s\n", "", "default: $(running_references)"; \
+					printf "  %-31s %s\n", "", "default: $(display_references_label)"; \
 					printf "  %-31s %s\n", "--reset-target=<module...>", "rebuild from modules"; \
 					printf "  %-31s %s\n", "--trust-target=<module...>", "skip rebuilding modules"; \
 					printf "  %-31s %s\n", "--old-file=<file>", "trust existing DAG file"; \
@@ -445,7 +446,7 @@ help: ## display help
 					printf "  %-31s %s\n", "--<parameter>=<value>", "override Make parameter"; \
 			} else { \
 					printf "  %-31s %s\n", "REFERENCES=<condition...>", "select references"; \
-					printf "  %-31s %s\n", "", "default: $(running_references)"; \
+					printf "  %-31s %s\n", "", "default: $(display_references_label)"; \
 					printf "  %-31s %s\n", "PUBLIC_DIR=<dir>", "select public resource directory"; \
 					printf "  %-31s %s\n", "RESET_TARGET=<module...>", "rebuild from modules"; \
 					printf "  %-31s %s\n", "TRUST_TARGET=<module...>", "skip rebuilding modules"; \
@@ -594,13 +595,27 @@ else
 				'$(parameter_help_note2_$(param))' \
 				'$(parameter_help_note3_$(param))';) \
 	fi; \
-	if [ -n "$(module_help_has_bin_hvg)" ]; then \
-		printf '\n'; \
-		printf '%s\n' 'Notes'; \
-		printf '%s\n' '-----'; \
-		printf '%s\n' 'Empty top HVG count means automatic estimation.'; \
-		printf '%s\n' 'For the seurat_v3 HVG method it must be set explicitly.'; \
-	fi
+		if [ -n "$(module_help_has_bin_hvg)" ] || [ -n "$(module_help_has_spec_note)" ]; then \
+			printf '\n'; \
+			printf '%s\n' 'Notes'; \
+			printf '%s\n' '-----'; \
+			if [ -n "$(module_help_has_bin_hvg)" ]; then \
+				printf '%s\n' 'Empty top HVG count means automatic estimation.'; \
+				printf '%s\n' 'For the seurat_v3 HVG method it must be set explicitly.'; \
+			fi; \
+			if [ -n "$(module_help_has_spec_note)" ]; then \
+				if [ -n "$(module_help_has_bin_hvg)" ]; then \
+					printf '\n'; \
+				fi; \
+				printf '%s\n' 'SPEC_FILE must be a YAML file with entries such as:'; \
+				printf '%s\n' '  dynamical_constraints:'; \
+				printf '%s\n' '    - ...'; \
+				printf '%s\n' '  important_nodes:'; \
+				printf '%s\n' '    - ...'; \
+				printf '%s\n' '  mandatory_nodes:'; \
+				printf '%s\n' '    - ...'; \
+			fi; \
+		fi
 endif
 
 .PHONY: config
@@ -861,7 +876,7 @@ load-matrix: ## download public count matrices
 	$(call run_logged,load-matrix)
 __load-matrix: $(load_matrix_target)
 ifneq ($(matrix_mode),true)
-	$(call print_error,load-matrix requires GSM_<CONDITION> parameters)
+	$(call print_error,load-matrix requires GSM or GSM_<CONDITION> parameters)
 	exit 1
 endif
 

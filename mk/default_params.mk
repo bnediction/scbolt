@@ -22,9 +22,9 @@ LOGGING ?= true
 
 ## INFORMATION ##
 # ORGANISM values: mouse, human, escherichia-coli.
-# Empty CONDITIONS is treated as one implicit condition named unique.
+# Empty CONDITIONS is treated as one unnamed mono-condition project.
 $(eval ORGANISM ?=)                         # organism used for gene resources
-$(eval CONDITIONS ?= unique)                # experimental conditions
+$(eval CONDITIONS ?=)                       # experimental conditions
 $(eval RESULTS_DIR ?= project/)             # output directory
 # Public data directory. In params.mk, relative paths are resolved relative to
 # params.mk; on the command line, they are resolved relative to launch_dir.
@@ -52,8 +52,9 @@ $(eval STAR_TOP_BARCODES ?=)               # optional number of top barcodes
 
 ## EXTRA PARAMETERS ##
 # Useful when starting from user-provided or precomputed upstream analyses.
-# Input routes are mutually exclusive. Define only one of SRA_<CONDITION>,
-# GSM_<CONDITION>, COUNT_FILES, MACROSTATE_FILES, or BINARIZATION_FILE.
+# Input routes are mutually exclusive. Define only one of SRA/GSM for an
+# unnamed mono-condition project, SRA_<CONDITION>/GSM_<CONDITION> for named
+# conditions, COUNT_FILES, MACROSTATE_FILES, or BINARIZATION_FILE.
 # COUNT_FILES skips alignment/counting and restarts from one count AnnData file
 # per condition, ordered like CONDITIONS.
 # BINARIZATION_FILE overrides the binarization target when set.
@@ -173,7 +174,9 @@ $(eval COLLAPSE_PARAMETER ?= false)         # pruning collapse parameter
 
 ## KNNSC ##
 # KNNSC_EMBEDDING must name an embedding in adata.obsm.
-# Each condition needs KNNSC_CENTRALITY_<CONDITION>, KNNSC_PERIPHERY_<CONDITION>, or both.
+# Each named condition needs KNNSC_CENTRALITY_<CONDITION>,
+# KNNSC_PERIPHERY_<CONDITION>, or both. Unnamed mono-condition projects use
+# KNNSC_CENTRALITY and KNNSC_PERIPHERY.
 # CENTRALITY minimizes distances to the cluster's own barycenter.
 # PERIPHERY maximizes distances to other clusters' barycenters.
 $(eval KNNSC_EMBEDDING ?= X_umap)           # embedding key used for distances

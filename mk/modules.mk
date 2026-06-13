@@ -26,32 +26,32 @@ star_index = $(genome_ref)/star/Genome
 
 define find_paths_for_conditions
 
-fastq_$(1) =                    $(results)/$(1)/fastq
-geo_dir_$(1) =                  $(results)/$(1)/count/geo
+fastq_$(1) =                    $(results)/$(call condition_path,$(1))fastq
+geo_dir_$(1) =                  $(results)/$(call condition_path,$(1))count/geo
 geo_matrix_$(1) =               $$(geo_dir_$(1))/matrix.mtx.gz
 geo_barcodes_$(1) =             $$(geo_dir_$(1))/barcodes.tsv.gz
 geo_genes_$(1) =                $$(geo_dir_$(1))/genes.tsv.gz
 geo_files_$(1) =                $$(geo_matrix_$(1)) $$(geo_barcodes_$(1)) $$(geo_genes_$(1))
 count_file_$(1) =               $(call file_for_condition,$(1),$(COUNT_FILES))
-load_matrix_$(1) =              $(results)/$(1)/count/counts.h5ad
-cellranger_$(1) =               $(results)/$(1)/count/cellranger/$(1).mri.tgz
-star_$(1) =                     $(results)/$(1)/count/star/Aligned.sortedByCoord.out.bam \
-                                $(results)/$(1)/count/star/Solo.out/matrix.mtx \
-                                $(results)/$(1)/count/star/Solo.out/barcodes.tsv
-qc_$(1) =                       $(results)/$(1)/count/star/star.velocyto.bam
-velocyto_$(1) =                 $(results)/$(1)/count/counts.h5ad
-filtering_$(1) =                $(results)/$(1)/prep/filter/counts.h5ad
-normalization_$(1) =            $(results)/$(1)/prep/norm/counts.h5ad
-velocity_$(1) =                 $(results)/$(1)/trajectories/velocity/velocity.h5ad
-potency_$(1) =                  $(results)/$(1)/trajectories/potency/potency.csv
-cotan_$(1) =                    $(results)/$(1)/mstates/cotan/mstates.h5ad \
-                                $(results)/$(1)/mstates/cotan/mstates.csv
-cellrank_$(1) =                 $(results)/$(1)/mstates/cellrank/mstates.h5ad \
-                                $(results)/$(1)/mstates/cellrank/mstates.csv
-stream_$(1) =                   $(results)/$(1)/mstates/stream/mstates.h5ad \
-                                $(results)/$(1)/mstates/stream/mstates.csv
-knnsc_$(1) =                    $(results)/$(1)/mstates/knnsc/mstates.h5ad \
-                                $(results)/$(1)/mstates/knnsc/mstates.csv
+load_matrix_$(1) =              $(results)/$(call condition_path,$(1))count/counts.h5ad
+cellranger_$(1) =               $(results)/$(call condition_path,$(1))count/cellranger/$(call condition_name,$(1)).mri.tgz
+star_$(1) =                     $(results)/$(call condition_path,$(1))count/star/Aligned.sortedByCoord.out.bam \
+                                $(results)/$(call condition_path,$(1))count/star/Solo.out/matrix.mtx \
+                                $(results)/$(call condition_path,$(1))count/star/Solo.out/barcodes.tsv
+qc_$(1) =                       $(results)/$(call condition_path,$(1))count/star/star.velocyto.bam
+velocyto_$(1) =                 $(results)/$(call condition_path,$(1))count/counts.h5ad
+filtering_$(1) =                $(results)/$(call condition_path,$(1))prep/filter/counts.h5ad
+normalization_$(1) =            $(results)/$(call condition_path,$(1))prep/norm/counts.h5ad
+velocity_$(1) =                 $(results)/$(call condition_path,$(1))trajectories/velocity/velocity.h5ad
+potency_$(1) =                  $(results)/$(call condition_path,$(1))trajectories/potency/potency.csv
+cotan_$(1) =                    $(results)/$(call condition_path,$(1))mstates/cotan/mstates.h5ad \
+                                $(results)/$(call condition_path,$(1))mstates/cotan/mstates.csv
+cellrank_$(1) =                 $(results)/$(call condition_path,$(1))mstates/cellrank/mstates.h5ad \
+                                $(results)/$(call condition_path,$(1))mstates/cellrank/mstates.csv
+stream_$(1) =                   $(results)/$(call condition_path,$(1))mstates/stream/mstates.h5ad \
+                                $(results)/$(call condition_path,$(1))mstates/stream/mstates.csv
+knnsc_$(1) =                    $(results)/$(call condition_path,$(1))mstates/knnsc/mstates.h5ad \
+                                $(results)/$(call condition_path,$(1))mstates/knnsc/mstates.csv
 
 ifeq ($(MACROSTATE_METHOD),cotan)
 macrostates_$(1) =              $$(cotan_$(1))
@@ -62,7 +62,7 @@ macrostates_$(1) =              $$(stream_$(1))
 else ifeq ($(MACROSTATE_METHOD),knnsc)
 macrostates_$(1) =              $$(knnsc_$(1))
 else
-macrostates_$(1) =              $(results)/$(1)/mstates/invalid-method/.error
+macrostates_$(1) =              $(results)/$(call condition_path,$(1))mstates/invalid-method/.error
 endif
 
 ifeq ($(ALIGNMENT_TOOL),cellranger)
@@ -70,7 +70,7 @@ alignment_$(1) =                $$(cellranger_$(1))
 else ifeq ($(ALIGNMENT_TOOL),star)
 alignment_$(1) =                $$(star_$(1))
 else
-alignment_$(1) =                $(results)/$(1)/count/invalid-alignment/.error
+alignment_$(1) =                $(results)/$(call condition_path,$(1))count/invalid-alignment/.error
 endif
 
 macrostate_file_$(1) =          $(call file_for_condition,$(1),$(MACROSTATE_FILES))
@@ -82,13 +82,13 @@ endef
 
 define find_paths_for_references
 
-clustering_$(1) =               $(results)/$(1)/clust/clust.h5ad
-dea_$(1) =                      $(results)/$(1)/clust/dea/markers.csv \
-                                $(results)/$(1)/clust/dea/genes.xlsx
-scoring_$(1) =                  $(results)/$(1)/clust/sig.csv
-goea_basic_$(1) =               $(results)/$(1)/clust/goea/basic.xlsx
-goea_organism_$(1) =            $(results)/$(1)/clust/goea/$(ORGANISM).xlsx
-annotation_$(1) =               $(results)/$(1)/annot/annot.h5ad
+clustering_$(1) =               $(results)/$(call condition_path,$(1))clust/clust.h5ad
+dea_$(1) =                      $(results)/$(call condition_path,$(1))clust/dea/markers.csv \
+                                $(results)/$(call condition_path,$(1))clust/dea/genes.xlsx
+scoring_$(1) =                  $(results)/$(call condition_path,$(1))clust/sig.csv
+goea_basic_$(1) =               $(results)/$(call condition_path,$(1))clust/goea/basic.xlsx
+goea_organism_$(1) =            $(results)/$(call condition_path,$(1))clust/goea/$(ORGANISM).xlsx
+annotation_$(1) =               $(results)/$(call condition_path,$(1))annot/annot.h5ad
 
 endef
 
@@ -228,7 +228,7 @@ $(error parameter REFERENCES not defined)
 endif
 ifneq ($(invalid_references),)
 $(error unsupported value for parameter REFERENCES: $(invalid_references) \
-	(supported values: $(subst $(space),$(comma) ,$(conditions) integrated)))
+	(supported values: $(subst $(space),$(comma) ,$(display_supported_references_label))))
 endif
 ifeq ($(words $(conditions)),1)
 ifneq ($(filter integrated,$(running_references)),)
@@ -309,8 +309,7 @@ else ifneq ($(wildcard $(PRIOR_KNOWLEDGE)),)
 prior_knowledge = $(PRIOR_KNOWLEDGE)
 endif
 dorothea_levels_arg = $(if $(filter dorothea,$(prior_knowledge)),\
-	$(if $(filter current,$(DOROTHEA_API)),\
-	$(if $(strip $(DOROTHEA_LEVELS)),--dorothea-levels $(DOROTHEA_LEVELS))))
+	$(if $(strip $(DOROTHEA_LEVELS)),--dorothea-levels $(DOROTHEA_LEVELS)))
 dorothea_api_arg = $(if $(filter dorothea,$(prior_knowledge)),\
 	--dorothea-api $(DOROTHEA_API))
 dorothea_compatibility_arg = $(if $(filter dorothea,$(prior_knowledge)),\
@@ -331,9 +330,7 @@ prior_knowledge_params = PRIOR_KNOWLEDGE \
 	GENEINFO_VERSION \
 	$(if $(filter collectri dorothea,$(PRIOR_KNOWLEDGE)),OMNIPATH_VERSION HCOP_VERSION) \
 	$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),\
-	DOROTHEA_API DOROTHEA_COMPATIBILITY) \
-	$(if $(and $(filter dorothea,$(PRIOR_KNOWLEDGE)),$(filter current,$(DOROTHEA_API))),\
-	DOROTHEA_LEVELS)
+	DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS)
 
 min_self_loop_consts = $(if $(filter true,$(MIN_SELF_LOOP_CONSTS)),--minimize-self-loops)
 min_self_loop_infer = $(if $(filter true,$(MIN_SELF_LOOP_INFER)),--minimize-self-loops)
@@ -430,7 +427,7 @@ endif
 endif
 endif
 
-target_params_load-matrix = $(foreach condition,$(conditions),GSM_$(call toupper,$(condition)))
+target_params_load-matrix = $(foreach condition,$(conditions),$(call gsm_var,$(condition)))
 target_params_alignment = ALIGNMENT_TOOL MEMORY STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
 target_params_cellranger = MEMORY
 target_params_star = MEMORY STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
@@ -517,7 +514,7 @@ target_params_bn-diverse = \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 
 sensitive_params_alignment =
-sensitive_params_load-matrix = $(foreach condition,$(conditions),GSM_$(call toupper,$(condition)))
+sensitive_params_load-matrix = $(foreach condition,$(conditions),$(call gsm_var,$(condition)))
 sensitive_params_star = STAR_CB_LEN STAR_UMI_LEN STAR_WHITELIST
 sensitive_params_qc = STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
 sensitive_params_velocyto = ALIGNMENT_TOOL STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES
@@ -611,8 +608,8 @@ label_col_check_pattern_2 = |traj/potency|mstates/(stream|knnsc)_mstates).py
 
 project_config_param_set = \
 	ORGANISM CONDITIONS \
-	$(foreach condition,$(conditions),SRA_$(call toupper,$(condition))) \
-	$(foreach condition,$(conditions),GSM_$(call toupper,$(condition))) \
+	$(foreach condition,$(conditions),$(call sra_var,$(condition))) \
+	$(foreach condition,$(conditions),$(call gsm_var,$(condition))) \
 	LABEL SPEC_FILE
 core_config_param_set = \
 	PARAMS REFERENCES RESULTS_DIR PUBLIC_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
@@ -665,8 +662,8 @@ config_default_modules = \
 	max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
 config_base_params = \
 	ORGANISM CONDITIONS \
-	$(foreach condition,$(conditions),SRA_$(call toupper,$(condition))) \
-	$(foreach condition,$(conditions),GSM_$(call toupper,$(condition))) \
+	$(foreach condition,$(conditions),$(call sra_var,$(condition))) \
+	$(foreach condition,$(conditions),$(call gsm_var,$(condition))) \
 	PARAMS REFERENCES RESULTS_DIR PUBLIC_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
 config_params_from_modules = $(strip $(foreach module,$(1),$(target_params_$(module))))
 config_project_params = $(call uniq,$(filter $(project_config_param_set),$(1)))

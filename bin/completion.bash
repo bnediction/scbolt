@@ -173,8 +173,6 @@ _scbolt_references() {
             references="${references} integrated"
         fi
         printf '%s\n' "${references}"
-    else
-        printf '%s\n' "unique integrated"
     fi
 }
 
@@ -239,11 +237,33 @@ _scbolt_clean_options() {
         --old-file= --help
 }
 
-_scbolt_init_options() {
-    printf '%s\n' --remove --show --params= --conditions= --organism= --label= \
-        --spec-file= --count-files= --macrostate-files= --binarization-file= \
-        --results-dir= --public-dir= --references= --logging= --jobs= --memory= \
-        --seed= --use-rep= --label-col= --help
+_scbolt_init_selection_options() {
+    printf '%s\n' --show --remove --help
+}
+
+_scbolt_init_parameter_options() {
+    printf '%s\n' --conditions= --organism= --label= --spec-file= --count-files= \
+        --macrostate-files= --binarization-file= --results-dir= --public-dir= \
+        --references= --logging= --jobs= --memory= --seed= --use-rep= --label-col=
+}
+
+_scbolt_complete_init_selection() {
+    local current="$1"
+    local item
+
+    COMPREPLY=()
+    while IFS= read -r item; do
+        COMPREPLY+=("${item}")
+    done < <(_scbolt_complete_params_files "" "${current}"; printf '%s\n' "${COMPREPLY[@]}")
+
+    for item in $(_scbolt_init_selection_options); do
+        if [[ "${item}" == "${current}"* ]]; then
+            COMPREPLY+=("${item}")
+        fi
+    done
+
+    _scbolt_keep_assignment_open
+    _scbolt_keep_directory_open
 }
 
 _scbolt_init_has_params_file() {
@@ -524,11 +544,15 @@ _scbolt() {
     case "${command}" in
         init)
             if [[ "${cur}" == --* ]]; then
-                _scbolt_complete_words "$(_scbolt_init_options)" "${cur}"
+                if _scbolt_init_has_params_file; then
+                    _scbolt_complete_words "$(_scbolt_init_parameter_options)" "${cur}"
+                else
+                    _scbolt_complete_words "$(_scbolt_init_selection_options)" "${cur}"
+                fi
             elif _scbolt_init_has_params_file; then
-                _scbolt_complete_words "$(_scbolt_init_options)" "${cur}"
+                _scbolt_complete_words "$(_scbolt_init_parameter_options)" "${cur}"
             else
-                _scbolt_complete_params_files "" "${cur}"
+                _scbolt_complete_init_selection "${cur}"
             fi
             ;;
         clean)

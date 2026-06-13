@@ -349,8 +349,8 @@ format_init_assignment() {
 
 is_minimal_params_variable() {
     case "$1" in
-        CONDITIONS|ORGANISM|COUNT_FILES|MACROSTATE_FILES|BINARIZATION_FILE|LABEL|\
-SPEC_FILE|RESULTS_DIR|PUBLIC_DIR)
+        ORGANISM|CONDITIONS|SRA|GSM|SRA_*|GSM_*|COUNT_FILES|MACROSTATE_FILES|\
+BINARIZATION_FILE|LABEL|SPEC_FILE)
             return 0
             ;;
         *)
@@ -359,8 +359,58 @@ SPEC_FILE|RESULTS_DIR|PUBLIC_DIR)
     esac
 }
 
+is_init_project_setting() {
+    case "$1" in
+        ORGANISM|CONDITIONS|RESULTS_DIR|PUBLIC_DIR|MEMORY|JOBS|SEED|LOGGING)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+is_init_input_source() {
+    case "$1" in
+        SRA|SRA_*|GSM|GSM_*|COUNT_FILES|MACROSTATE_FILES|BINARIZATION_FILE|OLD_FILES)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+init_override_section() {
+    if is_init_project_setting "$1"; then
+        printf '%s\n' "project"
+    elif is_init_input_source "$1"; then
+        printf '%s\n' "input"
+    else
+        printf '%s\n' "module"
+    fi
+}
+
+write_init_condition_source_assignments() {
+    local family="$1"
+    local conditions
+    local condition
+    local variable
+
+    conditions="$(init_override_value CONDITIONS "")"
+    if [ -z "${conditions}" ]; then
+        format_init_assignment "${family}" ""
+        return 0
+    fi
+
+    for condition in ${conditions}; do
+        variable="${family}_${condition^^}"
+        format_init_assignment "${variable}" ""
+    done
+}
+
 write_init_overrides() {
-    local kind="$1"
+    local section="$1"
     local index
     local later_index
     local variable
@@ -383,76 +433,109 @@ write_init_overrides() {
             continue
         fi
 
-        if [ "${kind}" = "extra" ] && is_minimal_params_variable "${variable}"; then
+        if is_minimal_params_variable "${variable}"; then
+            continue
+        fi
+
+        if [ "$(init_override_section "${variable}")" != "${section}" ]; then
             continue
         fi
 
         if [ "${wrote}" = "false" ]; then
-            if [ "${kind}" = "extra" ]; then
-                printf '\n'
-                printf '%s\n' '##################################'
-                printf '%s\n' '### Parameters defined by user ###'
-                printf '%s\n' '##################################'
-                printf '\n'
-            fi
+            printf '\n'
             wrote=true
         fi
+
         printf '%s = %s\n' "${variable}" "${value}"
     done
+}
+
+write_init_project_settings() {
+    cat <<'EOF'
+########################
+### Project settings ###
+########################
+
+# Organism used for gene resources (e.g. mouse or human).
+EOF
+    format_init_assignment ORGANISM ""
+    printf '\n'
+
+    cat <<'EOF'
+# Experimental conditions (e.g. ctrl treated).
+# Leave empty for an unlabeled single-condition project.
+EOF
+    format_init_assignment CONDITIONS ""
+    write_init_overrides project
+    printf '\n'
+}
+
+write_init_input_sources() {
+    cat <<'EOF'
+#####################
+### Input sources ###
+#####################
+
+# Input sources are mutually exclusive. Use one family:
+# - SRA or SRA_<CONDITION>   : list of SRA run IDs
+# - GSM or GSM_<CONDITION>   : GEO sample ID
+# - COUNT_FILES              : precomputed count AnnData files
+# - MACROSTATE_FILES         : precomputed macrostate files
+# - BINARIZATION_FILE        : precomputed binarization file
+
+# SRA = SRR12345678 SRR87654321
+# SRA_CTRL = SRR12345678
+# SRA_TREATED = SRR87654321 SRR87654322
+EOF
+    write_init_condition_source_assignments SRA
+    printf '\n'
+
+    cat <<'EOF'
+# GSM = GSM5492245
+# GSM_CTRL = GSM5492245
+# GSM_TREATED = GSM5492246
+EOF
+    write_init_condition_source_assignments GSM
+    printf '\n'
+
+    format_init_assignment COUNT_FILES ""
+    format_init_assignment MACROSTATE_FILES ""
+    format_init_assignment BINARIZATION_FILE ""
+    write_init_overrides input
+    printf '\n'
+}
+
+write_init_module_inputs() {
+    cat <<'EOF'
+##############################
+### Module-specific inputs ###
+##############################
+
+# Required by module 'annotation'.
+# Space-separated biological labels assigned to clusters 0..n.
+# Labels are matched to clusters in numerical order.
+# Example: LABEL = HSC MPP LMPP GMP
+EOF
+    format_init_assignment LABEL ""
+    printf '\n'
+
+    cat <<'EOF'
+# Required by module 'spec'.
+# YAML file defining Boolean-network constraints.
+# See case studies for examples or run: scbolt spec help
+EOF
+    format_init_assignment SPEC_FILE ""
+    write_init_overrides module
 }
 
 write_minimal_params_file() {
     local params_path="$1"
 
-    cat > "${params_path}" <<EOF
-#######################################################
-### Fill required parameters before running scBOLT. ###
-#######################################################
-
-# Experimental conditions. Use "unique" for a single-condition project.
-$(format_init_assignment CONDITIONS "")
-
-# Organism used for gene resources, e.g. mouse or human.
-$(format_init_assignment ORGANISM "")
-
-# Define one input route before running scBOLT.
-# Supported entry points:
-# - SRA_<CONDITION>      : list of SRA run IDs
-# - GSM_<CONDITION>      : GEO sample ID for public count matrices
-# - COUNT_FILES          : precomputed count AnnData files
-# - MACROSTATE_FILES     : precomputed macrostates
-# - BINARIZATION_FILE    : precomputed binarization
-
-# Input routes are mutually exclusive. Define only one of these families.
-# SRA_UNIQUE =
-# GSM_UNIQUE =
-EOF
-    cat >> "${params_path}" <<EOF
-$(format_init_assignment COUNT_FILES "")
-$(format_init_assignment MACROSTATE_FILES "")
-$(format_init_assignment BINARIZATION_FILE "")
-
-#################################################
-### Fill when reaching module-specific steps. ###
-#################################################
-
-# Required by annotation.
-$(format_init_assignment LABEL "")
-
-# Required by Boolean specification.
-$(format_init_assignment SPEC_FILE "spec.yml")
-
-############################
-### Optional parameters. ###
-############################
-
-# Output directory. Defaults to the current project name when omitted.
-$(format_init_assignment RESULTS_DIR "project/")
-
-# Public resource directory. Defaults to public/ when omitted.
-$(format_init_assignment PUBLIC_DIR "public/")
-EOF
-    write_init_overrides extra >> "${params_path}"
+    {
+        write_init_project_settings
+        write_init_input_sources
+        write_init_module_inputs
+    } > "${params_path}"
 }
 
 ensure_init_params_file() {

@@ -84,15 +84,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--metric",
-    dest="metric",
-    action=cli.Store_metric,
-    required=False,
-    default="euclidean",
-    help="metric used when calculating pairwise distances (default: euclidean)",
-)
-
-parser.add_argument(
     "--neighbors",
     dest="neighbors",
     type=int,
@@ -100,6 +91,15 @@ parser.add_argument(
     default=20,
     metavar="INT",
     help="number of closest neighbors used to compute the k-nearest neighbors graph (default: 20)",
+)
+
+parser.add_argument(
+    "--metric",
+    dest="metric",
+    action=cli.Store_metric,
+    required=False,
+    default="euclidean",
+    help="metric used when calculating pairwise distances (default: euclidean)",
 )
 
 parser.add_argument(
@@ -229,33 +229,48 @@ if empty_selected_clusters:
         + ", ".join(empty_selected_clusters)
     )
 
-std.print_task("estimating subclusters (method=KNNSC)")
+std.print_task("estimating macrostates (method=KNNSC)")
 knnsc = bt.sct.tl.KNNSC()
 
 std.print_info(
     f"initializing graph parameters "
-    f"(neighbors={args.neighbors}, embedding={args.embedding}, "
-    f"dimension={args.dimension}, metric={args.metric}, jobs={args.jobs})"
+    f"(embedding={std.format_embedding(args.embedding)}, dimension={args.dimension}, "
+    f"neighbors={args.neighbors}, metric={args.metric}, jobs={args.jobs})"
 )
 std.print_info(
     f"initializing distance parameters "
     f"(min_cluster_size={args.min_cluster_size}, "
     f"method={args.method}, jobs={args.jobs})"
 )
-std.print_warning("shortest-path computation may take some time.")
+std.print_info("fitting neighbors graph and shortest-path distances")
+std.print_warning("this may take some time.")
 knnsc.fit(
     adata,
     cluster_key=args.obs,
-    n_neighbors=args.neighbors,
     use_rep=args.embedding,
     n_components=args.dimension,
+    n_neighbors=args.neighbors,
     metric=args.metric,
     min_cluster_size=args.min_cluster_size,
     method=args.method,
     n_jobs=args.jobs,
 )
 
-std.print_info("predicting macrostates")
+if args.centrality is None and args.periphery is None:
+    centrality_log = "{}"
+    periphery_log = "{all eligible clusters}"
+else:
+    centrality_log = (
+        "{}" if args.centrality is None else "{" + ", ".join(args.centrality) + "}"
+    )
+    periphery_log = (
+        "{}" if args.periphery is None else "{" + ", ".join(args.periphery) + "}"
+    )
+
+std.print_info(
+    f"predicting subclusters "
+    f"(centrality={centrality_log}, periphery={periphery_log})"
+)
 macrostates = knnsc.predict(
     subcluster_size=args.size,
     key="macrostate",

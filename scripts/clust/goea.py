@@ -145,7 +145,7 @@ del study_geneset[args.background]
 
 if args.gene_type != annotations_type:
     std.print_debug(
-        f"standardizing gene identifiers ({args.gene_type} => {annotations_type})"
+        f"standardizing gene identifiers ({args.gene_type} -> {annotations_type})"
     )
 
 for cluster, geneset in study_geneset.items():

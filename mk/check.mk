@@ -133,8 +133,8 @@ else ifeq ($(HELP),false)
 		:; \
 		$(foreach condition,$(running_conditions),\
 			$(call check_parameter_diagnostic,\
-				$(GSM_$(call toupper,$(condition))),\
-				GSM_$(call toupper,$(condition)) \
+				$(call gsm_value,$(condition)),\
+				$(call gsm_var,$(condition)) \
 					(needed by target 'load-matrix'),project);) \
 	fi; \
 	: > "$${workflow_dry_run}"; \
@@ -260,17 +260,21 @@ else ifeq ($(HELP),false)
 		exit 0; \
 	fi; \
 	cp "$${target_dry_run}" "$${dry_run}"; \
-	$(call check_parameter_diagnostic,$(CONDITIONS),CONDITIONS,project); \
+	if [ "$(unnamed_condition)" = "true" ]; then \
+		check_success "project parameter valid: CONDITIONS=unnamed"; \
+	else \
+		$(call check_parameter_diagnostic,$(CONDITIONS),CONDITIONS,project); \
+	fi; \
 	$(call check_parameter_diagnostic,$(ORGANISM),ORGANISM,project); \
 	if [ -z "$(input_route_parameters)" ]; then \
-		$(call report_check_error,required input route not defined: define SRA_<CONDITION> or GSM_<CONDITION> or COUNT_FILES or MACROSTATE_FILES or BINARIZATION_FILE); \
+		$(call report_check_error,required input route not defined: define SRA/GSM or SRA_<CONDITION>/GSM_<CONDITION> or COUNT_FILES or MACROSTATE_FILES or BINARIZATION_FILE); \
 	fi; \
 	if [ "$(words $(input_routes))" -gt 1 ]; then \
 		$(call report_check_error,$(input_route_conflict)); \
 	fi; \
 	if [ -n "$(COUNT_FILES)" ]; then \
 		if [ "$(words $(COUNT_FILES))" -ne "$(words $(conditions))" ]; then \
-			$(call report_check_error,COUNT_FILES must contain one file per condition \(conditions: $(conditions)\)); \
+			$(call report_check_error,COUNT_FILES must contain one file per condition \(conditions: $(display_conditions_label)\)); \
 		else \
 			:; \
 			$(foreach condition,$(conditions),\
@@ -280,7 +284,7 @@ else ifeq ($(HELP),false)
 	if [ -n "$(MACROSTATE_FILES)" ]; then \
 		if [ "$(words $(MACROSTATE_FILES))" -ne 1 ] \
 				&& [ "$(words $(MACROSTATE_FILES))" -ne "$(words $(conditions))" ]; then \
-			$(call report_check_error,MACROSTATE_FILES must contain either one multi-condition file or one file per condition \(conditions: $(conditions)\)); \
+			$(call report_check_error,MACROSTATE_FILES must contain either one multi-condition file or one file per condition \(conditions: $(display_conditions_label)\)); \
 		else \
 			:; \
 			$(foreach path,$(MACROSTATE_FILES),\
@@ -476,7 +480,7 @@ else ifeq ($(HELP),false)
 	if grep -q -- '--hcop-version' "$${dry_run}" && { [ "$(PRIOR_KNOWLEDGE)" = "collectri" ] || [ "$(PRIOR_KNOWLEDGE)" = "dorothea" ]; }; then \
 		$(call check_parameter_diagnostic,$(HCOP_VERSION),HCOP_VERSION,external resource); \
 	fi; \
-	if grep -q 'DOROTHEA_LEVELS' "$${dry_run}" && [ "$(DOROTHEA_API)" = "current" ]; then \
+	if grep -q 'DOROTHEA_LEVELS' "$${dry_run}" && [ "$(PRIOR_KNOWLEDGE)" = "dorothea" ]; then \
 		invalid_dorothea_levels=0; \
 		for level in $(DOROTHEA_LEVELS); do \
 			case "$${level}" in \
@@ -509,16 +513,16 @@ else ifeq ($(HELP),false)
 		:; \
 		$(foreach condition,$(running_conditions),\
 			$(call check_parameter_diagnostic,\
-				$(SRA_$(call toupper,$(condition))),\
-				SRA_$(call toupper,$(condition)) \
+				$(call sra_value,$(condition)),\
+				$(call sra_var,$(condition)) \
 					(needed by target 'load-fastq'),project);) \
 	fi; \
 	if [ -z "$(filter load-matrix,$(check_targets))" ] && grep -q 'download_gsm.sh' "$${dry_run}"; then \
 		:; \
 		$(foreach condition,$(running_conditions),\
 			$(call check_parameter_diagnostic,\
-				$(GSM_$(call toupper,$(condition))),\
-				GSM_$(call toupper,$(condition)) \
+				$(call gsm_value,$(condition)),\
+				$(call gsm_var,$(condition)) \
 					(needed by target 'load-matrix'),project);) \
 	fi; \
 	if grep -q 'download/import_matrix.py' "$${dry_run}" \
@@ -531,7 +535,7 @@ else ifeq ($(HELP),false)
 		$(call check_parameter_diagnostic,$(LABEL),LABEL (needed by target 'annotation'),project); \
 	fi; \
 	if grep -q 'scripts/mstates/knnsc_mstates.py' "$${dry_run}" \
-			|| grep -q 'KNNSC_CENTRALITY_' "$${dry_run}"; then \
+			|| grep -q 'KNNSC_CENTRALITY' "$${dry_run}"; then \
 		:; \
 		$(foreach condition,$(running_conditions),\
 			$(call check_knnsc_seed_diagnostic,\
@@ -543,7 +547,7 @@ else ifeq ($(HELP),false)
 	if [ "$(__check_externals__)" = "true" ]; then \
 		h5ad_report="$$(mktemp)"; \
 		if ! $(call conda_run,scbolt-core) python $(scripts_dir)/utils/check_h5ad_pipeline.py \
-				--dry-run "$${dry_run}" --conditions $(conditions) > "$${h5ad_report}"; then \
+				--dry-run "$${dry_run}" --conditions $(display_conditions) > "$${h5ad_report}"; then \
 			missing=1; \
 		fi; \
 		while IFS=$$'\t' read -r status message; do \

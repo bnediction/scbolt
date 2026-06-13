@@ -136,4 +136,87 @@ help_output="$(
 )"
 grep -q 'GSM_CTRL' <<< "${help_output}"
 
+unnamed_params="${tmpdir}/unnamed.mk"
+cat > "${unnamed_params}" <<'MK'
+RESULTS_DIR = tests/output-unnamed
+PUBLIC_DIR = tests/public
+CONDITIONS =
+ORGANISM = human
+GSM = GSM5492245
+CC_CORRECTION = false
+LABEL = Cluster
+SPEC_FILE = spec.yml
+MK
+
+unnamed_dry_run="$(
+    make -C "${repo_root}" --always-make --dry-run LOGGING=false \
+        __filtering PARAMS="${unnamed_params}"
+)"
+grep -q 'tests/output-unnamed/count/geo/matrix.mtx.gz' <<< "${unnamed_dry_run}"
+grep -q 'tests/output-unnamed/count/counts.h5ad' <<< "${unnamed_dry_run}"
+! grep -q 'tests/output-unnamed/unique/' <<< "${unnamed_dry_run}"
+grep -q 'download_gsm.sh' <<< "${unnamed_dry_run}"
+grep -q 'download/import_matrix.py' <<< "${unnamed_dry_run}"
+
+unnamed_help_output="$(
+    make -C "${repo_root}" module-help TARGET=load-matrix \
+        PARAMS="${unnamed_params}" SCBOLT_CLI=true
+)"
+grep -q '^  GSM' <<< "${unnamed_help_output}"
+! grep -q 'GSM_UNIQUE' <<< "${unnamed_help_output}"
+
+if ! make -C "${repo_root}" check TARGET=load-matrix PARAMS="${unnamed_params}" \
+        __check_externals__=false > "${tmpdir}/unnamed-check.out" 2>&1; then
+    cat "${tmpdir}/unnamed-check.out" >&2
+    exit 1
+fi
+grep -q 'project parameter valid: CONDITIONS=unnamed' "${tmpdir}/unnamed-check.out"
+grep -q 'project parameter valid: GSM=GSM5492245' "${tmpdir}/unnamed-check.out"
+
+cat > "${unnamed_params}" <<'MK'
+RESULTS_DIR = tests/output-unnamed
+PUBLIC_DIR = tests/public
+CONDITIONS =
+ORGANISM = human
+SRA = SRR000001
+GSM = GSM5492245
+MK
+
+if make -C "${repo_root}" check TARGET=load-matrix PARAMS="${unnamed_params}" \
+        __check_externals__=false > "${tmpdir}/unnamed-conflict.out" 2>&1; then
+    printf '%s\n' "expected unnamed SRA/GSM conflict check to fail" >&2
+    exit 1
+fi
+grep -q "specified: SRA, GSM" "${tmpdir}/unnamed-conflict.out"
+
+unnamed_sra_params="${tmpdir}/unnamed-sra.mk"
+cat > "${unnamed_sra_params}" <<'MK'
+RESULTS_DIR = tests/output-sra
+PUBLIC_DIR = tests/public
+CONDITIONS =
+ORGANISM = human
+SRA = SRR000001 SRR000002
+ALIGNMENT_TOOL = cellranger
+LABEL = Cluster
+SPEC_FILE = spec.yml
+MK
+
+unnamed_sra_dry_run="$(
+    make -C "${repo_root}" --always-make --dry-run LOGGING=false \
+        __load-fastq PARAMS="${unnamed_sra_params}"
+)"
+grep -q 'for id in SRR000001 SRR000002' <<< "${unnamed_sra_dry_run}"
+grep -q 'sample_naming="sample"' <<< "${unnamed_sra_dry_run}"
+grep -q 'tests/output-sra/fastq' <<< "${unnamed_sra_dry_run}"
+! grep -q 'SRA_UNIQUE' <<< "${unnamed_sra_dry_run}"
+! grep -q 'tests/output-sra/unique/' <<< "${unnamed_sra_dry_run}"
+
+if ! make -C "${repo_root}" check TARGET=load-fastq PARAMS="${unnamed_sra_params}" \
+        __check_externals__=false > "${tmpdir}/unnamed-sra-check.out" 2>&1; then
+    cat "${tmpdir}/unnamed-sra-check.out" >&2
+    exit 1
+fi
+grep -q 'project parameter valid: SRA=SRR000001 SRR000002' \
+    "${tmpdir}/unnamed-sra-check.out"
+
 printf '%s\n' "matrix entry tests passed"

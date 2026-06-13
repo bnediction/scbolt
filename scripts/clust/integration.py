@@ -327,7 +327,7 @@ if args.pca_dimension < args.clustering_dimension:
 if args.integration == "ingest" and args.embedding == "tsne":
     raise ValueError("ingest does not support tsne embedding")
 
-embedding_label = "UMAP" if args.embedding == "umap" else "t-SNE"
+embedding_label = std.format_embedding(args.embedding)
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
@@ -367,7 +367,7 @@ del adatas
 
 std.print_task(
     "estimating highly variable genes "
-    f"(flavor={args.flavor}, number={args.top_hvg if args.top_hvg else 'none'})"
+    f"({std.format_hvg_parameters(flavor=args.flavor, number=args.top_hvg)})"
 )
 with std.filter_scanpy_hvg_warnings():
     sc.pp.highly_variable_genes(
@@ -426,7 +426,7 @@ if args.integration == "ingest":
         f"embedding neighborhood graph (dimensions={args.embedding_dimension}, condition={reference})"
     )
     std.print_task(
-        f"computing embedding (method=UMAP, "
+        f"computing embedding (method={embedding_label}, "
         f"dimensions={args.embedding_dimension}, "
         f"min_dist={args.min_dist}, "
         f"spread={args.spread})"
@@ -540,7 +540,7 @@ elif args.integration == "bbknn":
     )
     if args.embedding == "umap":
         std.print_task(
-            f"computing embedding (method=UMAP, "
+            f"computing embedding (method={embedding_label}, "
             f"dimensions={args.embedding_dimension}, "
             f"min_dist={args.min_dist}, "
             f"spread={args.spread})"
@@ -557,7 +557,7 @@ elif args.integration == "bbknn":
         del adata.uns["umap"]["params"]["random_state"]
     elif args.embedding == "tsne":
         std.print_task(
-            f"computing embedding (method=t-SNE, "
+            f"computing embedding (method={embedding_label}, "
             f"dimensions={args.embedding_dimension}, "
             f"metric={args.metric})"
         )
@@ -633,7 +633,7 @@ elif args.integration == "scanorama":
     )
     if args.embedding == "umap":
         std.print_task(
-            f"computing embedding (method=UMAP, "
+            f"computing embedding (method={embedding_label}, "
             f"dimensions={args.embedding_dimension}, "
             f"min_dist={args.min_dist}, "
             f"spread={args.spread})"
@@ -650,7 +650,7 @@ elif args.integration == "scanorama":
         del adata.uns["umap"]["params"]["random_state"]
     elif args.embedding == "tsne":
         std.print_task(
-            f"computing embedding (method=t-SNE, "
+            f"computing embedding (method={embedding_label}, "
             f"dimensions={args.embedding_dimension}, "
             f"metric={args.metric})"
         )

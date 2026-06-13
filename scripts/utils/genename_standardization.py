@@ -107,7 +107,8 @@ genesynonyms = bt.dbs.ncbi.genesyn(organism=args.organism)
 
 std.print_task(f"loading gene data (file={std.format_path(args.infile)})")
 std.print_info(
-    f"standardizing gene identifiers ({args.input_identifier_type} => {args.output_identifier_type})"
+    f"standardizing gene identifiers "
+    f"({args.input_identifier_type} -> {args.output_identifier_type})"
 )
 if file_extension == "txt":
     with open(args.infile, "r") as file:

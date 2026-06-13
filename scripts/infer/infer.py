@@ -668,21 +668,21 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--important-genes",
-    dest="important_genes",
+    "--important-nodes",
+    dest="important_nodes",
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="input file storing important genes prioritized to appear (format: json or txt)",
+    help="input file storing important nodes prioritized to appear (format: json or txt)",
 )
 
 parser.add_argument(
-    "--mandatory-genes",
-    dest="mandatory_genes",
+    "--mandatory-nodes",
+    dest="mandatory_nodes",
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="input file storing mandatory genes forced to appear (format: json or txt)",
+    help="input file storing mandatory nodes forced to appear (format: json or txt)",
 )
 
 parser.add_argument(
@@ -1019,23 +1019,23 @@ if args.action == "filter-nodes":
 
     bo.maximize_nodes()
 
-    mandatory_genes = read_gene_list(args.mandatory_genes)
-    for gene in mandatory_genes:
-        bo.custom(f"node({clingo_encode(gene)}).")
+    mandatory_nodes = read_gene_list(args.mandatory_nodes)
+    for node in mandatory_nodes:
+        bo.custom(f"node({clingo_encode(node)}).")
 
-    important_genes = set(read_gene_list(args.important_genes))
-    important_genes_in_domain = important_genes & set(bo.domain.nodes)
-    for gene in important_genes_in_domain:
-        bo.custom(f"important_node({clingo_encode(gene)}).")
+    important_nodes = set(read_gene_list(args.important_nodes))
+    important_nodes_in_domain = important_nodes & set(bo.domain.nodes)
+    for node in important_nodes_in_domain:
+        bo.custom(f"important_node({clingo_encode(node)}).")
 
     bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
     filter_nodes_score_formatter = make_filter_nodes_score_formatter(
-        important_total=len(important_genes_in_domain),
+        important_total=len(important_nodes_in_domain),
         node_total=len(bo.domain.nodes),
     )
     ptqdm.score_formatter = filter_nodes_score_formatter
     ptqdm.initial_postfix = filter_nodes_score_formatter(
-        [0, 0] if important_genes_in_domain else [0]
+        [0, 0] if important_nodes_in_domain else [0]
     )
 
     def intermediate_solution(nodes):
@@ -1100,12 +1100,12 @@ elif args.action == "filter-consts":
     if args.minimize_self_loops:
         bo.custom("edge(A,A) :- clause(A,_,A,_). #minimize { 1@10000,A: edge(A,A) }.")
 
-    important_genes = set(read_gene_list(args.important_genes))
-    important_genes_in_domain = important_genes & set(bo.domain.nodes)
-    for gene in important_genes_in_domain:
-        bo.custom(f"important_node({clingo_encode(gene)}).")
+    important_nodes = set(read_gene_list(args.important_nodes))
+    important_nodes_in_domain = important_nodes & set(bo.domain.nodes)
+    for node in important_nodes_in_domain:
+        bo.custom(f"important_node({clingo_encode(node)}).")
 
-    if important_genes_in_domain:
+    if important_nodes_in_domain:
         bo.custom(
             "#maximize { 1@1,N: important_node(N), node(N), "
             "not strong_constant(N) }."
@@ -1114,12 +1114,12 @@ elif args.action == "filter-consts":
     clingo_opt_strategy = "usc"
     ptqdm.score_formatter = make_filter_consts_score_formatter(
         node_total=len(bo.domain.nodes),
-        important_total=len(important_genes_in_domain),
+        important_total=len(important_nodes_in_domain),
     )
     ptqdm.initial_postfix = {"total": f"0/{len(bo.domain.nodes)}"}
-    if important_genes_in_domain:
+    if important_nodes_in_domain:
         ptqdm.initial_postfix = {
-            "important": f"0/{len(important_genes_in_domain)}",
+            "important": f"0/{len(important_nodes_in_domain)}",
             **ptqdm.initial_postfix,
         }
     view = bonesis.NonStrongConstantNodesView(
@@ -1152,10 +1152,10 @@ elif args.action == "filter-consts":
 
     write_node_solution(solution, args.solution, args.status)
 
-    if important_genes_in_domain:
+    if important_nodes_in_domain:
         std.print_result(
-            f"important nodes: kept={len(set(solution) & important_genes_in_domain)}/"
-            f"{len(important_genes_in_domain)}"
+            f"important nodes: kept={len(set(solution) & important_nodes_in_domain)}/"
+            f"{len(important_nodes_in_domain)}"
         )
     print_node_solution(solution, nodes_in_data, nodes_in_domain)
 
@@ -1167,7 +1167,8 @@ else:
     if normalized_to_original_gene_names:
         std.print_debug(
             "restoring gene names "
-            f"(phase=post-inference, reason=unsupported '-' characters, genes={'+'.join(f'{k}->{v}' for k, v in normalized_to_original_gene_names.items())})"
+            "(phase=post-inference, reason=unsupported '-' characters, "
+            f"genes={std.format_mapping(normalized_to_original_gene_names)})"
         )
 
     config_predicates = get_configuration_predicates(bo)

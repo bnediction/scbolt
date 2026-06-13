@@ -125,6 +125,10 @@ if "variances" in adata.var:
     del adata.var["variances"]
 if "variances_norm" in adata.var:
     del adata.var["variances_norm"]
+std.print_task(
+    "estimating highly variable genes "
+    f"({std.format_hvg_parameters(flavor=args.method, number=args.hvg)})"
+)
 with std.filter_scanpy_hvg_warnings():
     sc.pp.highly_variable_genes(
         adata,

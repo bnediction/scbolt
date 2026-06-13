@@ -7,7 +7,7 @@ import warnings
 
 import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Mapping, Optional
 
 @contextlib.contextmanager
 def disable_print(disable: bool = True, disable_warnings: bool = True):
@@ -62,6 +62,43 @@ def format_path(path: str | Path) -> str:
     path_str = os.fspath(path)
     relative_path = os.path.relpath(path_str)
     return relative_path if len(relative_path) < len(path_str) else path_str
+
+
+def format_embedding(embedding: str) -> str:
+    labels = {
+        "umap": "UMAP",
+        "tsne": "t-SNE",
+        "se": "spectral embedding",
+        "pca": "PCA",
+        "X_umap": "UMAP",
+        "X_tsne": "t-SNE",
+        "X_se": "spectral embedding",
+        "X_pca": "PCA",
+        "X_largevis": "LargeVis",
+        "X_diffmap": "diffusion map",
+        "X_phate": "PHATE",
+        "X_trimap": "TriMap",
+    }
+    if embedding in labels:
+        return labels[embedding]
+    if embedding.startswith("X_"):
+        return embedding[2:]
+    return embedding
+
+
+def format_hvg_parameters(flavor: str, number: Optional[int] = None) -> str:
+    if number is None:
+        return f"flavor={flavor}"
+    return f"flavor={flavor}, number={number}"
+
+
+def format_set(values: Iterable[object]) -> str:
+    return "{" + ", ".join(sorted(map(str, values))) + "}"
+
+
+def format_mapping(values: Mapping[object, object]) -> str:
+    pairs = [f"{key} -> {value}" for key, value in values.items()]
+    return "{" + ", ".join(sorted(pairs)) + "}"
 
 
 def print_info(message: Optional[str]=None, file=sys.stdout, flush=True) -> None:

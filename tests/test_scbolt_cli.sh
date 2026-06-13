@@ -82,6 +82,26 @@ expect_make_args() {
     diff -u "${expected}" "${record}"
 }
 
+complete_scbolt() {
+    local project_dir="$1"
+    local cword="$2"
+    shift 2
+
+    (
+        cd "${project_dir}"
+        source "${repo_root}/bin/completion.bash"
+        COMP_WORDS=("$@")
+        COMP_CWORD="${cword}"
+        COMP_LINE="${COMP_WORDS[*]}"
+        if [ -z "${COMP_WORDS[COMP_CWORD]}" ]; then
+            COMP_LINE="${COMP_LINE} "
+        fi
+        COMP_POINT="${#COMP_LINE}"
+        _scbolt
+        printf '%s\n' "${COMPREPLY[@]}"
+    )
+}
+
 project="${tmpdir}/project"
 mkdir -p "${project}"
 printf '# test params\n' > "${project}/params.mk"
@@ -166,6 +186,25 @@ grep -q '^  --remove' "${tmpdir}/init-help.out"
 grep -q '^  --show' "${tmpdir}/init-help.out"
 grep -q '^  <parameter>=<value>' "${tmpdir}/init-help.out"
 ! grep -q -- '-h' "${tmpdir}/init-help.out"
+
+complete_scbolt "${project}" 2 scbolt init "" > "${tmpdir}/init-completion-before.out"
+grep -qx -- '--show' "${tmpdir}/init-completion-before.out"
+grep -qx -- '--remove' "${tmpdir}/init-completion-before.out"
+grep -qx 'params.mk' "${tmpdir}/init-completion-before.out"
+! grep -qx -- '--params=' "${tmpdir}/init-completion-before.out"
+! grep -qx -- '--organism=' "${tmpdir}/init-completion-before.out"
+
+complete_scbolt "${project}" 3 scbolt init params.mk "" \
+    > "${tmpdir}/init-completion-after.out"
+! grep -qx -- '--show' "${tmpdir}/init-completion-after.out"
+! grep -qx -- '--remove' "${tmpdir}/init-completion-after.out"
+grep -qx -- '--organism=' "${tmpdir}/init-completion-after.out"
+
+complete_scbolt "${project}" 3 scbolt init --params=params.mk "" \
+    > "${tmpdir}/init-completion-after-params.out"
+! grep -qx -- '--show' "${tmpdir}/init-completion-after-params.out"
+! grep -qx -- '--remove' "${tmpdir}/init-completion-after-params.out"
+grep -qx -- '--organism=' "${tmpdir}/init-completion-after-params.out"
 
 (
     cd "${project}"
@@ -441,22 +480,28 @@ mkdir -p "${fresh_project}"
 )
 grep -qx 'PARAMS=missing.mk' "${fresh_project}/.scbolt"
 test -f "${fresh_project}/missing.mk"
-grep -q '^#######################################################$' "${fresh_project}/missing.mk"
-grep -q '^### Fill required parameters before running scBOLT\. ###$' "${fresh_project}/missing.mk"
-grep -q '^### Fill when reaching module-specific steps\. ###$' "${fresh_project}/missing.mk"
-grep -q '^### Optional parameters\. ###$' "${fresh_project}/missing.mk"
-grep -q '^# Define one input route before running scBOLT\.$' "${fresh_project}/missing.mk"
-grep -q '^# Input routes are mutually exclusive\. Define only one of these families\.$' \
+grep -q '^### Project settings ###$' "${fresh_project}/missing.mk"
+grep -q '^### Input sources ###$' "${fresh_project}/missing.mk"
+grep -q '^### Module-specific inputs ###$' "${fresh_project}/missing.mk"
+grep -q '^# Input sources are mutually exclusive\. Use one family:$' \
     "${fresh_project}/missing.mk"
+grep -q '^# - SRA or SRA_<CONDITION>   : list of SRA run IDs$' \
+    "${fresh_project}/missing.mk"
+grep -q '^# - GSM or GSM_<CONDITION>   : GEO sample ID$' \
+    "${fresh_project}/missing.mk"
+grep -q '^# SRA = SRR12345678 SRR87654321$' "${fresh_project}/missing.mk"
+grep -q '^# GSM = GSM5492245$' "${fresh_project}/missing.mk"
+! grep -q 'SRA_UNIQUE' "${fresh_project}/missing.mk"
+! grep -q 'GSM_UNIQUE' "${fresh_project}/missing.mk"
 grep -q '^CONDITIONS =$' "${fresh_project}/missing.mk"
 grep -q '^ORGANISM =$' "${fresh_project}/missing.mk"
+grep -q '^SRA =$' "${fresh_project}/missing.mk"
+grep -q '^GSM =$' "${fresh_project}/missing.mk"
 grep -q '^LABEL =$' "${fresh_project}/missing.mk"
-grep -q '^SPEC_FILE = spec.yml$' "${fresh_project}/missing.mk"
+grep -q '^SPEC_FILE =$' "${fresh_project}/missing.mk"
 grep -q '^COUNT_FILES =$' "${fresh_project}/missing.mk"
 grep -q '^MACROSTATE_FILES =$' "${fresh_project}/missing.mk"
 grep -q '^BINARIZATION_FILE =$' "${fresh_project}/missing.mk"
-grep -q '^RESULTS_DIR = project/$' "${fresh_project}/missing.mk"
-grep -q '^PUBLIC_DIR = public/$' "${fresh_project}/missing.mk"
 grep -qx 'Parameter file: missing.mk (created)' "${tmpdir}/fresh-missing-init.out"
 grep -qx '✓ scBOLT project initialized.' "${tmpdir}/fresh-missing-init.out"
 
@@ -468,6 +513,7 @@ mkdir -p "${filled_project}"
         --conditions="ctrl treated" \
         --organism=mouse \
         --gsm-ctrl=GSM5492245 \
+        --old-file=trusted.h5ad \
         --results-dir=results \
         RESOLUTION=0.46 \
         > "${tmpdir}/filled-init.out" \
@@ -477,23 +523,27 @@ grep -qx 'PARAMS=filled.mk' "${filled_project}/.scbolt"
 test -f "${filled_project}/filled.mk"
 grep -q '^CONDITIONS = ctrl treated$' "${filled_project}/filled.mk"
 grep -q '^ORGANISM = mouse$' "${filled_project}/filled.mk"
-grep -q '^RESULTS_DIR = results$' "${filled_project}/filled.mk"
-grep -q '^### Parameters defined by user ###$' "${filled_project}/filled.mk"
-awk '
-    /^### Parameters defined by user ###$/ {
-        getline
-        getline
-        if ($0 != "") {
-            exit 1
-        }
-        found = 1
-    }
-    END {
-        exit !found
-    }
-' "${filled_project}/filled.mk"
+grep -q '^SRA_CTRL =$' "${filled_project}/filled.mk"
+grep -q '^SRA_TREATED =$' "${filled_project}/filled.mk"
 grep -q '^GSM_CTRL = GSM5492245$' "${filled_project}/filled.mk"
+grep -q '^GSM_TREATED =$' "${filled_project}/filled.mk"
+! grep -q '^SRA =$' "${filled_project}/filled.mk"
+! grep -q '^GSM =$' "${filled_project}/filled.mk"
+grep -q '^RESULTS_DIR = results$' "${filled_project}/filled.mk"
+grep -q '^OLD_FILES = trusted.h5ad$' "${filled_project}/filled.mk"
 grep -q '^RESOLUTION = 0.46$' "${filled_project}/filled.mk"
+! grep -q '^### User-defined parameters ###$' "${filled_project}/filled.mk"
+project_settings_line="$(grep -n '^### Project settings ###$' "${filled_project}/filled.mk" | cut -d: -f1)"
+input_sources_line="$(grep -n '^### Input sources ###$' "${filled_project}/filled.mk" | cut -d: -f1)"
+module_inputs_line="$(grep -n '^### Module-specific inputs ###$' "${filled_project}/filled.mk" | cut -d: -f1)"
+results_dir_line="$(grep -n '^RESULTS_DIR = results$' "${filled_project}/filled.mk" | cut -d: -f1)"
+old_files_line="$(grep -n '^OLD_FILES = trusted.h5ad$' "${filled_project}/filled.mk" | cut -d: -f1)"
+resolution_line="$(grep -n '^RESOLUTION = 0.46$' "${filled_project}/filled.mk" | cut -d: -f1)"
+test "${project_settings_line}" -lt "${results_dir_line}"
+test "${results_dir_line}" -lt "${input_sources_line}"
+test "${input_sources_line}" -lt "${old_files_line}"
+test "${old_files_line}" -lt "${module_inputs_line}"
+test "${module_inputs_line}" -lt "${resolution_line}"
 grep -qx 'Parameter file: filled.mk (created)' "${tmpdir}/filled-init.out"
 grep -qx '✓ scBOLT project initialized.' "${tmpdir}/filled-init.out"
 

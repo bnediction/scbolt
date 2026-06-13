@@ -103,10 +103,10 @@ define compute_rules_for_conditions
 $(fastq_$(1)):
 	$(call print_rule,load-fastq,$(1))
 	$(call require_sra_condition,$(1))
-	sample_naming="$(1)"
+	sample_naming="$(call condition_name,$(1))"
 	lane=0
 	rm -rf $(tmpdir)/$(1)/fastq && mkdir -p $(tmpdir)/$(1)/fastq
-	for id in $$(SRA_$(call toupper, $(1)))
+	for id in $(call sra_value,$(1))
 	do
 		((++lane))
 		$$(call conda_run,scbolt-fastq) parallel-fastq-dump \
@@ -133,15 +133,15 @@ $(load_matrix_$(1)) $(geo_files_$(1))&:
 	$(call require_gsm_condition,$(1))
 	rm -rf $(tmpdir)/$(1)/geo
 	mkdir -p $(tmpdir)/$(1)/geo $$(geo_dir_$(1))
-	$(call print_task,downloading GEO count matrix (sample=$(GSM_$(call toupper,$(1)))))
+	$(call print_task,downloading GEO count matrix (sample=$(call gsm_value,$(1))))
 	bash $(scripts_dir)/download/download_gsm.sh \
-		$(GSM_$(call toupper,$(1))) $(tmpdir)/$(1)/geo
+		$(call gsm_value,$(1)) $(tmpdir)/$(1)/geo
 	mv $(tmpdir)/$(1)/geo/matrix.mtx.gz $$(geo_matrix_$(1))
 	mv $(tmpdir)/$(1)/geo/barcodes.tsv.gz $$(geo_barcodes_$(1))
 	mv $(tmpdir)/$(1)/geo/genes.tsv.gz $$(geo_genes_$(1))
 	$(call conda_run,scbolt-core) python $(scripts_dir)/download/import_matrix.py \
 		$$(geo_matrix_$(1)) $$(geo_barcodes_$(1)) $$(geo_genes_$(1)) $$(load_matrix_$(1)) \
-		--gsm $(GSM_$(call toupper,$(1)))
+		--gsm $(call gsm_value,$(1))
 	$$(call write_scbolt_metadata,load-matrix,$$(load_matrix_$(1)) $$(geo_files_$(1)))
 endif
 
@@ -150,15 +150,15 @@ $(cellranger_$(1)): $(fastq_$(1)) $(genome_ref)
 	mkdir -p $(tmpdir)/cellranger $$(@D)
 	(
 		cd $(tmpdir)/cellranger
-		cellranger count --id=$(1) \
+		cellranger count --id=$(call condition_name,$(1)) \
 			--fastqs=$$(realpath $$(firstword $$^)) \
 			--transcriptome=$$(realpath $$(lastword $$^)) \
 			--create-bam true \
 			--localcores=$(JOBS) \
 			--localmem=$(MEMORY)
 	)
-	mv $(tmpdir)/cellranger/$(1)/* $$(@D)
-	rm -rf $(tmpdir)/cellranger/$(1)
+	mv $(tmpdir)/cellranger/$(call condition_name,$(1))/* $$(@D)
+	rm -rf $(tmpdir)/cellranger/$(call condition_name,$(1))
 
 $(star_$(1))&: $(fastq_$(1)) $(star_index)
 	$(call print_rule,star,$(1))
@@ -414,8 +414,8 @@ $(stream_$(1))&: $(annotation_$(1))
 
 ifeq ($(or $(call knnsc_centrality,$(1)),$(call knnsc_periphery,$(1))),)
 $(knnsc_$(1))&: $(annotation_$(1))
-	$(call print_error,required parameter not defined: KNNSC_CENTRALITY_$(call toupper,$(1)) \
-		or KNNSC_PERIPHERY_$(call toupper,$(1)) \(needed by target 'knnsc'\))
+	$(call print_error,required parameter not defined: $(call knnsc_centrality_var,$(1)) \
+		or $(call knnsc_periphery_var,$(1)) \(needed by target 'knnsc'\))
 else
 $(knnsc_$(1))&: $(annotation_$(1))
 	$(call print_rule,knnsc,$(1))
@@ -696,7 +696,7 @@ $(bonesis_model)&: $(bin)
 	$(if $(filter true,$(SPEC_ONLY_HVG)),$(call build_bin_hvg,spec))
 	$(call conda_run,scbolt-bonesis) python $(scripts_dir)/infer/spec.py $(SPEC_FILE) $< \
 		--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
-		--important-genes $(word 3,$(bonesis_model)) --mandatory-genes $(word 4,$(bonesis_model)) \
+		--important-nodes $(word 3,$(bonesis_model)) --mandatory-nodes $(word 4,$(bonesis_model)) \
 		$(if $(filter true,$(SPEC_ONLY_HVG)),--filter-genes $(bin_hvg)) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args)
@@ -713,7 +713,7 @@ $(max_nodes_soft): $(bonesis_model)
 	$(call inference_timeout,$(TIMEOUT_SOFT)) \
 		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
-		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
+		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--asp $(@D)/nodes.sh --solution $@ --status $(@D)/__SOLUTION \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
@@ -739,7 +739,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 	$(call inference_timeout,$(TIMEOUT_CONSTS)) \
 		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-consts \
 		$(word 1,$^) $(word 2,$^) \
-		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
+		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--filter-grn $(lastword $^) \
 		--asp $(@D)/nodes.sh --solution $@ --status $(@D)/__SOLUTION \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
@@ -765,7 +765,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 	$(call inference_timeout,$(TIMEOUT_RELAXED)) \
 		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
-		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
+		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
 		--solution $@ --status $(@D)/__SOLUTION \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
@@ -792,7 +792,7 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 	$(call inference_timeout,$(TIMEOUT_SEED)) \
 		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
-		--important-genes $(word 3,$^) --mandatory-genes $(word 4,$^) \
+		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
 		--solution $@ --status $(@D)/__SOLUTION \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
@@ -824,7 +824,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 		$(call inference_timeout,$(TIMEOUT_LOCK)) \
 			$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
 			$(word 1,$^) $(word 2,$^) \
-			--important-genes $(word 3,$^) --mandatory-genes $(@D)/mandatory.txt \
+			--important-nodes $(word 3,$^) --mandatory-nodes $(@D)/mandatory.txt \
 			--filter-grn $(word 5,$^) --asp $(@D)/nodes.sh \
 			--solution $@ --status $(@D)/__SOLUTION \
 			--domain $(prior_knowledge) --organism $(ORGANISM) \

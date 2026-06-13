@@ -123,10 +123,17 @@ is_creatable_path = $(shell { test -n "$(strip $(1))" && mkdir -p "$(strip $(1))
 	>/dev/null 2>&1 && echo true || echo false)
 
 raw_conditions := $(strip $(call tolower, $(CONDITIONS)))
+unnamed_condition := $(if $(raw_conditions),false,true)
 conditions := $(if $(raw_conditions),$(raw_conditions),unique)
 condition_indices := $(shell seq 1 $(words $(conditions)))
 $(foreach i,$(condition_indices),$(eval condition_index_$(word $(i),$(conditions)) := $(i)))
 file_for_condition = $(word $(condition_index_$(1)),$(strip $(2)))
+condition_path = $(if $(filter true,$(unnamed_condition)),,$(1)/)
+condition_name = $(if $(filter true,$(unnamed_condition)),sample,$(1))
+display_reference = $(strip $(if $(filter true,$(unnamed_condition)),\
+	$(patsubst %/unique,%,$(filter-out unique,$(1))),\
+	$(1)))
+display_list = $(strip $(foreach item,$(strip $(1)),$(call display_reference,$(item))))
 multi_condition := $(filter-out 1,$(words $(conditions)))
 references_default := $(strip $(conditions) $(if $(multi_condition),integrated))
 REFERENCES ?= $(references_default)
@@ -135,8 +142,20 @@ running_conditions := $(filter-out integrated,$(running_references))
 invalid_references = $(strip $(filter-out $(conditions) integrated,$(running_references)))
 target_conditions := $(call uniq,$(running_conditions) \
 	$(if $(filter integrated,$(running_references)),$(conditions)))
-gsm_value = $(strip $(GSM_$(call toupper,$(1))))
-sra_value = $(strip $(SRA_$(call toupper,$(1))))
+supported_references := $(strip $(conditions) $(if $(multi_condition),integrated))
+display_conditions := $(call display_list,$(conditions))
+display_conditions_label := $(if $(display_conditions),$(display_conditions),unnamed)
+display_references := $(call display_list,$(running_references))
+display_references_label := $(if $(display_references),$(display_references),unnamed)
+display_references_default := $(call display_list,$(references_default))
+display_references_default_label := $(if $(display_references_default),$(display_references_default),unnamed)
+display_supported_references := $(call display_list,$(supported_references))
+display_supported_references_label := $(if $(display_supported_references),$(display_supported_references),unnamed)
+gsm_var = $(if $(filter true,$(unnamed_condition)),GSM,GSM_$(call toupper,$(1)))
+sra_var = $(if $(filter true,$(unnamed_condition)),SRA,SRA_$(call toupper,$(1)))
+gsm_value = $(strip $($(call gsm_var,$(1))))
+sra_value = $(strip $($(call sra_var,$(1))))
+condition_param_var = $(if $(filter true,$(unnamed_condition)),$(1),$(1)_$(call toupper,$(2)))
 gsm_conditions := $(strip $(foreach condition,$(conditions),\
 	$(if $(call gsm_value,$(condition)),$(condition))))
 sra_conditions := $(strip $(foreach condition,$(conditions),\
@@ -145,18 +164,18 @@ count_files_mode := $(if $(COUNT_FILES),true,false)
 input_route_parameters := $(strip $(sra_conditions) $(gsm_conditions) \
 	$(COUNT_FILES) $(MACROSTATE_FILES) $(BINARIZATION_FILE))
 input_route_variables := $(strip \
-	$(if $(sra_conditions),SRA_*) \
-	$(if $(gsm_conditions),GSM_*) \
+	$(if $(sra_conditions),$(if $(filter true,$(unnamed_condition)),SRA,SRA_*)) \
+	$(if $(gsm_conditions),$(if $(filter true,$(unnamed_condition)),GSM,GSM_*)) \
 	$(if $(COUNT_FILES),COUNT_FILES) \
 	$(if $(MACROSTATE_FILES),MACROSTATE_FILES) \
 	$(if $(BINARIZATION_FILE),BINARIZATION_FILE))
 input_routes := $(strip \
-	$(if $(sra_conditions),SRA_<CONDITION>) \
-	$(if $(gsm_conditions),GSM_<CONDITION>) \
+	$(if $(sra_conditions),$(if $(filter true,$(unnamed_condition)),SRA,SRA_<CONDITION>)) \
+	$(if $(gsm_conditions),$(if $(filter true,$(unnamed_condition)),GSM,GSM_<CONDITION>)) \
 	$(if $(COUNT_FILES),COUNT_FILES) \
 	$(if $(MACROSTATE_FILES),MACROSTATE_FILES) \
 	$(if $(BINARIZATION_FILE),BINARIZATION_FILE))
-input_route_choices = SRA_<CONDITION>, GSM_<CONDITION>, COUNT_FILES, MACROSTATE_FILES, BINARIZATION_FILE
+input_route_choices = SRA, GSM, SRA_<CONDITION>, GSM_<CONDITION>, COUNT_FILES, MACROSTATE_FILES, BINARIZATION_FILE
 input_route_conflict = variable conflict: input routes are mutually exclusive \
 	(specified: $(subst $(space),$(comma) ,$(strip $(input_route_variables))))
 matrix_mode := $(if $(COUNT_FILES),false,$(if $(gsm_conditions),true,false))
@@ -180,13 +199,13 @@ endif
 endif
 ifneq ($(strip $(COUNT_FILES)),)
 ifneq ($(words $(COUNT_FILES)),$(words $(conditions)))
-$(error COUNT_FILES must contain one file per condition \(conditions: $(conditions)\))
+$(error COUNT_FILES must contain one file per condition \(conditions: $(display_conditions_label)\))
 endif
 endif
 ifneq ($(strip $(MACROSTATE_FILES)),)
 ifneq ($(words $(MACROSTATE_FILES)),1)
 ifneq ($(words $(MACROSTATE_FILES)),$(words $(conditions)))
-$(error MACROSTATE_FILES must contain either one multi-condition file or one file per condition \(conditions: $(conditions)\))
+$(error MACROSTATE_FILES must contain either one multi-condition file or one file per condition \(conditions: $(display_conditions_label)\))
 endif
 endif
 endif
@@ -206,7 +225,7 @@ gene2go_url := ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
 
 log = printf '%s - %s - %s\n' "`date '+%Y-%m-%d %H:%M:%S.%3N'`" "$(1)" "$(2)"
 
-print_rule    = $(call log,RULE,$(1)$(if $(2), (reference: $(2))))
+print_rule    = $(call log,RULE,$(1)$(if $(call display_reference,$(2)), (reference: $(call display_reference,$(2)))))
 print_task    = $(call log,TASK,$(1))
 print_info    = $(call log,INFO,$(1))
 print_warning = $(call log,WARNING,$(1))
@@ -277,21 +296,21 @@ endef
 
 define require_gsm_condition
 [ -n "$(call gsm_value,$(1))" ] || { \
-	$(call print_error,required parameter not defined: GSM_$(call toupper,$(1)) \(needed by target 'load-matrix'\)); \
+	$(call print_error,required parameter not defined: $(call gsm_var,$(1)) \(needed by target 'load-matrix'\)); \
 }; \
 if [ -n "$(call sra_value,$(1))" ]; then \
-	$(call print_error,incompatible input sources for condition '$(1)': \
-		both SRA_$(call toupper,$(1)) and GSM_$(call toupper,$(1)) are defined); \
+	$(call print_error,incompatible input sources$(if $(call display_reference,$(1)), for condition '$(1)'): \
+		both $(call sra_var,$(1)) and $(call gsm_var,$(1)) are defined); \
 fi
 endef
 
 define require_sra_condition
 [ -n "$(call sra_value,$(1))" ] || { \
-	$(call print_error,required parameter not defined: SRA_$(call toupper,$(1)) \(needed by target 'load-fastq'\)); \
+	$(call print_error,required parameter not defined: $(call sra_var,$(1)) \(needed by target 'load-fastq'\)); \
 }; \
 if [ -n "$(call gsm_value,$(1))" ]; then \
-	$(call print_error,incompatible input sources for condition '$(1)': \
-		both SRA_$(call toupper,$(1)) and GSM_$(call toupper,$(1)) are defined); \
+	$(call print_error,incompatible input sources$(if $(call display_reference,$(1)), for condition '$(1)'): \
+		both $(call sra_var,$(1)) and $(call gsm_var,$(1)) are defined); \
 fi
 endef
 
@@ -376,7 +395,7 @@ fi
 endef
 
 define require_dorothea_levels
-if [ "$(strip $(PRIOR_KNOWLEDGE))" = "dorothea" ] && [ "$(strip $(DOROTHEA_API))" = "current" ]; then \
+if [ "$(strip $(PRIOR_KNOWLEDGE))" = "dorothea" ]; then \
 for level in $(DOROTHEA_LEVELS); do \
 	case "$${level}" in \
 		$(subst $(space),|,$(dorothea_levels))) ;; \
@@ -593,16 +612,16 @@ define check_knnsc_seed_diagnostic
 if [ -n "$(strip $(1))" ] || [ -n "$(strip $(2))" ]; then \
 	if [ -n "$(strip $(1))" ]; then \
 		$(call check_success,method parameter valid: \
-			KNNSC_CENTRALITY_$(call toupper,$(3))=$(strip $(1)) (needed by target 'knnsc')); \
+			$(call knnsc_centrality_var,$(3))=$(strip $(1)) (needed by target 'knnsc')); \
 	fi; \
 	if [ -n "$(strip $(2))" ]; then \
 		$(call check_success,method parameter valid: \
-			KNNSC_PERIPHERY_$(call toupper,$(3))=$(strip $(2)) (needed by target 'knnsc')); \
+			$(call knnsc_periphery_var,$(3))=$(strip $(2)) (needed by target 'knnsc')); \
 	fi; \
 else \
 	$(call report_check_error,required method parameter not defined: \
-		KNNSC_CENTRALITY_$(call toupper,$(3)) or \
-		KNNSC_PERIPHERY_$(call toupper,$(3)) (needed by target 'knnsc')); \
+		$(call knnsc_centrality_var,$(3)) or \
+		$(call knnsc_periphery_var,$(3)) (needed by target 'knnsc')); \
 fi
 endef
 
@@ -658,7 +677,7 @@ else \
 	references_ok=1; \
 	if [ -n "$(invalid_references)" ]; then \
 		$(call report_check_error,unsupported value for core parameter REFERENCES: $(invalid_references) \
-			(supported values: $(subst $(space),$(comma) ,$(conditions) integrated))); \
+			(supported values: $(subst $(space),$(comma) ,$(display_supported_references_label)))); \
 		references_ok=0; \
 	fi; \
 	if [ "$(words $(conditions))" -eq 1 ] && [ -n "$(filter integrated,$(running_references))" ]; then \
@@ -667,7 +686,7 @@ else \
 		references_ok=0; \
 	fi; \
 	if [ "$${references_ok}" -eq 1 ]; then \
-		$(call check_success,core parameter valid: REFERENCES=$(REFERENCES)); \
+		$(call check_success,core parameter valid: REFERENCES=$(display_references_label)); \
 	fi; \
 fi
 endef
@@ -721,8 +740,10 @@ if [ "$(strip $(1))" = "seurat_v3" ] && [ -z "$(strip $(2))" ]; then \
 fi
 endef
 
-knnsc_centrality = $(KNNSC_CENTRALITY_$(call toupper,$(1)))
-knnsc_periphery = $(KNNSC_PERIPHERY_$(call toupper,$(1)))
+knnsc_centrality_var = $(call condition_param_var,KNNSC_CENTRALITY,$(1))
+knnsc_periphery_var = $(call condition_param_var,KNNSC_PERIPHERY,$(1))
+knnsc_centrality = $($(call knnsc_centrality_var,$(1)))
+knnsc_periphery = $($(call knnsc_periphery_var,$(1)))
 log_parameters = $(foreach var,$(strip $(1)),printf '%s=%s\n' '$(var)' "$($(var))"; )
 metadata_target_args = $(foreach target,$(strip $(RESET_TARGET_$(1))),--target "$(target)")
 metadata_custom_target_args = $(foreach target,$(strip $(2)),--target "$(target)")

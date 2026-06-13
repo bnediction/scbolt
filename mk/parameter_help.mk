@@ -23,8 +23,8 @@ parameter_help_description_ORGANISM = Organism used for gene resources.
 parameter_help_hint_MEMORY = $(parameter_help_positive_integer)
 parameter_help_description_MEMORY = Memory budget in GB.
 $(foreach condition,$(conditions),\
-	$(eval parameter_help_hint_GSM_$(call toupper,$(condition)) = GSM accession)\
-	$(eval parameter_help_description_GSM_$(call toupper,$(condition)) = GEO sample containing the count matrix.))
+	$(eval parameter_help_hint_$(call gsm_var,$(condition)) = GSM accession)\
+	$(eval parameter_help_description_$(call gsm_var,$(condition)) = GEO sample containing the count matrix.))
 
 parameter_help_hint_ALIGNMENT_TOOL = cellranger | star
 parameter_help_description_ALIGNMENT_TOOL = Alignment and counting backend.

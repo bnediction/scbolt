@@ -20,20 +20,19 @@ script_name = Path(__file__).name
 parser = argparse.ArgumentParser(
     prog="spec",
     description="""Check whether BoNesis properties are well defined and convert model specifications (format: yml) and binarized macrostates (format: csv) into four files:
-    - model (txt): dynamic Boolean properties
+    - model (txt): dynamical Boolean properties
     - metastates (csv): partially binarized metastates
-    - important-genes (txt): genes prioritized to appear in Boolean network solutions
-    - mandatory-genes (txt): genes forced to appear in Boolean network solutions
+    - important-nodes (txt): nodes prioritized to appear in Boolean network solutions
+    - mandatory-nodes (txt): nodes forced to appear in Boolean network solutions
 
-The model specification file (format: yml) must contain four keys:
-    - states (list of metastate-macrostate name associations)
-    - bonesis (list of dynamic Boolean properties in BoNesis syntax)
-    - mandatory_genes (list of genes forced to appear in Boolean network solutions)
-    - important_genes (list of genes prioritized to appear in Boolean network solutions)
+The model specification file (format: yml) must contain:
+    - dynamical_constraints (list of dynamical Boolean properties in BoNesis syntax)
+    - important_nodes (list of nodes prioritized to appear in Boolean network solutions)
+    - mandatory_nodes (list of nodes forced to appear in Boolean network solutions)
 """,
     usage=(
         f"python {script_name} <FILE> <FILE> --model <FILE> --metastates <FILE> "
-        "--mandatory-genes <FILE> --important-genes <FILE> [<args>]"
+        "--mandatory-nodes <FILE> --important-nodes <FILE> [<args>]"
     ),
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
@@ -57,7 +56,7 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
     required=True,
-    help="output file storing dynamic Boolean properties (format: txt)",
+    help="output file storing dynamical Boolean properties (format: txt)",
 )
 
 parser.add_argument(
@@ -79,21 +78,21 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--important-genes",
-    dest="important_genes",
+    "--important-nodes",
+    dest="important_nodes",
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="output file storing important genes prioritized to appear (format: json or txt)",
+    help="output file storing important nodes prioritized to appear (format: json or txt)",
 )
 
 parser.add_argument(
-    "--mandatory-genes",
-    dest="mandatory_genes",
+    "--mandatory-nodes",
+    dest="mandatory_nodes",
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="output file storing mandatory genes forced to appear (format: json or txt)",
+    help="output file storing mandatory nodes forced to appear (format: json or txt)",
 )
 
 parser.add_argument(
@@ -190,8 +189,8 @@ args = parser.parse_args()
 for outfile in [
     args.macrostates,
     args.model,
-    args.mandatory_genes,
-    args.important_genes,
+    args.mandatory_nodes,
+    args.important_nodes,
 ]:
     if not Path(os.path.dirname(outfile)).exists():
         os.makedirs(Path(os.path.dirname(outfile)))
@@ -206,7 +205,31 @@ std.print_task(
 )
 
 with open(args.model_specification, "r") as file:
-    specification = yaml.safe_load(file)
+    specification = yaml.safe_load(file) or {}
+
+if not isinstance(specification, dict):
+    parser.error("model specification must be a YAML mapping")
+
+
+def read_specification_list(key: str, *, required: bool = False) -> list[str]:
+    if key not in specification:
+        if required:
+            parser.error(f"missing model specification section: {key}")
+        return []
+
+    values = specification[key]
+    if values is None:
+        return []
+    if not isinstance(values, list):
+        parser.error(f"model specification section '{key}' must be a list")
+    if not all(isinstance(value, str) for value in values):
+        parser.error(f"model specification section '{key}' must contain only strings")
+    return values
+
+
+dynamical_constraints = read_specification_list("dynamical_constraints", required=True)
+important_nodes = set(read_specification_list("important_nodes"))
+mandatory_nodes = set(read_specification_list("mandatory_nodes"))
 
 std.print_task(f"loading CSV table (file={std.format_path(args.macrostates)})")
 
@@ -216,51 +239,35 @@ macrostates_df = genesyn(
 
 std.print_task("getting binarized states")
 
-important_genes = (
-    set(specification["important_genes"])
-    if specification["important_genes"] is not None
-    else set()
-)
-important_genes = genesyn(important_genes)
-
-mandatory_genes = (
-    set(specification["mandatory_genes"])
-    if specification["mandatory_genes"] is not None
-    else set()
-)
-mandatory_genes = genesyn(mandatory_genes)
+important_nodes = genesyn(important_nodes)
+mandatory_nodes = genesyn(mandatory_nodes)
 
 if args.filter_genes:
     std.print_info("filtering genes")
     with open(args.filter_genes) as file:
         keep_only = {line.strip() for line in file.readlines()}
     keep_only = genesyn(keep_only)
-    if important_genes - keep_only:
+    if important_nodes - keep_only:
         std.print_debug(
-            "reintegrating filtered genes (kind=important, genes={0})".format(
-                "+".join(map(str, important_genes - keep_only))
+            "reintegrating filtered nodes (kind=important, nodes={0})".format(
+                std.format_set(important_nodes - keep_only)
             )
         )
-    if mandatory_genes - keep_only:
+    if mandatory_nodes - keep_only:
         std.print_debug(
-            "reintegrating filtered genes (kind=mandatory, genes={0})".format(
-                "+".join(map(str, mandatory_genes - keep_only))
+            "reintegrating filtered nodes (kind=mandatory, nodes={0})".format(
+                std.format_set(mandatory_nodes - keep_only)
             )
         )
-    keep_only = keep_only | mandatory_genes | important_genes
+    keep_only = keep_only | mandatory_nodes | important_nodes
     keep_only_present = keep_only & set(macrostates_df.columns)
     if keep_only - keep_only_present:
         std.print_warning(
-            "missing genes (source=binarized macrostates, format=csv, genes={0})".format(
-                "+".join(map(str, keep_only - keep_only_present))
+            "missing nodes (source=binarized macrostates, format=csv, nodes={0})".format(
+                std.format_set(keep_only - keep_only_present)
             )
         )
     macrostates_df = macrostates_df.loc[:, list(keep_only_present)]
-
-if specification["states"] is not None:
-    macrostates_df.rename(
-        index=dict((v, k) for k, v in specification["states"].items()), inplace=True
-    )
 
 macrostates_cfg = get_cfg(macrostates_df, axis="index", genesyn=genesyn)
 
@@ -285,37 +292,37 @@ bo = bonesis.BoNesis(pkn, macrostates_cfg)
 
 namespace = {"bo": bo}
 
-for property in specification["bonesis"]:
+for constraint in dynamical_constraints:
     try:
         load_bonesis_code(
             bo,
-            property,
+            constraint,
             filename=str(args.model_specification),
             namespace=namespace,
         )
     except Exception as error:
         raise RuntimeError(
-            f"invalid dynamical Boolean properties: {property}"
+            f"invalid dynamical Boolean constraint: {constraint}"
         ) from error
 
 std.print_task(f"saving Boolean specification (file={std.format_path(args.model)})")
 
 with open(args.model, "w") as file:
-    for property in specification["bonesis"]:
-        file.write(f"{property}\n")
+    for constraint in dynamical_constraints:
+        file.write(f"{constraint}\n")
 
 std.print_task(f"saving CSV table (file={std.format_path(args.metastates)})")
 
 macrostates_df.to_csv(args.metastates, sep=",", index=True)
 
-std.print_task(f"saving gene list (file={std.format_path(args.important_genes)})")
+std.print_task(f"saving node list (file={std.format_path(args.important_nodes)})")
 
-with open(args.important_genes, "w") as file:
-    for gene in important_genes:
-        file.write(f"{gene}\n")
+with open(args.important_nodes, "w") as file:
+    for node in important_nodes:
+        file.write(f"{node}\n")
 
-std.print_task(f"saving gene list (file={std.format_path(args.mandatory_genes)})")
+std.print_task(f"saving node list (file={std.format_path(args.mandatory_nodes)})")
 
-with open(args.mandatory_genes, "w") as file:
-    for gene in mandatory_genes:
-        file.write(f"{gene}\n")
+with open(args.mandatory_nodes, "w") as file:
+    for node in mandatory_nodes:
+        file.write(f"{node}\n")

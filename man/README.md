@@ -19,7 +19,7 @@ Once this step finished, condition-related data are integrated by removing batch
 and cell profiles are annotated by clustering and analysing cell populations.
 Annotations are sometimes not sufficient to deduce transcriptional dynamics,
 thus state-change trajectories are inferred. Then binarized meta-states are retrieved,
-which combined to dynamic Boolean properties, allows to infer BNs.
+which combined to dynamical Boolean properties, allows to infer BNs.
 
 <p align="center">
 <img src="fig/scbolt-advanced.png" alt="scbolt-advanced" width="700"/>

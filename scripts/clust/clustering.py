@@ -240,7 +240,7 @@ if args.pca_dimension < args.clustering_dimension:
         f"invalid values for arguments: 'pca-dimension' > 'clustering-dimension' not satisfied (pca-dimension: {args.pca_dimension}, clustering-dimension: {args.clustering_dimension})"
     )
 
-label = "UMAP" if args.embedding == "umap" else "t-SNE"
+embedding_label = std.format_embedding(args.embedding)
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
@@ -255,7 +255,7 @@ if args.layer:
 if args.only_hvg:
     std.print_task(
         "estimating highly variable genes "
-        f"(flavor={args.flavor}, number={args.top_hvg if args.top_hvg else 'none'})"
+        f"({std.format_hvg_parameters(flavor=args.flavor, number=args.top_hvg)})"
     )
     with std.filter_scanpy_hvg_warnings():
         sc.pp.highly_variable_genes(
@@ -315,7 +315,7 @@ std.print_result(f"identified {adata.obs['cluster'].nunique()} clusters")
 std.print_task(f"embedding neighborhood graph (dimensions={args.embedding_dimension})")
 if args.embedding == "umap":
     std.print_task(
-        f"computing embedding (method=UMAP, "
+        f"computing embedding (method={embedding_label}, "
         f"dimensions={args.embedding_dimension}, "
         f"min_dist={args.min_dist}, "
         f"spread={args.spread})"
@@ -332,7 +332,7 @@ if args.embedding == "umap":
     del adata.uns["umap"]["params"]["random_state"]
 elif args.embedding == "tsne":
     std.print_task(
-        f"computing embedding (method=t-SNE, "
+        f"computing embedding (method={embedding_label}, "
         f"dimensions={args.embedding_dimension}, "
         f"metric={args.metric})"
     )
@@ -353,9 +353,9 @@ bt.sct.pl.embedding(
     adata,
     obs="cluster",
     use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
-    xlabel=r"$\mathrm{{{}_{{1}}}}$".format(label),
-    ylabel=r"$\mathrm{{{}_{{2}}}}$".format(label),
-    zlabel=r"$\mathrm{{{}_{{3}}}}$".format(label),
+    xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
+    ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
+    zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
     figwidth=6,
     s=2,
     alpha=1,

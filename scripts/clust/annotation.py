@@ -69,11 +69,7 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-dict_to_str = ""
-add = ""
-for k, v in args.labels.items():
-    dict_to_str += f"{add}{k}=>{v}"
-    add = ", "
+dict_to_str = ", ".join(f"{k} -> {v}" for k, v in args.labels.items())
 
 std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
