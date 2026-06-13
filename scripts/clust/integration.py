@@ -396,14 +396,15 @@ if args.integration == "ingest":
     std.print_task(
         f"computing principal components (dimensions={args.pca_dimension}, condition={reference})"
     )
-    sc.tl.pca(
-        adatas[reference],
-        n_comps=args.pca_dimension,
-        zero_center=args.zero_center,
-        use_highly_variable=args.only_hvg,
-        random_state=np.random.RandomState(args.seed),
-        copy=False,
-    )
+    with std.single_thread():
+        sc.tl.pca(
+            adatas[reference],
+            n_comps=args.pca_dimension,
+            zero_center=args.zero_center,
+            use_highly_variable=args.only_hvg,
+            random_state=args.seed,
+            copy=False,
+        )
 
     std.print_task(
         f"computing nearest-neighbor graph (principal components={args.clustering_dimension}, condition={reference})"
@@ -484,7 +485,7 @@ if args.integration == "ingest":
         adata, snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
     )
 
-    std.print_task("clustering cells (algorithm=leiden, dataset=integrated)")
+    std.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution}, dataset=integrated)")
     sc.tl.leiden(
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
@@ -499,14 +500,15 @@ elif args.integration == "bbknn":
     std.print_info("integrating data (method=BBKNN)")
 
     std.print_task(f"computing principal components (dimensions={args.pca_dimension})")
-    sc.tl.pca(
-        adata,
-        n_comps=args.pca_dimension,
-        zero_center=args.zero_center,
-        use_highly_variable=args.only_hvg,
-        random_state=np.random.RandomState(args.seed),
-        copy=False,
-    )
+    with std.single_thread():
+        sc.tl.pca(
+            adata,
+            n_comps=args.pca_dimension,
+            zero_center=args.zero_center,
+            use_highly_variable=args.only_hvg,
+            random_state=args.seed,
+            copy=False,
+        )
 
     std.print_task("mapping embeddings")
     with std.disable_print():
@@ -525,7 +527,7 @@ elif args.integration == "bbknn":
             copy=False,
         )
 
-    std.print_task("clustering cells (algorithm=leiden)")
+    std.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
     sc.tl.leiden(
         adata,
         neighbors_key="neighbors",
@@ -618,7 +620,7 @@ elif args.integration == "scanorama":
         adata, snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
     )
 
-    std.print_task("clustering cells (algorithm=leiden)")
+    std.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
     sc.tl.leiden(
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",

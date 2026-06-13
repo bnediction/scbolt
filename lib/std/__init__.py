@@ -3,6 +3,7 @@
 from ._stdout import (
     Section,
     disable_print,
+    single_thread,
     format_embedding,
     format_hvg_parameters,
     format_mapping,

@@ -7,7 +7,18 @@ import warnings
 
 import datetime
 from pathlib import Path
-from typing import Iterable, Mapping, Optional
+from typing import Iterable, Iterator, Mapping, Optional
+
+
+@contextlib.contextmanager
+def single_thread() -> Iterator[None]:
+    try:
+        from threadpoolctl import threadpool_limits
+    except ImportError:
+        yield
+    else:
+        with threadpool_limits(limits=1):
+            yield
 
 @contextlib.contextmanager
 def disable_print(disable: bool = True, disable_warnings: bool = True):

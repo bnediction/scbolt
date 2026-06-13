@@ -118,3 +118,4 @@ llc/
 *.md
 !README.md
 !man/*.md
+plot_clustering_grid.py

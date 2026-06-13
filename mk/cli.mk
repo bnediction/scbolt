@@ -173,10 +173,8 @@ show_config_hvg_params = \
 	ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN ANALYSIS_HVG_BINS \
 	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS
 show_config_relative_path = $(if $(strip $(1)),$(call relative_to_launch,$(1)))
-show_config_var_value = $(call show_config_display_value,\
-	$(if $(filter MEMORY,$(1)),$(if $(strip $(MEMORY)),$(MEMORY) GB,),\
-	$(if $(filter SPEC_FILE,$(1)),$(call show_config_relative_path,$(SPEC_FILE)),\
-	$(if $(filter REFERENCES,$(1)),$(display_references_label),$($(1))))))
+show_config_raw_var_value = $(if $(filter MEMORY,$(1)),$(if $(strip $(MEMORY)),$(MEMORY) GB,),$(if $(filter SPEC_FILE,$(1)),$(call show_config_relative_path,$(SPEC_FILE)),$(if $(filter REFERENCES,$(1)),$(display_references_label),$($(1)))))
+show_config_var_value = $(call show_config_display_value,$(call show_config_raw_var_value,$(1)))
 show_config_var_label = $(call tolower,$(subst _, ,$(1)))
 show_config_label_width = $(shell printf '%s\n' \
 	$(foreach var,$(strip $(1)),'$(call show_config_var_label,$(var))') \

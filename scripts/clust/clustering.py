@@ -271,14 +271,15 @@ if args.only_hvg:
 std.print_task(f"computing principal components (dimensions={args.pca_dimension})")
 if args.only_hvg:
     std.print_info("filtering PCA features (scope=highly variable genes)")
-sc.tl.pca(
-    adata,
-    n_comps=args.pca_dimension,
-    zero_center=not args.lsa,
-    use_highly_variable=args.only_hvg,
-    random_state=np.random.RandomState(args.seed),
-    copy=False,
-)
+with std.single_thread():
+    sc.tl.pca(
+        adata,
+        n_comps=args.pca_dimension,
+        zero_center=not args.lsa,
+        use_highly_variable=args.only_hvg,
+        random_state=args.seed,
+        copy=False,
+    )
 
 std.print_task(
     f"computing nearest-neighbor graph (principal components={args.clustering_dimension})"
