@@ -176,6 +176,7 @@ $(fastq_$(1)):
 		$(call print_error,cannot download fastq files: fastq-dump failed); \
 	fi
 	unset files
+	$$(call write_scbolt_metadata,load-fastq,$$@)
 
 ifeq ($(matrix_mode),true)
 $(load_matrix_$(1)) $(geo_files_$(1))&:
@@ -209,6 +210,7 @@ $(cellranger_$(1)): $(fastq_$(1)) $(genome_ref)
 	)
 	mv $(tmpdir)/cellranger/$(call condition_name,$(1))/* $$(@D)
 	rm -rf $(tmpdir)/cellranger/$(call condition_name,$(1))
+	$$(call write_scbolt_metadata,cellranger,$$(cellranger_$(1)))
 
 $(star_$(1))&: $(fastq_$(1)) $(star_index)
 	$(call print_rule,star,$(1))

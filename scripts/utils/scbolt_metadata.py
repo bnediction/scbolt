@@ -5,12 +5,16 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import subprocess
 from pathlib import Path
+from functools import lru_cache
 from typing import Literal
 
 Status = Literal["done", "stale", "pending", "untracked"]
 State = tuple[Status, str, list[Path], list[Path]]
 ProgressRecord = dict[str, str | list[str]]
+RuntimeEnvironments = dict[str, dict[str, object]]
+RuntimeBackend = Literal["conda", "docker"]
 
 
 def sidecar_path(target: Path) -> Path:
@@ -37,13 +41,295 @@ def parse_parameters(values: list[str]) -> dict[str, str]:
     return dict(parse_parameter(value) for value in values)
 
 
+def add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--runtime-backend",
+        choices=["conda", "docker"],
+        default="conda",
+    )
+    parser.add_argument("--container-engine", default="docker")
+    parser.add_argument("--container-image", default="")
+
+
 def normalize_path(path: Path) -> Path:
     return path.expanduser().resolve()
 
 
-def config_hash(parameters: dict[str, str]) -> str:
-    payload = json.dumps(parameters, sort_keys=True, separators=(",", ":"))
+def digest(data: object) -> str:
+    payload = json.dumps(data, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def config_hash(parameters: dict[str, str]) -> str:
+    return digest(parameters)
+
+
+def runtime_hash(runtime_environments: RuntimeEnvironments) -> str:
+    return digest(runtime_environments)
+
+
+def metadata_hash(
+    parameters: dict[str, str],
+    runtime_backend: RuntimeBackend,
+    container: dict[str, object],
+    runtime_environments: RuntimeEnvironments,
+) -> str:
+    return digest(
+        {
+            "sensitive_parameters": parameters,
+            "runtime_backend": runtime_backend,
+            "container": container,
+            "runtime_environments": runtime_environments,
+        }
+    )
+
+
+def conda_package_source(package: dict[str, object]) -> str:
+    channel = str(package.get("channel", ""))
+    platform = str(package.get("platform", ""))
+    if channel == "pypi" or platform == "pypi":
+        return "pip"
+    return "conda"
+
+
+def normalize_package_name(name: str, source: str) -> str:
+    normalized = name.strip().lower()
+    if source == "pip":
+        normalized = normalized.replace("_", "-")
+    return normalized
+
+
+@lru_cache(maxsize=None)
+def container_metadata(
+    backend: RuntimeBackend,
+    container_engine: str,
+    container_image: str,
+) -> dict[str, object]:
+    if backend != "docker":
+        return {}
+
+    if not container_image:
+        return {"engine": container_engine, "image": container_image, "error": "missing image"}
+
+    result = subprocess.run(
+        [
+            container_engine,
+            "image",
+            "inspect",
+            container_image,
+            "--format",
+            "{{json .}}",
+        ],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode != 0:
+        message = result.stderr.strip() or result.stdout.strip()
+        return {
+            "engine": container_engine,
+            "image": container_image,
+            "error": message or "container image inspect failed",
+        }
+
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        return {
+            "engine": container_engine,
+            "image": container_image,
+            "error": f"cannot parse container image metadata: {error}",
+        }
+
+    return {
+        "engine": container_engine,
+        "image": container_image,
+        "id": data.get("Id", ""),
+        "repo_digests": data.get("RepoDigests") or [],
+    }
+
+
+@lru_cache(maxsize=None)
+def runtime_environment(
+    env: str,
+    backend: RuntimeBackend,
+    container_engine: str,
+    container_image: str,
+) -> dict[str, object]:
+    if backend == "docker":
+        if not container_image:
+            return {
+                "name": env,
+                "error": "missing container image",
+                "packages": {},
+            }
+        command = [
+            container_engine,
+            "run",
+            "--rm",
+            container_image,
+            "conda",
+            "list",
+            "-n",
+            env,
+            "--json",
+        ]
+    else:
+        command = ["conda", "list", "-n", env, "--json"]
+
+    result = subprocess.run(
+        command,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode != 0:
+        message = result.stderr.strip() or result.stdout.strip()
+        return {
+            "name": env,
+            "error": message or "conda list failed",
+            "packages": {},
+        }
+
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        return {
+            "name": env,
+            "error": f"cannot parse conda environment: {error}",
+            "packages": {},
+        }
+
+    packages: dict[str, dict[str, str]] = {}
+    for package in data:
+        if not isinstance(package, dict):
+            continue
+        raw_name = package.get("name")
+        if not raw_name:
+            continue
+        source = conda_package_source(package)
+        name = normalize_package_name(str(raw_name), source)
+        record = {
+            "version": str(package.get("version", "")),
+            "source": source,
+        }
+        build = package.get("build_string")
+        if source == "conda" and build:
+            record["build"] = str(build)
+        channel = package.get("channel")
+        if channel:
+            record["channel"] = str(channel)
+        packages[name] = record
+
+    return {
+        "name": env,
+        "packages": packages,
+    }
+
+
+def runtime_environments(
+    envs: list[str],
+    *,
+    backend: RuntimeBackend,
+    container_engine: str,
+    container_image: str,
+    strict: bool = False,
+) -> RuntimeEnvironments:
+    environments = {
+        env: runtime_environment(env, backend, container_engine, container_image)
+        for env in unique_values(envs)
+    }
+    if strict:
+        errors = [
+            f"{env}: {snapshot['error']}"
+            for env, snapshot in environments.items()
+            if "error" in snapshot
+        ]
+        if errors:
+            raise SystemExit(
+                "cannot inspect runtime environment(s): " + "; ".join(errors)
+            )
+    return environments
+
+
+def package_label(package: object) -> str:
+    if not isinstance(package, dict):
+        return "(missing)"
+    version = str(package.get("version", ""))
+    build = str(package.get("build", ""))
+    source = str(package.get("source", ""))
+    if build:
+        return f"{version} {build}"
+    if source == "pip":
+        return f"{version} pip"
+    return version
+
+
+def runtime_changes(
+    stored: dict[str, object],
+    current_backend: RuntimeBackend,
+    current_container: dict[str, object],
+    current_runtime: RuntimeEnvironments,
+) -> list[str]:
+    if not current_runtime:
+        return []
+
+    stored_backend = stored.get("runtime_backend")
+    if stored_backend is not None and stored_backend != current_backend:
+        return [f"runtime backend: {stored_backend} -> {current_backend}"]
+
+    if current_backend == "docker":
+        stored_container = stored.get("container")
+        if not isinstance(stored_container, dict):
+            return ["container metadata missing"]
+        if current_container != stored_container:
+            stored_image = stored_container.get("image", "(missing)")
+            current_image = current_container.get("image", "(missing)")
+            if stored_image != current_image:
+                return [f"container image: {stored_image} -> {current_image}"]
+            return [f"container image changed: {current_image}"]
+
+    stored_runtime = stored.get("runtime_environments")
+    if not isinstance(stored_runtime, dict):
+        return ["runtime metadata missing"]
+
+    messages = []
+    for env, current in current_runtime.items():
+        stored_env = stored_runtime.get(env)
+        if not isinstance(stored_env, dict):
+            messages.append(f"runtime drift: {env} (missing stored environment)")
+            continue
+        if "error" in current:
+            messages.append(f"runtime drift: {env} (current environment unavailable)")
+            continue
+
+        current_packages = current.get("packages")
+        stored_packages = stored_env.get("packages")
+        if not isinstance(current_packages, dict) or not isinstance(stored_packages, dict):
+            messages.append(f"runtime drift: {env} (invalid stored environment)")
+            continue
+
+        package_changes = []
+        package_names = sorted(set(current_packages) | set(stored_packages))
+        for package_name in package_names:
+            current_package = current_packages.get(package_name)
+            stored_package = stored_packages.get(package_name)
+            if current_package == stored_package:
+                continue
+            package_changes.append(
+                f"{package_name}: {package_label(stored_package)} -> "
+                f"{package_label(current_package)}"
+            )
+
+        if package_changes:
+            visible = package_changes[:8]
+            if len(package_changes) > len(visible):
+                visible.append(f"{len(package_changes) - len(visible)} more package(s)")
+            messages.append(f"runtime drift: {env} ({'; '.join(visible)})")
+
+    return messages
 
 
 def read_metadata(path: Path) -> dict[str, object] | None:
@@ -211,6 +497,10 @@ def state_for_targets(
     module: str,
     targets: list[Path],
     parameters: dict[str, str],
+    runtime_envs: list[str] | None = None,
+    runtime_backend: RuntimeBackend = "conda",
+    container_engine: str = "docker",
+    container_image: str = "",
     old_files: set[Path] | None = None,
 ) -> State:
     if not targets:
@@ -221,12 +511,31 @@ def state_for_targets(
     if len(missing) == len(targets):
         return "pending", format_missing_message(module, missing, targets), [], missing
 
-    if not parameters:
+    runtime_envs = runtime_envs or []
+    current_container = container_metadata(
+        runtime_backend,
+        container_engine,
+        container_image,
+    )
+    current_runtime = runtime_environments(
+        runtime_envs,
+        backend=runtime_backend,
+        container_engine=container_engine,
+        container_image=container_image,
+    )
+
+    if not parameters and not current_runtime:
         if missing:
             return "pending", format_missing_message(module, missing, targets), [], missing
         return "done", f"{module} (no sensitive parameters)", [], []
 
-    expected_hash = config_hash(parameters)
+    expected_config_hash = config_hash(parameters)
+    expected_metadata_hash = metadata_hash(
+        parameters,
+        runtime_backend,
+        current_container,
+        current_runtime,
+    )
     stale_targets: list[Path] = []
     untracked_targets: list[Path] = []
     grouped_messages: dict[str, list[str]] = {}
@@ -255,11 +564,22 @@ def state_for_targets(
                 grouped_messages["metadata missing"].append(label)
             continue
 
-        stored_hash = metadata.get("config_hash")
+        stored_hash = (
+            metadata.get("metadata_hash")
+            if current_runtime
+            else metadata.get("config_hash")
+        )
+        expected_hash = expected_metadata_hash if current_runtime else expected_config_hash
         stored_module = metadata.get("module")
         if stored_module != module or stored_hash != expected_hash:
             stale_targets.append(target)
             changes = changed_parameters(metadata, parameters)
+            changes_messages = runtime_changes(
+                metadata,
+                runtime_backend,
+                current_container,
+                current_runtime,
+            )
             if changes:
                 for name, stored_value, current_value in changes:
                     grouped_changes.setdefault(name, {})
@@ -267,7 +587,11 @@ def state_for_targets(
                     grouped_changes[name][current_value].setdefault(stored_value, [])
                     if label:
                         grouped_changes[name][current_value][stored_value].append(label)
-            else:
+            for message in changes_messages:
+                grouped_messages.setdefault(message, [])
+                if label:
+                    grouped_messages[message].append(label)
+            if not changes and not changes_messages:
                 grouped_messages.setdefault("configuration hash mismatch", [])
                 if label:
                     grouped_messages["configuration hash mismatch"].append(label)
@@ -297,14 +621,35 @@ def done_targets_for_targets(
     module: str,
     targets: list[Path],
     parameters: dict[str, str],
+    runtime_envs: list[str] | None = None,
+    runtime_backend: RuntimeBackend = "conda",
+    container_engine: str = "docker",
+    container_image: str = "",
     old_files: set[Path] | None = None,
 ) -> list[Path]:
     old_files = old_files or set()
     existing_targets = [target for target in targets if target_exists(target)]
-    if not parameters:
+    runtime_envs = runtime_envs or []
+    current_container = container_metadata(
+        runtime_backend,
+        container_engine,
+        container_image,
+    )
+    current_runtime = runtime_environments(
+        runtime_envs,
+        backend=runtime_backend,
+        container_engine=container_engine,
+        container_image=container_image,
+    )
+
+    if not parameters and not current_runtime:
         return existing_targets
 
-    expected_hash = config_hash(parameters)
+    expected_hash = (
+        metadata_hash(parameters, runtime_backend, current_container, current_runtime)
+        if current_runtime
+        else config_hash(parameters)
+    )
     done_targets = []
     for target in existing_targets:
         if normalize_path(target) in old_files:
@@ -315,7 +660,12 @@ def done_targets_for_targets(
         if metadata is None:
             continue
 
-        if metadata.get("module") == module and metadata.get("config_hash") == expected_hash:
+        stored_hash = (
+            metadata.get("metadata_hash")
+            if current_runtime
+            else metadata.get("config_hash")
+        )
+        if metadata.get("module") == module and stored_hash == expected_hash:
             done_targets.append(target)
 
     return done_targets
@@ -323,7 +673,30 @@ def done_targets_for_targets(
 
 def write_metadata(args: argparse.Namespace) -> None:
     parameters = parse_parameters(args.param)
-    metadata_hash = config_hash(parameters)
+    current_container = container_metadata(
+        args.runtime_backend,
+        args.container_engine,
+        args.container_image,
+    )
+    if args.runtime_backend == "docker" and "error" in current_container:
+        raise SystemExit(
+            "cannot inspect container image: " + str(current_container["error"])
+        )
+    current_runtime = runtime_environments(
+        args.runtime_env,
+        backend=args.runtime_backend,
+        container_engine=args.container_engine,
+        container_image=args.container_image,
+        strict=True,
+    )
+    parameter_hash = config_hash(parameters)
+    current_runtime_hash = runtime_hash(current_runtime) if current_runtime else ""
+    current_metadata_hash = metadata_hash(
+        parameters,
+        args.runtime_backend,
+        current_container,
+        current_runtime,
+    )
 
     for target in args.target:
         target_path = Path(target)
@@ -338,7 +711,12 @@ def write_metadata(args: argparse.Namespace) -> None:
             "scbolt_git_hash": args.git_hash,
             "params_file": args.params_file,
             "sensitive_parameters": parameters,
-            "config_hash": metadata_hash,
+            "runtime_backend": args.runtime_backend,
+            "container": current_container,
+            "runtime_environments": current_runtime,
+            "runtime_hash": current_runtime_hash,
+            "metadata_hash": current_metadata_hash,
+            "config_hash": parameter_hash,
         }
         with sidecar.open("w") as file:
             json.dump(payload, file, indent=2, sort_keys=True)
@@ -353,12 +731,20 @@ def print_state(args: argparse.Namespace) -> None:
         module=args.module,
         targets=targets,
         parameters=parameters,
+        runtime_envs=args.runtime_env,
+        runtime_backend=args.runtime_backend,
+        container_engine=args.container_engine,
+        container_image=args.container_image,
         old_files=old_files,
     )
     done_targets = done_targets_for_targets(
         module=args.module,
         targets=targets,
         parameters=parameters,
+        runtime_envs=args.runtime_env,
+        runtime_backend=args.runtime_backend,
+        container_engine=args.container_engine,
+        container_image=args.container_image,
         old_files=old_files,
     )
     fields = progress_fields_from_state(
@@ -416,18 +802,30 @@ def progress_fields(
     module: str,
     targets: list[Path],
     parameters: dict[str, str],
+    runtime_envs: list[str],
+    runtime_backend: RuntimeBackend,
+    container_engine: str,
+    container_image: str,
     old_files: set[Path],
 ) -> dict[str, str]:
     status, message, stale_targets, missing_targets = state_for_targets(
         module=module,
         targets=targets,
         parameters=parameters,
+        runtime_envs=runtime_envs,
+        runtime_backend=runtime_backend,
+        container_engine=container_engine,
+        container_image=container_image,
         old_files=old_files,
     )
     done_targets = done_targets_for_targets(
         module=module,
         targets=targets,
         parameters=parameters,
+        runtime_envs=runtime_envs,
+        runtime_backend=runtime_backend,
+        container_engine=container_engine,
+        container_image=container_image,
         old_files=old_files,
     )
     return progress_fields_from_state(
@@ -479,6 +877,7 @@ def read_progress_manifest(path: Path) -> list[ProgressRecord]:
                     "module": value,
                     "targets": [],
                     "params": [],
+                    "runtime_envs": [],
                     "deps": "",
                 }
             elif current is None:
@@ -491,6 +890,10 @@ def read_progress_manifest(path: Path) -> list[ProgressRecord]:
                 current_params = current["params"]
                 assert isinstance(current_params, list)
                 current_params.append(value)
+            elif key == "runtime-env":
+                current_runtime_envs = current["runtime_envs"]
+                assert isinstance(current_runtime_envs, list)
+                current_runtime_envs.append(value)
             elif key == "deps":
                 current["deps"] = value
             elif key == "end":
@@ -513,10 +916,15 @@ def print_batch_progress(args: argparse.Namespace) -> None:
         module = str(record["module"])
         targets = [Path(target) for target in record["targets"]]
         parameters = parse_parameters(list(record["params"]))
+        runtime_envs = list(record["runtime_envs"])
         fields = progress_fields(
             module=module,
             targets=targets,
             parameters=parameters,
+            runtime_envs=runtime_envs,
+            runtime_backend=args.runtime_backend,
+            container_engine=args.container_engine,
+            container_image=args.container_image,
             old_files=old_files,
         )
         fields["deps"] = str(record["deps"])
@@ -532,10 +940,15 @@ def print_batch_clean(args: argparse.Namespace) -> None:
         module = str(record["module"])
         targets = [Path(target) for target in record["targets"]]
         parameters = parse_parameters(list(record["params"]))
+        runtime_envs = list(record["runtime_envs"])
         status, _message, stale_targets, _missing_targets = state_for_targets(
             module=module,
             targets=targets,
             parameters=parameters,
+            runtime_envs=runtime_envs,
+            runtime_backend=args.runtime_backend,
+            container_engine=args.container_engine,
+            container_image=args.container_image,
             old_files=old_files,
         )
 
@@ -567,6 +980,8 @@ def build_parser() -> argparse.ArgumentParser:
     write.add_argument("--params-file", required=True)
     write.add_argument("--git-hash", required=True)
     write.add_argument("--param", action="append", default=[])
+    write.add_argument("--runtime-env", action="append", default=[])
+    add_runtime_arguments(write)
     write.set_defaults(func=write_metadata)
 
     state = subparsers.add_parser("state", help="compare metadata sidecars")
@@ -574,6 +989,8 @@ def build_parser() -> argparse.ArgumentParser:
     state.add_argument("--target", action="append", default=[])
     state.add_argument("--old-file", action="append", default=[])
     state.add_argument("--param", action="append", default=[])
+    state.add_argument("--runtime-env", action="append", default=[])
+    add_runtime_arguments(state)
     state.add_argument(
         "--field",
         choices=[
@@ -600,6 +1017,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     batch_progress.add_argument("--manifest", required=True)
     batch_progress.add_argument("--old-file", action="append", default=[])
+    add_runtime_arguments(batch_progress)
     batch_progress.set_defaults(func=print_batch_progress)
 
     batch_clean = subparsers.add_parser(
@@ -608,6 +1026,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     batch_clean.add_argument("--manifest", required=True)
     batch_clean.add_argument("--old-file", action="append", default=[])
+    add_runtime_arguments(batch_clean)
     batch_clean.set_defaults(func=print_batch_clean)
 
     return parser

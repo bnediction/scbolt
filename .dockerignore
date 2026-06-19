@@ -1,0 +1,4 @@
+*
+!Dockerfile
+!envs/
+!envs/*.yml

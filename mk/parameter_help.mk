@@ -27,6 +27,16 @@ parameter_help_note2_USE_REP = X_tsne: t-SNE embedding.
 parameter_help_note3_USE_REP = X_se: spectral embedding.
 parameter_help_hint_MEMORY = $(parameter_help_positive_integer)
 parameter_help_description_MEMORY = Memory budget in GB.
+parameter_help_hint_RUNTIME_BACKEND = conda | docker
+parameter_help_description_RUNTIME_BACKEND = Runtime backend used to execute module commands.
+parameter_help_hint_SCBOLT_IMAGE = container image
+parameter_help_description_SCBOLT_IMAGE = Docker image containing scBOLT conda environments.
+parameter_help_hint_SCBOLT_CONTAINER_ENGINE = docker-compatible command
+parameter_help_description_SCBOLT_CONTAINER_ENGINE = Container engine used when RUNTIME_BACKEND=docker.
+parameter_help_hint_SCBOLT_CONTAINER_ARGS = arguments, optional
+parameter_help_description_SCBOLT_CONTAINER_ARGS = Extra arguments passed to docker run.
+parameter_help_hint_SCBOLT_CONTAINER_MOUNTS = paths, optional
+parameter_help_description_SCBOLT_CONTAINER_MOUNTS = Extra host paths mounted at the same absolute path.
 $(foreach condition,$(conditions),\
 	$(eval parameter_help_hint_$(call gsm_var,$(condition)) = GSM accession)\
 	$(eval parameter_help_description_$(call gsm_var,$(condition)) = GEO sample containing the count matrix.))

@@ -47,6 +47,8 @@ __check-metadata-manifest:
 				printf 'target\t%s\n' "$(target)";) \
 			$(foreach param,$(strip $(sensitive_params_$(module))),\
 				printf 'param\t%s=%s\n' '$(param)' "$($(param))";) \
+			$(foreach env,$(strip $(runtime_envs_$(module))),\
+				printf 'runtime-env\t%s\n' "$(env)";) \
 			printf 'deps\t%s\n' "$(strip $(progress_deps_$(module)))"; \
 			printf 'end\n'; \
 		};)
@@ -168,8 +170,9 @@ else ifeq ($(HELP),false)
 	$(nested_make) LOGGING=false __reset_disabled=metadata \
 		__check-metadata-manifest CHECK_METADATA_MODULES="$${selected_modules}" \
 		PARAMS="$(PARAMS)" OLD_FILES="$(OLD_FILES)" > "$${metadata_manifest}"; \
-	$(metadata_python) "$(scripts_dir)/utils/scbolt_metadata.py" batch-progress \
+	$(python) "$(scripts_dir)/utils/scbolt_metadata.py" batch-progress \
 		--manifest "$${metadata_manifest}" \
+		$(metadata_runtime_backend_args) \
 		$(metadata_old_file_args) \
 		| while IFS="	" read -r report_module report_field report_value; do \
 			printf '%s\t%s\n' "$${report_field}" "$${report_value}" \
@@ -573,7 +576,28 @@ else ifeq ($(HELP),false)
 	fi; \
 	flush_check_reports "$${file_checks}"; \
 	if [ "$(__check_externals__)" = "true" ]; then \
-		if $(conda_command) --version >/dev/null 2>&1; then \
+		if [ "$(RUNTIME_BACKEND)" = "docker" ]; then \
+			if command -v "$(SCBOLT_CONTAINER_ENGINE)" >/dev/null 2>&1; then \
+				check_success "command found: $(SCBOLT_CONTAINER_ENGINE)"; \
+				if "$(SCBOLT_CONTAINER_ENGINE)" image inspect "$(SCBOLT_IMAGE)" >/dev/null 2>&1; then \
+					check_success "container image found: $(SCBOLT_IMAGE)"; \
+					conda_envs="$$( "$(SCBOLT_CONTAINER_ENGINE)" run --rm "$(SCBOLT_IMAGE)" conda env list | awk '{print $$1}' )"; \
+					for env in $$({ \
+						grep -oE 'conda run[^;|&]* -n [^ ]+' "$${dry_run}" || true; \
+					} | awk '{print $$NF}' | awk '!seen[$$0]++'); do \
+						if printf '%s\n' "$${conda_envs}" | grep -qx "$${env}"; then \
+							check_success "container conda environment found: $${env}"; \
+						else \
+							$(call report_check_error,required container conda environment not found: $${env}); \
+						fi; \
+					done; \
+				else \
+					$(call report_check_error,required container image not found: $(SCBOLT_IMAGE)); \
+				fi; \
+			else \
+				$(call report_check_error,required command not found: $(SCBOLT_CONTAINER_ENGINE)); \
+			fi; \
+		elif $(conda_command) --version >/dev/null 2>&1; then \
 			check_success "command found: conda"; \
 			conda_envs="$$( $(conda_command) env list | awk '{print $$1}')"; \
 			conda_jobs=""; \
@@ -592,7 +616,7 @@ else ifeq ($(HELP),false)
 						scbolt-bonesis) git_packages="--git-package bonesis=$(BONESIS_HASH)";; \
 					esac; \
 					( \
-						$(metadata_python) $(scripts_dir)/utils/check_conda_env.py \
+						$(python) $(scripts_dir)/utils/check_conda_env.py \
 							--env "$${env}" --yaml "$${env_yaml}" $${git_packages} \
 							>> "$${conda_report}"; \
 						printf '%s\n' "$$?" > "$${conda_status}"; \

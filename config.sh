@@ -25,6 +25,45 @@ scbolt_envs=(
 )
 
 bonesis_hash="${BONESIS_HASH:-d70736781f88faee334ef79622e144216837f4c5}"
+assume_yes="${SCBOLT_YES:-false}"
+
+usage() {
+    cat <<EOF
+usage: bash config.sh [--yes]
+
+Install the scBOLT command, Bash completion, and conda environments.
+
+Options
+  --yes, -y    answer yes to installation and reinstall prompts
+  --help, -h   display this help
+EOF
+}
+
+while [ "$#" -gt 0 ];
+do
+    case "$1" in
+        --yes|-y)
+            assume_yes=true
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            printf 'unsupported option: %s\n' "$1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+    shift
+done
+
+is_yes_enabled() {
+    case "${assume_yes}" in
+        true|yes|y|1) return 0 ;;
+        *) return 1 ;;
+    esac
+}
 
 if [ -t 1 ];
 then
@@ -151,7 +190,13 @@ install_env() {
     if conda_env_exists "$1";
     then
         echo "conda environment '$1' already exists."
-        read -r -p $"Do you want to reinstall conda environment '${1}'? ([y]/n): " choice
+        if is_yes_enabled;
+        then
+            choice="y"
+            echo "Do you want to reinstall conda environment '${1}'? ([y]/n): y"
+        else
+            read -r -p $"Do you want to reinstall conda environment '${1}'? ([y]/n): " choice
+        fi
         if [[ $choice == "y" || -z $choice ]];
         then
             echo "removing conda environment '$1'."
@@ -196,7 +241,13 @@ install_scbolt_command() {
         return 1
     fi
 
-    read -r -p $"Install the scbolt command in ~/.local/bin? ([y]/n): " choice
+    if is_yes_enabled;
+    then
+        choice="y"
+        echo "Install the scbolt command in ~/.local/bin? ([y]/n): y"
+    else
+        read -r -p $"Install the scbolt command in ~/.local/bin? ([y]/n): " choice
+    fi
     if [[ $choice != "y" && $choice != "Y" && $choice != "yes" && -n $choice ]];
     then
         if [ -e "${installed_command}" ];

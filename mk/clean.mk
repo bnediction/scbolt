@@ -157,11 +157,14 @@ endif
 					printf 'target\t%s\n' "$(target)";) \
 				$(foreach param,$(strip $(sensitive_params_$(module))),\
 					printf 'param\t%s=%s\n' '$(param)' "$($(param))";) \
+				$(foreach env,$(strip $(runtime_envs_$(module))),\
+					printf 'runtime-env\t%s\n' "$(env)";) \
 				printf 'deps\t%s\n' "$(strip $(progress_deps_$(module)))"; \
 				printf 'end\n'; \
 			} >> "$${clean_manifest}";) \
-		$(metadata_python) "$(scripts_dir)/utils/scbolt_metadata.py" batch-clean \
+		$(python) "$(scripts_dir)/utils/scbolt_metadata.py" batch-clean \
 			--manifest "$${clean_manifest}" \
+			$(metadata_runtime_backend_args) \
 			$(metadata_old_file_args) \
 			| while IFS="	" read -r report_module report_field report_value; do \
 				printf '%s\t%s\n' "$${report_field}" "$${report_value}" \

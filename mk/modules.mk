@@ -539,6 +539,7 @@ target_params_bn-diverse = \
 	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 
+sensitive_params_load-fastq = $(foreach condition,$(conditions),$(call sra_var,$(condition)))
 sensitive_params_alignment =
 sensitive_params_load-matrix = $(foreach condition,$(conditions),$(call gsm_var,$(condition)))
 sensitive_params_cellranger = genome_url
@@ -624,6 +625,38 @@ sensitive_params_bn-diverse = \
 	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS SEED
 
+runtime_envs_load-fastq = scbolt-fastq
+runtime_envs_load-matrix = scbolt-core
+runtime_envs_star = scbolt-align
+runtime_envs_qc = scbolt-core scbolt-velocyto
+runtime_envs_velocyto = scbolt-velocyto scbolt-core
+runtime_envs_filtering = scbolt-core
+runtime_envs_normalization = scbolt-core
+runtime_envs_clustering = scbolt-core
+runtime_envs_dea = scbolt-core
+runtime_envs_scoring = scbolt-core
+runtime_envs_goea = scbolt-core
+runtime_envs_annotation = scbolt-core
+runtime_envs_velocity = scbolt-velocity
+runtime_envs_potency = scbolt-potency
+runtime_envs_cotan = scbolt-cotan scbolt-core
+runtime_envs_cellrank = scbolt-cellrank scbolt-core
+runtime_envs_stream = scbolt-stream
+runtime_envs_knnsc = scbolt-core
+runtime_envs_bin-cells = scbolt-scboolseq scbolt-core
+runtime_envs_bin-macrostates = scbolt-core
+runtime_envs_bin-dea = scbolt-core
+runtime_envs_bin-consensus = scbolt-core
+runtime_envs_spec = scbolt-bonesis
+runtime_envs_max-nodes-soft = scbolt-bonesis
+runtime_envs_max-consts-soft = scbolt-bonesis
+runtime_envs_max-nodes-relaxed = scbolt-bonesis
+runtime_envs_max-nodes-seed = scbolt-bonesis
+runtime_envs_max-nodes-lock = scbolt-bonesis
+runtime_envs_bn-min = scbolt-bonesis
+runtime_envs_bn-submin = scbolt-bonesis
+runtime_envs_bn-diverse = scbolt-bonesis
+
 use_rep_check_pattern = $(use_rep_check_pattern_1)$(use_rep_check_pattern_2)$(use_rep_check_pattern_3)
 use_rep_check_pattern_1 = scripts/(clust/annotation|utils/pipe_its|traj/potency
 use_rep_check_pattern_2 = |mstates/stream_mstates|bin/(bin_cells_scboolseq
@@ -639,7 +672,9 @@ project_config_param_set = \
 	$(foreach condition,$(conditions),$(call gsm_var,$(condition))) \
 	LABEL SPEC_FILE
 core_config_param_set = \
-	PARAMS REFERENCES PROJECT_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
+	PARAMS REFERENCES PROJECT_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING \
+	RUNTIME_BACKEND SCBOLT_IMAGE SCBOLT_CONTAINER_ENGINE SCBOLT_CONTAINER_ARGS \
+	SCBOLT_CONTAINER_MOUNTS USE_REP LABEL_COL OLD_FILES
 method_config_param_set = \
 	ALIGNMENT_TOOL STAR_CB_LEN STAR_UMI_LEN \
 	STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES \
@@ -700,7 +735,9 @@ config_base_params = \
 	ORGANISM CONDITIONS \
 	$(foreach condition,$(conditions),$(call sra_var,$(condition))) \
 	$(foreach condition,$(conditions),$(call gsm_var,$(condition))) \
-	PARAMS REFERENCES PROJECT_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING USE_REP LABEL_COL OLD_FILES
+	PARAMS REFERENCES PROJECT_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING \
+	RUNTIME_BACKEND SCBOLT_IMAGE SCBOLT_CONTAINER_ENGINE SCBOLT_CONTAINER_ARGS \
+	SCBOLT_CONTAINER_MOUNTS USE_REP LABEL_COL OLD_FILES
 config_params_from_modules = $(strip $(foreach module,$(1),$(target_params_$(module))))
 config_project_params = $(call uniq,$(filter $(project_config_param_set),$(1)))
 config_core_params = $(call uniq,$(filter $(core_config_param_set),$(1)))

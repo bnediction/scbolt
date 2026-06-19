@@ -379,10 +379,13 @@ $(if $(filter knnsc,$(MACROSTATE_METHOD)),@printf '%-14s : %s\n' 'Min cluster' "
 @printf '\n'
 @printf 'Execution\n'
 @printf '%s\n' '---------'
-@printf '%-12s : %s\n' 'Jobs' "$(call show_config_display_value,$(JOBS))"
-@printf '%-12s : %s GB\n' 'Memory' "$(call show_config_display_value,$(MEMORY))"
-@printf '%-12s : %s\n' 'Seed' "$(call show_config_display_value,$(SEED))"
-@printf '%-12s : %s\n' 'Logging' "$(call show_config_display_value,$(show_config_logging))"
+@printf '%-16s : %s\n' 'Runtime' "$(call show_config_display_value,$(RUNTIME_BACKEND))"
+$(if $(filter docker,$(RUNTIME_BACKEND)),@printf '%-16s : %s\n' 'Image' "$(call show_config_display_value,$(SCBOLT_IMAGE))")
+$(if $(filter docker,$(RUNTIME_BACKEND)),@printf '%-16s : %s\n' 'Engine' "$(call show_config_display_value,$(SCBOLT_CONTAINER_ENGINE))")
+@printf '%-16s : %s\n' 'Jobs' "$(call show_config_display_value,$(JOBS))"
+@printf '%-16s : %s GB\n' 'Memory' "$(call show_config_display_value,$(MEMORY))"
+@printf '%-16s : %s\n' 'Seed' "$(call show_config_display_value,$(SEED))"
+@printf '%-16s : %s\n' 'Logging' "$(call show_config_display_value,$(show_config_logging))"
 $(show_config_print_hvg)
 $(show_config_print_inference)
 $(show_config_print_old_files)
@@ -723,11 +726,14 @@ endif
 				printf 'target\t%s\n' "$(target)";) \
 			$(foreach param,$(strip $(sensitive_params_$(module))),\
 				printf 'param\t%s=%s\n' '$(param)' "$($(param))";) \
+			$(foreach env,$(strip $(runtime_envs_$(module))),\
+				printf 'runtime-env\t%s\n' "$(env)";) \
 			printf 'deps\t%s\n' "$(strip $(progress_deps_$(module)))"; \
 			printf 'end\n'; \
 		} >> "$${progress_manifest}";) \
-	$(metadata_python) "$(scripts_dir)/utils/scbolt_metadata.py" batch-progress \
+	$(python) "$(scripts_dir)/utils/scbolt_metadata.py" batch-progress \
 		--manifest "$${progress_manifest}" \
+		$(metadata_runtime_backend_args) \
 		$(metadata_old_file_args) \
 		| while IFS="	" read -r report_module report_field report_value; do \
 			printf '%s\t%s\n' "$${report_field}" "$${report_value}" \

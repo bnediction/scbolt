@@ -8,12 +8,12 @@ lib_dir := $(scbolt_root)/lib
 scripts_dir := $(scbolt_root)/scripts
 fig_dir := $(scbolt_root)/scripts/fig
 scbolt_tool := $(scbolt_root)/bin/scbolt-tool
-system_tool = $(scbolt_tool) $(1)
 conda_command := $(if $(CONDA_EXE),$(CONDA_EXE),conda)
 SCBOLT_SYSTEM_ENV ?= scbolt-system
 conda_base_from_exe = $(patsubst %/condabin/conda,%,$(patsubst %/bin/conda,%,$(1)))
 conda_base := $(if $(CONDA_EXE),$(call conda_base_from_exe,$(CONDA_EXE)))
 scbolt_system_bin := $(if $(conda_base),$(conda_base)/envs/$(SCBOLT_SYSTEM_ENV)/bin)
+system_tool = $(if $(wildcard $(scbolt_system_bin)/$(1)),$(scbolt_system_bin)/$(1),$(1))
 ifneq ($(wildcard $(scbolt_system_bin)),)
 override PATH := $(scbolt_system_bin):$(PATH)
 export PATH
@@ -46,6 +46,11 @@ resolve_user_path_list_var = $(eval override $(1) := \
 uniq = $(if $(1),$(firstword $(1)) $(call uniq,$(filter-out $(firstword $(1)),$(1))))
 
 include $(scbolt_root)/mk/default_params.mk
+
+runtime_backend := $(strip $(RUNTIME_BACKEND))
+ifneq ($(filter $(runtime_backend),conda docker),$(runtime_backend))
+$(error unsupported RUNTIME_BACKEND=$(RUNTIME_BACKEND) \(supported values: conda, docker\))
+endif
 
 ifeq ($(DEFAULT_CONFIG),true)
 override PARAMS := (defaults)
@@ -787,15 +792,21 @@ log_parameters = $(foreach var,$(strip $(1)),printf '%s=%s\n' '$(var)' "$($(var)
 metadata_target_args = $(foreach target,$(strip $(RESET_TARGET_$(1))),--target "$(target)")
 metadata_custom_target_args = $(foreach target,$(strip $(2)),--target "$(target)")
 metadata_param_args = $(foreach param,$(strip $(sensitive_params_$(1))),--param '$(param)=$($(param))')
+metadata_runtime_env_args = $(foreach env,$(strip $(runtime_envs_$(1))),--runtime-env "$(env)")
+metadata_runtime_backend_args = \
+	--runtime-backend "$(RUNTIME_BACKEND)" \
+	--container-engine "$(SCBOLT_CONTAINER_ENGINE)" \
+	--container-image "$(SCBOLT_IMAGE)"
 metadata_old_file_args = $(foreach path,$(strip $(OLD_FILES)),--old-file "$(path)")
 metadata_git_hash = $$(git -C "$(scbolt_root)" rev-parse HEAD 2>/dev/null || echo unknown)
-HOST_PYTHON ?= $(if $(and $(conda_base),$(wildcard $(conda_base)/bin/python)),$(conda_base)/bin/python,python3)
-metadata_python = $(HOST_PYTHON)
-metadata_state = $(metadata_python) $(scripts_dir)/utils/scbolt_metadata.py state \
+python ?= $(if $(and $(conda_base),$(wildcard $(conda_base)/bin/python)),$(conda_base)/bin/python,python3)
+metadata_state = $(python) $(scripts_dir)/utils/scbolt_metadata.py state \
 	--module "$(1)" \
 	$(call metadata_target_args,$(1)) \
 	$(metadata_old_file_args) \
-	$(call metadata_param_args,$(1))
+	$(call metadata_param_args,$(1)) \
+	$(call metadata_runtime_env_args,$(1)) \
+	$(metadata_runtime_backend_args)
 metadata_state_field = $(call metadata_state,$(1)) --field "$(2)"
 metadata_state_make = $(nested_make) LOGGING=false __reset_disabled=metadata \
 	__metadata-state METADATA_MODULE="$(1)" METADATA_FIELD="$(2)" \
@@ -810,7 +821,7 @@ $(foreach path,$(unknown_old_files),\
 	$(call print_warning,old file is not a known scBOLT target: $(path));) \
 $(system_shell_functions) \
 selected_modules=" $(call target_dry_run_modules,$(1)) "; \
-running_modules=" $(call target_run_modules,$(1)) $(reset_modules) "; \
+running_modules=" $(reset_modules) "; \
 pending_modules=" "; \
 stale_modules=" "; \
 untracked_modules=" "; \
@@ -826,11 +837,27 @@ is_stale() { \
 is_untracked() { \
 	case "$${untracked_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 }; \
+metadata_manifest="$$(mktemp)"; \
+metadata_report_dir="$$(mktemp -d)"; \
+$(nested_make) LOGGING=false __reset_disabled=metadata \
+	__check-metadata-manifest CHECK_METADATA_MODULES="$${selected_modules}" \
+	PARAMS="$(PARAMS)" OLD_FILES="$(OLD_FILES)" > "$${metadata_manifest}"; \
+if [ -s "$${metadata_manifest}" ]; then \
+	$(python) "$(scripts_dir)/utils/scbolt_metadata.py" batch-progress \
+		--manifest "$${metadata_manifest}" \
+		$(metadata_runtime_backend_args) \
+		$(metadata_old_file_args) \
+		| while IFS="	" read -r report_module report_field report_value; do \
+			printf '%s\t%s\n' "$${report_field}" "$${report_value}" \
+				>> "$${metadata_report_dir}/$${report_module}"; \
+		done; \
+fi; \
 $(foreach module,$(reset_stages),\
 	if [[ "$${selected_modules}" == *" $(module) "* ]]; then \
-		module_state="$$( $(call metadata_state_make,$(module),all) )"; \
-		module_status="$${module_state%%	*}"; \
-		module_message="$${module_state#*	}"; \
+		module_report="$${metadata_report_dir}/$(module)"; \
+		module_status="$$(awk -F '\t' '$$1 == "status" { print $$2; exit }' "$${module_report}")"; \
+		module_message="$$(awk -F '\t' '$$1 == "message" { print $$2; exit }' "$${module_report}")"; \
+		module_deps="$$(awk -F '\t' '$$1 == "deps" { print $$2; exit }' "$${module_report}")"; \
 		module_details=""; \
 		module_pending=0; \
 		module_stale=0; \
@@ -842,8 +869,7 @@ $(foreach module,$(reset_stages),\
 		elif [ "$${module_status}" = "untracked" ]; then \
 			module_untracked=1; \
 		elif [ "$${module_status}" = "done" ]; then \
-			module_deps=( $(foreach dep,$(strip $(progress_deps_$(module))),"$(dep)") ); \
-			for dependency in "$${module_deps[@]}"; do \
+			for dependency in $${module_deps}; do \
 				if is_stale "$${dependency}"; then \
 					module_message="$(module) (depends on module '$${dependency}')"; \
 					module_stale=1; \
@@ -860,9 +886,7 @@ $(foreach module,$(reset_stages),\
 			done; \
 		fi; \
 		if [ "$${module_pending}" -eq 1 ]; then \
-			if ! is_running "$(module)"; then \
-				pending_modules="$${pending_modules}$(module) "; \
-			fi; \
+			:; \
 		elif [ "$${module_stale}" -eq 1 ]; then \
 			if [[ "$${module_status}" = "stale" && "$${module_message}" == "$(module) ("*")" ]]; then \
 				module_details="$${module_message#$(module) (}"; \
@@ -887,19 +911,23 @@ $(foreach module,$(reset_stages),\
 			fi; \
 		fi; \
 	fi;)
+rm -f "$${metadata_manifest}"; \
+rm -rf "$${metadata_report_dir}";
 endef
 
 define write_scbolt_metadata_command
-$(metadata_python) $(scripts_dir)/utils/scbolt_metadata.py write \
+$(python) $(scripts_dir)/utils/scbolt_metadata.py write \
 	--module "$(1)" \
 	$(call metadata_custom_target_args,$(1),$(2)) \
 	--params-file "$(PARAMS)" \
 	--git-hash "$(metadata_git_hash)" \
-	$(call metadata_param_args,$(1))
+	$(call metadata_param_args,$(1)) \
+	$(call metadata_runtime_env_args,$(1)) \
+	$(metadata_runtime_backend_args)
 endef
 
 define write_scbolt_metadata
-$(if $(strip $(sensitive_params_$(1))),\
+$(if $(strip $(sensitive_params_$(1)) $(runtime_envs_$(1))),\
 $(if $(filter true,$(__dry_run_output)),,\
 $(call write_scbolt_metadata_command,$(1),$(2))))
 endef
@@ -913,6 +941,43 @@ conda_runtime_env = \
 	LOKY_MAX_CPU_COUNT="$(LOKY_MAX_CPU_COUNT)" \
 	PYTHONPATH="$(lib_dir)$(if $(PYTHONPATH),:$(PYTHONPATH))" \
 	PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)"
+container_mount_roots = $(call uniq,\
+	$(scbolt_root) \
+	$(launch_dir) \
+	$(params_dir) \
+	$(patsubst %/,%,$(dir $(results))) \
+	$(patsubst %/,%,$(dir $(resources_dir))) \
+	$(tmpdir) \
+	$(SCBOLT_CONTAINER_MOUNTS))
+container_mount_args = $(foreach path,$(strip $(container_mount_roots)),-v "$(path):$(path)")
+container_base = $(SCBOLT_CONTAINER_ENGINE) run --rm \
+	$(container_mount_args) \
+	-w "$(launch_dir)" \
+	$(SCBOLT_CONTAINER_ARGS)
+container_runtime_env = \
+	-e LOKY_MAX_CPU_COUNT="$(LOKY_MAX_CPU_COUNT)" \
+	-e PYTHONPATH="$(lib_dir)$(if $(PYTHONPATH),:$(PYTHONPATH))" \
+	-e PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
+	-e HOME="$(tmpdir)" \
+	-e MPLCONFIGDIR="$(tmpdir)/matplotlib"
+container_cellrank_env = $(container_runtime_env) \
+	-e OMPI_MCA_btl="^smcuda"
+container_inference_env = $(container_runtime_env) \
+	-e TQDM_DISABLE="$(TQDM_DISABLE)" \
+	-e TQDM_TO_TTY="$(TQDM_TO_TTY)" \
+	-e PYTHONHASHSEED="$(SEED)"
+
+ifeq ($(runtime_backend),docker)
+conda_run = $(container_base) $(container_runtime_env) "$(SCBOLT_IMAGE)" \
+	conda run --no-capture-output -n $(1)
+conda_run_cellrank = $(container_base) $(container_cellrank_env) "$(SCBOLT_IMAGE)" \
+	conda run --no-capture-output -n $(1)
+conda_run_inference = $(container_base) $(container_inference_env) "$(SCBOLT_IMAGE)" \
+	conda run --no-capture-output -n $(1)
+conda_run_inference_timeout = $(call inference_timeout,$(2)) \
+	$(container_base) $(container_inference_env) "$(SCBOLT_IMAGE)" \
+	conda run --no-capture-output -n $(1)
+else
 conda_run = $(conda_runtime_env) $(conda_command) run --no-capture-output -n $(1)
 conda_run_cellrank = $(conda_runtime_env) \
 	OMPI_MCA_btl="^smcuda" \
@@ -926,6 +991,7 @@ conda_run_inference = $(conda_inference_env) \
 conda_run_inference_timeout = $(conda_inference_env) \
 	$(call inference_timeout,$(2)) \
 	$(conda_command) run --no-capture-output -n $(1)
+endif
 BONESIS_HASH ?= d70736781f88faee334ef79622e144216837f4c5
 nested_make = \
 	$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
