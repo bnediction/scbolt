@@ -9,9 +9,22 @@ scbolt_command="${scbolt_root}/bin/scbolt"
 scbolt_completion="${scbolt_root}/bin/completion.bash"
 local_bin="${HOME}/.local/bin"
 local_completion_dir="${HOME}/.local/share/bash-completion/completions"
+scbolt_envs=(
+    system
+    align
+    bonesis
+    cellrank
+    core
+    cotan
+    fastq
+    potency
+    scboolseq
+    stream
+    velocity
+    velocyto
+)
 
 bonesis_hash="${BONESIS_HASH:-d70736781f88faee334ef79622e144216837f4c5}"
-scvelo_hash="${SCVELO_HASH:-b2f31b345641efdccd39fbcb8c0beaa0014b4b88}"
 
 if [ -t 1 ];
 then
@@ -95,18 +108,22 @@ install_bonesis_git() {
         "git+https://github.com/bnediction/bonesis.git@${bonesis_hash}"
 }
 
-install_scvelo_git() {
-    conda run --no-capture-output -n "$1" python -m pip install \
-        "git+https://github.com/theislab/scvelo.git@${scvelo_hash}"
-}
-
 develop_scbolt_lib() {
-    if [ "$1" == "scbolt-align" ];
+    if [ "$1" == "scbolt-align" ] || [ "$1" == "scbolt-system" ];
     then
         return 0
     fi
 
-    run_quiet conda develop --name "$1" "${lib_dir}"
+    run_quiet conda run --no-capture-output -n "$1" python -c '
+import sysconfig
+import sys
+from pathlib import Path
+
+lib_dir = Path(sys.argv[1]).resolve()
+site_packages = Path(sysconfig.get_path("purelib"))
+pth_file = site_packages / "scbolt-lib.pth"
+pth_file.write_text(f"{lib_dir}\n", encoding="utf-8")
+' "${lib_dir}"
 }
 
 configure_env() {
@@ -234,15 +251,19 @@ declare -A installed_conda_envs
 
 load_installed_conda_envs() {
     local env
+    local rest
 
     installed_conda_envs=()
-    while IFS= read -r env
+    while read -r env rest
     do
+        case "${env}" in
+            ""|\#*) continue ;;
+        esac
         if [ -n "${env}" ];
         then
             installed_conda_envs["${env}"]=1
         fi
-    done < <(conda env list | awk 'NF && $1 !~ /^#/ { print $1 }')
+    done < <(conda env list)
 }
 
 conda_env_exists() {
@@ -265,8 +286,15 @@ then
     conda activate base
 fi
 
-for file in "${env_dir}"/*.yml
+for env_suffix in "${scbolt_envs[@]}"
 do
-    env=scbolt-$(basename "${file%.yml}")
+    file="${env_dir}/${env_suffix}.yml"
+    env="scbolt-${env_suffix}"
+    if [ ! -f "${file}" ];
+    then
+        print_install_failure "${env}"
+        printf '%s\n' "missing conda environment file: ${file}" >&2
+        exit 1
+    fi
     install_env "$env" "$file"
 done

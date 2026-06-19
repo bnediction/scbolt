@@ -46,6 +46,7 @@ ifneq ($(filter $(CLEAN_FORCE),true false),$(CLEAN_FORCE))
 	$(call print_error,unsupported CLEAN_FORCE=$(CLEAN_FORCE) \(supported values: true, false\))
 endif
 	@recovered=0; \
+	$(system_shell_functions) \
 	if [ -n "$(clean_all)" ]; then \
 		if [ -n "$(OLD_FILES)" ]; then \
 			printf '$(warning_label) %s\n' "clean --all may remove trusted old files:"; \
@@ -159,7 +160,7 @@ endif
 				printf 'deps\t%s\n' "$(strip $(progress_deps_$(module)))"; \
 				printf 'end\n'; \
 			} >> "$${clean_manifest}";) \
-		python3 "$(scripts_dir)/utils/scbolt_metadata.py" batch-clean \
+		$(metadata_python) "$(scripts_dir)/utils/scbolt_metadata.py" batch-clean \
 			--manifest "$${clean_manifest}" \
 			$(metadata_old_file_args) \
 			| while IFS="	" read -r report_module report_field report_value; do \

@@ -19,7 +19,7 @@ warnings.filterwarnings(
     category=DeprecationWarning,
 )
 
-bt.sct.pl.set_default_params()
+std.set_default_plot_params(bt.sct.pl)
 
 script_name = Path(__file__).name
 
@@ -240,9 +240,9 @@ with warnings.catch_warnings():
         adata,
         obs="velocity_pseudotime",
         use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
-        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
-        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
-        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
+        xlabel=std.axis_label(embedding_label, 1),
+        ylabel=std.axis_label(embedding_label, 2),
+        zlabel=std.axis_label(embedding_label, 3),
         figwidth=6,
         s=4,
         alpha=1,
@@ -266,9 +266,9 @@ with warnings.catch_warnings():
         adata,
         obs=args.cluster,
         use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
-        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
-        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
-        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
+        xlabel=std.axis_label(embedding_label, 1),
+        ylabel=std.axis_label(embedding_label, 2),
+        zlabel=std.axis_label(embedding_label, 3),
         figwidth=6,
         s=4,
         alpha=1,

@@ -22,8 +22,26 @@ SCBOLT_BIN_DIR="$(dirname "${SCBOLT_SCRIPT}")"
 SCBOLT_ROOT="$(cd "${SCBOLT_BIN_DIR}/.." && pwd)"
 SCBOLT_MAKEFILE="${SCBOLT_ROOT}/Makefile"
 SCBOLT_DEFAULT_PARAMS="${SCBOLT_ROOT}/mk/default_params.mk"
+SCBOLT_TOOL="${SCBOLT_BIN_DIR}/scbolt-tool"
 terminal_device=""
 terminal_state=""
+
+if [ -z "${CONDA_EXE:-}" ]; then
+    conda_path="$(command -v conda 2>/dev/null || true)"
+    if [ -n "${conda_path}" ] && command -v readlink >/dev/null 2>&1; then
+        conda_path="$(readlink -f "${conda_path}" 2>/dev/null || printf '%s' "${conda_path}")"
+    fi
+    if [ -n "${conda_path}" ] && [ -x "${conda_path}" ]; then
+        export CONDA_EXE="${conda_path}"
+    fi
+fi
+
+command -v awk >/dev/null 2>&1 || awk() { "${SCBOLT_TOOL}" awk "$@"; }
+command -v cat >/dev/null 2>&1 || cat() { "${SCBOLT_TOOL}" cat "$@"; }
+command -v grep >/dev/null 2>&1 || grep() { "${SCBOLT_TOOL}" grep "$@"; }
+command -v head >/dev/null 2>&1 || head() { "${SCBOLT_TOOL}" head "$@"; }
+command -v sed >/dev/null 2>&1 || sed() { "${SCBOLT_TOOL}" sed "$@"; }
+command -v tee >/dev/null 2>&1 || tee() { "${SCBOLT_TOOL}" tee "$@"; }
 
 restore_terminal() {
     if [ -n "${terminal_state}" ] && [ -n "${terminal_device}" ]; then

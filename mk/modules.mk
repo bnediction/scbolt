@@ -137,7 +137,7 @@ bn_min =                        $(infer_dir)/bn/min/model.bnet
 bn_submin_dir = $(infer_dir)/bn/submin
 bn_files = $(foreach i,$(1),$(2)/$(i)/model.bnet $(2)/$(i)/state.cfg)
 ifneq ($(filter-out 0,$(strip $(INFER_LIMIT))),)
-bn_submin_indices := $(shell seq 0 $$(($(INFER_LIMIT)-1)))
+bn_submin_indices := $(shell $(call system_tool,seq) 0 $$(($(INFER_LIMIT)-1)))
 bn_submin = $(call bn_files,$(bn_submin_indices),$(bn_submin_dir))
 else
 bn_submin = $(bn_submin_dir)/ensemble.pdf
@@ -145,7 +145,7 @@ endif
 
 bn_diverse_dir = $(infer_dir)/bn/diverse
 ifneq ($(filter-out 0,$(strip $(INFER_LIMIT))),)
-bn_diverse_indices := $(shell seq 0 $$(($(INFER_LIMIT)-1)))
+bn_diverse_indices := $(shell $(call system_tool,seq) 0 $$(($(INFER_LIMIT)-1)))
 bn_diverse = $(call bn_files,$(bn_diverse_indices),$(bn_diverse_dir))
 else
 bn_diverse = $(bn_diverse_dir)/ensemble.pdf
@@ -262,8 +262,8 @@ endif
 endif
 endif
 
-$(if $(filter true,$(call is_creatable_path,$(PROJECT_DIR))),$(shell mkdir -p "$(results)"))
-$(if $(filter true,$(call is_creatable_path,$(RESOURCES_DIR))),$(shell mkdir -p "$(resources_dir)"))
+$(if $(filter true,$(call is_creatable_path,$(PROJECT_DIR))),$(shell $(call system_tool,mkdir) -p "$(results)"))
+$(if $(filter true,$(call is_creatable_path,$(RESOURCES_DIR))),$(shell $(call system_tool,mkdir) -p "$(resources_dir)"))
 
 check_mode := $(filter check,$(MAKECMDGOALS))$(__check_mode)
 
@@ -290,7 +290,7 @@ embedding_method_X_se = spectral
 embedding_method = $(embedding_method_$(1))
 embedding = $(call embedding_method,$(USE_REP))
 
-label_ids = $(if $(LABEL),$(shell seq 0 1 $$(($(words $(LABEL))-1))))
+label_ids = $(if $(LABEL),$(shell $(call system_tool,seq) 0 1 $$(($(words $(LABEL))-1))))
 label_map = $(join $(label_ids),$(addprefix :,$(LABEL)))
 
 velocity_only_hvg = $(if $(filter true,$(VELOCITY_ONLY_HVG)),--only-hvg)
@@ -708,11 +708,11 @@ config_method_params = $(call uniq,$(filter $(method_config_param_set),$(1)))
 config_external_resource_params = $(call uniq,$(filter $(external_resource_config_param_set),$(1)))
 target_dry_run_modules = $(shell $(nested_make) --always-make --dry-run LOGGING=false \
 	__check_mode=true __$(1) PARAMS="$(PARAMS)" LOGFILE="$(LOGFILE)" 2>/dev/null \
-	| sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' \
-	| awk '$$0 != "bin-hvg" && !seen[$$0]++')
+	| $(call system_tool,sed) -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' \
+	| $(call system_tool,awk) '$$0 != "bin-hvg" && !seen[$$0]++')
 target_run_modules = $(shell $(nested_make) --dry-run LOGGING=false \
 	__check_mode=true __$(1) PARAMS="$(PARAMS)" LOGFILE="$(LOGFILE)" 2>/dev/null \
-	| sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' \
-	| awk '$$0 != "bin-hvg" && !seen[$$0]++')
+	| $(call system_tool,sed) -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' \
+	| $(call system_tool,awk) '$$0 != "bin-hvg" && !seen[$$0]++')
 
 ## END PARAMETERS ##

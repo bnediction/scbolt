@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    printf '%s\n' "usage: scbolt-tool <command> [<args>...]"
+}
+
+if [ "$#" -lt 1 ]; then
+    usage >&2
+    exit 2
+fi
+
+tool="$1"
+shift
+
+if command -v "${tool}" >/dev/null 2>&1; then
+    exec "${tool}" "$@"
+fi
+
+system_env="${SCBOLT_SYSTEM_ENV:-scbolt-system}"
+
+conda_command="${CONDA_EXE:-}"
+if [ -z "${conda_command}" ] || [ ! -x "${conda_command}" ]; then
+    conda_command="$(command -v conda 2>/dev/null || true)"
+fi
+
+if [ -z "${conda_command}" ]; then
+    printf '%s\n' "command not found: ${tool}" >&2
+    printf '%s\n' "fallback unavailable: conda command not found" >&2
+    exit 127
+fi
+
+if command -v readlink >/dev/null 2>&1; then
+    conda_command="$(readlink -f "${conda_command}" 2>/dev/null || printf '%s' "${conda_command}")"
+fi
+conda_base=""
+case "${conda_command}" in
+    */bin/conda)
+        conda_base="$(cd "${conda_command%/*}/.." && pwd)"
+        ;;
+    */condabin/conda)
+        conda_base="$(cd "${conda_command%/*}/.." && pwd)"
+        ;;
+esac
+if [ -z "${conda_base}" ]; then
+    conda_base="$("${conda_command}" info --base 2>/dev/null || true)"
+fi
+if [ -n "${conda_base}" ]; then
+    env_tool="${conda_base}/envs/${system_env}/bin/${tool}"
+    if [ -x "${env_tool}" ]; then
+        exec "${env_tool}" "$@"
+    fi
+fi
+
+exec "${conda_command}" run --no-capture-output -n "${system_env}" "${tool}" "$@"

@@ -75,6 +75,7 @@ else ifeq ($(HELP),false)
 	metadata_manifest="$$(mktemp)"; \
 	metadata_report_dir="$$(mktemp -d)"; \
 	conda_report_dir="$$(mktemp -d)"; \
+	$(system_shell_functions) \
 	touch "$${project_checks}" "$${core_checks}" "$${method_checks}" \
 		"$${external_resource_checks}" "$${file_checks}" "$${conda_checks}" \
 		"$${command_checks}" "$${other_checks}"; \
@@ -167,7 +168,7 @@ else ifeq ($(HELP),false)
 	$(nested_make) LOGGING=false __reset_disabled=metadata \
 		__check-metadata-manifest CHECK_METADATA_MODULES="$${selected_modules}" \
 		PARAMS="$(PARAMS)" OLD_FILES="$(OLD_FILES)" > "$${metadata_manifest}"; \
-	python3 "$(scripts_dir)/utils/scbolt_metadata.py" batch-progress \
+	$(metadata_python) "$(scripts_dir)/utils/scbolt_metadata.py" batch-progress \
 		--manifest "$${metadata_manifest}" \
 		$(metadata_old_file_args) \
 		| while IFS="	" read -r report_module report_field report_value; do \
@@ -572,9 +573,9 @@ else ifeq ($(HELP),false)
 	fi; \
 	flush_check_reports "$${file_checks}"; \
 	if [ "$(__check_externals__)" = "true" ]; then \
-		$(call check_command_diagnostic,conda); \
-		if command -v conda >/dev/null 2>&1; then \
-			conda_envs="$$(conda env list | awk '{print $$1}')"; \
+		if $(conda_command) --version >/dev/null 2>&1; then \
+			check_success "command found: conda"; \
+			conda_envs="$$( $(conda_command) env list | awk '{print $$1}')"; \
 			conda_jobs=""; \
 			conda_index=0; \
 			for env in $$({ \
@@ -589,10 +590,9 @@ else ifeq ($(HELP),false)
 					git_packages=""; \
 					case "$${env}" in \
 						scbolt-bonesis) git_packages="--git-package bonesis=$(BONESIS_HASH)";; \
-						scbolt-velocity) git_packages="--git-package scvelo=$(SCVELO_HASH)";; \
 					esac; \
 					( \
-						python3 $(scripts_dir)/utils/check_conda_env.py \
+						$(metadata_python) $(scripts_dir)/utils/check_conda_env.py \
 							--env "$${env}" --yaml "$${env_yaml}" $${git_packages} \
 							>> "$${conda_report}"; \
 						printf '%s\n' "$$?" > "$${conda_status}"; \
@@ -624,6 +624,8 @@ else ifeq ($(HELP),false)
 					fi; \
 				done < "$${conda_report}"; \
 			done; \
+		else \
+			$(call report_check_error,required command not found: conda); \
 		fi; \
 		flush_check_reports "$${conda_checks}"; \
 		if grep -qE '(^|[[:space:]])cellranger count([[:space:]]|$$)' "$${dry_run}"; then \

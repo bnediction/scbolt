@@ -19,7 +19,7 @@ import bonesistools as bt
 import scanorama
 
 
-bt.sct.pl.set_default_params()
+std.set_default_plot_params(bt.sct.pl)
 
 
 @bt.sct.typing.anndata_checker
@@ -188,9 +188,9 @@ def plot_embedding(
         adata,
         obs=obs,
         use_rep=use_rep,
-        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
-        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
-        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
+        xlabel=std.axis_label(embedding_label, 1),
+        ylabel=std.axis_label(embedding_label, 2),
+        zlabel=std.axis_label(embedding_label, 3),
         figwidth=6,
         s=2,
         alpha=1,
@@ -728,8 +728,8 @@ bt.sct.pl.embedding(
     adata,
     obs="condition",
     use_rep="X_pca" if args.integration != "scanorama" else "X_scanorama",
-    xlabel=r"$\mathrm{PC_{1}}$",
-    ylabel=r"$\mathrm{PC_{2}}$",
+    xlabel=std.axis_label("PC", 1),
+    ylabel=std.axis_label("PC", 2),
     figwidth=6,
     s=2,
     alpha=1,

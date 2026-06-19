@@ -10,6 +10,10 @@ if [ "$#" -ne 2 ]; then
     exit 2
 fi
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+scbolt_root="$(cd "${script_dir}/../.." && pwd)"
+scbolt_tool="${scbolt_root}/bin/scbolt-tool"
+
 gsm="$1"
 outdir="$2"
 
@@ -40,7 +44,7 @@ base_url="${geo_ftp_base%/}/samples/${series_dir}/${gsm}/suppl/"
 mkdir -p "${outdir}"
 
 mapfile -t files < <(
-    python3 - "${base_url}" "${gsm}" <<'PY'
+    python - "${base_url}" "${gsm}" <<'PY'
 from html.parser import HTMLParser
 from urllib.parse import unquote, urljoin
 from urllib.error import URLError
@@ -133,7 +137,7 @@ download() {
     local output="$2"
     local tmp="${output}.tmp"
 
-    curl --fail --location --silent --show-error --retry 3 --output "${tmp}" "${url}"
+    "${scbolt_tool}" curl --fail --location --silent --show-error --retry 3 --output "${tmp}" "${url}"
     mv "${tmp}" "${output}"
 }
 

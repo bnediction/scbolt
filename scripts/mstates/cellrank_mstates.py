@@ -14,7 +14,7 @@ import cellrank as cr
 import bonesistools as bt
 
 
-bt.sct.pl.set_default_params()
+std.set_default_plot_params(bt.sct.pl)
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
@@ -294,9 +294,9 @@ for obs, file in macrostate_files.items():
             use_rep="X_umap",
             figheight=6,
             figwidth=8,
-            xlabel=r"$\mathrm{UMAP_{1}}$",
-            ylabel=r"$\mathrm{UMAP_{2}}$",
-            zlabel=r"$\mathrm{UMAP_{3}}$",
+            xlabel=std.axis_label("UMAP", 1),
+            ylabel=std.axis_label("UMAP", 2),
+            zlabel=std.axis_label("UMAP", 3),
             s=4,
             alpha=1,
             show_labels=True,

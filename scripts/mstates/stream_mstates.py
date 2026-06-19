@@ -19,7 +19,7 @@ from networkx.classes.graph import Graph
 from rpy2.rinterface import ListSexpVector
 
 
-bt.sct.pl.set_default_params()
+std.set_default_plot_params(bt.sct.pl)
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
@@ -338,9 +338,9 @@ for group in groups:
         obs=group,
         use_rep=args.use_rep,
         graph_key="epg",
-        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
-        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
-        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
+        xlabel=std.axis_label(embedding_label, 1),
+        ylabel=std.axis_label(embedding_label, 2),
+        zlabel=std.axis_label(embedding_label, 3),
         figwidth=6,
         s=2,
         alpha=0.7,

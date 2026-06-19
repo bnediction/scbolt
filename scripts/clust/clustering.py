@@ -14,7 +14,7 @@ import scanpy as sc
 import bonesistools as bt
 
 
-bt.sct.pl.set_default_params()
+std.set_default_plot_params(bt.sct.pl)
 
 
 def _format_percent_if_float(value):
@@ -89,9 +89,9 @@ def plot_embedding(adata, method: str, use_rep: str, outfile: Path, args) -> Non
         adata,
         obs="cluster",
         use_rep=use_rep,
-        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
-        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
-        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
+        xlabel=std.axis_label(embedding_label, 1),
+        ylabel=std.axis_label(embedding_label, 2),
+        zlabel=std.axis_label(embedding_label, 3),
         figwidth=6,
         s=2,
         alpha=1,

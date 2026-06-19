@@ -7,6 +7,31 @@ launch_dir := $(CURDIR)
 lib_dir := $(scbolt_root)/lib
 scripts_dir := $(scbolt_root)/scripts
 fig_dir := $(scbolt_root)/scripts/fig
+scbolt_tool := $(scbolt_root)/bin/scbolt-tool
+system_tool = $(scbolt_tool) $(1)
+conda_command := $(if $(CONDA_EXE),$(CONDA_EXE),conda)
+SCBOLT_SYSTEM_ENV ?= scbolt-system
+conda_base_from_exe = $(patsubst %/condabin/conda,%,$(patsubst %/bin/conda,%,$(1)))
+scbolt_system_bin := $(if $(CONDA_EXE),$(call conda_base_from_exe,$(CONDA_EXE))/envs/$(SCBOLT_SYSTEM_ENV)/bin)
+ifneq ($(wildcard $(scbolt_system_bin)),)
+override PATH := $(scbolt_system_bin):$(PATH)
+export PATH
+endif
+define system_shell_functions
+command -v awk >/dev/null 2>&1 || awk() { "$(scbolt_tool)" awk "$$@"; }; \
+command -v cat >/dev/null 2>&1 || cat() { "$(scbolt_tool)" cat "$$@"; }; \
+command -v cp >/dev/null 2>&1 || cp() { "$(scbolt_tool)" cp "$$@"; }; \
+command -v du >/dev/null 2>&1 || du() { "$(scbolt_tool)" du "$$@"; }; \
+command -v find >/dev/null 2>&1 || find() { "$(scbolt_tool)" find "$$@"; }; \
+command -v grep >/dev/null 2>&1 || grep() { "$(scbolt_tool)" grep "$$@"; }; \
+command -v realpath >/dev/null 2>&1 || realpath() { "$(scbolt_tool)" realpath "$$@"; }; \
+command -v sed >/dev/null 2>&1 || sed() { "$(scbolt_tool)" sed "$$@"; }; \
+command -v sort >/dev/null 2>&1 || sort() { "$(scbolt_tool)" sort "$$@"; }; \
+command -v timeout >/dev/null 2>&1 || timeout() { "$(scbolt_tool)" timeout "$$@"; }; \
+command -v touch >/dev/null 2>&1 || touch() { "$(scbolt_tool)" touch "$$@"; }; \
+command -v tr >/dev/null 2>&1 || tr() { "$(scbolt_tool)" tr "$$@"; }; \
+command -v wc >/dev/null 2>&1 || wc() { "$(scbolt_tool)" wc "$$@"; };
+endef
 
 strip_trailing_slash = $(if $(filter /,$(strip $(1))),/,$(patsubst %/,%,$(strip $(1))))
 is_absolute_path = $(filter /%,$(strip $(1)))
@@ -131,14 +156,14 @@ endif
 ## END TERMINAL OUTPUT ##
 
 is_positive_integer = $(shell printf '%s\n' "$(strip $(1))" \
-	| grep -Eq '^[1-9][0-9]*$$' && echo true || echo false)
-is_creatable_path = $(shell { test -n "$(strip $(1))" && mkdir -p "$(strip $(1))"; } \
+	| $(call system_tool,grep) -Eq '^[1-9][0-9]*$$' && echo true || echo false)
+is_creatable_path = $(shell { test -n "$(strip $(1))" && $(call system_tool,mkdir) -p "$(strip $(1))"; } \
 	>/dev/null 2>&1 && echo true || echo false)
 
 raw_conditions := $(strip $(call tolower, $(CONDITIONS)))
 unnamed_condition := $(if $(raw_conditions),false,true)
 conditions := $(if $(raw_conditions),$(raw_conditions),unique)
-condition_indices := $(shell seq 1 $(words $(conditions)))
+condition_indices := $(shell $(call system_tool,seq) 1 $(words $(conditions)))
 $(foreach i,$(condition_indices),$(eval condition_index_$(word $(i),$(conditions)) := $(i)))
 file_for_condition = $(word $(condition_index_$(1)),$(strip $(2)))
 condition_path = $(if $(filter true,$(unnamed_condition)),,$(1)/)
@@ -199,10 +224,10 @@ resources_dir := $(patsubst %/,%,$(RESOURCES_DIR))
 results := $(patsubst %/,%,$(PROJECT_DIR))
 
 log_target := $(patsubst __%,%,$(or $(firstword $(MAKECMDGOALS)),default))
-LOGFILE := $(results)/logs/$(shell date '+%Y%m%d_%H%M%S')_$(log_target).log
+LOGFILE := $(results)/logs/$(shell $(call system_tool,date) '+%Y%m%d_%H%M%S')_$(log_target).log
 log_dir := $(patsubst %/,%,$(dir $(LOGFILE)))
-export tmpdir := $(shell mktemp -d -t scbolt-XXXXXXXXXX)
-$(shell { trap 'rm -rf $(tmpdir);' EXIT; tail --pid=$$PPID -f /dev/null; } </dev/null >/dev/null 2>/dev/null &)
+export tmpdir := $(shell $(call system_tool,mktemp) -d -t scbolt-XXXXXXXXXX)
+$(shell { trap '$(call system_tool,rm) -rf $(tmpdir);' EXIT; $(call system_tool,tail) --pid=$$PPID -f /dev/null; } </dev/null >/dev/null 2>/dev/null &)
 
 ifeq ($(diagnostic_mode),)
 ifneq ($(words $(input_routes)),0)
@@ -297,7 +322,7 @@ define check_file
 endef
 
 check_command = command -v $(1) >/dev/null 2>&1 || { $(call print_error,required command not found: $(1)); }
-check_conda_env = conda env list | awk '{print $$1}' | grep -qx "$(1)" \
+check_conda_env = $(conda_command) env list | $(call system_tool,awk) '{print $$1}' | $(call system_tool,grep) -qx "$(1)" \
 	|| { $(call print_error,required conda environment not found: $(1)); }
 check_parameter = [ -n "$(strip $(1))" ] || { $(call print_error,required parameter not defined: $(2)); }
 
@@ -763,7 +788,8 @@ metadata_custom_target_args = $(foreach target,$(strip $(2)),--target "$(target)
 metadata_param_args = $(foreach param,$(strip $(sensitive_params_$(1))),--param '$(param)=$($(param))')
 metadata_old_file_args = $(foreach path,$(strip $(OLD_FILES)),--old-file "$(path)")
 metadata_git_hash = $$(git -C "$(scbolt_root)" rev-parse HEAD 2>/dev/null || echo unknown)
-metadata_state = python3 $(scripts_dir)/utils/scbolt_metadata.py state \
+metadata_python = $(call conda_run,scbolt-core) python
+metadata_state = $(metadata_python) $(scripts_dir)/utils/scbolt_metadata.py state \
 	--module "$(1)" \
 	$(call metadata_target_args,$(1)) \
 	$(metadata_old_file_args) \
@@ -780,6 +806,7 @@ __metadata-state:
 define warn_stale_outputs
 $(foreach path,$(unknown_old_files),\
 	$(call print_warning,old file is not a known scBOLT target: $(path));) \
+$(system_shell_functions) \
 selected_modules=" $(call target_dry_run_modules,$(1)) "; \
 running_modules=" $(call target_run_modules,$(1)) $(reset_modules) "; \
 pending_modules=" "; \
@@ -861,7 +888,7 @@ $(foreach module,$(reset_stages),\
 endef
 
 define write_scbolt_metadata_command
-python3 $(scripts_dir)/utils/scbolt_metadata.py write \
+$(metadata_python) $(scripts_dir)/utils/scbolt_metadata.py write \
 	--module "$(1)" \
 	$(call metadata_custom_target_args,$(1),$(2)) \
 	--params-file "$(PARAMS)" \
@@ -878,22 +905,23 @@ endef
 PYTHONUNBUFFERED ?= 1
 TQDM_DISABLE ?= 0
 TQDM_TO_TTY ?= 0
+LOKY_MAX_CPU_COUNT ?= $(JOBS)
 
-conda_runtime_env = env \
+conda_runtime_env = \
+	LOKY_MAX_CPU_COUNT="$(LOKY_MAX_CPU_COUNT)" \
 	PYTHONPATH="$(lib_dir)$(if $(PYTHONPATH),:$(PYTHONPATH))" \
 	PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)"
-conda_run = $(conda_runtime_env) conda run --no-capture-output -n $(1)
+conda_run = $(conda_runtime_env) $(conda_command) run --no-capture-output -n $(1)
 conda_run_cellrank = $(conda_runtime_env) \
 	OMPI_MCA_btl="^smcuda" \
-	conda run --no-capture-output -n $(1)
+	$(conda_command) run --no-capture-output -n $(1)
 conda_run_inference = $(conda_runtime_env) \
 	TQDM_DISABLE="$(TQDM_DISABLE)" \
 	TQDM_TO_TTY="$(TQDM_TO_TTY)" \
 	PYTHONHASHSEED="$(SEED)" \
-	conda run --no-capture-output -n $(1)
+	$(conda_command) run --no-capture-output -n $(1)
 BONESIS_HASH ?= d70736781f88faee334ef79622e144216837f4c5
-SCVELO_HASH ?= b2f31b345641efdccd39fbcb8c0beaa0014b4b88
-nested_make = env \
+nested_make = \
 	$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
 	PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
 	TQDM_DISABLE="$(TQDM_DISABLE)" \
@@ -931,13 +959,12 @@ run_logged = \
 	} >> "$(LOGFILE)"; \
 	{ \
 		$(call warn_stale_outputs,$(1)) \
-		env \
-			$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
-			PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
-			TQDM_DISABLE="$(TQDM_DISABLE)" \
-			TQDM_TO_TTY="1" \
-			$(MAKE) -f "$(makefile_path)" $(trust_make_options) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"; \
-	} 2>&1 | tee -a "$(LOGFILE)"
+		$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
+		PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
+		TQDM_DISABLE="$(TQDM_DISABLE)" \
+		TQDM_TO_TTY="1" \
+		$(MAKE) -f "$(makefile_path)" $(trust_make_options) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"; \
+	} 2>&1 | $(call system_tool,tee) -a "$(LOGFILE)"
 else ifeq ($(LOGGING),false)
 run_logged = \
 	$(call warn_stale_outputs,$(1)) \

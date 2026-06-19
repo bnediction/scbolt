@@ -12,13 +12,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
-def crop_pdf(path: Path) -> None:
-    try:
-        os.system(f"pdfcrop --margins '0 0 0 0' {path} {path} > {os.devnull}")
-    except OSError:
-        print("unavailable unix command 'pdfcrop': no figure trimming")
-
-
 def remove_unused_obs_categories(adata, obs: str) -> None:
     if obs in adata.obs and hasattr(adata.obs[obs], "cat"):
         adata.obs[obs] = adata.obs[obs].cat.remove_unused_categories()
@@ -33,9 +26,9 @@ def plot_labels(adata, obs: str, embedding: str, outfile: Path) -> None:
         use_rep=embedding,
         figheight=5,
         figwidth=6,
-        xlabel=r"$\mathrm{dim_{1}}$",
-        ylabel=r"$\mathrm{dim_{2}}$",
-        zlabel=r"$\mathrm{dim_{3}}$",
+        xlabel=std.axis_label("dim", 1),
+        ylabel=std.axis_label("dim", 2),
+        zlabel=std.axis_label("dim", 3),
         show_legend=True,
         s=2,
         alpha=1,
@@ -59,7 +52,7 @@ def plot_labels(adata, obs: str, embedding: str, outfile: Path) -> None:
     bt.sct.pl.set_default_axis(ax)
     plt.savefig(outfile, bbox_inches="tight", pad_inches=0.3)
     plt.close(fig)
-    crop_pdf(outfile)
+    std.crop_pdf(outfile)
 
 
 def plot_composition(adata, obs: str, groupby: str, outfile: Path) -> None:
@@ -90,7 +83,7 @@ def plot_composition(adata, obs: str, groupby: str, outfile: Path) -> None:
     bt.sct.pl.set_default_axis(ax)
     plt.savefig(outfile, bbox_inches="tight", pad_inches=0.3)
     plt.close(fig)
-    crop_pdf(outfile)
+    std.crop_pdf(outfile)
 
 
 def summarize_composition(
@@ -280,7 +273,7 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-bt.sct.pl.set_default_params()
+std.set_default_plot_params(bt.sct.pl)
 
 
 if not Path(os.path.dirname(args.outfile)).exists():

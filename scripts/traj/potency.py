@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 import warnings
 
 
-bt.sct.pl.set_default_params()
+std.set_default_plot_params(bt.sct.pl)
 
 parser_description = """Compute scores related to cell development potential (lower the score, higher the differentiation potential) and classify cells by their cell potency using the CytoTRACE framework.
 
@@ -290,9 +290,9 @@ for obs in ["score", "normalized_score", "potency"]:
         adata,
         obs=f"cytotrace_{obs}",
         use_rep=args.use_rep,
-        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
-        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
-        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
+        xlabel=std.axis_label(embedding_label, 1),
+        ylabel=std.axis_label(embedding_label, 2),
+        zlabel=std.axis_label(embedding_label, 3),
         figwidth=6 if obs == "potency" else 8,
         s=8,
         alpha=1,

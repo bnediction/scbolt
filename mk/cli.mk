@@ -121,7 +121,7 @@ module_help_outputs = $(strip $(if $(module_help_outputs_$(module_help_target)),
 	$(module_help_outputs_$(module_help_target)),\
 	$(module_help_targets)))
 module_help_output_note = $(strip $(module_help_output_note_$(module_help_target)))
-relative_to_launch = $(shell realpath --relative-to="$(launch_dir)" "$(1)" 2>/dev/null || printf '%s' "$(1)")
+relative_to_launch = $(shell $(call system_tool,realpath) --relative-to="$(launch_dir)" "$(1)" 2>/dev/null || printf '%s' "$(1)")
 
 show_config_target = $(if $(TARGET),$(TARGET),all)
 show_config_modules = $(if $(TARGET),$(call target_dry_run_modules,$(TARGET)),$(config_default_modules))
@@ -684,6 +684,7 @@ endif
 	trap 'rm -f "$${done_file}" "$${stale_file}" "$${untracked_file}" "$${pending_file}" \
 		"$${extra_done_file}" "$${extra_stale_file}" "$${extra_untracked_file}" \
 		"$${skipped_file}" "$${progress_manifest}"; rm -rf "$${progress_report_dir}"' EXIT; \
+	$(system_shell_functions) \
 	for path in $(OLD_FILES); do \
 		if [ ! -e "$${path}" ] && [ ! -L "$${path}" ]; then \
 			printf '$(failure_label) %s\n' "old file not found: $${path}"; \
@@ -725,7 +726,7 @@ endif
 			printf 'deps\t%s\n' "$(strip $(progress_deps_$(module)))"; \
 			printf 'end\n'; \
 		} >> "$${progress_manifest}";) \
-	python3 "$(scripts_dir)/utils/scbolt_metadata.py" batch-progress \
+	$(metadata_python) "$(scripts_dir)/utils/scbolt_metadata.py" batch-progress \
 		--manifest "$${progress_manifest}" \
 		$(metadata_old_file_args) \
 		| while IFS="	" read -r report_module report_field report_value; do \
@@ -862,6 +863,7 @@ else ifeq ($(HELP),false)
 	@if [ -z "$(TARGET)" ]; then \
 		$(call print_error,missing TARGET \(usage: make dry-run TARGET=<module>\)); \
 	fi
+	@$(system_shell_functions) \
 	$(nested_make) --dry-run LOGGING=false __dry_run_output=true __$(TARGET) LOGFILE="$(LOGFILE)" \
 		| sed -e 's#$(launch_dir)/##g' \
 			-e 's#$(launch_dir)#.#g' \

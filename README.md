@@ -36,13 +36,11 @@ scBOLT relies on the BoNesis framework for exact Boolean network synthesis.
 
 scBOLT requires:
 1. GNU Make (>= 4.3)
-2. LaTeX
-3. [Anaconda](https://www.anaconda.com/download/)
+2. [Anaconda](https://www.anaconda.com/download/)
 
 Install the required system dependencies:
 ```sh
 apt-get install build-essential
-apt-get install texlive dvipng texlive-latex-extra texlive-fonts-recommended cm-super texlive-extra-utils
 ```
 
 ---
@@ -74,6 +72,14 @@ make check
 ---
 
 ## Optional
+
+LaTeX is optional. When available, scBOLT uses it for figure text rendering.
+Otherwise, figures are generated with Matplotlib's native text renderer and
+plain axis labels such as `UMAP1` and `PC1`.
+
+```sh
+apt-get install texlive dvipng texlive-latex-extra texlive-fonts-recommended cm-super texlive-extra-utils
+```
 
 The following resources are only required when starting from raw sequencing data:
 * [Cell Ranger](https://www.10xgenomics.com/support/software/cell-ranger/downloads) (optional alternative to STAR for alignment and counting)

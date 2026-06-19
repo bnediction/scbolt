@@ -25,3 +25,12 @@ from ._warnings import (
     filter_scanpy_hvg_warnings,
     filter_scanpy_rank_genes_warnings,
 )
+
+from ._plotting import (
+    axis_label,
+    crop_pdf,
+    plain_text_label,
+    plain_text_labels,
+    set_default_plot_params,
+    use_latex_rendering,
+)

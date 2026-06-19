@@ -8,12 +8,13 @@ import json
 from pathlib import Path
 
 import anndata as ad
+import std
 from bonesistools import sctools as sct
 
 import matplotlib.pyplot as plt
 
 
-sct.pl.set_default_params()
+std.set_default_plot_params(sct.pl)
 
 
 def import_module_as(module, alias):
@@ -142,6 +143,8 @@ remove_unused_obs_categories(adata, params["figure"].get("obs"))
 if "eval" in params:
     do_eval(params["eval"], params["figure"])
 
+params["figure"] = std.plain_text_labels(params["figure"])
+
 if "n_components" not in params["figure"]:
     params["figure"]["n_components"] = (
         3 if adata.obsm[params["figure"]["use_rep"]].shape[1] > 2 else 2
@@ -159,7 +162,4 @@ if "axis" in params:
     plt.axis(params["axis"])
 plt.savefig(outfile, bbox_inches="tight", pad_inches=0.3)
 plt.close()
-try:
-    os.system(f"pdfcrop --margins '0 0 0 0' {outfile} {outfile} > {os.devnull}")
-except OSError:
-    print("unavailable unix command 'pdfcrop': no figure trimming")
+std.crop_pdf(outfile)

@@ -6,12 +6,13 @@ import os
 from pathlib import Path
 
 import anndata as ad
+import std
 from bonesistools import sctools as sct
 
 import matplotlib.pyplot as plt
 
 
-sct.pl.set_default_params()
+std.set_default_plot_params(sct.pl)
 
 
 parser = argparse.ArgumentParser(
@@ -87,9 +88,4 @@ fig, ax = figure
 sct.pl.set_default_axis(ax)
 plt.savefig(args.outfile, bbox_inches="tight", pad_inches=0.3)
 plt.close(fig)
-try:
-    os.system(
-        f"pdfcrop --margins '0 0 0 0' {args.outfile} {args.outfile} > {os.devnull}"
-    )
-except OSError:
-    print("unavailable unix command 'pdfcrop': no figure trimming")
+std.crop_pdf(args.outfile)

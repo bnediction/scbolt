@@ -20,7 +20,7 @@ import pypairs
 import matplotlib.pyplot as plt
 
 
-bt.sct.pl.set_default_params()
+std.set_default_plot_params(bt.sct.pl)
 
 setattr(pd.DataFrame, "iteritems", pd.DataFrame.items)
 script_name = Path(__file__).name

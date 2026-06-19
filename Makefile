@@ -35,7 +35,7 @@ ifeq ($(strip $(genome_url)),)
 	$(call print_error,no default genome_url for ORGANISM=$(ORGANISM). Set genome_url in your parameter file)
 else
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll -cO $@.tmp $(genome_url)
+	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll -cO $@.tmp $(genome_url)
 	mv $@.tmp $@
 endif
 
@@ -44,13 +44,13 @@ $(genome_ref): $(genome_ref_archive)
 	$(call print_task,extracting reference genome)
 	rm -rf $@
 	mkdir -p $(@D)
-	tar -zxf $< -C $(@D)
+	$(call system_tool,tar) -zxf $< -C $(@D)
 	if [ ! -d $@ ]; then \
 		$(call print_error,reference archive did not extract expected directory: $@); \
 	fi
 	if [ -f $@/genes/genes.gtf.gz ]; then \
 		$(call print_debug,decompressing reference gene annotation); \
-		gzip -cd $@/genes/genes.gtf.gz > $@/genes/genes.gtf.tmp; \
+		$(call system_tool,gzip) -cd $@/genes/genes.gtf.gz > $@/genes/genes.gtf.tmp; \
 		mv $@/genes/genes.gtf.tmp $@/genes/genes.gtf; \
 	fi
 
@@ -60,15 +60,15 @@ ifeq ($(strip $(repeat_msk_url)),)
 	$(call print_error,no default repeat_msk_url for ORGANISM=$(ORGANISM). Set repeat_msk_url in your parameter file)
 else
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll -cO $@.tmp $(repeat_msk_url)
+	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll -cO $@.tmp $(repeat_msk_url)
 	mv $@.tmp $@
 endif
 
 $(repeat_msk): $(repeat_msk_table)
 	$(call print_rule,load-genome,repeat_msk)
 	$(call print_task,converting RepeatMasker table to GTF)
-	gzip -cd $< \
-		| awk -F '\t' 'BEGIN { OFS = "\t" } \
+	$(call system_tool,gzip) -cd $< \
+		| $(call system_tool,awk) -F '\t' 'BEGIN { OFS = "\t" } \
 			NF >= 17 { \
 				id = $$6 ":" ($$7 + 1) "-" $$8 ":" $$10 ":" $$17; \
 				gsub(/\\/, "\\\\", id); gsub(/"/, "\\\"", id); \
@@ -79,7 +79,7 @@ $(repeat_msk): $(repeat_msk_table)
 					"gene_id \"" id "\"; transcript_id \"" id "\"; repeat_name \"" name \
 					"\"; repeat_class \"" class "\"; repeat_family \"" family "\";" \
 			}' \
-		| gzip -c > $@.tmp
+		| $(call system_tool,gzip) -c > $@.tmp
 	mv $@.tmp $@
 
 $(star_index): | $(genome_ref)
@@ -88,16 +88,16 @@ $(star_index): | $(genome_ref)
 $(cc_markers):
 	$(call print_rule,load-cc)
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(cycle_url)
+	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(cycle_url)
 
 $(word 1,$(signatures)) $(word 2,$(signatures)):
 	$(eval FILENAME := $(basename $(notdir $@)))
 	$(call print_rule,load-signatures,$(FILENAME))
 	mkdir -p $(@D)
 	if [ $(FILENAME) = "geiger" ]; then \
-		$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(geiger_url); \
+		$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(geiger_url); \
 	else \
-		$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(chambers_url); \
+		$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(chambers_url); \
 	fi
 
 $(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures))
@@ -110,18 +110,18 @@ $(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures))
 $(go_basic):
 	$(call print_rule,load-go,go_basic)
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(go_basic_url)
+	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(go_basic_url)
 
 $(go_organism):
 	$(call print_rule,load-go,go_$(ORGANISM))
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(go_organism_url)
+	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(go_organism_url)
 
 $(gene2go):
 	$(call print_rule,load-go,gene2go)
 	mkdir -p $(@D)
-	$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll --directory-prefix=$(@D) $(gene2go_url)
-	[ -f $@.gz ] && gunzip $@.gz
+	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll --directory-prefix=$(@D) $(gene2go_url)
+	[ -f $@.gz ] && $(call system_tool,gunzip) $@.gz
 
 $(omics_dir)/count/%/invalid-alignment/.error:
 	$(call print_rule,alignment,$*)
@@ -201,8 +201,8 @@ $(cellranger_$(1)): $(fastq_$(1)) $(genome_ref)
 	(
 		cd $(tmpdir)/cellranger
 		cellranger count --id=$(call condition_name,$(1)) \
-			--fastqs=$$(realpath $$(firstword $$^)) \
-			--transcriptome=$$(realpath $$(lastword $$^)) \
+			--fastqs=$$($(call system_tool,realpath) $$(firstword $$^)) \
+			--transcriptome=$$($(call system_tool,realpath) $$(lastword $$^)) \
 			--create-bam true \
 			--localcores=$(JOBS) \
 			--localmem=$(MEMORY)
@@ -219,9 +219,9 @@ $(star_$(1))&: $(fastq_$(1)) $(star_index)
 		$(call check_file,$(STAR_WHITELIST),STAR_WHITELIST); \
 	fi
 	mkdir -p $(tmpdir)/star/$(1) $$(@D)
-	fastq_dir="$$(realpath $$(firstword $$^))"
-	r1_files="$$$$(find "$$$${fastq_dir}" -name '*_R1_001.fastq.gz' | sort | paste -sd, -)"
-	r2_files="$$$$(find "$$$${fastq_dir}" -name '*_R2_001.fastq.gz' | sort | paste -sd, -)"
+	fastq_dir="$$($(call system_tool,realpath) $$(firstword $$^))"
+	r1_files="$$$$( $(call system_tool,find) "$$$${fastq_dir}" -name '*_R1_001.fastq.gz' | $(call system_tool,sort) | $(call system_tool,paste) -sd, -)"
+	r2_files="$$$$( $(call system_tool,find) "$$$${fastq_dir}" -name '*_R2_001.fastq.gz' | $(call system_tool,sort) | $(call system_tool,paste) -sd, -)"
 	if [ -z "$$$${r1_files}" ] || [ -z "$$$${r2_files}" ]; then \
 		$(call print_error,STAR requires R1 and R2 FASTQ files in $$$${fastq_dir}); \
 	fi
@@ -254,7 +254,7 @@ $(velocyto_$(1)): $(cellranger_$(1)) $(genome_ref) $(repeat_msk)
 	mkdir -p $(tmpdir)/$(1)/velocyto
 	repeat_mask="$(tmpdir)/$(1)/velocyto/repeat_msk.gtf"
 	$(call print_debug,decompressing RepeatMasker annotation)
-	gzip -cd $$(lastword $$^) > "$$$${repeat_mask}"
+	$(call system_tool,gzip) -cd $$(lastword $$^) > "$$$${repeat_mask}"
 	$(call conda_run,scbolt-velocyto) velocyto run10x \
 		-m "$$$${repeat_mask}" \
 		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
@@ -298,7 +298,7 @@ $(velocyto_$(1)): $(qc_$(1)) $(genome_ref) $(repeat_msk)
 	mkdir -p $(tmpdir)/velocyto/$(1)
 	repeat_mask="$(tmpdir)/velocyto/$(1)/repeat_msk.gtf"
 	$(call print_debug,decompressing RepeatMasker annotation)
-	gzip -cd $$(lastword $$^) > "$$$${repeat_mask}"
+	$(call system_tool,gzip) -cd $$(lastword $$^) > "$$$${repeat_mask}"
 	$(call print_task,estimating spliced and unspliced counts with velocyto)
 	$(call conda_run,scbolt-velocyto) velocyto run \
 		-m "$$$${repeat_mask}" \
@@ -432,9 +432,9 @@ $(cellrank_$(1))&: $(velocity_$(1)) $(potency_$(1))
 	$(call require_cellrank_parameters)
 	mkdir -p $$(@D) $(tmpdir)/$(1)/cellrank
 	$(call print_debug,adding potency scores to AnnData)
-	awk -F, -v txt="score" 'FNR==1{for(col=1;$$$$col!=txt;col++);next} {print $$$$1 "," $$$$col}' \
+	$(call system_tool,awk) -F, -v txt="score" 'FNR==1{for(col=1;$$$$col!=txt;col++);next} {print $$$$1 "," $$$$col}' \
 		$$(lastword $$^) > $(tmpdir)/$(1)/cellrank/potency_scores.csv
-	sed -i '1 i\,cytotrace_score' $(tmpdir)/$(1)/cellrank/potency_scores.csv
+	$(call system_tool,sed) -i '1 i\,cytotrace_score' $(tmpdir)/$(1)/cellrank/potency_scores.csv
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/add_to_anndata.py \
 		$$(firstword $$^) $(tmpdir)/$(1)/cellrank/kernels.h5ad \
 		--csv $(tmpdir)/$(1)/cellrank/potency_scores.csv \
@@ -619,7 +619,7 @@ $(bin_cells)&: $(bin_input_h5ads)
 	$(if $(filter true,$(BIN_SCBOOLSEQ_ONLY_HVG)),$(call build_bin_hvg,bin-cells))
 	$(call conda_run,scbolt-scboolseq) python $(scripts_dir)/bin/bin_cells_scboolseq.py \
 		$< --outfile $(firstword $(bin_cells)) \
-		--bin $(shell echo $@ | sed "s/.h5ad/.csv/") \
+		--bin $(shell echo $@ | $(call system_tool,sed) "s/.h5ad/.csv/") \
 		--statistics $(lastword $(bin_cells)) \
 		--layer log-norm \
 		--quantile $(UNIMODAL_QUANTILE) \
@@ -724,10 +724,10 @@ $(bin_consensus): $(bin_mstates) $(lastword $(bin_cells)) $(bin_dea)
 	mkdir -p $(@D) $(tmpdir)/bin/consensus
 	$(call print_debug,extracting scBoolSeq distributions)
 	col=`head $(word 2, $^) -n 1 \
-		| sed "s/,/\n/g" \
-		| awk -F, '{printf("%d %s\n", NR-1, $$0)}' \
-		| grep Category \
-		| awk '{print $$1}'`
+		| $(call system_tool,sed) "s/,/\n/g" \
+		| $(call system_tool,awk) -F, '{printf("%d %s\n", NR-1, $$0)}' \
+		| $(call system_tool,grep) Category \
+		| $(call system_tool,awk) '{print $$1}'`
 	((col++))
 	cut -f 1,$$col -d ',' $(word 2, $^) > $(tmpdir)/bin/consensus/distributions.csv
 	unset col
@@ -750,8 +750,8 @@ $(bonesis_model)&: $(bin)
 		$(if $(filter true,$(SPEC_ONLY_HVG)),--filter-genes $(bin_hvg)) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args)
-	sort -u $(word 3,$(bonesis_model)) -o $(word 3,$(bonesis_model))
-	sort -u $(word 4,$(bonesis_model)) -o $(word 4,$(bonesis_model))
+	$(call system_tool,sort) -u $(word 3,$(bonesis_model)) -o $(word 3,$(bonesis_model))
+	$(call system_tool,sort) -u $(word 4,$(bonesis_model)) -o $(word 4,$(bonesis_model))
 	$(call write_scbolt_metadata,spec,$(bonesis_model))
 
 $(max_nodes_soft): $(bonesis_model)
@@ -863,14 +863,14 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 	$(call print_rule,max-nodes-lock)
 	$(call require_bonesis_filter_parameters,max-nodes-lock)
 	mkdir -p $(@D)
-	if [ -f $(dir $(lastword $^))__SOLUTION ] && [ "$$(cat $(dir $(lastword $^))__SOLUTION)" = "_GLOBAL_OPTIMUM" ]; then \
+	if [ -f $(dir $(lastword $^))__SOLUTION ] && [ "$$($(call system_tool,cat) $(dir $(lastword $^))__SOLUTION)" = "_GLOBAL_OPTIMUM" ]; then \
 		$(call print_debug,solution already globally optimal: skipping lock optimization); \
-		cp $(lastword $^) $@; \
+		$(call system_tool,cp) $(lastword $^) $@; \
 		echo "_GLOBAL_OPTIMUM" > $(@D)/__SOLUTION; \
 	else \
 		set +e; \
 		$(call trap_inference_interrupt,max-nodes-lock); \
-		cat $(word 4,$^) $(word 6,$^) | sort -u > $(@D)/mandatory.txt; \
+		$(call system_tool,cat) $(word 4,$^) $(word 6,$^) | $(call system_tool,sort) -u > $(@D)/mandatory.txt; \
 		$(call inference_timeout,$(TIMEOUT_LOCK)) \
 			$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
 			$(word 1,$^) $(word 2,$^) \
