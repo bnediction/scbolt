@@ -35,7 +35,7 @@ ifeq ($(strip $(genome_url)),)
 	$(call print_error,no default genome_url for ORGANISM=$(ORGANISM). Set genome_url in your parameter file)
 else
 	mkdir -p $(@D)
-	wget --quiet --show-progress --progress=bar:force:noscroll -cO $@.tmp $(genome_url)
+	$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll -cO $@.tmp $(genome_url)
 	mv $@.tmp $@
 endif
 
@@ -60,7 +60,7 @@ ifeq ($(strip $(repeat_msk_url)),)
 	$(call print_error,no default repeat_msk_url for ORGANISM=$(ORGANISM). Set repeat_msk_url in your parameter file)
 else
 	mkdir -p $(@D)
-	wget --quiet --show-progress --progress=bar:force:noscroll -cO $@.tmp $(repeat_msk_url)
+	$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll -cO $@.tmp $(repeat_msk_url)
 	mv $@.tmp $@
 endif
 
@@ -88,16 +88,16 @@ $(star_index): | $(genome_ref)
 $(cc_markers):
 	$(call print_rule,load-cc)
 	mkdir -p $(@D)
-	wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(cycle_url)
+	$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(cycle_url)
 
 $(word 1,$(signatures)) $(word 2,$(signatures)):
 	$(eval FILENAME := $(basename $(notdir $@)))
 	$(call print_rule,load-signatures,$(FILENAME))
 	mkdir -p $(@D)
 	if [ $(FILENAME) = "geiger" ]; then \
-		wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(geiger_url); \
+		$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(geiger_url); \
 	else \
-		wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(chambers_url); \
+		$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(chambers_url); \
 	fi
 
 $(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures))
@@ -110,17 +110,17 @@ $(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures))
 $(go_basic):
 	$(call print_rule,load-go,go_basic)
 	mkdir -p $(@D)
-	wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(go_basic_url)
+	$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(go_basic_url)
 
 $(go_organism):
 	$(call print_rule,load-go,go_$(ORGANISM))
 	mkdir -p $(@D)
-	wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(go_organism_url)
+	$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(go_organism_url)
 
 $(gene2go):
 	$(call print_rule,load-go,gene2go)
 	mkdir -p $(@D)
-	wget --quiet --show-progress --progress=bar:force:noscroll --directory-prefix=$(@D) $(gene2go_url)
+	$(call conda_run,scbolt-core) wget --quiet --show-progress --progress=bar:force:noscroll --directory-prefix=$(@D) $(gene2go_url)
 	[ -f $@.gz ] && gunzip $@.gz
 
 $(omics_dir)/count/%/invalid-alignment/.error:
@@ -184,7 +184,7 @@ $(load_matrix_$(1)) $(geo_files_$(1))&:
 	rm -rf $(tmpdir)/$(1)/geo
 	mkdir -p $(tmpdir)/$(1)/geo $$(geo_dir_$(1))
 	$(call print_task,downloading GEO count matrix (sample=$(call gsm_value,$(1))))
-	bash $(scripts_dir)/download/download_gsm.sh \
+	$(call conda_run,scbolt-core) bash $(scripts_dir)/download/download_gsm.sh \
 		$(call gsm_value,$(1)) $(tmpdir)/$(1)/geo
 	mv $(tmpdir)/$(1)/geo/matrix.mtx.gz $$(geo_matrix_$(1))
 	mv $(tmpdir)/$(1)/geo/barcodes.tsv.gz $$(geo_barcodes_$(1))

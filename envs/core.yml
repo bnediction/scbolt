@@ -27,12 +27,13 @@ dependencies:
   - brotli-bin=1.1.0=hd590300_1
   - bzip2=1.0.8=hd590300_5
   - c-ares=1.26.0=hd590300_0
-  - ca-certificates=2026.1.4=hbd8a1cb_0
+  - ca-certificates=2026.6.17=hbd8a1cb_0
   - cached-property=1.5.2=hd8ed1ab_1
   - cached_property=1.5.2=pyha770c72_1
-  - certifi=2026.1.4=pyhd8ed1ab_0
+  - certifi=2026.6.17=pyhd8ed1ab_0
   - colorama=0.4.6=pyhd8ed1ab_0
   - contourpy=1.2.0=py310hd41b1e2_0
+  - curl=8.5.0=hca28451_0
   - cycler=0.12.1=pyhd8ed1ab_0
   - exceptiongroup=1.2.0=pyhd8ed1ab_2
   - fa2=0.3.5=py310h5764c6d_2
@@ -41,6 +42,8 @@ dependencies:
   - freetype=2.12.1=h267a509_2
   - geosketch=1.2=py_0
   - get-annotations=0.1.2=pyhd8ed1ab_0
+  - gettext=0.22.5=he02047a_3
+  - gettext-tools=0.22.5=he02047a_3
   - gflags=2.2.2=he1b5a44_1004
   - glog=0.6.0=h6f12383_0
   - glpk=5.0=h445213a_0
@@ -67,6 +70,8 @@ dependencies:
   - libarrow-flight-sql=14.0.2=h61ff412_2_cpu
   - libarrow-gandiva=14.0.2=hacb8726_2_cpu
   - libarrow-substrait=14.0.2=h61ff412_2_cpu
+  - libasprintf=0.22.5=he8f35ee_3
+  - libasprintf-devel=0.22.5=he8f35ee_3
   - libblas=3.9.0=21_linux64_openblas
   - libbrotlicommon=1.1.0=hd590300_1
   - libbrotlidec=1.1.0=hd590300_1
@@ -80,6 +85,8 @@ dependencies:
   - libevent=2.1.12=hf998b51_1
   - libffi=3.4.2=h7f98852_5
   - libgcc-ng=13.2.0=h807b86a_3
+  - libgettextpo=0.22.5=he02047a_3
+  - libgettextpo-devel=0.22.5=he02047a_3
   - libgfortran-ng=13.2.0=h69a702a_3
   - libgfortran5=13.2.0=ha4646dd_3
   - libgomp=13.2.0=h807b86a_3
@@ -87,6 +94,7 @@ dependencies:
   - libgrpc=1.59.3=hd6c4280_0
   - libhwloc=2.9.3=default_h554bfaf_1009
   - libiconv=1.17=hd590300_2
+  - libidn2=2.3.7=hd590300_0
   - libjpeg-turbo=3.0.0=hd590300_1
   - liblapack=3.9.0=21_linux64_openblas
   - libleidenalg=0.11.1=h00ab1b0_0
@@ -106,6 +114,7 @@ dependencies:
   - libstdcxx-ng=13.2.0=h7e041cc_3
   - libthrift=0.19.0=hb90f79a_1
   - libtiff=4.6.0=ha9c0a0a_2
+  - libunistring=0.9.10=h7f98852_0
   - libutf8proc=2.8.0=h166bdaf_0
   - libuuid=2.38.1=h0b41bf4_0
   - libwebp-base=1.3.2=hd590300_0
@@ -171,12 +180,14 @@ dependencies:
   - ucx=1.15.0=h75e419f_3
   - umap-learn=0.5.5=py310hff52083_0
   - unicodedata2=15.1.0=py310h2372a71_0
+  - wget=1.21.4=hda4d442_0
   - wheel=0.42.0=pyhd8ed1ab_0
   - xarray=2024.1.1=pyhd8ed1ab_0
   - xlrd=2.0.1=pyhd8ed1ab_3
   - xorg-libxau=1.0.11=hd590300_0
   - xorg-libxdmcp=1.1.3=h7f98852_0
   - xz=5.2.6=h166bdaf_0
+  - zlib=1.2.13=hd590300_5
   - zstd=1.5.5=hfc55251_0
   - pip:
       - asttokens==3.0.0

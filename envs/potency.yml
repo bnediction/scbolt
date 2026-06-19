@@ -427,3 +427,4 @@ dependencies:
   - zstd=1.5.7=hb8e6e7a_2
   - pip:
       - bonesistools==1.2.5
+      - boolean-py==5.0

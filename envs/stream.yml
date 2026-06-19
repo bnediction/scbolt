@@ -507,4 +507,5 @@ dependencies:
   - zstd=1.5.5=hfc55251_0
   - pip:
       - bonesistools==1.2.5
+      - boolean-py==5.0
       - decoupler==1.6.0

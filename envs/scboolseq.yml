@@ -117,6 +117,7 @@ dependencies:
   - session-info=1.0.0=pyhd8ed1ab_0
   - setuptools=69.5.1=pyhd8ed1ab_0
   - six=1.16.0=pyh6c4a22f_0
+  - stack_data=0.6.3=pyhd8ed1ab_1
   - statsmodels=0.14.1=py311h1f0f07a_0
   - stdlib-list=0.10.0=pyhd8ed1ab_0
   - tbb=2021.12.0=h00ab1b0_0
@@ -136,6 +137,7 @@ dependencies:
   - pip:
       - attrs==23.2.0
       - bonesistools==1.2.5
+      - boolean-py==5.0
       - charset-normalizer==3.3.2
       - decoupler==1.6.0
       - docrep==0.3.2
@@ -145,7 +147,6 @@ dependencies:
       - omnipath==1.0.8
       - prompt-toolkit==3.0.43
       - requests==2.31.0
-      - stack-data==0.6.3
       - typeguard==4.2.1
       - urllib3==2.2.1
       - wrapt==1.16.0
