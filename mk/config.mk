@@ -917,10 +917,14 @@ conda_run = $(conda_runtime_env) $(conda_command) run --no-capture-output -n $(1
 conda_run_cellrank = $(conda_runtime_env) \
 	OMPI_MCA_btl="^smcuda" \
 	$(conda_command) run --no-capture-output -n $(1)
-conda_run_inference = $(conda_runtime_env) \
+conda_inference_env = $(conda_runtime_env) \
 	TQDM_DISABLE="$(TQDM_DISABLE)" \
 	TQDM_TO_TTY="$(TQDM_TO_TTY)" \
-	PYTHONHASHSEED="$(SEED)" \
+	PYTHONHASHSEED="$(SEED)"
+conda_run_inference = $(conda_inference_env) \
+	$(conda_command) run --no-capture-output -n $(1)
+conda_run_inference_timeout = $(conda_inference_env) \
+	$(call inference_timeout,$(2)) \
 	$(conda_command) run --no-capture-output -n $(1)
 BONESIS_HASH ?= d70736781f88faee334ef79622e144216837f4c5
 nested_make = \
@@ -929,7 +933,7 @@ nested_make = \
 	TQDM_DISABLE="$(TQDM_DISABLE)" \
 	TQDM_TO_TTY="$(TQDM_TO_TTY)" \
 	$(MAKE) --no-print-directory -f "$(makefile_path)" $(trust_make_options)
-inference_timeout = $(if $(filter-out 0,$(strip $(1))),timeout --foreground $(strip $(1)),)
+inference_timeout = $(if $(filter-out 0,$(strip $(1))),$(call system_tool,timeout) --foreground $(strip $(1)),)
 
 ifndef LOGGING
 run_logged = \

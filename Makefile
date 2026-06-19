@@ -760,8 +760,7 @@ $(max_nodes_soft): $(bonesis_model)
 	mkdir -p $(@D)
 	set +e; \
 	$(call trap_inference_interrupt,max-nodes-soft); \
-	$(call inference_timeout,$(TIMEOUT_SOFT)) \
-		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
+	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_SOFT)) python $(scripts_dir)/infer/infer.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--asp $(@D)/nodes.sh --solution $@ --status $(@D)/__SOLUTION \
@@ -786,8 +785,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 	mkdir -p $(@D)
 	set +e; \
 	$(call trap_inference_interrupt,max-consts-soft); \
-	$(call inference_timeout,$(TIMEOUT_CONSTS)) \
-		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-consts \
+	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_CONSTS)) python $(scripts_dir)/infer/infer.py filter-consts \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--filter-grn $(lastword $^) \
@@ -812,8 +810,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 	mkdir -p $(@D)
 	set +e; \
 	$(call trap_inference_interrupt,max-nodes-relaxed); \
-	$(call inference_timeout,$(TIMEOUT_RELAXED)) \
-		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
+	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_RELAXED)) python $(scripts_dir)/infer/infer.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
@@ -839,8 +836,7 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 	mkdir -p $(@D)
 	set +e; \
 	$(call trap_inference_interrupt,max-nodes-seed); \
-	$(call inference_timeout,$(TIMEOUT_SEED)) \
-		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
+	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_SEED)) python $(scripts_dir)/infer/infer.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
@@ -871,8 +867,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 		set +e; \
 		$(call trap_inference_interrupt,max-nodes-lock); \
 		$(call system_tool,cat) $(word 4,$^) $(word 6,$^) | $(call system_tool,sort) -u > $(@D)/mandatory.txt; \
-		$(call inference_timeout,$(TIMEOUT_LOCK)) \
-			$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py filter-nodes \
+		$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_LOCK)) python $(scripts_dir)/infer/infer.py filter-nodes \
 			$(word 1,$^) $(word 2,$^) \
 			--important-nodes $(word 3,$^) --mandatory-nodes $(@D)/mandatory.txt \
 			--filter-grn $(word 5,$^) --asp $(@D)/nodes.sh \
