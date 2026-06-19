@@ -635,4 +635,4 @@ dependencies:
   - zstandard=0.23.0=py313h80202fe_1
   - zstd=1.5.6=ha6fb4c9_0
   - pip:
-      - bonesistools==1.2.4
+      - bonesistools==1.2.5

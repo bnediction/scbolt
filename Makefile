@@ -123,12 +123,20 @@ $(gene2go):
 	wget --quiet --show-progress --progress=bar:force:noscroll --directory-prefix=$(@D) $(gene2go_url)
 	[ -f $@.gz ] && gunzip $@.gz
 
-$(results)/%/count/invalid-alignment/.error:
+$(omics_dir)/count/%/invalid-alignment/.error:
 	$(call print_rule,alignment,$*)
 	$(call require_choice,ALIGNMENT_TOOL,cellranger star,alignment)
 
-$(results)/%/mstates/invalid-method/.error:
+$(omics_dir)/count/invalid-alignment/.error:
+	$(call print_rule,alignment)
+	$(call require_choice,ALIGNMENT_TOOL,cellranger star,alignment)
+
+$(omics_dir)/mstates/invalid-method/%/.error:
 	$(call print_rule,macrostates,$*)
+	$(call require_choice,MACROSTATE_METHOD,cotan cellrank stream knnsc,macrostates)
+
+$(omics_dir)/mstates/invalid-method/.error:
+	$(call print_rule,macrostates)
 	$(call require_choice,MACROSTATE_METHOD,cotan cellrank stream knnsc,macrostates)
 
 $(bin_method_error):
@@ -337,16 +345,16 @@ $(clustering_$(1)): $(normalization_$(1))
 	$(require_clustering_parameters)
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/clustering.py $$< $$@ \
-		--layer correct --adjacency knn --embedding $(embedding) \
+		--layer correct --adjacency knn \
 		--pca-dimension $(DIM_PCA) \
-		--clustering-dimension $(DIM_CLUSTERING) \
+		--clustering-dimension $(DIM_PCA) \
 		--embedding-dimension $(DIM_EMBEDDING) \
 		--flavor $(ANALYSIS_HVG_FLAVOR) $(if $(ANALYSIS_HVG_TOP),--top-hvg $(ANALYSIS_HVG_TOP),) \
-		--span $(ANALYSIS_HVG_SPAN) --bins $(ANALYSIS_HVG_BINS) $(pca_only_hvg) \
+		--span $(ANALYSIS_HVG_SPAN) --bins $(ANALYSIS_HVG_BINS) $(centered_pca) $(pca_only_hvg) \
 		--neighbors $(NEIGHBORS) --metric $(METRIC) \
 		--resolution $(RESOLUTION) --min-dist $(MIN_DIST) --spread $(SPREAD) \
+		--embedding-n-iter $(EMBEDDING_N_ITER) \
 		--seed $(SEED)
-	$$(call plot_embeddings,$(fig_dir)/cc.json,$$@,$$(@D)/cc.pdf,--use-rep $(USE_REP))
 	$$(call write_scbolt_metadata,clustering,$$(clustering_$(1)))
 
 ifeq ($(words $(conditions)),1)
@@ -497,11 +505,11 @@ $(dea_$(1))&: $(clustering_$(1))
 		--logfc $(LOGFC) --alpha $(ALPHA) --correction $(CORRECTION)
 	$$(call write_scbolt_metadata,dea,$$(dea_$(1)))
 
-$(scoring_$(1)): $(clustering_$(1)) $(lastword $(signatures)) $(lastword $(dea_$(1)))
+$(scoring_$(1))&: $(clustering_$(1)) $(lastword $(signatures)) $(lastword $(dea_$(1)))
 	$(call print_rule,scoring,$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/scoring.py \
-		$$^ $$@ --cluster cluster --ignore-sheets background
+		$$^ $(firstword $(scoring_$(1))) --cluster cluster --ignore-sheets background --correction none
 	$$(call write_scbolt_metadata,scoring,$$(scoring_$(1)))
 
 $(goea_basic_$(1)): $(lastword $(dea_$(1))) $(go_basic) $(gene2go)
@@ -522,18 +530,21 @@ $(goea_organism_$(1)): $(lastword $(dea_$(1))) $(go_organism) $(gene2go)
 
 endef
 
+ifneq ($(multi_condition),)
 $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(condition)))
 	$(call print_rule,clustering,integrated)
 	$(require_clustering_parameters)
 	mkdir -p $(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/integration.py \
 		$^ --outfile $@ --labels $(conditions) \
-		--layer correct --adjacency knn --integration $(INTEGRATION) --embedding $(embedding) \
-		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_CLUSTERING) --embedding-dimension $(DIM_EMBEDDING) \
+		--layer correct --adjacency knn --integration $(INTEGRATION) \
+		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_PCA) --embedding-dimension $(DIM_EMBEDDING) \
 		--flavor $(ANALYSIS_HVG_FLAVOR) $(if $(ANALYSIS_HVG_TOP),--top-hvg $(ANALYSIS_HVG_TOP),) \
-		--span $(ANALYSIS_HVG_SPAN) --bins $(ANALYSIS_HVG_BINS) $(pca_only_hvg) \
+		--span $(ANALYSIS_HVG_SPAN) --bins $(ANALYSIS_HVG_BINS) $(centered_pca) $(pca_only_hvg) \
 		--neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) \
-		--min-dist $(MIN_DIST) --spread $(SPREAD) --seed $(SEED) --jobs $(JOBS)
+		--min-dist $(MIN_DIST) --spread $(SPREAD) \
+		--embedding-n-iter $(EMBEDDING_N_ITER) \
+		--seed $(SEED) --jobs $(JOBS)
 	$(call write_scbolt_metadata,clustering,$@)
 
 $(annotation_integrated): $(clustering_integrated)
@@ -544,17 +555,10 @@ $(annotation_integrated): $(clustering_integrated)
 	fi
 	mkdir -p $(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/annotation.py $< $@ \
-		--obs cluster --new-obs $(LABEL_COL) --labels $(label_map)
-	$(call plot_embeddings,\
-		$(fig_dir)/generic.json,$@,$(@D)/labels.pdf,\
-		--obs $(LABEL_COL) --use-rep $(USE_REP))
-	$(call plot_composition,\
-		$(fig_dir)/composition.json,$@,$(@D)/condition_by_label.pdf,\
-		--obs condition --groupby $(LABEL_COL))
-	$(call plot_composition,\
-		$(fig_dir)/composition.json,$@,$(@D)/label_by_condition.pdf,\
-		--obs $(LABEL_COL) --groupby condition)
+		--obs cluster --new-obs $(LABEL_COL) --labels $(label_map) \
+		--condition-col condition --embedding $(USE_REP)
 	$(call write_scbolt_metadata,annotation,$@)
+endif
 
 ifneq ($(strip $(MACROSTATE_FILES)),)
 ifneq ($(filter-out 1,$(words $(MACROSTATE_FILES))),)

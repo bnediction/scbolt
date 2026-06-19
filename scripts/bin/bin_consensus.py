@@ -36,6 +36,15 @@ def merge(scboolseq_val, dea_val, scboolseq_distribution):
         )
 
 
+def format_binarization_proportions(pct_bin: pd.DataFrame, indent: int = 5) -> str:
+    table = pct_bin.map(lambda value: f"{value:.2%}").to_string()
+    lines = table.splitlines()
+    width = max(len(line) for line in lines)
+    prefix = " " * indent
+    underline = "-" * width
+    return "\n".join([prefix + lines[0], prefix + underline, *[prefix + line for line in lines[1:]], ""])
+
+
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
@@ -135,8 +144,10 @@ pct_bin = pd.concat(
     keys=["scboolseq", "dea", "merge"],
 ).round(5)
 
-pct_bin_display = pct_bin.map(lambda value: f"{value:.2%}")
-std.print_result(f"proportion of binarized values:\n{pct_bin_display}")
+std.print_result(
+    "proportion of binarized values\n\n"
+    f"{format_binarization_proportions(pct_bin)}"
+)
 
 std.print_task(f"saving binarized matrix (file={std.format_path(args.outfile)})")
 

@@ -370,6 +370,7 @@ define show_config_print
 @printf 'Methods\n'
 @printf '%s\n' '-------'
 @printf '%-14s : %s\n' 'Embedding' "$(call show_config_display_value,$(show_config_macrostate_embedding))"
+@printf '%-14s : %s\n' 'Embedding iter' "$(call show_config_display_value,$(EMBEDDING_N_ITER))"
 @printf '%-14s : %s\n' 'Integration' "$(call show_config_display_value,$(show_config_integration))"
 @printf '%-14s : %s\n' 'Macrostate' "$(call show_config_display_value,$(MACROSTATE_METHOD))"
 @printf '%-14s : %s\n' 'Binarization' "$(call show_config_display_value,$(BIN_METHOD))"

@@ -11,7 +11,6 @@ from anndata import AnnData
 
 import random
 import numpy as np
-import pandas as pd
 
 import anndata as ad
 import scanpy as sc
@@ -71,144 +70,6 @@ def namespace_obs_names(
     return adata if copy else None
 
 
-def summarize_cluster_composition(
-    adata: AnnData,
-    cluster_key: str = "cluster",
-    condition_key: str = "condition",
-) -> pd.DataFrame:
-    counts = pd.crosstab(adata.obs[cluster_key], adata.obs[condition_key])
-    counts = counts.reindex(sorted(counts.columns), axis=1)
-
-    condition_by_cluster = counts.div(counts.sum(axis=1), axis=0)
-    cluster_by_condition = counts.div(counts.sum(axis=0), axis=1)
-
-    rows = []
-    for cluster in condition_by_cluster.index:
-        for condition in condition_by_cluster.columns:
-            rows.append(
-                {
-                    "summary": "condition_by_cluster",
-                    "cluster": cluster,
-                    "condition": condition,
-                    "proportion": round(
-                        float(condition_by_cluster.loc[cluster, condition]), 4
-                    ),
-                }
-            )
-    for condition in cluster_by_condition.columns:
-        for cluster in cluster_by_condition.index:
-            rows.append(
-                {
-                    "summary": "cluster_by_condition",
-                    "cluster": cluster,
-                    "condition": condition,
-                    "proportion": round(
-                        float(cluster_by_condition.loc[cluster, condition]), 4
-                    ),
-                }
-            )
-
-    return pd.DataFrame(rows)
-
-
-EMBEDDINGS = (
-    ("umap", "X_umap", "umap.pdf"),
-    ("tsne", "X_tsne", "tsne.pdf"),
-    ("spectral", "X_se", "spectral.pdf"),
-)
-
-
-def compute_embedding(adata, method: str, args, representation: str = "X_pca") -> None:
-    embedding_label = std.format_embedding(method)
-    if method == "umap":
-        std.print_task(
-            f"computing embedding (method={embedding_label}, "
-            f"dimensions={args.embedding_dimension}, "
-            f"min_dist={args.min_dist}, "
-            f"spread={args.spread}, "
-            f"n_iter={args.embedding_n_iter})"
-        )
-        bt.sct.tl.umap(
-            adata,
-            neighbors_key="neighbors",
-            n_components=args.embedding_dimension,
-            min_dist=args.min_dist,
-            spread=args.spread,
-            n_iter=args.embedding_n_iter,
-            seed=args.seed,
-            copy=False,
-        )
-    elif method == "tsne":
-        std.print_task(
-            f"computing embedding (method={embedding_label}, "
-            f"dimensions={args.embedding_dimension}, "
-            f"metric={args.metric}, "
-            f"n_iter={args.embedding_n_iter})"
-        )
-        bt.sct.tl.tsne(
-            adata,
-            representation=representation,
-            n_pcs=args.clustering_dimension,
-            n_components=args.embedding_dimension,
-            n_iter=args.embedding_n_iter,
-            metric=args.metric,
-            seed=args.seed,
-            copy=False,
-        )
-    elif method == "spectral":
-        std.print_task(
-            f"computing embedding (method={embedding_label}, "
-            f"dimensions={args.embedding_dimension})"
-        )
-        bt.sct.tl.spectral(
-            adata,
-            neighbors_key="neighbors",
-            n_components=args.embedding_dimension,
-            seed=args.seed,
-            n_jobs=args.jobs,
-            copy=False,
-        )
-
-
-def compute_embeddings(adata, args, representation: str = "X_pca") -> None:
-    for method, _, _ in EMBEDDINGS:
-        compute_embedding(adata, method, args, representation=representation)
-
-
-def plot_embedding(
-    adata,
-    obs: str,
-    method: str,
-    use_rep: str,
-    outfile: Path,
-    args,
-) -> None:
-    embedding_label = std.format_embedding(method)
-    bt.sct.pl.embedding(
-        adata,
-        obs=obs,
-        use_rep=use_rep,
-        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
-        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
-        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
-        figwidth=6,
-        s=2,
-        alpha=1,
-        show_legend=True,
-        lgd_params={
-            "title": obs,
-            "ncol": 1,
-            "markerscale": 5,
-            "frameon": True,
-            "edgecolor": bt.sct.pl.get_color("black"),
-            "shadow": False,
-        },
-        n_components=3 if args.embedding_dimension > 2 else 2,
-        background_visible=False,
-        outfile=outfile,
-    )
-
-
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
@@ -216,7 +77,7 @@ parser = argparse.ArgumentParser(
     description=(
         "Compute principal components, compute closest and shared-nearest "
         "neighbors, cluster cells using the Leiden algorithm and integrate data "
-        "before computing UMAP, t-SNE, and spectral embeddings."
+        "in an embedding projection."
     ),
     usage=f"python {script_name} [-h] <FILE ...> --outfile <FILE> [<args>]",
     formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -282,6 +143,17 @@ parser.add_argument(
     choices=["bbknn", "ingest", "scanorama"],
     metavar="[bbknn | ingest | scanorama]",
     help="integration method used (default: bbknn)",
+)
+
+parser.add_argument(
+    "--embedding",
+    dest="embedding",
+    type=str,
+    required=False,
+    default="umap",
+    choices=["umap", "tsne"],
+    metavar="[umap | tsne]",
+    help="embedding projection (default: umap)",
 )
 
 parser.add_argument(
@@ -366,13 +238,11 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--centered-pca",
     "--zero-center",
-    dest="centered_pca",
+    dest="zero_center",
     action="store_true",
-    default=False,
     required=False,
-    help="center variables before PCA",
+    help="if true, compute PCA from covariance matrix, otherwise omit zero-centering variables",
 )
 
 parser.add_argument(
@@ -426,16 +296,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--embedding-n-iter",
-    dest="embedding_n_iter",
-    type=int,
-    required=False,
-    default=500,
-    metavar="INT",
-    help="number of optimization iterations used by UMAP and t-SNE (default: 500)",
-)
-
-parser.add_argument(
     "--seed",
     dest="seed",
     type=int,
@@ -463,6 +323,11 @@ if args.pca_dimension < args.clustering_dimension:
         f"clustering dimension ({args.clustering_dimension}) "
         f"cannot exceed pca dimension ({args.pca_dimension})"
     )
+
+if args.integration == "ingest" and args.embedding == "tsne":
+    raise ValueError("ingest does not support tsne embedding")
+
+embedding_label = std.format_embedding(args.embedding)
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
@@ -532,22 +397,22 @@ if args.integration == "ingest":
         f"computing principal components (dimensions={args.pca_dimension}, condition={reference})"
     )
     with std.single_thread():
-        bt.sct.tl.pca(
+        sc.tl.pca(
             adatas[reference],
-            n_components=args.pca_dimension,
-            zero_center=args.centered_pca,
-            var_subset="highly_variable" if args.only_hvg else None,
-            seed=args.seed,
+            n_comps=args.pca_dimension,
+            zero_center=args.zero_center,
+            use_highly_variable=args.only_hvg,
+            random_state=args.seed,
             copy=False,
         )
 
     std.print_task(
         f"computing nearest-neighbor graph (principal components={args.clustering_dimension}, condition={reference})"
     )
-    bt.sct.tl.neighbors(
+    sc.pp.neighbors(
         adatas[reference],
         n_neighbors=args.neighbors,
-        representation="X_pca",
+        use_rep="X_pca",
         n_pcs=args.clustering_dimension,
         metric=args.metric,
         copy=False,
@@ -558,13 +423,33 @@ if args.integration == "ingest":
         adatas[reference], snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
     )
 
+    std.print_task(
+        f"embedding neighborhood graph (dimensions={args.embedding_dimension}, condition={reference})"
+    )
+    std.print_task(
+        f"computing embedding (method={embedding_label}, "
+        f"dimensions={args.embedding_dimension}, "
+        f"min_dist={args.min_dist}, "
+        f"spread={args.spread})"
+    )
+    sc.tl.umap(
+        adatas[reference],
+        neighbors_key="neighbors",
+        n_components=args.embedding_dimension,
+        min_dist=args.min_dist,
+        spread=args.spread,
+        random_state=np.random.RandomState(args.seed),
+        copy=False,
+    )
+    del adatas[reference].uns["umap"]["params"]["random_state"]
+
     for label in args.labels[1:]:
-        std.print_task(f"mapping PCA embedding (condition={label})")
+        std.print_task(f"mapping embeddings (condition={label})")
         sc.tl.ingest(
             adata=adatas[label],
             adata_ref=adatas[reference],
             obs=None,
-            embedding_method=["pca"],
+            embedding_method=["pca", "umap"],
             random_state=np.random.RandomState(args.seed),
             inplace=True,
             n_jobs=args.jobs,
@@ -586,10 +471,10 @@ if args.integration == "ingest":
     std.print_task(
         f"computing nearest-neighbor graph (principal components={args.clustering_dimension}, dataset=integrated)"
     )
-    bt.sct.tl.neighbors(
+    sc.pp.neighbors(
         adata,
         n_neighbors=args.neighbors,
-        representation="X_pca",
+        use_rep="X_pca",
         n_pcs=args.clustering_dimension,
         metric=args.metric,
         copy=False,
@@ -601,28 +486,27 @@ if args.integration == "ingest":
     )
 
     std.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution}, dataset=integrated)")
-    bt.sct.tl.leiden(
+    sc.tl.leiden(
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
         resolution=args.resolution,
         key_added="cluster",
-        seed=args.seed,
+        random_state=args.seed,
         copy=False,
     )
-    compute_embeddings(adata, args, representation="X_pca")
-    
+
 elif args.integration == "bbknn":
 
     std.print_info("integrating data (method=BBKNN)")
 
     std.print_task(f"computing principal components (dimensions={args.pca_dimension})")
     with std.single_thread():
-        bt.sct.tl.pca(
+        sc.tl.pca(
             adata,
-            n_components=args.pca_dimension,
-            zero_center=args.centered_pca,
-            var_subset="highly_variable" if args.only_hvg else None,
-            seed=args.seed,
+            n_comps=args.pca_dimension,
+            zero_center=args.zero_center,
+            use_highly_variable=args.only_hvg,
+            random_state=args.seed,
             copy=False,
         )
 
@@ -644,16 +528,49 @@ elif args.integration == "bbknn":
         )
 
     std.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
-    bt.sct.tl.leiden(
+    sc.tl.leiden(
         adata,
-        neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
+        neighbors_key="neighbors",
         resolution=args.resolution,
         key_added="cluster",
-        seed=args.seed,
+        random_state=args.seed,
         copy=False,
     )
 
-    compute_embeddings(adata, args, representation="X_pca")
+    std.print_task(
+        f"embedding neighborhood graph (dimensions={args.embedding_dimension})"
+    )
+    if args.embedding == "umap":
+        std.print_task(
+            f"computing embedding (method={embedding_label}, "
+            f"dimensions={args.embedding_dimension}, "
+            f"min_dist={args.min_dist}, "
+            f"spread={args.spread})"
+        )
+        sc.tl.umap(
+            adata,
+            neighbors_key="neighbors",
+            n_components=args.embedding_dimension,
+            min_dist=args.min_dist,
+            spread=args.spread,
+            random_state=np.random.RandomState(args.seed),
+            copy=False,
+        )
+        del adata.uns["umap"]["params"]["random_state"]
+    elif args.embedding == "tsne":
+        std.print_task(
+            f"computing embedding (method={embedding_label}, "
+            f"dimensions={args.embedding_dimension}, "
+            f"metric={args.metric})"
+        )
+        sc.tl.tsne(
+            adata,
+            n_pcs=args.embedding_dimension,
+            use_rep="X_pca",
+            metric=args.metric,
+            random_state=np.random.RandomState(args.seed),
+            copy=False,
+        )
 
 elif args.integration == "scanorama":
 
@@ -689,10 +606,10 @@ elif args.integration == "scanorama":
     std.print_task(
         f"computing nearest-neighbor graph (principal components={args.clustering_dimension})"
     )
-    bt.sct.tl.neighbors(
+    sc.pp.neighbors(
         adata,
         n_neighbors=args.neighbors,
-        representation="X_scanorama",
+        use_rep="X_scanorama",
         n_pcs=args.clustering_dimension,
         metric=args.metric,
         copy=False,
@@ -704,26 +621,54 @@ elif args.integration == "scanorama":
     )
 
     std.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
-    bt.sct.tl.leiden(
+    sc.tl.leiden(
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
         resolution=args.resolution,
         key_added="cluster",
-        seed=args.seed,
+        random_state=args.seed,
         copy=False,
     )
 
-    compute_embeddings(adata, args, representation="X_scanorama")
-
-composition = summarize_cluster_composition(adata)
-composition_file = Path(f"{os.path.dirname(args.outfile)}/composition.csv")
-std.print_task(f"saving cluster composition (file={std.format_path(composition_file)})")
-composition.to_csv(composition_file, sep=",", index=False)
+    std.print_task(
+        f"embedding neighborhood graph (dimensions={args.embedding_dimension})"
+    )
+    if args.embedding == "umap":
+        std.print_task(
+            f"computing embedding (method={embedding_label}, "
+            f"dimensions={args.embedding_dimension}, "
+            f"min_dist={args.min_dist}, "
+            f"spread={args.spread})"
+        )
+        sc.tl.umap(
+            adata,
+            neighbors_key="neighbors",
+            n_components=args.embedding_dimension,
+            min_dist=args.min_dist,
+            spread=args.spread,
+            random_state=np.random.RandomState(args.seed),
+            copy=False,
+        )
+        del adata.uns["umap"]["params"]["random_state"]
+    elif args.embedding == "tsne":
+        std.print_task(
+            f"computing embedding (method={embedding_label}, "
+            f"dimensions={args.embedding_dimension}, "
+            f"metric={args.metric})"
+        )
+        sc.tl.tsne(
+            adata,
+            n_pcs=args.embedding_dimension,
+            use_rep="X_pca",
+            metric=args.metric,
+            random_state=np.random.RandomState(args.seed),
+            copy=False,
+        )
 
 std.print_info(
     f"plotting embeddings (directory={os.path.relpath(os.path.dirname(args.outfile))})"
 )
-pc_plot = Path(f"{os.path.dirname(args.outfile)}/pca.pdf")
+pc_plot = Path(f"{os.path.dirname(args.outfile)}/conditions_pc.pdf")
 bt.sct.pl.embedding(
     adata,
     obs="condition",
@@ -747,14 +692,34 @@ bt.sct.pl.embedding(
     outfile=pc_plot,
 )
 
-for method, use_rep, filename in EMBEDDINGS:
-    plot_embedding(
+embedding_plots = {
+    "condition": "conditions.pdf",
+    "cluster": "clusters.pdf",
+}
+for obs, filename in embedding_plots.items():
+    embedding_plot = Path(f"{os.path.dirname(args.outfile)}/{filename}")
+    bt.sct.pl.embedding(
         adata,
-        "cluster",
-        method,
-        use_rep,
-        Path(f"{os.path.dirname(args.outfile)}/{filename}"),
-        args,
+        obs=obs,
+        use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
+        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
+        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
+        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
+        figwidth=6,
+        s=2,
+        alpha=1,
+        show_legend=True,
+        lgd_params={
+            "title": obs,
+            "ncol": 1,
+            "markerscale": 5,
+            "frameon": True,
+            "edgecolor": bt.sct.pl.get_color("black"),
+            "shadow": False,
+        },
+        n_components=3 if args.embedding_dimension > 2 else 2,
+        background_visible=False,
+        outfile=embedding_plot,
     )
 
 composition_plots = {

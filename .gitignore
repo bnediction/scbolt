@@ -12,6 +12,7 @@ results/
 *.desc
 *.h5ad
 *.h5mu
+*.scbolt.json
 *.pkl
 
 ### Distributions/packaging ###
@@ -30,6 +31,7 @@ lib/cli/*
 !lib/std/
 lib/std/*
 !lib/std/_anndata.py
+!lib/std/_warnings.py
 lib64/
 parts/
 sdist/
@@ -117,5 +119,6 @@ public/
 llc/
 *.md
 !README.md
+!quickstart/spec.yml
 !man/*.md
 plot_clustering_grid.py

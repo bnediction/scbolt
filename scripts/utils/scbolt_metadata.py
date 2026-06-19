@@ -81,12 +81,39 @@ def format_path(path: Path) -> str:
 def format_target_label(path: Path) -> str:
     formatted = format_path(path)
     parts = Path(formatted).parts
+    if "omics" in parts:
+        omics_index = parts.index("omics")
+        omics_parts = parts[omics_index + 1 :]
+        if len(omics_parts) >= 3:
+            if omics_parts[0] in {
+                "count",
+                "prep",
+                "clust",
+                "annot",
+                "dea",
+                "scoring",
+                "goea",
+            }:
+                candidate = omics_parts[1]
+                if candidate in {"geo", "filter", "norm"} or Path(candidate).suffix:
+                    return ""
+                return candidate
+            if omics_parts[0] == "trajectories" and len(omics_parts) >= 4:
+                return omics_parts[2]
+            if omics_parts[0] == "mstates" and len(omics_parts) >= 4:
+                return omics_parts[2]
+        return ""
+
     reference_output_dirs = {
+        "annot",
         "clust",
         "count",
+        "dea",
         "fastq",
+        "goea",
         "mstates",
         "prep",
+        "scoring",
         "traj",
         "trajectories",
     }
@@ -497,6 +524,36 @@ def print_batch_progress(args: argparse.Namespace) -> None:
             print(f"{module}\t{name}\t{value}")
 
 
+def print_batch_clean(args: argparse.Namespace) -> None:
+    old_files = {normalize_path(Path(path)) for path in args.old_file}
+    records = read_progress_manifest(Path(args.manifest))
+
+    for record in records:
+        module = str(record["module"])
+        targets = [Path(target) for target in record["targets"]]
+        parameters = parse_parameters(list(record["params"]))
+        status, _message, stale_targets, _missing_targets = state_for_targets(
+            module=module,
+            targets=targets,
+            parameters=parameters,
+            old_files=old_files,
+        )
+
+        print(f"{module}\tstatus\t{status}")
+        print(f"{module}\tdeps\t{record['deps']}")
+
+        for target in stale_targets:
+            print(f"{module}\tstale-output\t{target}")
+        for target in stale_targets:
+            print(f"{module}\tstale-cleanup\t{target}")
+            print(f"{module}\tstale-cleanup\t{sidecar_path(target)}")
+
+        for target in targets:
+            print(f"{module}\toutput\t{target}")
+        for target in targets:
+            print(f"{module}\tsidecar\t{sidecar_path(target)}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=Path(__file__).name,
@@ -544,6 +601,14 @@ def build_parser() -> argparse.ArgumentParser:
     batch_progress.add_argument("--manifest", required=True)
     batch_progress.add_argument("--old-file", action="append", default=[])
     batch_progress.set_defaults(func=print_batch_progress)
+
+    batch_clean = subparsers.add_parser(
+        "batch-clean",
+        help="compare metadata sidecars for stale output cleanup",
+    )
+    batch_clean.add_argument("--manifest", required=True)
+    batch_clean.add_argument("--old-file", action="append", default=[])
+    batch_clean.set_defaults(func=print_batch_clean)
 
     return parser
 

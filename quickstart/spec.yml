@@ -1,0 +1,27 @@
+dynamical_constraints:
+  - hsc = ~obs('HSC')
+  - mpp = obs('MPP')
+  - lmpp = fixed(obs('LMPP'))
+  - cmp = fixed(obs('CMP'))
+  - mep = fixed(obs('MEP'))
+  - gmp = fixed(obs('GMP'))
+  - hsc >= mpp
+  - mpp >= lmpp
+  - mpp >= cmp
+  - cmp >= mep
+  - cmp >= gmp
+  - mep != gmp
+
+important_nodes:
+  - Mpo
+  - Elane
+  - Ctsg
+  - Ltf
+  - Camp
+  - S100a8
+  - S100a9
+  - Car1
+  - Car2
+  - Pf4
+
+mandatory_nodes:

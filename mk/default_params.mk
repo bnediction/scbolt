@@ -107,13 +107,15 @@ $(eval ANALYSIS_HVG_BINS ?= 20)             # mean-expression bins for HVG selec
 # INTEGRATION values: bbknn, scanorama, ingest.
 $(eval INTEGRATION ?= bbknn)                # integration method
 $(eval DIM_PCA ?= 50)                       # number of PCA components
-$(eval DIM_CLUSTERING ?= 20)                # PCA components used for clustering
 $(eval DIM_EMBEDDING ?= 2)                  # number of embedding dimensions
+$(eval CENTERED_PCA ?= true)                # center variables before PCA
 $(eval NEIGHBORS ?= 20)                     # number of nearest neighbors
 $(eval METRIC ?= euclidean)                 # neighbor/t-SNE distance metric
 $(eval RESOLUTION ?= 0.4)                   # Leiden clustering resolution
 $(eval MIN_DIST ?= 0.1)                     # UMAP minimum distance
 $(eval SPREAD ?= 1)                         # UMAP spread
+# Number of optimization iterations used by the embedding layout.
+$(eval EMBEDDING_N_ITER ?= 500)
 $(eval PCA_ONLY_HVG ?= true)                # use only HVGs for PCA projection
 
 ## DEA ##

@@ -98,6 +98,14 @@ def embedding_key(tokens: list[str]) -> str:
     return "X_tsne" if embedding == "tsne" else "X_umap"
 
 
+def clustering_embeddings() -> set[Field]:
+    return {
+        ("obsm", "X_umap"),
+        ("obsm", "X_tsne"),
+        ("obsm", "X_se"),
+    }
+
+
 def hvg_layer(tokens: list[str]) -> set[Field]:
     flavor = option(tokens, "--flavor")
     if "--only-hvg" not in tokens:
@@ -153,7 +161,7 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
                 ("obsm", "X_pca"),
                 ("obsp", "connectivities"),
                 ("obs", "cluster"),
-                ("obsm", embedding_key(tokens)),
+                *clustering_embeddings(),
             },
         )
 
@@ -172,7 +180,7 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
                 ("obsm", "X_pca"),
                 ("obsp", "connectivities"),
                 ("obs", "cluster"),
-                ("obsm", embedding_key(tokens)),
+                *clustering_embeddings(),
             },
         )
 

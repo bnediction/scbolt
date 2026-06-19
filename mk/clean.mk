@@ -34,16 +34,6 @@ define clean_help
 	fi
 endef
 
-.PHONY: __clean-stale-module
-__clean-stale-module:
-	@printf 'status\t%s\n' "$$( $(call metadata_state_field,$(CLEAN_MODULE),status) )"
-	printf 'deps\t%s\n' "$(strip $(progress_deps_$(CLEAN_MODULE)))"
-	$(call metadata_state_field,$(CLEAN_MODULE),stale-targets) | sed 's/^/stale-output	/'
-	$(call metadata_state_field,$(CLEAN_MODULE),stale-cleanup) | sed 's/^/stale-cleanup	/'
-	$(foreach path,$(strip $(RESET_TARGET_$(CLEAN_MODULE))),\
-		printf 'output\t%s\n' '$(path)';)
-	$(call metadata_state_field,$(CLEAN_MODULE),sidecars) | sed 's/^/sidecar	/'
-
 .PHONY: clean
 clean:
 ifeq ($(HELP),true)
@@ -144,7 +134,10 @@ endif
 		stale_outputs="$$(mktemp)"; \
 		stale_cleanup="$$(mktemp)"; \
 		stale_pruned="$$(mktemp)"; \
-		trap 'rm -f "$${stale_outputs}" "$${stale_cleanup}" "$${stale_pruned}"' EXIT; \
+		clean_manifest="$$(mktemp)"; \
+		clean_report_dir="$$(mktemp -d)"; \
+		trap 'rm -f "$${stale_outputs}" "$${stale_cleanup}" "$${stale_pruned}" \
+			"$${clean_manifest}"; rm -rf "$${clean_report_dir}"' EXIT; \
 		stale_modules=" "; \
 		is_stale() { \
 			case "$${stale_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
@@ -156,11 +149,25 @@ endif
 		is_old_file() { \
 			case " $(OLD_FILES) " in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 		}; \
+		$(foreach module,$(if $(clean_modules),$(clean_modules),$(reset_stages)),\
+			{ \
+				printf 'module\t%s\n' "$(module)"; \
+				$(foreach target,$(strip $(RESET_TARGET_$(module))),\
+					printf 'target\t%s\n' "$(target)";) \
+				$(foreach param,$(strip $(sensitive_params_$(module))),\
+					printf 'param\t%s=%s\n' '$(param)' "$($(param))";) \
+				printf 'deps\t%s\n' "$(strip $(progress_deps_$(module)))"; \
+				printf 'end\n'; \
+			} >> "$${clean_manifest}";) \
+		python3 "$(scripts_dir)/utils/scbolt_metadata.py" batch-clean \
+			--manifest "$${clean_manifest}" \
+			$(metadata_old_file_args) \
+			| while IFS="	" read -r report_module report_field report_value; do \
+				printf '%s\t%s\n' "$${report_field}" "$${report_value}" \
+					>> "$${clean_report_dir}/$${report_module}"; \
+			done; \
 		for module in $(if $(clean_modules),$(clean_modules),$(reset_stages)); do \
-			module_report="$$(mktemp)"; \
-			$(nested_make) LOGGING=false __clean-stale-module \
-				CLEAN_MODULE="$${module}" PARAMS="$(PARAMS)" OLD_FILES="$(OLD_FILES)" \
-				> "$${module_report}"; \
+			module_report="$${clean_report_dir}/$${module}"; \
 			module_status="$$(awk -F '\t' '$$1 == "status" { print $$2; exit }' "$${module_report}")"; \
 			module_deps="$$(awk -F '\t' '$$1 == "deps" { print $$2; exit }' "$${module_report}")"; \
 			module_pending=0; \
@@ -206,7 +213,6 @@ endif
 				done < "$${module_report}"; \
 				stale_modules="$${stale_modules}$${module} "; \
 			fi; \
-			rm -f "$${module_report}"; \
 		done; \
 		sort -u "$${stale_outputs}" -o "$${stale_outputs}"; \
 		sort -u "$${stale_cleanup}" -o "$${stale_cleanup}"; \

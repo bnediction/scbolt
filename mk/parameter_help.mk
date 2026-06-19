@@ -20,6 +20,11 @@ parameter_help_timeout_note = Empty value means no timeout.
 
 parameter_help_hint_ORGANISM = mouse | human | escherichia-coli
 parameter_help_description_ORGANISM = Organism used for gene resources.
+parameter_help_hint_USE_REP = X_umap | X_tsne | X_se
+parameter_help_description_USE_REP = Embedding computed by clustering.
+parameter_help_note_USE_REP = X_umap: UMAP embedding.
+parameter_help_note2_USE_REP = X_tsne: t-SNE embedding.
+parameter_help_note3_USE_REP = X_se: spectral embedding.
 parameter_help_hint_MEMORY = $(parameter_help_positive_integer)
 parameter_help_description_MEMORY = Memory budget in GB.
 $(foreach condition,$(conditions),\
@@ -74,10 +79,10 @@ parameter_help_hint_INTEGRATION = bbknn | scanorama | ingest
 parameter_help_description_INTEGRATION = Multi-condition integration method.
 parameter_help_hint_DIM_PCA = $(parameter_help_positive_integer)
 parameter_help_description_DIM_PCA = Number of PCA components.
-parameter_help_hint_DIM_CLUSTERING = $(parameter_help_positive_integer)
-parameter_help_description_DIM_CLUSTERING = PCA components used for clustering.
 parameter_help_hint_DIM_EMBEDDING = $(parameter_help_positive_integer)
 parameter_help_description_DIM_EMBEDDING = Number of embedding dimensions.
+parameter_help_hint_CENTERED_PCA = $(parameter_help_bool)
+parameter_help_description_CENTERED_PCA = Center variables before PCA.
 parameter_help_hint_PCA_ONLY_HVG = $(parameter_help_bool)
 parameter_help_description_PCA_ONLY_HVG = Restrict PCA projection to HVGs.
 parameter_help_hint_NEIGHBORS = $(parameter_help_positive_integer)
@@ -90,6 +95,8 @@ parameter_help_hint_MIN_DIST = $(parameter_help_float)
 parameter_help_description_MIN_DIST = UMAP minimum distance.
 parameter_help_hint_SPREAD = $(parameter_help_float)
 parameter_help_description_SPREAD = UMAP spread.
+parameter_help_hint_EMBEDDING_N_ITER = $(parameter_help_positive_integer)
+parameter_help_description_EMBEDDING_N_ITER = Embedding optimization iterations.
 
 parameter_help_hint_LOGFC = $(parameter_help_float)
 parameter_help_description_LOGFC = Minimum absolute log2 fold-change.

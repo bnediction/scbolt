@@ -7,7 +7,7 @@ import warnings
 
 import datetime
 from pathlib import Path
-from typing import Iterable, Iterator, Mapping, Optional
+from typing import Iterable, Iterator, Mapping, Optional, Union
 
 
 @contextlib.contextmanager
@@ -69,7 +69,7 @@ def print_task(message: Optional[str]=None, file=sys.stdout, flush=True) -> None
     print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - TASK - {message}", file=file, flush=flush)
     return None
 
-def format_path(path: str | Path) -> str:
+def format_path(path: Union[str, Path]) -> str:
     path_str = os.fspath(path)
     relative_path = os.path.relpath(path_str)
     return relative_path if len(relative_path) < len(path_str) else path_str
@@ -79,11 +79,12 @@ def format_embedding(embedding: str) -> str:
     labels = {
         "umap": "UMAP",
         "tsne": "t-SNE",
-        "se": "spectral embedding",
+        "spectral": "se",
+        "se": "se",
         "pca": "PCA",
         "X_umap": "UMAP",
         "X_tsne": "t-SNE",
-        "X_se": "spectral embedding",
+        "X_se": "se",
         "X_pca": "PCA",
         "X_largevis": "LargeVis",
         "X_diffmap": "diffusion map",

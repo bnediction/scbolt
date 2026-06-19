@@ -1,5 +1,23 @@
 ## BEGIN PATHS ##
 
+omics_dir := $(results)/omics
+bin_dir := $(results)/bin
+infer_dir := $(results)/infer
+
+fastq_dir = $(omics_dir)/fastq/$(call condition_path,$(1))
+count_dir = $(omics_dir)/count/$(call condition_path,$(1))
+geo_dir = $(call count_dir,$(1))geo/
+filter_dir = $(omics_dir)/prep/$(call condition_path,$(1))filter/
+norm_dir = $(omics_dir)/prep/$(call condition_path,$(1))norm/
+clust_dir = $(omics_dir)/clust/$(call condition_path,$(1))
+annot_dir = $(omics_dir)/annot/$(call condition_path,$(1))
+dea_dir = $(omics_dir)/dea/$(call condition_path,$(1))
+scoring_dir = $(omics_dir)/scoring/$(call condition_path,$(1))
+goea_dir = $(omics_dir)/goea/$(call condition_path,$(1))
+velocity_dir = $(omics_dir)/trajectories/velocity/$(call condition_path,$(1))
+potency_dir = $(omics_dir)/trajectories/potency/$(call condition_path,$(1))
+mstates_dir = $(omics_dir)/mstates/$(1)/$(call condition_path,$(2))
+
 h5ads_for_conditions = $(foreach condition,$(running_conditions),$($(1)_$(condition)))
 default_bin_input_h5ads = $(if $(multi_condition),$(annotation_integrated),$(annotation_$(conditions)))
 macrostate_h5ad = $(if $(MACROSTATE_FILES),$(tmpdir)/bin/macrostates.h5ad)
@@ -8,8 +26,8 @@ macrostate_h5ads = $(if $(filter 1,$(words $(MACROSTATE_FILES))),\
 	$(foreach condition,$(conditions),$(macrostate_h5ad_$(condition))))
 bin_input_h5ads = $(if $(MACROSTATE_FILES),$(macrostate_h5ad),$(default_bin_input_h5ads))
 
-clustering_integrated = $(results)/integrated/clust/clust.h5ad
-annotation_integrated = $(results)/integrated/annot/annot.h5ad
+clustering_integrated = $(call clust_dir,integrated)clust.h5ad
+annotation_integrated = $(call annot_dir,integrated)annot.h5ad
 
 cc_markers  = $(resources_dir)/cycle/mouse_cycle_markers.rds
 signatures  = $(resources_dir)/signatures/geiger.xls \
@@ -29,32 +47,32 @@ star_index = $(genome_ref)/star/Genome
 
 define find_paths_for_conditions
 
-fastq_$(1) =                    $(results)/$(call condition_path,$(1))fastq
-geo_dir_$(1) =                  $(results)/$(call condition_path,$(1))count/geo
-geo_matrix_$(1) =               $$(geo_dir_$(1))/matrix.mtx.gz
-geo_barcodes_$(1) =             $$(geo_dir_$(1))/barcodes.tsv.gz
-geo_genes_$(1) =                $$(geo_dir_$(1))/genes.tsv.gz
+fastq_$(1) =                    $(patsubst %/,%,$(call fastq_dir,$(1)))
+geo_dir_$(1) =                  $(call geo_dir,$(1))
+geo_matrix_$(1) =               $$(geo_dir_$(1))matrix.mtx.gz
+geo_barcodes_$(1) =             $$(geo_dir_$(1))barcodes.tsv.gz
+geo_genes_$(1) =                $$(geo_dir_$(1))genes.tsv.gz
 geo_files_$(1) =                $$(geo_matrix_$(1)) $$(geo_barcodes_$(1)) $$(geo_genes_$(1))
 count_file_$(1) =               $(call file_for_condition,$(1),$(COUNT_FILES))
-load_matrix_$(1) =              $(results)/$(call condition_path,$(1))count/counts.h5ad
-cellranger_$(1) =               $(results)/$(call condition_path,$(1))count/cellranger/$(call condition_name,$(1)).mri.tgz
-star_$(1) =                     $(results)/$(call condition_path,$(1))count/star/Aligned.sortedByCoord.out.bam \
-                                $(results)/$(call condition_path,$(1))count/star/Solo.out/matrix.mtx \
-                                $(results)/$(call condition_path,$(1))count/star/Solo.out/barcodes.tsv
-qc_$(1) =                       $(results)/$(call condition_path,$(1))count/star/star.velocyto.bam
-velocyto_$(1) =                 $(results)/$(call condition_path,$(1))count/counts.h5ad
-filtering_$(1) =                $(results)/$(call condition_path,$(1))prep/filter/counts.h5ad
-normalization_$(1) =            $(results)/$(call condition_path,$(1))prep/norm/counts.h5ad
-velocity_$(1) =                 $(results)/$(call condition_path,$(1))trajectories/velocity/velocity.h5ad
-potency_$(1) =                  $(results)/$(call condition_path,$(1))trajectories/potency/potency.csv
-cotan_$(1) =                    $(results)/$(call condition_path,$(1))mstates/cotan/mstates.h5ad \
-                                $(results)/$(call condition_path,$(1))mstates/cotan/mstates.csv
-cellrank_$(1) =                 $(results)/$(call condition_path,$(1))mstates/cellrank/mstates.h5ad \
-                                $(results)/$(call condition_path,$(1))mstates/cellrank/mstates.csv
-stream_$(1) =                   $(results)/$(call condition_path,$(1))mstates/stream/mstates.h5ad \
-                                $(results)/$(call condition_path,$(1))mstates/stream/mstates.csv
-knnsc_$(1) =                    $(results)/$(call condition_path,$(1))mstates/knnsc/mstates.h5ad \
-                                $(results)/$(call condition_path,$(1))mstates/knnsc/mstates.csv
+load_matrix_$(1) =              $(call count_dir,$(1))counts.h5ad
+cellranger_$(1) =               $(call count_dir,$(1))cellranger/$(call condition_name,$(1)).mri.tgz
+star_$(1) =                     $(call count_dir,$(1))star/Aligned.sortedByCoord.out.bam \
+                                $(call count_dir,$(1))star/Solo.out/matrix.mtx \
+                                $(call count_dir,$(1))star/Solo.out/barcodes.tsv
+qc_$(1) =                       $(call count_dir,$(1))star/star.velocyto.bam
+velocyto_$(1) =                 $(call count_dir,$(1))counts.h5ad
+filtering_$(1) =                $(call filter_dir,$(1))counts.h5ad
+normalization_$(1) =            $(call norm_dir,$(1))counts.h5ad
+velocity_$(1) =                 $(call velocity_dir,$(1))velocity.h5ad
+potency_$(1) =                  $(call potency_dir,$(1))potency.csv
+cotan_$(1) =                    $(call mstates_dir,cotan,$(1))mstates.h5ad \
+                                $(call mstates_dir,cotan,$(1))mstates.csv
+cellrank_$(1) =                 $(call mstates_dir,cellrank,$(1))mstates.h5ad \
+                                $(call mstates_dir,cellrank,$(1))mstates.csv
+stream_$(1) =                   $(call mstates_dir,stream,$(1))mstates.h5ad \
+                                $(call mstates_dir,stream,$(1))mstates.csv
+knnsc_$(1) =                    $(call mstates_dir,knnsc,$(1))mstates.h5ad \
+                                $(call mstates_dir,knnsc,$(1))mstates.csv
 
 ifeq ($(MACROSTATE_METHOD),cotan)
 macrostates_$(1) =              $$(cotan_$(1))
@@ -65,7 +83,7 @@ macrostates_$(1) =              $$(stream_$(1))
 else ifeq ($(MACROSTATE_METHOD),knnsc)
 macrostates_$(1) =              $$(knnsc_$(1))
 else
-macrostates_$(1) =              $(results)/$(call condition_path,$(1))mstates/invalid-method/.error
+macrostates_$(1) =              $(call mstates_dir,invalid-method,$(1)).error
 endif
 
 ifeq ($(ALIGNMENT_TOOL),cellranger)
@@ -73,7 +91,7 @@ alignment_$(1) =                $$(cellranger_$(1))
 else ifeq ($(ALIGNMENT_TOOL),star)
 alignment_$(1) =                $$(star_$(1))
 else
-alignment_$(1) =                $(results)/$(call condition_path,$(1))count/invalid-alignment/.error
+alignment_$(1) =                $(call count_dir,$(1))invalid-alignment/.error
 endif
 
 macrostate_file_$(1) =          $(call file_for_condition,$(1),$(MACROSTATE_FILES))
@@ -85,35 +103,38 @@ endef
 
 define find_paths_for_references
 
-clustering_$(1) =               $(results)/$(call condition_path,$(1))clust/clust.h5ad
-dea_$(1) =                      $(results)/$(call condition_path,$(1))clust/dea/markers.csv \
-                                $(results)/$(call condition_path,$(1))clust/dea/genes.xlsx
-scoring_$(1) =                  $(results)/$(call condition_path,$(1))clust/sig.csv
-goea_basic_$(1) =               $(results)/$(call condition_path,$(1))clust/goea/basic.xlsx
-goea_organism_$(1) =            $(results)/$(call condition_path,$(1))clust/goea/$(ORGANISM).xlsx
-annotation_$(1) =               $(results)/$(call condition_path,$(1))annot/annot.h5ad
+clustering_$(1) =               $(call clust_dir,$(1))clust.h5ad
+dea_$(1) =                      $(call dea_dir,$(1))markers.csv \
+                                $(call dea_dir,$(1))genes.xlsx
+scoring_$(1) =                  $(call scoring_dir,$(1))signature_pvals.csv \
+                                $(call scoring_dir,$(1))signature_pvals_adj.csv \
+                                $(call scoring_dir,$(1))signature_fold_enrichment.csv \
+                                $(call scoring_dir,$(1))ora_results.xlsx
+goea_basic_$(1) =               $(call goea_dir,$(1))basic.xlsx
+goea_organism_$(1) =            $(call goea_dir,$(1))$(ORGANISM).xlsx
+annotation_$(1) =               $(call annot_dir,$(1))annot.h5ad
 
 endef
 
-bin_cells =                     $(results)/bin/scboolseq/cell/cells_bin.h5ad \
-                                $(results)/bin/scboolseq/cell/cells_stats.csv
+bin_cells =                     $(bin_dir)/scboolseq/cell/cells_bin.h5ad \
+                                $(bin_dir)/scboolseq/cell/cells_stats.csv
 bin_hvg =                       $(tmpdir)/bin/top_genes.txt
-bin_mstates =               $(results)/bin/scboolseq/macro/$(MACROSTATE_METHOD)/mstates_bin.csv
-bin_dea =                       $(results)/bin/dea/$(MACROSTATE_METHOD)/mstates_bin.csv
-bin_consensus =                 $(results)/bin/consensus/$(MACROSTATE_METHOD)/mstates_bin.csv
+bin_mstates =                   $(bin_dir)/scboolseq/macro/$(MACROSTATE_METHOD)/mstates_bin.csv
+bin_dea =                       $(bin_dir)/dea/$(MACROSTATE_METHOD)/mstates_bin.csv
+bin_consensus =                 $(bin_dir)/consensus/$(MACROSTATE_METHOD)/mstates_bin.csv
 
-bonesis_model =                 $(results)/infer/spec/model.bo \
-                                $(results)/infer/spec/mstates.csv \
-                                $(results)/infer/spec/important.txt \
-                                $(results)/infer/spec/mandatory.txt
-max_nodes_soft =                $(results)/infer/genes/soft/comps.txt
-max_consts_soft =               $(results)/infer/genes/consts/comps.txt
-max_nodes_relaxed =             $(results)/infer/genes/relaxed/comps.txt
-max_nodes_seed =                $(results)/infer/genes/seed/comps.txt
-max_nodes_lock =                $(results)/infer/genes/lock/comps.txt
-bn_min =                        $(results)/infer/bn/min/model.bnet
+bonesis_model =                 $(infer_dir)/spec/model.bo \
+                                $(infer_dir)/spec/mstates.csv \
+                                $(infer_dir)/spec/important.txt \
+                                $(infer_dir)/spec/mandatory.txt
+max_nodes_soft =                $(infer_dir)/genes/soft/comps.txt
+max_consts_soft =               $(infer_dir)/genes/consts/comps.txt
+max_nodes_relaxed =             $(infer_dir)/genes/relaxed/comps.txt
+max_nodes_seed =                $(infer_dir)/genes/seed/comps.txt
+max_nodes_lock =                $(infer_dir)/genes/lock/comps.txt
+bn_min =                        $(infer_dir)/bn/min/model.bnet
 
-bn_submin_dir = $(results)/infer/bn/submin
+bn_submin_dir = $(infer_dir)/bn/submin
 bn_files = $(foreach i,$(1),$(2)/$(i)/model.bnet $(2)/$(i)/state.cfg)
 ifneq ($(filter-out 0,$(strip $(INFER_LIMIT))),)
 bn_submin_indices := $(shell seq 0 $$(($(INFER_LIMIT)-1)))
@@ -122,7 +143,7 @@ else
 bn_submin = $(bn_submin_dir)/ensemble.pdf
 endif
 
-bn_diverse_dir = $(results)/infer/bn/diverse
+bn_diverse_dir = $(infer_dir)/bn/diverse
 ifneq ($(filter-out 0,$(strip $(INFER_LIMIT))),)
 bn_diverse_indices := $(shell seq 0 $$(($(INFER_LIMIT)-1)))
 bn_diverse = $(call bn_files,$(bn_diverse_indices),$(bn_diverse_dir))
@@ -262,8 +283,10 @@ endif
 norm_mad = $(if $(filter true,$(NORM_MAD)),--consistent-mad)
 cc_scores = $(if $(filter true,$(CC_CORRECTION)),--correction G2M_score S_score G1_score)
 pca_only_hvg = $(if $(filter true,$(PCA_ONLY_HVG)),--only-hvg)
+centered_pca = $(if $(filter true,$(CENTERED_PCA)),--centered-pca)
 embedding_method_X_umap = umap
 embedding_method_X_tsne = tsne
+embedding_method_X_se = spectral
 embedding_method = $(embedding_method_$(1))
 embedding = $(call embedding_method,$(USE_REP))
 
@@ -288,7 +311,7 @@ bin_hvg_layer = $(if $(filter seurat seurat_v3 cell_ranger,$(BIN_HVG_FLAVOR)),\
 bin_scboolseq_hvg = $(if $(filter true,$(BIN_SCBOOLSEQ_ONLY_HVG)),--filter-genes $(bin_hvg))
 bin_dea_hvg = $(if $(filter true,$(BIN_DEA_ONLY_HVG)),--filter-genes $(bin_hvg))
 zeroes_are_zeroes = $(if $(filter true,$(ZEROES_ARE_ZEROES)),--zeroes-are-zeroes)
-bin_method_error = $(results)/bin/invalid-method/.error
+bin_method_error = $(bin_dir)/invalid-method/.error
 default_bin = $(if $(filter scboolseq,$(BIN_METHOD)),$(bin_mstates),\
 	$(if $(filter dea,$(BIN_METHOD)),$(bin_dea),\
 	$(if $(filter consensus,$(BIN_METHOD)),$(bin_consensus),$(bin_method_error))))
@@ -445,8 +468,8 @@ target_params_filtering = \
 target_params_normalization = CC_CORRECTION
 target_params_clustering = \
 	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
-	ANALYSIS_HVG_BINS DIM_PCA DIM_CLUSTERING DIM_EMBEDDING PCA_ONLY_HVG \
-	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD
+	ANALYSIS_HVG_BINS DIM_PCA DIM_EMBEDDING CENTERED_PCA PCA_ONLY_HVG \
+	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD EMBEDDING_N_ITER
 target_params_dea = LOGFC CORRECTION ALPHA
 target_params_goea = GENEINFO_VERSION
 target_params_annotation = LABEL
@@ -530,8 +553,8 @@ sensitive_params_filtering = \
 sensitive_params_normalization = ORGANISM CC_CORRECTION
 sensitive_params_clustering = \
 	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
-	ANALYSIS_HVG_BINS DIM_PCA DIM_CLUSTERING DIM_EMBEDDING PCA_ONLY_HVG \
-	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD SEED USE_REP
+	ANALYSIS_HVG_BINS DIM_PCA DIM_EMBEDDING CENTERED_PCA PCA_ONLY_HVG \
+	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD EMBEDDING_N_ITER SEED
 sensitive_params_dea = LOGFC CORRECTION ALPHA
 sensitive_params_scoring = LABEL_COL
 sensitive_params_goea = ORGANISM GENEINFO_VERSION
@@ -625,8 +648,8 @@ method_config_param_set = \
 	MAD_DEVIATION NORM_MAD MT \
 	CC_CORRECTION \
 	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
-	ANALYSIS_HVG_BINS DIM_PCA DIM_CLUSTERING DIM_EMBEDDING PCA_ONLY_HVG \
-	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD \
+	ANALYSIS_HVG_BINS DIM_PCA DIM_EMBEDDING CENTERED_PCA PCA_ONLY_HVG \
+	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD EMBEDDING_N_ITER \
 	LOGFC CORRECTION ALPHA \
 	DIM_MOMENT VELOCITY_ONLY_HVG SMM_MODE \
 	BATCH_SIZE SMOOTH_BATCH_SIZE \

@@ -86,33 +86,26 @@ reference archives.
 
 ---
 
-# Quick start
+# Quickstart
 
-Generate a small demonstration dataset:
+A minimal runnable example is available in `quickstart/`. It uses the built-in
+Nestorowa hematopoiesis dataset from BoNesisTools and runs scBOLT without any
+manual data download.
 
-```bash
-conda run -n scbolt-core python quickstart/load_mini_nestorowa.py
-```
+See `quickstart/README.md` for the commands.
 
-Infer subset-minimal Boolean networks:
+---
 
-```bash
-scbolt bn-submin --params=quickstart/nestorowa.mk
-```
+# Output Layout
 
-or initialize the project parameter file first:
+Generated files are written under `PROJECT_DIR` with separate namespaces:
 
-```bash
-cd quickstart
-scbolt init nestorowa.mk
-scbolt bn-submin
-```
+* `omics/`: reference-level single-cell objects, plots, trajectories, and macrostates;
+* `bin/`: Boolean abstractions of cells and macrostates;
+* `infer/`: BoNesis specifications, selected genes, and inferred Boolean networks;
+* `logs/`: command logs.
 
-Subset-minimal Boolean networks are produced in `results/infer/bn/submin/` in approximately 10 minutes.
-
-The quickstart demonstrates the complete workflow on a lightweight dataset.
-
-For full biological analyses, manuscript reproductions, and advanced workflows, see the documentation in `man/`.
+This avoids collisions with condition names such as `bin`, `infer`, or `logs`.
 
 ---
 
@@ -237,7 +230,7 @@ obs:
   condition (for multi-condition projects)
 
 obsm:
-  X_umap (or USE_REP)
+  X_umap, X_tsne, or X_se (matching USE_REP)
 ```
 
 ### Starting from precomputed binarizations

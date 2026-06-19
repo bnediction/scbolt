@@ -431,19 +431,19 @@ $(call require_bool,NORM_MAD,filtering)
 endef
 
 define require_clustering_parameters
-$(call require_choice,USE_REP,X_umap X_tsne,clustering); \
 $(call require_choice,ANALYSIS_HVG_FLAVOR,seurat cell_ranger seurat_v3,clustering); \
 $(call require_optional_positive_integer,ANALYSIS_HVG_TOP); \
 $(call require_float,ANALYSIS_HVG_SPAN); \
 $(call require_positive_integer,ANALYSIS_HVG_BINS); \
 $(call require_positive_integer,DIM_PCA); \
-$(call require_positive_integer,DIM_CLUSTERING); \
 $(call require_positive_integer,DIM_EMBEDDING); \
+$(call require_bool,CENTERED_PCA,clustering); \
 $(call require_bool,PCA_ONLY_HVG,clustering); \
 $(call require_positive_integer,NEIGHBORS); \
 $(call require_float,RESOLUTION); \
 $(call require_float,MIN_DIST); \
-$(call require_float,SPREAD)
+$(call require_float,SPREAD); \
+$(call require_positive_integer,EMBEDDING_N_ITER)
 endef
 
 define require_velocity_parameters
@@ -936,7 +936,7 @@ run_logged = \
 			PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
 			TQDM_DISABLE="$(TQDM_DISABLE)" \
 			TQDM_TO_TTY="1" \
-			$(MAKE) -f "$(makefile_path)" LOGGING=false __$(1) LOGFILE="$(LOGFILE)"; \
+			$(MAKE) -f "$(makefile_path)" $(trust_make_options) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"; \
 	} 2>&1 | tee -a "$(LOGFILE)"
 else ifeq ($(LOGGING),false)
 run_logged = \

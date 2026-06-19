@@ -268,10 +268,22 @@ bt.sct.pp.sort_anndata(adata, on="both", copy=False)
 shape = {"init": adata.shape}
 
 std.print_task("classifying genes (class=mitochondrial proteins)")
-bt.sct.tl.mitochondrial_genes(adata, index_type="name", key="mt", axis=1, copy=False)
+bt.sct.tl.mitochondrial_genes(
+    adata,
+    index_type="name",
+    key="mt",
+    axis="var",
+    copy=False,
+)
 
 std.print_task("classifying genes (class=ribosomal proteins)")
-bt.sct.tl.ribosomal_genes(adata, index_type="name", key="rps", axis=1, copy=False)
+bt.sct.tl.ribosomal_genes(
+    adata,
+    index_type="name",
+    key="rps",
+    axis="var",
+    copy=False,
+)
 
 if args.marker_infile is None:
     std.print_warning("cannot classify cell cycle phases: marker file not specified")

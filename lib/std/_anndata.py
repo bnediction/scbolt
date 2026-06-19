@@ -2,8 +2,7 @@
 
 import os
 import tempfile
-from collections.abc import Iterable
-from typing import Any
+from typing import Any, Iterable
 
 
 def _canonicalize_sparse_matrix(matrix: Any) -> None:

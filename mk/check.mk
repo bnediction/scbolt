@@ -304,9 +304,7 @@ else ifeq ($(HELP),false)
 	if grep -qE '$(use_rep_check_pattern)' "$${dry_run}" \
 			|| grep -q 'scripts/mstates/knnsc_mstates.py' "$${dry_run}" \
 			|| grep -q '/cotan/barcts.csv' "$${dry_run}"; then \
-		if ! grep -qE 'scripts/clust/(clustering|integration).py' "$${dry_run}"; then \
-			$(call check_parameter_diagnostic,$(USE_REP),USE_REP,core); \
-		fi; \
+		$(call check_parameter_diagnostic,$(USE_REP),USE_REP,core); \
 	fi; \
 	if grep -qE '$(label_col_check_pattern)' "$${dry_run}"; then \
 		$(call check_parameter_diagnostic,$(LABEL_COL),LABEL_COL,core); \
@@ -365,7 +363,6 @@ else ifeq ($(HELP),false)
 		fi; \
 	fi; \
 	if grep -qE 'scripts/clust/(clustering|integration).py' "$${dry_run}"; then \
-		$(call check_choice_diagnostic,$(USE_REP),X_umap X_tsne,USE_REP,core); \
 		$(call check_choice_diagnostic,\
 			$(ANALYSIS_HVG_FLAVOR),seurat cell_ranger seurat_v3,\
 			$(call needed_by,ANALYSIS_HVG_FLAVOR,clustering),method); \
@@ -376,13 +373,14 @@ else ifeq ($(HELP),false)
 		$(call check_positive_integer_diagnostic,\
 			$(ANALYSIS_HVG_BINS),$(call needed_by,ANALYSIS_HVG_BINS,clustering),method); \
 		$(call check_positive_integer_diagnostic,$(DIM_PCA),$(call needed_by,DIM_PCA,clustering),method); \
-		$(call check_positive_integer_diagnostic,$(DIM_CLUSTERING),$(call needed_by,DIM_CLUSTERING,clustering),method); \
 		$(call check_positive_integer_diagnostic,$(DIM_EMBEDDING),$(call needed_by,DIM_EMBEDDING,clustering),method); \
+		$(call check_bool_diagnostic,$(CENTERED_PCA),$(call needed_by,CENTERED_PCA,clustering),method); \
 		$(call check_bool_diagnostic,$(PCA_ONLY_HVG),$(call needed_by,PCA_ONLY_HVG,clustering),method); \
 		$(call check_positive_integer_diagnostic,$(NEIGHBORS),$(call needed_by,NEIGHBORS,clustering),method); \
 		$(call check_float_diagnostic,$(RESOLUTION),$(call needed_by,RESOLUTION,clustering),method); \
 		$(call check_float_diagnostic,$(MIN_DIST),$(call needed_by,MIN_DIST,clustering),method); \
 		$(call check_float_diagnostic,$(SPREAD),$(call needed_by,SPREAD,clustering),method); \
+		$(call check_positive_integer_diagnostic,$(EMBEDDING_N_ITER),$(call needed_by,EMBEDDING_N_ITER,clustering),method); \
 	fi; \
 	if grep -q 'scripts/traj/velocity.py' "$${dry_run}"; then \
 		$(call check_choice_diagnostic,$(USE_REP),X_umap X_tsne,\

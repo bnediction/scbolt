@@ -25,99 +25,14 @@ def _format_percent_if_float(value):
     return str(value)
 
 
-EMBEDDINGS = (
-    ("umap", "X_umap", "umap.pdf"),
-    ("tsne", "X_tsne", "tsne.pdf"),
-    ("spectral", "X_se", "spectral.pdf"),
-)
-
-
-def compute_embedding(adata, method: str, args) -> None:
-    embedding_label = std.format_embedding(method)
-    if method == "umap":
-        std.print_task(
-            f"computing embedding (method={embedding_label}, "
-            f"dimensions={args.embedding_dimension}, "
-            f"min_dist={args.min_dist}, "
-            f"spread={args.spread}, "
-            f"n_iter={args.embedding_n_iter})"
-        )
-        bt.sct.tl.umap(
-            adata,
-            neighbors_key="neighbors",
-            n_components=args.embedding_dimension,
-            min_dist=args.min_dist,
-            spread=args.spread,
-            n_iter=args.embedding_n_iter,
-            seed=args.seed,
-            copy=False,
-        )
-    elif method == "tsne":
-        std.print_task(
-            f"computing embedding (method={embedding_label}, "
-            f"dimensions={args.embedding_dimension}, "
-            f"metric={args.metric}, "
-            f"n_iter={args.embedding_n_iter})"
-        )
-        bt.sct.tl.tsne(
-            adata,
-            representation="X_pca",
-            n_pcs=args.clustering_dimension,
-            n_components=args.embedding_dimension,
-            n_iter=args.embedding_n_iter,
-            metric=args.metric,
-            seed=args.seed,
-            copy=False,
-        )
-    elif method == "spectral":
-        std.print_task(
-            f"computing embedding (method={embedding_label}, "
-            f"dimensions={args.embedding_dimension})"
-        )
-        bt.sct.tl.spectral(
-            adata,
-            neighbors_key="neighbors",
-            n_components=args.embedding_dimension,
-            seed=args.seed,
-            copy=False,
-        )
-
-
-def plot_embedding(adata, method: str, use_rep: str, outfile: Path, args) -> None:
-    embedding_label = std.format_embedding(method)
-    bt.sct.pl.embedding(
-        adata,
-        obs="cluster",
-        use_rep=use_rep,
-        xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
-        ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
-        zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
-        figwidth=6,
-        s=2,
-        alpha=1,
-        show_legend=True,
-        lgd_params={
-            "title": "clusters",
-            "ncol": 1,
-            "markerscale": 5,
-            "frameon": True,
-            "edgecolor": bt.sct.pl.get_color("black"),
-            "shadow": False,
-        },
-        n_components=3 if args.embedding_dimension > 2 else 2,
-        background_visible=False,
-        outfile=outfile,
-    )
-
-
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
     prog="clustering",
     description=(
         "Compute principal components, compute closest and shared-nearest "
-        "neighbors, cluster cells using the Leiden algorithm and compute UMAP, "
-        "t-SNE, and spectral embeddings."
+        "neighbors, cluster cells using the Leiden algorithm and embed the "
+        "neighborhood graph in UMAP or t-SNE projection."
     ),
     usage=f"python {script_name} <FILE> <FILE> [<args>]",
     formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -159,6 +74,17 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--embedding",
+    dest="embedding",
+    type=str,
+    required=False,
+    default="umap",
+    choices=["umap", "tsne"],
+    metavar="[umap | tsne]",
+    help="embedding projection (default: umap)",
+)
+
+parser.add_argument(
     "--pca-dimension",
     dest="pca_dimension",
     type=int,
@@ -189,12 +115,11 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--centered-pca",
-    dest="centered_pca",
+    "--lsa",
+    dest="lsa",
     action="store_true",
-    default=False,
     required=False,
-    help="center variables before PCA",
+    help="approximate reduction dimension using truncated SVD (latent semantic analysis) instead of PCA",
 )
 
 parser.add_argument(
@@ -299,16 +224,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--embedding-n-iter",
-    dest="embedding_n_iter",
-    type=int,
-    required=False,
-    default=500,
-    metavar="INT",
-    help="number of optimization iterations used by UMAP and t-SNE (default: 500)",
-)
-
-parser.add_argument(
     "--seed",
     dest="seed",
     type=int,
@@ -324,6 +239,8 @@ if args.pca_dimension < args.clustering_dimension:
     raise ValueError(
         f"invalid values for arguments: 'pca-dimension' > 'clustering-dimension' not satisfied (pca-dimension: {args.pca_dimension}, clustering-dimension: {args.clustering_dimension})"
     )
+
+embedding_label = std.format_embedding(args.embedding)
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
@@ -355,22 +272,22 @@ std.print_task(f"computing principal components (dimensions={args.pca_dimension}
 if args.only_hvg:
     std.print_info("filtering PCA features (scope=highly variable genes)")
 with std.single_thread():
-    bt.sct.tl.pca(
+    sc.tl.pca(
         adata,
-        n_components=args.pca_dimension,
-        zero_center=args.centered_pca,
-        var_subset="highly_variable" if args.only_hvg else None,
-        seed=args.seed,
+        n_comps=args.pca_dimension,
+        zero_center=not args.lsa,
+        use_highly_variable=args.only_hvg,
+        random_state=args.seed,
         copy=False,
     )
 
 std.print_task(
     f"computing nearest-neighbor graph (principal components={args.clustering_dimension})"
 )
-bt.sct.tl.neighbors(
+sc.pp.neighbors(
     adata,
     n_neighbors=args.neighbors,
-    representation="X_pca",
+    use_rep="X_pca",
     n_pcs=args.clustering_dimension,
     metric=args.metric,
     copy=False,
@@ -386,30 +303,76 @@ bt.sct.tl.shared_neighbors(
 )
 
 std.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
-bt.sct.tl.leiden(
+sc.tl.leiden(
     adata,
     neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
     resolution=args.resolution,
     key_added="cluster",
-    seed=args.seed,
+    random_state=args.seed,
     copy=False,
 )
 std.print_result(f"identified {adata.obs['cluster'].nunique()} clusters")
 
-for method, _, _ in EMBEDDINGS:
-    compute_embedding(adata, method, args)
+std.print_task(f"embedding neighborhood graph (dimensions={args.embedding_dimension})")
+if args.embedding == "umap":
+    std.print_task(
+        f"computing embedding (method={embedding_label}, "
+        f"dimensions={args.embedding_dimension}, "
+        f"min_dist={args.min_dist}, "
+        f"spread={args.spread})"
+    )
+    sc.tl.umap(
+        adata,
+        neighbors_key="neighbors",
+        n_components=args.embedding_dimension,
+        min_dist=args.min_dist,
+        spread=args.spread,
+        random_state=np.random.RandomState(args.seed),
+        copy=False,
+    )
+    del adata.uns["umap"]["params"]["random_state"]
+elif args.embedding == "tsne":
+    std.print_task(
+        f"computing embedding (method={embedding_label}, "
+        f"dimensions={args.embedding_dimension}, "
+        f"metric={args.metric})"
+    )
+    sc.tl.tsne(
+        adata,
+        n_pcs=args.embedding_dimension,
+        use_rep="X_pca",
+        metric=args.metric,
+        random_state=np.random.RandomState(args.seed),
+        copy=False,
+    )
 
+embedding_plot = Path(f"{os.path.dirname(args.outfile)}/clusters.pdf")
 std.print_info(
     f"plotting embeddings (directory={os.path.relpath(os.path.dirname(args.outfile))})"
 )
-for method, use_rep, filename in EMBEDDINGS:
-    plot_embedding(
-        adata,
-        method,
-        use_rep,
-        Path(f"{os.path.dirname(args.outfile)}/{filename}"),
-        args,
-    )
+bt.sct.pl.embedding(
+    adata,
+    obs="cluster",
+    use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
+    xlabel=r"$\mathrm{{{}_{{1}}}}$".format(embedding_label),
+    ylabel=r"$\mathrm{{{}_{{2}}}}$".format(embedding_label),
+    zlabel=r"$\mathrm{{{}_{{3}}}}$".format(embedding_label),
+    figwidth=6,
+    s=2,
+    alpha=1,
+    show_legend=True,
+    lgd_params={
+        "title": "clusters",
+        "ncol": 1,
+        "markerscale": 5,
+        "frameon": True,
+        "edgecolor": bt.sct.pl.get_color("black"),
+        "shadow": False,
+    },
+    n_components=3 if args.embedding_dimension > 2 else 2,
+    background_visible=False,
+    outfile=embedding_plot,
+)
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 std.write_h5ad(adata, filename=args.outfile, compression="gzip")

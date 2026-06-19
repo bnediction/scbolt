@@ -131,7 +131,7 @@ install_env_steps() {
 install_env() {
     local status
 
-    if conda env list | grep -q "^$1 ";
+    if conda_env_exists "$1";
     then
         echo "conda environment '$1' already exists."
         read -r -p $"Do you want to reinstall conda environment '${1}'? ([y]/n): " choice
@@ -140,6 +140,7 @@ install_env() {
             echo "removing conda environment '$1'."
             if run_quiet conda remove --name "$1" --all --yes && install_env_steps "$1" "$2";
             then
+                installed_conda_envs["$1"]=1
                 print_install_success "$1"
                 echo
             else
@@ -156,6 +157,7 @@ install_env() {
     else
         if install_env_steps "$1" "$2";
         then
+            installed_conda_envs["$1"]=1
             print_install_success "$1"
             echo
         else
@@ -228,6 +230,25 @@ install_scbolt_completion() {
     echo "  source ${local_completion_dir}/scbolt"
 }
 
+declare -A installed_conda_envs
+
+load_installed_conda_envs() {
+    local env
+
+    installed_conda_envs=()
+    while IFS= read -r env
+    do
+        if [ -n "${env}" ];
+        then
+            installed_conda_envs["${env}"]=1
+        fi
+    done < <(conda env list | awk 'NF && $1 !~ /^#/ { print $1 }')
+}
+
+conda_env_exists() {
+    [ -n "${installed_conda_envs[$1]+x}" ]
+}
+
 if install_scbolt_command;
 then
     install_scbolt_completion
@@ -237,7 +258,9 @@ echo
 # shellcheck source=/dev/null
 source "$(conda info --base)/etc/profile.d/conda.sh"
 
-if conda env list | grep -q "^base";
+load_installed_conda_envs
+
+if conda_env_exists base;
 then
     conda activate base
 fi

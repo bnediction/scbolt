@@ -152,8 +152,8 @@ unnamed_dry_run="$(
     make -C "${repo_root}" --always-make --dry-run LOGGING=false \
         __filtering PARAMS="${unnamed_params}"
 )"
-grep -q 'tests/output-unnamed/count/geo/matrix.mtx.gz' <<< "${unnamed_dry_run}"
-grep -q 'tests/output-unnamed/count/counts.h5ad' <<< "${unnamed_dry_run}"
+grep -q 'tests/output-unnamed/omics/count/geo/matrix.mtx.gz' <<< "${unnamed_dry_run}"
+grep -q 'tests/output-unnamed/omics/count/counts.h5ad' <<< "${unnamed_dry_run}"
 ! grep -q 'tests/output-unnamed/unique/' <<< "${unnamed_dry_run}"
 grep -q 'download_gsm.sh' <<< "${unnamed_dry_run}"
 grep -q 'download/import_matrix.py' <<< "${unnamed_dry_run}"
@@ -207,9 +207,75 @@ unnamed_sra_dry_run="$(
 )"
 grep -q 'for id in SRR000001 SRR000002' <<< "${unnamed_sra_dry_run}"
 grep -q 'sample_naming="sample"' <<< "${unnamed_sra_dry_run}"
-grep -q 'tests/output-sra/fastq' <<< "${unnamed_sra_dry_run}"
+grep -q 'tests/output-sra/omics/fastq' <<< "${unnamed_sra_dry_run}"
 ! grep -q 'SRA_UNIQUE' <<< "${unnamed_sra_dry_run}"
 ! grep -q 'tests/output-sra/unique/' <<< "${unnamed_sra_dry_run}"
+
+collision_params="${tmpdir}/collision.mk"
+cat > "${collision_params}" <<'MK'
+PROJECT_DIR = tests/output-collision
+RESOURCES_DIR = tests/resources
+CONDITIONS = bin infer
+ORGANISM = human
+GSM_BIN = GSM5492245
+GSM_INFER = GSM5492245
+CC_CORRECTION = false
+LABEL = A B
+SPEC_FILE = spec.yml
+MACROSTATE_METHOD = knnsc
+MK
+
+collision_dry_run="$(
+    make -C "${repo_root}" --always-make --dry-run LOGGING=false \
+        __clustering PARAMS="${collision_params}"
+)"
+grep -q 'tests/output-collision/omics/count/bin/counts.h5ad' <<< "${collision_dry_run}"
+grep -q 'tests/output-collision/omics/clust/infer/clust.h5ad' <<< "${collision_dry_run}"
+! grep -q 'tests/output-collision/bin/count' <<< "${collision_dry_run}"
+! grep -q 'tests/output-collision/infer/clust' <<< "${collision_dry_run}"
+
+collision_clustering_help="$(
+    make -C "${repo_root}" module-help TARGET=clustering \
+        PARAMS="${collision_params}" SCBOLT_CLI=true
+)"
+grep -q 'tests/output-collision/omics/clust/bin/clust.h5ad' \
+    <<< "${collision_clustering_help}"
+grep -q 'tests/output-collision/omics/clust/infer/clust.h5ad' \
+    <<< "${collision_clustering_help}"
+
+collision_annotation_help="$(
+    make -C "${repo_root}" module-help TARGET=annotation \
+        PARAMS="${collision_params}" SCBOLT_CLI=true
+)"
+grep -q 'tests/output-collision/omics/annot/bin/annot.h5ad' \
+    <<< "${collision_annotation_help}"
+grep -q 'tests/output-collision/omics/annot/infer/annot.h5ad' \
+    <<< "${collision_annotation_help}"
+
+collision_consensus_help="$(
+    make -C "${repo_root}" module-help TARGET=bin-consensus \
+        PARAMS="${collision_params}" SCBOLT_CLI=true
+)"
+grep -q 'tests/output-collision/bin/consensus/knnsc/mstates_bin.csv' \
+    <<< "${collision_consensus_help}"
+
+collision_bin_mstates_help="$(
+    make -C "${repo_root}" module-help TARGET=bin-macrostates \
+        PARAMS="${collision_params}" SCBOLT_CLI=true
+)"
+grep -q 'tests/output-collision/omics/mstates/knnsc/bin/mstates.csv' \
+    <<< "${collision_bin_mstates_help}"
+grep -q 'tests/output-collision/bin/scboolseq/macro/knnsc/mstates_bin.csv' \
+    <<< "${collision_bin_mstates_help}"
+
+collision_spec_help="$(
+    make -C "${repo_root}" module-help TARGET=spec \
+        PARAMS="${collision_params}" SCBOLT_CLI=true
+)"
+grep -q 'tests/output-collision/bin/consensus/knnsc/mstates_bin.csv' \
+    <<< "${collision_spec_help}"
+grep -q 'tests/output-collision/infer/spec/model.bo' \
+    <<< "${collision_spec_help}"
 
 if ! make -C "${repo_root}" check TARGET=load-fastq PARAMS="${unnamed_sra_params}" \
         __check_externals__=false > "${tmpdir}/unnamed-sra-check.out" 2>&1; then

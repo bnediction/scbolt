@@ -9,6 +9,7 @@ import anndata as ad
 import scanpy as sc
 import numpy as np
 import bonesistools as bt
+from scipy import sparse
 
 script_name = Path(__file__).name
 
@@ -69,6 +70,12 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+
+def densify_layer(adata, layer):
+    if sparse.issparse(adata.layers[layer]):
+        adata.layers[layer] = adata.layers[layer].toarray()
+
+
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
@@ -91,6 +98,7 @@ sc.pp.log1p(adata, base=np.exp(1), layer="log-norm", copy=False)
 
 std.print_info("scaling to unit variance and zero mean (layer=scale)")
 adata.layers["scale"] = adata.layers["log-norm"].copy()
+densify_layer(adata, "scale")
 sc.pp.scale(adata, layer="scale", copy=False)
 
 if args.correction:
@@ -104,6 +112,7 @@ if args.correction:
         copy=False,
         n_jobs=args.jobs,
     )
+    densify_layer(adata, "correct")
     sc.pp.scale(adata, layer="correct", copy=False)
 else:
     std.print_info("no unwanted effects specified")
