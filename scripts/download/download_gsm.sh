@@ -43,8 +43,20 @@ geo_ftp_base="${GEO_FTP_BASE:-https://ftp.ncbi.nlm.nih.gov/geo}"
 base_url="${geo_ftp_base%/}/samples/${series_dir}/${gsm}/suppl/"
 mkdir -p "${outdir}"
 
+python_command="${PYTHON:-}"
+if [ -z "${python_command}" ]; then
+    if command -v python3 >/dev/null 2>&1; then
+        python_command="python3"
+    elif command -v python >/dev/null 2>&1; then
+        python_command="python"
+    else
+        printf '%s\n' "required command not found: python3 or python" >&2
+        exit 1
+    fi
+fi
+
 mapfile -t files < <(
-    python - "${base_url}" "${gsm}" <<'PY'
+    "${python_command}" - "${base_url}" "${gsm}" <<'PY'
 from html.parser import HTMLParser
 from urllib.parse import unquote, urljoin
 from urllib.error import URLError

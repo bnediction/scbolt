@@ -12,7 +12,8 @@ system_tool = $(scbolt_tool) $(1)
 conda_command := $(if $(CONDA_EXE),$(CONDA_EXE),conda)
 SCBOLT_SYSTEM_ENV ?= scbolt-system
 conda_base_from_exe = $(patsubst %/condabin/conda,%,$(patsubst %/bin/conda,%,$(1)))
-scbolt_system_bin := $(if $(CONDA_EXE),$(call conda_base_from_exe,$(CONDA_EXE))/envs/$(SCBOLT_SYSTEM_ENV)/bin)
+conda_base := $(if $(CONDA_EXE),$(call conda_base_from_exe,$(CONDA_EXE)))
+scbolt_system_bin := $(if $(conda_base),$(conda_base)/envs/$(SCBOLT_SYSTEM_ENV)/bin)
 ifneq ($(wildcard $(scbolt_system_bin)),)
 override PATH := $(scbolt_system_bin):$(PATH)
 export PATH
@@ -788,7 +789,8 @@ metadata_custom_target_args = $(foreach target,$(strip $(2)),--target "$(target)
 metadata_param_args = $(foreach param,$(strip $(sensitive_params_$(1))),--param '$(param)=$($(param))')
 metadata_old_file_args = $(foreach path,$(strip $(OLD_FILES)),--old-file "$(path)")
 metadata_git_hash = $$(git -C "$(scbolt_root)" rev-parse HEAD 2>/dev/null || echo unknown)
-metadata_python = $(call conda_run,scbolt-core) python
+HOST_PYTHON ?= $(if $(and $(conda_base),$(wildcard $(conda_base)/bin/python)),$(conda_base)/bin/python,python3)
+metadata_python = $(HOST_PYTHON)
 metadata_state = $(metadata_python) $(scripts_dir)/utils/scbolt_metadata.py state \
 	--module "$(1)" \
 	$(call metadata_target_args,$(1)) \
