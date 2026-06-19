@@ -11,6 +11,39 @@ import numpy as np
 import bonesistools as bt
 from scipy import sparse
 
+
+def normalize_by_library_size(adata, layer, target_sum=1e4):
+    matrix = adata.layers[layer]
+
+    if sparse.issparse(matrix):
+        matrix = matrix.tocsr(copy=True)
+        if not np.issubdtype(matrix.dtype, np.floating):
+            matrix = matrix.astype(np.float32)
+        counts = np.asarray(matrix.sum(axis=1)).ravel()
+        counts = counts / target_sum
+        counts = counts + (counts == 0)
+        matrix.data = np.true_divide(
+            matrix.data,
+            np.repeat(counts, np.diff(matrix.indptr)),
+        )
+        adata.layers[layer] = matrix
+        return
+
+    matrix = np.asarray(matrix)
+    if not np.issubdtype(matrix.dtype, np.floating):
+        matrix = matrix.astype(np.float32)
+    counts = np.asarray(matrix.sum(axis=1)).ravel()
+    counts = counts / target_sum
+    counts = counts + (counts == 0)
+    np.true_divide(matrix, counts[:, None], out=matrix)
+    adata.layers[layer] = matrix
+
+
+def densify_layer(adata, layer):
+    if sparse.issparse(adata.layers[layer]):
+        adata.layers[layer] = adata.layers[layer].toarray()
+
+
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
@@ -71,11 +104,6 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-def densify_layer(adata, layer):
-    if sparse.issparse(adata.layers[layer]):
-        adata.layers[layer] = adata.layers[layer].toarray()
-
-
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
@@ -90,7 +118,7 @@ std.print_task("normalizing read counts")
 
 std.print_info("standardizing counts by library size (layer=norm)")
 adata.layers["norm"] = adata.X.copy()
-sc.pp.normalize_total(adata, target_sum=1e4, layer="norm", copy=False)
+normalize_by_library_size(adata, layer="norm", target_sum=1e4)
 
 std.print_info("performing log-transformation (layer=log-norm)")
 adata.layers["log-norm"] = adata.layers["norm"].copy()
