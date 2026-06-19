@@ -891,7 +891,7 @@ conda_run_inference = $(conda_runtime_env) \
 	TQDM_TO_TTY="$(TQDM_TO_TTY)" \
 	PYTHONHASHSEED="$(SEED)" \
 	conda run --no-capture-output -n $(1)
-BONESIS_HASH ?= d70736703af2fa8a88306ac66626b4876d5c5839
+BONESIS_HASH ?= d70736781f88faee334ef79622e144216837f4c5
 SCVELO_HASH ?= b2f31b345641efdccd39fbcb8c0beaa0014b4b88
 nested_make = env \
 	$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
