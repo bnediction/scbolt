@@ -49,14 +49,17 @@ adata.obsm["X_pca"] = PCA(
 ).fit_transform(X)
 adata.obsm["top_pcs"] = adata.obsm["X_pca"].copy()
 
-bt.sct.tl.embedding(
+bt.sct.tl.neighbors(
     adata,
-    method="spectral",
-    use_rep="X_pca",
-    n_components=4,
+    representation="X_pca",
     n_neighbors=15,
     seed=10,
+)
+bt.sct.tl.spectral(
+    adata,
+    n_components=4,
     key_added="X_se",
+    seed=10,
 )
 
 adata.uns["scbolt"] = {

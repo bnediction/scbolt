@@ -242,7 +242,7 @@ adata = ad.read_h5ad(args.infile)
 adata.uns["workdir"] = str(outpath)
 
 adata.uns["dr"] = args.representation
-adata.obsm["X_dr"] = bt.sct.tl.choose_representation(
+adata.obsm["X_dr"] = bt.sct.tl.get_representation(
     adata, use_rep=args.representation
 ).copy()
 

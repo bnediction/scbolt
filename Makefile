@@ -344,12 +344,12 @@ $(velocyto_$(1)): $(qc_$(1)) $(genome_ref) $(repeat_msk)
 endif
 endif
 
-$(filtering_$(1)): $(count_input_$(1)) $(if $(filter mouse,$(ORGANISM)),$(cc_markers))
+$(filtering_$(1)): $(count_input_$(1)) $(if $(filter true,$(CC_CORRECTION)),$(if $(filter mouse,$(ORGANISM)),$(cc_markers)))
 	$(call print_rule,filtering,$(1))
 	$(require_filtering_parameters)
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/prep/filter.py \
-		$$(firstword $$^) $$@ $(if $(filter mouse,$(ORGANISM)),--marker $$(lastword $$^)) \
+		$$(firstword $$^) $$@ $(if $(filter true,$(CC_CORRECTION)),$(if $(filter mouse,$(ORGANISM)),--marker $$(lastword $$^))) \
 		--gene-dropout $(GENE_DROPOUT) --gene-expression $(GENE_EXPRESSION) --gene-counts $(GENE_COUNTS) \
 		--cell-dropout $(CELL_DROPOUT) --cell-expression $(CELL_EXPRESSION) --cell-reads $(CELL_READS) \
 		--mad-deviation $(MAD_DEVIATION) $(norm_mad) --mt $(MT) \
