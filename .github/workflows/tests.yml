@@ -43,6 +43,13 @@ jobs:
       - uses: actions/checkout@v6
       - run: bash tests/test_matrix_entry.sh
 
+  memory:
+    name: Memory parameter
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - run: bash tests/test_memory.sh
+
   dry-run-knnsc:
     name: Dry-run knnsc
     runs-on: ubuntu-22.04

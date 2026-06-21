@@ -10,10 +10,33 @@ fig_dir := $(scbolt_root)/scripts/fig
 scbolt_tool := $(scbolt_root)/bin/scbolt-tool
 conda_command := $(if $(CONDA_EXE),$(CONDA_EXE),conda)
 SCBOLT_SYSTEM_ENV ?= scbolt-system
+SCBOLT_LOGGING_TO_FILE ?= false
 conda_base_from_exe = $(patsubst %/condabin/conda,%,$(patsubst %/bin/conda,%,$(1)))
 conda_base := $(if $(CONDA_EXE),$(call conda_base_from_exe,$(CONDA_EXE)))
+python ?= $(if $(and $(conda_base),$(wildcard $(conda_base)/bin/python)),$(conda_base)/bin/python,python3)
 scbolt_system_bin := $(if $(conda_base),$(conda_base)/envs/$(SCBOLT_SYSTEM_ENV)/bin)
 system_tool = $(if $(wildcard $(scbolt_system_bin)/$(1)),$(scbolt_system_bin)/$(1),$(1))
+define wget_download
+if [ "$(SCBOLT_LOGGING_TO_FILE)" = "true" ]; then \
+	if [ -w /dev/tty ]; then \
+		$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll $(1) 2>/dev/tty; \
+	else \
+		$(call system_tool,wget) --no-verbose $(1); \
+	fi; \
+else \
+	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll $(1); \
+fi
+endef
+define wget_download_label
+if [ -w /dev/tty ]; then \
+	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll $(2) \
+		2> >($(call system_tool,awk) -v label="$(1)" 'BEGIN { RS = "\r"; ORS = "\r" } { sub(/^.*[[:space:]]+([0-9]+%)/, label " \\1"); print } END { printf "\n" }' > /dev/tty); \
+elif [ "$(SCBOLT_LOGGING_TO_FILE)" = "true" ]; then \
+	$(call system_tool,wget) --no-verbose $(2); \
+else \
+	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll $(2); \
+fi
+endef
 ifneq ($(wildcard $(scbolt_system_bin)),)
 override PATH := $(scbolt_system_bin):$(PATH)
 export PATH
@@ -163,6 +186,71 @@ endif
 
 is_positive_integer = $(shell printf '%s\n' "$(strip $(1))" \
 	| $(call system_tool,grep) -Eq '^[1-9][0-9]*$$' && echo true || echo false)
+define memory_conversion_values
+$(strip $(shell $(call system_tool,awk) -v memory="$(strip $(1))" -v jobs="$(strip $(2))" '\
+function ceil(value, integer) { \
+	integer = int(value); \
+	return value > integer ? integer + 1 : integer; \
+} \
+function unit_label(unit) { \
+	if (unit == "kib") return "KiB"; \
+	if (unit == "mib") return "MiB"; \
+	if (unit == "gib") return "GiB"; \
+	if (unit == "tib") return "TiB"; \
+	return toupper(unit); \
+} \
+function unit_multiplier(unit) { \
+	if (unit == "kb") return 1000; \
+	if (unit == "mb") return 1000000; \
+	if (unit == "gb") return 1000000000; \
+	if (unit == "tb") return 1000000000000; \
+	if (unit == "kib") return 1024; \
+	if (unit == "mib") return 1048576; \
+	if (unit == "gib") return 1073741824; \
+	if (unit == "tib") return 1099511627776; \
+	return 0; \
+} \
+BEGIN { \
+	value = memory; \
+	gsub(/[[:space:]]/, "", value); \
+	lower = tolower(value); \
+	if (value == "") exit 1; \
+	split("kib mib gib tib kb mb gb tb", units, " "); \
+	for (i = 1; i <= 8; i++) { \
+		suffix = units[i]; \
+		if (lower ~ suffix "$$") { \
+			unit = suffix; \
+			number = substr(value, 1, length(value) - length(suffix)); \
+			break; \
+		} \
+	} \
+	if (unit == "") { \
+		unit = "gb"; \
+		number = value; \
+		bare = 1; \
+	} \
+	if (number !~ /^[0-9]+([.][0-9]+)?$$/) exit 1; \
+	if (number + 0 <= 0) exit 1; \
+	if (bare && number !~ /^[0-9]+$$/) exit 1; \
+	bytes = (number + 0) * unit_multiplier(unit); \
+	canonical = bare ? int(number) "GB" : number unit_label(unit); \
+	gb = ceil(bytes / 1000000000); \
+	mb = ceil(bytes / 1000000); \
+	mb_per_job = ""; \
+	if (jobs ~ /^[1-9][0-9]*$$/) { \
+		mb_per_job = int(bytes / ((jobs + 0) * 1000000)); \
+		if (mb_per_job < 1) mb_per_job = 1; \
+	} \
+	print canonical, gb, mb, mb_per_job; \
+}' 2>/dev/null))
+endef
+memory_values := $(call memory_conversion_values,$(MEMORY),$(JOBS))
+memory_bonesistools := $(word 1,$(memory_values))
+memory_gb := $(word 2,$(memory_values))
+memory_mb := $(word 3,$(memory_values))
+memory_velocyto := $(word 4,$(memory_values))
+memory_valid := $(if $(memory_bonesistools),true,false)
+is_memory_size = $(if $(call memory_conversion_values,$(1),1),true,false)
 is_creatable_path = $(shell { test -n "$(strip $(1))" && $(call system_tool,mkdir) -p "$(strip $(1))"; } \
 	>/dev/null 2>&1 && echo true || echo false)
 
@@ -261,7 +349,7 @@ cycle_url := https://github.com/MarioniLab/scran/raw/master/inst/exdata/mouse_cy
 go_basic_url := http://purl.obolibrary.org/obo/go/go-basic.obo
 geiger_url := https://doi.org/10.1371/journal.pbio.2003389.s025
 chambers_url := https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
-gene2go_url := ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
+gene2go_url := https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
 
 ## END URLS ##
 
@@ -478,7 +566,7 @@ $(call require_positive_integer,EMBEDDING_N_ITER)
 endef
 
 define require_velocity_parameters
-$(call require_choice,USE_REP,X_umap X_tsne,velocity); \
+$(call require_choice,REPRESENTATION,X_umap X_tsne,velocity); \
 $(call require_positive_integer,DIM_MOMENT); \
 $(call require_bool,VELOCITY_ONLY_HVG,velocity)
 endef
@@ -491,6 +579,7 @@ $(call require_float,CELLRANK_ALPHA)
 endef
 
 define require_dea_parameters
+$(call require_choice,DEA_METHOD,wilcoxon welch welch_overestimate,dea); \
 $(call require_float,LOGFC)
 endef
 
@@ -678,6 +767,16 @@ case "$(strip $(1))" in \
 esac
 endef
 
+define check_memory_diagnostic
+if [ "$(memory_valid)" = "true" ]; then \
+	$(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: \
+		$(call parameter_assignment,$(1),$(2))); \
+else \
+	$(call report_check_error,required positive memory size for \
+		$(call parameter_description,$(1),$(2),$(3)) (current: $(strip $(1)))); \
+fi
+endef
+
 define check_nonnegative_integer_diagnostic
 case "$(strip $(1))" in \
 	''|*[!0-9]*) $(call report_check_error,required non-negative integer for \
@@ -799,7 +898,6 @@ metadata_runtime_backend_args = \
 	--container-image "$(SCBOLT_IMAGE)"
 metadata_old_file_args = $(foreach path,$(strip $(OLD_FILES)),--old-file "$(path)")
 metadata_git_hash = $$(git -C "$(scbolt_root)" rev-parse HEAD 2>/dev/null || echo unknown)
-python ?= $(if $(and $(conda_base),$(wildcard $(conda_base)/bin/python)),$(conda_base)/bin/python,python3)
 metadata_state = $(python) $(scripts_dir)/utils/scbolt_metadata.py state \
 	--module "$(1)" \
 	$(call metadata_target_args,$(1)) \
@@ -992,7 +1090,6 @@ conda_run_inference_timeout = $(conda_inference_env) \
 	$(call inference_timeout,$(2)) \
 	$(conda_command) run --no-capture-output -n $(1)
 endif
-BONESIS_HASH ?= d70736781f88faee334ef79622e144216837f4c5
 nested_make = \
 	$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
 	PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
@@ -1035,6 +1132,7 @@ run_logged = \
 		PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
 		TQDM_DISABLE="$(TQDM_DISABLE)" \
 		TQDM_TO_TTY="1" \
+		SCBOLT_LOGGING_TO_FILE=true \
 		$(MAKE) -f "$(makefile_path)" $(trust_make_options) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"; \
 	} 2>&1 | $(call system_tool,tee) -a "$(LOGFILE)"
 else ifeq ($(LOGGING),false)

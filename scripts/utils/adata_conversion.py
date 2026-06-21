@@ -5,13 +5,13 @@ from pathlib import Path
 import os
 import std
 import argparse
+import cli
 import re
 
 import anndata as ad
 import pandas as pd
 import scanpy as sc
 import bonesistools as bt
-
 
 script_name = Path(__file__).name
 
@@ -27,7 +27,7 @@ parser = argparse.ArgumentParser(
         "--from <h5ad | loom | 10x> --to <h5ad | loom | csv | csvs> "
         "[--metadata <KEY=VALUE ...>] [<args>]"
     ),
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -65,13 +65,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--layer",
-    dest="layer",
+    "--expression",
+    dest="expression",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer saved when --to csv (if not specified, save adata.X)",
+    help=("Expression layer saved when converting to CSV.\n" "Default: adata.X."),
 )
 
 parser.add_argument(
@@ -210,7 +210,7 @@ elif to_format == "loom":
 elif to_format == "zarr":
     adata.write_zarr(store=args.output)
 elif to_format == "csv":
-    bt.sct.tl.anndata_to_dataframe(adata=adata, layer=args.layer).to_csv(
+    bt.sct.tl.anndata_to_dataframe(adata=adata, layer=args.expression).to_csv(
         path_or_buf=args.output, sep=",", index=True
     )
 elif to_format == "csvs":

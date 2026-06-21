@@ -8,7 +8,6 @@ from sklearn.decomposition import PCA
 
 import bonesistools as bt
 
-
 quickstart_dir = Path(__file__).resolve().parent
 data_dir = quickstart_dir / "data"
 annotation_dir = quickstart_dir / "project" / "omics" / "annot"

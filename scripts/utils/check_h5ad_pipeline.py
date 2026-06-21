@@ -12,6 +12,10 @@ import csv
 import shlex
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+
+import cli
+
 Field = tuple[str, str]
 script_name = Path(__file__).name
 
@@ -134,7 +138,7 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
 
     if name == "norm.py":
         infile, outfile = map(h5ad, args[:2])
-        required = field("layers", option(tokens, "--layer"))
+        required = field("layers", option(tokens, "--expression"))
         required |= fields("obs", option_values(tokens, "--correction"))
         return Operation(
             [infile],
@@ -242,20 +246,20 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
 
     if name == "potency.py":
         infile = h5ad(args[0])
-        required = field("layers", option(tokens, "--layer"))
+        required = field("layers", option(tokens, "--expression"))
         required |= field("obs", option(tokens, "--cluster"))
-        required |= field("obsm", option(tokens, "--use-rep"))
+        required |= field("obsm", option(tokens, "--representation"))
         return Operation([infile], [], {0: required}, set(), None)
 
     if name == "adata_conversion.py":
         infile = h5ad(args[0])
-        required = field("layers", option(tokens, "--layer"))
+        required = field("layers", option(tokens, "--expression"))
         if "--only-hvg" in tokens:
             required.add(("var", "highly_variable"))
         return Operation([infile], [], {0: required}, set(), None)
 
-    if name == "import_matrix.py":
-        outfile = h5ad(args[3])
+    if name == "load_geo.py":
+        outfile = h5ad(args[1])
         return Operation(
             [],
             [outfile],
@@ -282,7 +286,7 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
         required = {
             ("layers", "log-norm"),
             ("obs", option(tokens, "--macrostate-obs") or "macrostate"),
-            ("obsm", option(tokens, "--use-rep") or "X_umap"),
+            ("obsm", option(tokens, "--representation") or "X_umap"),
         }
         required |= field("obs", option(tokens, "--condition-obs"))
         return Operation([infile], [outfile], {0: required}, set())
@@ -302,7 +306,7 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
     if name == "stream_mstates.py":
         infile, outfile = map(h5ad, args[:2])
         required = field("obs", option(tokens, "--obs"))
-        required |= field("obsm", option(tokens, "--use-rep"))
+        required |= field("obsm", option(tokens, "--representation"))
         return Operation([infile], [outfile], {0: required}, {("obs", "macrostate")})
 
     if name == "knnsc_mstates.py":
@@ -317,7 +321,7 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
         return Operation(
             [infile],
             [outfile],
-            {0: field("layers", option(tokens, "--layer"))},
+            {0: field("layers", option(tokens, "--expression"))},
             {
                 ("layers", "bin"),
                 ("var", "distribution"),
@@ -326,24 +330,24 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
 
     if name == "bin_clust_scboolseq.py":
         infile = h5ad(args[0])
-        required = field("layers", option(tokens, "--layer") or "bin")
+        required = field("layers", option(tokens, "--expression") or "bin")
         required |= field("var", option(tokens, "--distribution") or "distribution")
         required |= field("obs", option(tokens, "--cluster"))
         required |= field("obs", option(tokens, "--condition"))
-        required |= field("obsm", option(tokens, "--use-rep"))
+        required |= field("obsm", option(tokens, "--representation"))
         return Operation([infile], [], {0: required}, set(), None)
 
     if name == "bin_dea.py":
         infile = h5ad(args[0])
-        required = field("layers", option(tokens, "--layer"))
+        required = field("layers", option(tokens, "--expression"))
         required |= field("obs", option(tokens, "--cluster"))
-        required |= field("obsm", option(tokens, "--use-rep"))
+        required |= field("obsm", option(tokens, "--representation"))
         return Operation([infile], [], {0: required}, set(), None)
 
-    if name == "markers.py":
+    if name == "dea.py":
         infile = h5ad(args[0])
         required = field("obs", option(tokens, "--cluster"))
-        required |= field("layers", option(tokens, "--layer"))
+        required |= field("layers", option(tokens, "--expression"))
         return Operation([infile], [], {0: required}, set(), None)
 
     if name == "scoring.py":
@@ -358,13 +362,17 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
     if name == "hvg.py":
         infile = h5ad(args[0])
         return Operation(
-            [infile], [], {0: field("layers", option(tokens, "--layer"))}, set(), None
+            [infile],
+            [],
+            {0: field("layers", option(tokens, "--expression"))},
+            set(),
+            None,
         )
 
     if name == "plot_embedding.py":
         infile = h5ad(option(tokens, "--infile"))
         required = field("obs", option(tokens, "--obs"))
-        required |= field("obsm", option(tokens, "--use-rep"))
+        required |= field("obsm", option(tokens, "--representation"))
         return Operation([infile], [], {0: required}, set(), None)
 
     if name == "plot_composition.py":
@@ -514,7 +522,10 @@ def emit(status: str, messages: list[str]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog=script_name)
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        formatter_class=cli.HelpFormatter,
+    )
     parser.add_argument("--dry-run", type=Path, required=True)
     parser.add_argument("--conditions", nargs="*", default=[])
     args = parser.parse_args()

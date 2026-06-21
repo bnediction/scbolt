@@ -10,8 +10,111 @@ from datetime import date
 
 import math
 import re
+import shutil
+import textwrap
 
 import argparse
+
+
+class HelpFormatter(argparse.HelpFormatter):
+    """Wrap argparse help while preserving explicit line breaks."""
+
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ):
+        kwargs.setdefault("max_help_position", 4)
+        kwargs.setdefault(
+            "width",
+            min(shutil.get_terminal_size((100, 24)).columns, 100),
+        )
+        super().__init__(*args, **kwargs)
+
+    def _expand_help(
+        self,
+        action,
+    ):
+        text = super()._expand_help(action)
+        if not text:
+            return text
+        return text[0].upper() + text[1:]
+
+    def _split_lines(
+        self,
+        text,
+        width,
+    ):
+        text = textwrap.dedent(text)
+        lines = []
+        for line in text.splitlines():
+            if line:
+                lines.extend(
+                    textwrap.wrap(
+                        line,
+                        width,
+                        break_long_words=False,
+                        break_on_hyphens=False,
+                    )
+                )
+            else:
+                lines.append("")
+        return lines
+
+    def _fill_text(
+        self,
+        text,
+        width,
+        indent,
+    ):
+        text = textwrap.dedent(text).strip("\n")
+        lines = []
+        for line in text.splitlines():
+            if line:
+                lines.extend(
+                    textwrap.wrap(
+                        line,
+                        width,
+                        initial_indent=indent,
+                        subsequent_indent=indent,
+                        break_long_words=False,
+                        break_on_hyphens=False,
+                    )
+                )
+            else:
+                lines.append("")
+        return "\n".join(lines)
+
+
+def Memory(value: str) -> Union[str, None]:
+    value = value.strip()
+    if value == "":
+        return None
+
+    if re.fullmatch(r"[0-9]+", value):
+        if int(value) <= 0:
+            raise argparse.ArgumentTypeError(
+                f"expected positive memory size but received {value}"
+            )
+        return f"{value}GB"
+
+    memory_match = re.fullmatch(
+        r"(?P<size>[0-9]+([.][0-9]+)?)\s*(KB|MB|GB|TB|KiB|MiB|GiB|TiB)",
+        value,
+        flags=re.IGNORECASE,
+    )
+    if memory_match is not None:
+        if float(memory_match.group("size")) <= 0:
+            raise argparse.ArgumentTypeError(
+                f"expected positive memory size but received {value}"
+            )
+        return value
+
+    raise argparse.ArgumentTypeError(
+        "expected positive memory size; integers are interpreted as GB, "
+        "or use unit KB, MB, GB, TB, KiB, MiB, GiB or TiB"
+    )
+
 
 class Store_version(argparse.Action):
 

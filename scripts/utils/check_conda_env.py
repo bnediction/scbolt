@@ -11,6 +11,10 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+
+import cli
+
 script_name = Path(__file__).name
 
 
@@ -197,7 +201,10 @@ def emit(status: str, messages: list[str]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog=script_name)
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        formatter_class=cli.HelpFormatter,
+    )
     parser.add_argument("--env", required=True)
     parser.add_argument("--yaml", type=Path, required=True)
     parser.add_argument("--git-package", action="append", default=[])

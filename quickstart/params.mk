@@ -28,7 +28,7 @@ HCOP_VERSION = bundled
 ##############################
 
 ### macrostates ###
-USE_REP = X_se
+REPRESENTATION = X_se
 MACROSTATE_METHOD = stream
 MACROSTATE_SIZE = 25
 CLUSTER_NUMBER = 20

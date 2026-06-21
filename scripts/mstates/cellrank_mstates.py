@@ -3,6 +3,7 @@
 import os
 import std
 import argparse
+import cli
 from pathlib import Path
 
 import math
@@ -12,7 +13,6 @@ import numpy as np
 import anndata as ad
 import cellrank as cr
 import bonesistools as bt
-
 
 std.set_default_plot_params(bt.sct.pl)
 script_name = Path(__file__).name
@@ -25,7 +25,7 @@ parser = argparse.ArgumentParser(
         "See Lange et al. (2022) <https://www.nature.com/articles/s41592-021-01346-6>."
     ),
     usage=f"python {script_name} <FILE> <FILE> [--csv <FILE>] [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(

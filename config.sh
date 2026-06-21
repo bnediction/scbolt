@@ -24,7 +24,6 @@ scbolt_envs=(
     velocyto
 )
 
-bonesis_hash="${BONESIS_HASH:-d70736781f88faee334ef79622e144216837f4c5}"
 assume_yes="${SCBOLT_YES:-false}"
 
 usage() {
@@ -140,13 +139,6 @@ run_quiet() {
     return_or_interrupt "${status}"
 }
 
-install_bonesis_git() {
-    conda run --no-capture-output -n "$1" python -m pip install \
-        --force-reinstall \
-        --no-deps \
-        "git+https://github.com/bnediction/bonesis.git@${bonesis_hash}"
-}
-
 develop_scbolt_lib() {
     if [ "$1" == "scbolt-align" ] || [ "$1" == "scbolt-system" ];
     then
@@ -167,11 +159,6 @@ pth_file.write_text(f"{lib_dir}\n", encoding="utf-8")
 
 configure_env() {
     develop_scbolt_lib "$1" || return_or_interrupt "$?"
-
-    if [ "$1" == "scbolt-bonesis" ];
-    then
-        install_bonesis_git "$1" || return_or_interrupt "$?"
-    fi
 }
 
 install_env_steps() {

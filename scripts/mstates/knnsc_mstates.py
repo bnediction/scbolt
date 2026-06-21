@@ -27,7 +27,7 @@ parser = argparse.ArgumentParser(
         f"python {script_name} <FILE> <FILE> [--csv <FILE>] --obs <LITERAL> "
         "[--centrality <LITERAL ...>] [--periphery <LITERAL ...>] [<args>]"
     ),
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -192,8 +192,7 @@ eligible_clusters = {
 }
 if not eligible_clusters:
     parser.error(
-        "no cluster has at least "
-        f"--min-cluster-size={args.min_cluster_size} cells"
+        "no cluster has at least " f"--min-cluster-size={args.min_cluster_size} cells"
     )
 
 selected_clusters = set(args.centrality or []) | set(args.periphery or [])

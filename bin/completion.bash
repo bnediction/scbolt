@@ -212,14 +212,14 @@ _scbolt_module_options() {
     local target="$1"
 
     printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
-        --project-dir= --resources-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
+        --project-dir= --resources-dir= --memory= --jobs= --seed= --representation= --label-col= \
         --logging= --help help
     _scbolt_help_parameters "${target}"
 }
 
 _scbolt_run_options() {
     printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
-        --project-dir= --resources-dir= --memory= --jobs= --seed= --use-rep= --label-col= \
+        --project-dir= --resources-dir= --memory= --jobs= --seed= --representation= --label-col= \
         --logging= --help
 }
 
@@ -248,7 +248,7 @@ _scbolt_init_selection_options() {
 _scbolt_init_parameter_options() {
     printf '%s\n' --conditions= --organism= --label= --spec-file= --count-files= \
         --macrostate-files= --binarization-file= --project-dir= --resources-dir= \
-        --references= --logging= --jobs= --memory= --seed= --use-rep= --label-col=
+        --references= --logging= --jobs= --memory= --seed= --representation= --label-col=
 }
 
 _scbolt_complete_init_selection() {

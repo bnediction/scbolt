@@ -13,7 +13,6 @@ import anndata as ad
 import scanpy as sc
 import bonesistools as bt
 
-
 std.set_default_plot_params(bt.sct.pl)
 
 
@@ -33,7 +32,9 @@ EMBEDDINGS = (
 
 
 def compute_embedding(adata, method: str, args) -> None:
-    embedding_label = std.format_embedding(method)
+    embedding_label = (
+        "spectral" if method == "spectral" else std.format_embedding(method)
+    )
     if method == "umap":
         std.print_task(
             f"computing embedding (method={embedding_label}, "
@@ -120,7 +121,7 @@ parser = argparse.ArgumentParser(
         "t-SNE, and spectral embeddings."
     ),
     usage=f"python {script_name} <FILE> <FILE> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -138,13 +139,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--layer",
-    dest="layer",
+    "--expression",
+    dest="expression",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer used (if not specified, use adata.X)",
+    help=("Expression layer to use.\n" "Default: adata.X."),
 )
 
 parser.add_argument(
@@ -332,8 +333,8 @@ std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
-if args.layer:
-    adata.X = adata.layers[args.layer].copy()
+if args.expression:
+    adata.X = adata.layers[args.expression].copy()
 
 if args.only_hvg:
     std.print_task(

@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import argparse
+import cli
 import h5py
 import std
 
@@ -16,7 +17,7 @@ parser = argparse.ArgumentParser(
         f"python {script_name} <FILE...> [--obs <KEY...>] [--var <KEY...>] "
         "[--obsm <KEY...>] [--obsp <KEY...>] [--layers <KEY...>]"
     ),
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(

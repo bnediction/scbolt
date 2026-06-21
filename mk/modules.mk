@@ -6,7 +6,6 @@ infer_dir := $(results)/infer
 
 fastq_dir = $(omics_dir)/fastq/$(call condition_path,$(1))
 count_dir = $(omics_dir)/count/$(call condition_path,$(1))
-geo_dir = $(call count_dir,$(1))geo/
 filter_dir = $(omics_dir)/prep/$(call condition_path,$(1))filter/
 norm_dir = $(omics_dir)/prep/$(call condition_path,$(1))norm/
 clust_dir = $(omics_dir)/clust/$(call condition_path,$(1))
@@ -35,7 +34,8 @@ signatures  = $(resources_dir)/signatures/geiger.xls \
               $(resources_dir)/signatures/sig.json
 go_basic    = $(resources_dir)/go/go_basic.obo
 go_organism = $(resources_dir)/go/goslim_$(ORGANISM).obo
-gene2go     = $(resources_dir)/go/gene2go
+gene2go     = $(resources_dir)/go/gene2go.gz
+gene2go_done = $(resources_dir)/go/gene2go.gz.done
 repeat_msk_table = $(resources_dir)/ref/rmsk.txt.gz
 repeat_msk  = $(resources_dir)/ref/repeat_msk.gtf.gz
 
@@ -48,11 +48,6 @@ star_index = $(genome_ref)/star/Genome
 define find_paths_for_conditions
 
 fastq_$(1) =                    $(patsubst %/,%,$(call fastq_dir,$(1)))
-geo_dir_$(1) =                  $(call geo_dir,$(1))
-geo_matrix_$(1) =               $$(geo_dir_$(1))matrix.mtx.gz
-geo_barcodes_$(1) =             $$(geo_dir_$(1))barcodes.tsv.gz
-geo_genes_$(1) =                $$(geo_dir_$(1))genes.tsv.gz
-geo_files_$(1) =                $$(geo_matrix_$(1)) $$(geo_barcodes_$(1)) $$(geo_genes_$(1))
 count_file_$(1) =               $(call file_for_condition,$(1),$(COUNT_FILES))
 load_matrix_$(1) =              $(call count_dir,$(1))counts.h5ad
 cellranger_$(1) =               $(call count_dir,$(1))cellranger/$(call condition_name,$(1)).mri.tgz
@@ -183,7 +178,7 @@ cotan_target :=
 define find_targets_for_conditions
 
 $(eval fastq_target := $(fastq_target) $(if $(filter true,$(matrix_mode)),,$(fastq_$(1))))
-$(eval load_matrix_target := $(load_matrix_target) $(if $(filter true,$(matrix_mode)),$(load_matrix_$(1)) $(geo_files_$(1))))
+$(eval load_matrix_target := $(load_matrix_target) $(if $(filter true,$(matrix_mode)),$(load_matrix_$(1))))
 $(eval alignment_target := $(alignment_target) $(alignment_$(1)))
 $(eval cellranger_target := $(cellranger_target) $(cellranger_$(1)))
 $(eval star_target := $(star_target) $(star_$(1)))
@@ -229,8 +224,8 @@ endif
 ## BEGIN PARAMETERS ##
 
 ifeq ($(diagnostic_mode),)
-ifneq ($(call is_positive_integer,$(MEMORY)),true)
-$(error parameter MEMORY must be a positive integer (current: $(MEMORY)))
+ifneq ($(memory_valid),true)
+$(error parameter MEMORY must be a positive memory size (current: $(MEMORY)))
 endif
 ifneq ($(call is_positive_integer,$(JOBS)),true)
 $(error parameter JOBS must be a positive integer (current: $(JOBS)))
@@ -288,7 +283,7 @@ embedding_method_X_umap = umap
 embedding_method_X_tsne = tsne
 embedding_method_X_se = spectral
 embedding_method = $(embedding_method_$(1))
-embedding = $(call embedding_method,$(USE_REP))
+embedding = $(call embedding_method,$(REPRESENTATION))
 
 label_ids = $(if $(LABEL),$(shell $(call system_tool,seq) 0 1 $$(($(words $(LABEL))-1))))
 label_map = $(join $(label_ids),$(addprefix :,$(LABEL)))
@@ -305,7 +300,7 @@ knnsc_dimension=--dimension $(KNNSC_DIMENSION)
 endif
 
 hvg_layer_name = $(if $(filter seurat_v3,$(1)),counts,log-norm)
-hvg_layer = --layer $(call hvg_layer_name,$(1))
+hvg_layer = --expression $(call hvg_layer_name,$(1))
 bin_hvg_layer = $(if $(filter seurat seurat_v3 cell_ranger,$(BIN_HVG_FLAVOR)),\
 	$(call hvg_layer,$(BIN_HVG_FLAVOR)))
 bin_scboolseq_hvg = $(if $(filter true,$(BIN_SCBOOLSEQ_ONLY_HVG)),--filter-genes $(bin_hvg))
@@ -465,12 +460,12 @@ target_params_filtering = \
 	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
 	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
 	MAD_DEVIATION NORM_MAD MT
-target_params_normalization = CC_CORRECTION
+target_params_normalization = MEMORY CC_CORRECTION
 target_params_clustering = \
 	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
 	ANALYSIS_HVG_BINS DIM_PCA DIM_EMBEDDING CENTERED_PCA PCA_ONLY_HVG \
 	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD EMBEDDING_N_ITER
-target_params_dea = LOGFC CORRECTION ALPHA
+target_params_dea = MEMORY DEA_METHOD LOGFC CORRECTION ALPHA
 target_params_goea = GENEINFO_VERSION
 target_params_annotation = LABEL
 target_params_velocity = DIM_MOMENT VELOCITY_ONLY_HVG SMM_MODE
@@ -496,12 +491,12 @@ target_params_bin-macrostates = \
 target_params_bin-dea = \
 	MACROSTATE_FILES \
 	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
-	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
+	MEMORY BIN_LOGFC BIN_CORRECTION BIN_ALPHA
 target_params_bin-consensus = \
 	MACROSTATE_FILES \
 	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD \
 	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
-	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
+	MEMORY BIN_LOGFC BIN_CORRECTION BIN_ALPHA
 target_params_binarization = \
 	BIN_METHOD BINARIZATION_FILE MACROSTATE_FILES \
 	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS
@@ -551,45 +546,45 @@ sensitive_params_filtering = \
 	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
 	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
 	MAD_DEVIATION NORM_MAD MT
-sensitive_params_normalization = ORGANISM CC_CORRECTION
+sensitive_params_normalization = ORGANISM MEMORY CC_CORRECTION
 sensitive_params_clustering = \
 	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
 	ANALYSIS_HVG_BINS DIM_PCA DIM_EMBEDDING CENTERED_PCA PCA_ONLY_HVG \
 	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD EMBEDDING_N_ITER SEED
-sensitive_params_dea = LOGFC CORRECTION ALPHA
+sensitive_params_dea = MEMORY DEA_METHOD LOGFC CORRECTION ALPHA
 sensitive_params_scoring = LABEL_COL
 sensitive_params_goea = ORGANISM GENEINFO_VERSION
-sensitive_params_annotation = LABEL LABEL_COL USE_REP
-sensitive_params_velocity = DIM_MOMENT VELOCITY_ONLY_HVG SMM_MODE USE_REP LABEL_COL
-sensitive_params_potency = BATCH_SIZE SMOOTH_BATCH_SIZE ORGANISM USE_REP LABEL_COL SEED
-sensitive_params_cotan = MACROSTATE_SIZE COTAN_METHOD COTAN_ONLY_HVG MAX_ITER USE_REP LABEL_COL
+sensitive_params_annotation = LABEL LABEL_COL REPRESENTATION
+sensitive_params_velocity = DIM_MOMENT VELOCITY_ONLY_HVG SMM_MODE REPRESENTATION LABEL_COL
+sensitive_params_potency = BATCH_SIZE SMOOTH_BATCH_SIZE ORGANISM REPRESENTATION LABEL_COL SEED
+sensitive_params_cotan = MACROSTATE_SIZE COTAN_METHOD COTAN_ONLY_HVG MAX_ITER REPRESENTATION LABEL_COL
 sensitive_params_cellrank = \
 	MACROSTATE_SIZE CELLRANK_METHOD STATES INITIAL_STATES TERMINAL_STATES \
 	CELLRANK_STABILITY CELLRANK_ALPHA SEED LABEL_COL
 sensitive_params_stream = \
 	MACROSTATE_SIZE CLUSTERING_METHOD CLUSTER_NUMBER \
 	ALPHA_EPG MU_EPG LAMBDA_EPG EXTEND_EPG EXTEND_MODE \
-	EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER USE_REP LABEL_COL
+	EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER REPRESENTATION LABEL_COL
 sensitive_params_knnsc = \
 	MACROSTATE_SIZE KNNSC_EMBEDDING KNNSC_DIMENSION KNNSC_NEIGHBORS \
-	KNNSC_MIN_CLUSTER_SIZE METRIC LABEL_COL USE_REP
+	KNNSC_MIN_CLUSTER_SIZE METRIC LABEL_COL REPRESENTATION
 sensitive_params_macrostates =
 sensitive_params_bin-cells = \
-	MACROSTATE_FILES USE_REP \
+	MACROSTATE_FILES REPRESENTATION \
 	BIN_SCBOOLSEQ_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
 	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES
 sensitive_params_bin-macrostates = \
-	MACROSTATE_FILES USE_REP \
+	MACROSTATE_FILES REPRESENTATION \
 	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD
 sensitive_params_bin-dea = \
-	MACROSTATE_FILES USE_REP \
+	MACROSTATE_FILES REPRESENTATION \
 	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
-	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
+	MEMORY BIN_LOGFC BIN_CORRECTION BIN_ALPHA
 sensitive_params_bin-consensus = \
-	MACROSTATE_FILES USE_REP \
+	MACROSTATE_FILES REPRESENTATION \
 	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD \
 	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
-	BIN_LOGFC BIN_CORRECTION BIN_ALPHA
+	MEMORY BIN_LOGFC BIN_CORRECTION BIN_ALPHA
 sensitive_params_binarization =
 sensitive_params_spec = \
 	SPEC_FILE SPEC_ONLY_HVG \
@@ -657,10 +652,10 @@ runtime_envs_bn-min = scbolt-bonesis
 runtime_envs_bn-submin = scbolt-bonesis
 runtime_envs_bn-diverse = scbolt-bonesis
 
-use_rep_check_pattern = $(use_rep_check_pattern_1)$(use_rep_check_pattern_2)$(use_rep_check_pattern_3)
-use_rep_check_pattern_1 = scripts/(clust/annotation|utils/pipe_its|traj/potency
-use_rep_check_pattern_2 = |mstates/stream_mstates|bin/(bin_cells_scboolseq
-use_rep_check_pattern_3 = |bin_clust_scboolseq|bin_dea)).py
+representation_check_pattern = $(representation_check_pattern_1)$(representation_check_pattern_2)$(representation_check_pattern_3)
+representation_check_pattern_1 = scripts/(clust/annotation|utils/pipe_its|traj/potency
+representation_check_pattern_2 = |mstates/stream_mstates|bin/(bin_cells_scboolseq
+representation_check_pattern_3 = |bin_clust_scboolseq|bin_dea)).py
 
 label_col_check_pattern = $(label_col_check_pattern_1)$(label_col_check_pattern_2)
 label_col_check_pattern_1 = scripts/(clust/annotation|utils/pipe_its|traj/velocity
@@ -674,7 +669,7 @@ project_config_param_set = \
 core_config_param_set = \
 	PARAMS REFERENCES PROJECT_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING \
 	RUNTIME_BACKEND SCBOLT_IMAGE SCBOLT_CONTAINER_ENGINE SCBOLT_CONTAINER_ARGS \
-	SCBOLT_CONTAINER_MOUNTS USE_REP LABEL_COL OLD_FILES
+	SCBOLT_CONTAINER_MOUNTS REPRESENTATION LABEL_COL OLD_FILES
 method_config_param_set = \
 	ALIGNMENT_TOOL STAR_CB_LEN STAR_UMI_LEN \
 	STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES \
@@ -685,7 +680,7 @@ method_config_param_set = \
 	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
 	ANALYSIS_HVG_BINS DIM_PCA DIM_EMBEDDING CENTERED_PCA PCA_ONLY_HVG \
 	NEIGHBORS METRIC RESOLUTION MIN_DIST SPREAD EMBEDDING_N_ITER \
-	LOGFC CORRECTION ALPHA \
+	DEA_METHOD LOGFC CORRECTION ALPHA \
 	DIM_MOMENT VELOCITY_ONLY_HVG SMM_MODE \
 	BATCH_SIZE SMOOTH_BATCH_SIZE \
 	MACROSTATE_SIZE MACROSTATE_METHOD \
@@ -737,7 +732,7 @@ config_base_params = \
 	$(foreach condition,$(conditions),$(call gsm_var,$(condition))) \
 	PARAMS REFERENCES PROJECT_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING \
 	RUNTIME_BACKEND SCBOLT_IMAGE SCBOLT_CONTAINER_ENGINE SCBOLT_CONTAINER_ARGS \
-	SCBOLT_CONTAINER_MOUNTS USE_REP LABEL_COL OLD_FILES
+	SCBOLT_CONTAINER_MOUNTS REPRESENTATION LABEL_COL OLD_FILES
 config_params_from_modules = $(strip $(foreach module,$(1),$(target_params_$(module))))
 config_project_params = $(call uniq,$(filter $(project_config_param_set),$(1)))
 config_core_params = $(call uniq,$(filter $(core_config_param_set),$(1)))

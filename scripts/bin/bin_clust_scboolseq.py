@@ -15,7 +15,6 @@ import bonesistools as bt
 
 import numpy as np
 
-
 std.set_default_plot_params(bt.sct.pl)
 
 
@@ -243,7 +242,7 @@ parser = argparse.ArgumentParser(
         "binarized single-cell data using a voting rule."
     ),
     usage=f"python {script_name} [-h] <FILE> <FILE> [--counts <FILE>] --cluster <LITERAL> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -271,13 +270,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--layer",
-    dest="layer",
+    "--expression",
+    dest="expression",
     type=str,
     required=False,
     default="bin",
     metavar="LITERAL",
-    help="layer storing binarized counts (default: bin)",
+    help=(
+        "Expression layer to use. Expected data: binarized counts.\n" "Default: bin."
+    ),
 )
 
 parser.add_argument(
@@ -380,15 +381,16 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--use-rep",
-    dest="use_rep",
+    "--representation",
+    dest="representation",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
     help=(
-        "embedding projection in adata.obsm used for plotting percentage "
-        "of cluster-related binarization (default: None)"
+        "Embedding representation in adata.obsm used for plotting cluster-related "
+        "binarization percentages.\n"
+        "Default: None."
     ),
 )
 
@@ -415,8 +417,10 @@ convert_metadata = (
     else "category"
 )
 
-std.print_info(f"converting layer '{args.layer}' into dataframe")
-cell_df = bt.sct.tl.anndata_to_dataframe(adata=adata, obs=metadata, layer=args.layer)
+std.print_info(f"converting layer '{args.expression}' into dataframe")
+cell_df = bt.sct.tl.anndata_to_dataframe(
+    adata=adata, obs=metadata, layer=args.expression
+)
 
 std.print_task("counting binarized values (scope=cell populations)")
 cluster_counts = count_binarized_values(
@@ -450,22 +454,24 @@ if isinstance(cluster_bin.index, MultiIndex):
         name=args.cluster,
     )
 
-if args.use_rep:
+if args.representation:
     embedding_label = (
-        args.use_rep[2:].lower()
-        if args.use_rep.startswith("X_")
-        else args.use_rep.lower()
+        args.representation[2:].lower()
+        if args.representation.startswith("X_")
+        else args.representation.lower()
     )
     std.print_task(
         "plotting binarization summaries "
         f"(directory={os.path.relpath(os.path.dirname(args.outfile))})"
     )
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
-    adata.obs[f"pct_bin_{args.cluster}"] = adata.obs[args.cluster].map(pct_bin)
+    adata.obs[f"pct_bin_{args.cluster}"] = (
+        adata.obs[args.cluster].map(pct_bin).astype(float)
+    )
     bt.sct.pl.embedding(
         adata,
         obs=f"pct_bin_{args.cluster}",
-        use_rep=args.use_rep,
+        use_rep=args.representation,
         xlabel=std.axis_label(embedding_label, 1),
         ylabel=std.axis_label(embedding_label, 2),
         zlabel=std.axis_label(embedding_label, 3),
@@ -473,15 +479,8 @@ if args.use_rep:
         s=4,
         alpha=1,
         show_legend=True,
-        lgd_params={
-            "title": "pct bin",
-            "ncol": 1,
-            "markerscale": 5,
-            "frameon": True,
-            "edgecolor": bt.sct.pl.get_color("black"),
-            "shadow": False,
-        },
-        n_components=3 if adata.obsm[args.use_rep].shape[1] > 2 else 2,
+        colorbar_scale=0.8,
+        n_components=3 if adata.obsm[args.representation].shape[1] > 2 else 2,
         background_visible=False,
         outfile=Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf"),
     )
@@ -490,7 +489,7 @@ if args.use_rep:
             bt.sct.pl.embedding(
                 adata[adata.obs[args.condition] == condition],
                 obs=f"pct_bin_{args.cluster}",
-                use_rep=args.use_rep,
+                use_rep=args.representation,
                 xlabel=std.axis_label(embedding_label, 1),
                 ylabel=std.axis_label(embedding_label, 2),
                 zlabel=std.axis_label(embedding_label, 3),
@@ -498,15 +497,8 @@ if args.use_rep:
                 s=4,
                 alpha=1,
                 show_legend=True,
-                lgd_params={
-                    "title": "pct bin",
-                    "ncol": 1,
-                    "markerscale": 5,
-                    "frameon": True,
-                    "edgecolor": bt.sct.pl.get_color("black"),
-                    "shadow": False,
-                },
-                n_components=3 if adata.obsm[args.use_rep].shape[1] > 2 else 2,
+                colorbar_scale=0.8,
+                n_components=3 if adata.obsm[args.representation].shape[1] > 2 else 2,
                 background_visible=False,
                 outfile=Path(
                     f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}_{condition}.pdf"

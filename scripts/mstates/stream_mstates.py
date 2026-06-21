@@ -18,7 +18,6 @@ import matplotlib.pyplot as plt
 from networkx.classes.graph import Graph
 from rpy2.rinterface import ListSexpVector
 
-
 std.set_default_plot_params(bt.sct.pl)
 script_name = Path(__file__).name
 
@@ -30,7 +29,7 @@ parser = argparse.ArgumentParser(
         "See Chen et al. (2019) <https://www.nature.com/articles/s41467-019-09670-4>."
     ),
     usage=f"python {script_name} <FILE> <FILE> --obs <LITERAL> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -68,13 +67,17 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--use-rep",
-    dest="use_rep",
+    "--representation",
+    dest="representation",
     type=str,
     required=False,
     default="X_umap",
     metavar="LITERAL",
-    help="embedding projection in adata.obsm used for computing elastic principal graph (default: X_umap)",
+    help=(
+        "Embedding representation in adata.obsm used for computing the elastic "
+        "principal graph.\n"
+        "Default: X_umap."
+    ),
 )
 
 parser.add_argument(
@@ -226,7 +229,9 @@ parser.add_argument(
 args = parser.parse_args()
 
 embedding_label = (
-    args.use_rep[2:].lower() if args.use_rep.startswith("X_") else args.use_rep.lower()
+    args.representation[2:].lower()
+    if args.representation.startswith("X_")
+    else args.representation.lower()
 )
 
 outpath = os.path.dirname(args.outfile)
@@ -236,8 +241,10 @@ std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 adata.uns["workdir"] = str(outpath)
 
-adata.uns["dr"] = args.use_rep
-adata.obsm["X_dr"] = bt.sct.tl.choose_representation(adata, use_rep=args.use_rep).copy()
+adata.uns["dr"] = args.representation
+adata.obsm["X_dr"] = bt.sct.tl.choose_representation(
+    adata, use_rep=args.representation
+).copy()
 
 adata.obs[args.obs] = adata.obs[args.obs].astype(object)
 
@@ -336,7 +343,7 @@ for group in groups:
     bt.sct.pl.trajectory(
         adata,
         obs=group,
-        use_rep=args.use_rep,
+        use_rep=args.representation,
         graph_key="epg",
         xlabel=std.axis_label(embedding_label, 1),
         ylabel=std.axis_label(embedding_label, 2),

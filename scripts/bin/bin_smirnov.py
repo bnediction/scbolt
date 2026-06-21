@@ -13,14 +13,13 @@ import pandas as pd
 import anndata as ad
 import bonesistools as bt
 
-
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
     prog="bin_smirnov",
     description="Binarize clusters using Kolmogorov-Smirnov tests.",
     usage=f"python {script_name} [-h] <FILE> <FILE> --cluster <LITERAL> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -47,13 +46,16 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--layer",
-    dest="layer",
+    "--expression",
+    dest="expression",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer used (if not specified, use adata.X; expected log-normalized data)",
+    help=(
+        "Expression layer to use. Expected data: log-normalized counts.\n"
+        "Default: adata.X."
+    ),
 )
 
 parser.add_argument(
@@ -100,13 +102,17 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--use-rep",
-    dest="use_rep",
+    "--representation",
+    dest="representation",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
-    help="embedding projection in adata.obsm used for plotting percentage of cluster-related binarization (default: None)",
+    help=(
+        "Embedding representation in adata.obsm used for plotting cluster-related "
+        "binarization percentages.\n"
+        "Default: None."
+    ),
 )
 
 parser.add_argument(
@@ -127,8 +133,8 @@ std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
-if args.layer:
-    adata.X = adata.layers[args.layer].copy()
+if args.expression:
+    adata.X = adata.layers[args.expression].copy()
 
 if args.filter_genes:
     std.print_info(f"filtering genes (file={std.format_path(args.filter_genes)})")
@@ -143,7 +149,7 @@ ks_df = bt.sct.tl.smirnov_tests(
     alternative="two-sided",
     corr_method=args.correction,
     pval_cutoff=args.alpha,
-    layer=args.layer,
+    layer=args.expression,
     copy=True,
 )
 if ks_df is None:
@@ -152,7 +158,7 @@ if ks_df is None:
 logfoldchanges_df = bt.sct.tl.calculate_logfoldchanges(
     adata,
     groupby=args.cluster,
-    layer=args.layer,
+    layer=args.expression,
     is_log=args.is_log,
     cluster_rebalancing=False,
     filter_logfoldchanges=lambda x: abs(x) > args.logfc,
@@ -180,22 +186,24 @@ for group, gene, logfoldchange in ks_df[
 ].itertuples(index=False, name=None):
     cluster_bin.at[group, gene] = 1 if logfoldchange > 0 else 0
 
-if args.use_rep:
+if args.representation:
     embedding_label = (
-        args.use_rep[2:].lower()
-        if args.use_rep.startswith("X_")
-        else args.use_rep.lower()
+        args.representation[2:].lower()
+        if args.representation.startswith("X_")
+        else args.representation.lower()
     )
     std.print_task(
         "plotting binarization summaries "
         f"(directory={os.path.relpath(os.path.dirname(args.outfile))})"
     )
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
-    adata.obs[f"pct_bin_{args.cluster}"] = adata.obs[args.cluster].map(pct_bin)
+    adata.obs[f"pct_bin_{args.cluster}"] = (
+        adata.obs[args.cluster].map(pct_bin).astype(float)
+    )
     bt.sct.pl.embedding(
         adata,
         obs=f"pct_bin_{args.cluster}",
-        use_rep=args.use_rep,
+        use_rep=args.representation,
         xlabel=std.axis_label(embedding_label, 1),
         ylabel=std.axis_label(embedding_label, 2),
         zlabel=std.axis_label(embedding_label, 3),
@@ -203,15 +211,8 @@ if args.use_rep:
         s=4,
         alpha=1,
         show_legend=True,
-        lgd_params={
-            "title": "pct bin",
-            "ncol": 1,
-            "markerscale": 5,
-            "frameon": True,
-            "edgecolor": bt.sct.pl.get_color("black"),
-            "shadow": False,
-        },
-        n_components=3 if adata.obsm[args.use_rep].shape[1] > 2 else 2,
+        colorbar_scale=0.8,
+        n_components=3 if adata.obsm[args.representation].shape[1] > 2 else 2,
         background_visible=False,
         outfile=Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf"),
     )

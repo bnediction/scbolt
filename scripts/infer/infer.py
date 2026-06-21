@@ -109,7 +109,9 @@ def make_filter_consts_score_formatter(
         if not values:
             return {"score": str(list(score))}
 
-        removed_nodes = values[-2] if important_total and len(values) >= 2 else values[-1]
+        removed_nodes = (
+            values[-2] if important_total and len(values) >= 2 else values[-1]
+        )
         kept_nodes = max(node_total - removed_nodes, 0)
         fields = {"total": f"{kept_nodes}/{node_total}"}
         if important_total and len(values) >= 2:
@@ -643,7 +645,7 @@ parser = argparse.ArgumentParser(
         f"python {script_name} [filter-nodes | filter-consts | min | submin | diverse] "
         "<FILE> <FILE> [<args>]"
     ),
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(

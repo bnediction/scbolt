@@ -34,7 +34,7 @@ The model specification file (format: yml) must contain:
         f"python {script_name} <FILE> <FILE> --model <FILE> --metastates <FILE> "
         "--mandatory-nodes <FILE> --important-nodes <FILE> [<args>]"
     ),
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(

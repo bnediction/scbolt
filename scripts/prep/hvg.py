@@ -9,14 +9,13 @@ from pathlib import Path
 import anndata as ad
 import scanpy as sc
 
-
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
     prog="hvg",
     description="Estimate top highly variable genes.",
     usage=f"python {script_name} <FILE> <FILE> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -55,16 +54,17 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--layer",
-    dest="layer",
+    "--expression",
+    dest="expression",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
-    help="""
-    layer used (expects counting data when method='seurat_v3', otherwise log-normalized data; \
-    if not specified, use layer 'counts' with method='seurat_v3', otherwise layer 'log-norm')
-    """,
+    help=(
+        "Expression layer used for HVG selection. Expected data: counts with "
+        "seurat_v3, otherwise log-normalized counts.\n"
+        "Default: counts with seurat_v3, otherwise log-norm."
+    ),
 )
 
 parser.add_argument(
@@ -101,8 +101,8 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-if args.layer is None:
-    args.layer = "counts" if args.method == "seurat_v3" else "log-norm"
+if args.expression is None:
+    args.expression = "counts" if args.method == "seurat_v3" else "log-norm"
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
@@ -132,7 +132,7 @@ std.print_task(
 with std.filter_scanpy_hvg_warnings():
     sc.pp.highly_variable_genes(
         adata,
-        layer=args.layer,
+        layer=args.expression,
         flavor=args.method,
         span=args.span,
         n_bins=args.bins,

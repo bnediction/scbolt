@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import argparse
+import cli
 import json
 import os
 from pathlib import Path
@@ -11,11 +12,11 @@ from bonesistools import sctools as sct
 
 import matplotlib.pyplot as plt
 
-
 std.set_default_plot_params(sct.pl)
 
 
 parser = argparse.ArgumentParser(
+    formatter_class=cli.HelpFormatter,
     prog="composition plotting",
     description="plot composition figure from anndata object",
     usage="python <PATH> --infile <PATH> --outfile <PATH> --obs <LITERAL> --groupby <LITERAL>",

@@ -3,10 +3,10 @@
 import os
 import std
 import argparse
+import cli
 from pathlib import Path
 
 import anndata as ad
-import scanpy as sc
 import numpy as np
 import bonesistools as bt
 from scipy import sparse
@@ -39,11 +39,6 @@ def normalize_by_library_size(adata, layer, target_sum=1e4):
     adata.layers[layer] = matrix
 
 
-def densify_layer(adata, layer):
-    if sparse.issparse(adata.layers[layer]):
-        adata.layers[layer] = adata.layers[layer].toarray()
-
-
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
@@ -53,7 +48,7 @@ parser = argparse.ArgumentParser(
         "library size, log-transformation, scaling and correction of unwanted effects."
     ),
     usage=f"python {script_name} <FILE> <FILE> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -71,13 +66,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--layer",
-    dest="layer",
+    "--expression",
+    dest="expression",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer used (if not specified, use adata.X)",
+    help=("Expression layer to use.\n" "Default: adata.X."),
 )
 
 parser.add_argument(
@@ -101,6 +96,19 @@ parser.add_argument(
     help="number of allocated processors (default: 1)",
 )
 
+parser.add_argument(
+    "--max-memory",
+    dest="max_memory",
+    type=cli.Memory,
+    required=False,
+    default=None,
+    metavar="MEMORY",
+    help=(
+        "maximum memory allocated to chunked BoNesisTools operations "
+        "(integers are interpreted as GB)"
+    ),
+)
+
 args = parser.parse_args()
 
 
@@ -111,8 +119,8 @@ std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
-if args.layer:
-    adata.X = adata.layers[args.layer].copy()
+if args.expression:
+    adata.X = adata.layers[args.expression].copy()
 
 std.print_task("normalizing read counts")
 
@@ -121,13 +129,21 @@ adata.layers["norm"] = adata.X.copy()
 normalize_by_library_size(adata, layer="norm", target_sum=1e4)
 
 std.print_info("performing log-transformation (layer=log-norm)")
-adata.layers["log-norm"] = adata.layers["norm"].copy()
-sc.pp.log1p(adata, base=np.exp(1), layer="log-norm", copy=False)
+bt.sct.pp.log1p(
+    adata,
+    expression="norm",
+    key_added="log-norm",
+    max_memory=args.max_memory,
+    copy=False,
+)
 
 std.print_info("scaling to unit variance and zero mean (layer=scale)")
-adata.layers["scale"] = adata.layers["log-norm"].copy()
-densify_layer(adata, "scale")
-sc.pp.scale(adata, layer="scale", copy=False)
+bt.sct.pp.scale(
+    adata,
+    expression="log-norm",
+    key_added="scale",
+    copy=False,
+)
 
 if args.correction:
     std.print_info("correcting unwanted effects (layer: correct)")
@@ -140,8 +156,7 @@ if args.correction:
         copy=False,
         n_jobs=args.jobs,
     )
-    densify_layer(adata, "correct")
-    sc.pp.scale(adata, layer="correct", copy=False)
+    bt.sct.pp.scale(adata, expression="correct", copy=False)
 else:
     std.print_info("no unwanted effects specified")
     adata.layers["correct"] = adata.layers["scale"].copy()

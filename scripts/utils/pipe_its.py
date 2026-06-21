@@ -3,11 +3,11 @@
 import os
 import std
 import argparse
+import cli
 from pathlib import Path
 
 import anndata as ad
 import pandas as pd
-
 
 script_name = Path(__file__).name
 
@@ -25,7 +25,7 @@ parser = argparse.ArgumentParser(
         "--labels <LITERAL ...> --obs-label <LITERAL> "
         "[--obs <LITERAL ...>] [--var <LITERAL ...>]"
     ),
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(

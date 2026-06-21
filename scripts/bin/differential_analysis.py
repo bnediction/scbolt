@@ -19,7 +19,6 @@ import itertools
 import networkx as nx
 
 
-
 def collectri_to_grn(
     collectri: pd.DataFrame,
     sign_label: Optional[str] = "weight",
@@ -112,7 +111,7 @@ parser = argparse.ArgumentParser(
     prog="differential_analysis",
     description="""Compute pairwise inter-cluster predecessor scores from binarized meta-observations.""",
     usage=f"python {script_name} [-h] <FILE> <PATH> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(

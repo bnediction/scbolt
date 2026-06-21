@@ -6,9 +6,14 @@ import argparse
 import hashlib
 import json
 import subprocess
+import sys
 from pathlib import Path
 from functools import lru_cache
 from typing import Literal
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+
+import cli
 
 Status = Literal["done", "stale", "pending", "untracked"]
 State = tuple[Status, str, list[Path], list[Path]]
@@ -109,7 +114,11 @@ def container_metadata(
         return {}
 
     if not container_image:
-        return {"engine": container_engine, "image": container_image, "error": "missing image"}
+        return {
+            "engine": container_engine,
+            "image": container_image,
+            "error": "missing image",
+        }
 
     result = subprocess.run(
         [
@@ -307,7 +316,9 @@ def runtime_changes(
 
         current_packages = current.get("packages")
         stored_packages = stored_env.get("packages")
-        if not isinstance(current_packages, dict) or not isinstance(stored_packages, dict):
+        if not isinstance(current_packages, dict) or not isinstance(
+            stored_packages, dict
+        ):
             messages.append(f"runtime drift: {env} (invalid stored environment)")
             continue
 
@@ -466,7 +477,9 @@ def format_target_state_label(
 
     multiple_targets = len(all_targets) > 1
     all_labels = unique_values(
-        [format_target_label(target) for target in all_targets] if multiple_targets else []
+        [format_target_label(target) for target in all_targets]
+        if multiple_targets
+        else []
     )
     labels = (
         [format_target_label(target) for target in selected_targets]
@@ -526,7 +539,12 @@ def state_for_targets(
 
     if not parameters and not current_runtime:
         if missing:
-            return "pending", format_missing_message(module, missing, targets), [], missing
+            return (
+                "pending",
+                format_missing_message(module, missing, targets),
+                [],
+                missing,
+            )
         return "done", f"{module} (no sensitive parameters)", [], []
 
     expected_config_hash = config_hash(parameters)
@@ -569,7 +587,9 @@ def state_for_targets(
             if current_runtime
             else metadata.get("config_hash")
         )
-        expected_hash = expected_metadata_hash if current_runtime else expected_config_hash
+        expected_hash = (
+            expected_metadata_hash if current_runtime else expected_config_hash
+        )
         stored_module = metadata.get("module")
         if stored_module != module or stored_hash != expected_hash:
             stale_targets.append(target)
@@ -600,7 +620,12 @@ def state_for_targets(
         messages = format_grouped_messages(grouped_messages, all_labels)
         messages.extend(format_change_messages(grouped_changes, all_labels))
         unique_messages = unique_values(messages)
-        return "stale", f"{module} ({'; '.join(unique_messages)})", stale_targets, missing
+        return (
+            "stale",
+            f"{module} ({'; '.join(unique_messages)})",
+            stale_targets,
+            missing,
+        )
 
     if untracked_targets:
         labels = grouped_messages.get("metadata missing", [])
@@ -969,12 +994,17 @@ def print_batch_clean(args: argparse.Namespace) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
+        formatter_class=cli.HelpFormatter,
         prog=Path(__file__).name,
         description="Manage scBOLT output metadata sidecars.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    write = subparsers.add_parser("write", help="write metadata sidecars")
+    write = subparsers.add_parser(
+        "write",
+        formatter_class=cli.HelpFormatter,
+        help="write metadata sidecars",
+    )
     write.add_argument("--module", required=True)
     write.add_argument("--target", action="append", required=True)
     write.add_argument("--params-file", required=True)
@@ -984,7 +1014,11 @@ def build_parser() -> argparse.ArgumentParser:
     add_runtime_arguments(write)
     write.set_defaults(func=write_metadata)
 
-    state = subparsers.add_parser("state", help="compare metadata sidecars")
+    state = subparsers.add_parser(
+        "state",
+        formatter_class=cli.HelpFormatter,
+        help="compare metadata sidecars",
+    )
     state.add_argument("--module", required=True)
     state.add_argument("--target", action="append", default=[])
     state.add_argument("--old-file", action="append", default=[])
@@ -1013,6 +1047,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     batch_progress = subparsers.add_parser(
         "batch-progress",
+        formatter_class=cli.HelpFormatter,
         help="compare metadata sidecars for progress reports",
     )
     batch_progress.add_argument("--manifest", required=True)
@@ -1022,6 +1057,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     batch_clean = subparsers.add_parser(
         "batch-clean",
+        formatter_class=cli.HelpFormatter,
         help="compare metadata sidecars for stale output cleanup",
     )
     batch_clean.add_argument("--manifest", required=True)

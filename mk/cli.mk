@@ -146,7 +146,7 @@ show_config_embedding_label_X_pacmap = PaCMAP
 show_config_embedding_label = $(strip $(if $(show_config_embedding_label_$(1)),\
 	$(show_config_embedding_label_$(1)),\
 	$(patsubst X_%,%,$(1))))
-show_config_embedding = $(if $(filter knnsc,$(MACROSTATE_METHOD)),$(KNNSC_EMBEDDING),$(USE_REP))
+show_config_embedding = $(if $(filter knnsc,$(MACROSTATE_METHOD)),$(KNNSC_EMBEDDING),$(REPRESENTATION))
 show_config_macrostate_embedding = $(call show_config_embedding_label,$(show_config_embedding))
 show_config_analytic_modules = \
 	velocity potency cotan cellrank stream knnsc \
@@ -173,7 +173,7 @@ show_config_hvg_params = \
 	ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN ANALYSIS_HVG_BINS \
 	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS
 show_config_relative_path = $(if $(strip $(1)),$(call relative_to_launch,$(1)))
-show_config_raw_var_value = $(if $(filter MEMORY,$(1)),$(if $(strip $(MEMORY)),$(MEMORY) GB,),$(if $(filter SPEC_FILE,$(1)),$(call show_config_relative_path,$(SPEC_FILE)),$(if $(filter REFERENCES,$(1)),$(display_references_label),$($(1)))))
+show_config_raw_var_value = $(if $(filter MEMORY,$(1)),$(if $(strip $(MEMORY)),$(memory_bonesistools),),$(if $(filter SPEC_FILE,$(1)),$(call show_config_relative_path,$(SPEC_FILE)),$(if $(filter REFERENCES,$(1)),$(display_references_label),$($(1)))))
 show_config_var_value = $(call show_config_display_value,$(call show_config_raw_var_value,$(1)))
 show_config_var_label = $(call tolower,$(subst _, ,$(1)))
 show_config_label_width = $(shell printf '%s\n' \
@@ -365,7 +365,7 @@ define show_config_print
 @printf '%-13s : %s\n\n' 'Project dir' "$(show_config_project_dir)"
 @printf 'Workflow\n'
 @printf '%s\n' '--------'
-@printf '%-14s : %s\n' 'Representation' "$(call show_config_display_value,$(USE_REP))"
+@printf '%-14s : %s\n' 'Representation' "$(call show_config_display_value,$(REPRESENTATION))"
 @printf '%-14s : %s\n\n' 'Label column' "$(call show_config_display_value,$(LABEL_COL))"
 @printf 'Methods\n'
 @printf '%s\n' '-------'
@@ -383,7 +383,7 @@ $(if $(filter knnsc,$(MACROSTATE_METHOD)),@printf '%-14s : %s\n' 'Min cluster' "
 $(if $(filter docker,$(RUNTIME_BACKEND)),@printf '%-16s : %s\n' 'Image' "$(call show_config_display_value,$(SCBOLT_IMAGE))")
 $(if $(filter docker,$(RUNTIME_BACKEND)),@printf '%-16s : %s\n' 'Engine' "$(call show_config_display_value,$(SCBOLT_CONTAINER_ENGINE))")
 @printf '%-16s : %s\n' 'Jobs' "$(call show_config_display_value,$(JOBS))"
-@printf '%-16s : %s GB\n' 'Memory' "$(call show_config_display_value,$(MEMORY))"
+@printf '%-16s : %s\n' 'Memory' "$(call show_config_display_value,$(memory_bonesistools))"
 @printf '%-16s : %s\n' 'Seed' "$(call show_config_display_value,$(SEED))"
 @printf '%-16s : %s\n' 'Logging' "$(call show_config_display_value,$(show_config_logging))"
 $(show_config_print_hvg)
@@ -912,7 +912,7 @@ __load-cc: $(cc_markers)
 .PHONY: load-go __load-go
 load-go: ## download Gene Ontology resources
 	$(call run_logged,load-go)
-__load-go: $(go_basic) $(go_organism) $(gene2go)
+__load-go: $(go_basic) $(go_organism) $(gene2go_done)
 
 ##@ Alignment/Counting
 

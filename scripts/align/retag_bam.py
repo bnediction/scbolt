@@ -102,7 +102,7 @@ parser = argparse.ArgumentParser(
         "[--tag LITERAL:LITERAL ...] [--barcodes FILE] "
         "[--barcode-tag TAG] [--jobs INT]"
     ),
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(

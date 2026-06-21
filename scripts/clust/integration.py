@@ -18,7 +18,6 @@ import scanpy as sc
 import bonesistools as bt
 import scanorama
 
-
 std.set_default_plot_params(bt.sct.pl)
 
 
@@ -119,7 +118,9 @@ EMBEDDINGS = (
 
 
 def compute_embedding(adata, method: str, args, representation: str = "X_pca") -> None:
-    embedding_label = std.format_embedding(method)
+    embedding_label = (
+        "spectral" if method == "spectral" else std.format_embedding(method)
+    )
     if method == "umap":
         std.print_task(
             f"computing embedding (method={embedding_label}, "
@@ -219,7 +220,7 @@ parser = argparse.ArgumentParser(
         "before computing UMAP, t-SNE, and spectral embeddings."
     ),
     usage=f"python {script_name} [-h] <FILE ...> --outfile <FILE> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -253,13 +254,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--layer",
-    dest="layer",
+    "--expression",
+    dest="expression",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer used (if not specified, use adata.X)",
+    help=("Expression layer to use.\n" "Default: adata.X."),
 )
 
 parser.add_argument(
@@ -483,7 +484,7 @@ for infile, label in zip(args.infiles, args.labels):
     adatas.append(adata)
 
 for adata in adatas:
-    adata.X = adata.layers[args.layer].copy()
+    adata.X = adata.layers[args.expression].copy()
     clean_adata(adata)
 
 std.print_debug(f"merging datasets (conditions={', '.join(args.labels)})")
@@ -600,7 +601,9 @@ if args.integration == "ingest":
         adata, snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
     )
 
-    std.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution}, dataset=integrated)")
+    std.print_task(
+        f"clustering cells (algorithm=leiden, resolution={args.resolution}, dataset=integrated)"
+    )
     bt.sct.tl.leiden(
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
@@ -610,7 +613,7 @@ if args.integration == "ingest":
         copy=False,
     )
     compute_embeddings(adata, args, representation="X_pca")
-    
+
 elif args.integration == "bbknn":
 
     std.print_info("integrating data (method=BBKNN)")

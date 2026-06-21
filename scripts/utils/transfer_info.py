@@ -2,11 +2,11 @@
 
 import std
 import argparse
+import cli
 from pathlib import Path
 
 import anndata as ad
 import bonesistools as bt
-
 
 
 def make_composite_obs_index(adata, keys, sep="|"):
@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser(
     prog="transfer_info",
     description="""Transfer observations, variables and layers from a right dataset to a left dataset.""",
     usage=f"""python {script_name} [-h] <FILE> <FILE> [--outfile <FILE>] [--obs <LITERAL ...>] [--var <LITERAL ...>] [--layers <LITERAL ...>] [<args>]""",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(

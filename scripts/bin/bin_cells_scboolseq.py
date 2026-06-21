@@ -14,7 +14,6 @@ import pandas as pd
 
 from scboolseq import scBoolSeq
 
-
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
@@ -27,7 +26,7 @@ parser = argparse.ArgumentParser(
         "See Magaña López et al. (2023) <https://hal.science/hal-04294917/>."
     ),
     usage=f"python {script_name} [-h] <FILE> --outfile <FILE> [--bin <FILE>] [--statistics <FILE>] [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -67,13 +66,16 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--layer",
-    dest="layer",
+    "--expression",
+    dest="expression",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer storing log-normalized counts (if not specified, use adata.X)",
+    help=(
+        "Expression layer to use. Expected data: log-normalized counts.\n"
+        "Default: adata.X."
+    ),
 )
 
 parser.add_argument(
@@ -113,8 +115,8 @@ if not Path(os.path.dirname(args.outfile)).exists():
 std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
-std.print_info(f"converting layer '{args.layer}' into dataframe")
-counts_df = bt.sct.tl.anndata_to_dataframe(adata, layer=args.layer)
+std.print_info(f"converting layer '{args.expression}' into dataframe")
+counts_df = bt.sct.tl.anndata_to_dataframe(adata, layer=args.expression)
 
 if args.filter_genes:
     std.print_info(f"filtering genes (file={std.format_path(args.filter_genes)})")

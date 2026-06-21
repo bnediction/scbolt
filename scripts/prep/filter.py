@@ -19,7 +19,6 @@ import pypairs
 
 import matplotlib.pyplot as plt
 
-
 std.set_default_plot_params(bt.sct.pl)
 
 setattr(pd.DataFrame, "iteritems", pd.DataFrame.items)
@@ -90,7 +89,7 @@ parser = argparse.ArgumentParser(
         "cycle phase and filter low-quality genes and cells."
     ),
     usage=f"python {script_name} <FILE> <FILE> [--marker <FILE>] [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(

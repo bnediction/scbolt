@@ -206,7 +206,7 @@ parser = argparse.ArgumentParser(
         "Values passed to --labels must follow the syntax <old_name>:<new_name>."
     ),
     usage=f"python {script_name} [-h] <FILE> <FILE> --obs <LITERAL> --labels <LITERAL:LITERAL [LITERAL:LITERAL ...]>",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(

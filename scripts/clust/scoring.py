@@ -3,13 +3,13 @@
 import os
 import std
 import argparse
+import cli
 from pathlib import Path
 
 import json
 import pandas as pd
 import anndata as ad
 import bonesistools as bt
-
 
 CLUSTER_INFO_ROWS = ["cells", "proportion", "median_expression", "median_reads"]
 CORRECTION_METHODS = ("none", "benjamini-hochberg", "bonferroni")
@@ -130,18 +130,18 @@ def write_signature_outputs(
     )
     fold_enrichment.to_csv(fold_enrichment_file, sep=",", index=True)
 
-    std.print_task(
-        f"saving full ORA results (file={std.format_path(ora_result_file)})"
-    )
+    std.print_task(f"saving full ORA results (file={std.format_path(ora_result_file)})")
     used_sheet_names: set[str] = set()
     with pd.ExcelWriter(ora_result_file) as writer:
         for cluster, ora_result in ora_results.items():
             table = ora_result.reset_index()
             if "overlap" in table:
                 table["overlap"] = table["overlap"].map(
-                    lambda genes: ", ".join(genes)
-                    if isinstance(genes, (list, set, tuple))
-                    else genes
+                    lambda genes: (
+                        ", ".join(genes)
+                        if isinstance(genes, (list, set, tuple))
+                        else genes
+                    )
                 )
             table.to_excel(
                 writer,
@@ -156,7 +156,7 @@ parser = argparse.ArgumentParser(
     prog="scoring",
     description="Score signature-related phenotypes with respect to cell clusters.",
     usage=f"python {script_name} [-h] <FILE> <FILE> <FILE> <FILE> --cluster <LITERAL> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -223,9 +223,7 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-ora_correction = (
-    "benjamini-hochberg" if args.correction == "none" else args.correction
-)
+ora_correction = "benjamini-hochberg" if args.correction == "none" else args.correction
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
@@ -259,8 +257,7 @@ signatures = {
 }
 
 std.print_info(
-    "estimating over-representation p-values "
-    f"(correction={args.correction})"
+    "estimating over-representation p-values " f"(correction={args.correction})"
 )
 
 info = dict()
@@ -298,10 +295,7 @@ for group in sorted(adata.obs[args.cluster].unique()):
     info[group] = group_info
 info = pd.DataFrame.from_dict(info)
 
-std.print_result(
-    "signature summary\n\n"
-    f"{format_signature_summary(info)}\n"
-)
+std.print_result("signature summary\n\n" f"{format_signature_summary(info)}\n")
 
 write_signature_outputs(
     outfile=args.outfile,

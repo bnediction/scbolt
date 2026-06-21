@@ -10,18 +10,16 @@ import math
 
 import pandas as pd
 import anndata as ad
-import scanpy as sc
 import bonesistools as bt
 from pandas import ExcelWriter
-
 
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
-    prog="markers",
+    prog="dea",
     description="Search for overexpressed genes (markers) between clusters.",
     usage=f"python {script_name} [-h] <FILE> <FILE> [--xlsx <FILE>] --cluster <LITERAL> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -57,13 +55,16 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--layer",
-    dest="layer",
+    "--expression",
+    dest="expression",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer used (if not specified, use adata.X; expected log-normalized data)",
+    help=(
+        "Expression layer to use. Expected data: log-normalized counts.\n"
+        "Default: adata.X."
+    ),
 )
 
 parser.add_argument(
@@ -84,6 +85,17 @@ parser.add_argument(
     required=False,
     default=0.25,
     help="minimum log2 fold-change for a gene to be considered as differentially expressed (default: 0.25)",
+)
+
+parser.add_argument(
+    "--method",
+    dest="method",
+    type=str,
+    required=False,
+    default="wilcoxon",
+    choices=["wilcoxon", "welch", "welch_overestimate"],
+    metavar="[wilcoxon | welch | welch_overestimate]",
+    help="statistical test used before log2 fold-change estimation (default: wilcoxon)",
 )
 
 parser.add_argument(
@@ -109,6 +121,19 @@ parser.add_argument(
     help="method used for correcting the significance level (default: benjamini-hochberg)",
 )
 
+parser.add_argument(
+    "--max-memory",
+    dest="max_memory",
+    type=cli.Memory,
+    required=False,
+    default=None,
+    metavar="MEMORY",
+    help=(
+        "maximum memory allocated to chunked BoNesisTools operations "
+        "(integers are interpreted as GB)"
+    ),
+)
+
 args = parser.parse_args()
 
 if not Path(os.path.dirname(args.outfile)).exists():
@@ -118,51 +143,35 @@ std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
-if args.layer:
-    adata.X = adata.layers[args.layer].copy()
+std.print_task(f"ranking genes (scope=groups, method={args.method})")
 
-std.print_task("ranking genes (scope=groups)")
-
-with std.filter_scanpy_rank_genes_warnings():
-    sc.tl.rank_genes_groups(
-        adata=adata,
-        groupby=args.cluster,
-        use_raw=False,
-        layer=args.layer,
-        reference="rest",
-        method="wilcoxon",
-        tie_correct=True,
-        corr_method=args.correction,
-    )
-
-    markers_df = sc.get.rank_genes_groups_df(adata, group=None, pval_cutoff=args.alpha)
-
-std.print_warning(
-    "found inconsistent log2 fold-changes (sources=seurat::FindAllMarkers, scanpy.rank_gene_groups, see=https://www.biostars.org/p/453129/)"
-)
-std.print_debug("updating log2 fold-changes")
-logfoldchanges_df = bt.sct.tl.logfoldchanges(
+markers_df = bt.sct.tl.dea(
     adata,
     groupby=args.cluster,
-    layer=args.layer,
-    column_name="logfoldchanges",
+    method=args.method,
+    expression=args.expression,
     is_log=args.is_log,
-    cluster_rebalancing=False,
+    correction=args.correction,
+    alpha=args.alpha,
     filter_logfoldchanges=lambda x: x > args.logfc,
+    max_memory=args.max_memory,
 )
-
-markers_df = markers_df.loc[:, markers_df.columns != "logfoldchanges"]
-
-markers_df = pd.merge(
-    markers_df,
-    logfoldchanges_df,
-    left_on=["names", "group"],
-    right_on=["names", "group"],
-    how="inner",
-)
+markers_df = markers_df.rename(columns={"feature": "gene"})
+markers_df = markers_df[
+    ["group", "gene", "statistics", "pvals", "pvals_adj", "logfoldchanges"]
+]
+markers_df = markers_df.sort_values(
+    by=["group", "statistics"],
+    ascending=[True, False],
+    kind="mergesort",
+).reset_index(drop=True)
 
 std.print_task(f"saving CSV table (file={std.format_path(args.outfile)})")
-markers_df.to_csv(args.outfile, sep=",", index=False)
+markers_df.to_csv(
+    args.outfile,
+    sep=",",
+    index=False,
+)
 
 if args.xlsx:
     std.print_task(
@@ -170,9 +179,15 @@ if args.xlsx:
     )
     with ExcelWriter(args.xlsx) as xlsx_writer:
         pd.DataFrame(adata.var_names).to_excel(
-            xlsx_writer, sheet_name="background", header=False, index=False
+            xlsx_writer,
+            sheet_name="background",
+            header=False,
+            index=False,
         )
         for cluster in markers_df["group"].unique():
-            markers_df[markers_df["group"] == cluster]["names"].to_excel(
-                xlsx_writer, sheet_name=cluster, header=False, index=False
+            markers_df[markers_df["group"] == cluster]["gene"].to_excel(
+                xlsx_writer,
+                sheet_name=cluster,
+                header=False,
+                index=False,
             )

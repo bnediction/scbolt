@@ -297,7 +297,7 @@ else ifeq ($(HELP),false)
 	fi; \
 	$(call check_path_diagnostic,$(RESOURCES_DIR),RESOURCES_DIR,core); \
 	if grep -qE -- '--samtools-memory|--localmem|--memory' "$${dry_run}"; then \
-		$(call check_positive_integer_diagnostic,$(MEMORY),MEMORY,core); \
+		$(call check_memory_diagnostic,$(MEMORY),MEMORY,core); \
 	fi; \
 	if grep -qE -- '--threads|--jobs|--runThreadN|--samtools-threads|--localcores' "$${dry_run}"; then \
 		$(call check_positive_integer_diagnostic,$(JOBS),JOBS,core); \
@@ -305,10 +305,10 @@ else ifeq ($(HELP),false)
 	if grep -qE -- '--seed|PYTHONHASHSEED' "$${dry_run}"; then \
 		$(call check_positive_integer_diagnostic,$(SEED),SEED,core); \
 	fi; \
-	if grep -qE '$(use_rep_check_pattern)' "$${dry_run}" \
+	if grep -qE '$(representation_check_pattern)' "$${dry_run}" \
 			|| grep -q 'scripts/mstates/knnsc_mstates.py' "$${dry_run}" \
 			|| grep -q '/cotan/barcts.csv' "$${dry_run}"; then \
-		$(call check_parameter_diagnostic,$(USE_REP),USE_REP,core); \
+		$(call check_parameter_diagnostic,$(REPRESENTATION),REPRESENTATION,core); \
 	fi; \
 	if grep -qE '$(label_col_check_pattern)' "$${dry_run}"; then \
 		$(call check_parameter_diagnostic,$(LABEL_COL),LABEL_COL,core); \
@@ -387,8 +387,8 @@ else ifeq ($(HELP),false)
 		$(call check_positive_integer_diagnostic,$(EMBEDDING_N_ITER),$(call needed_by,EMBEDDING_N_ITER,clustering),method); \
 	fi; \
 	if grep -q 'scripts/traj/velocity.py' "$${dry_run}"; then \
-		$(call check_choice_diagnostic,$(USE_REP),X_umap X_tsne,\
-			$(call needed_by,USE_REP,velocity),core); \
+		$(call check_choice_diagnostic,$(REPRESENTATION),X_umap X_tsne,\
+			$(call needed_by,REPRESENTATION,velocity),core); \
 		$(call check_positive_integer_diagnostic,$(DIM_MOMENT),$(call needed_by,DIM_MOMENT,velocity),method); \
 		$(call check_bool_diagnostic,$(VELOCITY_ONLY_HVG),$(call needed_by,VELOCITY_ONLY_HVG,velocity),method); \
 	fi; \
@@ -452,7 +452,8 @@ else ifeq ($(HELP),false)
 		$(call check_float_diagnostic,$(BIN_LOGFC),$(call needed_by,BIN_LOGFC,bin-dea),method); \
 		$(call check_float_diagnostic,$(BIN_ALPHA),$(call needed_by,BIN_ALPHA,bin-dea),method); \
 	fi; \
-	if grep -q 'scripts/clust/markers.py' "$${dry_run}"; then \
+	if grep -q 'scripts/clust/dea.py' "$${dry_run}"; then \
+		$(call check_choice_diagnostic,$(DEA_METHOD),wilcoxon welch welch_overestimate,$(call needed_by,DEA_METHOD,dea),method); \
 		$(call check_float_diagnostic,$(LOGFC),$(call needed_by,LOGFC,dea),method); \
 	fi; \
 	if grep -q 'scripts/infer/spec.py' "$${dry_run}"; then \
@@ -519,7 +520,8 @@ else ifeq ($(HELP),false)
 				$(call sra_var,$(condition)) \
 					(needed by target 'load-fastq'),project);) \
 	fi; \
-	if [ -z "$(filter load-matrix,$(check_targets))" ] && grep -q 'download_gsm.sh' "$${dry_run}"; then \
+	if [ -z "$(filter load-matrix,$(check_targets))" ] \
+			&& grep -q 'download/load_geo.py' "$${dry_run}"; then \
 		:; \
 		$(foreach condition,$(running_conditions),\
 			$(call check_parameter_diagnostic,\
@@ -527,7 +529,7 @@ else ifeq ($(HELP),false)
 				$(call gsm_var,$(condition)) \
 					(needed by target 'load-matrix'),project);) \
 	fi; \
-	if grep -q 'download/import_matrix.py' "$${dry_run}" \
+	if grep -q 'download/load_geo.py' "$${dry_run}" \
 			&& { grep -q 'scripts/traj/velocity.py' "$${dry_run}" \
 				|| grep -q 'scripts/mstates/cellrank_mstates.py' "$${dry_run}"; }; then \
 		$(call report_check_error,matrix input mode does not provide spliced/unspliced layers \
@@ -611,13 +613,9 @@ else ifeq ($(HELP),false)
 					conda_status="$${conda_report_dir}/$${conda_index}.status"; \
 					printf 'success\t%s\n' "conda environment found: $${env}" > "$${conda_report}"; \
 					env_yaml="$(scbolt_root)/envs/$${env#scbolt-}.yml"; \
-					git_packages=""; \
-					case "$${env}" in \
-						scbolt-bonesis) git_packages="--git-package bonesis=$(BONESIS_HASH)";; \
-					esac; \
 					( \
 						$(python) $(scripts_dir)/utils/check_conda_env.py \
-							--env "$${env}" --yaml "$${env_yaml}" $${git_packages} \
+							--env "$${env}" --yaml "$${env_yaml}" \
 							>> "$${conda_report}"; \
 						printf '%s\n' "$$?" > "$${conda_status}"; \
 					) & \

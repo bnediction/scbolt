@@ -7,38 +7,36 @@ import cli
 from pathlib import Path
 
 import math
-import numpy as np
 
 import pandas as pd
 import anndata as ad
-import scanpy as sc
 import bonesistools as bt
 
-
 script_name = Path(__file__).name
+
 
 parser = argparse.ArgumentParser(
     prog="bin_dea",
     description=(
-        "Binarize clusters using differential expression analysis based on "
-        "Wilcoxon rank-sum or Student's t-tests."
+        "Binarize clusters using differential expression analysis.\n"
+        "Supported tests: Wilcoxon rank-sum and Welch tests."
     ),
     usage=f"python {script_name} [-h] <FILE> <FILE> --cluster <LITERAL> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
     "infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing counts (format: h5ad)",
+    help="Input AnnData file storing expression counts. Expected format: h5ad.",
 )
 
 parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="output file storing predicted binarized values (format: csv)",
+    help="Output CSV file storing predicted binarized values.",
 )
 
 parser.add_argument(
@@ -47,17 +45,20 @@ parser.add_argument(
     type=str,
     required=True,
     metavar="LITERAL",
-    help="column name in 'adata.obs' distinguishing cell populations (required)",
+    help="Observation column distinguishing cell populations. Required.",
 )
 
 parser.add_argument(
-    "--layer",
-    dest="layer",
+    "--expression",
+    dest="expression",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer used (if not specified, use adata.X; expected log-normalized data)",
+    help=(
+        "Expression layer to use. Expected data: log-normalized counts.\n"
+        "Default: adata.X."
+    ),
 )
 
 parser.add_argument(
@@ -65,7 +66,7 @@ parser.add_argument(
     dest="is_log",
     action="store_true",
     required=False,
-    help="specify whether the data matrix is log-normalized",
+    help="Treat the selected expression matrix as log-normalized.",
 )
 
 parser.add_argument(
@@ -74,9 +75,9 @@ parser.add_argument(
     type=str,
     required=False,
     default="wilcoxon",
-    choices=["t-test", "t-test-overestim-var", "wilcoxon"],
-    metavar="[t-test | t-test-overestim-var | wilcoxon]",
-    help="method used to identify differentially expressed genes between groups (default: wilcoxon)",
+    choices=["wilcoxon", "welch", "welch_overestimate"],
+    metavar="[wilcoxon | welch | welch_overestimate]",
+    help=("Differential expression test to use.\n" "Default: wilcoxon."),
 )
 
 parser.add_argument(
@@ -88,7 +89,10 @@ parser.add_argument(
     max=math.inf,
     required=False,
     default=0.25,
-    help="minimum log2 fold-change in absolute value for a gene to be binarized (default: 0.25)",
+    help=(
+        "Minimum absolute log2 fold-change required for binarization.\n"
+        "Default: 0.25."
+    ),
 )
 
 parser.add_argument(
@@ -100,7 +104,7 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.05,
-    help="significance threshold for rejecting the null hypothesis that a gene is not differentially expressed (default: 0.05)",
+    help=("Maximum adjusted p-value required for binarization.\n" "Default: 0.05."),
 )
 
 parser.add_argument(
@@ -111,17 +115,21 @@ parser.add_argument(
     default="benjamini-hochberg",
     choices=["benjamini-hochberg", "bonferroni"],
     metavar="[benjamini-hochberg | bonferroni]",
-    help="method used for correcting the significance level (default: benjamini-hochberg)",
+    help=("Multiple-testing correction method.\n" "Default: benjamini-hochberg."),
 )
 
 parser.add_argument(
-    "--use-rep",
-    dest="use_rep",
+    "--representation",
+    dest="representation",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
-    help="embedding projection in adata.obsm used for plotting percentage of cluster-related binarization (default: None)",
+    help=(
+        "Embedding representation in adata.obsm used for plotting cluster-related "
+        "binarization percentages.\n"
+        "Default: None."
+    ),
 )
 
 parser.add_argument(
@@ -130,13 +138,24 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="input file storing interest genes to pass filtering (if not specified, all genes are considered)",
+    help=("Input file listing genes of interest to keep.\n" "Default: all genes."),
+)
+
+parser.add_argument(
+    "--max-memory",
+    dest="max_memory",
+    type=cli.Memory,
+    required=False,
+    default=None,
+    metavar="MEMORY",
+    help=(
+        "Maximum memory allocated to chunked BoNesisTools operations. Integers are "
+        "interpreted as GB.\n"
+        "Default: no limit."
+    ),
 )
 
 args = parser.parse_args()
-
-if args.method == "t-test-overestim-var":
-    args.method = "t-test_overestim_var"
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
@@ -145,78 +164,43 @@ std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
-if args.layer:
-    adata.X = adata.layers[args.layer].copy()
-
 features = list(adata.var_names)
+var_subset = None
 
 if args.filter_genes:
     std.print_info(f"filtering genes (file={std.format_path(args.filter_genes)})")
     with open(args.filter_genes) as file:
-        adata = adata[:, [line.strip() for line in file.readlines()]].copy()
+        var_subset = [line.strip() for line in file.readlines()]
 
 std.print_task(f"ranking genes (scope=groups, method={args.method})")
 
 adata.obs[args.cluster] = adata.obs[args.cluster].cat.remove_unused_categories()
 
-with std.filter_scanpy_rank_genes_warnings():
-    sc.tl.rank_genes_groups(
-        adata=adata,
-        groupby=args.cluster,
-        use_raw=False,
-        layer=args.layer,
-        reference="rest",
-        method=args.method,
-        tie_correct=True,
-        corr_method=args.correction,
-    )
-
-    dea_df = sc.get.rank_genes_groups_df(adata, group=None, pval_cutoff=args.alpha)
-
-std.print_warning(
-    "found inconsistent log2 fold-changes (sources=seurat::FindAllMarkers, scanpy.rank_gene_groups, see=https://www.biostars.org/p/453129/)"
+binarizer = bt.sct.tl.DEABinarizer(
+    method=args.method,
+    correction=args.correction,
+    alpha=args.alpha,
+    min_abs_logfoldchange=args.logfc,
+    max_memory=args.max_memory,
 )
-std.print_debug("updating log2 fold-changes")
-
-logfoldchanges_df = bt.sct.tl.logfoldchanges(
+binarizer.fit(
     adata,
-    groupby=args.cluster,
-    layer=args.layer,
+    obs=args.cluster,
+    expression=args.expression,
     is_log=args.is_log,
-    cluster_rebalancing=False,
-    filter_logfoldchanges=lambda x: abs(x) > args.logfc,
-)
-if logfoldchanges_df is None:
-    raise RuntimeError("log2 fold-change calculation did not return a table")
-
-dea_df = dea_df.loc[:, dea_df.columns != "logfoldchanges"]
-
-dea_df = pd.merge(
-    dea_df,
-    logfoldchanges_df,
-    left_on=["names", "group"],
-    right_on=["names", "group"],
-    how="inner",
+    var_subset=var_subset,
 )
 
 std.print_task("binarizing cell populations (source=differential expression analysis)")
 
-cluster_bin = pd.DataFrame(
-    data=np.nan,
-    index=adata.obs[args.cluster].cat.categories,
-    columns=pd.Index(features),
-)
+cluster_bin = binarizer.binarize()
+cluster_bin = cluster_bin.reindex(columns=pd.Index(features))
 
-for group, gene, logfoldchange in dea_df[
-    ["group", "names", "logfoldchanges"]
-].itertuples(index=False, name=None):
-    cluster_bin.at[group, gene] = 1 if logfoldchange > 0 else 0
-
-if args.use_rep:
+if args.representation:
     embedding_label = (
-        args.use_rep[2:].lower()
-        if args.use_rep.startswith("X_")
-        else args.use_rep.lower()
+        args.representation[2:].lower()
+        if args.representation.startswith("X_")
+        else args.representation.lower()
     )
     pct_bin_plot = Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf")
     std.print_task(
@@ -224,11 +208,13 @@ if args.use_rep:
         f"(directory={os.path.relpath(os.path.dirname(args.outfile))})"
     )
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
-    adata.obs[f"pct_bin_{args.cluster}"] = adata.obs[args.cluster].map(pct_bin)
+    adata.obs[f"pct_bin_{args.cluster}"] = (
+        adata.obs[args.cluster].map(pct_bin).astype(float)
+    )
     bt.sct.pl.embedding(
         adata,
         obs=f"pct_bin_{args.cluster}",
-        use_rep=args.use_rep,
+        use_rep=args.representation,
         xlabel=std.axis_label(embedding_label, 1),
         ylabel=std.axis_label(embedding_label, 2),
         zlabel=std.axis_label(embedding_label, 3),
@@ -236,22 +222,15 @@ if args.use_rep:
         s=4,
         alpha=1,
         show_legend=True,
-        lgd_params={
-            "title": "pct bin",
-            "ncol": 1,
-            "markerscale": 5,
-            "frameon": True,
-            "edgecolor": bt.sct.pl.get_color("black"),
-            "shadow": False,
-        },
-        n_components=3 if adata.obsm[args.use_rep].shape[1] > 2 else 2,
+        colorbar_scale=0.8,
+        n_components=3 if adata.obsm[args.representation].shape[1] > 2 else 2,
         background_visible=False,
         outfile=pct_bin_plot,
     )
 
 dea_results = Path(f"{os.path.dirname(args.outfile)}/dea_results.csv")
 std.print_task(f"saving DEA results (file={std.format_path(dea_results)})")
-dea_df.to_csv(dea_results, sep=",", index=True)
+binarizer.dea_.to_csv(dea_results, sep=",", index=False)
 
 std.print_task(f"saving binarized matrix (file={std.format_path(args.outfile)})")
 cluster_bin.to_csv(args.outfile, sep=",", index=True)

@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import argparse
+import cli
 import std
 
 import anndata as ad
@@ -13,7 +14,7 @@ parser = argparse.ArgumentParser(
     prog="concat_h5ad",
     description="Concatenate AnnData files along observations.",
     usage=f"python {script_name} <FILE...> --outfile <FILE>",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(

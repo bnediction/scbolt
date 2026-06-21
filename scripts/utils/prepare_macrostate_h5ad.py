@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import argparse
+import cli
 import std
 
 import anndata as ad
@@ -19,8 +20,8 @@ script_name = Path(__file__).name
 parser = argparse.ArgumentParser(
     prog="prepare_macrostate_h5ad",
     description="Prepare a precomputed macrostate AnnData file for binarization.",
-    usage=f"python {script_name} <FILE> <FILE> --use-rep <LITERAL> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    usage=f"python {script_name} <FILE> <FILE> --representation <LITERAL> [<args>]",
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -75,12 +76,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--use-rep",
-    dest="use_rep",
+    "--representation",
+    dest="representation",
     type=str,
     required=True,
     metavar="LITERAL",
-    help="embedding key required in adata.obsm",
+    help="Embedding representation required in adata.obsm.",
 )
 
 args = parser.parse_args()
@@ -91,7 +92,7 @@ adata = ad.read_h5ad(args.infile)
 std.print_task("validating macrostate AnnData metadata")
 require_key(adata.layers, "log-norm", "layers")
 require_key(adata.obs, args.macrostate_obs, "obs")
-require_key(adata.obsm, args.use_rep, "obsm")
+require_key(adata.obsm, args.representation, "obsm")
 
 if args.condition is not None:
     if args.condition_obs is None:

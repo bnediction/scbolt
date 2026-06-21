@@ -3,6 +3,7 @@
 import os
 import std
 import argparse
+import cli
 from pathlib import Path
 
 import anndata as ad
@@ -11,7 +12,6 @@ import scvelo as scv
 
 import matplotlib.pyplot as plt
 import warnings
-
 
 warnings.filterwarnings(
     "ignore",
@@ -31,7 +31,7 @@ parser = argparse.ArgumentParser(
         "See Bergen et al. (2020) <https://www.nature.com/articles/s41587-020-0591-3>."
     ),
     usage=f"python {script_name} <FILE> <FILE> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -49,13 +49,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--layer",
-    dest="layer",
+    "--expression",
+    dest="expression",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer used (if not specified, use adata.X)",
+    help=("Expression layer to use.\n" "Default: adata.X."),
 )
 
 parser.add_argument(
@@ -136,8 +136,8 @@ adata = ad.read_h5ad(args.infile)
 
 adata.obs["clusters"] = adata.obs[args.cluster]
 
-if args.layer:
-    adata.X = adata.layers[args.layer].copy()
+if args.expression:
+    adata.X = adata.layers[args.expression].copy()
 
 plot_dir = Path(outpath)
 std.print_task(f"plotting velocity outputs (directory={os.path.relpath(plot_dir)})")

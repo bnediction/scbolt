@@ -3,6 +3,7 @@
 import os
 import std
 import argparse
+import cli
 from pathlib import Path
 
 import bonesistools as bt
@@ -16,7 +17,7 @@ parser = argparse.ArgumentParser(
     description="""Convert gene aliases to another identifier type.
     By default, convert gene names to their NCBI reference names.""",
     usage=f"""python {script_name} [-h] <PATH> <PATH> [<args>]""",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(

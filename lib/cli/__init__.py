@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 from ._argtype import (
+    HelpFormatter,
+    Memory,
     Range,
     Min_and_max,
     Str_or_min_and_max,
@@ -26,6 +28,8 @@ __all__ = [
     "Clingo_opt_mode",
     "Clingo_opt_strategy",
     "Clingo_parallel_mode",
+    "HelpFormatter",
+    "Memory",
     "Min_and_max",
     "Range",
     "Required_length",

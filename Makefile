@@ -35,7 +35,7 @@ ifeq ($(strip $(genome_url)),)
 	$(call print_error,no default genome_url for ORGANISM=$(ORGANISM). Set genome_url in your parameter file)
 else
 	mkdir -p $(@D)
-	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll -cO $@.tmp $(genome_url)
+	$(call wget_download,-cO $@.tmp $(genome_url))
 	mv $@.tmp $@
 endif
 
@@ -60,7 +60,7 @@ ifeq ($(strip $(repeat_msk_url)),)
 	$(call print_error,no default repeat_msk_url for ORGANISM=$(ORGANISM). Set repeat_msk_url in your parameter file)
 else
 	mkdir -p $(@D)
-	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll -cO $@.tmp $(repeat_msk_url)
+	$(call wget_download,-cO $@.tmp $(repeat_msk_url))
 	mv $@.tmp $@
 endif
 
@@ -88,16 +88,16 @@ $(star_index): | $(genome_ref)
 $(cc_markers):
 	$(call print_rule,load-cc)
 	mkdir -p $(@D)
-	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(cycle_url)
+	$(call wget_download,-cO $@ $(cycle_url))
 
 $(word 1,$(signatures)) $(word 2,$(signatures)):
 	$(eval FILENAME := $(basename $(notdir $@)))
 	$(call print_rule,load-signatures,$(FILENAME))
 	mkdir -p $(@D)
 	if [ $(FILENAME) = "geiger" ]; then \
-		$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(geiger_url); \
+		$(call wget_download,-cO $@ $(geiger_url)); \
 	else \
-		$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(chambers_url); \
+		$(call wget_download,-cO $@ $(chambers_url)); \
 	fi
 
 $(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures))
@@ -110,18 +110,49 @@ $(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures))
 $(go_basic):
 	$(call print_rule,load-go,go_basic)
 	mkdir -p $(@D)
-	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(go_basic_url)
+	$(call wget_download,-cO $@ $(go_basic_url))
 
 $(go_organism):
 	$(call print_rule,load-go,go_$(ORGANISM))
 	mkdir -p $(@D)
-	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll -cO $@ $(go_organism_url)
+	$(call wget_download,-cO $@ $(go_organism_url))
 
 $(gene2go):
 	$(call print_rule,load-go,gene2go)
 	mkdir -p $(@D)
-	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll --directory-prefix=$(@D) $(gene2go_url)
-	[ -f $@.gz ] && $(call system_tool,gunzip) $@.gz
+	rm -f $@.tmp
+	for attempt in 1 2 3; do \
+		rm -f $@.tmp; \
+		$(call wget_download_label,loading gene-to-GO associations,-O $@.tmp $(gene2go_url)); \
+		if $(call system_tool,gzip) -t $@.tmp; then \
+			break; \
+		fi; \
+		if [ "$${attempt}" -eq 3 ]; then \
+			exit 1; \
+		fi; \
+		$(call print_warning,invalid gene2go archive: retrying download); \
+	done
+	mv $@.tmp $@
+
+$(gene2go_done): $(gene2go)
+	mkdir -p $(@D)
+	if ! $(call system_tool,gzip) -t $< >/dev/null 2>&1; then \
+		$(call print_warning,corrupted gene2go archive: redownloading); \
+		rm -f $< $@ $<.tmp; \
+		for attempt in 1 2 3; do \
+			rm -f $<.tmp; \
+			$(call wget_download_label,loading gene-to-GO associations,-O $<.tmp $(gene2go_url)); \
+			if $(call system_tool,gzip) -t $<.tmp; then \
+				break; \
+			fi; \
+			if [ "$${attempt}" -eq 3 ]; then \
+				exit 1; \
+			fi; \
+			$(call print_warning,invalid gene2go archive: retrying download); \
+		done; \
+		mv $<.tmp $<; \
+	fi
+	$(call system_tool,touch) $@
 
 $(omics_dir)/count/%/invalid-alignment/.error:
 	$(call print_rule,alignment,$*)
@@ -179,21 +210,12 @@ $(fastq_$(1)):
 	$$(call write_scbolt_metadata,load-fastq,$$@)
 
 ifeq ($(matrix_mode),true)
-$(load_matrix_$(1)) $(geo_files_$(1))&:
+$(load_matrix_$(1)):
 	$(call print_rule,load-matrix,$(1))
 	$(call require_gsm_condition,$(1))
-	rm -rf $(tmpdir)/$(1)/geo
-	mkdir -p $(tmpdir)/$(1)/geo $$(geo_dir_$(1))
-	$(call print_task,downloading GEO count matrix (sample=$(call gsm_value,$(1))))
-	$(call conda_run,scbolt-core) bash $(scripts_dir)/download/download_gsm.sh \
-		$(call gsm_value,$(1)) $(tmpdir)/$(1)/geo
-	mv $(tmpdir)/$(1)/geo/matrix.mtx.gz $$(geo_matrix_$(1))
-	mv $(tmpdir)/$(1)/geo/barcodes.tsv.gz $$(geo_barcodes_$(1))
-	mv $(tmpdir)/$(1)/geo/genes.tsv.gz $$(geo_genes_$(1))
-	$(call conda_run,scbolt-core) python $(scripts_dir)/download/import_matrix.py \
-		$$(geo_matrix_$(1)) $$(geo_barcodes_$(1)) $$(geo_genes_$(1)) $$(load_matrix_$(1)) \
-		--gsm $(call gsm_value,$(1))
-	$$(call write_scbolt_metadata,load-matrix,$$(load_matrix_$(1)) $$(geo_files_$(1)))
+	$(call conda_run,scbolt-core) python $(scripts_dir)/download/load_geo.py \
+		$(call gsm_value,$(1)) $$(load_matrix_$(1))
+	$$(call write_scbolt_metadata,load-matrix,$$(load_matrix_$(1)))
 endif
 
 $(cellranger_$(1)): $(fastq_$(1)) $(genome_ref)
@@ -206,7 +228,7 @@ $(cellranger_$(1)): $(fastq_$(1)) $(genome_ref)
 			--transcriptome=$$($(call system_tool,realpath) $$(lastword $$^)) \
 			--create-bam true \
 			--localcores=$(JOBS) \
-			--localmem=$(MEMORY)
+			--localmem=$(memory_gb)
 	)
 	mv $(tmpdir)/cellranger/$(call condition_name,$(1))/* $$(@D)
 	rm -rf $(tmpdir)/cellranger/$(call condition_name,$(1))
@@ -259,7 +281,7 @@ $(velocyto_$(1)): $(cellranger_$(1)) $(genome_ref) $(repeat_msk)
 	$(call system_tool,gzip) -cd $$(lastword $$^) > "$$$${repeat_mask}"
 	$(call conda_run,scbolt-velocyto) velocyto run10x \
 		-m "$$$${repeat_mask}" \
-		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
+		--samtools-threads $(JOBS) --samtools-memory $(memory_velocyto) \
 		$$(dir $$(firstword $$^)) $$(word 2,$$^)/genes/genes.gtf
 	mkdir -p $$(@D)
 	mv $$(<D)/velocyto/cellranger.loom $$(@D)/counts.loom
@@ -307,7 +329,7 @@ $(velocyto_$(1)): $(qc_$(1)) $(genome_ref) $(repeat_msk)
 		-b $$(<D)/filtered_barcodes.tsv \
 		-o $(tmpdir)/velocyto/$(1) \
 		-e star \
-		--samtools-threads $(JOBS) --samtools-memory $(MEMORY) \
+		--samtools-threads $(JOBS) --samtools-memory $(memory_velocyto) \
 		$$(firstword $$^) $$(word 2,$$^)/genes/genes.gtf
 	mkdir -p $$(@D)
 	mv $(tmpdir)/velocyto/$(1)/star.loom $$(@D)/counts.loom
@@ -339,7 +361,7 @@ $(normalization_$(1)): $(filtering_$(1))
 	$(call require_cc_correction,normalization)
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/prep/norm.py \
-		$$< $$@ $(cc_scores) --layer counts --jobs $(JOBS)
+		$$< $$@ $(cc_scores) --expression counts --jobs $(JOBS) --max-memory "$(memory_bonesistools)"
 	$$(call write_scbolt_metadata,normalization,$$(normalization_$(1)))
 
 $(clustering_$(1)): $(normalization_$(1))
@@ -347,7 +369,7 @@ $(clustering_$(1)): $(normalization_$(1))
 	$(require_clustering_parameters)
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/clustering.py $$< $$@ \
-		--layer correct --adjacency knn \
+		--expression correct --adjacency knn \
 		--pca-dimension $(DIM_PCA) \
 		--clustering-dimension $(DIM_PCA) \
 		--embedding-dimension $(DIM_EMBEDDING) \
@@ -371,7 +393,7 @@ $(annotation_$(1)): $(clustering_$(1))
 		--obs cluster --new-obs $(LABEL_COL) --labels $(label_map)
 	$$(call plot_embeddings,\
 		$(fig_dir)/generic.json,$$@,$$(@D)/labels.pdf,\
-		--obs $(LABEL_COL) --use-rep $(USE_REP))
+		--obs $(LABEL_COL) --representation $(REPRESENTATION))
 	$$(call write_scbolt_metadata,annotation,$$(annotation_$(1)))
 else
 $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
@@ -382,7 +404,7 @@ $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 		--var highly_variable highly_variable_rank
 	$$(call plot_embeddings,\
 		$(fig_dir)/generic.json,$$@,$$(@D)/labels.pdf,\
-		--obs $(LABEL_COL) --use-rep $(USE_REP))
+		--obs $(LABEL_COL) --representation $(REPRESENTATION))
 	$$(call write_scbolt_metadata,annotation,$$(annotation_$(1)))
 endif
 
@@ -391,7 +413,7 @@ $(velocity_$(1)): $(annotation_$(1))
 	$(call require_velocity_parameters)
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-velocity) python $(scripts_dir)/traj/velocity.py $$< $$@ \
-		--layer counts --cluster $(LABEL_COL) --moment-dimension $(DIM_MOMENT) \
+		--expression counts --cluster $(LABEL_COL) --moment-dimension $(DIM_MOMENT) \
 		$(velocity_only_hvg) --mode $(SMM_MODE) --embedding $(embedding) --jobs $(JOBS)
 	$$(call write_scbolt_metadata,velocity,$$(velocity_$(1)))
 
@@ -400,8 +422,8 @@ $(potency_$(1)): $(annotation_$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-potency) python $(scripts_dir)/traj/potency.py $$< $$(@D) \
 		--csv $$(notdir $$@) --h5ad $$(basename $$(notdir $$@)).h5ad \
-		--layer counts --cluster $(LABEL_COL) --batch-size $(BATCH_SIZE) --smooth-batch-size $(SMOOTH_BATCH_SIZE) \
-		--organism $(ORGANISM) --use-rep $(USE_REP) --seed $(SEED) --jobs $(JOBS)
+		--expression counts --cluster $(LABEL_COL) --batch-size $(BATCH_SIZE) --smooth-batch-size $(SMOOTH_BATCH_SIZE) \
+		--organism $(ORGANISM) --representation $(REPRESENTATION) --seed $(SEED) --jobs $(JOBS)
 	$$(call write_scbolt_metadata,potency,$$(potency_$(1)))
 
 $(cotan_$(1))&: $(annotation_$(1))
@@ -411,7 +433,7 @@ $(cotan_$(1))&: $(annotation_$(1))
 	$(call print_debug,converting AnnData object to CSV counts)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/adata_conversion.py \
 		$$< $(tmpdir)/$(1)/cotan/barcts.csv --from h5ad --to csv \
-		--layer counts $(cotan_only_hvg)
+		--expression counts $(cotan_only_hvg)
 	$(call print_debug,transposing count matrix)
 	ruby -rcsv -e 'puts CSV.parse(STDIN).transpose.map &:to_csv' \
 		< $(tmpdir)/$(1)/cotan/barcts.csv \
@@ -426,7 +448,7 @@ $(cotan_$(1))&: $(annotation_$(1))
 		--axis 0 --sep , --type category
 	$$(call plot_embeddings,\
 		$(fig_dir)/macrostates.json,$$(firstword $$(cotan_$(1))),$$(@D)/macrostates.pdf,\
-		--use-rep $(USE_REP))
+		--representation $(REPRESENTATION))
 	$$(call write_scbolt_metadata,cotan,$$(cotan_$(1)))
 
 $(cellrank_$(1))&: $(velocity_$(1)) $(potency_$(1))
@@ -457,7 +479,7 @@ $(stream_$(1))&: $(annotation_$(1))
 	$(call conda_run,scbolt-stream) python $(scripts_dir)/mstates/stream_mstates.py \
 		$$< $$(firstword $$(stream_$(1))) \
 		--csv $$(lastword $$(stream_$(1))) \
-		--use-rep $(USE_REP) --obs $(LABEL_COL) \
+		--representation $(REPRESENTATION) --obs $(LABEL_COL) \
 		--clustering $(CLUSTERING_METHOD) --cluster-number $(CLUSTER_NUMBER) \
 		--alpha $(ALPHA_EPG) --mu $(MU_EPG) --lambda $(LAMBDA_EPG) \
 		$(extend_epg) \
@@ -488,7 +510,7 @@ $(knnsc_$(1))&: $(annotation_$(1))
 		--jobs $(JOBS)
 	$$(call plot_embeddings,\
 		$(fig_dir)/macrostates.json,$$(firstword $$(knnsc_$(1))),$$(@D)/knnsc.pdf,\
-		--use-rep $(USE_REP))
+		--representation $(REPRESENTATION))
 	$$(call write_scbolt_metadata,knnsc,$$(knnsc_$(1)))
 endif
 
@@ -500,11 +522,12 @@ $(dea_$(1))&: $(clustering_$(1))
 	$(call print_rule,dea,$(1))
 	$(call require_dea_parameters)
 	mkdir -p $$(@D)
-	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/markers.py \
+	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/dea.py \
 		$$< $(firstword $(dea_$(1))) \
 		--xlsx $(lastword $(dea_$(1))) \
-		--cluster cluster --layer log-norm --is-log \
-		--logfc $(LOGFC) --alpha $(ALPHA) --correction $(CORRECTION)
+		--cluster cluster --expression log-norm --is-log \
+		--method $(DEA_METHOD) --logfc $(LOGFC) --alpha $(ALPHA) --correction $(CORRECTION) \
+		--max-memory "$(memory_bonesistools)"
 	$$(call write_scbolt_metadata,dea,$$(dea_$(1)))
 
 $(scoring_$(1))&: $(clustering_$(1)) $(lastword $(signatures)) $(lastword $(dea_$(1)))
@@ -514,19 +537,19 @@ $(scoring_$(1))&: $(clustering_$(1)) $(lastword $(signatures)) $(lastword $(dea_
 		$$^ $(firstword $(scoring_$(1))) --cluster cluster --ignore-sheets background --correction none
 	$$(call write_scbolt_metadata,scoring,$$(scoring_$(1)))
 
-$(goea_basic_$(1)): $(lastword $(dea_$(1))) $(go_basic) $(gene2go)
+$(goea_basic_$(1)): $(lastword $(dea_$(1))) $(go_basic) $(gene2go_done)
 	$(call print_rule,goea,go_basic/$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/goea.py $$< $$@ \
-		--background background --go $$(word 2,$$^) --gene2go $$(lastword $$^) \
+		--background background --go $$(word 2,$$^) --gene2go $(gene2go) \
 		--organism $(ORGANISM) $(geneinfo_version_arg)
 	$$(call write_scbolt_metadata,goea,$$@)
 
-$(goea_organism_$(1)): $(lastword $(dea_$(1))) $(go_organism) $(gene2go)
+$(goea_organism_$(1)): $(lastword $(dea_$(1))) $(go_organism) $(gene2go_done)
 	$(call print_rule,goea,go_$(ORGANISM)/$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/goea.py $$< $$@ \
-		--background background --go $$(word 2,$$^) --gene2go $$(lastword $$^) \
+		--background background --go $$(word 2,$$^) --gene2go $(gene2go) \
 		--organism $(ORGANISM) $(geneinfo_version_arg)
 	$$(call write_scbolt_metadata,goea,$$@)
 
@@ -539,7 +562,7 @@ $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(co
 	mkdir -p $(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/integration.py \
 		$^ --outfile $@ --labels $(conditions) \
-		--layer correct --adjacency knn --integration $(INTEGRATION) \
+		--expression correct --adjacency knn --integration $(INTEGRATION) \
 		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_PCA) --embedding-dimension $(DIM_EMBEDDING) \
 		--flavor $(ANALYSIS_HVG_FLAVOR) $(if $(ANALYSIS_HVG_TOP),--top-hvg $(ANALYSIS_HVG_TOP),) \
 		--span $(ANALYSIS_HVG_SPAN) --bins $(ANALYSIS_HVG_BINS) $(centered_pca) $(pca_only_hvg) \
@@ -558,7 +581,7 @@ $(annotation_integrated): $(clustering_integrated)
 	mkdir -p $(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/annotation.py $< $@ \
 		--obs cluster --new-obs $(LABEL_COL) --labels $(label_map) \
-		--condition-col condition --embedding $(USE_REP)
+		--condition-col condition --embedding $(REPRESENTATION)
 	$(call write_scbolt_metadata,annotation,$@)
 endif
 
@@ -571,7 +594,7 @@ $(macrostate_h5ad_$(1)):
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/prepare_macrostate_h5ad.py \
 		$$(macrostate_file_$(1)) $$@ \
 		--macrostate-obs macrostate --condition $(1) --condition-obs condition \
-		--prefix-macrostates --use-rep $(USE_REP)
+		--prefix-macrostates --representation $(REPRESENTATION)
 endif
 endif
 
@@ -583,7 +606,7 @@ $(macrostate_h5ad):
 	mkdir -p $(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/prepare_macrostate_h5ad.py \
 		$(firstword $(MACROSTATE_FILES)) $@ \
-		--macrostate-obs macrostate --use-rep $(USE_REP) \
+		--macrostate-obs macrostate --representation $(REPRESENTATION) \
 		$(if $(filter-out 1,$(words $(conditions))),--condition-obs condition --prefix-macrostates)
 else
 $(macrostate_h5ad): $(macrostate_h5ads)
@@ -623,13 +646,13 @@ $(bin_cells)&: $(bin_input_h5ads)
 		$< --outfile $(firstword $(bin_cells)) \
 		--bin $(shell echo $@ | $(call system_tool,sed) "s/.h5ad/.csv/") \
 		--statistics $(lastword $(bin_cells)) \
-		--layer log-norm \
+		--expression log-norm \
 		--quantile $(UNIMODAL_QUANTILE) \
 		$(zeroes_are_zeroes) \
 		$(bin_scboolseq_hvg)
 	$(call plot_embeddings,\
 		$(fig_dir)/bin.json,$(firstword $(bin_cells)),$(@D)/pct_bin.pdf,\
-		--use-rep $(USE_REP))
+		--representation $(REPRESENTATION))
 	$(call write_scbolt_metadata,bin-cells,$(bin_cells))
 
 ifeq ($(strip $(MACROSTATE_FILES)),)
@@ -649,15 +672,15 @@ $(bin_mstates): $(firstword $(bin_cells)) \
 	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_clust_scboolseq.py \
 		$(tmpdir)/integrated/bin/aggr/mcts.h5ad $@ \
 		--counts $(@D)/counts_bin.csv \
-		--layer bin --distribution distribution --cluster macrostate \
-		--use-rep $(USE_REP) \
+		--expression bin --distribution distribution --cluster macrostate \
+		--representation $(REPRESENTATION) \
 		--nans-threshold $(NANS_THRESHOLD) \
 		--bimodal-threshold $(BIMODAL_THRESHOLD) \
 		--zeroinf-threshold $(ZEROINF_THRESHOLD) \
 		--unimodal-threshold $(UNIMODAL_THRESHOLD)
 	$(call plot_embeddings,\
 		$(fig_dir)/macrostates.json,$(tmpdir)/integrated/bin/aggr/mcts.h5ad,$(@D)/macrostates.pdf,\
-		--use-rep $(USE_REP))
+		--representation $(REPRESENTATION))
 	$(call write_scbolt_metadata,bin-macrostates,$@)
 else
 $(bin_mstates): $(firstword $(bin_cells))
@@ -667,15 +690,15 @@ $(bin_mstates): $(firstword $(bin_cells))
 	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_clust_scboolseq.py \
 		$< $@ \
 		--counts $(@D)/counts_bin.csv \
-		--layer bin --distribution distribution --cluster macrostate \
-		--use-rep $(USE_REP) \
+		--expression bin --distribution distribution --cluster macrostate \
+		--representation $(REPRESENTATION) \
 		--nans-threshold $(NANS_THRESHOLD) \
 		--bimodal-threshold $(BIMODAL_THRESHOLD) \
 		--zeroinf-threshold $(ZEROINF_THRESHOLD) \
 		--unimodal-threshold $(UNIMODAL_THRESHOLD)
 	$(call plot_embeddings,\
 		$(fig_dir)/macrostates.json,$<,$(@D)/macrostates.pdf,\
-		--use-rep $(USE_REP))
+		--representation $(REPRESENTATION))
 	$(call write_scbolt_metadata,bin-macrostates,$@)
 endif
 
@@ -697,12 +720,13 @@ $(bin_dea): \
 		$(if $(multi_condition),--add-prefix macrostate,) \
 		--axis 0 --sep , --type category
 	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
-		--cluster macrostate --layer log-norm --is-log --method wilcoxon --use-rep $(USE_REP) \
+		--cluster macrostate --expression log-norm --is-log --method wilcoxon --representation $(REPRESENTATION) \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION) \
+		--max-memory "$(memory_bonesistools)" \
 		$(bin_dea_hvg)
 	$(call plot_embeddings,\
 		$(fig_dir)/macrostates.json,$(tmpdir)/integrated/bin/dea/mcts.h5ad,$(@D)/macrostates.pdf,\
-		--use-rep $(USE_REP))
+		--representation $(REPRESENTATION))
 	$(call write_scbolt_metadata,bin-dea,$@)
 else
 $(bin_dea): $(bin_input_h5ads)
@@ -712,12 +736,13 @@ $(bin_dea): $(bin_input_h5ads)
 	mkdir -p $(@D)
 	$(if $(filter true,$(BIN_DEA_ONLY_HVG)),$(call build_bin_hvg,bin-dea))
 	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_dea.py $< $@ \
-		--cluster macrostate --layer log-norm --is-log --method wilcoxon --use-rep $(USE_REP) \
+		--cluster macrostate --expression log-norm --is-log --method wilcoxon --representation $(REPRESENTATION) \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION) \
+		--max-memory "$(memory_bonesistools)" \
 		$(bin_dea_hvg)
 	$(call plot_embeddings,\
 		$(fig_dir)/macrostates.json,$<,$(@D)/macrostates.pdf,\
-		--use-rep $(USE_REP))
+		--representation $(REPRESENTATION))
 	$(call write_scbolt_metadata,bin-dea,$@)
 endif
 

@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
+import gzip
+import os
+import shutil
+import tempfile
 from pathlib import Path
 
 import cli
 import re
+import std
 
 from pandas import ExcelFile, ExcelWriter, read_excel
 
@@ -17,14 +20,26 @@ from goatools.anno.gaf_reader import GafReader
 from goatools.anno.genetogo_reader import Gene2GoReader
 from goatools.goea.go_enrichment_ns import GOEnrichmentStudyNS
 
-
 script_name = Path(__file__).name
+
+
+def read_gene2go(path: Path):
+    if path.suffix != ".gz":
+        return Gene2GoReader(path, taxids=[10090]).get_ns2assc()
+
+    with tempfile.TemporaryDirectory(prefix="scbolt-gene2go-") as tmpdir:
+        gene2go_path = Path(tmpdir) / "gene2go"
+        with gzip.open(path, "rb") as infile:
+            with gene2go_path.open("wb") as outfile:
+                shutil.copyfileobj(infile, outfile)
+        return Gene2GoReader(gene2go_path, taxids=[10090]).get_ns2assc()
+
 
 parser = argparse.ArgumentParser(
     prog="goea",
     description="Perform Gene Ontology enrichment analysis.",
     usage=f"python {script_name} [-h] <FILE> <FILE> --background <LITERAL> --go <FILE> (--gene2go <FILE> | --annotations <FILE>) [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -216,10 +231,10 @@ std.print_task(
 )
 with std.disable_print():
     if args.gene2go:
-        annotations = Gene2GoReader(args.gene2go, taxids=[10090])
+        associations = read_gene2go(args.gene2go)
     else:
         annotations = GafReader(args.annotations)
-    associations = annotations.get_ns2assc()
+        associations = annotations.get_ns2assc()
 
 for namespace, gene_id2go in associations.items():
     std.print_info(f"{namespace} {len(gene_id2go):,} annotated {args.organism} genes")

@@ -23,7 +23,6 @@ import cytotrace2_py as cytotrace
 import matplotlib.pyplot as plt
 import warnings
 
-
 std.set_default_plot_params(bt.sct.pl)
 
 parser_description = """Compute scores related to cell development potential (lower the score, higher the differentiation potential) and classify cells by their cell potency using the CytoTRACE framework.
@@ -45,7 +44,7 @@ parser = argparse.ArgumentParser(
     prog="potency",
     description=parser_description,
     usage=f"python {script_name} <FILE> <FILE> [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -83,13 +82,16 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--layer",
-    dest="layer",
+    "--expression",
+    dest="expression",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
-    help="layer used corresponding to raw counts or CPM/TPM (if not specified, use adata.X)",
+    help=(
+        "Expression layer to use. Expected data: raw counts or CPM/TPM.\n"
+        "Default: adata.X."
+    ),
 )
 
 parser.add_argument(
@@ -131,13 +133,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--use-rep",
-    dest="use_rep",
+    "--representation",
+    dest="representation",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
-    help="embedding projection",
+    help=(
+        "Embedding representation in adata.obsm used for plotting.\n" "Default: None."
+    ),
 )
 
 parser.add_argument(
@@ -170,7 +174,7 @@ np.random.seed(args.seed)
 std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
-counts = bt.sct.tl.anndata_to_dataframe(adata, layer=args.layer)
+counts = bt.sct.tl.anndata_to_dataframe(adata, layer=args.expression)
 
 if counts.max().max() <= 20:
     warnings.warn(
@@ -280,16 +284,16 @@ adata.obs = adata.obs.merge(
 )
 
 try:
-    embedding_label = args.use_rep.split("_")[1]
+    embedding_label = args.representation.split("_")[1]
 except IndexError:
-    embedding_label = args.use_rep
+    embedding_label = args.representation
 plot_dir = os.path.relpath(args.outpath)
 std.print_task(f"plotting potency outputs (directory={plot_dir})")
 for obs in ["score", "normalized_score", "potency"]:
     bt.sct.pl.embedding(
         adata,
         obs=f"cytotrace_{obs}",
-        use_rep=args.use_rep,
+        use_rep=args.representation,
         xlabel=std.axis_label(embedding_label, 1),
         ylabel=std.axis_label(embedding_label, 2),
         zlabel=std.axis_label(embedding_label, 3),
@@ -305,7 +309,7 @@ for obs in ["score", "normalized_score", "potency"]:
             "edgecolor": bt.sct.pl.get_color("black"),
             "shadow": False,
         },
-        n_components=3 if adata.obsm[args.use_rep].shape[1] > 2 else 2,
+        n_components=3 if adata.obsm[args.representation].shape[1] > 2 else 2,
         background_visible=False,
         outfile=Path(f"{args.outpath}/cytotrace_{obs}.pdf"),
     )

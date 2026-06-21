@@ -15,7 +15,8 @@ $(eval PARAMS ?= params.mk)  # user parameter file (resolved relative to scBOLT 
 # - min/max ranges use two values: <min> <max>; use inf/-inf for open bounds
 
 ## COMPUTING RESOURCES ##
-# MEMORY is in GB. LOGGING=true persists command output in log files.
+# MEMORY accepts an integer in GB, or a value with unit KB, MB, GB, TB, KiB,
+# MiB, GiB, or TiB. LOGGING=true persists command output in log files.
 MEMORY ?= 50
 JOBS ?= 16
 SEED ?= 10
@@ -74,16 +75,16 @@ $(eval STAR_TOP_BARCODES ?=)               # optional number of top barcodes
 # MACROSTATE_FILES skips macrostate inference and restarts from either one
 # multi-condition AnnData file or one AnnData file per condition, ordered like
 # CONDITIONS. Files must contain layer 'log-norm', obs 'macrostate', and obsm
-# USE_REP. A single multi-condition file must also contain obs 'condition'.
+# REPRESENTATION. A single multi-condition file must also contain obs 'condition'.
 # If BIN_HVG_FLAVOR=seurat_v3 is used downstream, macrostate files must also
 # contain layer 'counts'.
-# USE_REP must name an embedding in adata.obsm, usually created by clustering.
+# REPRESENTATION must name an embedding in adata.obsm, usually created by clustering.
 # LABEL_COL is created by annotation, copied per condition, and used by
 # downstream macrostate methods.
 $(eval COUNT_FILES ?=)                     # precomputed count AnnData files
 $(eval BINARIZATION_FILE ?=)                # precomputed macrostate binarization
 $(eval MACROSTATE_FILES ?=)                 # precomputed macrostate AnnData files
-$(eval USE_REP ?= X_umap)                   # embedding key in adata.obsm
+$(eval REPRESENTATION ?= X_umap)            # embedding key in adata.obsm
 $(eval LABEL_COL ?= label)                  # annotated cell-type column in adata.obs
 $(eval OLD_FILES ?=)                        # trusted existing scBOLT DAG files
 
@@ -128,9 +129,11 @@ $(eval EMBEDDING_N_ITER ?= 500)
 $(eval PCA_ONLY_HVG ?= true)                # use only HVGs for PCA projection
 
 ## DEA ##
+# DEA_METHOD values: wilcoxon, welch, welch_overestimate.
 # LOGFC is non-negative.
 # CORRECTION values: benjamini-hochberg, bonferroni.
 # ALPHA is an adjusted p-value threshold in [0,1].
+$(eval DEA_METHOD ?= wilcoxon)             # statistical test for marker DEA
 $(eval LOGFC ?= 0.25)                       # minimum absolute log2 fold-change
 $(eval CORRECTION ?= bonferroni)            # p-value correction method
 $(eval ALPHA ?= 0.05)                       # adjusted p-value threshold

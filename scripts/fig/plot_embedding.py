@@ -4,6 +4,7 @@ import importlib
 
 import os
 import argparse
+import cli
 import json
 from pathlib import Path
 
@@ -12,7 +13,6 @@ import std
 from bonesistools import sctools as sct
 
 import matplotlib.pyplot as plt
-
 
 std.set_default_plot_params(sct.pl)
 
@@ -48,6 +48,7 @@ def remove_unused_obs_categories(adata, obs):
 
 
 parser = argparse.ArgumentParser(
+    formatter_class=cli.HelpFormatter,
     prog="figure plotting",
     description="""plot figure from anndata object""",
     usage="""python <PATH> [--infile <PATH> --outfile <PATH>]""",
@@ -91,13 +92,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--use-rep",
-    dest="use_rep",
+    "--representation",
+    dest="representation",
     type=str,
     required=False,
     default=None,
     metavar="LITERAL",
-    help="embedding projection",
+    help="Embedding representation in adata.obsm.",
 )
 
 args = parser.parse_args()
@@ -135,8 +136,8 @@ if "modules" in params:
 if args.obs:
     params["figure"]["obs"] = args.obs
 
-if args.use_rep:
-    params["figure"]["use_rep"] = args.use_rep
+if args.representation:
+    params["figure"]["use_rep"] = args.representation
 
 remove_unused_obs_categories(adata, params["figure"].get("obs"))
 

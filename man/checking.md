@@ -124,7 +124,7 @@ Examples:
 - `JOBS`
 - `SEED`
 - `LOGGING`
-- `USE_REP`
+- `REPRESENTATION`
 - `LABEL_COL`
 - `OLD_FILES`
 
@@ -137,7 +137,7 @@ Example output:
 
 ```text
 SUCCESS core parameter valid: JOBS=16
-SUCCESS core parameter valid: USE_REP=X_umap
+SUCCESS core parameter valid: REPRESENTATION=X_umap
 ```
 
 ### Method Parameters
@@ -348,7 +348,7 @@ The user-provided file must contain:
 - `macrostate` in `obs`;
 - `condition` in `obs`, required when a single file is used for a
   multi-condition project;
-- `$(USE_REP)` in `obsm`.
+- `$(REPRESENTATION)` in `obsm`.
 
 If downstream HVG selection uses `BIN_HVG_FLAVOR=seurat_v3`, the file must also
 contain:
@@ -418,7 +418,7 @@ Provides:
 - `X_pca` in `obsm`
 - `connectivities` in `obsp`
 - `cluster` in `obs`
-- `$(USE_REP)` in `obsm`
+- `$(REPRESENTATION)` in `obsm`
 
 ### Per-Condition Clustering
 
@@ -435,7 +435,7 @@ Provides:
 - `X_pca` in `obsm`
 - `connectivities` in `obsp`
 - `cluster` in `obs`
-- `$(USE_REP)` in `obsm`
+- `$(REPRESENTATION)` in `obsm`
 
 ### Differential Expression Analysis
 
@@ -449,7 +449,7 @@ Requires:
 Requires:
 
 - `cluster` in `obs`
-- `$(USE_REP)` in `obsm`
+- `$(REPRESENTATION)` in `obsm`
 
 Provides:
 
@@ -462,7 +462,7 @@ Requires:
 - `condition` in `obs` from the integrated AnnData when using multiple
   conditions;
 - `cluster` in `obs` when using a single condition;
-- `$(USE_REP)` in `obsm`.
+- `$(REPRESENTATION)` in `obsm`.
 
 Provides:
 
@@ -494,7 +494,7 @@ Requires:
 
 - `counts` in `layers`
 - `$(LABEL_COL)` in `obs`
-- `$(USE_REP)` in `obsm`
+- `$(REPRESENTATION)` in `obsm`
 
 Provides:
 
@@ -511,7 +511,7 @@ Requires:
 
 - `counts` in `layers`
 - `highly_variable` in `var`, only when `COTAN_ONLY_HVG=true`
-- `$(USE_REP)` in `obsm`
+- `$(REPRESENTATION)` in `obsm`
 
 Provides:
 
@@ -539,7 +539,7 @@ velocity H5AD.
 
 Requires:
 
-- `$(USE_REP)` in `obsm`
+- `$(REPRESENTATION)` in `obsm`
 - `$(LABEL_COL)` in `obs`
 
 Provides:
@@ -551,7 +551,7 @@ Provides:
 Requires:
 
 - `$(KNNSC_EMBEDDING)` in `obsm`
-- `$(USE_REP)` in `obsm`
+- `$(REPRESENTATION)` in `obsm`
 - `$(LABEL_COL)` in `obs`
 
 Provides:
@@ -563,7 +563,7 @@ Provides:
 Requires:
 
 - `log-norm` in `layers`
-- `$(USE_REP)` in `obsm`
+- `$(REPRESENTATION)` in `obsm`
 - `macrostate` in `obs`, only when starting from `MACROSTATE_FILES` and needed
   downstream
 
@@ -578,7 +578,7 @@ Requires:
 
 - `macrostate` in `obs`
 - `bin` in `layers`
-- `$(USE_REP)` in `obsm`
+- `$(REPRESENTATION)` in `obsm`
 - `distribution` in `var`
 
 ### Bin-DEA
@@ -587,7 +587,7 @@ Requires:
 
 - `macrostate` in `obs`
 - `log-norm` in `layers`
-- `$(USE_REP)` in `obsm`
+- `$(REPRESENTATION)` in `obsm`
 
 ## Reading the Output
 

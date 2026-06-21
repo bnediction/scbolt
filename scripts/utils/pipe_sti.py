@@ -3,11 +3,11 @@
 import os
 import std
 import argparse
+import cli
 from pathlib import Path
 
 import anndata as ad
 import pandas as pd
-
 
 script_name = Path(__file__).name
 
@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser(
         "Values passed to --specifics and --labels must be ordered together."
     ),
     usage=f"python {script_name} [-h] <FILE> <FILE ...> [--outfile <FILE>] --labels <LITERAL ...> --obs-label <LITERAL> [--obs <LITERAL ...>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -163,7 +163,9 @@ if cols_to_remove:
     integrated_ad.obs = integrated_ad.obs.drop(list(cols_to_remove), axis=1)
 
 for column in args.obs:
-    if all(pd.api.types.is_bool_dtype(adata.obs[column]) for adata in specific_ad.values()):
+    if all(
+        pd.api.types.is_bool_dtype(adata.obs[column]) for adata in specific_ad.values()
+    ):
         integrated_ad.obs[column] = pd.Series(
             False,
             index=integrated_ad.obs.index,

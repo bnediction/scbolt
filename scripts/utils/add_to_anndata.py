@@ -10,7 +10,6 @@ import cli
 import pandas as pd
 import anndata as ad
 
-
 PathLike = Union[str, Path]
 category = pd.Categorical
 
@@ -53,7 +52,7 @@ parser = argparse.ArgumentParser(
         "either to 'adata.obs' or 'adata.var', depending on --axis."
     ),
     usage=f"python {script_name} <FILE> <FILE> --csv <FILE> [--axis <AXIS>] [<args>]",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
@@ -246,9 +245,7 @@ else:
         df[label_column] = name
     csv_df = pd.concat(dfs.values(), axis=0)
     del df, dfs
-    value_columns = [
-        column for column in csv_df.columns if column != label_column
-    ]
+    value_columns = [column for column in csv_df.columns if column != label_column]
     if args.axis in [0, "obs"]:
         adata_df = adata.obs.copy()
         cols_to_remove = set(adata_df.columns) & set(csv_df.columns) - set(

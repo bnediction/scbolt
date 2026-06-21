@@ -259,7 +259,7 @@ obs:
   condition (for multi-condition projects)
 
 obsm:
-  X_umap, X_tsne, or X_se (matching USE_REP)
+  X_umap, X_tsne, or X_se (matching REPRESENTATION)
 ```
 
 ### Starting from precomputed binarizations

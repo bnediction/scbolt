@@ -3,12 +3,12 @@
 import os
 import std
 import argparse
+import cli
 from pathlib import Path
 
 import bonesistools as bt
 
 import scanpy as sc
-
 
 script_name = Path(__file__).name
 
@@ -16,7 +16,7 @@ parser = argparse.ArgumentParser(
     prog="get_genes",
     description="""Retrieve gene names.""",
     usage=f"""python {script_name} [-h] <FILE> <FILE> [--axis <obs | var>] [--standardization]""",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(

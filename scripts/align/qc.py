@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import cli
 import os
 import sys
 from pathlib import Path
@@ -127,7 +128,7 @@ parser = argparse.ArgumentParser(
         f"python {script_name} [-h] <FILE> <FILE> <FILE> "
         "[--method {auto,threshold,top}] [--min-umi INT] [--top-barcodes INT]"
     ),
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=cli.HelpFormatter,
 )
 
 parser.add_argument(
