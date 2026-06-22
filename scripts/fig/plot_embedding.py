@@ -137,7 +137,7 @@ if args.obs:
     params["figure"]["obs"] = args.obs
 
 if args.representation:
-    params["figure"]["use_rep"] = args.representation
+    params["figure"]["representation"] = args.representation
 
 remove_unused_obs_categories(adata, params["figure"].get("obs"))
 
@@ -148,7 +148,7 @@ params["figure"] = std.plain_text_labels(params["figure"])
 
 if "n_components" not in params["figure"]:
     params["figure"]["n_components"] = (
-        3 if adata.obsm[params["figure"]["use_rep"]].shape[1] > 2 else 2
+        3 if adata.obsm[params["figure"]["representation"]].shape[1] > 2 else 2
     )
 
 figure = sct.pl.embedding(adata, **params["figure"])

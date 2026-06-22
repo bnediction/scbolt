@@ -2,10 +2,6 @@
 
 from pathlib import Path
 
-import numpy as np
-import scanpy as sc
-from sklearn.decomposition import PCA
-
 import bonesistools as bt
 
 quickstart_dir = Path(__file__).resolve().parent
@@ -22,32 +18,37 @@ adata.obs["label"] = adata.obs["label"].astype("category")
 adata.obs["cluster"] = adata.obs["label"].copy()
 adata.layers["counts"] = adata.X.copy()
 
-adata.layers["norm"] = adata.X.copy()
-sc.pp.normalize_total(adata, target_sum=1e4, layer="norm", copy=False)
-
-adata.layers["log-norm"] = adata.layers["norm"].copy()
-sc.pp.log1p(adata, base=np.exp(1), layer="log-norm", copy=False)
-
-adata.layers["scale"] = adata.layers["log-norm"].copy()
-sc.pp.scale(adata, layer="scale", copy=False)
+bt.sct.pp.normalize(
+    adata,
+    target_sum=1e4,
+    key_added="norm",
+    copy=False,
+)
+bt.sct.pp.log1p(
+    adata,
+    expression="norm",
+    key_added="log-norm",
+    copy=False,
+)
+bt.sct.pp.scale(
+    adata,
+    expression="log-norm",
+    key_added="scale",
+    copy=False,
+)
 adata.layers["correct"] = adata.layers["scale"].copy()
 
-sc.pp.highly_variable_genes(
-    adata,
-    layer="counts",
-    flavor="seurat_v3",
-    n_top_genes=500,
-    inplace=True,
-)
+adata.var["highly_variable"] = True
 
-hvg_mask = np.asarray(adata.var["highly_variable"], dtype=bool)
-X = np.asarray(adata.layers["scale"][:, hvg_mask], dtype=float)
-adata.obsm["X_pca"] = PCA(
+bt.sct.tl.pca(
+    adata,
     n_components=30,
+    layer="scale",
+    var_subset="highly_variable",
     svd_solver="arpack",
-    random_state=10,
-).fit_transform(X)
-adata.obsm["top_pcs"] = adata.obsm["X_pca"].copy()
+    seed=10,
+    copy=False,
+)
 
 bt.sct.tl.neighbors(
     adata,
@@ -62,10 +63,17 @@ bt.sct.tl.spectral(
     seed=10,
 )
 
+bt.sct.pl.embedding(
+    adata,
+    obs="label",
+    representation="X_se",
+    outfile=data_dir / "se.pdf",
+)
+
 adata.uns["scbolt"] = {
     "input_source": "bonesistools.datasets.nestorowa",
     "matrix_type": "quickstart_count_matrix",
-    "analysis_hvg_top": 500,
+    "analysis_hvg": "all_genes",
     "inference_hvg_top": 50,
 }
 

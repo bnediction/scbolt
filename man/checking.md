@@ -231,7 +231,7 @@ for example:
 - `dot`
 
 Conda environment checks verify that referenced `scbolt-*` environments exist.
-They also compare installed packages with the corresponding `envs/*.yml` file.
+They also compare installed packages with the corresponding `envs/conda/*.yml` file.
 Mismatches are warnings, not failures, because users may intentionally keep a
 newer or patched environment.
 

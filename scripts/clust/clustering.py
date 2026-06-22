@@ -84,20 +84,17 @@ def compute_embedding(adata, method: str, args) -> None:
         )
 
 
-def plot_embedding(adata, method: str, use_rep: str, outfile: Path, args) -> None:
+def plot_embedding(adata, method: str, representation: str, outfile: Path, args) -> None:
     embedding_label = std.format_embedding(method)
     bt.sct.pl.embedding(
         adata,
         obs="cluster",
-        use_rep=use_rep,
+        representation=representation,
         xlabel=std.axis_label(embedding_label, 1),
         ylabel=std.axis_label(embedding_label, 2),
         zlabel=std.axis_label(embedding_label, 3),
         figwidth=6,
-        s=2,
-        alpha=1,
-        show_legend=True,
-        lgd_params={
+        legend={
             "title": "clusters",
             "ncol": 1,
             "markerscale": 5,
@@ -403,11 +400,11 @@ for method, _, _ in EMBEDDINGS:
 std.print_info(
     f"plotting embeddings (directory={os.path.relpath(os.path.dirname(args.outfile))})"
 )
-for method, use_rep, filename in EMBEDDINGS:
+for method, representation, filename in EMBEDDINGS:
     plot_embedding(
         adata,
         method,
-        use_rep,
+        representation,
         Path(f"{os.path.dirname(args.outfile)}/{filename}"),
         args,
     )

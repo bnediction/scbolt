@@ -291,17 +291,15 @@ for obs, file in macrostate_files.items():
         bt.sct.pl.embedding(
             adata,
             obs=obs,
-            use_rep="X_umap",
+            representation="X_umap",
             figheight=6,
             figwidth=8,
             xlabel=std.axis_label("UMAP", 1),
             ylabel=std.axis_label("UMAP", 2),
             zlabel=std.axis_label("UMAP", 3),
             s=4,
-            alpha=1,
             show_labels=True,
-            show_legend=True,
-            lgd_params={
+            legend={
                 "title": obs,
                 "ncol": math.ceil(
                     len(adata.obs[obs].astype("category").cat.categories) / 16

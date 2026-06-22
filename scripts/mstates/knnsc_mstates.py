@@ -246,7 +246,7 @@ std.print_warning("this may take some time.")
 knnsc.fit(
     adata,
     cluster_key=args.obs,
-    use_rep=args.embedding,
+    representation=args.embedding,
     n_components=args.dimension,
     n_neighbors=args.neighbors,
     metric=args.metric,

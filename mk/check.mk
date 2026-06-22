@@ -612,7 +612,7 @@ else ifeq ($(HELP),false)
 					conda_report="$${conda_report_dir}/$${conda_index}.report"; \
 					conda_status="$${conda_report_dir}/$${conda_index}.status"; \
 					printf 'success\t%s\n' "conda environment found: $${env}" > "$${conda_report}"; \
-					env_yaml="$(scbolt_root)/envs/$${env#scbolt-}.yml"; \
+					env_yaml="$(scbolt_root)/envs/conda/$${env#scbolt-}.yml"; \
 					( \
 						$(python) $(scripts_dir)/utils/check_conda_env.py \
 							--env "$${env}" --yaml "$${env_yaml}" \

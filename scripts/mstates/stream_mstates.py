@@ -241,10 +241,11 @@ std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 adata.uns["workdir"] = str(outpath)
 
+representation_mtx = bt.sct.tl.get_representation(
+    adata, representation=args.representation
+)
 adata.uns["dr"] = args.representation
-adata.obsm["X_dr"] = bt.sct.tl.get_representation(
-    adata, use_rep=args.representation
-).copy()
+adata.obsm["X_dr"] = representation_mtx.copy()
 
 adata.obs[args.obs] = adata.obs[args.obs].astype(object)
 
@@ -343,16 +344,14 @@ for group in groups:
     bt.sct.pl.trajectory(
         adata,
         obs=group,
-        use_rep=args.representation,
+        representation=args.representation,
         graph_key="epg",
         xlabel=std.axis_label(embedding_label, 1),
         ylabel=std.axis_label(embedding_label, 2),
         zlabel=std.axis_label(embedding_label, 3),
         figwidth=6,
-        s=2,
         alpha=0.7,
-        show_legend=True,
-        lgd_params={
+        legend={
             "title": group,
             "ncol": 1,
             "markerscale": 5,
@@ -362,7 +361,7 @@ for group in groups:
         },
         text={"fontsize": 14, "fontweight": "extra bold"},
         show_labels=True,
-        n_components=3 if adata.obsm["X_dr"].shape[1] > 2 else 2,
+        n_components=3 if representation_mtx.shape[1] > 2 else 2,
         background_visible=False,
         outfile=epg_plot,
     )
@@ -415,6 +414,9 @@ for key in list(adata.uns.keys()):
         del adata.uns[key]
     if key.startswith("stream_S"):
         del adata.uns[key]
+adata.uns.pop("dr", None)
+if "X_dr" in adata.obsm:
+    del adata.obsm["X_dr"]
 std.write_h5ad(adata, filename=args.outfile, compression="gzip")
 
 if args.csv:

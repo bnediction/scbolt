@@ -10,22 +10,19 @@
         "xlabel",
         "ylabel",
         "zlabel",
-        ["lgd_params", "edgecolor"],
+        ["legend", "edgecolor"],
         "n_components"
     ],
     "figure": {
         "obs": "condition",
-        "use_rep": "X_umap",
+        "representation": "X_umap",
         "figheight": 5,
         "figwidth": 6,
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "colors": "bt.sct.pl.COLORS",
-        "s": 2,
-        "alpha": 1,
-        "show_legend": true,
-        "lgd_params": {
+        "colors": "bt.sct.pl.CLASSIC_COLORS",
+        "legend": {
             "title": "conditions",
             "loc":"best",
             "ncol": 1,

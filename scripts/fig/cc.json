@@ -9,7 +9,7 @@
         "ylabel",
         "zlabel",
         "colors",
-        ["lgd_params", "edgecolor"]
+        ["legend", "edgecolor"]
     ],
     "figure": {
         "obs": "pypairs_cc_prediction",
@@ -18,10 +18,8 @@
         "ylabel": "r'$\\mathrm{dim_{2}}$'",
         "zlabel": "r'$\\mathrm{dim_{3}}$'",
         "s": 3,
-        "alpha": 1,
         "colors": "[sct.pl.get_color('blue'), sct.pl.get_color('red'), sct.pl.get_color('green')]",
-        "show_legend": true,
-        "lgd_params": {
+        "legend": {
             "title": "cell cycle",
             "ncol": 1,
             "markerscale": 8,

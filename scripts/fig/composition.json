@@ -1,11 +1,6 @@
 {
     "figure": {
-        "normalize": true,
-        "percent": true,
         "dropna": false,
-        "orientation": "vertical",
-        "width": 0.8,
-        "showlegend": true,
         "figwidth": 6,
         "figheight": 3,
         "labelsize": 12,

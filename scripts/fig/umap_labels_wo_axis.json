@@ -9,21 +9,18 @@
         "xlabel",
         "ylabel",
         "zlabel",
-        ["lgd_params", "edgecolor"],
+        ["legend", "edgecolor"],
         "n_components"
     ],
     "figure": {
         "obs": "label",
-        "use_rep": "X_umap",
+        "representation": "X_umap",
         "figheight": 5,
         "figwidth": 6,
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "show_legend": true,
-        "s": 2,
-        "alpha": 1,
-        "lgd_params": {
+        "legend": {
             "title": "clusters",
             "ncol": 1,
             "markerscale": 5,

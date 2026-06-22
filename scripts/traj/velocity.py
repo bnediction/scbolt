@@ -239,15 +239,13 @@ with warnings.catch_warnings():
     bt.sct.pl.embedding(
         adata,
         obs="velocity_pseudotime",
-        use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
+        representation="X_umap" if args.embedding == "umap" else "X_tsne",
         xlabel=std.axis_label(embedding_label, 1),
         ylabel=std.axis_label(embedding_label, 2),
         zlabel=std.axis_label(embedding_label, 3),
         figwidth=6,
         s=4,
-        alpha=1,
-        show_legend=True,
-        lgd_params={
+        legend={
             "title": "pseudotime",
             "ncol": 1,
             "markerscale": 5,
@@ -265,15 +263,13 @@ with warnings.catch_warnings():
     fig, ax = bt.sct.pl.embedding(
         adata,
         obs=args.cluster,
-        use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
+        representation="X_umap" if args.embedding == "umap" else "X_tsne",
         xlabel=std.axis_label(embedding_label, 1),
         ylabel=std.axis_label(embedding_label, 2),
         zlabel=std.axis_label(embedding_label, 3),
         figwidth=6,
         s=4,
-        alpha=1,
-        show_legend=True,
-        lgd_params={
+        legend={
             "title": "clusters",
             "ncol": 1,
             "markerscale": 5,
@@ -281,7 +277,7 @@ with warnings.catch_warnings():
             "edgecolor": bt.sct.pl.get_color("black"),
             "shadow": False,
         },
-        color=adata.uns["colors"],
+        colors=adata.uns["colors"],
         n_components=(
             3
             if adata.obsm["velocity_umap"].shape[1] > 2 and args.plot_3d is True
@@ -293,7 +289,7 @@ with warnings.catch_warnings():
     ax = bt.sct.pl.draw_paga(
         adata=adata,
         obs=args.cluster,
-        use_rep="X_umap" if args.embedding == "umap" else "X_tsne",
+        representation="X_umap" if args.embedding == "umap" else "X_tsne",
         edges="transitions_confidence",
         threshold=0.01,
         ax=ax,

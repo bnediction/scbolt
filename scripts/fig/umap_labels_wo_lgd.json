@@ -13,14 +13,12 @@
     ],
     "figure": {
         "obs": "cluster",
-        "use_rep": "X_umap",
+        "representation": "X_umap",
         "figheight": 5,
         "figwidth": 6,
         "xlabel": "r'$\\mathrm{UMAP_{1}}$'",
         "ylabel": "r'$\\mathrm{UMAP_{2}}$'",
         "zlabel": "r'$\\mathrm{UMAP_{3}}$'",
-        "s": 2,
-        "alpha": 1,
         "n_components": "3 if adata.obsm['X_umap'].shape[1] > 2 and args.plot_3d is True else 2",
         "background_visible": false
     },

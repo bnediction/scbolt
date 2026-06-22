@@ -155,7 +155,7 @@ ks_df = bt.sct.tl.smirnov_tests(
 if ks_df is None:
     raise RuntimeError("smirnov tests did not return a table")
 
-logfoldchanges_df = bt.sct.tl.calculate_logfoldchanges(
+logfoldchanges_df = bt.sct.tl.logfoldchanges(
     adata,
     groupby=args.cluster,
     layer=args.expression,
@@ -203,14 +203,12 @@ if args.representation:
     bt.sct.pl.embedding(
         adata,
         obs=f"pct_bin_{args.cluster}",
-        use_rep=args.representation,
+        representation=args.representation,
         xlabel=std.axis_label(embedding_label, 1),
         ylabel=std.axis_label(embedding_label, 2),
         zlabel=std.axis_label(embedding_label, 3),
         figwidth=6,
         s=4,
-        alpha=1,
-        show_legend=True,
         colorbar_scale=0.8,
         n_components=3 if adata.obsm[args.representation].shape[1] > 2 else 2,
         background_visible=False,

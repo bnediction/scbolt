@@ -293,15 +293,13 @@ for obs in ["score", "normalized_score", "potency"]:
     bt.sct.pl.embedding(
         adata,
         obs=f"cytotrace_{obs}",
-        use_rep=args.representation,
+        representation=args.representation,
         xlabel=std.axis_label(embedding_label, 1),
         ylabel=std.axis_label(embedding_label, 2),
         zlabel=std.axis_label(embedding_label, 3),
         figwidth=6 if obs == "potency" else 8,
         s=8,
-        alpha=1,
-        show_legend=True,
-        lgd_params={
+        legend={
             "title": obs,
             "ncol": 1,
             "markerscale": 5,
@@ -319,8 +317,8 @@ fig, ax, _ = bt.sct.pl.distribution(
     obs="cytotrace_score",
     groupby=args.cluster,
     sort="descending",
-    showfliers=False,
-    showpoints=True,
+    points=True,
+    boxplot={"showfliers": False},
 )
 ylim_min, ylim_max = 0, 1
 plt.ylim((ylim_min, ylim_max))
@@ -339,7 +337,7 @@ plt.hlines(
     y=ranges,
     xmin=ax.get_xlim()[0],
     xmax=ax.get_xlim()[1],
-    colors=bt.sct.pl._colors.black,
+    colors=bt.sct.pl.get_color("black"),
     linestyles="-",
     linewidth=0.2,
 )
@@ -350,8 +348,8 @@ bt.sct.pl.distribution(
     obs="cytotrace_normalized_score",
     groupby="cluster",
     sort="descending",
-    showfliers=False,
-    showpoints=True,
+    points=True,
+    boxplot={"showfliers": False},
     outfile=Path(f"{args.outpath}/boxplot_cytotrace_normalized_score.pdf"),
 )
 

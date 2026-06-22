@@ -180,7 +180,7 @@ def plot_embedding(
     adata,
     obs: str,
     method: str,
-    use_rep: str,
+    representation: str,
     outfile: Path,
     args,
 ) -> None:
@@ -188,15 +188,12 @@ def plot_embedding(
     bt.sct.pl.embedding(
         adata,
         obs=obs,
-        use_rep=use_rep,
+        representation=representation,
         xlabel=std.axis_label(embedding_label, 1),
         ylabel=std.axis_label(embedding_label, 2),
         zlabel=std.axis_label(embedding_label, 3),
         figwidth=6,
-        s=2,
-        alpha=1,
-        show_legend=True,
-        lgd_params={
+        legend={
             "title": obs,
             "ncol": 1,
             "markerscale": 5,
@@ -730,14 +727,11 @@ pc_plot = Path(f"{os.path.dirname(args.outfile)}/pca.pdf")
 bt.sct.pl.embedding(
     adata,
     obs="condition",
-    use_rep="X_pca" if args.integration != "scanorama" else "X_scanorama",
+    representation="X_pca" if args.integration != "scanorama" else "X_scanorama",
     xlabel=std.axis_label("PC", 1),
     ylabel=std.axis_label("PC", 2),
     figwidth=6,
-    s=2,
-    alpha=1,
-    show_legend=True,
-    lgd_params={
+    legend={
         "title": "condition",
         "ncol": 1,
         "markerscale": 5,
@@ -745,17 +739,16 @@ bt.sct.pl.embedding(
         "edgecolor": bt.sct.pl.get_color("black"),
         "shadow": False,
     },
-    n_components=2,
     background_visible=False,
     outfile=pc_plot,
 )
 
-for method, use_rep, filename in EMBEDDINGS:
+for method, representation, filename in EMBEDDINGS:
     plot_embedding(
         adata,
         "cluster",
         method,
-        use_rep,
+        representation,
         Path(f"{os.path.dirname(args.outfile)}/{filename}"),
         args,
     )
@@ -771,12 +764,7 @@ for obs, (groupby, filename) in composition_plots.items():
         adata,
         obs=obs,
         groupby=groupby,
-        normalize=True,
-        percent=True,
         dropna=False,
-        orientation="vertical",
-        width=0.8,
-        showlegend=True,
         figwidth=6,
         figheight=3,
         xlabel=groupby,

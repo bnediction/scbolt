@@ -8,8 +8,8 @@
         "xlabel",
         "ylabel",
         "zlabel",
-        ["lgd_params", "ncol"],
-        ["lgd_params", "edgecolor"]
+        ["legend", "ncol"],
+        ["legend", "edgecolor"]
     ],
     "figure": {
         "obs": "macrostate",
@@ -19,10 +19,8 @@
         "ylabel": "r'$\\mathrm{dim_{2}}$'",
         "zlabel": "r'$\\mathrm{dim_{3}}$'",
         "s": 4,
-        "alpha": 1,
         "show_labels": true,
-        "show_legend": true,
-        "lgd_params": {
+        "legend": {
             "title": "macrostate",
             "ncol": "math.ceil(len(adata.obs['macrostate'].astype('category').cat.categories) / 16)",
             "markerscale": 5,

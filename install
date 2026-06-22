@@ -1,9 +1,9 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 set -e
 
 scbolt_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-env_dir="${scbolt_root}/envs"
+env_dir="${scbolt_root}/envs/conda"
 lib_dir="${scbolt_root}/lib"
 scbolt_command="${scbolt_root}/bin/scbolt"
 scbolt_completion="${scbolt_root}/bin/completion.bash"
@@ -24,25 +24,136 @@ scbolt_envs=(
     velocyto
 )
 
-assume_yes="${SCBOLT_YES:-false}"
+assume_yes=false
+install_cli=false
+install_all=false
+target_requested=false
+selected_envs=()
+ignored_envs=()
 
 usage() {
     cat <<EOF
-usage: bash config.sh [--yes]
+usage: ./install [--all] [--cli] [--env=NAME]
 
-Install the scBOLT command, Bash completion, and conda environments.
+Install the scBOLT command, Bash completion, and selected conda environments.
+
+Without options, install everything interactively.
 
 Options
-  --yes, -y    answer yes to installation and reinstall prompts
-  --help, -h   display this help
+  --all          install CLI and all conda environments without prompts
+  --cli          install the scBOLT command and Bash completion
+  --env=NAME     install one conda environment; can be repeated
+  --help, -h     display this help
+
+Environment names
+  ${scbolt_envs[*]}
 EOF
+}
+
+is_known_env() {
+    local query="$1"
+    local env
+
+    for env in "${scbolt_envs[@]}"
+    do
+        if [ "${env}" = "${query}" ];
+        then
+            return 0
+        fi
+    done
+    return 1
+}
+
+append_selected_env() {
+    local env="$1"
+
+    if [ -z "${env}" ];
+    then
+        printf 'missing value for --env\n' >&2
+        usage >&2
+        exit 2
+    fi
+
+    if ! is_known_env "${env}";
+    then
+        ignored_envs+=("${env}")
+        return 0
+    fi
+
+    selected_envs+=("${env}")
+}
+
+deduplicate_selected_envs() {
+    local env
+    local deduplicated_envs=()
+    local seen_envs=""
+
+    for env in "$@"
+    do
+        case " ${seen_envs} " in
+            *" ${env} "*) ;;
+            *)
+                deduplicated_envs+=("${env}")
+                seen_envs="${seen_envs} ${env}"
+                ;;
+        esac
+    done
+
+    selected_envs=("${deduplicated_envs[@]}")
+}
+
+select_all_envs() {
+    selected_envs=("${scbolt_envs[@]}")
 }
 
 while [ "$#" -gt 0 ];
 do
     case "$1" in
-        --yes|-y)
-            assume_yes=true
+        --all)
+            if [ "${target_requested}" = true ];
+            then
+                printf '%s\n' "use either --all or explicit targets, not both" >&2
+                usage >&2
+                exit 2
+            fi
+            install_all=true
+            ;;
+        --cli)
+            if [ "${install_all}" = true ];
+            then
+                printf '%s\n' "use either --all or explicit targets, not both" >&2
+                usage >&2
+                exit 2
+            fi
+            install_cli=true
+            target_requested=true
+            ;;
+        --env=*)
+            if [ "${install_all}" = true ];
+            then
+                printf '%s\n' "use either --all or explicit targets, not both" >&2
+                usage >&2
+                exit 2
+            fi
+            append_selected_env "${1#--env=}"
+            target_requested=true
+            ;;
+        --env)
+            if [ "${install_all}" = true ];
+            then
+                printf '%s\n' "use either --all or explicit targets, not both" >&2
+                usage >&2
+                exit 2
+            fi
+            shift
+            if [ "$#" -eq 0 ];
+            then
+                printf 'missing value for --env\n' >&2
+                usage >&2
+                exit 2
+            fi
+            append_selected_env "$1"
+            target_requested=true
             ;;
         --help|-h)
             usage
@@ -56,6 +167,21 @@ do
     esac
     shift
 done
+
+if [ "${install_all}" = true ];
+then
+    install_cli=true
+    select_all_envs
+    assume_yes=true
+elif [ "${target_requested}" = true ];
+then
+    assume_yes=true
+else
+    install_cli=true
+    select_all_envs
+fi
+
+deduplicate_selected_envs "${selected_envs[@]}"
 
 is_yes_enabled() {
     case "${assume_yes}" in
@@ -92,9 +218,18 @@ print_install_warning() {
     printf '%s⚠%s %s not reinstalled.\n' "${stdout_yellow}" "${stdout_nc}" "$1"
 }
 
+print_warning() {
+    printf '%s⚠%s %s\n' "${stdout_yellow}" "${stdout_nc}" "$1"
+}
+
 print_install_failure() {
     printf '%s✗%s %s failed to install.\n' "${stderr_red}" "${stderr_nc}" "$1" >&2
 }
+
+for env_suffix in "${ignored_envs[@]}"
+do
+    print_warning "unsupported environment ignored: ${env_suffix}"
+done
 
 handle_interrupt() {
     trap - INT TERM
@@ -172,6 +307,7 @@ install_env_steps() {
 }
 
 install_env() {
+    local choice
     local status
 
     if conda_env_exists "$1";
@@ -180,7 +316,6 @@ install_env() {
         if is_yes_enabled;
         then
             choice="y"
-            echo "Do you want to reinstall conda environment '${1}'? ([y]/n): y"
         else
             read -r -p $"Do you want to reinstall conda environment '${1}'? ([y]/n): " choice
         fi
@@ -231,7 +366,6 @@ install_scbolt_command() {
     if is_yes_enabled;
     then
         choice="y"
-        echo "Install the scbolt command in ~/.local/bin? ([y]/n): y"
     else
         read -r -p $"Install the scbolt command in ~/.local/bin? ([y]/n): " choice
     fi
@@ -308,11 +442,19 @@ conda_env_exists() {
     [ -n "${installed_conda_envs[$1]+x}" ]
 }
 
-if install_scbolt_command;
+if [ "${install_cli}" = true ];
 then
-    install_scbolt_completion
+    if install_scbolt_command;
+    then
+        install_scbolt_completion
+    fi
+    echo
 fi
-echo
+
+if [ "${#selected_envs[@]}" -eq 0 ];
+then
+    exit 0
+fi
 
 # shellcheck source=/dev/null
 source "$(conda info --base)/etc/profile.d/conda.sh"
@@ -324,7 +466,7 @@ then
     conda activate base
 fi
 
-for env_suffix in "${scbolt_envs[@]}"
+for env_suffix in "${selected_envs[@]}"
 do
     file="${env_dir}/${env_suffix}.yml"
     env="scbolt-${env_suffix}"

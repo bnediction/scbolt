@@ -1,4 +1,6 @@
 *
-!Dockerfile
 !envs/
-!envs/*.yml
+!envs/docker/
+!envs/docker/Dockerfile
+!envs/conda/
+!envs/conda/*.yml

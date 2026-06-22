@@ -2,7 +2,7 @@
 
 scBOLT provides a Bash completion script for the `scbolt` command.
 
-The completion is installed by `config.sh` in the standard user completion
+The completion is installed by `./install` in the standard user completion
 directory:
 
 ```bash

@@ -118,7 +118,7 @@ print_installation_error() {
 
     print_error "scBOLT installation is incomplete or corrupted: ${missing_file} not found."
     printf '%s\n' "Expected: ${SCBOLT_ROOT}/${missing_file}" >&2
-    printf '%s\n' "Please reinstall scBOLT or rerun config.sh." >&2
+    printf '%s\n' "Please reinstall scBOLT or rerun ./install from the scBOLT root." >&2
 }
 
 if [ ! -f "${SCBOLT_MAKEFILE}" ]; then

@@ -8,8 +8,8 @@
         "xlabel",
         "ylabel",
         "zlabel",
-        ["lgd_params", "title"],
-        ["lgd_params", "edgecolor"]
+        ["legend", "title"],
+        ["legend", "edgecolor"]
     ],
     "figure": {
         "obs": "pct_bin",
@@ -18,10 +18,7 @@
         "ylabel": "r'$\\mathrm{dim_{2}}$'",
         "zlabel": "r'$\\mathrm{dim_{3}}$'",
         "s": 3,
-        "alpha": 1,
-        "show_labels": false,
-        "show_legend": true,
-        "lgd_params": {
+        "legend": {
             "title": "r'$\\% \\mathrm{bin}$'",
             "ncol": 1,
             "markerscale": 5,

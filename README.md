@@ -52,7 +52,7 @@ Clone and configure the project:
 ```sh
 git clone https://github.com/bnediction/scbolt.git scbolt
 cd scbolt
-bash config.sh
+./install
 ```
 
 Initialize a project in any working directory:
@@ -89,31 +89,6 @@ The following resources are only required when starting from raw sequencing data
 For long-term reproducibility in raw FASTQ mode, back up `RESOURCES_DIR`
 together with the project. scBOLT does not redistribute large third-party
 reference archives.
-
----
-
-## Docker Runtime
-
-scBOLT can run module commands through a single Docker image containing all
-`scbolt-*` conda environments:
-
-```sh
-docker build -t scbolt:local .
-```
-
-Then set these parameters in `params.mk` or on the command line:
-
-```make
-RUNTIME_BACKEND = docker
-SCBOLT_IMAGE = scbolt:local
-```
-
-The scBOLT checkout and project directories are mounted into the container at
-their original paths, while the workflow still uses the active local checkout.
-By default, Docker commands run with the host user and group identifiers to avoid
-root-owned project outputs.
-
----
 
 # Quickstart
 
