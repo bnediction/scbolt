@@ -7,10 +7,20 @@ ARG BONESIS_HASH="d70736781f88faee334ef79622e144216837f4c5"
 
 ENV PYTHONUNBUFFERED=1
 ENV PATH=/opt/conda/bin:${PATH}
+ENV DEBIAN_FRONTEND=noninteractive
 
 COPY envs/conda/ /tmp/scbolt-conda-envs/
 
-RUN conda install -y -n base -c conda-forge git \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        cm-super \
+        dvipng \
+        texlive \
+        texlive-extra-utils \
+        texlive-fonts-recommended \
+        texlive-latex-extra \
+    && rm -rf /var/lib/apt/lists/* \
+    && conda install -y -n base -c conda-forge git \
     && for env_file in ${SCBOLT_ENV_FILES}; do \
         conda env create -f "/tmp/scbolt-conda-envs/${env_file}.yml"; \
     done \
