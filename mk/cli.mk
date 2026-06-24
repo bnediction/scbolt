@@ -1078,6 +1078,45 @@ max-nodes-lock: ## maximise nodes (hard constraints, stage 2)
 	$(call run_logged,max-nodes-lock)
 __max-nodes-lock: $(max_nodes_lock)
 
+interrupted_gene_selection_targets = max-nodes-soft max-consts-soft \
+	max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
+
+.PHONY: __finalize-interrupted-gene-selection-results
+ifeq ($(filter $(INTERRUPTED_TARGET),$(interrupted_gene_selection_targets)),)
+__finalize-interrupted-gene-selection-results:
+	@:
+else
+__finalize-interrupted-gene-selection-results:
+	$(call ensure_partial_gene_selection_metadata,max-nodes-soft,$(max_nodes_soft),)
+	$(call ensure_partial_gene_selection_metadata,max-consts-soft,$(max_consts_soft),$(max_nodes_soft))
+	$(call ensure_partial_gene_selection_metadata,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft))
+	$(call ensure_partial_gene_selection_metadata,max-nodes-seed,$(max_nodes_seed),$(max_nodes_relaxed))
+	$(call ensure_partial_gene_selection_metadata,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed))
+	$(call finalize_interrupted_lock_gene_selection)
+endif
+
+.PHONY: __kept-gene-selection-results
+__kept-gene-selection-results:
+	@mkdir -p "$(tmpdir)"
+	@rm -f "$(tmpdir)/kept-gene-selection-reported"
+	$(call report_kept_gene_selection_result,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed),$(tmpdir)/kept-gene-selection-reported)
+	$(call report_kept_gene_selection_result,max-nodes-seed,$(max_nodes_seed),$(max_nodes_relaxed),$(tmpdir)/kept-gene-selection-reported)
+	$(call report_kept_gene_selection_result,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft),$(tmpdir)/kept-gene-selection-reported)
+	$(call report_kept_gene_selection_result,max-consts-soft,$(max_consts_soft),$(max_nodes_soft),$(tmpdir)/kept-gene-selection-reported)
+	$(call report_kept_gene_selection_result,max-nodes-soft,$(max_nodes_soft),,$(tmpdir)/kept-gene-selection-reported)
+	@rm -f "$(tmpdir)/kept-gene-selection-reported"
+
+.PHONY: __intermediate-gene-selection-status
+__intermediate-gene-selection-status:
+	@mkdir -p "$(tmpdir)"
+	@rm -f "$(tmpdir)/intermediate-gene-selection-reported"
+	$(call report_intermediate_gene_selection_status,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed),$(tmpdir)/intermediate-gene-selection-reported)
+	$(call report_intermediate_gene_selection_status,max-nodes-seed,$(max_nodes_seed),$(max_nodes_relaxed),$(tmpdir)/intermediate-gene-selection-reported)
+	$(call report_intermediate_gene_selection_status,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft),$(tmpdir)/intermediate-gene-selection-reported)
+	$(call report_intermediate_gene_selection_status,max-consts-soft,$(max_consts_soft),$(max_nodes_soft),$(tmpdir)/intermediate-gene-selection-reported)
+	$(call report_intermediate_gene_selection_status,max-nodes-soft,$(max_nodes_soft),,$(tmpdir)/intermediate-gene-selection-reported)
+	@rm -f "$(tmpdir)/intermediate-gene-selection-reported"
+
 .PHONY: bn-min __bn-min
 bn-min: ## infer one minimum-edge BN
 	$(call run_logged,bn-min)

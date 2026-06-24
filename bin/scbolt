@@ -102,7 +102,7 @@ print_error() {
 }
 
 print_success_status() {
-    printf '%s%s Completed:%s %s\n' "${stdout_green}" "✓" "${stdout_nc}" "$1"
+    printf '%s%s completed:%s %s\n' "${stdout_green}" "✓" "${stdout_nc}" "$1"
 }
 
 print_warning_status() {
@@ -110,7 +110,7 @@ print_warning_status() {
 }
 
 print_failure_status() {
-    printf '%s%s Failed:%s %s\n' "${stderr_red}" "✗" "${stderr_nc}" "$1" >&2
+    printf '%s%s failed:%s %s\n' "${stderr_red}" "✗" "${stderr_nc}" "$1" >&2
 }
 
 print_installation_error() {
@@ -961,6 +961,83 @@ run_make_with_params() {
     exit "$?"
 }
 
+collect_make_assignments() {
+    local arg
+
+    for arg in "$@"; do
+        if [[ "${arg}" == *=* ]]; then
+            printf '%s\n' "${arg}"
+        fi
+    done
+}
+
+print_kept_intermediate_results() {
+    local params="$1"
+    local line
+    local module
+    local coverage
+    local make_assignments=()
+    shift
+
+    while IFS= read -r line; do
+        make_assignments+=("${line}")
+    done < <(collect_make_assignments "$@")
+
+    while read -r module coverage; do
+        if [ -n "${module}" ] && [ -n "${coverage}" ]; then
+            print_warning_status "kept intermediate solution (${module})" "${coverage}"
+        fi
+    done < <(
+        make -s -f "${SCBOLT_MAKEFILE}" __kept-gene-selection-results \
+            "PARAMS=${params}" "${make_assignments[@]}" 2>/dev/null || true
+    )
+}
+
+intermediate_gene_selection_status() {
+    local params="$1"
+    local line
+    local make_assignments=()
+    shift
+
+    while IFS= read -r line; do
+        make_assignments+=("${line}")
+    done < <(collect_make_assignments "$@")
+
+    make -s -f "${SCBOLT_MAKEFILE}" __intermediate-gene-selection-status \
+        "PARAMS=${params}" "${make_assignments[@]}" 2>/dev/null || true
+}
+
+target_label_with_intermediate_status() {
+    local params="$1"
+    local target_label="$2"
+    local intermediate_status
+    shift 2
+
+    intermediate_status="$(intermediate_gene_selection_status "${params}" "$@" | head -n 1)"
+    if [ -n "${intermediate_status}" ]; then
+        printf '%s (%s)\n' "${target_label}" "${intermediate_status}"
+    else
+        printf '%s\n' "${target_label}"
+    fi
+}
+
+finalize_interrupted_gene_selection_results() {
+    local params="$1"
+    local target_label="$2"
+    local line
+    local make_assignments=()
+    shift 2
+
+    while IFS= read -r line; do
+        make_assignments+=("${line}")
+    done < <(collect_make_assignments "$@")
+
+    make -s -f "${SCBOLT_MAKEFILE}" __finalize-interrupted-gene-selection-results \
+        "PARAMS=${params}" \
+        "INTERRUPTED_TARGET=${target_label}" \
+        "${make_assignments[@]}" 2>/dev/null || true
+}
+
 run_make_build_with_params() {
     local params="$1"
     local target_label="$2"
@@ -1010,19 +1087,24 @@ run_make_build_with_params() {
             if [ "${recipe_ran}" = "true" ]; then
                 print_success_status "${target_label}"
             elif [ "${stale_warning}" = "true" ]; then
-                print_warning_status "Already built" "${target_label}"
+                print_warning_status "already built" "${target_label}"
             else
-                print_warning_status "Up to date" "${target_label}"
+                print_warning_status "up to date" \
+                    "$(target_label_with_intermediate_status "${params}" "${target_label}" "$@")"
             fi
             ;;
         124)
-            print_warning_status "Reached time limit" "${target_label}"
+            print_warning_status "reached time limit" "${target_label}"
             ;;
         130)
-            print_warning_status "Cancelled by user" "${target_label}"
+            print_warning "interrupted by user (${target_label})"
+            finalize_interrupted_gene_selection_results "${params}" "${target_label}" "$@"
+            print_kept_intermediate_results "${params}" "$@"
             ;;
         143)
-            print_warning_status "Cancelled by user" "${target_label}"
+            print_warning "interrupted by user (${target_label})"
+            finalize_interrupted_gene_selection_results "${params}" "${target_label}" "$@"
+            print_kept_intermediate_results "${params}" "$@"
             ;;
         *)
             print_failure_status "${target_label}"

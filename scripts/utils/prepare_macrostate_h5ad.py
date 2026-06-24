@@ -112,10 +112,16 @@ if args.prefix_macrostates:
         "prefixing macrostates "
         f"(condition={args.condition_obs}, obs={args.macrostate_obs})"
     )
-    adata.obs[args.macrostate_obs] = (
-        adata.obs[args.condition_obs].astype(str)
-        + "_"
-        + adata.obs[args.macrostate_obs].astype(str)
+    conditions = adata.obs[args.condition_obs].astype(str)
+    macrostates = adata.obs[args.macrostate_obs].astype(str)
+    prefixes = conditions + "_"
+    already_prefixed = [
+        macrostate.startswith(prefix)
+        for macrostate, prefix in zip(macrostates, prefixes)
+    ]
+    adata.obs[args.macrostate_obs] = macrostates.where(
+        already_prefixed,
+        prefixes + macrostates,
     ).astype("category")
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")

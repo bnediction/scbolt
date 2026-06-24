@@ -267,17 +267,10 @@ def print_node_solution(solution, nodes_in_data, nodes_in_domain, **kwargs):
 def write_node_solution(
     nodes: Iterable[str],
     outfile: Path,
-    status_file: Path | None = None,
 ):
-    n_nodes = 0
     with open(outfile, "w") as file:
         for node in nodes:
             file.write(f"{node}\n")
-            n_nodes += 1
-
-    if n_nodes > 0 and status_file is not None:
-        with open(status_file, "w") as file:
-            file.write("_PARTIAL_SOLUTIONS\n")
 
 
 def close_progress(view, leave=None):
@@ -715,15 +708,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--status",
-    dest="status",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    metavar="FILE",
-    help="optional output file storing the current inference status",
-)
-
-parser.add_argument(
     "--config-formats",
     dest="config_formats",
     nargs="+",
@@ -1041,7 +1025,7 @@ if args.action == "filter-nodes":
     )
 
     def intermediate_solution(nodes):
-        write_node_solution(nodes, args.solution, args.status)
+        write_node_solution(nodes, args.solution)
 
     clingo_opt_strategy = args.clingo_opt_strategy or "bb,dec"
     view = bonesis.NodesView(
@@ -1062,7 +1046,7 @@ if args.action == "filter-nodes":
 
     if not new_constraints:
         std.print_info("no new constraints added; stopping", flush=True)
-        write_node_solution(bo.domain.nodes, args.solution, args.status)
+        write_node_solution(bo.domain.nodes, args.solution)
         sys.exit(0)
 
     print_node_reference(nodes_in_data, nodes_in_domain, domain_edges, flush=True)
@@ -1090,7 +1074,7 @@ if args.action == "filter-nodes":
             flush=True,
         )
 
-    write_node_solution(solution, args.solution, args.status)
+    write_node_solution(solution, args.solution)
 
     print_node_solution(solution, nodes_in_data, nodes_in_domain, flush=True)
 
@@ -1152,7 +1136,7 @@ elif args.action == "filter-consts":
     std.print_warning("this may take some time.")
     solution = next_solution(view)
 
-    write_node_solution(solution, args.solution, args.status)
+    write_node_solution(solution, args.solution)
 
     if important_nodes_in_domain:
         std.print_result(

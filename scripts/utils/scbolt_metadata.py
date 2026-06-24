@@ -5,11 +5,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
 
@@ -20,6 +23,7 @@ State = tuple[Status, str, list[Path], list[Path]]
 ProgressRecord = dict[str, str | list[str]]
 RuntimeEnvironments = dict[str, dict[str, object]]
 RuntimeBackend = Literal["conda", "docker"]
+SolutionStatus = Literal["global", "partial", "failed"]
 
 
 def sidecar_path(target: Path) -> Path:
@@ -100,8 +104,167 @@ def conda_package_source(package: dict[str, object]) -> str:
 def normalize_package_name(name: str, source: str) -> str:
     normalized = name.strip().lower()
     if source == "pip":
-        normalized = normalized.replace("_", "-")
+        normalized = re.sub(r"[-_.]+", "-", normalized)
     return normalized
+
+
+def conda_base_from_executable(executable: str) -> Path | None:
+    path = Path(executable).expanduser()
+    if path.name != "conda" or path.parent.name not in {"bin", "condabin"}:
+        return None
+    return path.parent.parent
+
+
+def local_conda_env_prefix(env: str) -> Path | None:
+    executable = os.environ.get("CONDA_EXE")
+    if not executable:
+        return None
+
+    base = conda_base_from_executable(executable)
+    if base is None:
+        return None
+
+    candidates = [base / "envs" / env]
+    if base.name == env:
+        candidates.append(base)
+
+    for candidate in candidates:
+        if (candidate / "conda-meta").is_dir():
+            return candidate
+    return None
+
+
+def conda_channel_label(channel: str) -> str:
+    if not channel:
+        return ""
+
+    parsed = urlparse(channel)
+    if parsed.netloc == "conda.anaconda.org":
+        parts = [part for part in parsed.path.split("/") if part]
+        return parts[0] if parts else ""
+
+    if parsed.netloc == "repo.anaconda.com":
+        parts = [part for part in parsed.path.split("/") if part]
+        if len(parts) >= 2 and parts[0] == "pkgs":
+            return f"{parts[0]}/{parts[1]}"
+
+    parts = [part for part in channel.rstrip("/").split("/") if part]
+    if parts and parts[-1] in {"linux-64", "noarch", "osx-64", "osx-arm64", "win-64"}:
+        parts.pop()
+    return parts[-1] if parts else channel
+
+
+def site_packages_dirs(prefix: Path) -> list[Path]:
+    candidates = list((prefix / "lib").glob("python*/site-packages"))
+    candidates.append(prefix / "Lib" / "site-packages")
+    paths = []
+    seen = set()
+    for path in candidates:
+        if not path.is_dir():
+            continue
+        try:
+            real_path = path.resolve()
+        except OSError:
+            real_path = path
+        if real_path in seen:
+            continue
+        seen.add(real_path)
+        paths.append(path)
+    return paths
+
+
+def dist_info_metadata(path: Path) -> tuple[str, str] | None:
+    name = ""
+    version = ""
+    try:
+        with path.open(errors="replace") as file:
+            for line in file:
+                if not line.strip():
+                    break
+                key, separator, value = line.partition(":")
+                if not separator:
+                    continue
+                if key == "Name":
+                    name = value.strip()
+                elif key == "Version":
+                    version = value.strip()
+                if name and version:
+                    return name, version
+    except OSError:
+        return None
+    return None
+
+
+def dist_info_installer(path: Path) -> str:
+    try:
+        return (path.parent / "INSTALLER").read_text().strip().lower()
+    except OSError:
+        return ""
+
+
+def local_conda_runtime_environment(env: str) -> dict[str, object] | None:
+    prefix = local_conda_env_prefix(env)
+    if prefix is None:
+        return None
+
+    packages: dict[str, dict[str, str]] = {}
+    conda_name_by_pip_name: dict[str, str] = {}
+
+    for path in sorted((prefix / "conda-meta").glob("*.json")):
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
+
+        raw_name = data.get("name")
+        if not raw_name:
+            continue
+
+        name = normalize_package_name(str(raw_name), "conda")
+        conda_name_by_pip_name[normalize_package_name(str(raw_name), "pip")] = name
+
+        record = {
+            "version": str(data.get("version", "")),
+            "source": "conda",
+        }
+        build = data.get("build") or data.get("build_string")
+        if build:
+            record["build"] = str(build)
+
+        channel = conda_channel_label(str(data.get("channel", "")))
+        if channel:
+            record["channel"] = channel
+
+        packages[name] = record
+
+    for site_packages in site_packages_dirs(prefix):
+        for metadata in sorted(site_packages.glob("*.dist-info/METADATA")):
+            installer = dist_info_installer(metadata)
+            if installer != "pip":
+                continue
+
+            parsed = dist_info_metadata(metadata)
+            if parsed is None:
+                continue
+
+            raw_name, version = parsed
+            name = normalize_package_name(raw_name, "pip")
+            conda_name = conda_name_by_pip_name.get(name)
+            if conda_name is not None:
+                packages.pop(conda_name, None)
+            elif name in packages:
+                continue
+
+            packages[name] = {
+                "version": version,
+                "source": "pip",
+                "channel": "pypi",
+            }
+
+    return {
+        "name": env,
+        "packages": packages,
+    }
 
 
 @lru_cache(maxsize=None)
@@ -185,6 +348,9 @@ def runtime_environment(
             "--json",
         ]
     else:
+        local_environment = local_conda_runtime_environment(env)
+        if local_environment is not None:
+            return local_environment
         command = ["conda", "list", "-n", env, "--json"]
 
     result = subprocess.run(
@@ -352,6 +518,50 @@ def read_metadata(path: Path) -> dict[str, object] | None:
     return data if isinstance(data, dict) else None
 
 
+def solution_payload(
+    status: SolutionStatus | None,
+    kept: int | None,
+    total: int | None,
+) -> dict[str, object] | None:
+    if status is None:
+        if kept is not None or total is not None:
+            raise SystemExit("solution counts require --solution-status")
+        return None
+
+    payload: dict[str, object] = {"status": status}
+    if kept is not None:
+        payload["kept"] = kept
+    if total is not None:
+        payload["total"] = total
+    if kept is not None and total is not None:
+        payload["coverage"] = f"{kept}/{total}"
+    return payload
+
+
+def solution_label(solution: dict[str, object]) -> str:
+    status = str(solution.get("status", ""))
+    coverage = solution.get("coverage")
+    if coverage:
+        return f"{status} ({coverage})"
+
+    kept = solution.get("kept")
+    total = solution.get("total")
+    if kept is not None and total is not None:
+        return f"{status} ({kept}/{total})"
+    if kept is not None:
+        return f"{status} ({kept})"
+    return status
+
+
+def read_solution(target: Path) -> dict[str, object] | None:
+    metadata = read_metadata(sidecar_path(target))
+    if metadata is None:
+        return None
+
+    solution = metadata.get("solution")
+    return solution if isinstance(solution, dict) else None
+
+
 def changed_parameters(
     stored: dict[str, object],
     current: dict[str, str],
@@ -432,6 +642,34 @@ def format_labels(labels: list[str], all_labels: list[str]) -> str:
     return f" ({', '.join(labels)})"
 
 
+def format_duration(seconds: int) -> str:
+    days, seconds = divmod(seconds, 24 * 60 * 60)
+    hours, seconds = divmod(seconds, 60 * 60)
+    minutes, seconds = divmod(seconds, 60)
+
+    if days:
+        return f"{days}d {hours}h {minutes}m {seconds}s"
+    if hours:
+        return f"{hours}h {minutes}m {seconds}s"
+    if minutes:
+        return f"{minutes}m {seconds}s"
+    return f"{seconds}s"
+
+
+def format_parameter_value(name: str, value: str) -> str:
+    if not name.startswith("TIMEOUT_"):
+        return value
+
+    match = re.fullmatch(r"([1-9][0-9]*)s", value)
+    if not match:
+        return value
+
+    seconds = int(match.group(1))
+    if seconds < 60:
+        return value
+    return f"{value} ({format_duration(seconds)})"
+
+
 def format_change_messages(
     grouped_changes: dict[str, dict[str, dict[str, list[str]]]],
     all_labels: list[str],
@@ -440,16 +678,24 @@ def format_change_messages(
 
     for name, current_groups in grouped_changes.items():
         for current_value, stored_groups in current_groups.items():
+            formatted_current_value = format_parameter_value(name, current_value)
             if len(stored_groups) == 1:
                 stored_value, labels = next(iter(stored_groups.items()))
                 label = format_labels(labels, all_labels)
-                messages.append(f"{name}: {stored_value} -> {current_value}{label}")
+                formatted_stored_value = format_parameter_value(name, stored_value)
+                messages.append(
+                    f"{name}: {formatted_stored_value} -> "
+                    f"{formatted_current_value}{label}"
+                )
                 continue
 
             stored_values = []
             for stored_value, labels in stored_groups.items():
                 label = format_labels(labels, all_labels)
-                stored_values.append(f"{stored_value} -> {current_value}{label}")
+                formatted_stored_value = format_parameter_value(name, stored_value)
+                stored_values.append(
+                    f"{formatted_stored_value} -> {formatted_current_value}{label}"
+                )
             messages.append(f"{name}: {', '.join(stored_values)}")
 
     return messages
@@ -515,6 +761,7 @@ def state_for_targets(
     container_engine: str = "docker",
     container_image: str = "",
     old_files: set[Path] | None = None,
+    check_runtime: bool = True,
 ) -> State:
     if not targets:
         return "pending", f"{module} (no target registered)", [], []
@@ -525,6 +772,8 @@ def state_for_targets(
         return "pending", format_missing_message(module, missing, targets), [], missing
 
     runtime_envs = runtime_envs or []
+    if not check_runtime:
+        runtime_envs = []
     current_container = container_metadata(
         runtime_backend,
         container_engine,
@@ -651,10 +900,13 @@ def done_targets_for_targets(
     container_engine: str = "docker",
     container_image: str = "",
     old_files: set[Path] | None = None,
+    check_runtime: bool = True,
 ) -> list[Path]:
     old_files = old_files or set()
     existing_targets = [target for target in targets if target_exists(target)]
     runtime_envs = runtime_envs or []
+    if not check_runtime:
+        runtime_envs = []
     current_container = container_metadata(
         runtime_backend,
         container_engine,
@@ -698,6 +950,11 @@ def done_targets_for_targets(
 
 def write_metadata(args: argparse.Namespace) -> None:
     parameters = parse_parameters(args.param)
+    solution = solution_payload(
+        args.solution_status,
+        args.solution_kept,
+        args.solution_total,
+    )
     current_container = container_metadata(
         args.runtime_backend,
         args.container_engine,
@@ -743,9 +1000,36 @@ def write_metadata(args: argparse.Namespace) -> None:
             "metadata_hash": current_metadata_hash,
             "config_hash": parameter_hash,
         }
+        if solution is not None:
+            payload["solution"] = solution
         with sidecar.open("w") as file:
             json.dump(payload, file, indent=2, sort_keys=True)
             file.write("\n")
+
+
+def print_solution(args: argparse.Namespace) -> None:
+    solution = read_solution(Path(args.target))
+    if solution is None:
+        return
+
+    if args.field == "json":
+        print(json.dumps(solution, sort_keys=True))
+    elif args.field == "label":
+        print(solution_label(solution))
+    elif args.field == "status":
+        print(solution.get("status", ""))
+    elif args.field == "kept":
+        value = solution.get("kept")
+        if value is not None:
+            print(value)
+    elif args.field == "total":
+        value = solution.get("total")
+        if value is not None:
+            print(value)
+    elif args.field == "coverage":
+        value = solution.get("coverage")
+        if value is not None:
+            print(value)
 
 
 def print_state(args: argparse.Namespace) -> None:
@@ -761,6 +1045,7 @@ def print_state(args: argparse.Namespace) -> None:
         container_engine=args.container_engine,
         container_image=args.container_image,
         old_files=old_files,
+        check_runtime=True,
     )
     done_targets = done_targets_for_targets(
         module=args.module,
@@ -771,6 +1056,7 @@ def print_state(args: argparse.Namespace) -> None:
         container_engine=args.container_engine,
         container_image=args.container_image,
         old_files=old_files,
+        check_runtime=True,
     )
     fields = progress_fields_from_state(
         module=args.module,
@@ -832,6 +1118,7 @@ def progress_fields(
     container_engine: str,
     container_image: str,
     old_files: set[Path],
+    check_runtime: bool,
 ) -> dict[str, str]:
     status, message, stale_targets, missing_targets = state_for_targets(
         module=module,
@@ -842,6 +1129,7 @@ def progress_fields(
         container_engine=container_engine,
         container_image=container_image,
         old_files=old_files,
+        check_runtime=check_runtime,
     )
     done_targets = done_targets_for_targets(
         module=module,
@@ -852,6 +1140,7 @@ def progress_fields(
         container_engine=container_engine,
         container_image=container_image,
         old_files=old_files,
+        check_runtime=check_runtime,
     )
     return progress_fields_from_state(
         module=module,
@@ -951,6 +1240,7 @@ def print_batch_progress(args: argparse.Namespace) -> None:
             container_engine=args.container_engine,
             container_image=args.container_image,
             old_files=old_files,
+            check_runtime=not args.skip_runtime,
         )
         fields["deps"] = str(record["deps"])
         for name, value in fields.items():
@@ -1010,9 +1300,29 @@ def build_parser() -> argparse.ArgumentParser:
     write.add_argument("--params-file", required=True)
     write.add_argument("--git-hash", required=True)
     write.add_argument("--param", action="append", default=[])
+    write.add_argument(
+        "--solution-status",
+        choices=["global", "partial", "failed"],
+        default=None,
+    )
+    write.add_argument("--solution-kept", type=int, default=None)
+    write.add_argument("--solution-total", type=int, default=None)
     write.add_argument("--runtime-env", action="append", default=[])
     add_runtime_arguments(write)
     write.set_defaults(func=write_metadata)
+
+    solution = subparsers.add_parser(
+        "solution",
+        formatter_class=cli.HelpFormatter,
+        help="read solution metadata from a sidecar",
+    )
+    solution.add_argument("--target", required=True)
+    solution.add_argument(
+        "--field",
+        choices=["json", "label", "status", "kept", "total", "coverage"],
+        default="label",
+    )
+    solution.set_defaults(func=print_solution)
 
     state = subparsers.add_parser(
         "state",
@@ -1052,6 +1362,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     batch_progress.add_argument("--manifest", required=True)
     batch_progress.add_argument("--old-file", action="append", default=[])
+    batch_progress.add_argument("--skip-runtime", action="store_true")
     add_runtime_arguments(batch_progress)
     batch_progress.set_defaults(func=print_batch_progress)
 

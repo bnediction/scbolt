@@ -891,6 +891,7 @@ log_parameters = $(foreach var,$(strip $(1)),printf '%s=%s\n' '$(var)' "$($(var)
 metadata_target_args = $(foreach target,$(strip $(RESET_TARGET_$(1))),--target "$(target)")
 metadata_custom_target_args = $(foreach target,$(strip $(2)),--target "$(target)")
 metadata_param_args = $(foreach param,$(strip $(sensitive_params_$(1))),--param '$(param)=$($(param))')
+metadata_extra_param_args = $(foreach param,$(strip $(1)),--param "$(param)")
 metadata_runtime_env_args = $(foreach env,$(strip $(runtime_envs_$(1))),--runtime-env "$(env)")
 metadata_runtime_backend_args = \
 	--runtime-backend "$(RUNTIME_BACKEND)" \
@@ -1020,6 +1021,8 @@ $(python) $(scripts_dir)/utils/scbolt_metadata.py write \
 	--params-file "$(PARAMS)" \
 	--git-hash "$(metadata_git_hash)" \
 	$(call metadata_param_args,$(1)) \
+	$(call metadata_extra_param_args,$(3)) \
+	$(4) \
 	$(call metadata_runtime_env_args,$(1)) \
 	$(metadata_runtime_backend_args)
 endef
@@ -1027,7 +1030,7 @@ endef
 define write_scbolt_metadata
 $(if $(strip $(sensitive_params_$(1)) $(runtime_envs_$(1))),\
 $(if $(filter true,$(__dry_run_output)),,\
-$(call write_scbolt_metadata_command,$(1),$(2))))
+$(call write_scbolt_metadata_command,$(1),$(2),$(3),$(4))))
 endef
 
 PYTHONUNBUFFERED ?= 1
@@ -1174,33 +1177,115 @@ define fastq_naming
 	fi
 endef
 
+define start_inference_timer
+inference_start_seconds="$$SECONDS"; \
+effective_inference_timeout() { \
+	inference_elapsed="$$(($$SECONDS - $${inference_start_seconds}))"; \
+	if [ "$${inference_elapsed}" -lt 1 ]; then inference_elapsed=1; fi; \
+	printf '%ss' "$${inference_elapsed}"; \
+};
+endef
+
+define keep_inference_fallback
+$(call system_tool,cp) "$(1)" "$@"; \
+$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@,$(3),$(call solution_metadata_args,partial,$@,$(5)));) \
+$(call print_warning,$(4));
+endef
+
+count_nonempty_lines = $(call system_tool,awk) 'NF { n++ } END { print n + 0 }' "$(1)"
+metadata_solution_field = $(python) $(scripts_dir)/utils/scbolt_metadata.py solution --target "$(1)" --field "$(2)"
+solution_metadata_args = \
+	$(if $(strip $(1)),--solution-status "$(1)") \
+	$(if $(strip $(2)),--solution-kept "$$($(call count_nonempty_lines,$(2)))") \
+	$(if $(strip $(3)),--solution-total "$$($(call count_nonempty_lines,$(3)))")
+
+define report_kept_gene_selection_result
+@if [ ! -f "$(4)" ] && [ -s "$(2)" ]; then \
+	solution_status="$$($(call metadata_solution_field,$(2),status) 2>/dev/null || true)"; \
+	if [ "$${solution_status}" = "partial" ]; then \
+		solution_label="$$($(call metadata_solution_field,$(2),label) 2>/dev/null || true)"; \
+		if [ -z "$${solution_label}" ]; then \
+			kept="$$($(call count_nonempty_lines,$(2)))"; \
+			if [ -n "$(3)" ] && [ -s "$(3)" ]; then \
+				total="$$($(call count_nonempty_lines,$(3)))"; \
+				solution_label="partial ($${kept}/$${total})"; \
+			else \
+				solution_label="partial ($${kept})"; \
+			fi; \
+		fi; \
+		printf '%s %s\n' "$(1)" "$${solution_label}"; \
+		$(call system_tool,touch) "$(4)"; \
+	fi; \
+fi
+endef
+
+define report_intermediate_gene_selection_status
+@if [ ! -f "$(4)" ] && [ -s "$(2)" ]; then \
+	solution_status="$$($(call metadata_solution_field,$(2),status) 2>/dev/null || true)"; \
+	if [ "$${solution_status}" = "partial" ]; then \
+		solution_coverage="$$($(call metadata_solution_field,$(2),coverage) 2>/dev/null || true)"; \
+		if [ -z "$${solution_coverage}" ]; then \
+			kept="$$($(call count_nonempty_lines,$(2)))"; \
+			if [ -n "$(3)" ] && [ -s "$(3)" ]; then \
+				total="$$($(call count_nonempty_lines,$(3)))"; \
+				solution_coverage="$${kept}/$${total}"; \
+			else \
+				solution_coverage="$${kept}"; \
+			fi; \
+		fi; \
+		printf 'intermediate solution: %s\n' "$${solution_coverage}"; \
+		$(call system_tool,touch) "$(4)"; \
+	fi; \
+fi
+endef
+
+define ensure_partial_gene_selection_metadata
+@if [ -s "$(2)" ]; then \
+	solution_status="$$($(call metadata_solution_field,$(2),status) 2>/dev/null || true)"; \
+	if [ -z "$${solution_status}" ]; then \
+		$(call write_scbolt_metadata,$(1),$(2),,$(call solution_metadata_args,partial,$(2),$(3))); \
+	fi; \
+fi
+endef
+
+define finalize_interrupted_lock_gene_selection
+@if [ ! -s "$(max_nodes_lock)" ] \
+		&& [ -s "$(max_nodes_seed)" ] \
+		&& [ -s "$(max_nodes_relaxed)" ] \
+		&& { [ -f "$(dir $(max_nodes_lock))nodes.sh" ] \
+			|| [ -f "$(dir $(max_nodes_lock))mandatory.txt" ]; }; then \
+	mkdir -p "$(dir $(max_nodes_lock))"; \
+	$(call system_tool,cp) "$(max_nodes_seed)" "$(max_nodes_lock)"; \
+	$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock),,$(call solution_metadata_args,partial,$(max_nodes_lock),$(max_nodes_relaxed))); \
+fi
+endef
+
 define check_inference_status
 	if [ $$exit_status -eq 0 ]; then \
-		echo "_GLOBAL_OPTIMUM" > $(@D)/__SOLUTION; \
+		$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@,,$(call solution_metadata_args,global,$@,$(5)));) \
 		$(call print_debug,global optimum found); \
 	elif [ $$exit_status -eq 124 ]; then \
 		echo -e ''; \
 		if [ -s $@ ]; then \
-			echo "_LOCAL_OPTIMUM" > $(@D)/__SOLUTION; \
-			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@);) \
-			$(call print_warning,user-defined time limit reached \($(1)\): local optimum found); \
+			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@,,$(call solution_metadata_args,partial,$@,$(5)));) \
+			$(call print_warning,user-defined time limit reached \($(1)\): keeping partial solution); \
+		elif [ -n "$(4)" ] && [ -s "$(4)" ]; then \
+			$(call keep_inference_fallback,$(4),$(2),,user-defined time limit reached \($(1)\): keeping fallback solution,$(5)) \
 		else \
-			echo "_FAILURE" > $(@D)/__SOLUTION; \
 			$(call print_error,user-defined time limit reached \($(1)\): no solution found); \
 		fi; \
 	elif [ $$exit_status -eq 130 ] || [ $$exit_status -eq 143 ]; then \
 		echo -e ''; \
 		if [ -s $@ ]; then \
-			echo "_PARTIAL_SOLUTIONS" > $(@D)/__SOLUTION; \
-			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@);) \
+			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@,$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$@,$(5)));) \
 			$(call print_warning,inference interrupted: keeping partial solutions); \
+		elif [ -n "$(4)" ] && [ -s "$(4)" ]; then \
+			$(call keep_inference_fallback,$(4),$(2),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),inference interrupted: keeping fallback solution,$(5)) \
 		else \
-			echo "_FAILURE" > $(@D)/__SOLUTION; \
 			$(call log,ERROR,inference interrupted: no partial solution found); \
 		fi; \
 		exit $$exit_status; \
 	else \
-		echo "_FAILURE" > $(@D)/__SOLUTION; \
 		$(call log,ERROR,inference failed); \
 		exit $$exit_status; \
 	fi
@@ -1211,11 +1296,11 @@ handle_inference_interrupt() { \
 	signal_status="$$1"; \
 	echo -e ""; \
 	if [ -s $@ ]; then \
-		echo "_PARTIAL_SOLUTIONS" > $(@D)/__SOLUTION; \
-		$(if $(strip $(1)),$(call write_scbolt_metadata,$(1),$@);) \
+		$(if $(strip $(1)),$(call write_scbolt_metadata,$(1),$@,$(if $(strip $(2)),$(2)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$@,$(4)));) \
 		$(call log,WARNING,inference interrupted: keeping partial solutions); \
+	elif [ -n "$(3)" ] && [ -s "$(3)" ]; then \
+		$(call keep_inference_fallback,$(3),$(1),$(if $(strip $(2)),$(2)=$$(effective_inference_timeout)),inference interrupted: keeping fallback solution,$(4)) \
 	else \
-		echo "_FAILURE" > $(@D)/__SOLUTION; \
 		$(call log,ERROR,inference interrupted: no partial solution found); \
 	fi; \
 	exit "$${signal_status}"; \
