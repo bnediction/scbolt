@@ -34,6 +34,11 @@ for arg in "$@"; do
         printf 'REFERENCES_DEFAULT=%s\n' "${SCBOLT_TEST_FULL_REFERENCES:-ctrl treated integrated}"
         exit 0
     fi
+    case "${arg}" in
+        __finalize-interrupted-gene-selection-results|__kept-gene-selection-results|__intermediate-gene-selection-status)
+            exit 0
+            ;;
+    esac
 done
 printf '%s\n' "$@" > "${SCBOLT_TEST_RECORD}"
 if [ -n "${SCBOLT_TEST_MAKE_STDOUT:-}" ]; then
@@ -255,7 +260,9 @@ grep -qx '⚠ scBOLT project unchanged.' "${tmpdir}/unchanged-init.out"
 rm "${project}/spaced.mk"
 (
     cd "${project}"
-    printf '\n' | "${scbolt}" init > "${tmpdir}/recreate-init.out"
+    printf '\n' | "${scbolt}" init \
+        > "${tmpdir}/recreate-init.out" \
+        2> "${tmpdir}/recreate-init.err"
 )
 grep -qx 'PARAMS=spaced.mk' "${project}/.scbolt"
 test -f "${project}/spaced.mk"
@@ -292,11 +299,11 @@ grep -qx 'PARAMS=spaced.mk' "${project}/.scbolt"
         "${scbolt}" bn-submin > "${tmpdir}/module-success.out"
 )
 expect_make_args -f "${makefile}" bn-submin "PARAMS=${project}/spaced.mk"
-grep -qx '✓ Completed: bn-submin' "${tmpdir}/module-success.out"
+grep -qx '✓ completed: bn-submin' "${tmpdir}/module-success.out"
 
 run_scbolt "${project}" bn-min > "${tmpdir}/module-up-to-date.out"
 expect_make_args -f "${makefile}" bn-min "PARAMS=${project}/spaced.mk"
-grep -qx '⚠ Up to date: bn-min' "${tmpdir}/module-up-to-date.out"
+grep -qx '⚠ up to date: bn-min' "${tmpdir}/module-up-to-date.out"
 
 (
     cd "${project}"
@@ -306,7 +313,7 @@ grep -qx '⚠ Up to date: bn-min' "${tmpdir}/module-up-to-date.out"
         "${scbolt}" clustering > "${tmpdir}/module-already-built.out"
 )
 expect_make_args -f "${makefile}" clustering "PARAMS=${project}/spaced.mk"
-grep -qx '⚠ Already built: clustering' "${tmpdir}/module-already-built.out"
+grep -qx '⚠ already built: clustering' "${tmpdir}/module-already-built.out"
 
 if (
     cd "${project}"
@@ -319,7 +326,7 @@ if (
     printf '%s\n' "expected interrupted module execution to fail" >&2
     exit 1
 fi
-grep -qx '⚠ Cancelled by user: stream' "${tmpdir}/module-interrupted.out"
+grep -qx '⚠ interrupted by user (stream)' "${tmpdir}/module-interrupted.out"
 ! grep -q '^make.*\*\*\*' "${tmpdir}/module-interrupted.err"
 
 if (
@@ -334,7 +341,7 @@ if (
     printf '%s\n' "expected generic interrupted module execution to fail" >&2
     exit 1
 fi
-grep -qx '⚠ Cancelled by user: stream' "${tmpdir}/module-generic-interrupted.out"
+grep -qx '⚠ interrupted by user (stream)' "${tmpdir}/module-generic-interrupted.out"
 ! grep -q '^make.*\*\*\*' "${tmpdir}/module-generic-interrupted.err"
 
 if (
@@ -348,7 +355,7 @@ if (
     printf '%s\n' "expected timed-out module execution to fail" >&2
     exit 1
 fi
-grep -qx '⚠ Reached time limit: max-nodes-seed' "${tmpdir}/module-timeout.out"
+grep -qx '⚠ reached time limit: max-nodes-seed' "${tmpdir}/module-timeout.out"
 ! grep -q '^make.*\*\*\*' "${tmpdir}/module-timeout.err"
 
 if (
@@ -363,7 +370,7 @@ if (
     exit 1
 fi
 grep -qx 'real underlying error' "${tmpdir}/module-failed.err"
-grep -qx '✗ Failed: stream' "${tmpdir}/module-failed.err"
+grep -qx '✗ failed: stream' "${tmpdir}/module-failed.err"
 ! grep -q '^make.*\*\*\*' "${tmpdir}/module-failed.err"
 
 if (
@@ -422,7 +429,7 @@ expect_make_args \
     stream \
     REFERENCES=ctrl \
     "PARAMS=${project}/spaced.mk"
-grep -qx '✓ Completed: stream (ctrl)' "${tmpdir}/module-reference.out"
+grep -qx '✓ completed: stream (ctrl)' "${tmpdir}/module-reference.out"
 
 (
     cd "${project}"
@@ -437,7 +444,7 @@ expect_make_args \
     stream \
     "REFERENCES=ctrl treated integrated" \
     "PARAMS=${project}/spaced.mk"
-grep -qx '✓ Completed: stream' "${tmpdir}/module-full-reference.out"
+grep -qx '✓ completed: stream' "${tmpdir}/module-full-reference.out"
 
 run_scbolt "${project}" clean
 expect_make_args -f "${makefile}" clean "PARAMS=${project}/spaced.mk"
