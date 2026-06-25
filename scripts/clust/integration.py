@@ -18,6 +18,12 @@ import scanpy as sc
 import bonesistools as bt
 import scanorama
 
+from _composition import (
+    check_exported_composition,
+    compute_condition_composition,
+    composition_rows,
+)
+
 std.set_default_plot_params(bt.sct.pl)
 
 
@@ -75,39 +81,25 @@ def summarize_cluster_composition(
     cluster_key: str = "cluster",
     condition_key: str = "condition",
 ) -> pd.DataFrame:
-    counts = pd.crosstab(adata.obs[cluster_key], adata.obs[condition_key])
-    counts = counts.reindex(sorted(counts.columns), axis=1)
-
-    condition_by_cluster = counts.div(counts.sum(axis=1), axis=0)
-    cluster_by_condition = counts.div(counts.sum(axis=0), axis=1)
-
-    rows = []
-    for cluster in condition_by_cluster.index:
-        for condition in condition_by_cluster.columns:
-            rows.append(
-                {
-                    "summary": "condition_by_cluster",
-                    "cluster": cluster,
-                    "condition": condition,
-                    "proportion": round(
-                        float(condition_by_cluster.loc[cluster, condition]), 4
-                    ),
-                }
-            )
-    for condition in cluster_by_condition.columns:
-        for cluster in cluster_by_condition.index:
-            rows.append(
-                {
-                    "summary": "cluster_by_condition",
-                    "cluster": cluster,
-                    "condition": condition,
-                    "proportion": round(
-                        float(cluster_by_condition.loc[cluster, condition]), 4
-                    ),
-                }
-            )
-
-    return pd.DataFrame(rows)
+    (
+        condition_by_cluster,
+        cluster_by_condition,
+        condition_enrichment_by_cluster,
+    ) = compute_condition_composition(
+        adata.obs,
+        group_col=cluster_key,
+        condition_col=condition_key,
+    )
+    composition = pd.DataFrame(
+        composition_rows(
+            condition_by_group=condition_by_cluster,
+            group_by_condition=cluster_by_condition,
+            condition_enrichment_by_group=condition_enrichment_by_cluster,
+            group_key="cluster",
+        )
+    )
+    check_exported_composition(composition, group_key="cluster")
+    return composition
 
 
 EMBEDDINGS = (

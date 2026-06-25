@@ -26,12 +26,9 @@ lib/
 !lib/
 lib/*
 !lib/cli/
-lib/cli/*
-!lib/cli/_argparse.py
+!lib/cli/**
 !lib/std/
-lib/std/*
-!lib/std/_anndata.py
-!lib/std/_warnings.py
+!lib/std/**
 lib64/
 parts/
 sdist/
@@ -123,3 +120,4 @@ llc/
 !quickstart/spec.yml
 !man/*.md
 plot_clustering_grid.py
+plot_integrated_cluster_projection_grid.py

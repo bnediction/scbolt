@@ -427,10 +427,10 @@ bt.sct.pp.filter_obs(adata, "pct_counts_mt", lambda x: x < 1e2 * args.mt)
 shape["final"] = adata.shape
 
 std.print_result(
-    format_filtering_coverage("genes", shape["final"][0], shape["init"][0])
+    format_filtering_coverage("genes", shape["final"][1], shape["init"][1])
 )
 std.print_result(
-    format_filtering_coverage("cells", shape["final"][1], shape["init"][1])
+    format_filtering_coverage("cells", shape["final"][0], shape["init"][0])
 )
 
 sc.pl.violin(

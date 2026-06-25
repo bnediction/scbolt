@@ -11,6 +11,12 @@ import bonesistools as bt
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from _composition import (
+    check_exported_composition,
+    compute_condition_composition,
+    composition_rows,
+)
+
 
 def remove_unused_obs_categories(adata, obs: str) -> None:
     if obs in adata.obs and hasattr(adata.obs[obs], "cat"):
@@ -78,6 +84,18 @@ def plot_composition(adata, obs: str, groupby: str, outfile: Path) -> None:
     std.crop_pdf(outfile)
 
 
+def compute_composition_tables(
+    adata,
+    label_col: str,
+    condition_col: str,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    return compute_condition_composition(
+        adata.obs,
+        group_col=label_col,
+        condition_col=condition_col,
+    )
+
+
 def summarize_composition(
     adata,
     label_col: str,
@@ -91,11 +109,15 @@ def summarize_composition(
     if embedding not in adata.obsm:
         raise KeyError(f"embedding '{embedding}' not found in adata.obsm")
 
-    counts = pd.crosstab(adata.obs[label_col], adata.obs[condition_col])
-    counts = counts.reindex(sorted(counts.columns), axis=1)
-
-    condition_by_label = counts.div(counts.sum(axis=1), axis=0)
-    label_by_condition = counts.div(counts.sum(axis=0), axis=1)
+    (
+        condition_by_label,
+        label_by_condition,
+        condition_enrichment_by_label,
+    ) = compute_composition_tables(
+        adata,
+        label_col=label_col,
+        condition_col=condition_col,
+    )
 
     display_condition_by_label = condition_by_label.map(lambda value: f"{value:.2%}")
     display_label_by_condition = label_by_condition.map(lambda value: f"{value:.2%}")
@@ -130,37 +152,20 @@ def summarize_composition(
         f"{label_by_condition_text}\n"
     )
 
-    rows = []
-    for label in condition_by_label.index:
-        for condition in condition_by_label.columns:
-            rows.append(
-                {
-                    "summary": "condition_by_label",
-                    "label": label,
-                    "condition": condition,
-                    "proportion": round(
-                        float(condition_by_label.loc[label, condition]), 4
-                    ),
-                }
-            )
-    for condition in label_by_condition.columns:
-        for label in label_by_condition.index:
-            rows.append(
-                {
-                    "summary": "label_by_condition",
-                    "label": label,
-                    "condition": condition,
-                    "proportion": round(
-                        float(label_by_condition.loc[label, condition]), 4
-                    ),
-                }
-            )
+    rows = composition_rows(
+        condition_by_group=condition_by_label,
+        group_by_condition=label_by_condition,
+        condition_enrichment_by_group=condition_enrichment_by_label,
+        group_key="label",
+    )
 
     composition_file = outdir / "composition.csv"
     std.print_task(
         f"saving composition summary (file={std.format_path(composition_file)})"
     )
-    pd.DataFrame(rows).to_csv(composition_file, sep=",", index=False)
+    composition = pd.DataFrame(rows)
+    check_exported_composition(composition, group_key="label")
+    composition.to_csv(composition_file, sep=",", index=False)
 
     labels_plot = outdir / "labels.pdf"
     std.print_task(f"plotting embeddings (file={std.format_path(labels_plot)})")
@@ -266,7 +271,6 @@ parser.add_argument(
 args = parser.parse_args()
 
 std.set_default_plot_params(bt.sct.pl)
-
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
