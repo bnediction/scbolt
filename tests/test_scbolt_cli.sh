@@ -157,6 +157,69 @@ grep -qx '✗ Missing module for scbolt dry-run.' "${tmpdir}/missing-dry-run.err
 grep -qx 'Usage: scbolt dry-run <module>' "${tmpdir}/missing-dry-run.err"
 grep -qx "Run 'scbolt dry-run --help' for details." "${tmpdir}/missing-dry-run.err"
 
+if run_scbolt "${project}" confi > "${tmpdir}/bad-command.out" \
+    2> "${tmpdir}/bad-command.err"; then
+    printf '%s\n' "expected misspelled command to fail" >&2
+    exit 1
+fi
+test ! -e "${record}"
+grep -qx '✗ failed: confi' "${tmpdir}/bad-command.err"
+grep -qx 'did you mean: scbolt config' "${tmpdir}/bad-command.err"
+
+if run_scbolt "${project}" bn-submi > "${tmpdir}/bad-module.out" \
+    2> "${tmpdir}/bad-module.err"; then
+    printf '%s\n' "expected misspelled module to fail" >&2
+    exit 1
+fi
+test ! -e "${record}"
+grep -qx '✗ failed: bn-submi' "${tmpdir}/bad-module.err"
+grep -qx 'did you mean: scbolt bn-submin' "${tmpdir}/bad-module.err"
+
+if run_scbolt "${project}" clustring > "${tmpdir}/bad-internal-typo.out" \
+    2> "${tmpdir}/bad-internal-typo.err"; then
+    printf '%s\n' "expected internally misspelled module to fail" >&2
+    exit 1
+fi
+test ! -e "${record}"
+grep -qx '✗ failed: clustring' "${tmpdir}/bad-internal-typo.err"
+grep -qx 'did you mean: scbolt clustering' "${tmpdir}/bad-internal-typo.err"
+
+if run_scbolt "${project}" dryrun > "${tmpdir}/bad-hyphen-command.out" \
+    2> "${tmpdir}/bad-hyphen-command.err"; then
+    printf '%s\n' "expected command with missing hyphen to fail" >&2
+    exit 1
+fi
+test ! -e "${record}"
+grep -qx '✗ failed: dryrun' "${tmpdir}/bad-hyphen-command.err"
+grep -qx 'did you mean: scbolt dry-run' "${tmpdir}/bad-hyphen-command.err"
+
+if run_scbolt "${project}" bn_submin > "${tmpdir}/bad-underscore-module.out" \
+    2> "${tmpdir}/bad-underscore-module.err"; then
+    printf '%s\n' "expected module with underscore to fail" >&2
+    exit 1
+fi
+test ! -e "${record}"
+grep -qx '✗ failed: bn_submin' "${tmpdir}/bad-underscore-module.err"
+grep -qx 'did you mean: scbolt bn-submin' "${tmpdir}/bad-underscore-module.err"
+
+if run_scbolt "${project}" config --ra > "${tmpdir}/bad-config-option.out" \
+    2> "${tmpdir}/bad-config-option.err"; then
+    printf '%s\n' "expected misspelled config option to fail" >&2
+    exit 1
+fi
+test ! -e "${record}"
+grep -qx '✗ Unsupported scbolt option: --ra' "${tmpdir}/bad-config-option.err"
+grep -qx 'did you mean: scbolt config --raw' "${tmpdir}/bad-config-option.err"
+
+if run_scbolt "${project}" clean --stal > "${tmpdir}/bad-clean-option.out" \
+    2> "${tmpdir}/bad-clean-option.err"; then
+    printf '%s\n' "expected misspelled clean option to fail" >&2
+    exit 1
+fi
+test ! -e "${record}"
+grep -qx '✗ Unsupported scbolt option: --stal' "${tmpdir}/bad-clean-option.err"
+grep -qx 'did you mean: scbolt clean --stale' "${tmpdir}/bad-clean-option.err"
+
 run_scbolt "${project}" annotation help --params=params.mk
 expect_make_args \
     -f "${makefile}" \

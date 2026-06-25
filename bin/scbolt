@@ -23,6 +23,23 @@ SCBOLT_ROOT="$(cd "${SCBOLT_BIN_DIR}/.." && pwd)"
 SCBOLT_MAKEFILE="${SCBOLT_ROOT}/Makefile"
 SCBOLT_DEFAULT_PARAMS="${SCBOLT_ROOT}/mk/default_params.mk"
 SCBOLT_TOOL="${SCBOLT_BIN_DIR}/scbolt-tool"
+SCBOLT_MODULES="load-genome load-fastq load-matrix load-signatures load-cc load-go
+alignment cellranger star qc velocyto
+filtering normalization clustering dea scoring goea annotation
+velocity potency cotan cellrank stream knnsc macrostates
+bin-cells bin-macrostates bin-dea bin-consensus binarization
+spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock
+bn-min bn-submin bn-diverse"
+SCBOLT_COMMANDS="init help config progress check dry-run clean ${SCBOLT_MODULES}"
+SCBOLT_COMMON_OPTIONS="--params --references --reset-target --trust-target --old-file --logging --target"
+SCBOLT_GLOBAL_OPTIONS="${SCBOLT_COMMON_OPTIONS} --raw"
+SCBOLT_OPTIONS_init="--remove --show --params --references --old-file --help"
+SCBOLT_OPTIONS_clean="${SCBOLT_COMMON_OPTIONS} --all --stale --force --help"
+SCBOLT_OPTIONS_progress="${SCBOLT_COMMON_OPTIONS} --all --help"
+SCBOLT_OPTIONS_config="${SCBOLT_COMMON_OPTIONS} --default --raw --help"
+SCBOLT_OPTIONS_check="${SCBOLT_COMMON_OPTIONS} --help"
+SCBOLT_OPTIONS_dry_run="${SCBOLT_COMMON_OPTIONS} --help"
+SCBOLT_OPTIONS_module="${SCBOLT_COMMON_OPTIONS} --help"
 terminal_device=""
 terminal_state=""
 
@@ -111,6 +128,193 @@ print_warning_status() {
 
 print_failure_status() {
     printf '%s%s failed:%s %s\n' "${stderr_red}" "✗" "${stderr_nc}" "$1" >&2
+}
+
+is_known_scbolt_command() {
+    local command="$1"
+    local choice
+
+    for choice in ${SCBOLT_COMMANDS}; do
+        if [ "${command}" = "${choice}" ]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+levenshtein_distance() {
+    local left="$1"
+    local right="$2"
+    local i
+    local j
+    local cost
+    local deletion
+    local insertion
+    local substitution
+    local -a previous
+    local -a current
+
+    for ((j = 0; j <= ${#right}; j++)); do
+        previous[j]="${j}"
+    done
+
+    for ((i = 1; i <= ${#left}; i++)); do
+        current[0]="${i}"
+        for ((j = 1; j <= ${#right}; j++)); do
+            if [ "${left:i-1:1}" = "${right:j-1:1}" ]; then
+                cost=0
+            else
+                cost=1
+            fi
+
+            deletion=$((previous[j] + 1))
+            insertion=$((current[j - 1] + 1))
+            substitution=$((previous[j - 1] + cost))
+
+            current[j]="${deletion}"
+            if [ "${insertion}" -lt "${current[j]}" ]; then
+                current[j]="${insertion}"
+            fi
+            if [ "${substitution}" -lt "${current[j]}" ]; then
+                current[j]="${substitution}"
+            fi
+        done
+        previous=("${current[@]}")
+    done
+
+    printf '%s\n' "${previous[${#right}]}"
+}
+
+suggest_scbolt_command() {
+    local command="$1"
+    local choice
+    local distance
+    local best_choice=""
+    local best_distance=999
+    local max_distance=2
+
+    for choice in ${SCBOLT_COMMANDS}; do
+        if [[ "${choice}" == "${command}"* ]]; then
+            printf '%s\n' "${choice}"
+            return 0
+        fi
+    done
+
+    for choice in ${SCBOLT_COMMANDS}; do
+        distance="$(levenshtein_distance "${command}" "${choice}")"
+        if [ "${distance}" -lt "${best_distance}" ]; then
+            best_distance="${distance}"
+            best_choice="${choice}"
+        fi
+    done
+
+    if [ "${#command}" -ge 8 ]; then
+        max_distance=3
+    fi
+
+    if [ -n "${best_choice}" ] && [ "${best_distance}" -le "${max_distance}" ]; then
+        printf '%s\n' "${best_choice}"
+        return 0
+    fi
+
+    return 1
+}
+
+print_unknown_command() {
+    local command="$1"
+    local suggestion
+
+    print_failure_status "${command}"
+    suggestion="$(suggest_scbolt_command "${command}")" || true
+    if [ -n "${suggestion}" ]; then
+        printf '%s\n' "did you mean: scbolt ${suggestion}" >&2
+    fi
+}
+
+scbolt_option_choices() {
+    local command="$1"
+
+    case "${command}" in
+        init)
+            printf '%s\n' "${SCBOLT_OPTIONS_init}"
+            ;;
+        clean)
+            printf '%s\n' "${SCBOLT_OPTIONS_clean}"
+            ;;
+        progress)
+            printf '%s\n' "${SCBOLT_OPTIONS_progress}"
+            ;;
+        config)
+            printf '%s\n' "${SCBOLT_OPTIONS_config}"
+            ;;
+        check)
+            printf '%s\n' "${SCBOLT_OPTIONS_check}"
+            ;;
+        dry-run)
+            printf '%s\n' "${SCBOLT_OPTIONS_dry_run}"
+            ;;
+        ""|global)
+            printf '%s\n' "${SCBOLT_GLOBAL_OPTIONS}"
+            ;;
+        *)
+            if is_known_scbolt_command "${command}"; then
+                printf '%s\n' "${SCBOLT_OPTIONS_module}"
+            else
+                printf '%s\n' "${SCBOLT_GLOBAL_OPTIONS}"
+            fi
+            ;;
+    esac
+}
+
+suggest_scbolt_option() {
+    local command="$1"
+    local option="$2"
+    local choice
+    local distance
+    local best_choice=""
+    local best_distance=999
+    local max_distance=2
+
+    for choice in $(scbolt_option_choices "${command}"); do
+        if [[ "${choice}" == "${option}"* ]]; then
+            printf '%s\n' "${choice}"
+            return 0
+        fi
+    done
+
+    for choice in $(scbolt_option_choices "${command}"); do
+        distance="$(levenshtein_distance "${option}" "${choice}")"
+        if [ "${distance}" -lt "${best_distance}" ]; then
+            best_distance="${distance}"
+            best_choice="${choice}"
+        fi
+    done
+
+    if [ -n "${best_choice}" ] && [ "${best_distance}" -le "${max_distance}" ]; then
+        printf '%s\n' "${best_choice}"
+        return 0
+    fi
+
+    return 1
+}
+
+print_unsupported_option() {
+    local command="$1"
+    local option="$2"
+    local suggestion
+
+    print_error "Unsupported scbolt option: ${option}"
+    suggestion="$(suggest_scbolt_option "${command}" "${option}")" || true
+    if [ -n "${suggestion}" ]; then
+        if [ -n "${command}" ] && [ "${command}" != "global" ]; then
+            printf '%s\n' "did you mean: scbolt ${command} ${suggestion}" >&2
+        else
+            printf '%s\n' "did you mean: scbolt ${suggestion}" >&2
+        fi
+    else
+        printf '%s\n' "Use a supported command option." >&2
+    fi
 }
 
 print_installation_error() {
@@ -787,8 +991,7 @@ collect_global_args() {
                 shift
                 ;;
             --*)
-                print_error "Unsupported scbolt option without value: $1"
-                printf '%s\n' "Use '$1=<value>' or a supported command option." >&2
+                print_unsupported_option global "$1"
                 exit 1
                 ;;
             *)
@@ -930,8 +1133,7 @@ translate_args() {
                 make_args+=("${arg}")
                 ;;
             --*)
-                print_error "Unsupported scbolt option without value: ${arg}"
-                printf '%s\n' "Use '${arg}=<value>' or a supported command option." >&2
+                print_unsupported_option "${cmd:-global}" "${arg}"
                 exit 1
                 ;;
             *)
@@ -1350,8 +1552,7 @@ case "${cmd}" in
                     add_init_override "${arg%%=*}" "${arg#*=}"
                     ;;
                 --*)
-                    print_error "Unsupported scbolt init option without value: ${arg}"
-                    printf '%s\n' "Use '${arg}=<value>' or a supported init option." >&2
+                    print_unsupported_option init "${arg}"
                     exit 1
                     ;;
                 *=*)
@@ -1546,6 +1747,10 @@ case "${cmd}" in
         fi
         ;;
     *)
+        if ! is_known_scbolt_command "${cmd}"; then
+            print_unknown_command "${cmd}"
+            exit 2
+        fi
         if has_help_request "$@"; then
             drop_help_args "$@"
             translate_args "${leading_args[@]}" "${filtered_args[@]}"
