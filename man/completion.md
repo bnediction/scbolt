@@ -75,7 +75,6 @@ Example output:
 --logging=
 --help
 --spec-file=
---spec-only-hvg=
 --bin-hvg-flavor=
 --prior-knowledge=
 --dorothea-api=
@@ -159,7 +158,6 @@ false
 Examples:
 
 ```bash
-scbolt spec --spec-only-hvg=<TAB>
 scbolt velocity --velocity-only-hvg=<TAB>
 ```
 

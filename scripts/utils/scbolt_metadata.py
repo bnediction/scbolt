@@ -24,6 +24,7 @@ ProgressRecord = dict[str, str | list[str]]
 RuntimeEnvironments = dict[str, dict[str, object]]
 RuntimeBackend = Literal["conda", "docker"]
 SolutionStatus = Literal["global", "partial", "failed"]
+MAX_DISPLAYED_LABELS = 8
 
 
 def sidecar_path(target: Path) -> Path:
@@ -553,6 +554,20 @@ def solution_label(solution: dict[str, object]) -> str:
     return status
 
 
+def partial_solution_message(solution: dict[str, object]) -> str:
+    coverage = solution.get("coverage")
+    if coverage:
+        return f"partial solution: {coverage}"
+
+    kept = solution.get("kept")
+    total = solution.get("total")
+    if kept is not None and total is not None:
+        return f"partial solution: {kept}/{total}"
+    if kept is not None:
+        return f"partial solution: {kept}"
+    return "partial solution"
+
+
 def read_solution(target: Path) -> dict[str, object] | None:
     metadata = read_metadata(sidecar_path(target))
     if metadata is None:
@@ -639,6 +654,9 @@ def format_labels(labels: list[str], all_labels: list[str]) -> str:
     labels = unique_values(labels)
     if not labels or set(labels) == set(all_labels):
         return ""
+    if len(labels) > MAX_DISPLAYED_LABELS:
+        hidden = len(labels) - MAX_DISPLAYED_LABELS
+        labels = labels[:MAX_DISPLAYED_LABELS] + [f"{hidden} more output(s)"]
     return f" ({', '.join(labels)})"
 
 
@@ -831,6 +849,10 @@ def state_for_targets(
                 grouped_messages["metadata missing"].append(label)
             continue
 
+        solution = metadata.get("solution")
+        partial_solution = (
+            isinstance(solution, dict) and solution.get("status") == "partial"
+        )
         stored_hash = (
             metadata.get("metadata_hash")
             if current_runtime
@@ -840,30 +862,43 @@ def state_for_targets(
             expected_metadata_hash if current_runtime else expected_config_hash
         )
         stored_module = metadata.get("module")
-        if stored_module != module or stored_hash != expected_hash:
+        metadata_mismatch = stored_module != module or stored_hash != expected_hash
+        if partial_solution or metadata_mismatch:
             stale_targets.append(target)
-            changes = changed_parameters(metadata, parameters)
-            changes_messages = runtime_changes(
-                metadata,
-                runtime_backend,
-                current_container,
-                current_runtime,
-            )
-            if changes:
-                for name, stored_value, current_value in changes:
-                    grouped_changes.setdefault(name, {})
-                    grouped_changes[name].setdefault(current_value, {})
-                    grouped_changes[name][current_value].setdefault(stored_value, [])
-                    if label:
-                        grouped_changes[name][current_value][stored_value].append(label)
-            for message in changes_messages:
+
+            if partial_solution and isinstance(solution, dict):
+                message = partial_solution_message(solution)
                 grouped_messages.setdefault(message, [])
                 if label:
                     grouped_messages[message].append(label)
-            if not changes and not changes_messages:
-                grouped_messages.setdefault("configuration hash mismatch", [])
-                if label:
-                    grouped_messages["configuration hash mismatch"].append(label)
+
+            if metadata_mismatch:
+                changes = changed_parameters(metadata, parameters)
+                changes_messages = runtime_changes(
+                    metadata,
+                    runtime_backend,
+                    current_container,
+                    current_runtime,
+                )
+                if changes:
+                    for name, stored_value, current_value in changes:
+                        grouped_changes.setdefault(name, {})
+                        grouped_changes[name].setdefault(current_value, {})
+                        grouped_changes[name][current_value].setdefault(
+                            stored_value, []
+                        )
+                        if label:
+                            grouped_changes[name][current_value][stored_value].append(
+                                label
+                            )
+                for message in changes_messages:
+                    grouped_messages.setdefault(message, [])
+                    if label:
+                        grouped_messages[message].append(label)
+                if not changes and not changes_messages:
+                    grouped_messages.setdefault("configuration hash mismatch", [])
+                    if label:
+                        grouped_messages["configuration hash mismatch"].append(label)
 
     if stale_targets:
         messages = format_grouped_messages(grouped_messages, all_labels)
@@ -935,6 +970,10 @@ def done_targets_for_targets(
 
         metadata = read_metadata(sidecar_path(target))
         if metadata is None:
+            continue
+
+        solution = metadata.get("solution")
+        if isinstance(solution, dict) and solution.get("status") == "partial":
             continue
 
         stored_hash = (
@@ -1163,11 +1202,15 @@ def progress_fields_from_state(
     stale_targets: list[Path],
     missing_targets: list[Path],
 ) -> dict[str, str]:
+    stale_label = format_target_state_label(module, stale_targets, targets)
+    if status == "stale" and "partial solution" in message:
+        stale_label = message
+
     return {
         "status": status,
         "message": message,
         "done-label": format_target_state_label(module, done_targets, targets),
-        "stale-label": format_target_state_label(module, stale_targets, targets),
+        "stale-label": stale_label,
         "pending-message": format_missing_message(module, missing_targets, targets),
         "pending-label": format_target_state_label(module, missing_targets, targets),
     }

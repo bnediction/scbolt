@@ -69,15 +69,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--filter-genes",
-    dest="filter_genes",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    metavar="FILE",
-    help="input file storing genes of interest to pass filtering (if not specified, all genes are considered)",
-)
-
-parser.add_argument(
     "--important-nodes",
     dest="important_nodes",
     type=lambda x: Path(x).resolve(),
@@ -130,7 +121,7 @@ parser.add_argument(
     metavar="[A | B | C | D]",
     help=(
         "DoRothEA confidence levels used when --domain dorothea "
-        "(default: A B C for current API; A B C D for legacy API)"
+        "(default: A B C for modern API; A B C D for legacy API)"
     ),
 )
 
@@ -169,10 +160,10 @@ parser.add_argument(
 parser.add_argument(
     "--dorothea-api",
     dest="dorothea_api",
-    choices=["current", "legacy"],
+    choices=["modern", "legacy"],
     required=False,
-    default="current",
-    help="DoRothEA API flavor used when --domain dorothea (default: current)",
+    default="modern",
+    help="DoRothEA API flavor used when --domain dorothea (default: modern)",
 )
 
 parser.add_argument(
@@ -242,32 +233,17 @@ std.print_task("getting binarized states")
 important_nodes = genesyn(important_nodes)
 mandatory_nodes = genesyn(mandatory_nodes)
 
-if args.filter_genes:
-    std.print_info("filtering genes")
-    with open(args.filter_genes) as file:
-        keep_only = {line.strip() for line in file.readlines()}
-    keep_only = genesyn(keep_only)
-    if important_nodes - keep_only:
-        std.print_debug(
-            "reintegrating filtered nodes (kind=important, nodes={0})".format(
-                std.format_set(important_nodes - keep_only)
-            )
-        )
-    if mandatory_nodes - keep_only:
-        std.print_debug(
-            "reintegrating filtered nodes (kind=mandatory, nodes={0})".format(
-                std.format_set(mandatory_nodes - keep_only)
-            )
-        )
-    keep_only = keep_only | mandatory_nodes | important_nodes
-    keep_only_present = keep_only & set(macrostates_df.columns)
-    if keep_only - keep_only_present:
-        std.print_warning(
-            "missing nodes (source=binarized macrostates, format=csv, nodes={0})".format(
-                std.format_set(keep_only - keep_only_present)
-            )
-        )
-    macrostates_df = macrostates_df.loc[:, list(keep_only_present)]
+has_defined_state = macrostates_df.apply(
+    lambda values: pd.to_numeric(values, errors="coerce").isin([0, 1]).any(),
+    axis=0,
+)
+removed_nodes = macrostates_df.columns[~has_defined_state]
+if len(removed_nodes) > 0:
+    std.print_info(
+        "removing uninformative nodes "
+        f"(all states undefined, n={len(removed_nodes)})"
+    )
+    macrostates_df = macrostates_df.loc[:, has_defined_state]
 
 macrostates_cfg = get_cfg(macrostates_df, axis="index", genesyn=genesyn)
 

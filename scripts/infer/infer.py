@@ -170,7 +170,7 @@ def print_node_reference(nodes_in_data, nodes_in_domain, domain_edges, **kwargs)
 
 
 def print_clingo_optimization(
-    mode, strategy, max_clause, canonic, configuration=None, jobs=None, **kwargs
+    mode, strategy, max_clause, canonical, configuration=None, jobs=None, **kwargs
 ):
     options = []
     strategy = "unused" if mode == "ignore" or mode.startswith("enum,") else strategy
@@ -187,7 +187,7 @@ def print_clingo_optimization(
     options.extend(
         [
             f"max clauses={max_clause}",
-            f"canonic={canonic}",
+            f"canonical={canonical}",
         ]
     )
     std.print_info(f"optimization options: {', '.join(options)}", **kwargs)
@@ -268,6 +268,7 @@ def write_node_solution(
     nodes: Iterable[str],
     outfile: Path,
 ):
+    outfile.parent.mkdir(parents=True, exist_ok=True)
     with open(outfile, "w") as file:
         for node in nodes:
             file.write(f"{node}\n")
@@ -708,6 +709,16 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--domain-nodes",
+    dest="domain_nodes",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=None,
+    metavar="FILE",
+    help="optional output storing the full domain node set",
+)
+
+parser.add_argument(
     "--config-formats",
     dest="config_formats",
     nargs="+",
@@ -742,7 +753,7 @@ parser.add_argument(
     metavar="[A | B | C | D]",
     help=(
         "DoRothEA confidence levels used when --domain dorothea "
-        "(default: A B C for current API; A B C D for legacy API)"
+        "(default: A B C for modern API; A B C D for legacy API)"
     ),
 )
 
@@ -781,10 +792,10 @@ parser.add_argument(
 parser.add_argument(
     "--dorothea-api",
     dest="dorothea_api",
-    choices=["current", "legacy"],
+    choices=["modern", "legacy"],
     required=False,
-    default="current",
-    help="DoRothEA API flavor used when --domain dorothea (default: current)",
+    default="modern",
+    help="DoRothEA API flavor used when --domain dorothea (default: modern)",
 )
 
 parser.add_argument(
@@ -809,8 +820,8 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--canonic",
-    dest="canonic",
+    "--canonical",
+    dest="canonical",
     action=cli.Store_boolean,
     required=False,
     default=None,
@@ -926,12 +937,12 @@ mstates_cfg = get_cfg(mstates_df, axis="index")
 
 std.print_task("initializing inference settings (engine=BoNesis)")
 
-canonic = args.canonic
-if canonic is None:
-    canonic = False if args.action.startswith("filter") else True
+canonical = args.canonical
+if canonical is None:
+    canonical = False if args.action.startswith("filter") else True
 
 pkn_options = {
-    "canonic": canonic,
+    "canonic": canonical,
     "maxclause": args.max_clause,
 }
 if args.action == "filter-nodes":
@@ -965,6 +976,9 @@ with open(args.spec, "r") as file:
         file.read(),
         filename=str(args.spec),
     )
+
+if args.domain_nodes is not None:
+    write_node_solution(bo.domain.nodes, args.domain_nodes)
 
 if args.bonesis_mode == "soft":
     new_constraints = True
@@ -1054,7 +1068,7 @@ if args.action == "filter-nodes":
         args.clingo_opt_mode,
         clingo_opt_strategy,
         args.max_clause,
-        canonic,
+        canonical,
         configuration=args.clingo_configuration or "auto",
         jobs=args.jobs,
         flush=True,
@@ -1129,7 +1143,7 @@ elif args.action == "filter-consts":
         args.clingo_opt_mode,
         clingo_opt_strategy,
         args.max_clause,
-        canonic,
+        canonical,
         configuration=args.clingo_configuration or "auto",
         jobs=args.jobs,
     )
@@ -1209,7 +1223,7 @@ else:
             args.clingo_opt_mode,
             clingo_opt_strategy,
             args.max_clause,
-            canonic,
+            canonical,
             jobs=args.jobs,
         )
         std.print_warning("this may take some time.")

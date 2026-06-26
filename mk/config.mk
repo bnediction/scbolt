@@ -546,7 +546,7 @@ fi
 endef
 
 define require_filtering_parameters
-$(call require_bool,NORM_MAD,filtering)
+$(call require_bool,CONSISTENT_MAD,filtering)
 endef
 
 define require_clustering_parameters
@@ -652,12 +652,12 @@ endef
 
 define require_bonesis_filter_parameters
 $(call require_prior_parameters,$(1)); \
-$(call require_bool,CANONIC_FILTER,$(1))
+$(call require_bool,CANONICAL_FILTER,$(1))
 endef
 
 define require_bonesis_infer_parameters
 $(call require_prior_parameters,$(1)); \
-$(call require_bool,CANONIC_INFER,$(1))
+$(call require_bool,CANONICAL_INFER,$(1))
 endef
 
 ifneq ($(__dry_run_output),)
@@ -1001,10 +1001,21 @@ $(foreach module,$(reset_stages),\
 			stale_modules="$${stale_modules}$(module) "; \
 		elif [ "$${module_untracked}" -eq 1 ]; then \
 			if ! is_running "$(module)"; then \
+				if [[ "$${module_message}" == "$(module) ("*")" ]]; then \
+					module_details="$${module_message#$(module) (}"; \
+					module_details="$${module_details%)}"; \
+					module_message="$(module)"; \
+				fi; \
 				if [ "$${module_status}" = "untracked" ]; then \
 					$(call print_warning,missing module metadata: $${module_message} (untracked output)); \
 				else \
 					$(call print_warning,untracked module output: $${module_message}); \
+				fi; \
+				if [ -n "$${module_details}" ]; then \
+					printf '%s\n' "$${module_details}" \
+						| sed 's/, /;/g' \
+						| tr ';' '\n' \
+						| sed 's/^[[:space:]]*/    - /'; \
 				fi; \
 				untracked_modules="$${untracked_modules}$(module) "; \
 			fi; \
@@ -1198,6 +1209,15 @@ solution_metadata_args = \
 	$(if $(strip $(1)),--solution-status "$(1)") \
 	$(if $(strip $(2)),--solution-kept "$$($(call count_nonempty_lines,$(2)))") \
 	$(if $(strip $(3)),--solution-total "$$($(call count_nonempty_lines,$(3)))")
+timeout_param_for_module = \
+	$(if $(filter max-nodes-soft,$(1)),TIMEOUT_SOFT,\
+	$(if $(filter max-consts-soft,$(1)),TIMEOUT_CONSTS,\
+	$(if $(filter max-nodes-relaxed,$(1)),TIMEOUT_RELAXED,\
+	$(if $(filter max-nodes-seed,$(1)),TIMEOUT_SEED,\
+	$(if $(filter max-nodes-lock,$(1)),TIMEOUT_LOCK)))))
+interrupted_timeout_param = $(strip \
+	$(if $(and $(filter $(INTERRUPTED_TARGET),$(1)),$(strip $(INTERRUPTED_ELAPSED))),\
+		$(call timeout_param_for_module,$(1))=$(INTERRUPTED_ELAPSED)))
 
 define report_kept_gene_selection_result
 @if [ ! -f "$(4)" ] && [ -s "$(2)" ]; then \
@@ -1240,10 +1260,10 @@ fi
 endef
 
 define ensure_partial_gene_selection_metadata
-@if [ -s "$(2)" ]; then \
+@if [ "$(1)" = "$(INTERRUPTED_TARGET)" ] && [ -s "$(2)" ]; then \
 	solution_status="$$($(call metadata_solution_field,$(2),status) 2>/dev/null || true)"; \
 	if [ -z "$${solution_status}" ]; then \
-		$(call write_scbolt_metadata,$(1),$(2),,$(call solution_metadata_args,partial,$(2),$(3))); \
+		$(call write_scbolt_metadata,$(1),$(2),$(call interrupted_timeout_param,$(1)),$(call solution_metadata_args,partial,$(2),$(3))); \
 	fi; \
 fi
 endef
@@ -1256,7 +1276,7 @@ define finalize_interrupted_lock_gene_selection
 			|| [ -f "$(dir $(max_nodes_lock))mandatory.txt" ]; }; then \
 	mkdir -p "$(dir $(max_nodes_lock))"; \
 	$(call system_tool,cp) "$(max_nodes_seed)" "$(max_nodes_lock)"; \
-	$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock),,$(call solution_metadata_args,partial,$(max_nodes_lock),$(max_nodes_relaxed))); \
+	$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock),$(call interrupted_timeout_param,max-nodes-lock),$(call solution_metadata_args,partial,$(max_nodes_lock),$(max_nodes_relaxed))); \
 fi
 endef
 
@@ -1267,10 +1287,10 @@ define check_inference_status
 	elif [ $$exit_status -eq 124 ]; then \
 		echo -e ''; \
 		if [ -s $@ ]; then \
-			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@,,$(call solution_metadata_args,partial,$@,$(5)));) \
+			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@,$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$@,$(5)));) \
 			$(call print_warning,user-defined time limit reached \($(1)\): keeping partial solution); \
 		elif [ -n "$(4)" ] && [ -s "$(4)" ]; then \
-			$(call keep_inference_fallback,$(4),$(2),,user-defined time limit reached \($(1)\): keeping fallback solution,$(5)) \
+			$(call keep_inference_fallback,$(4),$(2),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),user-defined time limit reached \($(1)\): keeping fallback solution,$(5)) \
 		else \
 			$(call print_error,user-defined time limit reached \($(1)\): no solution found); \
 		fi; \
@@ -1309,19 +1329,52 @@ trap 'handle_inference_interrupt 130' INT; \
 trap 'handle_inference_interrupt 143' TERM
 endef
 
-define check_partial_bn_outputs
-@if [ -d "$(1)" ] && [ ! -f "$(3)" ]; then \
-	echo "" > /dev/tty; \
-	echo "Detected incomplete outputs for target '$(2)'." > /dev/tty; \
-	echo "Output directory: $(1)" > /dev/tty; \
-	echo "" > /dev/tty; \
-	printf "Remove partial outputs and rerun inference? (y/[n]): " > /dev/tty; \
-	read ans; \
+define check_bn_outputs
+@if [ -d "$(1)" ]; then \
+	max_outputs=8; \
+	missing_outputs="$$($(call system_tool,mktemp))"; \
+	[ -f "$(1)/ensemble.pdf" ] || printf '%s\n' "$(1)/ensemble.pdf" >> "$${missing_outputs}"; \
+	$(call system_tool,find) "$(1)" -mindepth 1 -maxdepth 1 -type d \
+		| $(call system_tool,sort) -V \
+		| while IFS= read -r solution_dir; do \
+			solution_name="$${solution_dir##*/}"; \
+			case "$${solution_name}" in \
+				""|*[!0-9]*) continue;; \
+			esac; \
+			for file in model.bnet noi.txt \
+				$(foreach fmt,$(strip $(3)),state.$(fmt)) \
+				$(foreach fmt,$(strip $(4)),ig.$(fmt)); do \
+				[ -f "$${solution_dir}/$${file}" ] \
+					|| printf '%s\n' "$${solution_dir}/$${file}" >> "$${missing_outputs}"; \
+			done; \
+		done; \
+	missing_count="$$( \
+		$(call system_tool,wc) -l < "$${missing_outputs}" \
+			| $(call system_tool,tr) -d '[:space:]')"; \
+	if [ "$${missing_count}" -eq 0 ]; then \
+		rm -f "$${missing_outputs}"; \
+		exit 0; \
+	fi; \
+	echo "" >&2; \
+	echo "Detected incomplete outputs for target '$(2)'." >&2; \
+	echo "Output directory: $(1)" >&2; \
+	echo "" >&2; \
+	echo "Missing expected outputs:" >&2; \
+	$(call system_tool,sed) -n "1,$${max_outputs}p" "$${missing_outputs}" \
+		| $(call system_tool,sed) "s#^$(launch_dir)/##" \
+		| $(call system_tool,sed) 's/^[[:space:]]*/    - /' >&2; \
+	if [ "$${missing_count}" -gt "$${max_outputs}" ]; then \
+		echo "    - $$((missing_count - max_outputs)) more output(s)" >&2; \
+	fi; \
+	rm -f "$${missing_outputs}"; \
+	echo "" >&2; \
+	printf "Remove partial outputs and rerun inference? (y/[n]): " >&2; \
+	if ! read ans; then ans=; fi; \
 	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
 		rm -rf "$(1)"; \
-		echo "Partial outputs removed." > /dev/tty; \
+		echo "Partial outputs removed." >&2; \
 	else \
-		echo "Inference aborted." > /dev/tty; \
+		echo "Inference aborted." >&2; \
 		exit 1; \
 	fi; \
 fi

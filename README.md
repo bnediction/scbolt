@@ -9,13 +9,13 @@
 
 scBOLT is a software framework for inferring Boolean networks from multi-condition single-cell transcriptomic data.
 
-Its main goal is to transform complex transcriptomic observations into biologically meaningful Boolean abstractions and dynamical constraints suitable for exact logical model inference. This remains a major challenge in data-driven logical modelling, particularly for poorly characterised biological systems and non-canonical cellular processes.
+Its main goal is to transform complex transcriptomic observations into biologically meaningful Boolean abstractions and dynamical constraints suitable for exact logical model inference. This remains a major challenge in data-driven logical modeling, particularly for poorly characterized biological systems and non-canonical cellular processes.
 
 scBOLT combines transcriptome-derived state abstractions, user-defined dynamical constraints, and prior regulatory knowledge to generate inference-ready logical models through a reproducible and modular workflow.
 
 ### Key features
 
-* multi-condition logical modelling
+* multi-condition logical modeling
 * transcriptome-driven constraint engineering
 * scalable exact Boolean network inference
 * multiple macrostate characterisation and binarization strategies

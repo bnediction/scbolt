@@ -111,6 +111,7 @@ else ifeq ($(HELP),false)
 		printf '$(warning_label) %s\n' "$${message}" >> "$${report}"; \
 		if [ -n "$${details}" ]; then \
 			printf '%s\n' "$${details}" \
+				| sed 's/, /;/g' \
 				| tr ';' '\n' \
 				| sed 's/^[[:space:]]*/    - /' >> "$${report}"; \
 		fi; \
@@ -226,10 +227,15 @@ else ifeq ($(HELP),false)
 			fi; \
 		elif [ "$${module_untracked}" -eq 1 ]; then \
 			if ! is_running "$${module}"; then \
+				if [[ "$${module_message}" == "$${module} ("*")" ]]; then \
+					module_details="$${module_message#$${module} (}"; \
+					module_details="$${module_details%)}"; \
+					module_message="$${module}"; \
+				fi; \
 				if [ "$${module_status}" = "untracked" ]; then \
-					check_warning "missing module metadata: $${module_message} (untracked output)"; \
+					check_warning_block "missing module metadata: $${module_message} (untracked output)" "$${module_details}"; \
 				else \
-					check_warning "untracked module output: $${module_message}"; \
+					check_warning_block "untracked module output: $${module_message}" "$${module_details}"; \
 				fi; \
 				untracked_modules="$${untracked_modules}$${module} "; \
 			fi; \
@@ -357,7 +363,7 @@ else ifeq ($(HELP),false)
 			$(MACROSTATE_FILES),$(call needed_by,MACROSTATE_FILES,$(check_targets)),external resource); \
 	fi; \
 	if grep -q 'scripts/prep/filter.py' "$${dry_run}"; then \
-		$(call check_bool_diagnostic,$(NORM_MAD),$(call needed_by,NORM_MAD,filtering),method); \
+		$(call check_bool_diagnostic,$(CONSISTENT_MAD),$(call needed_by,CONSISTENT_MAD,filtering),method); \
 	fi; \
 	if grep -q 'scripts/prep/norm.py' "$${dry_run}"; then \
 		$(call check_bool_diagnostic,$(CC_CORRECTION),$(call needed_by,CC_CORRECTION,normalization),method); \
@@ -458,14 +464,6 @@ else ifeq ($(HELP),false)
 	fi; \
 	if grep -q 'scripts/infer/spec.py' "$${dry_run}"; then \
 		$(call check_file_diagnostic,$(SPEC_FILE),$(call needed_by,SPEC_FILE,spec),project); \
-		$(call check_bool_diagnostic,$(SPEC_ONLY_HVG),$(call needed_by,SPEC_ONLY_HVG,spec),method); \
-		if [ "$(SPEC_ONLY_HVG)" = "true" ]; then \
-			$(call check_hvg_method_diagnostic,\
-				$(BIN_HVG_FLAVOR),$(BIN_HVG_TOP),\
-				$(call needed_by,BIN_HVG_FLAVOR,spec),$(call needed_by,BIN_HVG_TOP,spec),method); \
-			$(call check_float_diagnostic,$(BIN_HVG_SPAN),$(call needed_by,BIN_HVG_SPAN,spec),method); \
-			$(call check_positive_integer_diagnostic,$(BIN_HVG_BINS),$(call needed_by,BIN_HVG_BINS,spec),method); \
-		fi; \
 	fi; \
 	if grep -q 'PRIOR_KNOWLEDGE' "$${dry_run}"; then \
 		$(call check_parameter_diagnostic,$(PRIOR_KNOWLEDGE),PRIOR_KNOWLEDGE,external resource); \
@@ -497,11 +495,11 @@ else ifeq ($(HELP),false)
 			$(call check_success,method parameter valid: DOROTHEA_LEVELS=$(DOROTHEA_LEVELS)); \
 		fi; \
 	fi; \
-	if grep -q 'CANONIC_FILTER' "$${dry_run}"; then \
-		$(call check_bool_diagnostic,$(CANONIC_FILTER),CANONIC_FILTER,method); \
+	if grep -q 'CANONICAL_FILTER' "$${dry_run}"; then \
+		$(call check_bool_diagnostic,$(CANONICAL_FILTER),CANONICAL_FILTER,method); \
 	fi; \
-	if grep -q 'CANONIC_INFER' "$${dry_run}"; then \
-		$(call check_bool_diagnostic,$(CANONIC_INFER),CANONIC_INFER,method); \
+	if grep -q 'CANONICAL_INFER' "$${dry_run}"; then \
+		$(call check_bool_diagnostic,$(CANONICAL_INFER),CANONICAL_INFER,method); \
 	fi; \
 	if grep -q 'MIN_SELF_LOOP_CONSTS' "$${dry_run}"; then \
 		$(call check_bool_diagnostic,$(MIN_SELF_LOOP_CONSTS),MIN_SELF_LOOP_CONSTS,method); \

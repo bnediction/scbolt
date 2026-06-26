@@ -5,7 +5,7 @@ CONFIG_RAW ?= $(if $(strip $(SHOW_CONFIG_RAW)),$(SHOW_CONFIG_RAW),false)
 PROGRESS_ALL ?= false
 config_print_var = $(if $(filter undefined,$(origin $(1))),,$(info $(1)=$($(1))))
 help_command = $(if $(filter true,$(SCBOLT_CLI)),scbolt,make)
-help_module_usage = $(if $(filter true,$(SCBOLT_CLI)),<module...>,$(green)<module...>$(nc))
+help_module_usage = $(if $(filter true,$(SCBOLT_CLI)),<command...>,$(green)<module...>$(nc))
 help_params_option = $(if $(filter true,$(SCBOLT_CLI)), [--params=<file>])
 help_references_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--references=<condition...>], [REFERENCES=<condition...>])
@@ -491,6 +491,11 @@ help: ## display help
 					printf "  $(green)%-22s$(nc)  %s\n", "check", "validate module requirements"; \
 					printf "  $(green)%-22s$(nc)  %s\n", "dry-run", "preview build dependencies"; \
 					printf "  $(green)%-22s$(nc)  %s\n", "clean", "clean cache, logs and selected outputs"; \
+				} \
+			} \
+			END { \
+				if ("$(SCBOLT_CLI)" == "true") { \
+					printf "\nUse '\''scbolt <command> help'\'' for help on the commands above.\n"; \
 				} \
 			} ' $(MAKEFILE_LIST)
 
@@ -1054,27 +1059,27 @@ spec: ## build the BoNesis model specification
 __spec: $(bonesis_model)
 
 .PHONY: max-nodes-soft __max-nodes-soft
-max-nodes-soft: ## maximise nodes (soft constraints)
+max-nodes-soft: ## maximize nodes (soft constraints)
 	$(call run_logged,max-nodes-soft)
 __max-nodes-soft: $(max_nodes_soft)
 
 .PHONY: max-consts-soft __max-consts-soft
-max-consts-soft: ## maximise strong constants (soft constraints)
+max-consts-soft: ## maximize strong constants (soft constraints)
 	$(call run_logged,max-consts-soft)
 __max-consts-soft: $(max_consts_soft)
 
 .PHONY: max-nodes-relaxed __max-nodes-relaxed
-max-nodes-relaxed: ## maximise nodes (relaxed constraints)
+max-nodes-relaxed: ## maximize nodes (relaxed constraints)
 	$(call run_logged,max-nodes-relaxed)
 __max-nodes-relaxed: $(max_nodes_relaxed)
 
 .PHONY: max-nodes-seed __max-nodes-seed
-max-nodes-seed: ## maximise nodes (hard constraints, stage 1)
+max-nodes-seed: ## maximize nodes (hard constraints, stage 1)
 	$(call run_logged,max-nodes-seed)
 __max-nodes-seed: $(max_nodes_seed)
 
 .PHONY: max-nodes-lock __max-nodes-lock
-max-nodes-lock: ## maximise nodes (hard constraints, stage 2)
+max-nodes-lock: ## maximize nodes (hard constraints, stage 2)
 	$(call run_logged,max-nodes-lock)
 __max-nodes-lock: $(max_nodes_lock)
 
@@ -1087,8 +1092,8 @@ __finalize-interrupted-gene-selection-results:
 	@:
 else
 __finalize-interrupted-gene-selection-results:
-	$(call ensure_partial_gene_selection_metadata,max-nodes-soft,$(max_nodes_soft),)
-	$(call ensure_partial_gene_selection_metadata,max-consts-soft,$(max_consts_soft),$(max_nodes_soft))
+	$(call ensure_partial_gene_selection_metadata,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain))
+	$(call ensure_partial_gene_selection_metadata,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution))
 	$(call ensure_partial_gene_selection_metadata,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft))
 	$(call ensure_partial_gene_selection_metadata,max-nodes-seed,$(max_nodes_seed),$(max_nodes_relaxed))
 	$(call ensure_partial_gene_selection_metadata,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed))
@@ -1102,8 +1107,8 @@ __kept-gene-selection-results:
 	$(call report_kept_gene_selection_result,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed),$(tmpdir)/kept-gene-selection-reported)
 	$(call report_kept_gene_selection_result,max-nodes-seed,$(max_nodes_seed),$(max_nodes_relaxed),$(tmpdir)/kept-gene-selection-reported)
 	$(call report_kept_gene_selection_result,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft),$(tmpdir)/kept-gene-selection-reported)
-	$(call report_kept_gene_selection_result,max-consts-soft,$(max_consts_soft),$(max_nodes_soft),$(tmpdir)/kept-gene-selection-reported)
-	$(call report_kept_gene_selection_result,max-nodes-soft,$(max_nodes_soft),,$(tmpdir)/kept-gene-selection-reported)
+	$(call report_kept_gene_selection_result,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution),$(tmpdir)/kept-gene-selection-reported)
+	$(call report_kept_gene_selection_result,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain),$(tmpdir)/kept-gene-selection-reported)
 	@rm -f "$(tmpdir)/kept-gene-selection-reported"
 
 .PHONY: __intermediate-gene-selection-status
@@ -1113,8 +1118,8 @@ __intermediate-gene-selection-status:
 	$(call report_intermediate_gene_selection_status,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed),$(tmpdir)/intermediate-gene-selection-reported)
 	$(call report_intermediate_gene_selection_status,max-nodes-seed,$(max_nodes_seed),$(max_nodes_relaxed),$(tmpdir)/intermediate-gene-selection-reported)
 	$(call report_intermediate_gene_selection_status,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft),$(tmpdir)/intermediate-gene-selection-reported)
-	$(call report_intermediate_gene_selection_status,max-consts-soft,$(max_consts_soft),$(max_nodes_soft),$(tmpdir)/intermediate-gene-selection-reported)
-	$(call report_intermediate_gene_selection_status,max-nodes-soft,$(max_nodes_soft),,$(tmpdir)/intermediate-gene-selection-reported)
+	$(call report_intermediate_gene_selection_status,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution),$(tmpdir)/intermediate-gene-selection-reported)
+	$(call report_intermediate_gene_selection_status,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain),$(tmpdir)/intermediate-gene-selection-reported)
 	@rm -f "$(tmpdir)/intermediate-gene-selection-reported"
 
 .PHONY: bn-min __bn-min

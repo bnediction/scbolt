@@ -100,7 +100,7 @@ $(eval CELL_DROPOUT ?= 1)                   # maximum cell dropout fraction
 $(eval CELL_EXPRESSION ?= 0 inf)            # min/max expressed genes per cell
 $(eval CELL_READS ?= 0 inf)                 # min/max total cell reads
 $(eval MAD_DEVIATION ?= 2 2)                # lower/upper MAD factors around median log-total reads
-$(eval NORM_MAD ?= true)                    # use Gaussian-consistent MAD scaling
+$(eval CONSISTENT_MAD ?= true)                    # use Gaussian-consistent MAD scaling
 $(eval MT ?= 0.05)                          # maximum mitochondrial count fraction
 
 ## NORMALIZATION ##
@@ -155,7 +155,7 @@ $(eval SMOOTH_BATCH_SIZE ?= 1000)           # cells subsampled for diffusion smo
 ## MACROSTATES ##
 # MACROSTATE_METHOD values: knnsc, stream, cotan, cellrank.
 # For stream, macrostates smaller than MACROSTATE_SIZE are extended to
-# neighbouring elastic principal graph nodes.
+# neighboring elastic principal graph nodes.
 $(eval MACROSTATE_SIZE ?= 100)              # target macrostate size
 $(eval MACROSTATE_METHOD ?= cellrank)       # macrostate method
 
@@ -241,14 +241,13 @@ $(eval BIN_ALPHA ?= 0.05)                   # adjusted p-value threshold
 ## SPEC ##
 # SPEC_FILE stores manual BoNesis constraints; spec checks their syntax.
 $(eval SPEC_FILE ?= spec.yml)               # BoNesis model specification file
-$(eval SPEC_ONLY_HVG ?= true)               # use only binarization HVGs for model genes
 
 ## INFERENCE ##
 # PRIOR_KNOWLEDGE values: collectri, dorothea, or an existing file path.
 # GENEINFO_VERSION values: bundled, latest, or file path.
 # OMNIPATH_VERSION values: latest, YYYY-MM-DD, or YYYYMMDD.
 # HCOP_VERSION values: bundled, latest, or file path.
-# DOROTHEA_API values: current, legacy. Used only when PRIOR_KNOWLEDGE=dorothea.
+# DOROTHEA_API values: modern, legacy. Used only when PRIOR_KNOWLEDGE=dorothea.
 # DOROTHEA_COMPATIBILITY values: true, false. Used only when PRIOR_KNOWLEDGE=dorothea.
 # DOROTHEA_LEVELS values: A, B, C, D.
 # Clingo filter configs: auto, frumpy, jumpy, tweety, handy, crafty, trendy, many, or file path.
@@ -256,19 +255,19 @@ $(eval SPEC_ONLY_HVG ?= true)               # use only binarization HVGs for mod
 # Clingo opt strategies: bb[,<method>] or usc[,<method>].
 # Diagnostic opt modes: opt gives fast anytime solutions; optN targets
 # certified optima; ignore tests satisfiability.
-# CANONIC_FILTER controls filter-nodes/filter-consts.
-# CANONIC_INFER controls min/submin/diverse.
+# CANONICAL_FILTER controls filter-nodes/filter-consts.
+# CANONICAL_INFER controls min/submin/diverse.
 # TIMEOUT_* values are passed to GNU timeout; empty means no timeout.
 $(eval MAX_CLAUSE ?= 8)                     # maximum literals per propositional formula
 $(eval PRIOR_KNOWLEDGE ?= collectri)        # prior GRN domain
 $(eval GENEINFO_VERSION ?= latest)          # NCBI gene_info source
 $(eval OMNIPATH_VERSION ?= latest)          # OmniPath resource version
 $(eval HCOP_VERSION ?= bundled)             # HCOP orthology version
-$(eval DOROTHEA_API ?= current)             # DoRothEA API source
+$(eval DOROTHEA_API ?= modern)             # DoRothEA API source
 $(eval DOROTHEA_COMPATIBILITY ?= true)      # reproduce decoupler DoRothEA deduplication
 $(eval DOROTHEA_LEVELS ?= A B C)            # DoRothEA confidence levels
-$(eval CANONIC_FILTER ?= false)             # canonical functions during filtering
-$(eval CANONIC_INFER ?= true)               # canonical functions during BN inference
+$(eval CANONICAL_FILTER ?= false)             # canonical functions during filtering
+$(eval CANONICAL_INFER ?= true)               # canonical functions during BN inference
 
 ## MAX-NODES-SOFT ##
 $(eval CLINGO_CONFIG_SOFT ?=)               # Clingo default configuration

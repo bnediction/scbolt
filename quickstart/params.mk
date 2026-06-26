@@ -46,7 +46,6 @@ ZEROES_ARE_ZEROES = false
 
 ### specification ###
 SPEC_FILE = spec.yml
-SPEC_ONLY_HVG = true
 
 ### inference ###
 MAX_CLAUSE = 6

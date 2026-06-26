@@ -83,7 +83,7 @@ def load_prior_network(
     dorothea_levels: Optional[Sequence[str]] = None,
     omnipath_version: str = "latest",
     hcop_version: str = "bundled",
-    dorothea_api: str = "current",
+    dorothea_api: str = "modern",
     dorothea_compatibility: bool = True,
 ):
     if domain == "collectri":
@@ -102,7 +102,7 @@ def load_prior_network(
         return bt.dbs.omnipath.collectri(**kwargs)
 
     if domain == "dorothea":
-        flavor = {"current": "modern", "legacy": "legacy"}[dorothea_api]
+        flavor = {"modern": "modern", "legacy": "legacy"}[dorothea_api]
         if dorothea_levels is None:
             levels = ["A", "B", "C", "D"] if flavor == "legacy" else ["A", "B", "C"]
         else:
@@ -124,7 +124,7 @@ def load_prior_network(
         )
 
     std.print_task(f"loading custom prior network (file={std.format_path(domain)})")
-    return bt.bpy.ig.read_interaction_graph(
+    return bt.bpy.ig.read_influence_graph(
         infile=domain,
         genesyn=genesyn,
     )

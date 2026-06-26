@@ -234,7 +234,7 @@ done
 handle_interrupt() {
     trap - INT TERM
     echo >&2
-    printf '%s✗%s installation cancelled by user.\n' "${stderr_red}" "${stderr_nc}" >&2
+    printf '%s✗%s installation canceled by user.\n' "${stderr_red}" "${stderr_nc}" >&2
     exit 130
 }
 

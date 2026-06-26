@@ -123,6 +123,8 @@ bonesis_model =                 $(infer_dir)/spec/model.bo \
                                 $(infer_dir)/spec/important.txt \
                                 $(infer_dir)/spec/mandatory.txt
 max_nodes_soft =                $(infer_dir)/genes/soft/comps.txt
+max_nodes_soft_solution =       $(max_nodes_soft)
+max_nodes_soft_domain =         $(infer_dir)/genes/soft/domain.txt
 max_consts_soft =               $(infer_dir)/genes/consts/comps.txt
 max_nodes_relaxed =             $(infer_dir)/genes/relaxed/comps.txt
 max_nodes_seed =                $(infer_dir)/genes/seed/comps.txt
@@ -130,21 +132,12 @@ max_nodes_lock =                $(infer_dir)/genes/lock/comps.txt
 bn_min =                        $(infer_dir)/bn/min/model.bnet
 
 bn_submin_dir = $(infer_dir)/bn/submin
-bn_files = $(foreach i,$(1),$(2)/$(i)/model.bnet $(2)/$(i)/state.cfg)
-ifneq ($(filter-out 0,$(strip $(INFER_LIMIT))),)
-bn_submin_indices := $(shell $(call system_tool,seq) 0 $$(($(INFER_LIMIT)-1)))
-bn_submin = $(call bn_files,$(bn_submin_indices),$(bn_submin_dir))
-else
 bn_submin = $(bn_submin_dir)/ensemble.pdf
-endif
+bn_submin_metadata = $(bn_submin_dir)
 
 bn_diverse_dir = $(infer_dir)/bn/diverse
-ifneq ($(filter-out 0,$(strip $(INFER_LIMIT))),)
-bn_diverse_indices := $(shell $(call system_tool,seq) 0 $$(($(INFER_LIMIT)-1)))
-bn_diverse = $(call bn_files,$(bn_diverse_indices),$(bn_diverse_dir))
-else
 bn_diverse = $(bn_diverse_dir)/ensemble.pdf
-endif
+bn_diverse_metadata = $(bn_diverse_dir)
 
 $(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
 $(foreach reference,$(references_default),$(eval $(call find_paths_for_references,$(reference))))
@@ -275,7 +268,7 @@ try_open_allocated_cpu := $(shell echo $$(($(JOBS) / 2)))
 open_allocated_cpu := $(if $(findstring $(try_open_allocated_cpu),0),1,$(try_open_allocated_cpu))
 endif
 
-norm_mad = $(if $(filter true,$(NORM_MAD)),--consistent-mad)
+consistent_mad = $(if $(filter true,$(CONSISTENT_MAD)),--consistent-mad)
 cc_scores = $(if $(filter true,$(CC_CORRECTION)),--correction G2M_score S_score G1_score)
 pca_only_hvg = $(if $(filter true,$(PCA_ONLY_HVG)),--only-hvg)
 centered_pca = $(if $(filter true,$(CENTERED_PCA)),--centered-pca)
@@ -313,7 +306,7 @@ default_bin = $(if $(filter scboolseq,$(BIN_METHOD)),$(bin_mstates),\
 bin = $(if $(BINARIZATION_FILE),$(BINARIZATION_FILE),$(default_bin))
 
 known_prior_knowledge = collectri dorothea
-dorothea_apis = current legacy
+dorothea_apis = modern legacy
 dorothea_levels = A B C D
 
 # Resolve the user-facing prior knowledge parameter to the actual domain passed
@@ -321,11 +314,7 @@ dorothea_levels = A B C D
 ifeq ($(PRIOR_KNOWLEDGE),collectri)
 prior_knowledge = collectri
 else ifeq ($(PRIOR_KNOWLEDGE),dorothea)
-ifneq ($(filter $(strip $(DOROTHEA_API)),$(dorothea_apis)),)
 prior_knowledge = dorothea
-else
-prior_knowledge =
-endif
 else ifneq ($(wildcard $(PRIOR_KNOWLEDGE)),)
 prior_knowledge = $(PRIOR_KNOWLEDGE)
 endif
@@ -396,8 +385,8 @@ RESET_TARGET_max-nodes-relaxed = $(max_nodes_relaxed)
 RESET_TARGET_max-nodes-seed = $(max_nodes_seed)
 RESET_TARGET_max-nodes-lock = $(max_nodes_lock)
 RESET_TARGET_bn-min = $(bn_min)
-RESET_TARGET_bn-submin = $(bn_submin)
-RESET_TARGET_bn-diverse = $(bn_diverse)
+RESET_TARGET_bn-submin = $(bn_submin_metadata)
+RESET_TARGET_bn-diverse = $(bn_diverse_metadata)
 
 reset_modules := $(strip $(RESET_TARGET) $(CLI_RESET_TARGETS) $(RESET_FROM))
 trust_modules := $(strip $(TRUST_TARGET) $(CLI_TRUST_TARGETS))
@@ -459,7 +448,7 @@ target_params_filtering = \
 	GENEINFO_VERSION \
 	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
 	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
-	MAD_DEVIATION NORM_MAD MT
+	MAD_DEVIATION CONSISTENT_MAD MT
 target_params_normalization = MEMORY CC_CORRECTION
 target_params_clustering = \
 	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
@@ -501,37 +490,35 @@ target_params_binarization = \
 	BIN_METHOD BINARIZATION_FILE MACROSTATE_FILES \
 	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS
 target_params_spec = \
-	SPEC_FILE SPEC_ONLY_HVG \
-	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
-	$(prior_knowledge_params)
+	SPEC_FILE $(prior_knowledge_params)
 target_params_max-nodes-soft = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
 	CLINGO_CONFIG_SOFT CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT \
 	JOBS_SOFT TIMEOUT_SOFT
 target_params_max-consts-soft = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER MIN_SELF_LOOP_CONSTS \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER MIN_SELF_LOOP_CONSTS \
 	CLINGO_CONFIG_CONSTS CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS \
 	JOBS_CONSTS TIMEOUT_CONSTS
 target_params_max-nodes-relaxed = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
 	CLINGO_CONFIG_RELAXED CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED \
 	JOBS_RELAXED TIMEOUT_RELAXED
 target_params_max-nodes-seed = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
 	CLINGO_CONFIG_SEED CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED \
 	JOBS_SEED TIMEOUT_SEED
 target_params_max-nodes-lock = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
 	CLINGO_CONFIG_LOCK CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK \
 	JOBS_LOCK TIMEOUT_LOCK
 target_params_bn-min = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER MIN_SELF_LOOP_INFER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_INFER MIN_SELF_LOOP_INFER \
 	CLINGO_OPT_MODE_MIN GRAPH_FORMATS
 target_params_bn-submin = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_INFER \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 target_params_bn-diverse = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_INFER \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 
 sensitive_params_load-fastq = $(foreach condition,$(conditions),$(call sra_var,$(condition)))
@@ -545,7 +532,7 @@ sensitive_params_filtering = \
 	COUNT_FILES ORGANISM GENEINFO_VERSION \
 	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
 	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
-	MAD_DEVIATION NORM_MAD MT
+	MAD_DEVIATION CONSISTENT_MAD MT
 sensitive_params_normalization = ORGANISM MEMORY CC_CORRECTION
 sensitive_params_clustering = \
 	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
@@ -587,37 +574,35 @@ sensitive_params_bin-consensus = \
 	MEMORY BIN_LOGFC BIN_CORRECTION BIN_ALPHA
 sensitive_params_binarization =
 sensitive_params_spec = \
-	SPEC_FILE SPEC_ONLY_HVG \
-	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
-	$(prior_knowledge_params)
+	SPEC_FILE $(prior_knowledge_params)
 sensitive_params_max-nodes-soft = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
 	CLINGO_CONFIG_SOFT CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT \
 	JOBS_SOFT TIMEOUT_SOFT SEED
 sensitive_params_max-consts-soft = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER MIN_SELF_LOOP_CONSTS \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER MIN_SELF_LOOP_CONSTS \
 	CLINGO_CONFIG_CONSTS CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS \
 	JOBS_CONSTS TIMEOUT_CONSTS SEED
 sensitive_params_max-nodes-relaxed = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
 	CLINGO_CONFIG_RELAXED CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED \
 	JOBS_RELAXED TIMEOUT_RELAXED SEED
 sensitive_params_max-nodes-seed = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
 	CLINGO_CONFIG_SEED CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED \
 	JOBS_SEED TIMEOUT_SEED SEED
 sensitive_params_max-nodes-lock = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
 	CLINGO_CONFIG_LOCK CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK \
 	JOBS_LOCK TIMEOUT_LOCK SEED
 sensitive_params_bn-min = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER MIN_SELF_LOOP_INFER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_INFER MIN_SELF_LOOP_INFER \
 	CLINGO_OPT_MODE_MIN GRAPH_FORMATS SEED
 sensitive_params_bn-submin = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_INFER \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS SEED
 sensitive_params_bn-diverse = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONIC_INFER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_INFER \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS SEED
 
 runtime_envs_load-fastq = scbolt-fastq
@@ -675,7 +660,7 @@ method_config_param_set = \
 	STAR_BARCODE_FILTER STAR_MIN_UMI STAR_TOP_BARCODES \
 	GENE_DROPOUT GENE_EXPRESSION GENE_COUNTS \
 	CELL_DROPOUT CELL_EXPRESSION CELL_READS \
-	MAD_DEVIATION NORM_MAD MT \
+	MAD_DEVIATION CONSISTENT_MAD MT \
 	CC_CORRECTION \
 	INTEGRATION ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN \
 	ANALYSIS_HVG_BINS DIM_PCA DIM_EMBEDDING CENTERED_PCA PCA_ONLY_HVG \
@@ -696,9 +681,8 @@ method_config_param_set = \
 	BIN_DEA_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
 	BIN_LOGFC BIN_CORRECTION BIN_ALPHA \
 	BIN_METHOD \
-	SPEC_ONLY_HVG \
 	MAX_CLAUSE DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS \
-	CANONIC_FILTER CANONIC_INFER \
+	CANONICAL_FILTER CANONICAL_INFER \
 	CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT JOBS_SOFT TIMEOUT_SOFT \
 	CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS JOBS_CONSTS TIMEOUT_CONSTS \
 	CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED JOBS_RELAXED TIMEOUT_RELAXED \

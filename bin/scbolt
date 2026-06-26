@@ -1226,9 +1226,10 @@ target_label_with_intermediate_status() {
 finalize_interrupted_gene_selection_results() {
     local params="$1"
     local target_label="$2"
+    local elapsed="$3"
     local line
     local make_assignments=()
-    shift 2
+    shift 3
 
     while IFS= read -r line; do
         make_assignments+=("${line}")
@@ -1237,30 +1238,66 @@ finalize_interrupted_gene_selection_results() {
     make -s -f "${SCBOLT_MAKEFILE}" __finalize-interrupted-gene-selection-results \
         "PARAMS=${params}" \
         "INTERRUPTED_TARGET=${target_label}" \
+        "INTERRUPTED_ELAPSED=${elapsed}" \
         "${make_assignments[@]}" 2>/dev/null || true
+}
+
+ensure_clean_stdout_line() {
+    local file="$1"
+    local last_byte
+
+    if [ ! -s "${file}" ]; then
+        return 0
+    fi
+
+    last_byte="$(tail -c 1 "${file}" 2> /dev/null | od -An -tx1 | tr -d '[:space:]')"
+    if [ "${last_byte}" != "0a" ]; then
+        printf '\n'
+    fi
 }
 
 run_make_build_with_params() {
     local params="$1"
     local target_label="$2"
+    local capture_dir
     local stdout_file
     local stderr_file
+    local stdout_pipe
+    local stderr_pipe
+    local stdout_tee_pid
+    local stderr_tee_pid
     local status=0
     local final_status
     local interrupted=0
     local recipe_ran=false
     local stale_warning=false
+    local build_start_seconds
+    local elapsed_seconds
+    local elapsed
     shift 2
 
     require_params_file "${params}"
-    stdout_file="$(mktemp)"
-    stderr_file="$(mktemp)"
+    capture_dir="$(mktemp -d)"
+    stdout_file="${capture_dir}/stdout"
+    stderr_file="${capture_dir}/stderr"
+    stdout_pipe="${capture_dir}/stdout.pipe"
+    stderr_pipe="${capture_dir}/stderr.pipe"
+    mkfifo "${stdout_pipe}" "${stderr_pipe}"
+
+    tee "${stdout_file}" < "${stdout_pipe}" &
+    stdout_tee_pid=$!
+    (tee "${stderr_file}" < "${stderr_pipe}" | grep -vE '^make(\[[0-9]+\])?: \*\*\*' >&2 || true) &
+    stderr_tee_pid=$!
+
     trap 'interrupted=1' INT TERM
+    build_start_seconds="${SECONDS}"
     set +e
     make -f "${SCBOLT_MAKEFILE}" "$@" "PARAMS=${params}" \
-        > >(tee "${stdout_file}") \
-        2> >(tee "${stderr_file}" | grep -vE '^make(\[[0-9]+\])?: \*\*\*' >&2 || true)
+        > "${stdout_pipe}" \
+        2> "${stderr_pipe}"
     status=$?
+    wait "${stdout_tee_pid}" 2> /dev/null || true
+    wait "${stderr_tee_pid}" 2> /dev/null || true
     set -e
     trap - INT TERM
 
@@ -1282,7 +1319,12 @@ run_make_build_with_params() {
             "${stderr_file}"; then
         final_status=124
     fi
-    rm -f "${stdout_file}" "${stderr_file}"
+    ensure_clean_stdout_line "${stdout_file}"
+    elapsed_seconds=$((SECONDS - build_start_seconds))
+    if [ "${elapsed_seconds}" -lt 1 ]; then
+        elapsed_seconds=1
+    fi
+    elapsed="${elapsed_seconds}s"
 
     case "${final_status}" in
         0)
@@ -1300,12 +1342,14 @@ run_make_build_with_params() {
             ;;
         130)
             print_warning "interrupted by user (${target_label})"
-            finalize_interrupted_gene_selection_results "${params}" "${target_label}" "$@"
+            finalize_interrupted_gene_selection_results \
+                "${params}" "${target_label}" "${elapsed}" "$@"
             print_kept_intermediate_results "${params}" "$@"
             ;;
         143)
             print_warning "interrupted by user (${target_label})"
-            finalize_interrupted_gene_selection_results "${params}" "${target_label}" "$@"
+            finalize_interrupted_gene_selection_results \
+                "${params}" "${target_label}" "${elapsed}" "$@"
             print_kept_intermediate_results "${params}" "$@"
             ;;
         *)
@@ -1313,6 +1357,7 @@ run_make_build_with_params() {
             ;;
     esac
 
+    rm -rf "${capture_dir}"
     exit "${status}"
 }
 

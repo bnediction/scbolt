@@ -17,7 +17,7 @@ include $(scbolt_root)/mk/check.mk
 include $(scbolt_root)/mk/clean.mk
 
 ## preserve target even if make is killed or interrupted
-.PRECIOUS: $(max_nodes_soft)
+.PRECIOUS: $(max_nodes_soft_solution)
 .PRECIOUS: $(max_consts_soft)
 .PRECIOUS: $(max_nodes_seed)
 .PRECIOUS: $(max_nodes_lock)
@@ -352,7 +352,7 @@ $(filtering_$(1)): $(count_input_$(1)) $(if $(filter true,$(CC_CORRECTION)),$(if
 		$$(firstword $$^) $$@ $(if $(filter true,$(CC_CORRECTION)),$(if $(filter mouse,$(ORGANISM)),--marker $$(lastword $$^))) \
 		--gene-dropout $(GENE_DROPOUT) --gene-expression $(GENE_EXPRESSION) --gene-counts $(GENE_COUNTS) \
 		--cell-dropout $(CELL_DROPOUT) --cell-expression $(CELL_EXPRESSION) --cell-reads $(CELL_READS) \
-		--mad-deviation $(MAD_DEVIATION) $(norm_mad) --mt $(MT) \
+		--mad-deviation $(MAD_DEVIATION) $(consistent_mad) --mt $(MT) \
 		$(geneinfo_version_arg)
 	$$(call write_scbolt_metadata,filtering,$$(filtering_$(1)))
 
@@ -765,37 +765,34 @@ $(bin_consensus): $(bin_mstates) $(lastword $(bin_cells)) $(bin_dea)
 
 $(bonesis_model)&: $(bin)
 	$(call print_rule,spec)
-	$(call require_bool,SPEC_ONLY_HVG,spec)
-	$(if $(filter true,$(SPEC_ONLY_HVG)),$(call require_bin_hvg_parameters,spec))
 	$(call require_prior_parameters,spec)
 	$(call check_file,$(SPEC_FILE),SPEC_FILE)
 	mkdir -p $(@D)
-	$(if $(filter true,$(SPEC_ONLY_HVG)),$(call build_bin_hvg,spec))
 	$(call conda_run,scbolt-bonesis) python $(scripts_dir)/infer/spec.py $(SPEC_FILE) $< \
 		--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 		--important-nodes $(word 3,$(bonesis_model)) --mandatory-nodes $(word 4,$(bonesis_model)) \
-		$(if $(filter true,$(SPEC_ONLY_HVG)),--filter-genes $(bin_hvg)) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args)
 	$(call system_tool,sort) -u $(word 3,$(bonesis_model)) -o $(word 3,$(bonesis_model))
 	$(call system_tool,sort) -u $(word 4,$(bonesis_model)) -o $(word 4,$(bonesis_model))
 	$(call write_scbolt_metadata,spec,$(bonesis_model))
 
-$(max_nodes_soft): $(bonesis_model)
+$(max_nodes_soft_solution): $(bonesis_model)
 	$(call print_rule,max-nodes-soft)
 	$(call require_bonesis_filter_parameters,max-nodes-soft)
 	mkdir -p $(@D)
 	set +e; \
 	$(call start_inference_timer) \
-	$(call trap_inference_interrupt,max-nodes-soft,TIMEOUT_SOFT); \
+	$(call trap_inference_interrupt,max-nodes-soft,TIMEOUT_SOFT,,$(max_nodes_soft_domain)); \
 	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_SOFT)) python $(scripts_dir)/infer/infer.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--asp $(@D)/nodes.sh --solution $@ \
+		--domain-nodes $(max_nodes_soft_domain) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode soft --max-clause $(MAX_CLAUSE) \
-		--canonic $(CANONIC_FILTER) \
+		--canonical $(CANONICAL_FILTER) \
 		$(if $(strip $(CLINGO_CONFIG_SOFT)),--clingo-configuration $(CLINGO_CONFIG_SOFT)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SOFT) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SOFT) \
@@ -803,9 +800,9 @@ $(max_nodes_soft): $(bonesis_model)
 	exit_status=$$?; \
 	trap - INT TERM; \
 	set -e; \
-	$(call check_inference_status,$(TIMEOUT_SOFT),max-nodes-soft,TIMEOUT_SOFT)
+	$(call check_inference_status,$(TIMEOUT_SOFT),max-nodes-soft,TIMEOUT_SOFT,,$(max_nodes_soft_domain))
 
-$(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
+$(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution)
 	$(call print_rule,max-consts-soft)
 	$(call require_bonesis_filter_parameters,max-consts-soft)
 	$(call require_bool,MIN_SELF_LOOP_CONSTS,max-consts-soft)
@@ -821,7 +818,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft)
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode soft --max-clause $(MAX_CLAUSE) $(min_self_loop_consts) \
-		--canonic $(CANONIC_FILTER) \
+		--canonical $(CANONICAL_FILTER) \
 		$(if $(strip $(CLINGO_CONFIG_CONSTS)),--clingo-configuration $(CLINGO_CONFIG_CONSTS)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_CONSTS) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_CONSTS) \
@@ -846,7 +843,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode relaxed --max-clause $(MAX_CLAUSE) \
-		--canonic $(CANONIC_FILTER) \
+		--canonical $(CANONICAL_FILTER) \
 		$(if $(strip $(CLINGO_CONFIG_RELAXED)),--clingo-configuration $(CLINGO_CONFIG_RELAXED)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_RELAXED) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_RELAXED) \
@@ -872,7 +869,7 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
-		--canonic $(CANONIC_FILTER) \
+		--canonical $(CANONICAL_FILTER) \
 		$(if $(strip $(CLINGO_CONFIG_SEED)),--clingo-configuration $(CLINGO_CONFIG_SEED)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SEED) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SEED) \
@@ -907,7 +904,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 			--domain $(prior_knowledge) --organism $(ORGANISM) \
 			$(prior_knowledge_args) \
 			--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
-			--canonic $(CANONIC_FILTER) \
+			--canonical $(CANONICAL_FILTER) \
 			$(if $(strip $(CLINGO_CONFIG_LOCK)),--clingo-configuration $(CLINGO_CONFIG_LOCK)) \
 			--clingo-opt-mode $(CLINGO_OPT_MODE_LOCK) \
 			--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_LOCK) \
@@ -932,7 +929,7 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock)
 		--organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--max-clause $(MAX_CLAUSE) $(min_self_loop_infer) \
-		--canonic $(CANONIC_INFER) \
+		--canonical $(CANONICAL_INFER) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_MIN) --jobs 1 \
 		--graph-formats $(GRAPH_FORMATS)
 		if command -v dot >/dev/null 2>&1; then
@@ -943,10 +940,16 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock)
 		fi
 	$(call write_scbolt_metadata,bn-min,$@)
 
-$(bn_submin)&: $(bonesis_model) $(max_nodes_lock)
+.PHONY: __check-bn-submin-outputs __check-bn-diverse-outputs
+__check-bn-submin-outputs:
+	$(call check_bn_outputs,$(bn_submin_dir),bn-submin,$(CONFIG_FORMATS),$(GRAPH_FORMATS))
+
+__check-bn-diverse-outputs:
+	$(call check_bn_outputs,$(bn_diverse_dir),bn-diverse,$(CONFIG_FORMATS),$(GRAPH_FORMATS))
+
+$(bn_submin)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-submin-outputs
 	$(call print_rule,bn-submin)
 	$(call require_bonesis_infer_parameters,bn-submin)
-	$(call check_partial_bn_outputs,$(bn_submin_dir),bn-submin,$@)
 	mkdir -p $(bn_submin_dir)
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py submin \
 		$(word 1,$^) $(word 2,$^) \
@@ -957,18 +960,17 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock)
 		--organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--max-clause $(MAX_CLAUSE) \
-		--canonic $(CANONIC_INFER) \
+		--canonical $(CANONICAL_INFER) \
 		--jobs $(JOBS) \
 		$(if $(strip $(INFER_LIMIT)),--limit $(INFER_LIMIT)) \
 		--config-formats $(CONFIG_FORMATS) \
 		--graph-formats $(GRAPH_FORMATS) \
 		--remove-isolated-nodes
-	$(call write_scbolt_metadata,bn-submin,$(bn_submin))
+	$(call write_scbolt_metadata,bn-submin,$(bn_submin_metadata))
 
-$(bn_diverse)&: $(bonesis_model) $(max_nodes_lock)
+$(bn_diverse)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-diverse-outputs
 	$(call print_rule,bn-diverse)
 	$(call require_bonesis_infer_parameters,bn-diverse)
-	$(call check_partial_bn_outputs,$(bn_diverse_dir),bn-diverse,$@)
 	mkdir -p $(bn_diverse_dir)
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py diverse \
 		$(word 1,$^) $(word 2,$^) \
@@ -979,13 +981,13 @@ $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock)
 		--organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--max-clause $(MAX_CLAUSE) \
-		--canonic $(CANONIC_INFER) \
+		--canonical $(CANONICAL_INFER) \
 		--jobs $(JOBS) \
 		$(if $(strip $(INFER_LIMIT)),--limit $(INFER_LIMIT)) \
 		--config-formats $(CONFIG_FORMATS) \
 		--graph-formats $(GRAPH_FORMATS) \
 		--remove-isolated-nodes
-	$(call write_scbolt_metadata,bn-diverse,$(bn_diverse))
+	$(call write_scbolt_metadata,bn-diverse,$(bn_diverse_metadata))
 
 $(foreach condition,$(conditions),$(eval $(call compute_rules_for_conditions,$(condition))))
 $(foreach reference,$(references_default),$(eval $(call compute_rules_for_references,$(reference))))

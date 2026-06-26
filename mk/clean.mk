@@ -59,7 +59,7 @@ endif
 		read -r -p "Clean cache, logs, and all generated module outputs? (y/[n]): " choice; \
 		case "$${choice}" in \
 			y|Y|yes|YES) ;; \
-			*) printf '$(warning_label) %s\n' "clean --all cancelled"; exit 0 ;; \
+			*) printf '$(warning_label) %s\n' "clean --all canceled"; exit 0 ;; \
 		esac; \
 	fi; \
 	bytes_for_paths() { \
@@ -237,13 +237,13 @@ endif
 		done < "$${stale_outputs}"; \
 		if [ "$(CLEAN_FORCE)" != "true" ]; then \
 			if [ ! -t 0 ]; then \
-				printf '$(warning_label) %s\n' "clean --stale cancelled: interactive confirmation unavailable"; \
+				printf '$(warning_label) %s\n' "clean --stale canceled: interactive confirmation unavailable"; \
 				exit 0; \
 			fi; \
 			read -r -p "Remove stale outputs? (y/[n]): " choice; \
 			case "$${choice}" in \
 				y|Y|yes|YES) ;; \
-				*) printf '$(warning_label) %s\n' "clean --stale cancelled"; exit 0 ;; \
+				*) printf '$(warning_label) %s\n' "clean --stale canceled"; exit 0 ;; \
 			esac; \
 		fi; \
 		mapfile -t stale_path_array < "$${stale_cleanup}"; \

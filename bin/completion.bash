@@ -10,11 +10,11 @@ spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-l
 bn-min bn-submin bn-diverse"
 
 _scbolt_commands="init help config progress check dry-run clean ${_scbolt_modules}"
-_scbolt_boolean_options="--logging= --spec-only-hvg= --pca-only-hvg= --velocity-only-hvg=
+_scbolt_boolean_options="--logging= --pca-only-hvg= --velocity-only-hvg=
 --cotan-only-hvg= --extend-epg= --prune-epg= --collapse-parameter=
 --bin-scboolseq-only-hvg= --zeroes-are-zeroes= --bin-dea-only-hvg=
---canonic-filter= --canonic-infer= --min-self-loop-consts= --min-self-loop-infer=
---norm-mad= --cc-correction= --dorothea-compatibility="
+--canonical-filter= --canonical-infer= --min-self-loop-consts= --min-self-loop-infer=
+--consistent-mad= --cc-correction= --dorothea-compatibility="
 _scbolt_file_options="--params= --old-file= --project-dir= --resources-dir= --star-whitelist=
 --binarization-file= --macrostate-files= --prior-knowledge= --spec-file="
 
