@@ -25,11 +25,8 @@ LOGGING ?= true
 ## RUNTIME ##
 # BACKEND values: conda, mamba, micromamba, docker.
 # Docker mode uses one scBOLT image containing all scbolt-* conda environments.
-$(eval BACKEND ?= conda)                    # backend used by Make rules
-ifneq ($(strip $(SCBOLT_DEFAULT_BACKEND)),)
-ifneq ($(origin BACKEND),command line)
-$(eval BACKEND := $(SCBOLT_DEFAULT_BACKEND))
-endif
+ifeq ($(origin BACKEND),undefined)
+$(eval BACKEND := $(if $(strip $(SCBOLT_DEFAULT_BACKEND)),$(SCBOLT_DEFAULT_BACKEND),conda)) # backend used by Make rules
 endif
 $(eval SCBOLT_IMAGE ?= ghcr.io/bnediction/scbolt:latest) # Docker image for BACKEND=docker
 $(eval SCBOLT_CONTAINER_ENGINE ?= docker)   # container engine used for Docker backend

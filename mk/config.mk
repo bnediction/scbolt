@@ -70,15 +70,6 @@ uniq = $(if $(1),$(firstword $(1)) $(call uniq,$(filter-out $(firstword $(1)),$(
 
 include $(scbolt_root)/mk/default_params.mk
 
-ifneq ($(origin RUNTIME_BACKEND),undefined)
-$(error unsupported RUNTIME_BACKEND; use BACKEND instead)
-endif
-
-backend := $(strip $(BACKEND))
-ifneq ($(filter $(backend),conda mamba micromamba docker),$(backend))
-$(error unsupported BACKEND=$(BACKEND) \(supported values: conda, mamba, micromamba, docker\))
-endif
-
 ifeq ($(DEFAULT_CONFIG),true)
 override PARAMS := (defaults)
 params_dir := $(launch_dir)
@@ -96,6 +87,29 @@ endif
 include $(PARAMS)
 endif
 endif
+
+ifneq ($(origin RUNTIME_BACKEND),undefined)
+$(error unsupported RUNTIME_BACKEND; use BACKEND instead)
+endif
+
+backend := $(strip $(BACKEND))
+ifneq ($(filter $(backend),conda mamba micromamba docker),$(backend))
+$(error unsupported BACKEND=$(BACKEND) \(supported values: conda, mamba, micromamba, docker\))
+endif
+
+backend_defined_in_params = $(and $(filter-out true,$(DEFAULT_CONFIG)),$(shell \
+	if [ -f "$(PARAMS)" ] && grep -Eq '^[[:space:]]*(override[[:space:]]+)?BACKEND[[:space:]]*[:?+!]?=' "$(PARAMS)"; then \
+		printf true; \
+	fi))
+backend_source = $(strip \
+	$(if $(filter command line,$(origin BACKEND)),cli,\
+	$(if $(backend_defined_in_params),params,\
+	$(if $(strip $(SCBOLT_DEFAULT_BACKEND)),install,default_params.mk))))
+backend_version = $(strip $(shell $(backend) --version 2>/dev/null \
+	| $(call system_tool,head) -n 1 \
+	| $(call system_tool,sed) 's/^[^0-9]*//; s/[[:space:]].*//' || true))
+backend_label = $(backend)$(if $(backend_version), ($(backend_version)))
+make_label = GNU Make $(MAKE_VERSION)
 
 ifeq ($(strip $(genome_url)),)
 ifeq ($(ORGANISM),mouse)
@@ -1132,6 +1146,9 @@ run_logged = \
 		printf 'PARAMS=%s\n' "$(PARAMS)"; \
 		printf 'LOGFILE=%s\n' "$(LOGFILE)"; \
 		printf 'GIT_HASH=%s\n' "`git rev-parse HEAD 2>/dev/null || echo unknown`"; \
+		printf 'BACKEND=%s\n' "$(backend_label)"; \
+		printf 'BACKEND_SOURCE=%s\n' "$(backend_source)"; \
+		printf 'MAKE_VERSION=%s\n' "$(make_label)"; \
 		printf '\n'; \
 		printf '%s\n' '[CONTEXT]'; \
 		printf 'SEED=%s\n' "$(SEED)"; \
