@@ -173,7 +173,7 @@ else ifeq ($(HELP),false)
 		PARAMS="$(PARAMS)" OLD_FILES="$(OLD_FILES)" > "$${metadata_manifest}"; \
 	$(python) "$(scripts_dir)/utils/scbolt_metadata.py" batch-progress \
 		--manifest "$${metadata_manifest}" \
-		$(metadata_runtime_backend_args) \
+		$(metadata_backend_args) \
 		$(metadata_old_file_args) \
 		| while IFS="	" read -r report_module report_field report_value; do \
 			printf '%s\t%s\n' "$${report_field}" "$${report_value}" \
@@ -576,14 +576,14 @@ else ifeq ($(HELP),false)
 	fi; \
 	flush_check_reports "$${file_checks}"; \
 	if [ "$(__check_externals__)" = "true" ]; then \
-		if [ "$(RUNTIME_BACKEND)" = "docker" ]; then \
+		if [ "$(BACKEND)" = "docker" ]; then \
 			if command -v "$(SCBOLT_CONTAINER_ENGINE)" >/dev/null 2>&1; then \
 				check_success "command found: $(SCBOLT_CONTAINER_ENGINE)"; \
 				if "$(SCBOLT_CONTAINER_ENGINE)" image inspect "$(SCBOLT_IMAGE)" >/dev/null 2>&1; then \
 					check_success "container image found: $(SCBOLT_IMAGE)"; \
 					conda_envs="$$( "$(SCBOLT_CONTAINER_ENGINE)" run --rm "$(SCBOLT_IMAGE)" conda env list | awk '{print $$1}' )"; \
 					for env in $$({ \
-						grep -oE 'conda run[^;|&]* -n [^ ]+' "$${dry_run}" || true; \
+						grep -oE '(conda|mamba|micromamba) run[^;|&]* -n [^ ]+' "$${dry_run}" || true; \
 					} | awk '{print $$NF}' | awk '!seen[$$0]++'); do \
 						if printf '%s\n' "$${conda_envs}" | grep -qx "$${env}"; then \
 							check_success "container conda environment found: $${env}"; \
@@ -598,12 +598,12 @@ else ifeq ($(HELP),false)
 				$(call report_check_error,required command not found: $(SCBOLT_CONTAINER_ENGINE)); \
 			fi; \
 		elif $(conda_command) --version >/dev/null 2>&1; then \
-			check_success "command found: conda"; \
+			check_success "command found: $(BACKEND)"; \
 			conda_envs="$$( $(conda_command) env list | awk '{print $$1}')"; \
 			conda_jobs=""; \
 			conda_index=0; \
 			for env in $$({ \
-				grep -oE 'conda run[^;|&]* -n [^ ]+' "$${dry_run}" || true; \
+				grep -oE '(conda|mamba|micromamba) run[^;|&]* -n [^ ]+' "$${dry_run}" || true; \
 			} | awk '{print $$NF}' | awk '!seen[$$0]++'); do \
 				if printf '%s\n' "$${conda_envs}" | grep -qx "$${env}"; then \
 					conda_index=$$((conda_index + 1)); \

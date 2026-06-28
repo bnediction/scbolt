@@ -653,7 +653,7 @@ project_config_param_set = \
 	LABEL SPEC_FILE
 core_config_param_set = \
 	PARAMS REFERENCES PROJECT_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING \
-	RUNTIME_BACKEND SCBOLT_IMAGE SCBOLT_CONTAINER_ENGINE SCBOLT_CONTAINER_ARGS \
+	BACKEND SCBOLT_IMAGE SCBOLT_CONTAINER_ENGINE SCBOLT_CONTAINER_ARGS \
 	SCBOLT_CONTAINER_MOUNTS REPRESENTATION LABEL_COL OLD_FILES
 method_config_param_set = \
 	ALIGNMENT_TOOL STAR_CB_LEN STAR_UMI_LEN \
@@ -715,7 +715,7 @@ config_base_params = \
 	$(foreach condition,$(conditions),$(call sra_var,$(condition))) \
 	$(foreach condition,$(conditions),$(call gsm_var,$(condition))) \
 	PARAMS REFERENCES PROJECT_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING \
-	RUNTIME_BACKEND SCBOLT_IMAGE SCBOLT_CONTAINER_ENGINE SCBOLT_CONTAINER_ARGS \
+	BACKEND SCBOLT_IMAGE SCBOLT_CONTAINER_ENGINE SCBOLT_CONTAINER_ARGS \
 	SCBOLT_CONTAINER_MOUNTS REPRESENTATION LABEL_COL OLD_FILES
 config_params_from_modules = $(strip $(foreach module,$(1),$(target_params_$(module))))
 config_project_params = $(call uniq,$(filter $(project_config_param_set),$(1)))

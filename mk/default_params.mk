@@ -23,10 +23,12 @@ SEED ?= 10
 LOGGING ?= true
 
 ## RUNTIME ##
-# RUNTIME_BACKEND values: conda, docker.
+# BACKEND values: conda, mamba, micromamba, docker.
 # Docker mode uses one scBOLT image containing all scbolt-* conda environments.
-$(eval RUNTIME_BACKEND ?= conda)            # runtime backend used by Make rules
-$(eval SCBOLT_IMAGE ?= ghcr.io/bnediction/scbolt:latest) # Docker image for RUNTIME_BACKEND=docker
+ifndef BACKEND
+$(eval BACKEND := conda)                    # backend used by Make rules
+endif
+$(eval SCBOLT_IMAGE ?= ghcr.io/bnediction/scbolt:latest) # Docker image for BACKEND=docker
 $(eval SCBOLT_CONTAINER_ENGINE ?= docker)   # container engine used for Docker backend
 $(eval SCBOLT_CONTAINER_ARGS ?= --user $(shell id -u):$(shell id -g)) # extra arguments passed to docker run
 $(eval SCBOLT_CONTAINER_MOUNTS ?=)          # extra host paths mounted at the same path

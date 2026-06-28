@@ -164,7 +164,7 @@ endif
 			} >> "$${clean_manifest}";) \
 		$(python) "$(scripts_dir)/utils/scbolt_metadata.py" batch-clean \
 			--manifest "$${clean_manifest}" \
-			$(metadata_runtime_backend_args) \
+			$(metadata_backend_args) \
 			$(metadata_old_file_args) \
 			| while IFS="	" read -r report_module report_field report_value; do \
 				printf '%s\t%s\n' "$${report_field}" "$${report_value}" \

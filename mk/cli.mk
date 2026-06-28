@@ -379,9 +379,9 @@ $(if $(filter knnsc,$(MACROSTATE_METHOD)),@printf '%-14s : %s\n' 'Min cluster' "
 @printf '\n'
 @printf 'Execution\n'
 @printf '%s\n' '---------'
-@printf '%-16s : %s\n' 'Runtime' "$(call show_config_display_value,$(RUNTIME_BACKEND))"
-$(if $(filter docker,$(RUNTIME_BACKEND)),@printf '%-16s : %s\n' 'Image' "$(call show_config_display_value,$(SCBOLT_IMAGE))")
-$(if $(filter docker,$(RUNTIME_BACKEND)),@printf '%-16s : %s\n' 'Engine' "$(call show_config_display_value,$(SCBOLT_CONTAINER_ENGINE))")
+@printf '%-16s : %s\n' 'Runtime' "$(call show_config_display_value,$(BACKEND))"
+$(if $(filter docker,$(BACKEND)),@printf '%-16s : %s\n' 'Image' "$(call show_config_display_value,$(SCBOLT_IMAGE))")
+$(if $(filter docker,$(BACKEND)),@printf '%-16s : %s\n' 'Engine' "$(call show_config_display_value,$(SCBOLT_CONTAINER_ENGINE))")
 @printf '%-16s : %s\n' 'Jobs' "$(call show_config_display_value,$(JOBS))"
 @printf '%-16s : %s\n' 'Memory' "$(call show_config_display_value,$(memory_bonesistools))"
 @printf '%-16s : %s\n' 'Seed' "$(call show_config_display_value,$(SEED))"
@@ -738,7 +738,7 @@ endif
 		} >> "$${progress_manifest}";) \
 	$(python) "$(scripts_dir)/utils/scbolt_metadata.py" batch-progress \
 		--manifest "$${progress_manifest}" \
-		$(metadata_runtime_backend_args) \
+		$(metadata_backend_args) \
 		$(metadata_old_file_args) \
 		| while IFS="	" read -r report_module report_field report_value; do \
 			printf '%s\t%s\n' "$${report_field}" "$${report_value}" \
@@ -782,13 +782,13 @@ endif
 				fi; \
 			workflow_total=$$((workflow_total + 1)); \
 			if [ "$${module_pending}" -eq 1 ]; then \
-				if [ -n "$${module_done_label}" ]; then \
+				if [ "$${module_status}" != "done" ] && [ -n "$${module_done_label}" ]; then \
 					printf '%s\n' "- $${module_done_label}" >> "$${done_file}"; \
 				fi; \
 				printf '%s\n' "- $${module_pending_label:-$${module}}" >> "$${pending_file}"; \
 				pending_modules="$${pending_modules}$${module} "; \
 				elif [ "$${module_stale}" -eq 1 ]; then \
-					if [ -n "$${module_done_label}" ]; then \
+					if [ "$${module_status}" != "done" ] && [ -n "$${module_done_label}" ]; then \
 						printf '%s\n' "- $${module_done_label}" >> "$${done_file}"; \
 					fi; \
 					printf '%s\n' "- $${module_stale_label:-$${module_message}}" >> "$${stale_file}"; \
@@ -799,7 +799,7 @@ endif
 					fi; \
 				elif [ "$${module_untracked}" -eq 1 ]; then \
 					workflow_done=$$((workflow_done + 1)); \
-					if [ -n "$${module_done_label}" ]; then \
+					if [ "$${module_status}" != "done" ] && [ -n "$${module_done_label}" ]; then \
 						printf '%s\n' "- $${module_done_label}" >> "$${done_file}"; \
 					fi; \
 					printf '%s\n' "- $${module_message}" >> "$${untracked_file}"; \

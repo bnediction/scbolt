@@ -29,12 +29,12 @@ parameter_help_hint_MEMORY = memory size
 parameter_help_description_MEMORY = Memory budget. Integers are interpreted as GB.
 parameter_help_note_MEMORY = Cell Ranger receives an integer GB value.
 parameter_help_note2_MEMORY = Velocyto receives MB per Samtools thread, computed from MEMORY/JOBS.
-parameter_help_hint_RUNTIME_BACKEND = conda | docker
-parameter_help_description_RUNTIME_BACKEND = Runtime backend used to execute module commands.
+parameter_help_hint_BACKEND = conda | mamba | micromamba | docker
+parameter_help_description_BACKEND = Backend used to execute module commands.
 parameter_help_hint_SCBOLT_IMAGE = container image
 parameter_help_description_SCBOLT_IMAGE = Docker image containing scBOLT conda environments.
 parameter_help_hint_SCBOLT_CONTAINER_ENGINE = docker-compatible command
-parameter_help_description_SCBOLT_CONTAINER_ENGINE = Container engine used when RUNTIME_BACKEND=docker.
+parameter_help_description_SCBOLT_CONTAINER_ENGINE = Container engine used when BACKEND=docker.
 parameter_help_hint_SCBOLT_CONTAINER_ARGS = arguments, optional
 parameter_help_description_SCBOLT_CONTAINER_ARGS = Extra arguments passed to docker run.
 parameter_help_hint_SCBOLT_CONTAINER_MOUNTS = paths, optional

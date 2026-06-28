@@ -36,7 +36,10 @@ scBOLT relies on the BoNesis framework for exact Boolean network synthesis.
 
 scBOLT requires:
 1. GNU Make (>= 4.3)
-2. [Anaconda](https://www.anaconda.com/download/)
+2. One Conda-compatible environment backend:
+   * [Anaconda](https://www.anaconda.com/download/)
+   * [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html)
+   * [Micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)
 
 Install the required system dependencies:
 ```sh

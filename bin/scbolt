@@ -1256,6 +1256,10 @@ ensure_clean_stdout_line() {
     fi
 }
 
+filter_make_error_lines() {
+    grep -vE '^make(\[[0-9]+\])?: \*\*\* \[[^]]+\] Error [0-9]+$'
+}
+
 run_make_build_with_params() {
     local params="$1"
     local target_label="$2"
@@ -1284,9 +1288,9 @@ run_make_build_with_params() {
     stderr_pipe="${capture_dir}/stderr.pipe"
     mkfifo "${stdout_pipe}" "${stderr_pipe}"
 
-    tee "${stdout_file}" < "${stdout_pipe}" &
+    (tee "${stdout_file}" < "${stdout_pipe}" | filter_make_error_lines || true) &
     stdout_tee_pid=$!
-    (tee "${stderr_file}" < "${stderr_pipe}" | grep -vE '^make(\[[0-9]+\])?: \*\*\*' >&2 || true) &
+    (tee "${stderr_file}" < "${stderr_pipe}" | filter_make_error_lines >&2 || true) &
     stderr_tee_pid=$!
 
     trap 'interrupted=1' INT TERM
@@ -1424,7 +1428,7 @@ run_make_check_with_params() {
     make -f "${SCBOLT_MAKEFILE}" check "$@" "PARAMS=${params}" 2> "${stderr_file}"
     status=$?
     set -e
-    grep -vE '^make(\[[0-9]+\])?: \*\*\*' "${stderr_file}" >&2 || true
+    filter_make_error_lines < "${stderr_file}" >&2 || true
     rm -f "${stderr_file}"
     exit "${status}"
 }

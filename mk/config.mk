@@ -8,13 +8,13 @@ lib_dir := $(scbolt_root)/lib
 scripts_dir := $(scbolt_root)/scripts
 fig_dir := $(scbolt_root)/scripts/fig
 scbolt_tool := $(scbolt_root)/bin/scbolt-tool
-conda_command := $(if $(CONDA_EXE),$(CONDA_EXE),conda)
+conda_command = $(if $(and $(filter conda,$(backend)),$(CONDA_EXE)),$(CONDA_EXE),$(backend))
 SCBOLT_SYSTEM_ENV ?= scbolt-system
 SCBOLT_LOGGING_TO_FILE ?= false
 conda_base_from_exe = $(patsubst %/condabin/conda,%,$(patsubst %/bin/conda,%,$(1)))
-conda_base := $(if $(CONDA_EXE),$(call conda_base_from_exe,$(CONDA_EXE)))
+conda_base = $(if $(and $(filter conda,$(backend)),$(CONDA_EXE)),$(call conda_base_from_exe,$(CONDA_EXE)))
 python ?= $(if $(and $(conda_base),$(wildcard $(conda_base)/bin/python)),$(conda_base)/bin/python,python3)
-scbolt_system_bin := $(if $(conda_base),$(conda_base)/envs/$(SCBOLT_SYSTEM_ENV)/bin)
+scbolt_system_bin = $(if $(conda_base),$(conda_base)/envs/$(SCBOLT_SYSTEM_ENV)/bin)
 system_tool = $(if $(wildcard $(scbolt_system_bin)/$(1)),$(scbolt_system_bin)/$(1),$(1))
 define wget_download
 if [ "$(SCBOLT_LOGGING_TO_FILE)" = "true" ]; then \
@@ -70,9 +70,13 @@ uniq = $(if $(1),$(firstword $(1)) $(call uniq,$(filter-out $(firstword $(1)),$(
 
 include $(scbolt_root)/mk/default_params.mk
 
-runtime_backend := $(strip $(RUNTIME_BACKEND))
-ifneq ($(filter $(runtime_backend),conda docker),$(runtime_backend))
-$(error unsupported RUNTIME_BACKEND=$(RUNTIME_BACKEND) \(supported values: conda, docker\))
+ifneq ($(origin RUNTIME_BACKEND),undefined)
+$(error unsupported RUNTIME_BACKEND; use BACKEND instead)
+endif
+
+backend := $(strip $(BACKEND))
+ifneq ($(filter $(backend),conda mamba micromamba docker),$(backend))
+$(error unsupported BACKEND=$(BACKEND) \(supported values: conda, mamba, micromamba, docker\))
 endif
 
 ifeq ($(DEFAULT_CONFIG),true)
@@ -893,8 +897,8 @@ metadata_custom_target_args = $(foreach target,$(strip $(2)),--target "$(target)
 metadata_param_args = $(foreach param,$(strip $(sensitive_params_$(1))),--param '$(param)=$($(param))')
 metadata_extra_param_args = $(foreach param,$(strip $(1)),--param "$(param)")
 metadata_runtime_env_args = $(foreach env,$(strip $(runtime_envs_$(1))),--runtime-env "$(env)")
-metadata_runtime_backend_args = \
-	--runtime-backend "$(RUNTIME_BACKEND)" \
+metadata_backend_args = \
+	--backend "$(BACKEND)" \
 	--container-engine "$(SCBOLT_CONTAINER_ENGINE)" \
 	--container-image "$(SCBOLT_IMAGE)"
 metadata_old_file_args = $(foreach path,$(strip $(OLD_FILES)),--old-file "$(path)")
@@ -905,7 +909,7 @@ metadata_state = $(python) $(scripts_dir)/utils/scbolt_metadata.py state \
 	$(metadata_old_file_args) \
 	$(call metadata_param_args,$(1)) \
 	$(call metadata_runtime_env_args,$(1)) \
-	$(metadata_runtime_backend_args)
+	$(metadata_backend_args)
 metadata_state_field = $(call metadata_state,$(1)) --field "$(2)"
 metadata_state_make = $(nested_make) LOGGING=false __reset_disabled=metadata \
 	__metadata-state METADATA_MODULE="$(1)" METADATA_FIELD="$(2)" \
@@ -944,7 +948,7 @@ $(nested_make) LOGGING=false __reset_disabled=metadata \
 if [ -s "$${metadata_manifest}" ]; then \
 	$(python) "$(scripts_dir)/utils/scbolt_metadata.py" batch-progress \
 		--manifest "$${metadata_manifest}" \
-		$(metadata_runtime_backend_args) \
+		$(metadata_backend_args) \
 		$(metadata_old_file_args) \
 		| while IFS="	" read -r report_module report_field report_value; do \
 			printf '%s\t%s\n' "$${report_field}" "$${report_value}" \
@@ -1035,7 +1039,7 @@ $(python) $(scripts_dir)/utils/scbolt_metadata.py write \
 	$(call metadata_extra_param_args,$(3)) \
 	$(4) \
 	$(call metadata_runtime_env_args,$(1)) \
-	$(metadata_runtime_backend_args)
+	$(metadata_backend_args)
 endef
 
 define write_scbolt_metadata
@@ -1079,7 +1083,7 @@ container_inference_env = $(container_runtime_env) \
 	-e TQDM_TO_TTY="$(TQDM_TO_TTY)" \
 	-e PYTHONHASHSEED="$(SEED)"
 
-ifeq ($(runtime_backend),docker)
+ifeq ($(backend),docker)
 conda_run = $(container_base) $(container_runtime_env) "$(SCBOLT_IMAGE)" \
 	conda run --no-capture-output -n $(1)
 conda_run_cellrank = $(container_base) $(container_cellrank_env) "$(SCBOLT_IMAGE)" \
@@ -1090,19 +1094,20 @@ conda_run_inference_timeout = $(call inference_timeout,$(2)) \
 	$(container_base) $(container_inference_env) "$(SCBOLT_IMAGE)" \
 	conda run --no-capture-output -n $(1)
 else
-conda_run = $(conda_runtime_env) $(conda_command) run --no-capture-output -n $(1)
+conda_run_option = $(if $(filter conda,$(backend)),--no-capture-output)
+conda_run = $(conda_runtime_env) $(conda_command) run $(conda_run_option) -n $(1)
 conda_run_cellrank = $(conda_runtime_env) \
 	OMPI_MCA_btl="^smcuda" \
-	$(conda_command) run --no-capture-output -n $(1)
+	$(conda_command) run $(conda_run_option) -n $(1)
 conda_inference_env = $(conda_runtime_env) \
 	TQDM_DISABLE="$(TQDM_DISABLE)" \
 	TQDM_TO_TTY="$(TQDM_TO_TTY)" \
 	PYTHONHASHSEED="$(SEED)"
 conda_run_inference = $(conda_inference_env) \
-	$(conda_command) run --no-capture-output -n $(1)
+	$(conda_command) run $(conda_run_option) -n $(1)
 conda_run_inference_timeout = $(conda_inference_env) \
 	$(call inference_timeout,$(2)) \
-	$(conda_command) run --no-capture-output -n $(1)
+	$(conda_command) run $(conda_run_option) -n $(1)
 endif
 nested_make = \
 	$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \

@@ -53,8 +53,9 @@ def parse_parameters(values: list[str]) -> dict[str, str]:
 
 def add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
-        "--runtime-backend",
-        choices=["conda", "docker"],
+        "--backend",
+        dest="runtime_backend",
+        choices=["conda", "mamba", "micromamba", "docker"],
         default="conda",
     )
     parser.add_argument("--container-engine", default="docker")
