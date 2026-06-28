@@ -89,6 +89,9 @@ q.log
 !.gitignore
 !.placeholder
 .*
+scbolt-backend
+scbolt.backend
+scbolt.local.mk
 !.dockerignore
 *.log
 logs/

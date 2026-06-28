@@ -23,6 +23,7 @@ SCBOLT_ROOT="$(cd "${SCBOLT_BIN_DIR}/.." && pwd)"
 SCBOLT_MAKEFILE="${SCBOLT_ROOT}/Makefile"
 SCBOLT_DEFAULT_PARAMS="${SCBOLT_ROOT}/mk/default_params.mk"
 SCBOLT_TOOL="${SCBOLT_BIN_DIR}/scbolt-tool"
+SCBOLT_USER_BACKEND="${HOME}/.local/share/scbolt/backend"
 SCBOLT_MODULES="load-genome load-fastq load-matrix load-signatures load-cc load-go
 alignment cellranger star qc velocyto
 filtering normalization clustering dea scoring goea annotation
@@ -31,9 +32,9 @@ bin-cells bin-macrostates bin-dea bin-consensus binarization
 spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock
 bn-min bn-submin bn-diverse"
 SCBOLT_COMMANDS="init help config progress check dry-run clean ${SCBOLT_MODULES}"
-SCBOLT_COMMON_OPTIONS="--params --references --reset-target --trust-target --old-file --logging --target"
+SCBOLT_COMMON_OPTIONS="--params --references --reset-target --trust-target --old-file --logging --target --backend"
 SCBOLT_GLOBAL_OPTIONS="${SCBOLT_COMMON_OPTIONS} --raw"
-SCBOLT_OPTIONS_init="--remove --show --params --references --old-file --help"
+SCBOLT_OPTIONS_init="--remove --show --params --references --old-file --backend --help"
 SCBOLT_OPTIONS_clean="${SCBOLT_COMMON_OPTIONS} --all --stale --force --help"
 SCBOLT_OPTIONS_progress="${SCBOLT_COMMON_OPTIONS} --all --help"
 SCBOLT_OPTIONS_config="${SCBOLT_COMMON_OPTIONS} --default --raw --help"
@@ -42,6 +43,43 @@ SCBOLT_OPTIONS_dry_run="${SCBOLT_COMMON_OPTIONS} --help"
 SCBOLT_OPTIONS_module="${SCBOLT_COMMON_OPTIONS} --help"
 terminal_device=""
 terminal_state=""
+
+read_installed_backend() {
+    local value
+
+    [ -f "${SCBOLT_USER_BACKEND}" ] || return 0
+
+    IFS= read -r value < "${SCBOLT_USER_BACKEND}" || return 0
+    case "${value}" in
+        conda|mamba|micromamba|docker)
+            printf '%s\n' "${value}"
+            ;;
+    esac
+}
+
+validate_backend_value() {
+    local value="$1"
+
+    case "${value}" in
+        conda|mamba|micromamba|docker)
+            printf '%s\n' "${value}"
+            ;;
+        "")
+            print_error "Missing value for --backend"
+            exit 1
+            ;;
+        *)
+            print_error "Unsupported backend: ${value}"
+            printf '%s\n' "Supported values: conda, mamba, micromamba, docker" >&2
+            exit 1
+            ;;
+    esac
+}
+
+installed_backend="$(read_installed_backend || true)"
+if [ -n "${installed_backend}" ]; then
+    export SCBOLT_DEFAULT_BACKEND="${installed_backend}"
+fi
 
 if [ -z "${CONDA_EXE:-}" ]; then
     conda_path="$(command -v conda 2>/dev/null || true)"
@@ -556,6 +594,22 @@ init_override_value() {
     printf '%s\n' "${default_value}"
 }
 
+has_init_override() {
+    local variable="$1"
+    local index
+
+    for index in "${!init_override_names[@]}"; do
+        if [ "${init_override_names[${index}]}" = "${variable}" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+effective_init_backend() {
+    init_override_value BACKEND "${SCBOLT_DEFAULT_BACKEND:-conda}"
+}
+
 format_init_assignment() {
     local variable="$1"
     local default_value="$2"
@@ -583,7 +637,7 @@ BINARIZATION_FILE|LABEL|SPEC_FILE)
 
 is_init_project_setting() {
     case "$1" in
-        ORGANISM|CONDITIONS|PROJECT_DIR|RESOURCES_DIR|MEMORY|JOBS|SEED|LOGGING)
+        ORGANISM|CONDITIONS|PROJECT_DIR|RESOURCES_DIR|BACKEND|MEMORY|JOBS|SEED|LOGGING)
             return 0
             ;;
         *)
@@ -886,6 +940,10 @@ init_project() {
     stored_params="$(stored_params_path "${params}")"
     printf 'PARAMS=%s\n' "${stored_params}" > "${PWD}/.scbolt"
 
+    if ! has_init_override BACKEND; then
+        printf '%s %s\n' "Backend:" "$(effective_init_backend)"
+    fi
+
     if [ -n "${previous_params}" ]; then
         if [ "${previous_params}" = "${stored_params}" ]; then
             if [ "${params_created}" = "true" ]; then
@@ -964,7 +1022,7 @@ collect_global_args() {
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
-            --params|--references|--reset-target|--trust-target|--old-file|--logging|--target)
+            --params|--references|--reset-target|--trust-target|--old-file|--logging|--target|--backend)
                 if [ "$#" -eq 1 ]; then
                     print_error "Missing value for $1"
                     exit 1
@@ -1107,6 +1165,17 @@ translate_args() {
                     exit 1
                 fi
                 make_args+=("TARGET=$1")
+                shift
+                ;;
+            --backend=*)
+                make_args+=("BACKEND=$(validate_backend_value "${arg#--backend=}")")
+                ;;
+            --backend)
+                if [ "$#" -eq 0 ]; then
+                    print_error "Missing value for --backend"
+                    exit 1
+                fi
+                make_args+=("BACKEND=$(validate_backend_value "$1")")
                 shift
                 ;;
             RESET_TARGET=*|reset_target=*)
@@ -1595,6 +1664,17 @@ case "${cmd}" in
                         exit 1
                     fi
                     add_init_override OLD_FILES "$1"
+                    shift
+                    ;;
+                --backend=*)
+                    add_init_override BACKEND "$(validate_backend_value "${arg#--backend=}")"
+                    ;;
+                --backend)
+                    if [ "$#" -eq 0 ]; then
+                        print_error "Missing value for --backend"
+                        exit 1
+                    fi
+                    add_init_override BACKEND "$(validate_backend_value "$1")"
                     shift
                     ;;
                 --*=*)

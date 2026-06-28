@@ -213,28 +213,28 @@ _scbolt_module_options() {
 
     printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
         --project-dir= --resources-dir= --memory= --jobs= --seed= --representation= --label-col= \
-        --logging= --help help
+        --backend= --logging= --help help
     _scbolt_help_parameters "${target}"
 }
 
 _scbolt_run_options() {
     printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
         --project-dir= --resources-dir= --memory= --jobs= --seed= --representation= --label-col= \
-        --logging= --help
+        --backend= --logging= --help
 }
 
 _scbolt_diagnostic_options() {
     printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
-        --resources-dir= --help
+        --resources-dir= --backend= --help
 }
 
 _scbolt_progress_options() {
-    printf '%s\n' --all --params= --resources-dir= --references= --old-file= --help
+    printf '%s\n' --all --params= --resources-dir= --references= --old-file= --backend= --help
 }
 
 _scbolt_clean_options() {
     printf '%s\n' --all --stale --force --params= --resources-dir= --references= \
-        --old-file= --help
+        --old-file= --backend= --help
 }
 
 _scbolt_config_options() {
@@ -248,7 +248,7 @@ _scbolt_init_selection_options() {
 _scbolt_init_parameter_options() {
     printf '%s\n' --conditions= --organism= --label= --spec-file= --count-files= \
         --macrostate-files= --binarization-file= --project-dir= --resources-dir= \
-        --references= --logging= --jobs= --memory= --seed= --representation= --label-col=
+        --references= --backend= --logging= --jobs= --memory= --seed= --representation= --label-col=
 }
 
 _scbolt_complete_init_selection() {
@@ -329,10 +329,10 @@ _scbolt_target_from_args() {
                 case "${word}" in
                     "${command}")
                         ;;
-                    --params|--project-dir|--resources-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target)
+                    --params|--project-dir|--resources-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target|--backend)
                         ((i++))
                         ;;
-                    --params=*|--project-dir=*|--resources-dir=*|--references=*|--reset-target=*|--trust-target=*|--old-file=*|--logging=*|--target=*)
+                    --params=*|--project-dir=*|--resources-dir=*|--references=*|--reset-target=*|--trust-target=*|--old-file=*|--logging=*|--target=*|--backend=*)
                         ;;
                     --*|*=*)
                         ;;
@@ -357,7 +357,7 @@ _scbolt_first_command() {
     for ((i = 1; i < COMP_CWORD; i++)); do
         word="${COMP_WORDS[i]}"
         case "${word}" in
-            --params|--project-dir|--resources-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target)
+            --params|--project-dir|--resources-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target|--backend)
                 ((i++))
                 ;;
             --*|*=*)
@@ -441,6 +441,10 @@ _scbolt() {
             _scbolt_complete_prefixed_words "--logging=" "true false" "${cur#--logging=}"
             return 0
             ;;
+        --backend=*)
+            _scbolt_complete_prefixed_words "--backend=" "conda mamba micromamba docker" "${cur#--backend=}"
+            return 0
+            ;;
         --references=*)
             _scbolt_complete_prefixed_words "--references=" "$(_scbolt_references)" \
                 "${cur#--references=}"
@@ -494,6 +498,10 @@ _scbolt() {
                 _scbolt_complete_words "true false" "${cur}"
                 return 0
                 ;;
+            --backend)
+                _scbolt_complete_words "conda mamba micromamba docker" "${cur}"
+                return 0
+                ;;
             --reset-target|--trust-target|--target)
                 _scbolt_complete_words "${_scbolt_modules}" "${cur}"
                 return 0
@@ -530,6 +538,10 @@ _scbolt() {
             ;;
         --logging|--logging=)
             _scbolt_complete_words "true false" "${cur}"
+            return 0
+            ;;
+        --backend|--backend=)
+            _scbolt_complete_words "conda mamba micromamba docker" "${cur}"
             return 0
             ;;
         --reset-target|--reset-target=|--trust-target|--trust-target=|--target|--target=)
