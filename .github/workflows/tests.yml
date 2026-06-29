@@ -56,7 +56,21 @@ jobs:
           use-mamba: true
       - name: Install backend commands
         shell: bash -el {0}
-        run: conda install -n base -c conda-forge mamba micromamba -y
+        run: |
+          conda install -n base -c conda-forge mamba -y
+          if ! command -v micromamba >/dev/null 2>&1; then
+            tmpdir="$(mktemp -d)"
+            curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest \
+              | tar -xj -C "${tmpdir}" bin/micromamba
+            mkdir -p "${HOME}/.local/bin"
+            install -m 755 "${tmpdir}/bin/micromamba" "${HOME}/.local/bin/micromamba"
+            echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+            export PATH="${HOME}/.local/bin:${PATH}"
+            rm -rf "${tmpdir}"
+          fi
+          conda --version
+          mamba --version
+          micromamba --version
       - name: Restore scbolt-system cache
         id: cache-system
         uses: actions/cache@v4
