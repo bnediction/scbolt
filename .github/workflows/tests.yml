@@ -5,39 +5,95 @@ on:
   pull_request:
 
 jobs:
-  make-help:
-    name: Make help
+  unit:
+    name: Unit tests
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
-      - run: make help >/dev/null
+      - run: bash tests/unit/test_memory.sh
 
-  make-config:
-    name: Make config
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v6
-      - run: make config PARAMS=tests/fixtures/params.mk >/dev/null
-
-  python-compile:
-    name: Python compileall
+  smoke:
+    name: Smoke tests
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - run: make help >/dev/null
+      - run: make config PARAMS=tests/fixtures/params.mk >/dev/null
       - run: python -m compileall lib scripts
+      - run: bash tests/smoke/test_scbolt_cli.sh
 
-  scbolt-cli:
-    name: scBOLT CLI wrapper
+  compatibility:
+    name: Compatibility tests
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
-      - run: bash tests/test_scbolt_cli.sh
+      - run: bash tests/compatibility/test_install_backend_config.sh
+      - run: bash tests/compatibility/test_backend_precedence.sh
+      - run: bash tests/compatibility/test_system_tools_fallback.sh
 
-  annotation-composition:
-    name: Annotation composition
+  compatibility-env:
+    name: Compatibility env (${{ matrix.backend }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        backend:
+          - conda
+          - mamba
+          - micromamba
+    env:
+      CONDA_ENVS_PATH: ${{ github.workspace }}/.conda-envs
+      MAMBA_ROOT_PREFIX: ${{ github.workspace }}/.micromamba
+    steps:
+      - uses: actions/checkout@v6
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          auto-activate-base: false
+          use-mamba: true
+      - name: Install backend commands
+        shell: bash -el {0}
+        run: conda install -n base -c conda-forge mamba micromamba -y
+      - name: Restore scbolt-system cache
+        id: cache-system
+        uses: actions/cache@v4
+        with:
+          path: |
+            .conda-envs/scbolt-system
+            .micromamba/envs/scbolt-system
+          key: scbolt-system-${{ runner.os }}-${{ matrix.backend }}-${{ hashFiles('envs/conda/system.yml') }}
+      - name: Install and check scbolt-system
+        shell: bash -el {0}
+        env:
+          SCBOLT_TEST_BACKEND: ${{ matrix.backend }}
+          SCBOLT_SKIP_ENV_INSTALL: ${{ steps.cache-system.outputs.cache-hit }}
+        run: bash tests/compatibility/test_backend_system_env.sh
+
+  compatibility-docker:
+    name: Compatibility Docker image
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: envs/docker/Dockerfile
+          tags: scbolt:test-system
+          load: true
+          push: false
+          build-args: |
+            SCBOLT_ENV_FILES=system
+            SCBOLT_GIT_COMMIT=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - run: docker run --rm scbolt:test-system --version
+
+  regression:
+    name: Regression tests
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
@@ -45,56 +101,13 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install pandas
-      - run: python tests/test_annotation_composition.py
-
-  matrix-entry:
-    name: Matrix entry
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v6
-      - run: bash tests/test_matrix_entry.sh
-
-  memory:
-    name: Memory parameter
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v6
-      - run: bash tests/test_memory.sh
-
-  dry-run-knnsc:
-    name: Dry-run knnsc
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v6
+      - run: python tests/regression/test_annotation_composition.py
+      - run: bash tests/regression/test_matrix_entry.sh
       - run: make --always-make --dry-run LOGGING=false __knnsc PARAMS=tests/fixtures/params.mk >/dev/null
-
-  dry-run-seed:
-    name: Dry-run max-nodes-seed
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v6
       - run: make --always-make --dry-run LOGGING=false __max-nodes-seed PARAMS=tests/fixtures/params.mk >/dev/null
-
-  check-knnsc:
-    name: Check knnsc
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v6
       - run: make check TARGET=knnsc PARAMS=tests/fixtures/params.mk __check_externals__=false
-
-  check-seed:
-    name: Check max-nodes-seed
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v6
       - run: make check TARGET=max-nodes-seed PARAMS=tests/fixtures/params.mk __check_externals__=false
-
-  diagnostic-knnsc:
-    name: Diagnostic missing knnsc parameters
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v6
-      - name: Check complete diagnostic output
+      - name: Check complete knnsc diagnostic output
         run: |
           set +e
           output="$(make check TARGET=knnsc PARAMS=tests/fixtures/params.mk __check_externals__=false KNNSC_CENTRALITY_CTRL= KNNSC_PERIPHERY_CTRL= KNNSC_CENTRALITY_TREATED= KNNSC_PERIPHERY_TREATED= 2>&1)"
@@ -105,13 +118,7 @@ jobs:
           grep -q "required method parameter not defined: KNNSC_CENTRALITY_CTRL or KNNSC_PERIPHERY_CTRL" <<< "$output"
           grep -q "required method parameter not defined: KNNSC_CENTRALITY_TREATED or KNNSC_PERIPHERY_TREATED" <<< "$output"
           grep -q "check failed for target 'knnsc'" <<< "$output"
-
-  diagnostic-seed:
-    name: Diagnostic missing seed inputs
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v6
-      - name: Check complete diagnostic output
+      - name: Check complete max-nodes-seed diagnostic output
         run: |
           set +e
           output="$(make check TARGET=max-nodes-seed PARAMS=tests/fixtures/params.mk __check_externals__=false TIMEOUT_SEED= SPEC_FILE=missing.yml 2>&1)"

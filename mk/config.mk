@@ -104,7 +104,7 @@ backend_defined_in_params = $(and $(filter-out true,$(DEFAULT_CONFIG)),$(shell \
 backend_source = $(strip \
 	$(if $(filter command line,$(origin BACKEND)),cli,\
 	$(if $(backend_defined_in_params),params,\
-	$(if $(strip $(SCBOLT_DEFAULT_BACKEND)),install,default_params.mk))))
+	$(if $(strip $(SCBOLT_DEFAULT_BACKEND)),$(if $(strip $(SCBOLT_DEFAULT_BACKEND_SOURCE)),$(SCBOLT_DEFAULT_BACKEND_SOURCE),install),default_params.mk))))
 backend_version = $(strip $(shell $(backend) --version 2>/dev/null \
 	| $(call system_tool,head) -n 1 \
 	| $(call system_tool,sed) 's/^[^0-9]*//; s/[[:space:]].*//' || true))
@@ -1098,15 +1098,31 @@ container_inference_env = $(container_runtime_env) \
 	-e PYTHONHASHSEED="$(SEED)"
 
 ifeq ($(backend),docker)
-conda_run = $(container_base) $(container_runtime_env) "$(SCBOLT_IMAGE)" \
-	conda run --no-capture-output -n $(1)
-conda_run_cellrank = $(container_base) $(container_cellrank_env) "$(SCBOLT_IMAGE)" \
-	conda run --no-capture-output -n $(1)
-conda_run_inference = $(container_base) $(container_inference_env) "$(SCBOLT_IMAGE)" \
-	conda run --no-capture-output -n $(1)
+ifeq ($(SCBOLT_IN_DOCKER),true)
+conda_run = $(conda_runtime_env) micromamba run -n $(1)
+conda_run_cellrank = $(conda_runtime_env) \
+	OMPI_MCA_btl="^smcuda" \
+	micromamba run -n $(1)
+conda_inference_env = $(conda_runtime_env) \
+	TQDM_DISABLE="$(TQDM_DISABLE)" \
+	TQDM_TO_TTY="$(TQDM_TO_TTY)" \
+	PYTHONHASHSEED="$(SEED)"
+conda_run_inference = $(conda_inference_env) \
+	micromamba run -n $(1)
+conda_run_inference_timeout = $(conda_inference_env) \
+	$(call inference_timeout,$(2)) \
+	micromamba run -n $(1)
+else
+conda_run = $(container_base) $(container_runtime_env) --entrypoint micromamba "$(SCBOLT_IMAGE)" \
+	run -n $(1)
+conda_run_cellrank = $(container_base) $(container_cellrank_env) --entrypoint micromamba "$(SCBOLT_IMAGE)" \
+	run -n $(1)
+conda_run_inference = $(container_base) $(container_inference_env) --entrypoint micromamba "$(SCBOLT_IMAGE)" \
+	run -n $(1)
 conda_run_inference_timeout = $(call inference_timeout,$(2)) \
-	$(container_base) $(container_inference_env) "$(SCBOLT_IMAGE)" \
-	conda run --no-capture-output -n $(1)
+	$(container_base) $(container_inference_env) --entrypoint micromamba "$(SCBOLT_IMAGE)" \
+	run -n $(1)
+endif
 else
 conda_run_option = $(if $(filter conda,$(backend)),--no-capture-output)
 conda_run = $(conda_runtime_env) $(conda_command) run $(conda_run_option) -n $(1)
@@ -1142,10 +1158,10 @@ run_logged = \
 		printf '%s\n' '[RUN]'; \
 		printf 'DATE=%s\n' "`date '+%Y-%m-%d %H:%M:%S'`"; \
 		printf 'TARGET=%s\n' "$(1)"; \
-		printf 'PROJECT_DIR=%s\n' "$(PROJECT_DIR)"; \
-		printf 'PARAMS=%s\n' "$(PARAMS)"; \
-		printf 'LOGFILE=%s\n' "$(LOGFILE)"; \
-		printf 'GIT_HASH=%s\n' "`git rev-parse HEAD 2>/dev/null || echo unknown`"; \
+		printf 'PROJECT DIRECTORY=%s\n' "$(PROJECT_DIR)"; \
+		printf 'PARAMETER FILE=%s\n' "$(PARAMS)"; \
+		printf 'FILE=%s\n' "$(LOGFILE)"; \
+		printf 'SOURCE REVISION=%s\n' "`git rev-parse HEAD 2>/dev/null || echo unknown`"; \
 		printf 'BACKEND=%s\n' "$(backend_label)"; \
 		printf 'BACKEND_SOURCE=%s\n' "$(backend_source)"; \
 		printf 'MAKE_VERSION=%s\n' "$(make_label)"; \

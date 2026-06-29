@@ -577,18 +577,30 @@ else ifeq ($(HELP),false)
 	flush_check_reports "$${file_checks}"; \
 	if [ "$(__check_externals__)" = "true" ]; then \
 		if [ "$(BACKEND)" = "docker" ]; then \
-			if command -v "$(SCBOLT_CONTAINER_ENGINE)" >/dev/null 2>&1; then \
+			if [ "$(SCBOLT_IN_DOCKER)" = "true" ]; then \
+				check_success "container runtime: $(SCBOLT_IMAGE)"; \
+				conda_envs="$$( micromamba env list | awk '{print $$1}' )"; \
+				for env in $$({ \
+					grep -oE '(conda|mamba|micromamba) run[^;|&]* -n [^ ]+' "$${dry_run}" || true; \
+				} | awk '{print $$NF}' | awk '!seen[$$0]++'); do \
+					if printf '%s\n' "$${conda_envs}" | grep -qx "$${env}"; then \
+						check_success "container environment found: $${env}"; \
+					else \
+						$(call report_check_error,required container environment not found: $${env}); \
+					fi; \
+				done; \
+			elif command -v "$(SCBOLT_CONTAINER_ENGINE)" >/dev/null 2>&1; then \
 				check_success "command found: $(SCBOLT_CONTAINER_ENGINE)"; \
 				if "$(SCBOLT_CONTAINER_ENGINE)" image inspect "$(SCBOLT_IMAGE)" >/dev/null 2>&1; then \
 					check_success "container image found: $(SCBOLT_IMAGE)"; \
-					conda_envs="$$( "$(SCBOLT_CONTAINER_ENGINE)" run --rm "$(SCBOLT_IMAGE)" conda env list | awk '{print $$1}' )"; \
+					conda_envs="$$( "$(SCBOLT_CONTAINER_ENGINE)" run --rm --entrypoint micromamba "$(SCBOLT_IMAGE)" env list | awk '{print $$1}' )"; \
 					for env in $$({ \
 						grep -oE '(conda|mamba|micromamba) run[^;|&]* -n [^ ]+' "$${dry_run}" || true; \
 					} | awk '{print $$NF}' | awk '!seen[$$0]++'); do \
 						if printf '%s\n' "$${conda_envs}" | grep -qx "$${env}"; then \
-							check_success "container conda environment found: $${env}"; \
+							check_success "container environment found: $${env}"; \
 						else \
-							$(call report_check_error,required container conda environment not found: $${env}); \
+							$(call report_check_error,required container environment not found: $${env}); \
 						fi; \
 					done; \
 				else \

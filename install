@@ -9,8 +9,9 @@ scbolt_command="${scbolt_root}/bin/scbolt"
 scbolt_completion="${scbolt_root}/bin/completion.bash"
 local_bin="${HOME}/.local/bin"
 local_completion_dir="${HOME}/.local/share/bash-completion/completions"
-local_config_dir="${HOME}/.local/share/scbolt"
-backend_config="${local_config_dir}/backend"
+local_config_dir="${XDG_CONFIG_HOME:-${HOME}/.config}/scbolt"
+backend_config="${local_config_dir}/config.mk"
+default_image="ghcr.io/bnediction/scbolt:latest"
 scbolt_envs=(
     system
     align
@@ -37,17 +38,17 @@ ignored_envs=()
 
 usage() {
     cat <<EOF
-usage: ./install [--all] [--cli] [--env=NAME] [--backend=conda|mamba|micromamba]
+usage: ./install [--all] [--cli] [--env=NAME] [--backend=conda|mamba|micromamba|docker]
 
-Install the scBOLT command, Bash completion, and selected conda environments.
+Install the scBOLT command, Bash completion, and selected runtime environments.
 
 Without options, install everything interactively.
 
 Options
-  --all                  install CLI and all conda environments without prompts
+  --all                  install CLI and all runtime environments without prompts
   --cli                  install the scBOLT command and Bash completion
   --env=NAME             install one conda environment; can be repeated
-  --backend=BACKEND      environment backend: conda, mamba, or micromamba
+  --backend=BACKEND      runtime backend: conda, mamba, micromamba, or docker
   --help, -h             display this help
 
 Environment names
@@ -113,7 +114,7 @@ select_all_envs() {
 
 set_backend() {
     case "$1" in
-        conda|mamba|micromamba)
+        conda|mamba|micromamba|docker)
             backend="$1"
             backend_requested=true
             ;;
@@ -239,7 +240,8 @@ prompt_backend() {
     printf '%s\n' "  1) conda"
     printf '%s\n' "  2) mamba"
     printf '%s\n' "  3) micromamba"
-    read -r -p $"Backend ([1]/2/3): " choice
+    printf '%s\n' "  4) docker"
+    read -r -p $"Backend ([1]/2/3/4): " choice
 
     case "${choice}" in
         ""|1|conda)
@@ -250,6 +252,9 @@ prompt_backend() {
             ;;
         3|micromamba)
             backend="micromamba"
+            ;;
+        4|docker)
+            backend="docker"
             ;;
         *)
             printf 'unsupported backend: %s\n' "${choice}" >&2
@@ -300,6 +305,37 @@ print_install_failure() {
 
 print_backend_failure() {
     printf '%s✗%s %s backend failed to initialize.\n' "${stderr_red}" "${stderr_nc}" "${backend}" >&2
+}
+
+install_backend_config() {
+    mkdir -p "${local_config_dir}"
+    {
+        printf '%s\n' "# scBOLT user configuration."
+        printf 'BACKEND = %s\n' "${backend}"
+        if [ "${backend}" = "docker" ]; then
+            printf 'SCBOLT_IMAGE = %s\n' "${default_image}"
+        fi
+    } > "${backend_config}"
+    echo "Installed configuration:"
+    echo "  ${backend_config}"
+}
+
+install_docker_backend() {
+    local docker_command
+
+    docker_command="$(command -v docker 2>/dev/null || true)"
+    if [ -z "${docker_command}" ]; then
+        print_backend_failure
+        printf '%s\n' "command not found: docker" >&2
+        return 1
+    fi
+
+    install_backend_config
+    if ! docker image inspect "${default_image}" >/dev/null 2>&1; then
+        echo "pulling Docker image '${default_image}'."
+        docker pull "${default_image}" || return_or_interrupt "$?"
+    fi
+    print_install_success "docker backend"
 }
 
 env_backend_command() {
@@ -541,68 +577,50 @@ install_scbolt_completion() {
     echo "  source ${local_completion_dir}/scbolt"
 }
 
-install_backend_config() {
-    mkdir -p "${local_config_dir}"
-    printf '%s\n' "${backend}" > "${backend_config}"
-    echo "Installed configuration:"
-    echo "  ${backend_config}"
-}
-
 declare -A installed_envs
 
-json_string_array_values() {
-    local keys=("$@")
-
-    python3 -c '
-import json
-import sys
-
-keys = sys.argv[1:]
-data = json.load(sys.stdin)
-seen = set()
-for key in keys:
-    value = data.get(key, [])
-    if isinstance(value, str):
-        value = [value]
-    for item in value:
-        if item and item not in seen:
-            seen.add(item)
-            print(item)
-' "${keys[@]}"
-}
-
 load_installed_envs() {
-    local base_prefix
-    local env_dir
+    local env_line
+    local env_list
+    local env_name
     local env_prefix
-    local info_json
+    local field
 
     installed_envs=()
 
-    if ! info_json="$(env_tool info --json 2>/dev/null)";
+    if ! env_list="$(env_tool env list 2>/dev/null)";
     then
         print_backend_failure
-        printf '%s\n' "could not read backend information from: ${env_command}" >&2
+        printf '%s\n' "could not list ${backend} environments from: ${env_command}" >&2
         return 1
     fi
 
-    while IFS= read -r base_prefix
+    while IFS= read -r env_line
     do
-        if [ -n "${base_prefix}" ] && [ -d "${base_prefix}/conda-meta" ];
-        then
-            installed_envs["base"]=1
-        fi
-    done < <(printf '%s\n' "${info_json}" | json_string_array_values "base environment" root_prefix conda_prefix)
+        set -- ${env_line}
+        [ "$#" -gt 0 ] || continue
 
-    while IFS= read -r env_dir
-    do
-        [ -d "${env_dir}" ] || continue
-        for env_prefix in "${env_dir}"/*
+        env_name="$1"
+        case "${env_name}" in
+            "#"|"Name"|"-"*|"─"*)
+                continue
+                ;;
+        esac
+
+        env_prefix=
+        for field in "$@"
         do
-            [ -d "${env_prefix}/conda-meta" ] || continue
-            installed_envs["${env_prefix##*/}"]=1
+            env_prefix="${field}"
         done
-    done < <(printf '%s\n' "${info_json}" | json_string_array_values "envs directories" envs_dirs)
+
+        [ -d "${env_prefix}/conda-meta" ] || continue
+        case "${env_name}" in
+            /*|.*)
+                env_name="${env_prefix##*/}"
+                ;;
+        esac
+        installed_envs["${env_name}"]=1
+    done <<< "${env_list}"
 }
 
 env_exists() {
@@ -620,7 +638,25 @@ fi
 
 if [ "${#selected_envs[@]}" -eq 0 ];
 then
+    if [ "${backend_requested}" = true ];
+    then
+        install_backend_config
+    fi
     exit 0
+fi
+
+if [ "${backend}" = "docker" ];
+then
+    if install_docker_backend;
+    then
+        if [ "${#selected_envs[@]}" -gt 0 ];
+        then
+            print_warning "Docker image contains prebuilt scBOLT environments; local --env selections were ignored."
+        fi
+        echo
+        exit 0
+    fi
+    exit 1
 fi
 
 env_command="$(env_backend_command)"

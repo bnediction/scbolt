@@ -32,7 +32,7 @@ parameter_help_note2_MEMORY = Velocyto receives MB per Samtools thread, computed
 parameter_help_hint_BACKEND = conda | mamba | micromamba | docker
 parameter_help_description_BACKEND = Backend used to execute module commands.
 parameter_help_hint_SCBOLT_IMAGE = container image
-parameter_help_description_SCBOLT_IMAGE = Docker image containing scBOLT conda environments.
+parameter_help_description_SCBOLT_IMAGE = Docker image containing scBOLT micromamba environments.
 parameter_help_hint_SCBOLT_CONTAINER_ENGINE = docker-compatible command
 parameter_help_description_SCBOLT_CONTAINER_ENGINE = Container engine used when BACKEND=docker.
 parameter_help_hint_SCBOLT_CONTAINER_ARGS = arguments, optional

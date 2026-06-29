@@ -483,6 +483,7 @@ help: ## display help
 				printf "\n$(bold)%s$(nc)\n", section; \
 				if ("$(SCBOLT_CLI)" == "true" && section == "Utilities") { \
 					printf "  $(green)%-22s$(nc)  %s\n", "init", "initialize a project"; \
+					printf "  $(green)%-22s$(nc)  %s\n", "version", "display version information"; \
 				} \
 				if (section == "Utilities") { \
 					printf "  $(green)%-22s$(nc)  %s\n", "help", "display help"; \

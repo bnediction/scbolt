@@ -1,34 +1,59 @@
-FROM condaforge/miniforge3:24.11.3-0
+FROM mambaorg/micromamba:debian12-slim
 
-SHELL ["/bin/bash", "-lc"]
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG SCBOLT_ENV_FILES="system align bonesis cellrank core cotan fastq potency scboolseq stream velocity velocyto"
-ARG BONESIS_HASH="d70736781f88faee334ef79622e144216837f4c5"
+ARG SCBOLT_GIT_COMMIT=unknown
 
-ENV PYTHONUNBUFFERED=1
-ENV PATH=/opt/conda/bin:${PATH}
-ENV DEBIAN_FRONTEND=noninteractive
-
-COPY envs/conda/ /tmp/scbolt-conda-envs/
+USER root
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        bash \
+        ca-certificates \
         cm-super \
+        coreutils \
+        curl \
         dvipng \
+        findutils \
+        gawk \
+        git \
+        grep \
+        gzip \
+        make \
+        sed \
+        tar \
         texlive \
         texlive-extra-utils \
         texlive-fonts-recommended \
         texlive-latex-extra \
-    && rm -rf /var/lib/apt/lists/* \
-    && conda install -y -n base -c conda-forge git \
-    && for env_file in ${SCBOLT_ENV_FILES}; do \
-        conda env create -f "/tmp/scbolt-conda-envs/${env_file}.yml"; \
+        unzip \
+        wget \
+    && rm -rf /var/lib/apt/lists/*
+
+USER $MAMBA_USER
+
+COPY --chown=$MAMBA_USER:$MAMBA_USER envs/conda/ /tmp/scbolt-conda-envs/
+
+RUN for env_file in ${SCBOLT_ENV_FILES}; do \
+        micromamba env create -y -f "/tmp/scbolt-conda-envs/${env_file}.yml"; \
     done \
-    && conda run --no-capture-output -n scbolt-bonesis python -m pip install \
-        --force-reinstall \
-        --no-deps \
-        "git+https://github.com/bnediction/bonesis.git@${BONESIS_HASH}" \
-    && conda clean -afy \
+    && micromamba clean --all --yes \
     && rm -rf /tmp/scbolt-conda-envs
 
-CMD ["bash"]
+COPY --chown=$MAMBA_USER:$MAMBA_USER . /opt/scbolt
+
+ENV SCBOLT_HOME=/opt/scbolt \
+    SCBOLT_GIT_COMMIT=${SCBOLT_GIT_COMMIT} \
+    SCBOLT_IN_DOCKER=true \
+    SCBOLT_DEFAULT_BACKEND=docker \
+    PATH=/opt/scbolt/bin:${PATH} \
+    PYTHONUNBUFFERED=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    NUMEXPR_NUM_THREADS=1
+
+WORKDIR /work
+
+ENTRYPOINT ["scbolt"]

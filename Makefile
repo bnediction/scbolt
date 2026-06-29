@@ -24,8 +24,8 @@ include $(scbolt_root)/mk/clean.mk
 .PRECIOUS: $(dir $(bn_submin))
 .PRECIOUS: $(dir $(bn_diverse))
 
-$(bin_cells)&: export OPENBLAS_NUM_THREADS = $(open_allocated_cpu)
-$(bin_cells)&: export OMP_NUM_THREADS = $(open_allocated_cpu)
+$(bin_cells)&: export OPENBLAS_NUM_THREADS = $(scboolseq_openblas_threads)
+$(bin_cells)&: export OMP_NUM_THREADS = $(scboolseq_omp_threads)
 
 ## BEGIN RULES ##
 
@@ -361,7 +361,7 @@ $(normalization_$(1)): $(filtering_$(1))
 	$(call require_cc_correction,normalization)
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/prep/norm.py \
-		$$< $$@ $(cc_scores) --expression counts --jobs $(JOBS) --max-memory "$(memory_bonesistools)"
+		$$< $$@ $(cc_correction) --expression counts --jobs $(JOBS) --max-memory "$(memory_bonesistools)"
 	$$(call write_scbolt_metadata,normalization,$$(normalization_$(1)))
 
 $(clustering_$(1)): $(normalization_$(1))

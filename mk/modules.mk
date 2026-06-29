@@ -260,16 +260,18 @@ $(if $(strip $(JOBS)),,$(eval override JOBS := 1))
 endif
 
 ifndef JOBS
-open_allocated_cpu := 1
+scboolseq_native_threads := 1
 else ifneq ($(call is_positive_integer,$(JOBS)),true)
-open_allocated_cpu := 1
+scboolseq_native_threads := 1
 else
-try_open_allocated_cpu := $(shell echo $$(($(JOBS) / 2)))
-open_allocated_cpu := $(if $(findstring $(try_open_allocated_cpu),0),1,$(try_open_allocated_cpu))
+try_scboolseq_native_threads := $(shell echo $$(($(JOBS) / 2)))
+scboolseq_native_threads := $(if $(findstring $(try_scboolseq_native_threads),0),1,$(try_scboolseq_native_threads))
 endif
+scboolseq_openblas_threads := $(scboolseq_native_threads)
+scboolseq_omp_threads := $(scboolseq_native_threads)
 
 consistent_mad = $(if $(filter true,$(CONSISTENT_MAD)),--consistent-mad)
-cc_scores = $(if $(filter true,$(CC_CORRECTION)),--correction G2M_score S_score G1_score)
+cc_correction = $(if $(filter true,$(CC_CORRECTION)),--correction G2M_score S_score G1_score)
 pca_only_hvg = $(if $(filter true,$(PCA_ONLY_HVG)),--only-hvg)
 centered_pca = $(if $(filter true,$(CENTERED_PCA)),--centered-pca)
 embedding_method_X_umap = umap

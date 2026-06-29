@@ -6,6 +6,7 @@ without running the full workflow.
 | Command | Main use |
 | ------- | -------- |
 | `help` | Documentation |
+| `version` | Version and source revision |
 | `config` | Configuration inspection |
 | `progress` | Workflow state |
 | `check` | Requirement validation |
@@ -21,6 +22,16 @@ parameters.
 ```bash
 scbolt help
 scbolt <module> help
+```
+
+## `version`
+
+The version command prints the scBOLT release version and the Git commit used
+by the installed source tree.
+
+```bash
+scbolt version
+scbolt --version
 ```
 
 ## `config`

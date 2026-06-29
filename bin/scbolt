@@ -23,7 +23,9 @@ SCBOLT_ROOT="$(cd "${SCBOLT_BIN_DIR}/.." && pwd)"
 SCBOLT_MAKEFILE="${SCBOLT_ROOT}/Makefile"
 SCBOLT_DEFAULT_PARAMS="${SCBOLT_ROOT}/mk/default_params.mk"
 SCBOLT_TOOL="${SCBOLT_BIN_DIR}/scbolt-tool"
-SCBOLT_USER_BACKEND="${HOME}/.local/share/scbolt/backend"
+SCBOLT_VERSION_FILE="${SCBOLT_ROOT}/VERSION"
+SCBOLT_USER_CONFIG="${XDG_CONFIG_HOME:-${HOME}/.config}/scbolt/config.mk"
+SCBOLT_LEGACY_USER_BACKEND="${HOME}/.local/share/scbolt/backend"
 SCBOLT_MODULES="load-genome load-fastq load-matrix load-signatures load-cc load-go
 alignment cellranger star qc velocyto
 filtering normalization clustering dea scoring goea annotation
@@ -31,7 +33,7 @@ velocity potency cotan cellrank stream knnsc macrostates
 bin-cells bin-macrostates bin-dea bin-consensus binarization
 spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock
 bn-min bn-submin bn-diverse"
-SCBOLT_COMMANDS="init help config progress check dry-run clean ${SCBOLT_MODULES}"
+SCBOLT_COMMANDS="init help version config progress check dry-run clean ${SCBOLT_MODULES}"
 SCBOLT_COMMON_OPTIONS="--params --references --reset-target --trust-target --old-file --logging --target --backend"
 SCBOLT_GLOBAL_OPTIONS="${SCBOLT_COMMON_OPTIONS} --raw"
 SCBOLT_OPTIONS_init="--remove --show --params --references --old-file --backend --help"
@@ -43,19 +45,6 @@ SCBOLT_OPTIONS_dry_run="${SCBOLT_COMMON_OPTIONS} --help"
 SCBOLT_OPTIONS_module="${SCBOLT_COMMON_OPTIONS} --help"
 terminal_device=""
 terminal_state=""
-
-read_installed_backend() {
-    local value
-
-    [ -f "${SCBOLT_USER_BACKEND}" ] || return 0
-
-    IFS= read -r value < "${SCBOLT_USER_BACKEND}" || return 0
-    case "${value}" in
-        conda|mamba|micromamba|docker)
-            printf '%s\n' "${value}"
-            ;;
-    esac
-}
 
 validate_backend_value() {
     local value="$1"
@@ -75,11 +64,6 @@ validate_backend_value() {
             ;;
     esac
 }
-
-installed_backend="$(read_installed_backend || true)"
-if [ -n "${installed_backend}" ]; then
-    export SCBOLT_DEFAULT_BACKEND="${installed_backend}"
-fi
 
 if [ -z "${CONDA_EXE:-}" ]; then
     conda_path="$(command -v conda 2>/dev/null || true)"
@@ -166,6 +150,21 @@ print_warning_status() {
 
 print_failure_status() {
     printf '%s%s failed:%s %s\n' "${stderr_red}" "✗" "${stderr_nc}" "$1" >&2
+}
+
+print_version() {
+    local version
+    local git_hash
+
+    if [ -f "${SCBOLT_VERSION_FILE}" ]; then
+        IFS= read -r version < "${SCBOLT_VERSION_FILE}" || true
+    fi
+    git_hash="${SCBOLT_GIT_COMMIT:-}"
+    if [ -z "${git_hash}" ]; then
+        git_hash="$(git -C "${SCBOLT_ROOT}" rev-parse HEAD 2>/dev/null || true)"
+    fi
+    printf 'scBOLT %s\n' "${version:-unknown}"
+    printf 'Source revision: %s\n' "${git_hash:-unknown}"
 }
 
 is_known_scbolt_command() {
@@ -405,6 +404,55 @@ trim() {
     printf '%s\n' "${value}"
 }
 
+read_config_variable() {
+    local file="$1"
+    local variable="$2"
+    local line
+    local value
+
+    [ -f "${file}" ] || return 1
+
+    while IFS= read -r line || [ -n "${line}" ]; do
+        line="${line%%#*}"
+        if [[ "${line}" =~ ^[[:space:]]*${variable}[[:space:]]*[:?+!]?=[[:space:]]*(.*)$ ]]; then
+            value="$(trim "${BASH_REMATCH[1]}")"
+            if [ -n "${value}" ]; then
+                printf '%s\n' "${value}"
+                return 0
+            fi
+        fi
+    done < "${file}"
+
+    return 1
+}
+
+read_installed_backend() {
+    local value
+
+    value="$(read_config_variable "${SCBOLT_USER_CONFIG}" BACKEND 2>/dev/null || true)"
+    if [ -n "${value}" ]; then
+        SCBOLT_DEFAULT_BACKEND_SOURCE="user-config"
+    elif [ -f "${SCBOLT_LEGACY_USER_BACKEND}" ]; then
+        IFS= read -r value < "${SCBOLT_LEGACY_USER_BACKEND}" || true
+        value="$(trim "${value}")"
+        if [ -n "${value}" ]; then
+            SCBOLT_DEFAULT_BACKEND_SOURCE="install"
+        fi
+    fi
+
+    case "${value}" in
+        conda|mamba|micromamba|docker)
+            printf '%s\n' "${value}"
+            ;;
+    esac
+}
+
+installed_backend="$(read_installed_backend || true)"
+if [ -n "${installed_backend}" ]; then
+    export SCBOLT_DEFAULT_BACKEND="${installed_backend}"
+    export SCBOLT_DEFAULT_BACKEND_SOURCE="${SCBOLT_DEFAULT_BACKEND_SOURCE:-install}"
+fi
+
 absolute_path() {
     local path="$1"
     local dir
@@ -545,6 +593,250 @@ require_params_file() {
             exit 1
             ;;
     esac
+}
+
+argument_value() {
+    local variable="$1"
+    local option
+    local arg
+    local value
+    shift
+
+    option="--${variable,,}"
+    option="${option//_/-}"
+
+    while [ "$#" -gt 0 ]; do
+        arg="$1"
+        shift
+        case "${arg}" in
+            "${variable}="*)
+                value="${arg#*=}"
+                printf '%s\n' "${value}"
+                return 0
+                ;;
+            "${option}="*)
+                value="${arg#*=}"
+                printf '%s\n' "${value}"
+                return 0
+                ;;
+            "${option}")
+                if [ "$#" -gt 0 ]; then
+                    printf '%s\n' "$1"
+                    return 0
+                fi
+                ;;
+        esac
+    done
+
+    return 1
+}
+
+params_argument() {
+    local arg
+    local value
+
+    while [ "$#" -gt 0 ]; do
+        arg="$1"
+        shift
+        case "${arg}" in
+            --params=*)
+                printf '%s\n' "${arg#--params=}"
+                return 0
+                ;;
+            --params)
+                if [ "$#" -gt 0 ]; then
+                    printf '%s\n' "$1"
+                    return 0
+                fi
+                ;;
+            PARAMS=*)
+                printf '%s\n' "${arg#PARAMS=}"
+                return 0
+                ;;
+        esac
+    done
+
+    value="$(resolve_project_params)" || return 1
+    printf '%s\n' "${value}"
+}
+
+params_path_from_args() {
+    local params
+
+    params="$(params_argument "$@")" || return 1
+    if [[ "${params}" = /* ]]; then
+        printf '%s\n' "${params}"
+    else
+        printf '%s\n' "${PWD}/${params}"
+    fi
+}
+
+config_value_from_invocation() {
+    local variable="$1"
+    local default_value="${2:-}"
+    local value
+    local params_path
+    shift 2
+
+    value="$(argument_value "${variable}" "$@" 2>/dev/null || true)"
+    if [ -n "${value}" ]; then
+        printf '%s\n' "${value}"
+        return 0
+    fi
+
+    params_path="$(params_path_from_args "$@" 2>/dev/null || true)"
+    if [ -n "${params_path}" ] && [ -f "${params_path}" ]; then
+        value="$(read_config_variable "${params_path}" "${variable}" 2>/dev/null || true)"
+        if [ -n "${value}" ]; then
+            printf '%s\n' "${value}"
+            return 0
+        fi
+    fi
+
+    value="$(read_config_variable "${SCBOLT_USER_CONFIG}" "${variable}" 2>/dev/null || true)"
+    if [ -n "${value}" ]; then
+        printf '%s\n' "${value}"
+        return 0
+    fi
+
+    if [ -n "${default_value}" ]; then
+        printf '%s\n' "${default_value}"
+    fi
+}
+
+docker_add_mount_root() {
+    local path="$1"
+    local existing
+
+    [ -n "${path}" ] || return 0
+    [ -e "${path}" ] || return 0
+    path="$(cd "${path}" && pwd)"
+
+    for existing in "${docker_mount_roots[@]}"; do
+        if [ "${existing}" = "${path}" ]; then
+            return 0
+        fi
+    done
+    docker_mount_roots+=("${path}")
+}
+
+run_in_docker() {
+    local engine="$1"
+    local image="$2"
+    local extra_args="$3"
+    local extra_mounts="$4"
+    local project_file
+    local params_path
+    local mount
+    local image_id
+    local image_digests
+    local docker_args=()
+    local docker_mount_roots=()
+    local docker_mount_args=()
+    shift 4
+
+    if ! command -v "${engine}" >/dev/null 2>&1; then
+        print_error "Docker backend requested but command not found: ${engine}"
+        exit 1
+    fi
+
+    if ! "${engine}" image inspect "${image}" >/dev/null 2>&1; then
+        print_warning "pulling Docker image: ${image}"
+        "${engine}" pull "${image}"
+    fi
+
+    image_id="$("${engine}" image inspect "${image}" --format '{{.Id}}' 2>/dev/null || true)"
+    image_digests="$("${engine}" image inspect "${image}" --format '{{join .RepoDigests " "}}' 2>/dev/null || true)"
+
+    docker_add_mount_root "${PWD}"
+    if project_file="$(find_project_file)"; then
+        docker_add_mount_root "$(dirname "${project_file}")"
+    fi
+    params_path="$(params_path_from_args "$@" 2>/dev/null || true)"
+    if [ -n "${params_path}" ]; then
+        docker_add_mount_root "$(dirname "${params_path}")"
+    fi
+    for mount in ${extra_mounts}; do
+        docker_add_mount_root "${mount}"
+    done
+    for mount in "${docker_mount_roots[@]}"; do
+        docker_mount_args+=("-v" "${mount}:${mount}")
+    done
+
+    if [ -t 0 ] && [ -t 1 ]; then
+        docker_args+=("-it")
+    fi
+    if [ -n "${extra_args}" ]; then
+        # shellcheck disable=SC2206
+        docker_args+=(${extra_args})
+    else
+        docker_args+=("--user" "$(id -u):$(id -g)")
+    fi
+
+    exec "${engine}" run --rm \
+        "${docker_args[@]}" \
+        "${docker_mount_args[@]}" \
+        -w "${PWD}" \
+        -e SCBOLT_IN_DOCKER=true \
+        -e SCBOLT_DEFAULT_BACKEND=docker \
+        -e SCBOLT_DEFAULT_BACKEND_SOURCE="${SCBOLT_DOCKER_BACKEND_SOURCE:-user-config}" \
+        -e SCBOLT_IMAGE="${image}" \
+        -e SCBOLT_IMAGE_ID="${image_id}" \
+        -e SCBOLT_IMAGE_REPO_DIGESTS="${image_digests}" \
+        -e OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}" \
+        -e OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}" \
+        -e MKL_NUM_THREADS="${MKL_NUM_THREADS:-1}" \
+        -e NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-1}" \
+        -e HOME=/tmp/scbolt-home \
+        -e MPLCONFIGDIR=/tmp/scbolt-matplotlib \
+        --entrypoint scbolt \
+        "${image}" \
+        "$@"
+}
+
+dispatch_to_docker_if_requested() {
+    local command="$1"
+    local backend
+    local image
+    local engine
+    local args
+    local mounts
+    local params_path
+    shift
+
+    [ "${SCBOLT_IN_DOCKER:-false}" != "true" ] || return 0
+
+    case "${command}" in
+        ""|-h|--help|help|init)
+            return 0
+            ;;
+    esac
+    if has_help_request "$@"; then
+        return 0
+    fi
+
+    backend="$(config_value_from_invocation BACKEND "${SCBOLT_DEFAULT_BACKEND:-conda}" "$@")"
+    backend="$(validate_backend_value "${backend}")"
+    [ "${backend}" = "docker" ] || return 0
+
+    if argument_value BACKEND "$@" >/dev/null 2>&1; then
+        SCBOLT_DOCKER_BACKEND_SOURCE="cli"
+    else
+        params_path="$(params_path_from_args "$@" 2>/dev/null || true)"
+        if [ -n "${params_path}" ] \
+            && [ -f "${params_path}" ] \
+            && [ -n "$(read_config_variable "${params_path}" BACKEND 2>/dev/null || true)" ]; then
+            SCBOLT_DOCKER_BACKEND_SOURCE="params"
+        else
+            SCBOLT_DOCKER_BACKEND_SOURCE="${SCBOLT_DEFAULT_BACKEND_SOURCE:-user-config}"
+        fi
+    fi
+
+    image="$(config_value_from_invocation SCBOLT_IMAGE "ghcr.io/bnediction/scbolt:latest" "$@")"
+    engine="$(config_value_from_invocation SCBOLT_CONTAINER_ENGINE "docker" "$@")"
+    args="$(config_value_from_invocation SCBOLT_CONTAINER_ARGS "" "$@")"
+    mounts="$(config_value_from_invocation SCBOLT_CONTAINER_MOUNTS "" "$@")"
+    run_in_docker "${engine}" "${image}" "${args}" "${mounts}" "$@"
 }
 
 default_init_params() {
@@ -1578,6 +1870,10 @@ case "$1" in
     -h|--help|help)
         usage
         ;;
+    --version|version)
+        print_version
+        exit 0
+        ;;
 esac
 
 collect_global_args "$@"
@@ -1593,6 +1889,8 @@ case "${cmd}" in
         cmd="macrostates"
         ;;
 esac
+
+dispatch_to_docker_if_requested "${cmd}" "${leading_args[@]}" "${cmd}" "$@"
 
 case "${cmd}" in
     ""|-h|--help|help)

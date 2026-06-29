@@ -22,7 +22,7 @@ Status = Literal["done", "stale", "pending", "untracked"]
 State = tuple[Status, str, list[Path], list[Path]]
 ProgressRecord = dict[str, str | list[str]]
 RuntimeEnvironments = dict[str, dict[str, object]]
-RuntimeBackend = Literal["conda", "docker"]
+RuntimeBackend = Literal["conda", "mamba", "micromamba", "docker"]
 SolutionStatus = Literal["global", "partial", "failed"]
 MAX_DISPLAYED_LABELS = 8
 
@@ -278,6 +278,14 @@ def container_metadata(
     if backend != "docker":
         return {}
 
+    if os.environ.get("SCBOLT_IN_DOCKER") == "true":
+        return {
+            "engine": container_engine,
+            "image": container_image or os.environ.get("SCBOLT_IMAGE", ""),
+            "id": os.environ.get("SCBOLT_IMAGE_ID", ""),
+            "repo_digests": os.environ.get("SCBOLT_IMAGE_REPO_DIGESTS", "").split(),
+        }
+
     if not container_image:
         return {
             "engine": container_engine,
@@ -332,28 +340,33 @@ def runtime_environment(
     container_image: str,
 ) -> dict[str, object]:
     if backend == "docker":
-        if not container_image:
-            return {
-                "name": env,
-                "error": "missing container image",
-                "packages": {},
-            }
-        command = [
-            container_engine,
-            "run",
-            "--rm",
-            container_image,
-            "conda",
-            "list",
-            "-n",
-            env,
-            "--json",
-        ]
+        if os.environ.get("SCBOLT_IN_DOCKER") == "true":
+            command = ["micromamba", "list", "-n", env, "--json"]
+        else:
+            if not container_image:
+                return {
+                    "name": env,
+                    "error": "missing container image",
+                    "packages": {},
+                }
+            command = [
+                container_engine,
+                "run",
+                "--rm",
+                "--entrypoint",
+                "micromamba",
+                container_image,
+                "list",
+                "-n",
+                env,
+                "--json",
+            ]
     else:
         local_environment = local_conda_runtime_environment(env)
         if local_environment is not None:
             return local_environment
-        command = ["conda", "list", "-n", env, "--json"]
+        command_name = "conda" if backend == "conda" else backend
+        command = [command_name, "list", "-n", env, "--json"]
 
     result = subprocess.run(
         command,

@@ -7,7 +7,7 @@ import pandas as pd
 from pandas.testing import assert_frame_equal
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 composition_path = REPO_ROOT / "scripts" / "clust" / "_composition.py"
 spec = importlib.util.spec_from_file_location("composition", composition_path)
 if spec is None or spec.loader is None:

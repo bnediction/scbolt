@@ -24,7 +24,7 @@ LOGGING ?= true
 
 ## RUNTIME ##
 # BACKEND values: conda, mamba, micromamba, docker.
-# Docker mode uses one scBOLT image containing all scbolt-* conda environments.
+# Docker mode uses one scBOLT image containing all scbolt-* micromamba environments.
 ifeq ($(origin BACKEND),undefined)
 $(eval BACKEND := $(if $(strip $(SCBOLT_DEFAULT_BACKEND)),$(SCBOLT_DEFAULT_BACKEND),conda)) # backend used by Make rules
 endif

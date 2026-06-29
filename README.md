@@ -41,6 +41,10 @@ scBOLT requires:
    * [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html)
    * [Micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)
 
+Alternatively, scBOLT can run through Docker. In that mode, the local `scbolt`
+command keeps the same interface and delegates execution to the scBOLT Docker
+image.
+
 Install the required system dependencies:
 ```sh
 apt-get install build-essential
@@ -57,6 +61,15 @@ git clone https://github.com/bnediction/scbolt.git scbolt
 cd scbolt
 ./install
 ```
+
+To use Docker as the default runtime backend:
+
+```sh
+./install --backend=docker
+```
+
+This writes `~/.config/scbolt/config.mk`, pulls the configured scBOLT image if
+needed, and keeps normal commands such as `scbolt bn-submin` unchanged.
 
 Initialize a project in any working directory:
 
