@@ -69,6 +69,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--organism",
+    dest="organism",
+    action=cli.Store_organism,
+    default="mouse",
+    required=False,
+    help="gene-related organism (default: mouse)",
+)
+
+parser.add_argument(
     "--geneinfo-version",
     dest="geneinfo_version",
     action=cli.Store_version,
@@ -77,8 +86,8 @@ parser.add_argument(
     allow_date=False,
     allow_path=True,
     required=False,
-    default="latest",
-    help="NCBI gene_info source used for gene name standardization (default: latest)",
+    default="bundled",
+    help="NCBI gene_info source used for gene name standardization (default: bundled)",
 )
 
 args = parser.parse_args()
@@ -100,7 +109,10 @@ list_signatures_d = df2signatures(list_signatures_df)
 signatures_d = {**table_signatures_d, **list_signatures_d}
 
 std.print_info("standardizing signature gene names")
-genesyn = bt.dbs.ncbi.genesyn(version=args.geneinfo_version)
+genesyn = bt.dbs.ncbi.genesyn(
+    organism=args.organism,
+    version=args.geneinfo_version,
+)
 for k, v in signatures_d.items():
     signatures_d[k] = genesyn(v)
 signatures_d = {

@@ -13,7 +13,7 @@ from ._stdout import (
     print_task,
     print_warning,
     print_debug,
-    print_result
+    print_result,
 )
 
 from ._anndata import (

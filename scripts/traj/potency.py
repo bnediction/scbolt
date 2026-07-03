@@ -318,7 +318,6 @@ fig, ax, _ = bt.sct.pl.distribution(
     groupby=args.cluster,
     sort="descending",
     points=True,
-    boxplot={"showfliers": False},
 )
 ylim_min, ylim_max = 0, 1
 plt.ylim((ylim_min, ylim_max))
@@ -349,7 +348,6 @@ bt.sct.pl.distribution(
     groupby="cluster",
     sort="descending",
     points=True,
-    boxplot={"showfliers": False},
     outfile=Path(f"{args.outpath}/boxplot_cytotrace_normalized_score.pdf"),
 )
 

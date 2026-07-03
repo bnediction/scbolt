@@ -23,8 +23,10 @@ if [ "$(SCBOLT_LOGGING_TO_FILE)" = "true" ]; then \
 	else \
 		$(call system_tool,wget) --no-verbose $(1); \
 	fi; \
-else \
+elif [ -t 2 ]; then \
 	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll $(1); \
+else \
+	$(call system_tool,wget) --no-verbose $(1); \
 fi
 endef
 define wget_download_label
@@ -33,8 +35,10 @@ if [ -w /dev/tty ]; then \
 		2> >($(call system_tool,awk) -v label="$(1)" 'BEGIN { RS = "\r"; ORS = "\r" } { sub(/^.*[[:space:]]+([0-9]+%)/, label " \\1"); print } END { printf "\n" }' > /dev/tty); \
 elif [ "$(SCBOLT_LOGGING_TO_FILE)" = "true" ]; then \
 	$(call system_tool,wget) --no-verbose $(2); \
-else \
+elif [ -t 2 ]; then \
 	$(call system_tool,wget) --quiet --show-progress --progress=bar:force:noscroll $(2); \
+else \
+	$(call system_tool,wget) --no-verbose $(2); \
 fi
 endef
 ifneq ($(wildcard $(scbolt_system_bin)),)
@@ -368,6 +372,10 @@ go_basic_url := http://purl.obolibrary.org/obo/go/go-basic.obo
 geiger_url := https://doi.org/10.1371/journal.pbio.2003389.s025
 chambers_url := https://ars.els-cdn.com/content/image/1-s2.0-S1934590907002202-mmc3.xls
 gene2go_url := https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
+geneinfo_url = $(strip \
+	$(if $(filter human,$(ORGANISM)),ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Homo_sapiens.gene_info.gz,\
+	$(if $(filter mouse,$(ORGANISM)),ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Mus_musculus.gene_info.gz,\
+	$(if $(filter escherichia-coli,$(ORGANISM)),ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Bacteria/Escherichia_coli_str._K-12_substr._MG1655.gene_info.gz))))
 
 ## END URLS ##
 

@@ -13,7 +13,6 @@ import numpy as np
 import rdata
 import pandas as pd
 import anndata as ad
-import scanpy as sc
 import bonesistools as bt
 import pypairs
 
@@ -79,6 +78,40 @@ def format_count_range(values):
     lower = int(math.ceil(lower))
     upper = "inf" if math.isinf(upper) else int(math.floor(upper))
     return f"{lower}..{upper}"
+
+
+qc_plot_keys = ["n_features", "total", "pct_mt", "pct_rps"]
+qc_plot_titles = [
+    r"gene number",
+    r"gene counts",
+    r"mitochondrion proportion",
+    r"ribosome proportion",
+]
+
+
+def plot_violin(adata, obs, ax, title=None, clip=(0, None), median=True):
+    bt.sct.pl.distribution(
+        adata,
+        obs=obs,
+        kind="violin",
+        points=False,
+        median=median,
+        clip=clip,
+        ax=ax,
+        showextrema=False,
+    )
+    if title is not None:
+        ax.set_title(title)
+    return ax
+
+
+def plot_qc_violins(adata, outfile):
+    fig, axes = plt.subplots(nrows=1, ncols=len(qc_plot_keys), figsize=(12, 3))
+    for ax, key, title in zip(axes, qc_plot_keys, qc_plot_titles):
+        plot_violin(adata, key, ax=ax, title=title)
+    fig.tight_layout()
+    fig.savefig(outfile)
+    plt.close(fig)
 
 
 parser = argparse.ArgumentParser(
@@ -220,6 +253,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--organism",
+    dest="organism",
+    action=cli.Store_organism,
+    default="mouse",
+    required=False,
+    help="gene-related organism (default: mouse)",
+)
+
+parser.add_argument(
     "--geneinfo-version",
     dest="geneinfo_version",
     action=cli.Store_version,
@@ -228,8 +270,8 @@ parser.add_argument(
     allow_date=False,
     allow_path=True,
     required=False,
-    default="latest",
-    help="NCBI gene_info source used for gene name standardization (default: latest)",
+    default="bundled",
+    help="NCBI gene_info source used for gene name standardization (default: bundled)",
 )
 
 args = parser.parse_args()
@@ -244,7 +286,10 @@ if not outpath.exists():
 std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(Path(f"{args.infile}").resolve())
-genesyn = bt.dbs.ncbi.genesyn(version=args.geneinfo_version)
+genesyn = bt.dbs.ncbi.genesyn(
+    organism=args.organism,
+    version=args.geneinfo_version,
+)
 
 std.print_info("standardizing gene names")
 adata.var["symbol"] = list(adata.var.index)
@@ -266,28 +311,30 @@ bt.sct.pp.sort_anndata(adata, on="both", copy=False)
 
 shape = {"init": adata.shape}
 
-std.print_task("classifying genes (class=mitochondrial proteins)")
-bt.sct.tl.mitochondrial_genes(
+std.print_task("detecting mitochondrial genes")
+bt.sct.pp.mitochondrial_genes(
     adata,
     index_type="name",
     key="mt",
     axis="var",
     copy=False,
+    genesyn=genesyn,
 )
 
-std.print_task("classifying genes (class=ribosomal proteins)")
-bt.sct.tl.ribosomal_genes(
+std.print_task("detecting ribosomal genes")
+bt.sct.pp.ribosomal_genes(
     adata,
     index_type="name",
     key="rps",
     axis="var",
     copy=False,
+    genesyn=genesyn,
 )
 
 if args.marker_infile is None:
     std.print_warning("cannot classify cell cycle phases: marker file not specified")
 else:
-    std.print_task("classifying cells (class=cell cycle phases)")
+    std.print_task("classifying cells by cell-cycle phase")
     std.print_info(
         f"loading cell-cycle marker data (file={std.format_path(args.marker_infile)})"
     )
@@ -313,61 +360,32 @@ else:
     )
 
 std.print_task("calculating quality control metrics")
-sc.pp.calculate_qc_metrics(
+bt.sct.pp.qc(
     adata,
     qc_vars=["mt", "rps"],
     percent_top=None,
     log1p=False,
-    inplace=True,
+    copy=False,
 )
 
 raw_plot = outpath / "raw-data.pdf"
 std.print_info(f"plotting QC summaries (directory={os.path.relpath(outpath)})")
-ax = sc.pl.violin(
-    adata=adata,
-    keys=["n_genes_by_counts", "total_counts", "pct_counts_mt", "pct_counts_rps"],
-    jitter=0.4,
-    multi_panel=True,
-    stripplot=False,
-    show=False,
-    save=False,
-)
-for i, title in zip(
-    range(4),
-    [
-        r"gene number",
-        r"gene counts",
-        r"mitochondrion proportion",
-        r"ribosome proportion",
-    ],
-):
-    ax.axes[0, i].set_title(title)
-plt.savefig(raw_plot)
-plt.close()
+plot_qc_violins(adata, raw_plot)
 
-mad = median_absolute_deviation(
-    np.log(adata.obs.total_counts), consistency=(args.consistent_mad)
-)
+cell_totals = adata.obs["total"].to_numpy()
+mad = median_absolute_deviation(np.log(cell_totals), consistency=(args.consistent_mad))
 reads = [
-    np.exp(np.median(np.log(adata.obs.total_counts)) - args.mad_deviation[0] * mad),
-    np.exp(np.median(np.log(adata.obs.total_counts)) + args.mad_deviation[1] * mad),
+    np.exp(np.median(np.log(cell_totals)) - args.mad_deviation[0] * mad),
+    np.exp(np.median(np.log(cell_totals)) + args.mad_deviation[1] * mad),
 ]
 cell_reads = [
     max(args.cell_reads[0], reads[0]),
     min(args.cell_reads[1], reads[1]),
 ]
 
-ylim = [0, round(math.ceil(max(adata.obs.total_counts) + 1000), -3)]
+ylim = [0, round(math.ceil(max(cell_totals) + 1000), -3)]
 fig, ax = plt.subplots(nrows=1, ncols=2)
-sc.pl.violin(
-    adata=adata,
-    keys="total_counts",
-    stripplot=False,
-    jitter=0.4,
-    ax=ax[0],
-    show=False,
-    save=False,
-)
+plot_violin(adata, "total", ax=ax[0], clip="data", median=False)
 ax[0].axhline(reads[0], linewidth=1.5, linestyle="--", color=bt.sct.pl.get_color("red"))
 ax[0].axhline(reads[1], linewidth=1.5, linestyle="--", color=bt.sct.pl.get_color("red"))
 ax[0].set_ylim(ylim)
@@ -381,18 +399,18 @@ std.print_task(
 )
 
 bt.sct.pp.filter_var(
-    adata, "pct_dropout_by_counts", lambda x: (x <= 1e2 * args.gene_dropout)
+    adata, "pct_dropout", lambda x: (x <= 1e2 * args.gene_dropout)
 )
 
 bt.sct.pp.filter_var(
     adata,
-    "n_cells_by_counts",
+    "n_barcodes",
     lambda x: (x >= args.gene_expression[0]) & (x < args.gene_expression[1]),
 )
 
 bt.sct.pp.filter_var(
     adata,
-    "total_counts",
+    "total",
     lambda x: (x >= args.gene_counts[0]) & (x < args.gene_counts[1]),
 )
 
@@ -405,24 +423,32 @@ std.print_task(
 )
 
 bt.sct.pp.filter_obs(
-    adata, "n_genes_by_counts", lambda x: (x >= (1 - args.cell_dropout) * adata.n_vars)
+    adata, "n_features", lambda x: (x >= (1 - args.cell_dropout) * adata.n_vars)
 )
 
 bt.sct.pp.filter_obs(
     adata,
-    "n_genes_by_counts",
+    "n_features",
     lambda x: (x >= args.cell_expression[0]) & (x < args.cell_expression[1]),
 )
 
 bt.sct.pp.filter_obs(
     adata,
-    "total_counts",
+    "total",
     lambda x: (x >= args.cell_reads[0]) & (x < args.cell_reads[1]),
 )
 
-bt.sct.pp.filter_obs(adata, "total_counts", lambda x: (x >= reads[0]) & (x < reads[1]))
+bt.sct.pp.filter_obs(
+    adata,
+    "total",
+    lambda x: (x >= reads[0]) & (x < reads[1]),
+)
 
-bt.sct.pp.filter_obs(adata, "pct_counts_mt", lambda x: x < 1e2 * args.mt)
+bt.sct.pp.filter_obs(
+    adata,
+    "pct_mt",
+    lambda x: x < 1e2 * args.mt,
+)
 
 shape["final"] = adata.shape
 
@@ -433,42 +459,15 @@ std.print_result(
     format_filtering_coverage("cells", shape["final"][0], shape["init"][0])
 )
 
-sc.pl.violin(
-    adata=adata,
-    keys="total_counts",
-    jitter=0.4,
-    multi_panel=None,
-    stripplot=False,
-    ax=ax[1],
-    show=False,
-    save=False,
-)
+plot_violin(adata, "total", ax=ax[1], clip="data", median=False)
 ax[1].axhline(reads[0], linewidth=1.5, linestyle="--", color=bt.sct.pl.get_color("red"))
 ax[1].axhline(reads[1], linewidth=1.5, linestyle="--", color=bt.sct.pl.get_color("red"))
 ax[1].set_ylim(ylim)
 ax[1].set(title="filtered")
+fig.tight_layout()
 plt.savefig(f"{outpath}/total-counts.pdf")
 
-ax = sc.pl.violin(
-    adata=adata,
-    keys=["n_genes_by_counts", "total_counts", "pct_counts_mt", "pct_counts_rps"],
-    jitter=0.4,
-    multi_panel=True,
-    stripplot=False,
-    show=False,
-    save=False,
-)
-for i, title in zip(
-    range(4),
-    [
-        r"gene number",
-        r"gene counts",
-        r"mitochondrion proportion",
-        r"ribosome proportion",
-    ],
-):
-    ax.axes[0, i].set_title(title)
-plt.savefig(f"{outpath}/filtered-data.pdf")
+plot_qc_violins(adata, f"{outpath}/filtered-data.pdf")
 
 if args.marker_infile:
     fig, ax = plt.subplots(nrows=1, ncols=1)

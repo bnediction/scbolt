@@ -298,7 +298,7 @@ for obs, file in macrostate_files.items():
             ylabel=std.axis_label("UMAP", 2),
             zlabel=std.axis_label("UMAP", 3),
             s=4,
-            show_labels=True,
+            labels={"fontsize": 15, "fontweight": "extra bold"},
             legend={
                 "title": obs,
                 "ncol": math.ceil(
@@ -309,7 +309,6 @@ for obs, file in macrostate_files.items():
                 "edgecolor": bt.sct.pl.get_color("black"),
                 "shadow": False,
             },
-            text={"fontsize": 15, "fontweight": "extra bold"},
             n_components=3 if adata.obsm["X_umap"].shape[1] > 2 else 2,
             background_visible=False,
             outfile=file,

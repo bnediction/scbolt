@@ -20,6 +20,7 @@ def single_thread() -> Iterator[None]:
         with threadpool_limits(limits=1):
             yield
 
+
 @contextlib.contextmanager
 def disable_print(disable: bool = True, disable_warnings: bool = True):
     with contextlib.ExitStack() as stack:
@@ -33,41 +34,40 @@ def disable_print(disable: bool = True, disable_warnings: bool = True):
 
         yield
 
+
 class Section(object):
 
-    def __init__(
-        self,
-        init: int = 1,
-        verbose: bool = True
-    ):
+    def __init__(self, init: int = 1, verbose: bool = True):
         self.init = init
         self._i = init
         self._verbose = verbose
-    
-    def __call__(
-        self,
-        v: str,
-        reset: bool = False
-    ):
+
+    def __call__(self, v: str, reset: bool = False):
         self._i = self.init if reset else self._i
         if self._verbose is True:
             print(f"{self._i}) {v}")
-        self._i+=1
+        self._i += 1
         return None
-    
+
     def reset(self):
         self._i = self.init
         return None
-    
+
     def quiet(self):
         self._verbose = False
-    
+
     def verbose(self):
         self._verbose = True
 
-def print_task(message: Optional[str]=None, file=sys.stdout, flush=True) -> None:
-    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - TASK - {message}", file=file, flush=flush)
+
+def print_task(message: Optional[str] = None, file=sys.stdout, flush=True) -> None:
+    print(
+        f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - TASK - {message}",
+        file=file,
+        flush=flush,
+    )
     return None
+
 
 def format_path(path: Union[str, Path]) -> str:
     path_str = os.fspath(path)
@@ -113,18 +113,37 @@ def format_mapping(values: Mapping[object, object]) -> str:
     return "{" + ", ".join(sorted(pairs)) + "}"
 
 
-def print_info(message: Optional[str]=None, file=sys.stdout, flush=True) -> None:
-    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - INFO - {message}", file=file, flush=flush)
+def print_info(message: Optional[str] = None, file=sys.stdout, flush=True) -> None:
+    print(
+        f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - INFO - {message}",
+        file=file,
+        flush=flush,
+    )
     return None
 
-def print_warning(message: Optional[str]=None, file=sys.stdout, flush=True) -> None:
-    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - WARNING - {message}", file=file, flush=flush)
+
+def print_warning(message: Optional[str] = None, file=sys.stdout, flush=True) -> None:
+    print(
+        f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - WARNING - {message}",
+        file=file,
+        flush=flush,
+    )
     return None
 
-def print_debug(message: Optional[str]=None, file=sys.stdout, flush=True) -> None:
-    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - DEBUG - {message}", file=file, flush=flush)
+
+def print_debug(message: Optional[str] = None, file=sys.stdout, flush=True) -> None:
+    print(
+        f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - DEBUG - {message}",
+        file=file,
+        flush=flush,
+    )
     return None
 
-def print_result(message: Optional[str]=None, file=sys.stdout, flush=True) -> None:
-    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - RESULT - {message}", file=file, flush=flush)
+
+def print_result(message: Optional[str] = None, file=sys.stdout, flush=True) -> None:
+    print(
+        f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - RESULT - {message}",
+        file=file,
+        flush=flush,
+    )
     return None

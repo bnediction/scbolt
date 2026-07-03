@@ -90,6 +90,15 @@ $(cc_markers):
 	mkdir -p $(@D)
 	$(call wget_download,-cO $@ $(cycle_url))
 
+$(geneinfo_latest):
+	$(call print_rule,load-geneinfo,$(ORGANISM))
+	if [ -z "$(geneinfo_url)" ]; then \
+		$(call print_error,no default gene_info URL for ORGANISM=$(ORGANISM)); \
+	fi
+	mkdir -p $(@D)
+	$(call wget_download,-cO $@.tmp $(geneinfo_url))
+	mv $@.tmp $@
+
 $(word 1,$(signatures)) $(word 2,$(signatures)):
 	$(eval FILENAME := $(basename $(notdir $@)))
 	$(call print_rule,load-signatures,$(FILENAME))
@@ -100,12 +109,12 @@ $(word 1,$(signatures)) $(word 2,$(signatures)):
 		$(call wget_download,-cO $@ $(chambers_url)); \
 	fi
 
-$(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures))
+$(lastword $(signatures)): $(word 1,$(signatures)) $(word 2,$(signatures)) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,load-signatures,conversion)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/load_signatures.py \
 		--list-infile $(firstword $^) \
 		--table-infile $(lastword $^) \
-		--outfile $@ $(geneinfo_version_arg)
+		--outfile $@ --organism $(ORGANISM) $(geneinfo_version_arg)
 
 $(go_basic):
 	$(call print_rule,load-go,go_basic)
@@ -344,7 +353,7 @@ $(velocyto_$(1)): $(qc_$(1)) $(genome_ref) $(repeat_msk)
 endif
 endif
 
-$(filtering_$(1)): $(count_input_$(1)) $(if $(filter true,$(CC_CORRECTION)),$(if $(filter mouse,$(ORGANISM)),$(cc_markers)))
+$(filtering_$(1)): $(count_input_$(1)) $(if $(filter true,$(CC_CORRECTION)),$(if $(filter mouse,$(ORGANISM)),$(cc_markers))) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,filtering,$(1))
 	$(require_filtering_parameters)
 	mkdir -p $$(@D)
@@ -353,6 +362,7 @@ $(filtering_$(1)): $(count_input_$(1)) $(if $(filter true,$(CC_CORRECTION)),$(if
 		--gene-dropout $(GENE_DROPOUT) --gene-expression $(GENE_EXPRESSION) --gene-counts $(GENE_COUNTS) \
 		--cell-dropout $(CELL_DROPOUT) --cell-expression $(CELL_EXPRESSION) --cell-reads $(CELL_READS) \
 		--mad-deviation $(MAD_DEVIATION) $(consistent_mad) --mt $(MT) \
+		--organism $(ORGANISM) \
 		$(geneinfo_version_arg)
 	$$(call write_scbolt_metadata,filtering,$$(filtering_$(1)))
 
@@ -537,7 +547,7 @@ $(scoring_$(1))&: $(clustering_$(1)) $(lastword $(signatures)) $(lastword $(dea_
 		$$^ $(firstword $(scoring_$(1))) --cluster cluster --ignore-sheets background --correction none
 	$$(call write_scbolt_metadata,scoring,$$(scoring_$(1)))
 
-$(goea_basic_$(1)): $(lastword $(dea_$(1))) $(go_basic) $(gene2go_done)
+$(goea_basic_$(1)): $(lastword $(dea_$(1))) $(go_basic) $(gene2go_done) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,goea,go_basic/$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/goea.py $$< $$@ \
@@ -545,7 +555,7 @@ $(goea_basic_$(1)): $(lastword $(dea_$(1))) $(go_basic) $(gene2go_done)
 		--organism $(ORGANISM) $(geneinfo_version_arg)
 	$$(call write_scbolt_metadata,goea,$$@)
 
-$(goea_organism_$(1)): $(lastword $(dea_$(1))) $(go_organism) $(gene2go_done)
+$(goea_organism_$(1)): $(lastword $(dea_$(1))) $(go_organism) $(gene2go_done) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,goea,go_$(ORGANISM)/$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/goea.py $$< $$@ \
@@ -763,7 +773,7 @@ $(bin_consensus): $(bin_mstates) $(lastword $(bin_cells)) $(bin_dea)
 		--outfile $@ --pct-bin $(@D)/pct_bin.csv
 	$(call write_scbolt_metadata,bin-consensus,$@)
 
-$(bonesis_model)&: $(bin)
+$(bonesis_model)&: $(bin) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,spec)
 	$(call require_prior_parameters,spec)
 	$(call check_file,$(SPEC_FILE),SPEC_FILE)
@@ -777,7 +787,7 @@ $(bonesis_model)&: $(bin)
 	$(call system_tool,sort) -u $(word 4,$(bonesis_model)) -o $(word 4,$(bonesis_model))
 	$(call write_scbolt_metadata,spec,$(bonesis_model))
 
-$(max_nodes_soft_solution): $(bonesis_model)
+$(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-soft)
 	$(call require_bonesis_filter_parameters,max-nodes-soft)
 	mkdir -p $(@D)
@@ -802,7 +812,7 @@ $(max_nodes_soft_solution): $(bonesis_model)
 	set -e; \
 	$(call check_inference_status,$(TIMEOUT_SOFT),max-nodes-soft,TIMEOUT_SOFT,,$(max_nodes_soft_domain))
 
-$(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution)
+$(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-consts-soft)
 	$(call require_bonesis_filter_parameters,max-consts-soft)
 	$(call require_bool,MIN_SELF_LOOP_CONSTS,max-consts-soft)
@@ -828,7 +838,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution)
 	set -e; \
 	$(call check_inference_status,$(TIMEOUT_CONSTS),max-consts-soft,TIMEOUT_CONSTS,,$(lastword $^))
 
-$(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
+$(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-relaxed)
 	$(call require_bonesis_filter_parameters,max-nodes-relaxed)
 	mkdir -p $(@D)
@@ -853,7 +863,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft)
 	set -e; \
 	$(call check_inference_status,$(TIMEOUT_RELAXED),max-nodes-relaxed,TIMEOUT_RELAXED,,$(lastword $^))
 
-$(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
+$(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-seed)
 	$(call require_bonesis_filter_parameters,max-nodes-seed)
 	$(call check_parameter,$(TIMEOUT_SEED),TIMEOUT_SEED (needed by target 'max-nodes-seed'))
@@ -879,7 +889,7 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed)
 	set -e; \
 	$(call check_inference_status,$(TIMEOUT_SEED),max-nodes-seed,TIMEOUT_SEED,,$(lastword $^))
 
-$(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
+$(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-lock)
 	$(call require_bonesis_filter_parameters,max-nodes-lock)
 	mkdir -p $(@D)
@@ -915,7 +925,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed)
 		$(call check_inference_status,$(TIMEOUT_LOCK),max-nodes-lock,TIMEOUT_LOCK,$(lastword $^),$(word 5,$^)); \
 	fi
 
-$(bn_min): $(bonesis_model) $(max_nodes_lock)
+$(bn_min): $(bonesis_model) $(max_nodes_lock) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,bn-min)
 	$(call require_bonesis_infer_parameters,bn-min)
 	$(call require_bool,MIN_SELF_LOOP_INFER,bn-min)
@@ -947,7 +957,7 @@ __check-bn-submin-outputs:
 __check-bn-diverse-outputs:
 	$(call check_bn_outputs,$(bn_diverse_dir),bn-diverse,$(CONFIG_FORMATS),$(GRAPH_FORMATS))
 
-$(bn_submin)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-submin-outputs
+$(bn_submin)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-submin-outputs $(geneinfo_dependency)
 	$(call print_rule,bn-submin)
 	$(call require_bonesis_infer_parameters,bn-submin)
 	mkdir -p $(bn_submin_dir)
@@ -968,7 +978,7 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-submin-outputs
 		--remove-isolated-nodes
 	$(call write_scbolt_metadata,bn-submin,$(bn_submin_metadata))
 
-$(bn_diverse)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-diverse-outputs
+$(bn_diverse)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-diverse-outputs $(geneinfo_dependency)
 	$(call print_rule,bn-diverse)
 	$(call require_bonesis_infer_parameters,bn-diverse)
 	mkdir -p $(bn_diverse_dir)

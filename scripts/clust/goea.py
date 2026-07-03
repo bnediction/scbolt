@@ -21,6 +21,7 @@ from goatools.anno.genetogo_reader import Gene2GoReader
 from goatools.goea.go_enrichment_ns import GOEnrichmentStudyNS
 
 script_name = Path(__file__).name
+GO_NAMESPACE_ORDER = {"BP": 0, "MF": 1, "CC": 2}
 
 
 def read_gene2go(path: Path):
@@ -123,8 +124,8 @@ parser.add_argument(
     allow_date=False,
     allow_path=True,
     required=False,
-    default="latest",
-    help="NCBI gene_info source used for gene name standardization (default: latest)",
+    default="bundled",
+    help="NCBI gene_info source used for gene name standardization (default: bundled)",
 )
 
 args = parser.parse_args()
@@ -287,8 +288,30 @@ with ExcelWriter(args.outfile) as xlsx_writer:
                 column_names[idx_definition],
             )
             goea_results = goea_results[column_names]
-            goea_results = goea_results.sort_values(by="p_fdr_bh", ascending=True)
-            goea_results.to_excel(xlsx_writer, sheet_name=cluster)
+            sort_columns = []
+            ascending = []
+
+            if "NS" in goea_results.columns:
+                goea_results = goea_results.assign(
+                    _namespace_order=goea_results["NS"]
+                    .map(GO_NAMESPACE_ORDER)
+                    .fillna(len(GO_NAMESPACE_ORDER))
+                )
+                sort_columns.append("_namespace_order")
+                ascending.append(True)
+
+            if "p_fdr_bh" in goea_results.columns:
+                sort_columns.append("p_fdr_bh")
+                ascending.append(True)
+
+            if sort_columns:
+                goea_results = goea_results.sort_values(
+                    by=sort_columns,
+                    ascending=ascending,
+                    kind="mergesort",
+                ).drop(columns="_namespace_order", errors="ignore")
+
+            goea_results.to_excel(xlsx_writer, sheet_name=cluster, index=False)
             os.remove(xlsx_infile)
         else:
             std.print_warning(f"file {xlsx_infile} not found")

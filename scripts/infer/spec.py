@@ -134,8 +134,8 @@ parser.add_argument(
     allow_date=False,
     allow_path=True,
     required=False,
-    default="latest",
-    help="NCBI gene_info source used for gene name standardization (default: latest)",
+    default="bundled",
+    help="NCBI gene_info source used for gene name standardization (default: bundled)",
 )
 
 parser.add_argument(

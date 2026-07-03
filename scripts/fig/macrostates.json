@@ -19,7 +19,10 @@
         "ylabel": "r'$\\mathrm{dim_{2}}$'",
         "zlabel": "r'$\\mathrm{dim_{3}}$'",
         "s": 4,
-        "show_labels": true,
+        "labels": {
+            "fontsize": 15,
+            "fontweight": "extra bold"
+        },
         "legend": {
             "title": "macrostate",
             "ncol": "math.ceil(len(adata.obs['macrostate'].astype('category').cat.categories) / 16)",
@@ -27,10 +30,6 @@
             "frameon": true,
             "edgecolor": "bt.sct.pl.get_color('black')",
             "shadow": false
-        },
-        "text": {
-            "fontsize": 15,
-            "fontweight": "extra bold"
         },
         "automatic_resize": true,
         "background_visible": false

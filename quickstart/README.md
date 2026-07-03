@@ -8,7 +8,7 @@ case study.
 The example starts from local AnnData files generated from:
 
 ```python
-bt.sct.datasets.nestorowa()
+bt.sct.datasets.load("nestorowa")
 ```
 
 No manual data download is required. The preparation script creates a compact
@@ -30,11 +30,10 @@ scbolt check bn-submin
 scbolt bn-submin
 ```
 
-The preparation script computes the spectral embedding from the top 500 HVGs
-of the built-in dataset. The scBOLT run then restricts Boolean-network
-inference to the top 50 HVGs selected with the `seurat_v3` method, so it stays
-small enough for a quick run. It uses a compact STREAM macrostate abstraction
-inspired by the hematopoiesis case study.
+The preparation script computes a spectral embedding for the built-in dataset.
+The scBOLT run follows the hematopoiesis case-study configuration, except that
+Boolean-network inference is restricted to the top 40 HVGs to keep the example
+small enough for a quick run.
 
 Full manuscript reproductions and larger biological analyses are provided
 separately in the scBOLT case-study repository.

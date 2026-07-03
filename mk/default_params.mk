@@ -102,7 +102,7 @@ $(eval CELL_DROPOUT ?= 1)                   # maximum cell dropout fraction
 $(eval CELL_EXPRESSION ?= 0 inf)            # min/max expressed genes per cell
 $(eval CELL_READS ?= 0 inf)                 # min/max total cell reads
 $(eval MAD_DEVIATION ?= 2 2)                # lower/upper MAD factors around median log-total reads
-$(eval CONSISTENT_MAD ?= true)                    # use Gaussian-consistent MAD scaling
+$(eval CONSISTENT_MAD ?= true)              # use Gaussian-consistent MAD scaling
 $(eval MT ?= 0.05)                          # maximum mitochondrial count fraction
 
 ## NORMALIZATION ##
@@ -262,7 +262,7 @@ $(eval SPEC_FILE ?= spec.yml)               # BoNesis model specification file
 # TIMEOUT_* values are passed to GNU timeout; empty means no timeout.
 $(eval MAX_CLAUSE ?= 8)                     # maximum literals per propositional formula
 $(eval PRIOR_KNOWLEDGE ?= collectri)        # prior GRN domain
-$(eval GENEINFO_VERSION ?= latest)          # NCBI gene_info source
+$(eval GENEINFO_VERSION ?= bundled)         # NCBI gene_info source
 $(eval OMNIPATH_VERSION ?= latest)          # OmniPath resource version
 $(eval HCOP_VERSION ?= bundled)             # HCOP orthology version
 $(eval DOROTHEA_API ?= modern)             # DoRothEA API source

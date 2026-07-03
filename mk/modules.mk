@@ -38,6 +38,8 @@ gene2go     = $(resources_dir)/go/gene2go.gz
 gene2go_done = $(resources_dir)/go/gene2go.gz.done
 repeat_msk_table = $(resources_dir)/ref/rmsk.txt.gz
 repeat_msk  = $(resources_dir)/ref/repeat_msk.gtf.gz
+geneinfo_organism = $(subst -,_,$(ORGANISM))
+geneinfo_latest = $(tmpdir)/ncbi/$(geneinfo_organism)_gene_info_latest.tsv.gz
 
 genome_ref_name = $(if $(strip $(genome_url)),$(notdir $(genome_url)),missing-genome-url)
 genome_ref_archive = $(resources_dir)/ref/$(genome_ref_name)
@@ -326,7 +328,9 @@ dorothea_api_arg = $(if $(filter dorothea,$(prior_knowledge)),\
 	--dorothea-api $(DOROTHEA_API))
 dorothea_compatibility_arg = $(if $(filter dorothea,$(prior_knowledge)),\
 	--dorothea-compatibility $(DOROTHEA_COMPATIBILITY))
-geneinfo_version_arg = --geneinfo-version $(GENEINFO_VERSION)
+geneinfo_version = $(if $(filter latest,$(GENEINFO_VERSION)),$(geneinfo_latest),$(GENEINFO_VERSION))
+geneinfo_version_arg = --geneinfo-version $(geneinfo_version)
+geneinfo_dependency = $(if $(filter latest,$(GENEINFO_VERSION)),$(geneinfo_latest))
 omnipath_version_arg = $(if $(filter collectri dorothea,$(prior_knowledge)),\
 	--omnipath-version $(OMNIPATH_VERSION))
 hcop_version_arg = $(if $(filter collectri dorothea,$(prior_knowledge)),\

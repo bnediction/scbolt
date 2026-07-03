@@ -12,9 +12,7 @@ def check_proportion_sums(
     sums = table.sum(axis=axis)
     invalid = sums[(sums - 1.0).abs() > tolerance]
     if not invalid.empty:
-        details = ", ".join(
-            f"{index}={value:.6g}" for index, value in invalid.items()
-        )
+        details = ", ".join(f"{index}={value:.6g}" for index, value in invalid.items())
         raise ValueError(f"invalid composition proportions for {name}: {details}")
 
 

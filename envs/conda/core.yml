@@ -181,7 +181,7 @@ dependencies:
   - pip:
       - beautifulsoup4==4.14.2
       - biodivine-aeon==1.2.5
-      - bonesistools==1.2.7
+      - bonesistools==1.2.8
       - boolean-py==5.0
       - cffi==2.0.0
       - charset-normalizer==3.3.2

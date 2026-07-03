@@ -84,7 +84,9 @@ def compute_embedding(adata, method: str, args) -> None:
         )
 
 
-def plot_embedding(adata, method: str, representation: str, outfile: Path, args) -> None:
+def plot_embedding(
+    adata, method: str, representation: str, outfile: Path, args
+) -> None:
     embedding_label = std.format_embedding(method)
     bt.sct.pl.embedding(
         adata,

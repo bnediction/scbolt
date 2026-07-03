@@ -5,30 +5,30 @@
 ORGANISM = mouse
 CONDITIONS =
 PROJECT_DIR = project
-RESOURCES_DIR = resources
-
-#####################
-### Input sources ###
-#####################
-
-COUNT_FILES = data/counts.h5ad
 OLD_FILES = project/omics/annot/annot.h5ad
+JOBS = 16
+SEED = 10
 
 ##########################
 ### External resources ###
 ##########################
 
 GENEINFO_VERSION = bundled
-PRIOR_KNOWLEDGE = collectri
-OMNIPATH_VERSION = latest
+PRIOR_KNOWLEDGE = dorothea
+OMNIPATH_VERSION = 2025-08-13
 HCOP_VERSION = bundled
+DOROTHEA_API = legacy
+DOROTHEA_COMPATIBILITY = true
+DOROTHEA_LEVELS = A
 
 ##############################
 ### Module-specific inputs ###
 ##############################
 
-### macrostates ###
+### general ###
 REPRESENTATION = X_se
+
+### macrostate ###
 MACROSTATE_METHOD = stream
 MACROSTATE_SIZE = 25
 CLUSTER_NUMBER = 20
@@ -39,19 +39,8 @@ EXTEND_EPG = true
 EXTEND_PARAMETER = 0.8
 PRUNE_EPG = false
 
-### binarization ###
-BIN_HVG_FLAVOR = seurat_v3
-BIN_HVG_TOP = 50
-ZEROES_ARE_ZEROES = false
+### BN inference ###
 
-### specification ###
-SPEC_FILE = spec.yml
-
-### inference ###
-MAX_CLAUSE = 6
-TIMEOUT_SOFT = 5m
-TIMEOUT_CONSTS = 5m
-TIMEOUT_RELAXED = 5m
-TIMEOUT_SEED = 10m
-TIMEOUT_LOCK = 10m
-INFER_LIMIT = 5
+BIN_HVG_TOP = 40
+MAX_CLAUSE = 8
+INFER_LIMIT = 100
