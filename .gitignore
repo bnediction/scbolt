@@ -106,6 +106,8 @@ todo.*
 !envs/*.yml
 !tests/
 !tests/**
+tests/**/__pycache__/
+tests/**/*.py[cod]
 
 ### Related-repository ###
 !.github/
