@@ -197,6 +197,10 @@ parameter_help_hint_BIN_HVG_BINS = $(parameter_help_positive_integer)
 parameter_help_description_BIN_HVG_BINS = Mean-expression bins for binarization HVG selection.
 parameter_help_hint_BIN_SCBOOLSEQ_ONLY_HVG = $(parameter_help_bool)
 parameter_help_description_BIN_SCBOOLSEQ_ONLY_HVG = Restrict scBoolSeq to HVGs.
+parameter_help_hint_SCBOOLSEQ_OPENBLAS_THREADS = auto | >= 1
+parameter_help_description_SCBOOLSEQ_OPENBLAS_THREADS = OpenBLAS threads for scBoolSeq.
+parameter_help_hint_SCBOOLSEQ_OMP_THREADS = auto | >= 1
+parameter_help_description_SCBOOLSEQ_OMP_THREADS = OpenMP threads for scBoolSeq.
 parameter_help_hint_UNIMODAL_QUANTILE = $(parameter_help_float)
 parameter_help_description_UNIMODAL_QUANTILE = Threshold for unimodal genes.
 parameter_help_hint_ZEROES_ARE_ZEROES = $(parameter_help_bool)

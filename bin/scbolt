@@ -1556,6 +1556,25 @@ print_kept_intermediate_results() {
     )
 }
 
+print_kept_intermediate_results_if_inference_ran() {
+    local params="$1"
+    local stdout_file="$2"
+    local module
+    shift 2
+
+    module="$(
+        grep -E ' - RULE - (max-nodes-soft|max-consts-soft|max-nodes-relaxed|max-nodes-seed|max-nodes-lock|bn-min|bn-submin|bn-diverse)( |$)' \
+            "${stdout_file}" \
+            | tail -n 1 \
+            | sed -E 's/^.* - RULE - ([^ ]+).*$/\1/'
+    )"
+
+    if [ -n "${module}" ]; then
+        print_kept_intermediate_results \
+            "${params}" "INTERRUPTED_INFERENCE_MODULE=${module}" "$@"
+    fi
+}
+
 intermediate_gene_selection_status() {
     local params="$1"
     local line
@@ -1603,17 +1622,72 @@ finalize_interrupted_gene_selection_results() {
         "${make_assignments[@]}" 2>/dev/null || true
 }
 
-ensure_clean_stdout_line() {
-    local file="$1"
+ensure_clean_output_line() {
+    local file
+    local newest_file=""
     local last_byte
 
-    if [ ! -s "${file}" ]; then
+    for file in "$@"; do
+        if [ ! -s "${file}" ]; then
+            continue
+        fi
+        if [ -z "${newest_file}" ] || [ "${file}" -nt "${newest_file}" ]; then
+            newest_file="${file}"
+        fi
+    done
+
+    if [ -z "${newest_file}" ]; then
         return 0
     fi
 
-    last_byte="$(tail -c 1 "${file}" 2> /dev/null | od -An -tx1 | tr -d '[:space:]')"
+    last_byte="$(tail -c 1 "${newest_file}" 2> /dev/null | od -An -tx1 | tr -d '[:space:]')"
     if [ "${last_byte}" != "0a" ]; then
         printf '\n'
+    fi
+}
+
+format_elapsed_duration() {
+    local duration_seconds="$1"
+    local duration_days
+    local duration_hours
+    local duration_minutes
+
+    duration_days=$((duration_seconds / 86400))
+    duration_seconds=$((duration_seconds % 86400))
+    duration_hours=$((duration_seconds / 3600))
+    duration_seconds=$((duration_seconds % 3600))
+    duration_minutes=$((duration_seconds / 60))
+    duration_seconds=$((duration_seconds % 60))
+
+    if [ "${duration_days}" -gt 0 ]; then
+        if [ "${duration_seconds}" -gt 0 ]; then
+            printf '%dd%02dh%02dm%02ds' \
+                "${duration_days}" "${duration_hours}" "${duration_minutes}" "${duration_seconds}"
+        elif [ "${duration_minutes}" -gt 0 ]; then
+            printf '%dd%02dh%02dm' \
+                "${duration_days}" "${duration_hours}" "${duration_minutes}"
+        elif [ "${duration_hours}" -gt 0 ]; then
+            printf '%dd%02dh' "${duration_days}" "${duration_hours}"
+        else
+            printf '%dd' "${duration_days}"
+        fi
+    elif [ "${duration_hours}" -gt 0 ]; then
+        if [ "${duration_seconds}" -gt 0 ]; then
+            printf '%dh%02dm%02ds' \
+                "${duration_hours}" "${duration_minutes}" "${duration_seconds}"
+        elif [ "${duration_minutes}" -gt 0 ]; then
+            printf '%dh%02dm' "${duration_hours}" "${duration_minutes}"
+        else
+            printf '%dh' "${duration_hours}"
+        fi
+    elif [ "${duration_minutes}" -gt 0 ]; then
+        if [ "${duration_seconds}" -gt 0 ]; then
+            printf '%dm%02ds' "${duration_minutes}" "${duration_seconds}"
+        else
+            printf '%dm' "${duration_minutes}"
+        fi
+    else
+        printf '%ds' "${duration_seconds}"
     fi
 }
 
@@ -1634,6 +1708,8 @@ run_make_build_with_params() {
     local status=0
     local final_status
     local interrupted=0
+    local make_pid=""
+    local make_process_group=false
     local recipe_ran=false
     local stale_warning=false
     local build_start_seconds
@@ -1654,13 +1730,45 @@ run_make_build_with_params() {
     (tee "${stderr_file}" < "${stderr_pipe}" | filter_make_error_lines >&2 || true) &
     stderr_tee_pid=$!
 
-    trap 'interrupted=1' INT TERM
+    terminate_make_process() {
+        interrupted=1
+        trap - INT TERM
+
+        if [ -z "${make_pid}" ]; then
+            return
+        fi
+
+        if [ "${make_process_group}" = "true" ]; then
+            kill -INT "-${make_pid}" 2> /dev/null || true
+            sleep 1
+            kill -TERM "-${make_pid}" 2> /dev/null || true
+            sleep 1
+            kill -KILL "-${make_pid}" 2> /dev/null || true
+        else
+            kill -INT "${make_pid}" 2> /dev/null || true
+            sleep 1
+            kill -TERM "${make_pid}" 2> /dev/null || true
+            sleep 1
+            kill -KILL "${make_pid}" 2> /dev/null || true
+        fi
+    }
+
+    trap 'terminate_make_process' INT TERM
     build_start_seconds="${SECONDS}"
     set +e
+    if set -m 2> /dev/null; then
+        make_process_group=true
+    fi
     make -f "${SCBOLT_MAKEFILE}" "$@" "PARAMS=${params}" \
         > "${stdout_pipe}" \
-        2> "${stderr_pipe}"
+        2> "${stderr_pipe}" &
+    make_pid=$!
+    if [ "${make_process_group}" = "true" ]; then
+        set +m 2> /dev/null || true
+    fi
+    wait "${make_pid}"
     status=$?
+    wait "${make_pid}" 2> /dev/null || true
     wait "${stdout_tee_pid}" 2> /dev/null || true
     wait "${stderr_tee_pid}" 2> /dev/null || true
     set -e
@@ -1684,12 +1792,12 @@ run_make_build_with_params() {
             "${stderr_file}"; then
         final_status=124
     fi
-    ensure_clean_stdout_line "${stdout_file}"
+    ensure_clean_output_line "${stdout_file}" "${stderr_file}"
     elapsed_seconds=$((SECONDS - build_start_seconds))
     if [ "${elapsed_seconds}" -lt 1 ]; then
         elapsed_seconds=1
     fi
-    elapsed="${elapsed_seconds}s"
+    elapsed="$(format_elapsed_duration "${elapsed_seconds}")"
 
     case "${final_status}" in
         0)
@@ -1706,16 +1814,18 @@ run_make_build_with_params() {
             print_warning_status "reached time limit" "${target_label}"
             ;;
         130)
+            printf '\n'
             print_warning "interrupted by user (${target_label})"
             finalize_interrupted_gene_selection_results \
                 "${params}" "${target_label}" "${elapsed}" "$@"
-            print_kept_intermediate_results "${params}" "$@"
+            print_kept_intermediate_results_if_inference_ran "${params}" "${stdout_file}" "$@"
             ;;
         143)
+            printf '\n'
             print_warning "interrupted by user (${target_label})"
             finalize_interrupted_gene_selection_results \
                 "${params}" "${target_label}" "${elapsed}" "$@"
-            print_kept_intermediate_results "${params}" "$@"
+            print_kept_intermediate_results_if_inference_ran "${params}" "${stdout_file}" "$@"
             ;;
         *)
             print_failure_status "${target_label}"

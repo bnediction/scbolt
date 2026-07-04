@@ -1102,14 +1102,19 @@ __finalize-interrupted-gene-selection-results:
 endif
 
 .PHONY: __kept-gene-selection-results
+kept_gene_selection_modules = $(if $(strip $(INTERRUPTED_INFERENCE_MODULE)),$(INTERRUPTED_INFERENCE_MODULE),\
+	max-nodes-lock max-nodes-seed max-nodes-relaxed max-consts-soft max-nodes-soft)
+maybe_report_kept_gene_selection_result = \
+	$(if $(filter $(1),$(kept_gene_selection_modules)),$(call report_kept_gene_selection_result,$(1),$(2),$(3),$(4)))
+
 __kept-gene-selection-results:
 	@mkdir -p "$(tmpdir)"
 	@rm -f "$(tmpdir)/kept-gene-selection-reported"
-	$(call report_kept_gene_selection_result,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed),$(tmpdir)/kept-gene-selection-reported)
-	$(call report_kept_gene_selection_result,max-nodes-seed,$(max_nodes_seed),$(max_nodes_relaxed),$(tmpdir)/kept-gene-selection-reported)
-	$(call report_kept_gene_selection_result,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft),$(tmpdir)/kept-gene-selection-reported)
-	$(call report_kept_gene_selection_result,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution),$(tmpdir)/kept-gene-selection-reported)
-	$(call report_kept_gene_selection_result,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain),$(tmpdir)/kept-gene-selection-reported)
+	$(call maybe_report_kept_gene_selection_result,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed),$(tmpdir)/kept-gene-selection-reported)
+	$(call maybe_report_kept_gene_selection_result,max-nodes-seed,$(max_nodes_seed),$(max_nodes_relaxed),$(tmpdir)/kept-gene-selection-reported)
+	$(call maybe_report_kept_gene_selection_result,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft),$(tmpdir)/kept-gene-selection-reported)
+	$(call maybe_report_kept_gene_selection_result,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution),$(tmpdir)/kept-gene-selection-reported)
+	$(call maybe_report_kept_gene_selection_result,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain),$(tmpdir)/kept-gene-selection-reported)
 	@rm -f "$(tmpdir)/kept-gene-selection-reported"
 
 .PHONY: __intermediate-gene-selection-status

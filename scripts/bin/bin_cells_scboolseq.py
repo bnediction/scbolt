@@ -107,10 +107,23 @@ parser.add_argument(
     help="input file storing interest genes to pass filtering (if not specified, all genes are considered)",
 )
 
+parser.add_argument(
+    "--seed",
+    dest="seed",
+    type=int,
+    required=False,
+    default=None,
+    metavar="INTEGER",
+    help="Random seed used by scBoolSeq internal estimators.",
+)
+
 args = parser.parse_args()
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
+
+if args.seed is not None:
+    np.random.seed(args.seed)
 
 std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)

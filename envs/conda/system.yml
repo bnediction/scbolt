@@ -10,7 +10,8 @@ dependencies:
   - gawk>=5
   - grep>=3
   - gzip>=1
-  - make>=4
+  - make>=4.3
   - sed>=4
   - tar>=1
+  - util-linux>=2
   - wget>=1

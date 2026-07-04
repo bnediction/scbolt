@@ -219,7 +219,10 @@ $(eval BIN_METHOD ?= consensus)             # binarization method
 
 ## BIN-CELLS ##
 # HVG methods: seurat, cell_ranger, seurat_v3.
+# scBoolSeq native thread defaults split JOBS between OpenBLAS and OpenMP.
 $(eval BIN_SCBOOLSEQ_ONLY_HVG ?= true)      # use only HVGs for scBoolSeq binarization
+$(eval SCBOOLSEQ_OPENBLAS_THREADS ?= auto)  # OpenBLAS threads used by scBoolSeq
+$(eval SCBOOLSEQ_OMP_THREADS ?= auto)       # OpenMP threads used by scBoolSeq
 $(eval UNIMODAL_QUANTILE ?= 0.10)           # quantile threshold for unimodal genes
 $(eval ZEROES_ARE_ZEROES ?= true)           # set zero-inflated zeroes to 0
 

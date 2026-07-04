@@ -680,11 +680,23 @@ def format_duration(seconds: int) -> str:
     minutes, seconds = divmod(seconds, 60)
 
     if days:
-        return f"{days}d {hours}h {minutes}m {seconds}s"
+        if seconds:
+            return f"{days}d{hours:02d}h{minutes:02d}m{seconds:02d}s"
+        if minutes:
+            return f"{days}d{hours:02d}h{minutes:02d}m"
+        if hours:
+            return f"{days}d{hours:02d}h"
+        return f"{days}d"
     if hours:
-        return f"{hours}h {minutes}m {seconds}s"
+        if seconds:
+            return f"{hours}h{minutes:02d}m{seconds:02d}s"
+        if minutes:
+            return f"{hours}h{minutes:02d}m"
+        return f"{hours}h"
     if minutes:
-        return f"{minutes}m {seconds}s"
+        if seconds:
+            return f"{minutes}m{seconds:02d}s"
+        return f"{minutes}m"
     return f"{seconds}s"
 
 

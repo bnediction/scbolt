@@ -658,6 +658,7 @@ $(bin_cells)&: $(bin_input_h5ads)
 		--statistics $(lastword $(bin_cells)) \
 		--expression log-norm \
 		--quantile $(UNIMODAL_QUANTILE) \
+		--seed $(SEED) \
 		$(zeroes_are_zeroes) \
 		$(bin_scboolseq_hvg)
 	$(call plot_embeddings,\

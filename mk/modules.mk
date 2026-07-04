@@ -269,8 +269,16 @@ else
 try_scboolseq_native_threads := $(shell echo $$(($(JOBS) / 2)))
 scboolseq_native_threads := $(if $(findstring $(try_scboolseq_native_threads),0),1,$(try_scboolseq_native_threads))
 endif
-scboolseq_openblas_threads := $(scboolseq_native_threads)
-scboolseq_omp_threads := $(scboolseq_native_threads)
+
+ifeq ($(filter auto,$(SCBOOLSEQ_OPENBLAS_THREADS)),auto)
+override SCBOOLSEQ_OPENBLAS_THREADS := $(scboolseq_native_threads)
+endif
+ifeq ($(filter auto,$(SCBOOLSEQ_OMP_THREADS)),auto)
+override SCBOOLSEQ_OMP_THREADS := $(scboolseq_native_threads)
+endif
+
+scboolseq_openblas_threads := $(SCBOOLSEQ_OPENBLAS_THREADS)
+scboolseq_omp_threads := $(SCBOOLSEQ_OMP_THREADS)
 
 consistent_mad = $(if $(filter true,$(CONSISTENT_MAD)),--consistent-mad)
 cc_correction = $(if $(filter true,$(CC_CORRECTION)),--correction G2M_score S_score G1_score)
@@ -480,7 +488,8 @@ target_params_macrostates = MACROSTATE_METHOD MACROSTATE_SIZE MACROSTATE_FILES
 target_params_bin-cells = \
 	MACROSTATE_FILES \
 	BIN_SCBOOLSEQ_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
-	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES
+	SCBOOLSEQ_OPENBLAS_THREADS SCBOOLSEQ_OMP_THREADS \
+	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES SEED
 target_params_bin-macrostates = \
 	MACROSTATE_FILES NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD
 target_params_bin-dea = \
@@ -565,7 +574,8 @@ sensitive_params_macrostates =
 sensitive_params_bin-cells = \
 	MACROSTATE_FILES REPRESENTATION \
 	BIN_SCBOOLSEQ_ONLY_HVG BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
-	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES
+	SCBOOLSEQ_OPENBLAS_THREADS SCBOOLSEQ_OMP_THREADS \
+	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES SEED
 sensitive_params_bin-macrostates = \
 	MACROSTATE_FILES REPRESENTATION \
 	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD

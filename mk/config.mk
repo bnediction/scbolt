@@ -643,6 +643,8 @@ endef
 
 define require_bin_cells_parameters
 $(call require_bool,BIN_SCBOOLSEQ_ONLY_HVG,bin-cells); \
+$(call require_positive_integer,SCBOOLSEQ_OPENBLAS_THREADS); \
+$(call require_positive_integer,SCBOOLSEQ_OMP_THREADS); \
 $(call require_float,UNIMODAL_QUANTILE); \
 $(call require_bool,ZEROES_ARE_ZEROES,bin-cells)
 endef
@@ -947,11 +949,15 @@ $(foreach path,$(unknown_old_files),\
 $(system_shell_functions) \
 selected_modules=" $(call target_dry_run_modules,$(1)) "; \
 running_modules=" $(reset_modules) "; \
+rebuilding_modules=" "; \
 pending_modules=" "; \
 stale_modules=" "; \
 untracked_modules=" "; \
 is_running() { \
 	case "$${running_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
+}; \
+is_rebuilding() { \
+	case "$${rebuilding_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 }; \
 is_pending() { \
 	case "$${pending_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
@@ -978,6 +984,21 @@ if [ -s "$${metadata_manifest}" ]; then \
 		done; \
 fi; \
 $(foreach module,$(reset_stages),\
+	module_deps="$(strip $(progress_deps_$(module)))"; \
+	module_rebuilding=0; \
+	if is_running "$(module)"; then \
+		module_rebuilding=1; \
+	else \
+		for dependency in $${module_deps}; do \
+			if is_rebuilding "$${dependency}"; then \
+				module_rebuilding=1; \
+				break; \
+			fi; \
+		done; \
+	fi; \
+	if [ "$${module_rebuilding}" -eq 1 ]; then \
+		rebuilding_modules="$${rebuilding_modules}$(module) "; \
+	fi; \
 	if [[ "$${selected_modules}" == *" $(module) "* ]]; then \
 		module_report="$${metadata_report_dir}/$(module)"; \
 		module_status="$$(awk -F '\t' '$$1 == "status" { print $$2; exit }' "$${module_report}")"; \
@@ -1010,7 +1031,9 @@ $(foreach module,$(reset_stages),\
 				fi; \
 			done; \
 		fi; \
-		if [ "$${module_pending}" -eq 1 ]; then \
+		if [ "$${module_rebuilding}" -eq 1 ]; then \
+			:; \
+		elif [ "$${module_pending}" -eq 1 ]; then \
 			:; \
 		elif [ "$${module_stale}" -eq 1 ]; then \
 			if [[ "$${module_status}" = "stale" && "$${module_message}" == "$(module) ("*")" ]]; then \
@@ -1236,10 +1259,46 @@ endef
 
 define start_inference_timer
 inference_start_seconds="$$SECONDS"; \
+format_inference_duration() { \
+	duration_seconds="$$1"; \
+	duration_days="$$(($${duration_seconds} / 86400))"; \
+	duration_seconds="$$(($${duration_seconds} % 86400))"; \
+	duration_hours="$$(($${duration_seconds} / 3600))"; \
+	duration_seconds="$$(($${duration_seconds} % 3600))"; \
+	duration_minutes="$$(($${duration_seconds} / 60))"; \
+	duration_seconds="$$(($${duration_seconds} % 60))"; \
+	if [ "$${duration_days}" -gt 0 ]; then \
+		if [ "$${duration_seconds}" -gt 0 ]; then \
+			printf '%dd%02dh%02dm%02ds' "$${duration_days}" "$${duration_hours}" "$${duration_minutes}" "$${duration_seconds}"; \
+		elif [ "$${duration_minutes}" -gt 0 ]; then \
+			printf '%dd%02dh%02dm' "$${duration_days}" "$${duration_hours}" "$${duration_minutes}"; \
+		elif [ "$${duration_hours}" -gt 0 ]; then \
+			printf '%dd%02dh' "$${duration_days}" "$${duration_hours}"; \
+		else \
+			printf '%dd' "$${duration_days}"; \
+		fi; \
+	elif [ "$${duration_hours}" -gt 0 ]; then \
+		if [ "$${duration_seconds}" -gt 0 ]; then \
+			printf '%dh%02dm%02ds' "$${duration_hours}" "$${duration_minutes}" "$${duration_seconds}"; \
+		elif [ "$${duration_minutes}" -gt 0 ]; then \
+			printf '%dh%02dm' "$${duration_hours}" "$${duration_minutes}"; \
+		else \
+			printf '%dh' "$${duration_hours}"; \
+		fi; \
+	elif [ "$${duration_minutes}" -gt 0 ]; then \
+		if [ "$${duration_seconds}" -gt 0 ]; then \
+			printf '%dm%02ds' "$${duration_minutes}" "$${duration_seconds}"; \
+		else \
+			printf '%dm' "$${duration_minutes}"; \
+		fi; \
+	else \
+		printf '%ds' "$${duration_seconds}"; \
+	fi; \
+}; \
 effective_inference_timeout() { \
 	inference_elapsed="$$(($$SECONDS - $${inference_start_seconds}))"; \
 	if [ "$${inference_elapsed}" -lt 1 ]; then inference_elapsed=1; fi; \
-	printf '%ss' "$${inference_elapsed}"; \
+	format_inference_duration "$${inference_elapsed}"; \
 };
 endef
 
