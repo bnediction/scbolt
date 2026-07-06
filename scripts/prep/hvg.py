@@ -7,7 +7,7 @@ import cli
 from pathlib import Path
 
 import anndata as ad
-import scanpy as sc
+import bonesistools as bt
 
 script_name = Path(__file__).name
 
@@ -47,10 +47,10 @@ parser.add_argument(
     dest="method",
     type=str,
     required=False,
-    default="seurat_v3",
-    choices=["seurat", "cell_ranger", "seurat_v3"],
-    metavar="[seurat | cell_ranger | seurat_v3]",
-    help="method used for identifying highly variable genes (default: seurat_v3)",
+    default="loess",
+    choices=["loess", "binning"],
+    metavar="[loess | binning]",
+    help="method used for identifying highly variable genes (default: loess)",
 )
 
 parser.add_argument(
@@ -62,8 +62,8 @@ parser.add_argument(
     metavar="LITERAL",
     help=(
         "Expression layer used for HVG selection. Expected data: counts with "
-        "seurat_v3, otherwise log-normalized counts.\n"
-        "Default: counts with seurat_v3, otherwise log-norm."
+        "loess, otherwise log-normalized counts.\n"
+        "Default: counts with loess, otherwise log-norm."
     ),
 )
 
@@ -76,13 +76,13 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.3,
-    help="fraction of cells used when estimating the variance in the loess model (used only if method='seurat_v3', default: 0.3)",
+    help="fraction of cells used when estimating the variance in the loess model (used only if method='loess', default: 0.3)",
 )
 
 parser.add_argument(
     "--bins",
     dest="bins",
-    type=float,
+    type=int,
     required=False,
     default=20,
     metavar="INT",
@@ -102,7 +102,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 if args.expression is None:
-    args.expression = "counts" if args.method == "seurat_v3" else "log-norm"
+    args.expression = "counts" if args.method == "loess" else "log-norm"
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
@@ -127,23 +127,20 @@ if "variances_norm" in adata.var:
     del adata.var["variances_norm"]
 std.print_task(
     "estimating highly variable genes "
-    f"({std.format_hvg_parameters(flavor=args.method, number=args.hvg)})"
+    f"({std.format_hvg_parameters(method=args.method, number=args.hvg)})"
 )
-with std.filter_scanpy_hvg_warnings():
-    sc.pp.highly_variable_genes(
-        adata,
-        layer=args.expression,
-        flavor=args.method,
-        span=args.span,
-        n_bins=args.bins,
-        n_top_genes=args.hvg,
-        batch_key=args.batch,
-        inplace=True,
-    )
-if args.method == "seurat_v3":
-    adata._inplace_subset_var(adata.var.highly_variable_rank < args.hvg)
-else:
-    adata._inplace_subset_var(adata.var.highly_variable)
+bt.sct.pp.hvg(
+    adata,
+    expression=args.expression,
+    method=args.method,
+    span=args.span,
+    n_bins=args.bins,
+    n_features=args.hvg,
+    batch_key=args.batch,
+    batch_selection="rank",
+    copy=False,
+)
+adata._inplace_subset_var(adata.var.highly_variable)
 
 std.print_result(f"identified {adata.n_vars} highly variable genes")
 

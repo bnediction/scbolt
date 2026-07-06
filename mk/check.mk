@@ -374,8 +374,8 @@ else ifeq ($(HELP),false)
 	fi; \
 	if grep -qE 'scripts/clust/(clustering|integration).py' "$${dry_run}"; then \
 		$(call check_choice_diagnostic,\
-			$(ANALYSIS_HVG_FLAVOR),seurat cell_ranger seurat_v3,\
-			$(call needed_by,ANALYSIS_HVG_FLAVOR,clustering),method); \
+			$(ANALYSIS_HVG_METHOD),loess binning,\
+			$(call needed_by,ANALYSIS_HVG_METHOD,clustering),method); \
 		$(call check_optional_positive_integer_diagnostic,\
 			$(ANALYSIS_HVG_TOP),$(call needed_by,ANALYSIS_HVG_TOP,clustering),method); \
 		$(call check_float_diagnostic,\
@@ -431,8 +431,8 @@ else ifeq ($(HELP),false)
 			$(BIN_SCBOOLSEQ_ONLY_HVG),$(call needed_by,BIN_SCBOOLSEQ_ONLY_HVG,bin-cells),method); \
 		if [ "$(BIN_SCBOOLSEQ_ONLY_HVG)" = "true" ]; then \
 			$(call check_hvg_method_diagnostic,\
-				$(BIN_HVG_FLAVOR),$(BIN_HVG_TOP),\
-				$(call needed_by,BIN_HVG_FLAVOR,bin-cells),$(call needed_by,BIN_HVG_TOP,bin-cells),method); \
+				$(BIN_HVG_METHOD),$(BIN_HVG_TOP),\
+				$(call needed_by,BIN_HVG_METHOD,bin-cells),$(call needed_by,BIN_HVG_TOP,bin-cells),method); \
 			$(call check_float_diagnostic,$(BIN_HVG_SPAN),$(call needed_by,BIN_HVG_SPAN,bin-cells),method); \
 			$(call check_positive_integer_diagnostic,$(BIN_HVG_BINS),$(call needed_by,BIN_HVG_BINS,bin-cells),method); \
 		fi; \
@@ -450,8 +450,8 @@ else ifeq ($(HELP),false)
 		$(call check_bool_diagnostic,$(BIN_DEA_ONLY_HVG),$(call needed_by,BIN_DEA_ONLY_HVG,bin-dea),method); \
 		if [ "$(BIN_DEA_ONLY_HVG)" = "true" ]; then \
 			$(call check_hvg_method_diagnostic,\
-				$(BIN_HVG_FLAVOR),$(BIN_HVG_TOP),\
-				$(call needed_by,BIN_HVG_FLAVOR,bin-dea),$(call needed_by,BIN_HVG_TOP,bin-dea),method); \
+				$(BIN_HVG_METHOD),$(BIN_HVG_TOP),\
+				$(call needed_by,BIN_HVG_METHOD,bin-dea),$(call needed_by,BIN_HVG_TOP,bin-dea),method); \
 			$(call check_float_diagnostic,$(BIN_HVG_SPAN),$(call needed_by,BIN_HVG_SPAN,bin-dea),method); \
 			$(call check_positive_integer_diagnostic,$(BIN_HVG_BINS),$(call needed_by,BIN_HVG_BINS,bin-dea),method); \
 		fi; \

@@ -78,7 +78,7 @@ $(eval STAR_TOP_BARCODES ?=)               # optional number of top barcodes
 # multi-condition AnnData file or one AnnData file per condition, ordered like
 # CONDITIONS. Files must contain layer 'log-norm', obs 'macrostate', and obsm
 # REPRESENTATION. A single multi-condition file must also contain obs 'condition'.
-# If BIN_HVG_FLAVOR=seurat_v3 is used downstream, macrostate files must also
+# If BIN_HVG_METHOD=loess is used downstream, macrostate files must also
 # contain layer 'counts'.
 # REPRESENTATION must name an embedding in adata.obsm, usually created by clustering.
 # LABEL_COL is created by annotation, copied per condition, and used by
@@ -110,11 +110,10 @@ $(eval MT ?= 0.05)                          # maximum mitochondrial count fracti
 $(eval CC_CORRECTION ?= true)               # regress out cell-cycle effects
 
 ## CLUSTERING ##
-# If ANALYSIS_HVG_TOP is empty, the number of HVGs is estimated automatically,
-# except when ANALYSIS_HVG_FLAVOR=seurat_v3 where it is required.
-$(eval ANALYSIS_HVG_FLAVOR ?= cell_ranger)  # HVG method for analysis modules
+# If ANALYSIS_HVG_TOP is empty, the number of HVGs is estimated automatically.
+$(eval ANALYSIS_HVG_METHOD ?= loess)        # HVG method for analysis modules
 $(eval ANALYSIS_HVG_TOP ?=)                 # top HVGs for analysis modules
-$(eval ANALYSIS_HVG_SPAN ?= 0.3)            # cell fraction used by seurat_v3 loess
+$(eval ANALYSIS_HVG_SPAN ?= 0.3)            # cell fraction used by loess
 $(eval ANALYSIS_HVG_BINS ?= 20)             # mean-expression bins for HVG selection
 # INTEGRATION values: bbknn, scanorama, ingest.
 $(eval INTEGRATION ?= bbknn)                # integration method
@@ -205,20 +204,19 @@ $(eval KNNSC_NEIGHBORS ?= 20)               # KNN graph neighbor number
 $(eval KNNSC_MIN_CLUSTER_SIZE ?= 20)        # minimum label size for KNNSC candidates
 
 ## BINARIZATION ##
-# If BIN_HVG_TOP is empty, the number of HVGs is estimated automatically,
-# except when BIN_HVG_FLAVOR=seurat_v3 where it is required.
+# If BIN_HVG_TOP is empty, the number of HVGs is estimated automatically.
 # BIN_HVG_* controls the shared HVG selection used by binarization methods.
 # BIN_METHOD values: scboolseq, dea, consensus.
 # BINARIZATION_FILE overrides BIN_METHOD when set.
 # Consensus keeps compatible scBoolSeq/DEA states and leaves conflicts undefined.
-$(eval BIN_HVG_FLAVOR ?= cell_ranger)       # HVG method for binarization
+$(eval BIN_HVG_METHOD ?= binning)           # HVG method for binarization
 $(eval BIN_HVG_TOP ?=)                      # top HVGs for binarization
-$(eval BIN_HVG_SPAN ?= 0.3)                 # cell fraction used by seurat_v3 loess
+$(eval BIN_HVG_SPAN ?= 0.3)                 # cell fraction used by loess
 $(eval BIN_HVG_BINS ?= 20)                  # mean-expression bins for HVG selection
 $(eval BIN_METHOD ?= consensus)             # binarization method
 
 ## BIN-CELLS ##
-# HVG methods: seurat, cell_ranger, seurat_v3.
+# HVG methods: loess, binning.
 # scBoolSeq native thread defaults split JOBS between OpenBLAS and OpenMP.
 $(eval BIN_SCBOOLSEQ_ONLY_HVG ?= true)      # use only HVGs for scBoolSeq binarization
 $(eval SCBOOLSEQ_OPENBLAS_THREADS ?= auto)  # OpenBLAS threads used by scBoolSeq

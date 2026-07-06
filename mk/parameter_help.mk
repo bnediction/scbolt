@@ -79,12 +79,16 @@ parameter_help_description_MT = Maximum mitochondrial count fraction.
 parameter_help_hint_CC_CORRECTION = $(parameter_help_bool)
 parameter_help_description_CC_CORRECTION = Regress out cell-cycle scores.
 
-parameter_help_hint_ANALYSIS_HVG_FLAVOR = seurat | cell_ranger | seurat_v3
-parameter_help_description_ANALYSIS_HVG_FLAVOR = Analysis HVG method.
+parameter_help_hint_ANALYSIS_HVG_METHOD = loess | binning
+parameter_help_description_ANALYSIS_HVG_METHOD = Shared HVG method for single-cell omics analysis.
+parameter_help_note_ANALYSIS_HVG_METHOD = The loess method reproduces the Seurat v3
+parameter_help_note2_ANALYSIS_HVG_METHOD = LOESS-regularized mean-variance strategy.
+parameter_help_note3_ANALYSIS_HVG_METHOD = The binning method reproduces the Cell Ranger
+parameter_help_note4_ANALYSIS_HVG_METHOD = mean-binned normalized dispersion strategy.
 parameter_help_hint_ANALYSIS_HVG_TOP = >= 1, optional
 parameter_help_description_ANALYSIS_HVG_TOP = Number of top analysis HVGs.
 parameter_help_hint_ANALYSIS_HVG_SPAN = $(parameter_help_float)
-parameter_help_description_ANALYSIS_HVG_SPAN = Loess fraction for seurat_v3.
+parameter_help_description_ANALYSIS_HVG_SPAN = Loess smoothing fraction.
 parameter_help_hint_ANALYSIS_HVG_BINS = $(parameter_help_positive_integer)
 parameter_help_description_ANALYSIS_HVG_BINS = Mean-expression bins for analysis HVGs.
 parameter_help_hint_INTEGRATION = bbknn | scanorama | ingest
@@ -187,12 +191,16 @@ parameter_help_description_KNNSC_NEIGHBORS = KNN graph neighbor number.
 parameter_help_hint_KNNSC_MIN_CLUSTER_SIZE = >= 0
 parameter_help_description_KNNSC_MIN_CLUSTER_SIZE = Minimum label size for KNNSC candidates.
 
-parameter_help_hint_BIN_HVG_FLAVOR = seurat | cell_ranger | seurat_v3
-parameter_help_description_BIN_HVG_FLAVOR = Shared HVG method for binarization.
+parameter_help_hint_BIN_HVG_METHOD = loess | binning
+parameter_help_description_BIN_HVG_METHOD = Shared HVG method for binarization.
+parameter_help_note_BIN_HVG_METHOD = The loess method reproduces the Seurat v3
+parameter_help_note2_BIN_HVG_METHOD = LOESS-regularized mean-variance strategy.
+parameter_help_note3_BIN_HVG_METHOD = The binning method reproduces the Cell Ranger
+parameter_help_note4_BIN_HVG_METHOD = mean-binned normalized dispersion strategy.
 parameter_help_hint_BIN_HVG_TOP = $(parameter_help_optional_positive_integer)
 parameter_help_description_BIN_HVG_TOP = Number of top HVGs for binarization.
 parameter_help_hint_BIN_HVG_SPAN = $(parameter_help_float)
-parameter_help_description_BIN_HVG_SPAN = Loess cell fraction for seurat_v3.
+parameter_help_description_BIN_HVG_SPAN = Loess smoothing fraction.
 parameter_help_hint_BIN_HVG_BINS = $(parameter_help_positive_integer)
 parameter_help_description_BIN_HVG_BINS = Mean-expression bins for binarization HVG selection.
 parameter_help_hint_BIN_SCBOOLSEQ_ONLY_HVG = $(parameter_help_bool)

@@ -10,7 +10,6 @@ import random
 
 import numpy as np
 import anndata as ad
-import scanpy as sc
 import bonesistools as bt
 
 std.set_default_plot_params(bt.sct.pl)
@@ -198,14 +197,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--flavor",
-    dest="flavor",
+    "--method",
+    dest="method",
     type=str,
     required=False,
-    default="seurat_v3",
-    choices=["seurat", "cell_ranger", "seurat_v3"],
-    metavar="[seurat | cell_ranger | seurat_v3]",
-    help="method used for identifying highly variable genes (default: seurat_v3)",
+    default="loess",
+    choices=["loess", "binning"],
+    metavar="[loess | binning]",
+    help="method used for identifying highly variable genes (default: loess)",
 )
 
 parser.add_argument(
@@ -227,13 +226,13 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.3,
-    help="fraction of cells used when estimating the variance in the loess model (used only if method='seurat_v3', default: 0.3)",
+    help="fraction of cells used when estimating the variance in the loess model (used only if method='loess', default: 0.3)",
 )
 
 parser.add_argument(
     "--bins",
     dest="bins",
-    type=float,
+    type=int,
     required=False,
     default=20,
     metavar="INT",
@@ -338,18 +337,17 @@ if args.expression:
 if args.only_hvg:
     std.print_task(
         "estimating highly variable genes "
-        f"({std.format_hvg_parameters(flavor=args.flavor, number=args.top_hvg)})"
+        f"({std.format_hvg_parameters(method=args.method, number=args.top_hvg)})"
     )
-    with std.filter_scanpy_hvg_warnings():
-        sc.pp.highly_variable_genes(
-            adata,
-            layer="counts" if args.flavor == "seurat_v3" else "log-norm",
-            flavor=args.flavor,
-            span=args.span,
-            n_bins=args.bins,
-            n_top_genes=args.top_hvg,
-            inplace=True,
-        )
+    bt.sct.pp.hvg(
+        adata,
+        expression="counts" if args.method == "loess" else "log-norm",
+        method=args.method,
+        span=args.span,
+        n_bins=args.bins,
+        n_features=args.top_hvg,
+        copy=False,
+    )
 
 std.print_task(f"computing principal components (dimensions={args.pca_dimension})")
 if args.only_hvg:

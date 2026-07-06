@@ -75,7 +75,7 @@ Example output:
 --logging=
 --help
 --spec-file=
---bin-hvg-flavor=
+--bin-hvg-method=
 --prior-knowledge=
 --dorothea-api=
 ```
@@ -117,7 +117,7 @@ dashes with underscores and uppercasing the name:
 ```text
 --knnsc-embedding=...  ->  KNNSC_EMBEDDING=...
 --knnsc-min-cluster-size=...  ->  KNNSC_MIN_CLUSTER_SIZE=...
---bin-hvg-flavor=...   ->  BIN_HVG_FLAVOR=...
+--bin-hvg-method=...   ->  BIN_HVG_METHOD=...
 ```
 
 ## Target-Aware Completion

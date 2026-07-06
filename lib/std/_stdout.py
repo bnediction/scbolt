@@ -98,10 +98,10 @@ def format_embedding(embedding: str) -> str:
     return embedding
 
 
-def format_hvg_parameters(flavor: str, number: Optional[int] = None) -> str:
+def format_hvg_parameters(method: str, number: Optional[int] = None) -> str:
     if number is None:
-        return f"flavor={flavor}"
-    return f"flavor={flavor}, number={number}"
+        return f"method={method}"
+    return f"method={method}, number={number}"
 
 
 def format_set(values: Iterable[object]) -> str:

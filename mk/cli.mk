@@ -170,8 +170,8 @@ show_config_has_binarization_hvg = \
 	$(filter $(show_config_binarization_hvg_modules),$(show_config_param_modules))
 show_config_has_hvg = $(strip $(show_config_has_analysis_hvg) $(show_config_has_binarization_hvg))
 show_config_hvg_params = \
-	ANALYSIS_HVG_FLAVOR ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN ANALYSIS_HVG_BINS \
-	BIN_HVG_FLAVOR BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS
+	ANALYSIS_HVG_METHOD ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN ANALYSIS_HVG_BINS \
+	BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS
 show_config_relative_path = $(if $(strip $(1)),$(call relative_to_launch,$(1)))
 show_config_raw_var_value = $(if $(filter MEMORY,$(1)),$(if $(strip $(MEMORY)),$(memory_bonesistools),),$(if $(filter SPEC_FILE,$(1)),$(call show_config_relative_path,$(SPEC_FILE)),$(if $(filter REFERENCES,$(1)),$(display_references_label),$($(1)))))
 show_config_var_value = $(call show_config_display_value,$(call show_config_raw_var_value,$(1)))
@@ -340,15 +340,15 @@ $(if $(strip $(show_config_has_hvg)),\
 @printf '\nhighly variable genes\n'
 @printf '%s\n' 'highly variable genes' | sed 's/./-/g')
 $(if $(strip $(show_config_has_analysis_hvg)),\
-@printf 'analysis:\n'
-@printf '  - %-6s : %s\n' 'flavor' "$(call show_config_display_value,$(ANALYSIS_HVG_FLAVOR))"
+	@printf 'analysis:\n'
+	@printf '  - %-6s : %s\n' 'method' "$(call show_config_display_value,$(ANALYSIS_HVG_METHOD))"
 @printf '  - %-6s : %s\n' 'top' "$(call show_config_display_value,$(ANALYSIS_HVG_TOP))"
 @printf '  - %-6s : %s\n' 'span' "$(call show_config_display_value,$(ANALYSIS_HVG_SPAN))"
 @printf '  - %-6s : %s\n' 'bins' "$(call show_config_display_value,$(ANALYSIS_HVG_BINS))")
 $(if $(strip $(show_config_has_binarization_hvg)),\
 $(if $(strip $(show_config_has_analysis_hvg)),@printf '\n')
-@printf 'binarization:\n'
-@printf '  - %-6s : %s\n' 'flavor' "$(call show_config_display_value,$(BIN_HVG_FLAVOR))"
+	@printf 'binarization:\n'
+	@printf '  - %-6s : %s\n' 'method' "$(call show_config_display_value,$(BIN_HVG_METHOD))"
 @printf '  - %-6s : %s\n' 'top' "$(call show_config_display_value,$(BIN_HVG_TOP))"
 @printf '  - %-6s : %s\n' 'span' "$(call show_config_display_value,$(BIN_HVG_SPAN))"
 @printf '  - %-6s : %s\n' 'bins' "$(call show_config_display_value,$(BIN_HVG_BINS))")
@@ -531,10 +531,11 @@ else
 		name="$$1"; \
 		value="$$2"; \
 		hint="$$3"; \
-		description="$$4"; \
-		note="$$5"; \
-		note2="$$6"; \
-		note3="$$7"; \
+			description="$$4"; \
+			note="$$5"; \
+			note2="$$6"; \
+			note3="$$7"; \
+			note4="$$8"; \
 		if [ -n "$${value}" ] && [ -n "$${hint}" ]; then \
 			printf '  %-26s %s (%s)\n' "$${name}" "$${value}" "$${hint}"; \
 		elif [ -n "$${value}" ]; then \
@@ -550,12 +551,15 @@ else
 		if [ -n "$${note}" ]; then \
 			printf '    %s\n' "$${note}"; \
 		fi; \
-		if [ -n "$${note2}" ]; then \
-			printf '    %s\n' "$${note2}"; \
-		fi; \
-		if [ -n "$${note3}" ]; then \
-			printf '    %s\n' "$${note3}"; \
-		fi; \
+			if [ -n "$${note2}" ]; then \
+				printf '    %s\n' "$${note2}"; \
+			fi; \
+			if [ -n "$${note3}" ]; then \
+				printf '    %s\n' "$${note3}"; \
+			fi; \
+			if [ -n "$${note4}" ]; then \
+				printf '    %s\n' "$${note4}"; \
+			fi; \
 	}; \
 	if [ "$(SCBOLT_CLI)" = "true" ]; then \
 		printf 'usage: scbolt %s [options]\n\n' "$(module_help_target)"; \
@@ -607,21 +611,21 @@ else
 	else \
 		:; \
 		$(foreach param,$(module_help_params),\
-			print_parameter_help \
-				'$(param)' "$$(format_value "$($(param))")" \
-				'$(parameter_help_hint_$(param))' \
-				'$(parameter_help_description_$(param))' \
-				'$(parameter_help_note_$(param))' \
-				'$(parameter_help_note2_$(param))' \
-				'$(parameter_help_note3_$(param))';) \
-	fi; \
+				print_parameter_help \
+					'$(param)' "$$(format_value "$($(param))")" \
+					'$(parameter_help_hint_$(param))' \
+					'$(parameter_help_description_$(param))' \
+					'$(parameter_help_note_$(param))' \
+					'$(parameter_help_note2_$(param))' \
+					'$(parameter_help_note3_$(param))' \
+					'$(parameter_help_note4_$(param))';) \
+		fi; \
 		if [ -n "$(module_help_has_bin_hvg)" ] || [ -n "$(module_help_has_spec_note)" ]; then \
 			printf '\n'; \
 			printf '%s\n' 'Notes'; \
 			printf '%s\n' '-----'; \
 			if [ -n "$(module_help_has_bin_hvg)" ]; then \
 				printf '%s\n' 'Empty top HVG count means automatic estimation.'; \
-				printf '%s\n' 'For the seurat_v3 HVG method it must be set explicitly.'; \
 			fi; \
 			if [ -n "$(module_help_has_spec_note)" ]; then \
 				if [ -n "$(module_help_has_bin_hvg)" ]; then \

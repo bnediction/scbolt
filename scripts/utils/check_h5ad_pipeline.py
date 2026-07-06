@@ -111,10 +111,10 @@ def clustering_embeddings() -> set[Field]:
 
 
 def hvg_layer(tokens: list[str]) -> set[Field]:
-    flavor = option(tokens, "--flavor")
+    method = option(tokens, "--method")
     if "--only-hvg" not in tokens:
         return set()
-    return field("layers", "counts" if flavor == "seurat_v3" else "log-norm")
+    return field("layers", "counts" if method == "loess" else "log-norm")
 
 
 def parse_script_operation(tokens: list[str], script: str) -> Operation | None:

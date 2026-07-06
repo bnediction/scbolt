@@ -159,7 +159,7 @@ Examples:
 - `KNNSC_EMBEDDING`
 - `KNNSC_MIN_CLUSTER_SIZE`
 - `BIN_METHOD`
-- `BIN_HVG_FLAVOR`
+- `BIN_HVG_METHOD`
 - `MAX_CLAUSE`
 - `CLINGO_*`
 - `TIMEOUT_*`
@@ -350,7 +350,7 @@ The user-provided file must contain:
   multi-condition project;
 - `$(REPRESENTATION)` in `obsm`.
 
-If downstream HVG selection uses `BIN_HVG_FLAVOR=seurat_v3`, the file must also
+If downstream HVG selection uses `BIN_HVG_METHOD=loess`, the file must also
 contain:
 
 - `counts` in `layers`.

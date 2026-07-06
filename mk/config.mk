@@ -510,19 +510,13 @@ endef
 
 define require_optional_hvg_method
 case "$(strip $($(1)))" in \
-	""|seurat|cell_ranger|seurat_v3) ;; \
-	*) $(call print_error,unsupported value for parameter $(1) (supported values: seurat, cell_ranger, seurat_v3));; \
-esac; \
-if [ "$(strip $($(1)))" = "seurat_v3" ] && [ -z "$(strip $($(2)))" ]; then \
-	$(call print_error,parameter $(2) is required when parameter $(1) is equal to seurat_v3); \
-fi
+	""|loess|binning) ;; \
+	*) $(call print_error,unsupported value for parameter $(1) (supported values: loess, binning));; \
+esac
 endef
 
 define require_hvg_method
-$(call require_choice,$(1),seurat cell_ranger seurat_v3,$(3)); \
-if [ "$(strip $($(1)))" = "seurat_v3" ] && [ -z "$(strip $($(2)))" ]; then \
-	$(call print_error,parameter $(2) is required when parameter $(1) is equal to seurat_v3); \
-fi
+$(call require_choice,$(1),loess binning,$(3))
 endef
 
 define require_prior_knowledge
@@ -576,7 +570,7 @@ $(call require_bool,CONSISTENT_MAD,filtering)
 endef
 
 define require_clustering_parameters
-$(call require_choice,ANALYSIS_HVG_FLAVOR,seurat cell_ranger seurat_v3,clustering); \
+$(call require_choice,ANALYSIS_HVG_METHOD,loess binning,clustering); \
 $(call require_optional_positive_integer,ANALYSIS_HVG_TOP); \
 $(call require_float,ANALYSIS_HVG_SPAN); \
 $(call require_positive_integer,ANALYSIS_HVG_BINS); \
@@ -650,7 +644,7 @@ $(call require_bool,ZEROES_ARE_ZEROES,bin-cells)
 endef
 
 define require_bin_hvg_parameters
-$(call require_hvg_method,BIN_HVG_FLAVOR,BIN_HVG_TOP,$(1)); \
+$(call require_hvg_method,BIN_HVG_METHOD,BIN_HVG_TOP,$(1)); \
 $(call require_float,BIN_HVG_SPAN); \
 $(call require_positive_integer,BIN_HVG_BINS)
 endef
@@ -879,36 +873,26 @@ check_bool_diagnostic = $(call check_choice_diagnostic,$(1),true false,$(2),$(3)
 
 define check_optional_hvg_method_diagnostic
 case "$(strip $(1))" in \
-	""|seurat|cell_ranger|seurat_v3) \
+	""|loess|binning) \
 		$(call check_success,$(call parameter_label,$(1),$(3),$(5)) valid: \
 			$(call parameter_assignment,$(1),$(3)));; \
 	*) $(call report_check_error,unsupported value for \
 		$(call parameter_label,$(1),$(3),$(5)) $(call parameter_name,$(3)) \
-		(supported values: seurat, cell_ranger, seurat_v3));; \
-esac; \
-if [ "$(strip $(1))" = "seurat_v3" ] && [ -z "$(strip $(2))" ]; then \
-	$(call report_check_error,$(call parameter_label,$(1),$(4),$(5)) $(call parameter_name,$(4)) \
-		is required when $(call parameter_label,$(1),$(3),$(5)) $(call parameter_name,$(3)) \
-		is equal to seurat_v3); \
-fi
+		(supported values: loess, binning));; \
+esac
 endef
 
 define check_hvg_method_diagnostic
 case "$(strip $(1))" in \
-	seurat|cell_ranger|seurat_v3) \
+	loess|binning) \
 		$(call check_success,$(call parameter_label,$(1),$(3),$(5)) valid: \
 			$(call parameter_assignment,$(1),$(3)));; \
 	"") $(call report_check_error,required $(call parameter_label,$(1),$(3),$(5)) \
 		not defined: $(call parameter_name,$(3)));; \
 	*) $(call report_check_error,unsupported value for \
 		$(call parameter_label,$(1),$(3),$(5)) $(call parameter_name,$(3)) \
-		(supported values: seurat, cell_ranger, seurat_v3));; \
-esac; \
-if [ "$(strip $(1))" = "seurat_v3" ] && [ -z "$(strip $(2))" ]; then \
-	$(call report_check_error,$(call parameter_label,$(1),$(4),$(5)) $(call parameter_name,$(4)) \
-		is required when $(call parameter_label,$(1),$(3),$(5)) $(call parameter_name,$(3)) \
-		is equal to seurat_v3); \
-fi
+		(supported values: loess, binning));; \
+esac
 endef
 
 knnsc_centrality_var = $(call condition_param_var,KNNSC_CENTRALITY,$(1))

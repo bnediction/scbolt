@@ -383,7 +383,7 @@ $(clustering_$(1)): $(normalization_$(1))
 		--pca-dimension $(DIM_PCA) \
 		--clustering-dimension $(DIM_PCA) \
 		--embedding-dimension $(DIM_EMBEDDING) \
-		--flavor $(ANALYSIS_HVG_FLAVOR) $(if $(ANALYSIS_HVG_TOP),--top-hvg $(ANALYSIS_HVG_TOP),) \
+			--method $(ANALYSIS_HVG_METHOD) $(if $(ANALYSIS_HVG_TOP),--top-hvg $(ANALYSIS_HVG_TOP),) \
 		--span $(ANALYSIS_HVG_SPAN) --bins $(ANALYSIS_HVG_BINS) $(centered_pca) $(pca_only_hvg) \
 		--neighbors $(NEIGHBORS) --metric $(METRIC) \
 		--resolution $(RESOLUTION) --min-dist $(MIN_DIST) --spread $(SPREAD) \
@@ -574,7 +574,7 @@ $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(co
 		$^ --outfile $@ --labels $(conditions) \
 		--expression correct --adjacency knn --integration $(INTEGRATION) \
 		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_PCA) --embedding-dimension $(DIM_EMBEDDING) \
-		--flavor $(ANALYSIS_HVG_FLAVOR) $(if $(ANALYSIS_HVG_TOP),--top-hvg $(ANALYSIS_HVG_TOP),) \
+			--method $(ANALYSIS_HVG_METHOD) $(if $(ANALYSIS_HVG_TOP),--top-hvg $(ANALYSIS_HVG_TOP),) \
 		--span $(ANALYSIS_HVG_SPAN) --bins $(ANALYSIS_HVG_BINS) $(centered_pca) $(pca_only_hvg) \
 		--neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) \
 		--min-dist $(MIN_DIST) --spread $(SPREAD) \
@@ -632,10 +632,10 @@ $(call require_bin_hvg_parameters,$(1))
 if [ ! -f "$(bin_hvg)" ]; then
 	mkdir -p $(dir $(bin_hvg))
 	$(call print_task,estimating top$(if $(BIN_HVG_TOP), $(BIN_HVG_TOP),) \
-		highly variable genes with $(BIN_HVG_FLAVOR))
+		highly variable genes with $(BIN_HVG_METHOD))
 	$(call conda_run,scbolt-core) python $(scripts_dir)/prep/hvg.py \
 		$(lastword $(bin_input_h5ads)) $(bin_hvg) \
-		--method $(BIN_HVG_FLAVOR) \
+		--method $(BIN_HVG_METHOD) \
 		$(bin_hvg_layer) \
 		$(if $(BIN_HVG_TOP),--hvg $(BIN_HVG_TOP),) \
 		--span $(BIN_HVG_SPAN) --bins $(BIN_HVG_BINS) \
