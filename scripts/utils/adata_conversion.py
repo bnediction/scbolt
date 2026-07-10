@@ -187,10 +187,10 @@ if args.standardization:
     std.print_info("standardizing gene names")
     adata.var["symbol"] = list(adata.var.index)
     for input_identifier_type in ["name", "gene_id", "ensembl_id"]:
-        bt.sct.pp.convert_gene_identifiers(
+        bt.omics.pp.convert_gene_identifiers(
             adata, axis="var", input_identifier_type=input_identifier_type, copy=False
         )
-    bt.sct.pp.merge_duplicate_vars(
+    bt.omics.pp.merge_duplicate_vars(
         adata,
         copy=False,
     )
@@ -210,16 +210,16 @@ elif to_format == "loom":
 elif to_format == "zarr":
     adata.write_zarr(store=args.output)
 elif to_format == "csv":
-    bt.sct.tl.anndata_to_dataframe(adata=adata, layer=args.expression).to_csv(
+    bt.omics.tl.to_dataframe(adata=adata, layer=args.expression).to_csv(
         path_or_buf=args.output, sep=",", index=True
     )
 elif to_format == "csvs":
     adata.write_csvs(dirname=args.output, sep=",")
-    bt.sct.tl.to_csv_or_mtx(adata=adata, filename=Path(f"{args.output}/matrix"))
+    bt.omics.io.to_mtx(adata=adata, filename=Path(f"{args.output}/matrix"))
     if adata.layers.keys():
         os.makedirs(name=Path(f"{args.output}/layers"), exist_ok=True)
         for layer in adata.layers:
-            bt.sct.tl.to_csv_or_mtx(
+            bt.omics.io.to_mtx(
                 adata=adata, filename=Path(f"{args.output}/layers/{layer}"), layer=layer
             )
 else:

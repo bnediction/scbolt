@@ -141,7 +141,7 @@ if args.filter_genes:
     with open(args.filter_genes) as file:
         adata = adata[:, [line.strip() for line in file.readlines()]]
 
-ks_df = bt.sct.tl.smirnov_tests(
+ks_df = bt.omics.tl.smirnov_tests(
     adata,
     groupby=args.cluster,
     groups="all",
@@ -155,7 +155,7 @@ ks_df = bt.sct.tl.smirnov_tests(
 if ks_df is None:
     raise RuntimeError("smirnov tests did not return a table")
 
-logfoldchanges_df = bt.sct.tl.logfoldchanges(
+logfoldchanges_df = bt.omics.tl.logfoldchanges(
     adata,
     groupby=args.cluster,
     layer=args.expression,
@@ -200,7 +200,7 @@ if args.representation:
     adata.obs[f"pct_bin_{args.cluster}"] = (
         adata.obs[args.cluster].map(pct_bin).astype(float)
     )
-    bt.sct.pl.embedding(
+    bt.omics.pl.embedding(
         adata,
         obs=f"pct_bin_{args.cluster}",
         representation=args.representation,

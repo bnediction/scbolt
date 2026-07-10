@@ -10,16 +10,16 @@ annotation_file = annotation_dir / "annot.h5ad"
 
 annotation_dir.mkdir(parents=True, exist_ok=True)
 
-adata = bt.sct.datasets.load("nestorowa")
+adata = bt.omics.io.load("nestorowa")
 
-bt.sct.pp.log1p(
+bt.omics.pp.log1p(
     adata,
     expression="norm",
     key_added="log-norm",
     copy=False,
 )
 
-bt.sct.pp.scale(
+bt.omics.pp.scale(
     adata,
     expression="log-norm",
     key_added="scale",
@@ -28,9 +28,9 @@ bt.sct.pp.scale(
 
 adata.layers["correct"] = adata.layers["scale"].copy()
 
-bt.sct.pp.hvg(adata, expression="counts", n_features=2000, copy=False)
+bt.omics.pp.hvg(adata, expression="counts", n_features=2000, copy=False)
 
-bt.sct.tl.pca(
+bt.omics.tl.pca(
     adata,
     n_components=30,
     layer="scale",
@@ -40,7 +40,7 @@ bt.sct.tl.pca(
     copy=False,
 )
 
-bt.sct.tl.neighbors(
+bt.omics.tl.neighbors(
     adata,
     representation="X_pca",
     n_neighbors=15,
@@ -51,7 +51,7 @@ bt.sct.tl.neighbors(
     copy=False,
 )
 
-bt.sct.tl.spectral(
+bt.omics.tl.spectral(
     adata,
     n_components=4,
     neighbors_key="se_neighbors",
@@ -61,7 +61,7 @@ bt.sct.tl.spectral(
     copy=False,
 )
 
-bt.sct.pl.embedding(
+bt.omics.pl.embedding(
     adata,
     obs="label",
     representation="X_se",

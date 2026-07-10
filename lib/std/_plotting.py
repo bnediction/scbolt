@@ -51,7 +51,7 @@ def set_default_plot_params(plotting=None):
     if plotting is None:
         import bonesistools as bt
 
-        plotting = bt.sct.pl
+        plotting = bt.omics.pl
 
     plotting.set_default_params(tex=use_latex_rendering())
 
@@ -95,6 +95,116 @@ def plain_text_labels(value):
     if isinstance(value, tuple):
         return tuple(plain_text_labels(item) for item in value)
     return plain_text_label(value)
+
+
+def plot_categorical_embedding(
+    adata,
+    obs: str,
+    embedding: str,
+    outfile: str | Path,
+    *,
+    figheight: float = 5,
+    figwidth: float = 6,
+    label: str = "dim",
+) -> None:
+    """Plot categorical labels on an embedding and write the figure to PDF."""
+
+    if obs not in adata.obs:
+        raise KeyError(f"column '{obs}' not found in adata.obs")
+    if embedding not in adata.obsm:
+        raise KeyError(f"embedding '{embedding}' not found in adata.obsm")
+
+    import bonesistools as bt
+    import matplotlib.pyplot as plt
+
+    plotting = bt.omics.pl
+
+    if hasattr(adata.obs[obs], "cat"):
+        adata.obs[obs] = adata.obs[obs].cat.remove_unused_categories()
+
+    n_components = 3 if adata.obsm[embedding].shape[1] > 2 else 2
+    figure = plotting.embedding(
+        adata,
+        obs=obs,
+        representation=embedding,
+        figheight=figheight,
+        figwidth=figwidth,
+        xlabel=axis_label(label, 1),
+        ylabel=axis_label(label, 2),
+        zlabel=axis_label(label, 3),
+        legend={
+            "ncol": 1,
+            "markerscale": 5,
+            "frameon": True,
+            "edgecolor": plotting.get_color("black"),
+            "shadow": False,
+        },
+        text={
+            "fontsize": 12,
+            "fontweight": "extra bold",
+        },
+        background_visible=False,
+        n_components=n_components,
+    )
+    if figure is None:
+        raise RuntimeError("embedding plot did not return a figure and axis")
+
+    fig, ax = figure
+    plotting.set_default_axis(ax)
+    plt.savefig(outfile, bbox_inches="tight", pad_inches=0.3)
+    plt.close(fig)
+    crop_pdf(outfile)
+
+
+def plot_continuous_embedding(
+    adata,
+    obs: str,
+    embedding: str,
+    outfile: str | Path,
+    *,
+    figheight: float = 5,
+    figwidth: float = 6,
+    label: str = "dim",
+    colorbar_label: str | None = None,
+    colorbar_scale: float = 0.8,
+    s: float = 4,
+) -> None:
+    """Plot continuous values on an embedding and write the figure to PDF."""
+
+    if obs not in adata.obs:
+        raise KeyError(f"column '{obs}' not found in adata.obs")
+    if embedding not in adata.obsm:
+        raise KeyError(f"embedding '{embedding}' not found in adata.obsm")
+
+    import bonesistools as bt
+    import matplotlib.pyplot as plt
+
+    plotting = bt.omics.pl
+    n_components = 3 if adata.obsm[embedding].shape[1] > 2 else 2
+    figure = plotting.embedding(
+        adata,
+        obs=obs,
+        representation=embedding,
+        figheight=figheight,
+        figwidth=figwidth,
+        xlabel=axis_label(label, 1),
+        ylabel=axis_label(label, 2),
+        zlabel=axis_label(label, 3),
+        colorbar_scale=colorbar_scale,
+        s=s,
+        background_visible=False,
+        n_components=n_components,
+    )
+    if figure is None:
+        raise RuntimeError("embedding plot did not return a figure and axis")
+
+    fig, ax = figure
+    if colorbar_label is not None and len(fig.axes) > 1:
+        fig.axes[-1].set_ylabel(plain_text_label(colorbar_label))
+    plotting.set_default_axis(ax)
+    plt.savefig(outfile, bbox_inches="tight", pad_inches=0.3)
+    plt.close(fig)
+    crop_pdf(outfile)
 
 
 def crop_pdf(path: str | Path) -> bool:

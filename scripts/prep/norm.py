@@ -44,7 +44,7 @@ script_name = Path(__file__).name
 parser = argparse.ArgumentParser(
     prog="norm",
     description=(
-        "Normalize counts with different operations: standardization w.r.t. "
+        "Normalize counts with different operations: normalization w.r.t. "
         "library size, log-transformation, scaling and correction of unwanted effects."
     ),
     usage=f"python {script_name} <FILE> <FILE> [<args>]",
@@ -124,12 +124,12 @@ if args.expression:
 
 std.print_task("normalizing read counts")
 
-std.print_info("standardizing counts by library size (layer=norm)")
+std.print_info("normalizing counts by library size (layer=norm)")
 adata.layers["norm"] = adata.X.copy()
 normalize_by_library_size(adata, layer="norm", target_sum=1e4)
 
 std.print_info("performing log-transformation (layer=log-norm)")
-bt.sct.pp.log1p(
+bt.omics.pp.log1p(
     adata,
     expression="norm",
     key_added="log-norm",
@@ -138,7 +138,7 @@ bt.sct.pp.log1p(
 )
 
 std.print_info("scaling to unit variance and zero mean (layer=scale)")
-bt.sct.pp.scale(
+bt.omics.pp.scale(
     adata,
     expression="log-norm",
     key_added="scale",
@@ -148,7 +148,7 @@ bt.sct.pp.scale(
 if args.correction:
     std.print_info("correcting unwanted effects (layer: correct)")
     adata.layers["correct"] = adata.layers["log-norm"].copy()
-    bt.sct.tl.regress_out(
+    bt.omics.tl.regress_out(
         adata,
         keys=args.correction,
         layer="correct",
@@ -156,7 +156,7 @@ if args.correction:
         copy=False,
         n_jobs=args.jobs,
     )
-    bt.sct.pp.scale(adata, expression="correct", copy=False)
+    bt.omics.pp.scale(adata, expression="correct", copy=False)
 else:
     std.print_info("no unwanted effects specified")
     adata.layers["correct"] = adata.layers["scale"].copy()

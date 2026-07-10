@@ -145,7 +145,7 @@ adata = ad.read_h5ad(args.infile)
 
 std.print_task(f"ranking genes (scope=groups, method={args.method})")
 
-markers_df = bt.sct.tl.dea(
+markers_df = bt.omics.tl.dea(
     adata,
     groupby=args.cluster,
     method=args.method,

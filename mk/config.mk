@@ -6,7 +6,6 @@ params_optional_mode := $(filter help,$(MAKECMDGOALS))$(if $(filter true,$(HELP)
 launch_dir := $(CURDIR)
 lib_dir := $(scbolt_root)/lib
 scripts_dir := $(scbolt_root)/scripts
-fig_dir := $(scbolt_root)/scripts/fig
 scbolt_tool := $(scbolt_root)/bin/scbolt-tool
 conda_command = $(if $(and $(filter conda,$(backend)),$(CONDA_EXE)),$(CONDA_EXE),$(backend))
 SCBOLT_SYSTEM_ENV ?= scbolt-system
@@ -406,34 +405,6 @@ counts = float(adata.layers["counts"].sum()); \
 print(f"reads: spliced={spliced:.0f}, unspliced={unspliced:.0f}, ambiguous={ambiguous:.0f}"); \
 print(f"reads: spliced+unspliced+ambiguous={spliced + unspliced + ambiguous:.0f}, counts={counts:.0f}")' \
 $(1) $(2) | while IFS= read -r line; do $(call print_result,$$$$line); done
-endef
-
-define plot_embeddings_command
-$(call conda_run,scbolt-core) python $(fig_dir)/plot_embedding.py $(1) \
-	--infile $(2) --outfile "$$outfile" \
-	$(4)
-endef
-
-define plot_composition_command
-$(call conda_run,scbolt-core) python $(fig_dir)/plot_composition.py $(1) \
-	--infile $(2) --outfile "$$outfile" \
-	$(4)
-endef
-
-define plot_embeddings
-outfile="$(3)"
-display_file="$$(realpath --relative-to="$(launch_dir)" "$$outfile" 2>/dev/null \
-	|| printf '%s' "$$outfile")"
-$(call print_task,plotting embeddings (file=$$display_file))
-$(call plot_embeddings_command,$(1),$(2),$(3),$(4))
-endef
-
-define plot_composition
-outfile="$(3)"
-display_file="$$(realpath --relative-to="$(launch_dir)" "$$outfile" 2>/dev/null \
-	|| printf '%s' "$$outfile")"
-$(call print_task,plotting composition (file=$$display_file))
-$(call plot_composition_command,$(1),$(2),$(3),$(4))
 endef
 
 define check_file
@@ -1350,8 +1321,11 @@ endef
 
 define ensure_partial_gene_selection_metadata
 @if [ "$(1)" = "$(INTERRUPTED_TARGET)" ] && [ -s "$(2)" ]; then \
+	target="$(2)"; \
+	sidecar="$${target%.*}.scbolt.json"; \
 	solution_status="$$($(call metadata_solution_field,$(2),status) 2>/dev/null || true)"; \
-	if [ -z "$${solution_status}" ]; then \
+	if [ "$${solution_status}" != "partial" ] \
+			&& { [ ! -e "$${sidecar}" ] || [ "$${target}" -nt "$${sidecar}" ]; }; then \
 		$(call write_scbolt_metadata,$(1),$(2),$(call interrupted_timeout_param,$(1)),$(call solution_metadata_args,partial,$(2),$(3))); \
 	fi; \
 fi

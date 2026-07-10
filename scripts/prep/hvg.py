@@ -129,7 +129,7 @@ std.print_task(
     "estimating highly variable genes "
     f"({std.format_hvg_parameters(method=args.method, number=args.hvg)})"
 )
-bt.sct.pp.hvg(
+bt.omics.pp.hvg(
     adata,
     expression=args.expression,
     method=args.method,

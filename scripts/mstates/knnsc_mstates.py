@@ -74,6 +74,19 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--plot-representation",
+    dest="plot_representation",
+    type=str,
+    required=False,
+    default=None,
+    metavar="KEY",
+    help=(
+        "Embedding key in adata.obsm used for plotting KNNSC macrostates.\n"
+        "Default: None."
+    ),
+)
+
+parser.add_argument(
     "--dimension",
     dest="dimension",
     type=int,
@@ -229,7 +242,7 @@ if empty_selected_clusters:
     )
 
 std.print_task("estimating macrostates (method=KNNSC)")
-knnsc = bt.sct.tl.KNNSC()
+knnsc = bt.omics.tl.KNNSC()
 
 std.print_info(
     f"initializing graph parameters "
@@ -277,6 +290,17 @@ macrostates = knnsc.predict(
     central_clusters=args.centrality,
 )
 adata.obs["macrostate"] = macrostates
+
+if args.plot_representation:
+    plot = Path(f"{os.path.dirname(args.outfile)}/knnsc.pdf")
+    std.print_task(f"plotting embeddings (file={std.format_path(plot)})")
+    std.plot_categorical_embedding(
+        adata,
+        obs="macrostate",
+        embedding=args.plot_representation,
+        label=std.format_embedding(args.plot_representation),
+        outfile=plot,
+    )
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 std.write_h5ad(adata, filename=args.outfile, compression="gzip")

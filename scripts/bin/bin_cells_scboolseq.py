@@ -66,6 +66,20 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--representation",
+    dest="representation",
+    type=str,
+    required=False,
+    default=None,
+    metavar="LITERAL",
+    help=(
+        "Embedding representation in adata.obsm used for plotting binarization "
+        "percentages.\n"
+        "Default: None."
+    ),
+)
+
+parser.add_argument(
     "--expression",
     dest="expression",
     type=str,
@@ -129,7 +143,7 @@ std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
 std.print_info(f"converting layer '{args.expression}' into dataframe")
-counts_df = bt.sct.tl.anndata_to_dataframe(adata, layer=args.expression)
+counts_df = bt.omics.tl.to_dataframe(adata, layer=args.expression)
 
 if args.filter_genes:
     std.print_info(f"filtering genes (file={std.format_path(args.filter_genes)})")
@@ -171,6 +185,22 @@ elif not list(criteria_df.index) == list(adata.var.index):
 adata.layers["bin"] = cell_df
 adata.obs["pct_bin"] = (~cell_df.isna()).mean(axis=1)
 adata.var["distribution"] = criteria_df["Category"]
+
+if args.representation:
+    pct_bin_plot = Path(f"{os.path.dirname(args.outfile)}/pct_bin.pdf")
+    std.print_task(
+        "plotting binarization summaries "
+        f"(directory={os.path.relpath(os.path.dirname(args.outfile))})"
+    )
+    std.plot_continuous_embedding(
+        adata,
+        obs="pct_bin",
+        embedding=args.representation,
+        label=std.format_embedding(args.representation),
+        colorbar_label=r"$\% \mathrm{bin}$",
+        s=3,
+        outfile=pct_bin_plot,
+    )
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 std.write_h5ad(adata, filename=args.outfile, compression="gzip")

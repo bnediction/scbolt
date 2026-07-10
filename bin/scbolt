@@ -1556,6 +1556,15 @@ print_kept_intermediate_results() {
     )
 }
 
+interrupted_inference_module() {
+    local stdout_file="$1"
+
+    { grep -E ' - RULE - (max-nodes-soft|max-consts-soft|max-nodes-relaxed|max-nodes-seed|max-nodes-lock|bn-min|bn-submin|bn-diverse)( |$)' \
+        "${stdout_file}" || true; } \
+        | tail -n 1 \
+        | sed -E 's/^.* - RULE - ([^ ]+).*$/\1/'
+}
+
 print_kept_intermediate_results_if_inference_ran() {
     local params="$1"
     local stdout_file="$2"
@@ -1563,10 +1572,7 @@ print_kept_intermediate_results_if_inference_ran() {
     shift 2
 
     module="$(
-        grep -E ' - RULE - (max-nodes-soft|max-consts-soft|max-nodes-relaxed|max-nodes-seed|max-nodes-lock|bn-min|bn-submin|bn-diverse)( |$)' \
-            "${stdout_file}" \
-            | tail -n 1 \
-            | sed -E 's/^.* - RULE - ([^ ]+).*$/\1/'
+        interrupted_inference_module "${stdout_file}"
     )"
 
     if [ -n "${module}" ]; then
@@ -1715,6 +1721,7 @@ run_make_build_with_params() {
     local build_start_seconds
     local elapsed_seconds
     local elapsed
+    local interrupted_module
     shift 2
 
     require_params_file "${params}"
@@ -1814,17 +1821,17 @@ run_make_build_with_params() {
             print_warning_status "reached time limit" "${target_label}"
             ;;
         130)
-            printf '\n'
             print_warning "interrupted by user (${target_label})"
+            interrupted_module="$(interrupted_inference_module "${stdout_file}")"
             finalize_interrupted_gene_selection_results \
-                "${params}" "${target_label}" "${elapsed}" "$@"
+                "${params}" "${interrupted_module:-${target_label}}" "${elapsed}" "$@"
             print_kept_intermediate_results_if_inference_ran "${params}" "${stdout_file}" "$@"
             ;;
         143)
-            printf '\n'
             print_warning "interrupted by user (${target_label})"
+            interrupted_module="$(interrupted_inference_module "${stdout_file}")"
             finalize_interrupted_gene_selection_results \
-                "${params}" "${target_label}" "${elapsed}" "$@"
+                "${params}" "${interrupted_module:-${target_label}}" "${elapsed}" "$@"
             print_kept_intermediate_results_if_inference_ran "${params}" "${stdout_file}" "$@"
             ;;
         *)

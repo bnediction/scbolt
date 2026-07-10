@@ -274,12 +274,16 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
         infile, outfile = map(h5ad, args[:2])
         csv_files = option_values(tokens, "--csv")
         csv_names = {Path(path).name for path in csv_files}
+        required = field("obsm", option(tokens, "--plot-representation"))
         provides = set()
         if "potency_scores.csv" in csv_names:
             provides.add(("obs", "cytotrace_score"))
         elif any(name in {"mstates.csv", "mcts.csv"} for name in csv_names):
             provides.add(("obs", "macrostate"))
-        return Operation([infile], [outfile], {}, provides)
+        plot_obs = option(tokens, "--plot-obs")
+        if plot_obs and ("obs", plot_obs) not in provides:
+            required.add(("obs", plot_obs))
+        return Operation([infile], [outfile], {0: required}, provides)
 
     if name == "prepare_macrostate_h5ad.py":
         infile, outfile = map(h5ad, args[:2])
@@ -313,6 +317,7 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
         infile, outfile = map(h5ad, args[:2])
         required = field("obs", option(tokens, "--obs"))
         required |= field("obsm", option(tokens, "--embedding"))
+        required |= field("obsm", option(tokens, "--plot-representation"))
         return Operation([infile], [outfile], {0: required}, {("obs", "macrostate")})
 
     if name == "bin_cells_scboolseq.py":
@@ -321,7 +326,10 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
         return Operation(
             [infile],
             [outfile],
-            {0: field("layers", option(tokens, "--expression"))},
+            {
+                0: field("layers", option(tokens, "--expression"))
+                | field("obsm", option(tokens, "--representation"))
+            },
             {
                 ("layers", "bin"),
                 ("var", "distribution"),
@@ -368,18 +376,6 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
             set(),
             None,
         )
-
-    if name == "plot_embedding.py":
-        infile = h5ad(option(tokens, "--infile"))
-        required = field("obs", option(tokens, "--obs"))
-        required |= field("obsm", option(tokens, "--representation"))
-        return Operation([infile], [], {0: required}, set(), None)
-
-    if name == "plot_composition.py":
-        infile = h5ad(option(tokens, "--infile"))
-        required = field("obs", option(tokens, "--obs"))
-        required |= field("obs", option(tokens, "--groupby"))
-        return Operation([infile], [], {0: required}, set(), None)
 
     return None
 

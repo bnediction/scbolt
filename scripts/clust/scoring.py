@@ -273,7 +273,7 @@ for group in sorted(adata.obs[args.cluster].unique()):
     group_info["proportion"] = round(group_adata.n_obs / adata.n_obs, ndigits=6)
     group_info["median_expression"] = group_adata.obs["n_genes_by_counts"].median()
     group_info["median_reads"] = group_adata.obs["total_counts"].median()
-    ora_result = bt.sct.tl.ora(
+    ora_result = bt.omics.tl.ora(
         query_set=markers[group],
         signatures=signatures,
         background=group_adata.var_names,

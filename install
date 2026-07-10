@@ -231,7 +231,12 @@ is_yes_enabled() {
 prompt_backend() {
     local choice
 
-    if [ "${#selected_envs[@]}" -eq 0 ] || [ "${backend_requested}" = true ] || is_yes_enabled || [ ! -t 0 ];
+    if [ "${#selected_envs[@]}" -eq 0 ] || [ "${backend_requested}" = true ] || [ ! -t 0 ];
+    then
+        return 0
+    fi
+
+    if is_yes_enabled && [ "${install_all}" != true ];
     then
         return 0
     fi

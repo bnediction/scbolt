@@ -144,7 +144,7 @@ else:
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-genesyn = bt.dbs.ncbi.genesyn(
+genesyn = bt.resources.ncbi.genesyn(
     organism=args.organism,
     version=args.geneinfo_version,
 )

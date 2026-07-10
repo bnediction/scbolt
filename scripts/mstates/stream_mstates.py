@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 from networkx.classes.graph import Graph
 from rpy2.rinterface import ListSexpVector
 
-std.set_default_plot_params(bt.sct.pl)
+std.set_default_plot_params(bt.omics.pl)
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
@@ -241,7 +241,7 @@ std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 adata.uns["workdir"] = str(outpath)
 
-representation_mtx = bt.sct.tl.get_representation(
+representation_mtx = bt.omics.tl.get_representation(
     adata, representation=args.representation
 )
 adata.uns["dr"] = args.representation
@@ -341,7 +341,7 @@ groups = set([args.obs]).union({"kmeans", "macrostate"})
 std.print_task(f"plotting STREAM outputs (directory={os.path.relpath(outpath)})")
 for group in groups:
     epg_plot = Path(f"{outpath}/epg_{group}.pdf")
-    bt.sct.pl.trajectory(
+    bt.omics.pl.trajectory(
         adata,
         obs=group,
         representation=args.representation,
@@ -356,7 +356,7 @@ for group in groups:
             "ncol": 1,
             "markerscale": 5,
             "frameon": True,
-            "edgecolor": bt.sct.pl.get_color("black"),
+            "edgecolor": bt.omics.pl.get_color("black"),
             "shadow": False,
         },
         labels={"fontsize": 14, "fontweight": "extra bold"},

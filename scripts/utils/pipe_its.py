@@ -7,6 +7,7 @@ import cli
 from pathlib import Path
 
 import anndata as ad
+import bonesistools as bt
 import pandas as pd
 
 script_name = Path(__file__).name
@@ -95,7 +96,29 @@ parser.add_argument(
     help="column names in integrated adata.var to transfer",
 )
 
+parser.add_argument(
+    "--plot-obs",
+    dest="plot_obs",
+    type=str,
+    required=False,
+    default=None,
+    metavar="LITERAL",
+    help="if specified, plot transferred observation labels",
+)
+
+parser.add_argument(
+    "--embedding",
+    dest="embedding",
+    type=str,
+    required=False,
+    default="X_umap",
+    metavar="LITERAL",
+    help="embedding representation used for label plotting (default: X_umap)",
+)
+
 args = parser.parse_args()
+
+std.set_default_plot_params(bt.omics.pl)
 
 
 def reindex_boolean_series(series, target_index):
@@ -123,6 +146,15 @@ def remove_obs_name_prefix(adata, sep=":"):
         name=adata.obs.index.name,
     )
     adata.obs.index = obs_names
+
+
+def plot_labels(adata, obs: str, embedding: str, outfile: Path) -> None:
+    std.plot_categorical_embedding(
+        adata,
+        obs=obs,
+        embedding=embedding,
+        outfile=outfile,
+    )
 
 
 def transfer_obs_columns(source, target, columns, source_label, target_label):
@@ -226,5 +258,17 @@ if args.var is not None:
         )
 
 for name, outfile in zip(args.labels, args.outfiles):
+    if args.plot_obs is not None:
+        labels_plot = Path(os.path.dirname(outfile)) / "labels.pdf"
+        std.print_task(
+            f"plotting embeddings (dataset={name}, file={std.format_path(labels_plot)})"
+        )
+        plot_labels(
+            specific_ad[name],
+            obs=args.plot_obs,
+            embedding=args.embedding,
+            outfile=labels_plot,
+        )
+
     std.print_task(f"saving AnnData (dataset={name}, file={std.format_path(outfile)})")
     std.write_h5ad(specific_ad[name], filename=outfile, compression="gzip")

@@ -176,7 +176,7 @@ std.print_task(f"ranking genes (scope=groups, method={args.method})")
 
 adata.obs[args.cluster] = adata.obs[args.cluster].cat.remove_unused_categories()
 
-binarizer = bt.sct.tl.DEABinarizer(
+binarizer = bt.omics.tl.DEABinarizer(
     method=args.method,
     correction=args.correction,
     alpha=args.alpha,
@@ -197,32 +197,28 @@ cluster_bin = binarizer.binarize()
 cluster_bin = cluster_bin.reindex(columns=pd.Index(features))
 
 if args.representation:
-    embedding_label = (
-        args.representation[2:].lower()
-        if args.representation.startswith("X_")
-        else args.representation.lower()
-    )
+    macrostate_plot = Path(f"{os.path.dirname(args.outfile)}/{args.cluster}s.pdf")
     pct_bin_plot = Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf")
     std.print_task(
         "plotting binarization summaries "
         f"(directory={os.path.relpath(os.path.dirname(args.outfile))})"
     )
+    std.plot_categorical_embedding(
+        adata,
+        obs=args.cluster,
+        embedding=args.representation,
+        label=std.format_embedding(args.representation),
+        outfile=macrostate_plot,
+    )
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
     adata.obs[f"pct_bin_{args.cluster}"] = (
         adata.obs[args.cluster].map(pct_bin).astype(float)
     )
-    bt.sct.pl.embedding(
+    std.plot_continuous_embedding(
         adata,
         obs=f"pct_bin_{args.cluster}",
-        representation=args.representation,
-        xlabel=std.axis_label(embedding_label, 1),
-        ylabel=std.axis_label(embedding_label, 2),
-        zlabel=std.axis_label(embedding_label, 3),
-        figwidth=6,
-        s=4,
-        colorbar_scale=0.8,
-        n_components=3 if adata.obsm[args.representation].shape[1] > 2 else 2,
-        background_visible=False,
+        embedding=args.representation,
+        label=std.format_embedding(args.representation),
         outfile=pct_bin_plot,
     )
 

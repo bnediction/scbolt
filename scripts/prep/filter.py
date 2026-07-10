@@ -18,7 +18,7 @@ import pypairs
 
 import matplotlib.pyplot as plt
 
-std.set_default_plot_params(bt.sct.pl)
+std.set_default_plot_params(bt.omics.pl)
 
 setattr(pd.DataFrame, "iteritems", pd.DataFrame.items)
 script_name = Path(__file__).name
@@ -90,7 +90,7 @@ qc_plot_titles = [
 
 
 def plot_violin(adata, obs, ax, title=None, clip=(0, None), median=True):
-    bt.sct.pl.distribution(
+    bt.omics.pl.distribution(
         adata,
         obs=obs,
         kind="violin",
@@ -286,7 +286,7 @@ if not outpath.exists():
 std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 
 adata = ad.read_h5ad(Path(f"{args.infile}").resolve())
-genesyn = bt.dbs.ncbi.genesyn(
+genesyn = bt.resources.ncbi.genesyn(
     organism=args.organism,
     version=args.geneinfo_version,
 )
@@ -294,25 +294,25 @@ genesyn = bt.dbs.ncbi.genesyn(
 std.print_info("standardizing gene names")
 adata.var["symbol"] = list(adata.var.index)
 for input_identifier_type in ["name", "gene_id", "ensembl_id"]:
-    bt.sct.pp.convert_gene_identifiers(
+    bt.omics.pp.convert_gene_identifiers(
         adata,
         axis="var",
         input_identifier_type=input_identifier_type,
         genesyn=genesyn,
         copy=False,
     )
-bt.sct.pp.merge_duplicate_vars(
+bt.omics.pp.merge_duplicate_vars(
     adata,
     copy=False,
 )
 
 adata.var_names_make_unique()
-bt.sct.pp.sort_anndata(adata, on="both", copy=False)
+bt.omics.pp.sort(adata, on="both", copy=False)
 
 shape = {"init": adata.shape}
 
 std.print_task("detecting mitochondrial genes")
-bt.sct.pp.mitochondrial_genes(
+bt.omics.pp.mitochondrial_genes(
     adata,
     index_type="name",
     key="mt",
@@ -322,7 +322,7 @@ bt.sct.pp.mitochondrial_genes(
 )
 
 std.print_task("detecting ribosomal genes")
-bt.sct.pp.ribosomal_genes(
+bt.omics.pp.ribosomal_genes(
     adata,
     index_type="name",
     key="rps",
@@ -360,7 +360,7 @@ else:
     )
 
 std.print_task("calculating quality control metrics")
-bt.sct.pp.qc(
+bt.omics.pp.qc(
     adata,
     qc_vars=["mt", "rps"],
     percent_top=None,
@@ -386,8 +386,8 @@ cell_reads = [
 ylim = [0, round(math.ceil(max(cell_totals) + 1000), -3)]
 fig, ax = plt.subplots(nrows=1, ncols=2)
 plot_violin(adata, "total", ax=ax[0], clip="data", median=False)
-ax[0].axhline(reads[0], linewidth=1.5, linestyle="--", color=bt.sct.pl.get_color("red"))
-ax[0].axhline(reads[1], linewidth=1.5, linestyle="--", color=bt.sct.pl.get_color("red"))
+ax[0].axhline(reads[0], linewidth=1.5, linestyle="--", color=bt.omics.pl.get_color("red"))
+ax[0].axhline(reads[1], linewidth=1.5, linestyle="--", color=bt.omics.pl.get_color("red"))
 ax[0].set_ylim(ylim)
 ax[0].set(title="raw")
 
@@ -398,17 +398,19 @@ std.print_task(
     f"counts={format_range(args.gene_counts)})"
 )
 
-bt.sct.pp.filter_var(
-    adata, "pct_dropout", lambda x: (x <= 1e2 * args.gene_dropout)
+bt.omics.pp.filter_var(
+    adata,
+    "pct_dropout",
+    lambda x: (x <= 1e2 * args.gene_dropout),
 )
 
-bt.sct.pp.filter_var(
+bt.omics.pp.filter_var(
     adata,
     "n_barcodes",
     lambda x: (x >= args.gene_expression[0]) & (x < args.gene_expression[1]),
 )
 
-bt.sct.pp.filter_var(
+bt.omics.pp.filter_var(
     adata,
     "total",
     lambda x: (x >= args.gene_counts[0]) & (x < args.gene_counts[1]),
@@ -422,29 +424,31 @@ std.print_task(
     f"mitochondria<{1e2 * args.mt:g}%)"
 )
 
-bt.sct.pp.filter_obs(
-    adata, "n_features", lambda x: (x >= (1 - args.cell_dropout) * adata.n_vars)
+bt.omics.pp.filter_obs(
+    adata,
+    "n_features",
+    lambda x: (x >= (1 - args.cell_dropout) * adata.n_vars),
 )
 
-bt.sct.pp.filter_obs(
+bt.omics.pp.filter_obs(
     adata,
     "n_features",
     lambda x: (x >= args.cell_expression[0]) & (x < args.cell_expression[1]),
 )
 
-bt.sct.pp.filter_obs(
+bt.omics.pp.filter_obs(
     adata,
     "total",
     lambda x: (x >= args.cell_reads[0]) & (x < args.cell_reads[1]),
 )
 
-bt.sct.pp.filter_obs(
+bt.omics.pp.filter_obs(
     adata,
     "total",
     lambda x: (x >= reads[0]) & (x < reads[1]),
 )
 
-bt.sct.pp.filter_obs(
+bt.omics.pp.filter_obs(
     adata,
     "pct_mt",
     lambda x: x < 1e2 * args.mt,
@@ -460,8 +464,8 @@ std.print_result(
 )
 
 plot_violin(adata, "total", ax=ax[1], clip="data", median=False)
-ax[1].axhline(reads[0], linewidth=1.5, linestyle="--", color=bt.sct.pl.get_color("red"))
-ax[1].axhline(reads[1], linewidth=1.5, linestyle="--", color=bt.sct.pl.get_color("red"))
+ax[1].axhline(reads[0], linewidth=1.5, linestyle="--", color=bt.omics.pl.get_color("red"))
+ax[1].axhline(reads[1], linewidth=1.5, linestyle="--", color=bt.omics.pl.get_color("red"))
 ax[1].set_ylim(ylim)
 ax[1].set(title="filtered")
 fig.tight_layout()

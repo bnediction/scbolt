@@ -31,13 +31,13 @@ args = parser.parse_args()
 std.print_task(f"loading GEO count matrix (sample={args.gsm})")
 if args.cache_dir is None:
     with tempfile.TemporaryDirectory(prefix="scbolt-geo-") as cache_dir:
-        adata = bt.sct.datasets.from_geo(
+        adata = bt.omics.io.from_geo(
             args.gsm,
             cache_dir=cache_dir,
             quiet=args.quiet,
         )
 else:
-    adata = bt.sct.datasets.from_geo(
+    adata = bt.omics.io.from_geo(
         args.gsm,
         cache_dir=args.cache_dir,
         quiet=args.quiet,
@@ -54,7 +54,7 @@ if "symbol" in adata.var:
                 category=UserWarning,
             )
             adata.var_names = symbols
-            bt.sct.pp.merge_duplicate_vars(adata, copy=False)
+            bt.omics.pp.merge_duplicate_vars(adata, copy=False)
 
 keep_var_columns = [column for column in ["Accession", "symbol"] if column in adata.var]
 adata.var = adata.var.loc[:, keep_var_columns].copy()

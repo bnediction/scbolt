@@ -312,9 +312,9 @@ def write_noi(bn: MPBooleanNetwork, outfile):
         fp.write("".join(f"{node}\n" for node in noi_set))
 
 
-def to_bonesistools_boolean_network(bn: MPBooleanNetwork) -> bt.bpy.bn.BooleanNetwork:
+def to_bonesistools_boolean_network(bn: MPBooleanNetwork) -> bt.logic.bn.BooleanNetwork:
     """Adapt MPBN only for bonesistools graph export APIs."""
-    return bt.bpy.bn.BooleanNetwork(bn.copy())
+    return bt.logic.bn.BooleanNetwork(bn.copy())
 
 
 def write_influence_graph(
@@ -491,7 +491,7 @@ def write_ensemble_influence_graph(
 ) -> None:
     std.print_task(f"saving ensemble influence graph (file={outfile})")
 
-    ensemble = bt.bpy.bn.BooleanNetworkEnsemble(components=components)
+    ensemble = bt.logic.bn.BooleanNetworkEnsemble(components=components)
     for bn in bns:
         ensemble.append(to_bonesistools_boolean_network(bn))
 
@@ -570,7 +570,7 @@ def run_bn_view(
     bns = []
 
     try:
-        for i, solution in enumerate(view):
+        for i, solution in enumerate(view, start=1):
 
             if isinstance(view, bonesis.DiverseBooleanNetworksView):
                 bn, configs = solution
@@ -922,7 +922,7 @@ if args.bonesis_mode != "hard":
 clingo_parallel_jobs, clingo_parallel_option = get_clingo_parallel_mode(args.jobs)
 bonesis.settings["parallel"] = clingo_parallel_jobs
 
-genesyn = bt.dbs.ncbi.genesyn(
+genesyn = bt.resources.ncbi.genesyn(
     organism=args.organism,
     version=args.geneinfo_version,
 )

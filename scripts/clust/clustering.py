@@ -12,7 +12,7 @@ import numpy as np
 import anndata as ad
 import bonesistools as bt
 
-std.set_default_plot_params(bt.sct.pl)
+std.set_default_plot_params(bt.omics.pl)
 
 
 def _format_percent_if_float(value):
@@ -42,7 +42,7 @@ def compute_embedding(adata, method: str, args) -> None:
             f"spread={args.spread}, "
             f"n_iter={args.embedding_n_iter})"
         )
-        bt.sct.tl.umap(
+        bt.omics.tl.umap(
             adata,
             neighbors_key="neighbors",
             n_components=args.embedding_dimension,
@@ -59,7 +59,7 @@ def compute_embedding(adata, method: str, args) -> None:
             f"metric={args.metric}, "
             f"n_iter={args.embedding_n_iter})"
         )
-        bt.sct.tl.tsne(
+        bt.omics.tl.tsne(
             adata,
             representation="X_pca",
             n_pcs=args.clustering_dimension,
@@ -74,7 +74,7 @@ def compute_embedding(adata, method: str, args) -> None:
             f"computing embedding (method={embedding_label}, "
             f"dimensions={args.embedding_dimension})"
         )
-        bt.sct.tl.spectral(
+        bt.omics.tl.spectral(
             adata,
             neighbors_key="neighbors",
             n_components=args.embedding_dimension,
@@ -87,7 +87,7 @@ def plot_embedding(
     adata, method: str, representation: str, outfile: Path, args
 ) -> None:
     embedding_label = std.format_embedding(method)
-    bt.sct.pl.embedding(
+    bt.omics.pl.embedding(
         adata,
         obs="cluster",
         representation=representation,
@@ -100,7 +100,7 @@ def plot_embedding(
             "ncol": 1,
             "markerscale": 5,
             "frameon": True,
-            "edgecolor": bt.sct.pl.get_color("black"),
+            "edgecolor": bt.omics.pl.get_color("black"),
             "shadow": False,
         },
         n_components=3 if args.embedding_dimension > 2 else 2,
@@ -339,7 +339,7 @@ if args.only_hvg:
         "estimating highly variable genes "
         f"({std.format_hvg_parameters(method=args.method, number=args.top_hvg)})"
     )
-    bt.sct.pp.hvg(
+    bt.omics.pp.hvg(
         adata,
         expression="counts" if args.method == "loess" else "log-norm",
         method=args.method,
@@ -353,7 +353,7 @@ std.print_task(f"computing principal components (dimensions={args.pca_dimension}
 if args.only_hvg:
     std.print_info("filtering PCA features (scope=highly variable genes)")
 with std.single_thread():
-    bt.sct.tl.pca(
+    bt.omics.tl.pca(
         adata,
         n_components=args.pca_dimension,
         zero_center=args.centered_pca,
@@ -365,7 +365,7 @@ with std.single_thread():
 std.print_task(
     f"computing nearest-neighbor graph (principal components={args.clustering_dimension})"
 )
-bt.sct.tl.neighbors(
+bt.omics.tl.neighbors(
     adata,
     n_neighbors=args.neighbors,
     representation="X_pca",
@@ -379,12 +379,12 @@ prune_snn_msg = _format_percent_if_float(prune_snn)
 std.print_task(
     f"computing shared nearest-neighbor graph (pruning_threshold={prune_snn_msg})"
 )
-bt.sct.tl.shared_neighbors(
+bt.omics.tl.shared_neighbors(
     adata, snn_key="shared_neighbors", prune_snn=prune_snn, copy=False
 )
 
 std.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
-bt.sct.tl.leiden(
+bt.omics.tl.leiden(
     adata,
     neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
     resolution=args.resolution,

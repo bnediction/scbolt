@@ -31,6 +31,8 @@ from ._plotting import (
     crop_pdf,
     plain_text_label,
     plain_text_labels,
+    plot_categorical_embedding,
+    plot_continuous_embedding,
     set_default_plot_params,
     use_latex_rendering,
 )

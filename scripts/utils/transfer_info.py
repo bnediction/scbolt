@@ -113,7 +113,7 @@ if args.obs:
     )
 
     right_ad.obs = right_ad.obs.loc[:, args.obs]
-    bt.sct.pp.merge(left_ad=left_ad, right_ad=right_ad, axis="obs", copy=False)
+    bt.omics.pp.merge(left_ad=left_ad, right_ad=right_ad, axis="obs", copy=False)
 
 else:
     std.print_info("transferring observations not performed")
@@ -122,7 +122,7 @@ if args.var:
     std.print_task(f"transferring variables (columns={', '.join(map(str, args.var))})")
 
     right_ad.var = right_ad.var.loc[:, args.var]
-    bt.sct.pp.merge(left_ad=left_ad, right_ad=right_ad, axis="var", copy=False)
+    bt.omics.pp.merge(left_ad=left_ad, right_ad=right_ad, axis="var", copy=False)
 
 else:
     std.print_info("transferring variables not performed")
@@ -130,7 +130,7 @@ else:
 if args.layers:
     std.print_task(f"transferring layers (layers={', '.join(map(str, args.layers))})")
 
-    bt.sct.pp.transfer_layer(
+    bt.omics.pp.transfer_layer(
         left_ad=left_ad,
         right_ad=right_ad,
         layers=args.layers,

@@ -23,7 +23,7 @@ import cytotrace2_py as cytotrace
 import matplotlib.pyplot as plt
 import warnings
 
-std.set_default_plot_params(bt.sct.pl)
+std.set_default_plot_params(bt.omics.pl)
 
 parser_description = """Compute scores related to cell development potential (lower the score, higher the differentiation potential) and classify cells by their cell potency using the CytoTRACE framework.
 
@@ -174,7 +174,7 @@ np.random.seed(args.seed)
 std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
-counts = bt.sct.tl.anndata_to_dataframe(adata, layer=args.expression)
+counts = bt.omics.tl.to_dataframe(adata, layer=args.expression)
 
 if counts.max().max() <= 20:
     warnings.warn(
@@ -290,7 +290,7 @@ except IndexError:
 plot_dir = os.path.relpath(args.outpath)
 std.print_task(f"plotting potency outputs (directory={plot_dir})")
 for obs in ["score", "normalized_score", "potency"]:
-    bt.sct.pl.embedding(
+    bt.omics.pl.embedding(
         adata,
         obs=f"cytotrace_{obs}",
         representation=args.representation,
@@ -304,7 +304,7 @@ for obs in ["score", "normalized_score", "potency"]:
             "ncol": 1,
             "markerscale": 5,
             "frameon": True,
-            "edgecolor": bt.sct.pl.get_color("black"),
+            "edgecolor": bt.omics.pl.get_color("black"),
             "shadow": False,
         },
         n_components=3 if adata.obsm[args.representation].shape[1] > 2 else 2,
@@ -312,7 +312,7 @@ for obs in ["score", "normalized_score", "potency"]:
         outfile=Path(f"{args.outpath}/cytotrace_{obs}.pdf"),
     )
 
-fig, ax, _ = bt.sct.pl.distribution(
+fig, ax, _ = bt.omics.pl.distribution(
     adata,
     obs="cytotrace_score",
     groupby=args.cluster,
@@ -336,13 +336,13 @@ plt.hlines(
     y=ranges,
     xmin=ax.get_xlim()[0],
     xmax=ax.get_xlim()[1],
-    colors=bt.sct.pl.get_color("black"),
+    colors=bt.omics.pl.get_color("black"),
     linestyles="-",
     linewidth=0.2,
 )
 plt.savefig(Path(f"{args.outpath}/boxplot_cytotrace_score.pdf"))
 
-bt.sct.pl.distribution(
+bt.omics.pl.distribution(
     adata,
     obs="cytotrace_normalized_score",
     groupby="cluster",

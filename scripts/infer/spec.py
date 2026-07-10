@@ -186,7 +186,7 @@ for outfile in [
     if not Path(os.path.dirname(outfile)).exists():
         os.makedirs(Path(os.path.dirname(outfile)))
 
-genesyn = bt.dbs.ncbi.genesyn(
+genesyn = bt.resources.ncbi.genesyn(
     organism=args.organism,
     version=args.geneinfo_version,
 )
@@ -239,9 +239,13 @@ has_defined_state = macrostates_df.apply(
 )
 removed_nodes = macrostates_df.columns[~has_defined_state]
 if len(removed_nodes) > 0:
+    kept_nodes = int(has_defined_state.sum())
+    total_nodes = len(has_defined_state)
     std.print_info(
-        "removing uninformative nodes "
-        f"(all states undefined, n={len(removed_nodes)})"
+        "removing undefined features "
+        f"(kept={kept_nodes}/{total_nodes} "
+        f"({100 * kept_nodes / total_nodes:.1f}%), "
+        f"removed={len(removed_nodes)})"
     )
     macrostates_df = macrostates_df.loc[:, has_defined_state]
 

@@ -14,7 +14,7 @@ import anndata as ad
 import cellrank as cr
 import bonesistools as bt
 
-std.set_default_plot_params(bt.sct.pl)
+std.set_default_plot_params(bt.omics.pl)
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
@@ -288,7 +288,7 @@ macrostate_files = {
 
 for obs, file in macrostate_files.items():
     if len(adata.obs[obs].cat.categories) > 0:
-        bt.sct.pl.embedding(
+        bt.omics.pl.embedding(
             adata,
             obs=obs,
             representation="X_umap",
@@ -306,7 +306,7 @@ for obs, file in macrostate_files.items():
                 ),
                 "markerscale": 5,
                 "frameon": True,
-                "edgecolor": bt.sct.pl.get_color("black"),
+                "edgecolor": bt.omics.pl.get_color("black"),
                 "shadow": False,
             },
             n_components=3 if adata.obsm["X_umap"].shape[1] > 2 else 2,

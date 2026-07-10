@@ -15,7 +15,7 @@ import bonesistools as bt
 
 import numpy as np
 
-std.set_default_plot_params(bt.sct.pl)
+std.set_default_plot_params(bt.omics.pl)
 
 
 class Predict(object):
@@ -418,7 +418,7 @@ convert_metadata = (
 )
 
 std.print_info(f"converting layer '{args.expression}' into dataframe")
-cell_df = bt.sct.tl.anndata_to_dataframe(
+cell_df = bt.omics.tl.to_dataframe(
     adata=adata, obs=metadata, layer=args.expression
 )
 
@@ -455,47 +455,36 @@ if isinstance(cluster_bin.index, MultiIndex):
     )
 
 if args.representation:
-    embedding_label = (
-        args.representation[2:].lower()
-        if args.representation.startswith("X_")
-        else args.representation.lower()
-    )
+    macrostate_plot = Path(f"{os.path.dirname(args.outfile)}/{args.cluster}s.pdf")
     std.print_task(
         "plotting binarization summaries "
         f"(directory={os.path.relpath(os.path.dirname(args.outfile))})"
+    )
+    std.plot_categorical_embedding(
+        adata,
+        obs=args.cluster,
+        embedding=args.representation,
+        label=std.format_embedding(args.representation),
+        outfile=macrostate_plot,
     )
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
     adata.obs[f"pct_bin_{args.cluster}"] = (
         adata.obs[args.cluster].map(pct_bin).astype(float)
     )
-    bt.sct.pl.embedding(
+    std.plot_continuous_embedding(
         adata,
         obs=f"pct_bin_{args.cluster}",
-        representation=args.representation,
-        xlabel=std.axis_label(embedding_label, 1),
-        ylabel=std.axis_label(embedding_label, 2),
-        zlabel=std.axis_label(embedding_label, 3),
-        figwidth=6,
-        s=4,
-        colorbar_scale=0.8,
-        n_components=3 if adata.obsm[args.representation].shape[1] > 2 else 2,
-        background_visible=False,
+        embedding=args.representation,
+        label=std.format_embedding(args.representation),
         outfile=Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf"),
     )
     if args.condition:
         for condition in adata.obs[args.condition].cat.categories:
-            bt.sct.pl.embedding(
+            std.plot_continuous_embedding(
                 adata[adata.obs[args.condition] == condition],
                 obs=f"pct_bin_{args.cluster}",
-                representation=args.representation,
-                xlabel=std.axis_label(embedding_label, 1),
-                ylabel=std.axis_label(embedding_label, 2),
-                zlabel=std.axis_label(embedding_label, 3),
-                figwidth=6,
-                s=4,
-                colorbar_scale=0.8,
-                n_components=3 if adata.obsm[args.representation].shape[1] > 2 else 2,
-                background_visible=False,
+                embedding=args.representation,
+                label=std.format_embedding(args.representation),
                 outfile=Path(
                     f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}_{condition}.pdf"
                 ),

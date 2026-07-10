@@ -150,7 +150,47 @@ parser.add_argument(
     help="dataframe value type (expected: str, int, float, complex, bool, category; default: None)",
 )
 
+parser.add_argument(
+    "--plot-obs",
+    dest="plot_obs",
+    type=str,
+    required=False,
+    default=None,
+    metavar="LITERAL",
+    help="observation column to plot after adding tabular annotations (default: None)",
+)
+
+parser.add_argument(
+    "--plot-representation",
+    dest="plot_representation",
+    type=str,
+    required=False,
+    default=None,
+    metavar="LITERAL",
+    help="embedding representation in adata.obsm used by --plot-obs (default: None)",
+)
+
+parser.add_argument(
+    "--plot-outfile",
+    dest="plot_outfile",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=None,
+    metavar="FILE",
+    help="output PDF file written by --plot-obs (default: None)",
+)
+
 args = parser.parse_args()
+
+plot_args = [args.plot_obs, args.plot_representation, args.plot_outfile]
+if any(value is not None for value in plot_args) and not all(
+    value is not None for value in plot_args
+):
+    raise argparse.ArgumentError(
+        None,
+        "options --plot-obs, --plot-representation and --plot-outfile "
+        "must be passed together",
+    )
 
 if len(args.csv) == 1:
     if args.labels is not None:
@@ -300,6 +340,16 @@ else:
         adata.obs = adata_df
     else:
         adata.var = adata_df
+
+if args.plot_obs:
+    std.print_task(f"plotting embeddings (file={std.format_path(args.plot_outfile)})")
+    std.plot_categorical_embedding(
+        adata,
+        obs=args.plot_obs,
+        embedding=args.plot_representation,
+        label=std.format_embedding(args.plot_representation),
+        outfile=args.plot_outfile,
+    )
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 if str(args.outfile).endswith("h5ad"):

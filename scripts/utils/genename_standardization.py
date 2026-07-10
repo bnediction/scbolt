@@ -104,7 +104,7 @@ if not Path(os.path.dirname(args.outfile)).exists():
 
 file_extension = str(args.infile).split(".")[-1]
 
-genesynonyms = bt.dbs.ncbi.genesyn(organism=args.organism)
+genesynonyms = bt.resources.ncbi.genesyn(organism=args.organism)
 
 std.print_task(f"loading gene data (file={std.format_path(args.infile)})")
 std.print_info(

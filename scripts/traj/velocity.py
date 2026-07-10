@@ -19,7 +19,7 @@ warnings.filterwarnings(
     category=DeprecationWarning,
 )
 
-std.set_default_plot_params(bt.sct.pl)
+std.set_default_plot_params(bt.omics.pl)
 
 script_name = Path(__file__).name
 
@@ -197,7 +197,7 @@ with std.disable_print():
     adata.uns["transitions_confidence"] = adata.uns["paga"]["transitions_confidence"]
 
 embedding_label = "UMAP" if args.embedding == "umap" else "t-SNE"
-adata.uns["colors"] = bt.sct.pl.generate_colormap(
+adata.uns["colors"] = bt.omics.pl.generate_colormap(
     color_number=len(adata.obs[args.cluster].cat.categories)
 ).colors
 color_map = {
@@ -236,7 +236,7 @@ with warnings.catch_warnings():
             plt.savefig(Path(f"{outpath}/stream_plot.png"))
         plt.close()
 
-    bt.sct.pl.embedding(
+    bt.omics.pl.embedding(
         adata,
         obs="velocity_pseudotime",
         representation="X_umap" if args.embedding == "umap" else "X_tsne",
@@ -250,7 +250,7 @@ with warnings.catch_warnings():
             "ncol": 1,
             "markerscale": 5,
             "frameon": True,
-            "edgecolor": bt.sct.pl.get_color("black"),
+            "edgecolor": bt.omics.pl.get_color("black"),
             "shadow": False,
         },
         n_components=3 if adata.obsm["velocity_umap"].shape[1] > 2 else 2,
@@ -260,7 +260,7 @@ with warnings.catch_warnings():
         outfile=Path(f"{outpath}/velocity_pseudotime.pdf"),
     )
 
-    fig, ax = bt.sct.pl.embedding(
+    fig, ax = bt.omics.pl.embedding(
         adata,
         obs=args.cluster,
         representation="X_umap" if args.embedding == "umap" else "X_tsne",
@@ -274,7 +274,7 @@ with warnings.catch_warnings():
             "ncol": 1,
             "markerscale": 5,
             "frameon": True,
-            "edgecolor": bt.sct.pl.get_color("black"),
+            "edgecolor": bt.omics.pl.get_color("black"),
             "shadow": False,
         },
         colors=adata.uns["colors"],
@@ -286,7 +286,7 @@ with warnings.catch_warnings():
         background_visible=False,
     )
     plt.axis("off")
-    ax = bt.sct.pl.draw_paga(
+    ax = bt.omics.pl.draw_paga(
         adata=adata,
         obs=args.cluster,
         representation="X_umap" if args.embedding == "umap" else "X_tsne",

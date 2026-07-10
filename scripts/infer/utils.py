@@ -97,9 +97,9 @@ def load_prior_network(
             "version": omnipath_version,
             "genesyn": genesyn,
         }
-        if "hcop_version" in inspect.signature(bt.dbs.omnipath.collectri).parameters:
+        if "hcop_version" in inspect.signature(bt.resources.omnipath.collectri).parameters:
             kwargs["hcop_version"] = hcop_version
-        return bt.dbs.omnipath.collectri(**kwargs)
+        return bt.resources.omnipath.collectri(**kwargs)
 
     if domain == "dorothea":
         flavor = {"modern": "modern", "legacy": "legacy"}[dorothea_api]
@@ -113,7 +113,7 @@ def load_prior_network(
             f"version={omnipath_version}, hcop={hcop_version}, "
             f"flavor={flavor}, compatibility={str(dorothea_compatibility).lower()})"
         )
-        return bt.dbs.omnipath.dorothea(
+        return bt.resources.omnipath.dorothea(
             organism=organism,
             levels=levels,
             version=omnipath_version,
@@ -124,7 +124,7 @@ def load_prior_network(
         )
 
     std.print_task(f"loading custom prior network (file={std.format_path(domain)})")
-    return bt.bpy.ig.read_influence_graph(
+    return bt.logic.ig.read_influence_graph(
         infile=domain,
         genesyn=genesyn,
     )

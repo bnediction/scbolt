@@ -18,48 +18,17 @@ from _composition import (
 )
 
 
-def remove_unused_obs_categories(adata, obs: str) -> None:
-    if obs in adata.obs and hasattr(adata.obs[obs], "cat"):
-        adata.obs[obs] = adata.obs[obs].cat.remove_unused_categories()
-
-
 def plot_labels(adata, obs: str, embedding: str, outfile: Path) -> None:
-    remove_unused_obs_categories(adata, obs)
-    n_components = 3 if adata.obsm[embedding].shape[1] > 2 else 2
-    figure = bt.sct.pl.embedding(
+    std.plot_categorical_embedding(
         adata,
         obs=obs,
-        representation=embedding,
-        figheight=5,
-        figwidth=6,
-        xlabel=std.axis_label("dim", 1),
-        ylabel=std.axis_label("dim", 2),
-        zlabel=std.axis_label("dim", 3),
-        legend={
-            "ncol": 1,
-            "markerscale": 5,
-            "frameon": True,
-            "edgecolor": bt.sct.pl.get_color("black"),
-            "shadow": False,
-        },
-        text={
-            "fontsize": 12,
-            "fontweight": "extra bold",
-        },
-        background_visible=False,
-        n_components=n_components,
+        embedding=embedding,
+        outfile=outfile,
     )
-    if figure is None:
-        raise RuntimeError("embedding plot did not return a figure and axis")
-    fig, ax = figure
-    bt.sct.pl.set_default_axis(ax)
-    plt.savefig(outfile, bbox_inches="tight", pad_inches=0.3)
-    plt.close(fig)
-    std.crop_pdf(outfile)
 
 
 def plot_composition(adata, obs: str, groupby: str, outfile: Path) -> None:
-    figure = bt.sct.pl.composition(
+    figure = bt.omics.pl.composition(
         adata,
         obs=obs,
         groupby=groupby,
@@ -78,7 +47,7 @@ def plot_composition(adata, obs: str, groupby: str, outfile: Path) -> None:
     if figure is None:
         raise RuntimeError("composition plot did not return a figure and axis")
     fig, ax = figure
-    bt.sct.pl.set_default_axis(ax)
+    bt.omics.pl.set_default_axis(ax)
     plt.savefig(outfile, bbox_inches="tight", pad_inches=0.3)
     plt.close(fig)
     std.crop_pdf(outfile)
@@ -270,7 +239,7 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-std.set_default_plot_params(bt.sct.pl)
+std.set_default_plot_params(bt.omics.pl)
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
@@ -326,6 +295,10 @@ if args.condition_col is not None:
         embedding=args.embedding,
         outdir=Path(os.path.dirname(args.outfile)),
     )
+else:
+    labels_plot = Path(os.path.dirname(args.outfile)) / "labels.pdf"
+    std.print_task(f"plotting embeddings (file={std.format_path(labels_plot)})")
+    plot_labels(adata, obs=label_col, embedding=args.embedding, outfile=labels_plot)
 
 std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
 std.write_h5ad(adata, filename=args.outfile, compression="gzip")

@@ -383,7 +383,7 @@ $(clustering_$(1)): $(normalization_$(1))
 		--pca-dimension $(DIM_PCA) \
 		--clustering-dimension $(DIM_PCA) \
 		--embedding-dimension $(DIM_EMBEDDING) \
-			--method $(ANALYSIS_HVG_METHOD) $(if $(ANALYSIS_HVG_TOP),--top-hvg $(ANALYSIS_HVG_TOP),) \
+		--method $(ANALYSIS_HVG_METHOD) $(if $(ANALYSIS_HVG_TOP),--top-hvg $(ANALYSIS_HVG_TOP),) \
 		--span $(ANALYSIS_HVG_SPAN) --bins $(ANALYSIS_HVG_BINS) $(centered_pca) $(pca_only_hvg) \
 		--neighbors $(NEIGHBORS) --metric $(METRIC) \
 		--resolution $(RESOLUTION) --min-dist $(MIN_DIST) --spread $(SPREAD) \
@@ -400,10 +400,8 @@ $(annotation_$(1)): $(clustering_$(1))
 	fi
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/clust/annotation.py $$< $$@ \
-		--obs cluster --new-obs $(LABEL_COL) --labels $(label_map)
-	$$(call plot_embeddings,\
-		$(fig_dir)/generic.json,$$@,$$(@D)/labels.pdf,\
-		--obs $(LABEL_COL) --representation $(REPRESENTATION))
+		--obs cluster --new-obs $(LABEL_COL) --labels $(label_map) \
+		--embedding $(REPRESENTATION)
 	$$(call write_scbolt_metadata,annotation,$$(annotation_$(1)))
 else
 $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
@@ -411,10 +409,8 @@ $(annotation_$(1)): $(annotation_integrated) $(clustering_$(1))
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/pipe_its.py $$^ --outfiles $$@ \
 		--labels $(1) --obs-label condition --obs $(LABEL_COL) \
-		--var highly_variable highly_variable_rank
-	$$(call plot_embeddings,\
-		$(fig_dir)/generic.json,$$@,$$(@D)/labels.pdf,\
-		--obs $(LABEL_COL) --representation $(REPRESENTATION))
+		--var highly_variable highly_variable_rank \
+		--plot-obs $(LABEL_COL) --embedding $(REPRESENTATION)
 	$$(call write_scbolt_metadata,annotation,$$(annotation_$(1)))
 endif
 
@@ -455,10 +451,9 @@ $(cotan_$(1))&: $(annotation_$(1))
 	$(call conda_run,scbolt-core) python $(scripts_dir)/utils/add_to_anndata.py \
 		$$< $$(firstword $$(cotan_$(1))) \
 		--csv $$(lastword $$(cotan_$(1))) \
-		--axis 0 --sep , --type category
-	$$(call plot_embeddings,\
-		$(fig_dir)/macrostates.json,$$(firstword $$(cotan_$(1))),$$(@D)/macrostates.pdf,\
-		--representation $(REPRESENTATION))
+		--axis 0 --sep , --type category \
+		--plot-obs macrostate --plot-representation $(REPRESENTATION) \
+		--plot-outfile $$(@D)/macrostates.pdf
 	$$(call write_scbolt_metadata,cotan,$$(cotan_$(1)))
 
 $(cellrank_$(1))&: $(velocity_$(1)) $(potency_$(1))
@@ -517,10 +512,8 @@ $(knnsc_$(1))&: $(annotation_$(1))
 		--min-cluster-size $(KNNSC_MIN_CLUSTER_SIZE) \
 		$(if $(call knnsc_centrality,$(1)),--centrality $(call knnsc_centrality,$(1)),) \
 		$(if $(call knnsc_periphery,$(1)),--periphery $(call knnsc_periphery,$(1)),) \
+		--plot-representation $(REPRESENTATION) \
 		--jobs $(JOBS)
-	$$(call plot_embeddings,\
-		$(fig_dir)/macrostates.json,$$(firstword $$(knnsc_$(1))),$$(@D)/knnsc.pdf,\
-		--representation $(REPRESENTATION))
 	$$(call write_scbolt_metadata,knnsc,$$(knnsc_$(1)))
 endif
 
@@ -574,7 +567,7 @@ $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(co
 		$^ --outfile $@ --labels $(conditions) \
 		--expression correct --adjacency knn --integration $(INTEGRATION) \
 		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_PCA) --embedding-dimension $(DIM_EMBEDDING) \
-			--method $(ANALYSIS_HVG_METHOD) $(if $(ANALYSIS_HVG_TOP),--top-hvg $(ANALYSIS_HVG_TOP),) \
+		--method $(ANALYSIS_HVG_METHOD) $(if $(ANALYSIS_HVG_TOP),--top-hvg $(ANALYSIS_HVG_TOP),) \
 		--span $(ANALYSIS_HVG_SPAN) --bins $(ANALYSIS_HVG_BINS) $(centered_pca) $(pca_only_hvg) \
 		--neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) \
 		--min-dist $(MIN_DIST) --spread $(SPREAD) \
@@ -657,13 +650,11 @@ $(bin_cells)&: $(bin_input_h5ads)
 		--bin $(shell echo $@ | $(call system_tool,sed) "s/.h5ad/.csv/") \
 		--statistics $(lastword $(bin_cells)) \
 		--expression log-norm \
+		--representation $(REPRESENTATION) \
 		--quantile $(UNIMODAL_QUANTILE) \
 		--seed $(SEED) \
 		$(zeroes_are_zeroes) \
 		$(bin_scboolseq_hvg)
-	$(call plot_embeddings,\
-		$(fig_dir)/bin.json,$(firstword $(bin_cells)),$(@D)/pct_bin.pdf,\
-		--representation $(REPRESENTATION))
 	$(call write_scbolt_metadata,bin-cells,$(bin_cells))
 
 ifeq ($(strip $(MACROSTATE_FILES)),)
@@ -689,9 +680,6 @@ $(bin_mstates): $(firstword $(bin_cells)) \
 		--bimodal-threshold $(BIMODAL_THRESHOLD) \
 		--zeroinf-threshold $(ZEROINF_THRESHOLD) \
 		--unimodal-threshold $(UNIMODAL_THRESHOLD)
-	$(call plot_embeddings,\
-		$(fig_dir)/macrostates.json,$(tmpdir)/integrated/bin/aggr/mcts.h5ad,$(@D)/macrostates.pdf,\
-		--representation $(REPRESENTATION))
 	$(call write_scbolt_metadata,bin-macrostates,$@)
 else
 $(bin_mstates): $(firstword $(bin_cells))
@@ -707,9 +695,6 @@ $(bin_mstates): $(firstword $(bin_cells))
 		--bimodal-threshold $(BIMODAL_THRESHOLD) \
 		--zeroinf-threshold $(ZEROINF_THRESHOLD) \
 		--unimodal-threshold $(UNIMODAL_THRESHOLD)
-	$(call plot_embeddings,\
-		$(fig_dir)/macrostates.json,$<,$(@D)/macrostates.pdf,\
-		--representation $(REPRESENTATION))
 	$(call write_scbolt_metadata,bin-macrostates,$@)
 endif
 
@@ -735,9 +720,6 @@ $(bin_dea): \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION) \
 		--max-memory "$(memory_bonesistools)" \
 		$(bin_dea_hvg)
-	$(call plot_embeddings,\
-		$(fig_dir)/macrostates.json,$(tmpdir)/integrated/bin/dea/mcts.h5ad,$(@D)/macrostates.pdf,\
-		--representation $(REPRESENTATION))
 	$(call write_scbolt_metadata,bin-dea,$@)
 else
 $(bin_dea): $(bin_input_h5ads)
@@ -751,9 +733,6 @@ $(bin_dea): $(bin_input_h5ads)
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION) \
 		--max-memory "$(memory_bonesistools)" \
 		$(bin_dea_hvg)
-	$(call plot_embeddings,\
-		$(fig_dir)/macrostates.json,$<,$(@D)/macrostates.pdf,\
-		--representation $(REPRESENTATION))
 	$(call write_scbolt_metadata,bin-dea,$@)
 endif
 
@@ -961,6 +940,7 @@ __check-bn-diverse-outputs:
 $(bn_submin)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-submin-outputs $(geneinfo_dependency)
 	$(call print_rule,bn-submin)
 	$(call require_bonesis_infer_parameters,bn-submin)
+	rm -rf $(bn_submin_dir)
 	mkdir -p $(bn_submin_dir)
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py submin \
 		$(word 1,$^) $(word 2,$^) \
@@ -982,6 +962,7 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-submin-outputs $(
 $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-diverse-outputs $(geneinfo_dependency)
 	$(call print_rule,bn-diverse)
 	$(call require_bonesis_infer_parameters,bn-diverse)
+	rm -rf $(bn_diverse_dir)
 	mkdir -p $(bn_diverse_dir)
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py diverse \
 		$(word 1,$^) $(word 2,$^) \

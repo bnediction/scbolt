@@ -17,6 +17,7 @@ import anndata as ad
 import scanpy as sc
 import bonesistools as bt
 import scanorama
+from bonesistools.omics import _typing as omics_typing
 
 from _composition import (
     check_exported_composition,
@@ -24,10 +25,10 @@ from _composition import (
     composition_rows,
 )
 
-std.set_default_plot_params(bt.sct.pl)
+std.set_default_plot_params(bt.omics.pl)
 
 
-@bt.sct.typing.anndata_checker
+@omics_typing.anndata_checker
 def clean_adata(
     adata: AnnData,
     obs: Optional[Sequence[str]] = None,
@@ -103,9 +104,9 @@ def summarize_cluster_composition(
 
 
 EMBEDDINGS = (
-    ("umap", "X_umap", "umap.pdf"),
-    ("tsne", "X_tsne", "tsne.pdf"),
-    ("spectral", "X_se", "spectral.pdf"),
+    ("umap", "X_umap", "umap_clust.pdf", "umap_cond.pdf"),
+    ("tsne", "X_tsne", "tsne_clust.pdf", "tsne_cond.pdf"),
+    ("spectral", "X_se", "spectral_clust.pdf", "spectral_cond.pdf"),
 )
 
 
@@ -121,7 +122,7 @@ def compute_embedding(adata, method: str, args, representation: str = "X_pca") -
             f"spread={args.spread}, "
             f"n_iter={args.embedding_n_iter})"
         )
-        bt.sct.tl.umap(
+        bt.omics.tl.umap(
             adata,
             neighbors_key="neighbors",
             n_components=args.embedding_dimension,
@@ -138,7 +139,7 @@ def compute_embedding(adata, method: str, args, representation: str = "X_pca") -
             f"metric={args.metric}, "
             f"n_iter={args.embedding_n_iter})"
         )
-        bt.sct.tl.tsne(
+        bt.omics.tl.tsne(
             adata,
             representation=representation,
             n_pcs=args.clustering_dimension,
@@ -153,7 +154,7 @@ def compute_embedding(adata, method: str, args, representation: str = "X_pca") -
             f"computing embedding (method={embedding_label}, "
             f"dimensions={args.embedding_dimension})"
         )
-        bt.sct.tl.spectral(
+        bt.omics.tl.spectral(
             adata,
             neighbors_key="neighbors",
             n_components=args.embedding_dimension,
@@ -164,7 +165,7 @@ def compute_embedding(adata, method: str, args, representation: str = "X_pca") -
 
 
 def compute_embeddings(adata, args, representation: str = "X_pca") -> None:
-    for method, _, _ in EMBEDDINGS:
+    for method, _, _, _ in EMBEDDINGS:
         compute_embedding(adata, method, args, representation=representation)
 
 
@@ -177,7 +178,7 @@ def plot_embedding(
     args,
 ) -> None:
     embedding_label = std.format_embedding(method)
-    bt.sct.pl.embedding(
+    bt.omics.pl.embedding(
         adata,
         obs=obs,
         representation=representation,
@@ -190,7 +191,7 @@ def plot_embedding(
             "ncol": 1,
             "markerscale": 5,
             "frameon": True,
-            "edgecolor": bt.sct.pl.get_color("black"),
+            "edgecolor": bt.omics.pl.get_color("black"),
             "shadow": False,
         },
         n_components=3 if args.embedding_dimension > 2 else 2,
@@ -494,7 +495,7 @@ std.print_task(
     "estimating highly variable genes "
     f"({std.format_hvg_parameters(method=args.method, number=args.top_hvg)})"
 )
-bt.sct.pp.hvg(
+bt.omics.pp.hvg(
     adata,
     expression="counts" if args.method == "loess" else "log-norm",
     method=args.method,
@@ -522,7 +523,7 @@ if args.integration == "ingest":
         f"computing principal components (dimensions={args.pca_dimension}, condition={reference})"
     )
     with std.single_thread():
-        bt.sct.tl.pca(
+        bt.omics.tl.pca(
             adatas[reference],
             n_components=args.pca_dimension,
             zero_center=args.centered_pca,
@@ -534,7 +535,7 @@ if args.integration == "ingest":
     std.print_task(
         f"computing nearest-neighbor graph (principal components={args.clustering_dimension}, condition={reference})"
     )
-    bt.sct.tl.neighbors(
+    bt.omics.tl.neighbors(
         adatas[reference],
         n_neighbors=args.neighbors,
         representation="X_pca",
@@ -544,7 +545,7 @@ if args.integration == "ingest":
     )
 
     std.print_task(f"computing shared nearest-neighbor graph (condition={reference})")
-    bt.sct.tl.shared_neighbors(
+    bt.omics.tl.shared_neighbors(
         adatas[reference], snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
     )
 
@@ -576,7 +577,7 @@ if args.integration == "ingest":
     std.print_task(
         f"computing nearest-neighbor graph (principal components={args.clustering_dimension}, dataset=integrated)"
     )
-    bt.sct.tl.neighbors(
+    bt.omics.tl.neighbors(
         adata,
         n_neighbors=args.neighbors,
         representation="X_pca",
@@ -586,14 +587,14 @@ if args.integration == "ingest":
     )
 
     std.print_task("computing shared nearest-neighbor graph (dataset=integrated)")
-    bt.sct.tl.shared_neighbors(
+    bt.omics.tl.shared_neighbors(
         adata, snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
     )
 
     std.print_task(
         f"clustering cells (algorithm=leiden, resolution={args.resolution}, dataset=integrated)"
     )
-    bt.sct.tl.leiden(
+    bt.omics.tl.leiden(
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
         resolution=args.resolution,
@@ -609,7 +610,7 @@ elif args.integration == "bbknn":
 
     std.print_task(f"computing principal components (dimensions={args.pca_dimension})")
     with std.single_thread():
-        bt.sct.tl.pca(
+        bt.omics.tl.pca(
             adata,
             n_components=args.pca_dimension,
             zero_center=args.centered_pca,
@@ -636,7 +637,7 @@ elif args.integration == "bbknn":
         )
 
     std.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
-    bt.sct.tl.leiden(
+    bt.omics.tl.leiden(
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
         resolution=args.resolution,
@@ -681,7 +682,7 @@ elif args.integration == "scanorama":
     std.print_task(
         f"computing nearest-neighbor graph (principal components={args.clustering_dimension})"
     )
-    bt.sct.tl.neighbors(
+    bt.omics.tl.neighbors(
         adata,
         n_neighbors=args.neighbors,
         representation="X_scanorama",
@@ -691,12 +692,12 @@ elif args.integration == "scanorama":
     )
 
     std.print_task("computing shared nearest-neighbor graph")
-    bt.sct.tl.shared_neighbors(
+    bt.omics.tl.shared_neighbors(
         adata, snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
     )
 
     std.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
-    bt.sct.tl.leiden(
+    bt.omics.tl.leiden(
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
         resolution=args.resolution,
@@ -716,7 +717,7 @@ std.print_info(
     f"plotting embeddings (directory={os.path.relpath(os.path.dirname(args.outfile))})"
 )
 pc_plot = Path(f"{os.path.dirname(args.outfile)}/pca.pdf")
-bt.sct.pl.embedding(
+bt.omics.pl.embedding(
     adata,
     obs="condition",
     representation="X_pca" if args.integration != "scanorama" else "X_scanorama",
@@ -728,20 +729,28 @@ bt.sct.pl.embedding(
         "ncol": 1,
         "markerscale": 5,
         "frameon": True,
-        "edgecolor": bt.sct.pl.get_color("black"),
+        "edgecolor": bt.omics.pl.get_color("black"),
         "shadow": False,
     },
     background_visible=False,
     outfile=pc_plot,
 )
 
-for method, representation, filename in EMBEDDINGS:
+for method, representation, cluster_filename, condition_filename in EMBEDDINGS:
     plot_embedding(
         adata,
         "cluster",
         method,
         representation,
-        Path(f"{os.path.dirname(args.outfile)}/{filename}"),
+        Path(f"{os.path.dirname(args.outfile)}/{cluster_filename}"),
+        args,
+    )
+    plot_embedding(
+        adata,
+        "condition",
+        method,
+        representation,
+        Path(f"{os.path.dirname(args.outfile)}/{condition_filename}"),
         args,
     )
 
@@ -752,7 +761,7 @@ composition_plots = {
 
 for obs, (groupby, filename) in composition_plots.items():
     composition_plot = Path(f"{os.path.dirname(args.outfile)}/{filename}")
-    bt.sct.pl.composition(
+    bt.omics.pl.composition(
         adata,
         obs=obs,
         groupby=groupby,
