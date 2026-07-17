@@ -74,7 +74,10 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="output file storing important nodes prioritized to appear (format: json or txt)",
+    help=(
+        "output file storing important nodes prioritized to appear (format: json or "
+        "txt)"
+    ),
 )
 
 parser.add_argument(
@@ -145,7 +148,10 @@ parser.add_argument(
     allow_current=False,
     required=False,
     default="latest",
-    help="OmniPath resource version used when --domain is collectri or dorothea (default: latest)",
+    help=(
+        "OmniPath resource version used when --domain is collectri or dorothea "
+        "(default: latest)"
+    ),
 )
 
 parser.add_argument(
@@ -154,7 +160,10 @@ parser.add_argument(
     type=str,
     required=False,
     default="bundled",
-    help="HCOP orthology version used when --domain is collectri or dorothea (default: bundled)",
+    help=(
+        "HCOP orthology version used when --domain is collectri or dorothea (default: "
+        "bundled)"
+    ),
 )
 
 parser.add_argument(

@@ -288,7 +288,10 @@ parser.add_argument(
     required=False,
     default="distribution",
     metavar="LITERAL",
-    help="variable name in 'adata.var' storing gene distributions (default: distribution)",
+    help=(
+        "variable name in 'adata.var' storing gene distributions (default: "
+        "distribution)"
+    ),
 )
 
 parser.add_argument(

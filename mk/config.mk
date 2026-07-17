@@ -172,6 +172,8 @@ tolower = $(call translate_case,$1,_upper,_lower)
 comma := ,
 empty :=
 space := $(empty) $(empty)
+lparen := (
+rparen := )
 
 diagnostic_mode := $(strip \
 	$(filter help check config progress dry-run clean module-help __reference-context,$(MAKECMDGOALS)) \
@@ -903,7 +905,7 @@ $(foreach path,$(unknown_old_files),\
 	$(call print_warning,old file is not a known scBOLT target: $(path));) \
 $(system_shell_functions) \
 selected_modules=" $(call target_dry_run_modules,$(1)) "; \
-running_modules=" $(reset_modules) "; \
+running_modules=" $(reset_modules) $(call target_run_modules,$(1)) "; \
 rebuilding_modules=" "; \
 pending_modules=" "; \
 stale_modules=" "; \
@@ -1351,14 +1353,13 @@ define check_inference_status
 		echo -e ''; \
 		if [ -s $@ ]; then \
 			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@,$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$@,$(5)));) \
-			$(call print_warning,user-defined time limit reached \($(1)\): keeping partial solution); \
+			$(call print_warning,user-defined time limit reached $(lparen)$(1)$(rparen): keeping partial solution); \
 		elif [ -n "$(4)" ] && [ -s "$(4)" ]; then \
-			$(call keep_inference_fallback,$(4),$(2),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),user-defined time limit reached \($(1)\): keeping fallback solution,$(5)) \
+			$(call keep_inference_fallback,$(4),$(2),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),user-defined time limit reached $(lparen)$(1)$(rparen): keeping fallback solution,$(5)) \
 		else \
-			$(call print_error,user-defined time limit reached \($(1)\): no solution found); \
+			$(call print_error,user-defined time limit reached $(lparen)$(1)$(rparen): no solution found); \
 		fi; \
 	elif [ $$exit_status -eq 130 ] || [ $$exit_status -eq 143 ]; then \
-		echo -e ''; \
 		if [ -s $@ ]; then \
 			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@,$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$@,$(5)));) \
 			$(call print_warning,inference interrupted: keeping partial solutions); \
@@ -1377,7 +1378,6 @@ endef
 define trap_inference_interrupt
 handle_inference_interrupt() { \
 	signal_status="$$1"; \
-	echo -e ""; \
 	if [ -s $@ ]; then \
 		$(if $(strip $(1)),$(call write_scbolt_metadata,$(1),$@,$(if $(strip $(2)),$(2)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$@,$(4)));) \
 		$(call log,WARNING,inference interrupted: keeping partial solutions); \
@@ -1395,22 +1395,45 @@ endef
 define check_bn_outputs
 @if [ -d "$(1)" ]; then \
 	max_outputs=8; \
+	solution_limit="$(strip $(5))"; \
 	missing_outputs="$$($(call system_tool,mktemp))"; \
-	[ -f "$(1)/ensemble.pdf" ] || printf '%s\n' "$(1)/ensemble.pdf" >> "$${missing_outputs}"; \
-	$(call system_tool,find) "$(1)" -mindepth 1 -maxdepth 1 -type d \
-		| $(call system_tool,sort) -V \
-		| while IFS= read -r solution_dir; do \
-			solution_name="$${solution_dir##*/}"; \
-			case "$${solution_name}" in \
-				""|*[!0-9]*) continue;; \
-			esac; \
-			for file in model.bnet noi.txt \
-				$(foreach fmt,$(strip $(3)),state.$(fmt)) \
-				$(foreach fmt,$(strip $(4)),ig.$(fmt)); do \
-				[ -f "$${solution_dir}/$${file}" ] \
-					|| printf '%s\n' "$${solution_dir}/$${file}" >> "$${missing_outputs}"; \
-			done; \
+	for file in \
+		influence_graph/aggregate.pdf \
+		influence_graph/aggregate_with_isolates.pdf \
+		influence_graph/function_families.pdf \
+		influence_graph/feedback_core.pdf; do \
+		[ -f "$(1)/$${file}" ] \
+			|| printf '%s\n' "$(1)/$${file}" >> "$${missing_outputs}"; \
+	done; \
+	check_solution_outputs() { \
+		solution_dir="$$1"; \
+		for file in model.bnet noi.txt \
+			$(foreach fmt,$(strip $(3)),configs.$(fmt)) \
+			$(foreach fmt,$(strip $(4)),ig.$(fmt)); do \
+			[ -f "$${solution_dir}/$${file}" ] \
+				|| printf '%s\n' "$${solution_dir}/$${file}" >> "$${missing_outputs}"; \
 		done; \
+	}; \
+	case "$${solution_limit}" in \
+		""|0|*[!0-9]*) expected_solution_outputs=false;; \
+		*) expected_solution_outputs=true;; \
+	esac; \
+	if [ "$${expected_solution_outputs}" = "true" ] \
+		&& [ ! -f "$(1)/.scbolt.json" ]; then \
+		for solution_index in $$($(call system_tool,seq) 1 "$${solution_limit}"); do \
+			check_solution_outputs "$(1)/$${solution_index}"; \
+		done; \
+	else \
+		$(call system_tool,find) "$(1)" -mindepth 1 -maxdepth 1 -type d \
+			| $(call system_tool,sort) -V \
+			| while IFS= read -r solution_dir; do \
+				solution_name="$${solution_dir##*/}"; \
+				case "$${solution_name}" in \
+					""|*[!0-9]*) continue;; \
+				esac; \
+				check_solution_outputs "$${solution_dir}"; \
+			done; \
+	fi; \
 	missing_count="$$( \
 		$(call system_tool,wc) -l < "$${missing_outputs}" \
 			| $(call system_tool,tr) -d '[:space:]')"; \
@@ -1418,7 +1441,6 @@ define check_bn_outputs
 		rm -f "$${missing_outputs}"; \
 		exit 0; \
 	fi; \
-	echo "" >&2; \
 	echo "Detected incomplete outputs for target '$(2)'." >&2; \
 	echo "Output directory: $(1)" >&2; \
 	echo "" >&2; \
@@ -1430,9 +1452,16 @@ define check_bn_outputs
 		echo "    - $$((missing_count - max_outputs)) more output(s)" >&2; \
 	fi; \
 	rm -f "$${missing_outputs}"; \
-	echo "" >&2; \
-	printf "Remove partial outputs and rerun inference? (y/[n]): " >&2; \
-	if ! read ans; then ans=; fi; \
+	if [ "$(SCBOLT_INTERACTIVE)" = "true" ] \
+		&& [ -r /dev/tty ] && [ -w /dev/tty ]; then \
+		printf "\nRemove partial outputs and rerun inference? (y/[n]): " > /dev/tty; \
+		if ! IFS= read -r -n 1 ans < /dev/tty; then ans=; fi; \
+		printf "\n" > /dev/tty; \
+	else \
+		printf "\nRemove partial outputs and rerun inference? (y/[n]): " >&2; \
+		if ! IFS= read -r ans; then ans=; fi; \
+		printf "\n" >&2; \
+	fi; \
 	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
 		rm -rf "$(1)"; \
 		echo "Partial outputs removed." >&2; \

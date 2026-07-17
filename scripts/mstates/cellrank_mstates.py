@@ -69,7 +69,10 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="column name in adata.obs storing CytoTRACE cell potency scores (default: None)",
+    help=(
+        "column name in adata.obs storing CytoTRACE cell potency scores (default: "
+        "None)"
+    ),
 )
 
 parser.add_argument(
@@ -79,7 +82,10 @@ parser.add_argument(
     required=False,
     default="Ms",
     metavar="LITERAL",
-    help="layer in adata.layers storing first order moments of spliced counts (default: 'Ms')",
+    help=(
+        "layer in adata.layers storing first order moments of spliced counts "
+        "(default: 'Ms')"
+    ),
 )
 
 parser.add_argument(
@@ -130,7 +136,10 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="INT",
-    help="number of terminal states (used when --method value is 'top_n', default: None)",
+    help=(
+        "number of terminal states (used when --method value is 'top_n', default: "
+        "None)"
+    ),
 )
 
 parser.add_argument(
@@ -140,7 +149,10 @@ parser.add_argument(
     required=False,
     default=0.96,
     metavar="FLOAT",
-    help="minimum stability for a state to be selected as a final macrostate (used when --method value is 'stability', default: 0.96)",
+    help=(
+        "minimum stability for a state to be selected as a final macrostate (used "
+        "when --method value is 'stability', default: 0.96)"
+    ),
 )
 
 parser.add_argument(
@@ -150,7 +162,10 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="FLOAT",
-    help="weight given to the deviation of an eigenvalue from one (only used when --method value is 'eigengap' or 'eigengap_coarse', default: 1)",
+    help=(
+        "weight given to the deviation of an eigenvalue from one (only used when "
+        "--method value is 'eigengap' or 'eigengap_coarse', default: 1)"
+    ),
 )
 
 parser.add_argument(

@@ -29,6 +29,56 @@ DISABLE_TQDM = os.getenv("TQDM_DISABLE", "0") == "1"
 TQDM_TO_TTY = os.getenv("TQDM_TO_TTY", "0") == "1"
 script_name = Path(__file__).name
 
+AGGREGATED_INFLUENCE_GRAPH_GRAPH_ATTR: Mapping[str, str] = {
+    "ratio": "compress",
+    "overlap": "prism",
+    "sep": "+0",
+    "esep": "+0",
+    "K": "0.35",
+    "ranksep": "0.6",
+    "pack": "true",
+    "rankdir": "TB",
+    "splines": "curve",
+}
+AGGREGATED_INFLUENCE_GRAPH_BASE_OPTIONS: Mapping[str, Any] = {
+    "edge_label": "frequency",
+    "node_style": "stability",
+    "edge_style": "frequency",
+    "preserve_feedback": True,
+    "include_selfloops": False,
+    "min_frequency": 0,
+    "program": "dot",
+    "graph_attr": AGGREGATED_INFLUENCE_GRAPH_GRAPH_ATTR,
+    "node_attr": {
+        "fontsize": "20",
+    },
+    "edge_attr": {
+        "fontsize": "20",
+    },
+}
+AGGREGATED_INFLUENCE_GRAPH_OPTIONS: Mapping[str, Mapping[str, Any]] = {
+    "aggregate.pdf": {
+        **AGGREGATED_INFLUENCE_GRAPH_BASE_OPTIONS,
+        "collapse": None,
+        "drop_isolates": True,
+    },
+    "aggregate_with_isolates.pdf": {
+        **AGGREGATED_INFLUENCE_GRAPH_BASE_OPTIONS,
+        "collapse": None,
+        "drop_isolates": False,
+    },
+    "function_families.pdf": {
+        **AGGREGATED_INFLUENCE_GRAPH_BASE_OPTIONS,
+        "collapse": "family",
+        "drop_isolates": True,
+    },
+    "feedback_core.pdf": {
+        **AGGREGATED_INFLUENCE_GRAPH_BASE_OPTIONS,
+        "collapse": "feedback",
+        "drop_isolates": True,
+    },
+}
+
 
 class ptqdm(tqdm):
     score_formatter: Callable[[Sequence[int]], Mapping[str, str]] | None = None
@@ -274,18 +324,23 @@ def write_node_solution(
             file.write(f"{node}\n")
 
 
-def close_progress(view, leave=None):
+def close_progress(view, leave=None, interrupted=False):
     progressbar = getattr(view, "_progressbar", None)
     if progressbar is not None:
         if leave is not None:
             progressbar.leave = leave
+        elif interrupted:
+            progressbar.leave = True
         progressbar.close()
 
 
 def next_solution(view):
     try:
         solution = next(iter(view))
-    except (KeyboardInterrupt, RuntimeError):
+    except KeyboardInterrupt:
+        close_progress(view, interrupted=True)
+        raise
+    except RuntimeError:
         close_progress(view)
         raise
     close_progress(view)
@@ -470,7 +525,7 @@ def write_solution(
     for fmt in config_formats:
         write_configurations(
             configurations,
-            outdir / f"state.{fmt}",
+            outdir / f"configs.{fmt}",
         )
 
     if graph_formats:
@@ -484,28 +539,27 @@ def write_solution(
     return None
 
 
-def write_ensemble_influence_graph(
+def write_ensemble_influence_graphs(
     bns: Sequence[MPBooleanNetwork],
     components: Iterable[str],
-    outfile: str | Path,
+    outdir: str | Path,
 ) -> None:
-    std.print_task(f"saving ensemble influence graph (file={outfile})")
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
 
     ensemble = bt.logic.bn.BooleanNetworkEnsemble(components=components)
     for bn in bns:
         ensemble.append(to_bonesistools_boolean_network(bn))
 
-    dot = ensemble.to_pydot(
-        remove_isolated_nodes=True,
-        show_edge_labels=False,
-        node_style="stability",
-    )
+    if not bns:
+        raise RuntimeError("cannot export aggregated influence graphs: no BN solution")
 
-    dot.write(
-        str(outfile),
-        prog="dot",
-        format="pdf",
-    )
+    std.print_task(f"generating aggregated influence graphs (folder={outdir})")
+    graph = bt.logic.ig.AggregatedInfluenceGraph.from_boolean_networks(ensemble)
+
+    for filename, options in AGGREGATED_INFLUENCE_GRAPH_OPTIONS.items():
+        outfile = outdir / filename
+        graph.to_pydot(**options).write_pdf(str(outfile))
 
     return None
 
@@ -586,10 +640,11 @@ def run_bn_view(
 
             bns.append(bn)
 
-            for cfg_name in trapspace_configurations:
-                cfg_state = configs[cfg_name]
-                ts = bn.principal_trapspace(cfg_state)
-                configs[cfg_name] = {k: v for k, v in ts.items() if v != "*"}
+            # Keep bn-submin/bn-diverse configurations as returned by BoNesis.
+            # for cfg_name in trapspace_configurations:
+            #     cfg_state = configs[cfg_name]
+            #     ts = bn.principal_trapspace(cfg_state)
+            #     configs[cfg_name] = {k: v for k, v in ts.items() if v != "*"}
 
             for old, new in rename_cfgs.items():
                 configs[new] = configs.pop(old)
@@ -603,7 +658,7 @@ def run_bn_view(
                 remove_isolated_nodes=remove_isolated_nodes,
             )
     except KeyboardInterrupt:
-        close_progress(view)
+        close_progress(view, interrupted=True)
         raise
     else:
         close_progress(view)
@@ -611,7 +666,8 @@ def run_bn_view(
     return bns
 
 
-parser_description = """Infer Most Permissive Boolean Networks (MPBNs) using the BoNesis paradigm.
+parser_description = """Infer Most Permissive Boolean Networks (MPBNs) using the \
+BoNesis paradigm.
 
 Five actions are proposed:
     - filter-nodes:
@@ -669,7 +725,10 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="input file storing important nodes prioritized to appear (format: json or txt)",
+    help=(
+        "input file storing important nodes prioritized to appear "
+        "(format: json or txt)"
+    ),
 )
 
 parser.add_argument(
@@ -705,7 +764,10 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=True,
     metavar="FILE | PATH",
-    help="output storing BoNesis solution (txt for filter-nodes/filter-consts, directory for min/submin/diverse)",
+    help=(
+        "output storing BoNesis solution (txt for filter-nodes/filter-consts, "
+        "directory for min/submin/diverse)"
+    ),
 )
 
 parser.add_argument(
@@ -777,7 +839,10 @@ parser.add_argument(
     allow_current=False,
     required=False,
     default="latest",
-    help="OmniPath resource version used when --domain is collectri or dorothea (default: latest)",
+    help=(
+        "OmniPath resource version used when --domain is collectri or dorothea "
+        "(default: latest)"
+    ),
 )
 
 parser.add_argument(
@@ -786,7 +851,10 @@ parser.add_argument(
     type=str,
     required=False,
     default="bundled",
-    help="HCOP orthology version used when --domain is collectri or dorothea (default: bundled)",
+    help=(
+        "HCOP orthology version used when --domain is collectri or dorothea "
+        "(default: bundled)"
+    ),
 )
 
 parser.add_argument(
@@ -825,7 +893,10 @@ parser.add_argument(
     action=cli.Store_boolean,
     required=False,
     default=None,
-    help="use canonical logical function representation (default: false for filter-nodes/filter-consts; true for min/submin/diverse)",
+    help=(
+        "use canonical logical function representation (default: false for "
+        "filter-nodes/filter-consts; true for min/submin/diverse)"
+    ),
 )
 
 parser.add_argument(
@@ -843,7 +914,11 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="[auto | frumpy | jumpy | tweety | handy | crafty | trendy | many | FILE]",
-    help="clingo default configuration passed as --configuration for filter-nodes/filter-consts; if not specified, BoNesis/Clingo defaults are used",
+    help=(
+        "clingo default configuration passed as --configuration for "
+        "filter-nodes/filter-consts; if not specified, BoNesis/Clingo defaults "
+        "are used"
+    ),
 )
 
 parser.add_argument(
@@ -868,7 +943,11 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="INT",
-    help="number of diverse subset minimal solutions. If not specified, enumerate all subset minimal solutions without diversity (default: None)",
+    help=(
+        "number of diverse subset minimal solutions. If not specified, "
+        "enumerate all subset minimal solutions without diversity "
+        "(default: None)"
+    ),
 )
 
 parser.add_argument(
@@ -899,7 +978,10 @@ parser.add_argument(
     dest="remove_isolated_nodes",
     required=False,
     action="store_true",
-    help="remove nodes without interaction with another node when printing influence graph",
+    help=(
+        "remove nodes without interaction with another node when printing "
+        "influence graph"
+    ),
 )
 
 parser.add_argument(
@@ -1084,7 +1166,8 @@ if args.action == "filter-nodes":
         if not solution:
             raise
         std.print_debug(
-            "selecting intermediate solution (reason=final model parsing failed, certification=partial/non-certified)",
+            "selecting intermediate solution (reason=final model parsing failed, "
+            "certification=partial/non-certified)",
             flush=True,
         )
 
@@ -1258,7 +1341,8 @@ else:
 
         if args.limit not in [None, 0]:
             std.print_task(
-                f"enumerating Boolean network solutions (kind=subset-minimal, limit={args.limit})"
+                "enumerating Boolean network solutions "
+                f"(kind=subset-minimal, limit={args.limit})"
             )
         else:
             std.print_task(
@@ -1293,7 +1377,8 @@ else:
 
         if args.limit not in [None, 0]:
             std.print_task(
-                f"sampling Boolean network solutions (kind=sparsest, limit={args.limit})"
+                "sampling Boolean network solutions "
+                f"(kind=sparsest, limit={args.limit})"
             )
         else:
             std.print_task("sampling Boolean network solutions (kind=sparsest)")
@@ -1321,8 +1406,8 @@ else:
         )
 
     if args.action in ["submin", "diverse"]:
-        write_ensemble_influence_graph(
+        write_ensemble_influence_graphs(
             bns=bns,
             components=bo.domain.nodes,
-            outfile=Path(args.solution) / "ensemble.pdf",
+            outdir=Path(args.solution) / "influence_graph",
         )

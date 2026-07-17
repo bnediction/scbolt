@@ -118,7 +118,9 @@ jobs:
           python-version: "3.11"
       - run: python -m pip install pandas
       - run: python tests/regression/test_annotation_composition.py
+      - run: bash tests/regression/test_clean_sidecars.sh
       - run: bash tests/regression/test_matrix_entry.sh
+      - run: bash tests/regression/test_bn_output_check.sh
       - run: make --always-make --dry-run LOGGING=false __knnsc PARAMS=tests/fixtures/params.mk >/dev/null
       - run: make --always-make --dry-run LOGGING=false __max-nodes-seed PARAMS=tests/fixtures/params.mk >/dev/null
       - run: make check TARGET=knnsc PARAMS=tests/fixtures/params.mk __check_externals__=false

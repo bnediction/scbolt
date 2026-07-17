@@ -35,7 +35,13 @@ for arg in "$@"; do
         exit 0
     fi
     case "${arg}" in
-        __finalize-interrupted-gene-selection-results|__kept-gene-selection-results|__intermediate-gene-selection-status)
+        __intermediate-gene-selection-status)
+            if [ -n "${SCBOLT_TEST_INTERMEDIATE_STATUS:-}" ]; then
+                printf '%s\n' "${SCBOLT_TEST_INTERMEDIATE_STATUS}"
+            fi
+            exit 0
+            ;;
+        __finalize-interrupted-gene-selection-results|__kept-gene-selection-results)
             exit 0
             ;;
     esac
@@ -43,6 +49,9 @@ done
 printf '%s\n' "$@" > "${SCBOLT_TEST_RECORD}"
 if [ -n "${SCBOLT_TEST_MAKE_STDOUT:-}" ]; then
     printf '%s\n' "${SCBOLT_TEST_MAKE_STDOUT}"
+fi
+if [ -n "${SCBOLT_TEST_MAKE_STDOUT_RAW:-}" ]; then
+    printf '%s' "${SCBOLT_TEST_MAKE_STDOUT_RAW}"
 fi
 case "${status}" in
     0) ;;
@@ -372,6 +381,25 @@ grep -qx '⚠ up to date: bn-min' "${tmpdir}/module-up-to-date.out"
     cd "${project}"
     PATH="${fakebin}:${PATH}" \
         SCBOLT_TEST_RECORD="${record}" \
+        SCBOLT_TEST_INTERMEDIATE_STATUS='intermediate solution: 188/197' \
+        "${scbolt}" spec > "${tmpdir}/spec-up-to-date.out"
+)
+grep -qx '⚠ up to date: spec' "${tmpdir}/spec-up-to-date.out"
+
+(
+    cd "${project}"
+    PATH="${fakebin}:${PATH}" \
+        SCBOLT_TEST_RECORD="${record}" \
+        SCBOLT_TEST_INTERMEDIATE_STATUS='intermediate solution: 188/197' \
+        "${scbolt}" max-nodes-lock > "${tmpdir}/lock-up-to-date.out"
+)
+grep -qx '⚠ up to date: max-nodes-lock (intermediate solution: 188/197)' \
+    "${tmpdir}/lock-up-to-date.out"
+
+(
+    cd "${project}"
+    PATH="${fakebin}:${PATH}" \
+        SCBOLT_TEST_RECORD="${record}" \
         SCBOLT_TEST_MAKE_STDOUT='2026-01-01 00:00:00.000 - WARNING - stale module output: clustering (RESOLUTION: 0.40 -> 0.44)' \
         "${scbolt}" clustering > "${tmpdir}/module-already-built.out"
 )
@@ -391,6 +419,23 @@ if (
 fi
 grep -qx '⚠ interrupted by user (stream)' "${tmpdir}/module-interrupted.out"
 ! grep -q '^make.*\*\*\*' "${tmpdir}/module-interrupted.err"
+
+if (
+    cd "${project}"
+    PATH="${fakebin}:${PATH}" \
+        SCBOLT_TEST_RECORD="${record}" \
+        SCBOLT_TEST_MAKE_STATUS=130 \
+        SCBOLT_TEST_MAKE_STDOUT_RAW='Found 0/100 solutions' \
+        "${scbolt}" bn-submin > "${tmpdir}/module-progress-interrupted.out" \
+        2> "${tmpdir}/module-progress-interrupted.err"
+); then
+    printf '%s\n' "expected interrupted progress execution to fail" >&2
+    exit 1
+fi
+grep -qx 'Found 0/100 solutions' "${tmpdir}/module-progress-interrupted.out"
+grep -qx '⚠ interrupted by user (bn-submin)' \
+    "${tmpdir}/module-progress-interrupted.out"
+! grep -q 'solutions⚠' "${tmpdir}/module-progress-interrupted.out"
 
 if (
     cd "${project}"

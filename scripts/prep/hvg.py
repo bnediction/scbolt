@@ -76,7 +76,10 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.3,
-    help="fraction of cells used when estimating the variance in the loess model (used only if method='loess', default: 0.3)",
+    help=(
+        "fraction of cells used when estimating the variance in the loess model (used "
+        "only if method='loess', default: 0.3)"
+    ),
 )
 
 parser.add_argument(

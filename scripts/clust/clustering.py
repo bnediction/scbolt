@@ -174,7 +174,10 @@ parser.add_argument(
     required=False,
     default=15,
     metavar="INT",
-    help="number of principal components taken into account for clustering cells (default: 15)",
+    help=(
+        "number of principal components taken into account for clustering cells "
+        "(default: 15)"
+    ),
 )
 
 parser.add_argument(
@@ -226,7 +229,10 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.3,
-    help="fraction of cells used when estimating the variance in the loess model (used only if method='loess', default: 0.3)",
+    help=(
+        "fraction of cells used when estimating the variance in the loess model (used "
+        "only if method='loess', default: 0.3)"
+    ),
 )
 
 parser.add_argument(
@@ -264,7 +270,10 @@ parser.add_argument(
     required=False,
     default="euclidean",
     metavar="METRIC",
-    help="metric used for computing closest neighbors and optionally t-SNE projection (default: euclidean)",
+    help=(
+        "metric used for computing closest neighbors and optionally t-SNE projection "
+        "(default: euclidean)"
+    ),
 )
 
 parser.add_argument(

@@ -3,6 +3,8 @@
 CLEAN_STALE ?= false
 CLEAN_FORCE ?= false
 clean_success_label = $(if $(green),$(green)✓$(nc),✓)
+clean_module_paths = $(strip $(foreach path,$(RESET_TARGET_$(1)),\
+	$(path) $(basename $(path)).scbolt.json))
 
 define clean_help
 	$(call command_help_header,\
@@ -304,7 +306,7 @@ endif
 		printf '$(clean_success_label) %s\n' "cleaned logs: $$(format_bytes "$${log_bytes}")"; \
 	fi; \
 	$(foreach module,$(clean_modules),\
-		module_paths=( $(foreach path,$(strip $(RESET_TARGET_$(module))),"$(path)") ); \
+		module_paths=( $(foreach path,$(call clean_module_paths,$(module)),"$(path)") ); \
 		clean_paths "module '$(module)'" "$${module_paths[@]}";) \
 	printf '$(clean_success_label) %s\n' "recovered disk space: $$(format_bytes "$${recovered}")"
 else

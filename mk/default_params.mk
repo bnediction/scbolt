@@ -312,8 +312,8 @@ $(eval TIMEOUT_LOCK ?= 72h)                 # timeout
 ## OUTPUTS ##
 # CONFIG_FORMATS values: csv, cfg, json.
 # GRAPH_FORMATS values: dot, neato, circo, fdp, sfdp.
-$(eval CONFIG_FORMATS = csv cfg)            # configuration output formats
-$(eval GRAPH_FORMATS = dot neato circo fdp sfdp) # Graphviz layouts to export
+$(eval CONFIG_FORMATS = csv)                # configuration output formats
+$(eval GRAPH_FORMATS = dot)                 # Graphviz layouts to export
 
 ## BONESIS-MIN ##
 $(eval MIN_SELF_LOOP_INFER ?= true)         # minimize one-node feedbacks at inference stage

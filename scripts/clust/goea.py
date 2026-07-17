@@ -82,7 +82,10 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="FILE",
-    help="input file containing gene-to-GO annotations (format: annotation.tab; cannot be used with --gene2go)",
+    help=(
+        "input file containing gene-to-GO annotations (format: annotation.tab; cannot "
+        "be used with --gene2go)"
+    ),
 )
 
 parser.add_argument(
@@ -92,7 +95,10 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="FILE",
-    help="input file containing NCBI gene-to-GO annotations (format: gene2go; cannot be used with --annotations)",
+    help=(
+        "input file containing NCBI gene-to-GO annotations (format: gene2go; cannot "
+        "be used with --annotations)"
+    ),
 )
 
 parser.add_argument(

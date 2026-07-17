@@ -109,12 +109,18 @@ module_help_solution_note = $(if $(filter-out 0,$(strip $(INFER_LIMIT))),\
 		up to all satisfiable solutions))
 module_help_outputs_bn-submin = \
 	$(bn_submin_dir)/*/model.bnet \
-	$(bn_submin_dir)/*/state.cfg \
-	$(bn_submin_dir)/ensemble.pdf
+	$(bn_submin_dir)/*/configs.csv \
+	$(bn_submin_dir)/influence_graph/aggregate.pdf \
+	$(bn_submin_dir)/influence_graph/aggregate_with_isolates.pdf \
+	$(bn_submin_dir)/influence_graph/function_families.pdf \
+	$(bn_submin_dir)/influence_graph/feedback_core.pdf
 module_help_outputs_bn-diverse = \
 	$(bn_diverse_dir)/*/model.bnet \
-	$(bn_diverse_dir)/*/state.cfg \
-	$(bn_diverse_dir)/ensemble.pdf
+	$(bn_diverse_dir)/*/configs.csv \
+	$(bn_diverse_dir)/influence_graph/aggregate.pdf \
+	$(bn_diverse_dir)/influence_graph/aggregate_with_isolates.pdf \
+	$(bn_diverse_dir)/influence_graph/function_families.pdf \
+	$(bn_diverse_dir)/influence_graph/feedback_core.pdf
 module_help_output_note_bn-submin = $(module_help_solution_note)
 module_help_output_note_bn-diverse = $(module_help_solution_note)
 module_help_outputs = $(strip $(if $(module_help_outputs_$(module_help_target)),\
@@ -1122,14 +1128,22 @@ __kept-gene-selection-results:
 	@rm -f "$(tmpdir)/kept-gene-selection-reported"
 
 .PHONY: __intermediate-gene-selection-status
+intermediate_gene_selection_modules = \
+	$(if $(strip $(INTERMEDIATE_GENE_SELECTION_MODULE)),\
+		$(INTERMEDIATE_GENE_SELECTION_MODULE),\
+		max-nodes-lock max-nodes-seed max-nodes-relaxed max-consts-soft max-nodes-soft)
+maybe_report_intermediate_gene_selection_status = \
+	$(if $(filter $(1),$(intermediate_gene_selection_modules)),\
+		$(call report_intermediate_gene_selection_status,$(1),$(2),$(3),$(4)))
+
 __intermediate-gene-selection-status:
 	@mkdir -p "$(tmpdir)"
 	@rm -f "$(tmpdir)/intermediate-gene-selection-reported"
-	$(call report_intermediate_gene_selection_status,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed),$(tmpdir)/intermediate-gene-selection-reported)
-	$(call report_intermediate_gene_selection_status,max-nodes-seed,$(max_nodes_seed),$(max_nodes_relaxed),$(tmpdir)/intermediate-gene-selection-reported)
-	$(call report_intermediate_gene_selection_status,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft),$(tmpdir)/intermediate-gene-selection-reported)
-	$(call report_intermediate_gene_selection_status,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution),$(tmpdir)/intermediate-gene-selection-reported)
-	$(call report_intermediate_gene_selection_status,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain),$(tmpdir)/intermediate-gene-selection-reported)
+	$(call maybe_report_intermediate_gene_selection_status,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed),$(tmpdir)/intermediate-gene-selection-reported)
+	$(call maybe_report_intermediate_gene_selection_status,max-nodes-seed,$(max_nodes_seed),$(max_nodes_relaxed),$(tmpdir)/intermediate-gene-selection-reported)
+	$(call maybe_report_intermediate_gene_selection_status,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft),$(tmpdir)/intermediate-gene-selection-reported)
+	$(call maybe_report_intermediate_gene_selection_status,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution),$(tmpdir)/intermediate-gene-selection-reported)
+	$(call maybe_report_intermediate_gene_selection_status,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain),$(tmpdir)/intermediate-gene-selection-reported)
 	@rm -f "$(tmpdir)/intermediate-gene-selection-reported"
 
 .PHONY: bn-min __bn-min

@@ -158,7 +158,10 @@ parser.add_argument(
     max=1,
     required=False,
     default=1,
-    help="maximum percentage of cell dropout required for a gene to pass filtering (default: 1)",
+    help=(
+        "maximum percentage of cell dropout required for a gene to pass filtering "
+        "(default: 1)"
+    ),
 )
 
 parser.add_argument(
@@ -170,7 +173,10 @@ parser.add_argument(
     max=math.inf,
     required=False,
     default=[0, math.inf],
-    help="minimum and maximum number of expressed cells required for a gene to pass filtering (default: [0, inf])",
+    help=(
+        "minimum and maximum number of expressed cells required for a gene to pass "
+        "filtering (default: [0, inf])"
+    ),
 )
 
 parser.add_argument(
@@ -182,7 +188,10 @@ parser.add_argument(
     max=math.inf,
     required=False,
     default=[0, math.inf],
-    help="minimum and maximum number of counts required for a gene to pass filtering (default: [0, inf])",
+    help=(
+        "minimum and maximum number of counts required for a gene to pass filtering "
+        "(default: [0, inf])"
+    ),
 )
 
 parser.add_argument(
@@ -194,7 +203,10 @@ parser.add_argument(
     max=1,
     required=False,
     default=1,
-    help="maximum percentage of gene dropout required for a cell to pass filtering (default: 1)",
+    help=(
+        "maximum percentage of gene dropout required for a cell to pass filtering "
+        "(default: 1)"
+    ),
 )
 
 parser.add_argument(
@@ -206,7 +218,10 @@ parser.add_argument(
     max=math.inf,
     required=False,
     default=[0, math.inf],
-    help="minimum and maximum number of expressed genes required for a cell to pass filtering (default: [0, inf])",
+    help=(
+        "minimum and maximum number of expressed genes required for a cell to pass "
+        "filtering (default: [0, inf])"
+    ),
 )
 
 parser.add_argument(
@@ -218,7 +233,10 @@ parser.add_argument(
     max=math.inf,
     required=False,
     default=[0, math.inf],
-    help="minimum and maximum number of reads required for a cell to pass filtering (default: [0, inf])",
+    help=(
+        "minimum and maximum number of reads required for a cell to pass filtering "
+        "(default: [0, inf])"
+    ),
 )
 
 parser.add_argument(
@@ -229,7 +247,10 @@ parser.add_argument(
     required=False,
     default=[math.inf, math.inf],
     metavar="FLOAT",
-    help="MAD factors used to drop cells with total reads below or above median +/- factor*MAD (default: [inf, inf])",
+    help=(
+        "MAD factors used to drop cells with total reads below or above median +/- "
+        "factor*MAD (default: [inf, inf])"
+    ),
 )
 
 parser.add_argument(
@@ -249,7 +270,10 @@ parser.add_argument(
     max=1,
     required=False,
     default=1,
-    help="maximum proportion of mitochondrial gene expression required for a cell to pass filtering (default: 1)",
+    help=(
+        "maximum proportion of mitochondrial gene expression required for a cell to "
+        "pass filtering (default: 1)"
+    ),
 )
 
 parser.add_argument(

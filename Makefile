@@ -932,10 +932,10 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock) $(if $(geneinfo_dependency),| $(ge
 
 .PHONY: __check-bn-submin-outputs __check-bn-diverse-outputs
 __check-bn-submin-outputs:
-	$(call check_bn_outputs,$(bn_submin_dir),bn-submin,$(CONFIG_FORMATS),$(GRAPH_FORMATS))
+	$(call check_bn_outputs,$(bn_submin_dir),bn-submin,$(CONFIG_FORMATS),$(GRAPH_FORMATS),$(INFER_LIMIT))
 
 __check-bn-diverse-outputs:
-	$(call check_bn_outputs,$(bn_diverse_dir),bn-diverse,$(CONFIG_FORMATS),$(GRAPH_FORMATS))
+	$(call check_bn_outputs,$(bn_diverse_dir),bn-diverse,$(CONFIG_FORMATS),$(GRAPH_FORMATS),$(INFER_LIMIT))
 
 $(bn_submin)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-submin-outputs $(geneinfo_dependency)
 	$(call print_rule,bn-submin)

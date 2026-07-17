@@ -71,7 +71,10 @@ parser.add_argument(
     nargs=2,
     required=True,
     metavar="FILE",
-    help="input files storing scBoolSeq results: binarized clusters then gene-specific distributions (required)",
+    help=(
+        "input files storing scBoolSeq results: binarized clusters then gene-specific "
+        "distributions (required)"
+    ),
 )
 
 parser.add_argument(

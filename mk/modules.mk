@@ -134,11 +134,11 @@ max_nodes_lock =                $(infer_dir)/genes/lock/comps.txt
 bn_min =                        $(infer_dir)/bn/min/model.bnet
 
 bn_submin_dir = $(infer_dir)/bn/submin
-bn_submin = $(bn_submin_dir)/ensemble.pdf
+bn_submin = $(bn_submin_dir)/influence_graph/aggregate.pdf
 bn_submin_metadata = $(bn_submin_dir)
 
 bn_diverse_dir = $(infer_dir)/bn/diverse
-bn_diverse = $(bn_diverse_dir)/ensemble.pdf
+bn_diverse = $(bn_diverse_dir)/influence_graph/aggregate.pdf
 bn_diverse_metadata = $(bn_diverse_dir)
 
 $(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
@@ -401,6 +401,8 @@ RESET_TARGET_max-nodes-lock = $(max_nodes_lock)
 RESET_TARGET_bn-min = $(bn_min)
 RESET_TARGET_bn-submin = $(bn_submin_metadata)
 RESET_TARGET_bn-diverse = $(bn_diverse_metadata)
+RESET_BUILD_TARGET_bn-submin = $(bn_submin)
+RESET_BUILD_TARGET_bn-diverse = $(bn_diverse)
 
 reset_modules := $(strip $(RESET_TARGET) $(CLI_RESET_TARGETS) $(RESET_FROM))
 trust_modules := $(strip $(TRUST_TARGET) $(CLI_TRUST_TARGETS))
@@ -433,7 +435,10 @@ ifneq ($(unknown_clean_targets),)
 $(error unknown CLEAN_TARGET module: $(unknown_clean_targets) \
 	(supported values: $(subst $(space),$(comma) ,$(reset_stages))))
 endif
-reset_targets := $(strip $(foreach module,$(reset_modules),$(RESET_TARGET_$(module))))
+reset_targets := $(strip $(foreach module,$(reset_modules),\
+	$(if $(RESET_BUILD_TARGET_$(module)),\
+		$(RESET_BUILD_TARGET_$(module)),\
+		$(RESET_TARGET_$(module)))))
 trust_targets := $(strip $(foreach module,$(trust_modules),$(RESET_TARGET_$(module))))
 known_scbolt_targets := $(call uniq,$(foreach module,$(reset_stages),$(RESET_TARGET_$(module))))
 unknown_old_files := $(filter-out $(known_scbolt_targets),$(OLD_FILES))

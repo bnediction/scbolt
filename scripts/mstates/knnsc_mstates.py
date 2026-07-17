@@ -70,7 +70,10 @@ parser.add_argument(
     required=False,
     default="X_umap",
     metavar="KEY",
-    help="embedding key in adata.obsm used when calculating pairwise distances (default: X_umap)",
+    help=(
+        "embedding key in adata.obsm used when calculating pairwise distances "
+        "(default: X_umap)"
+    ),
 )
 
 parser.add_argument(
@@ -93,7 +96,10 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="INT",
-    help="number of embedding dimensions used when calculating pairwise distances (default: None)",
+    help=(
+        "number of embedding dimensions used when calculating pairwise distances "
+        "(default: None)"
+    ),
 )
 
 parser.add_argument(
@@ -103,7 +109,10 @@ parser.add_argument(
     required=False,
     default=20,
     metavar="INT",
-    help="number of closest neighbors used to compute the k-nearest neighbors graph (default: 20)",
+    help=(
+        "number of closest neighbors used to compute the k-nearest neighbors graph "
+        "(default: 20)"
+    ),
 )
 
 parser.add_argument(
@@ -122,7 +131,10 @@ parser.add_argument(
     required=False,
     default=100,
     metavar="INT",
-    help="minimum cluster size required to use a label as a KNNSC candidate (default: 100)",
+    help=(
+        "minimum cluster size required to use a label as a KNNSC candidate (default: "
+        "100)"
+    ),
 )
 
 parser.add_argument(
@@ -143,7 +155,10 @@ parser.add_argument(
     choices=["dijkstra", "bellman-ford"],
     default="dijkstra",
     metavar="[dijkstra | bellman-ford]",
-    help="method used for computing pairwise shortest path lengths between cells and barycenters (default: dijkstra)",
+    help=(
+        "method used for computing pairwise shortest path lengths between cells and "
+        "barycenters (default: dijkstra)"
+    ),
 )
 
 parser.add_argument(
@@ -154,7 +169,10 @@ parser.add_argument(
     nargs="+",
     default=None,
     metavar="LITERAL",
-    help="cluster labels refined using the centrality-based strategy, minimizing distances to their own barycenter (default: None)",
+    help=(
+        "cluster labels refined using the centrality-based strategy, minimizing "
+        "distances to their own barycenter (default: None)"
+    ),
 )
 
 parser.add_argument(
@@ -165,7 +183,10 @@ parser.add_argument(
     nargs="+",
     default=None,
     metavar="LITERAL",
-    help="cluster labels refined using the periphery-based strategy, maximizing distances to other clusters' barycenters (default: None)",
+    help=(
+        "cluster labels refined using the periphery-based strategy, maximizing "
+        "distances to other clusters' barycenters (default: None)"
+    ),
 )
 
 parser.add_argument(
@@ -255,7 +276,6 @@ std.print_info(
     f"method={args.method}, jobs={args.jobs})"
 )
 std.print_info("fitting neighbors graph and shortest-path distances")
-std.print_warning("this may take some time.")
 knnsc.fit(
     adata,
     cluster_key=args.obs,

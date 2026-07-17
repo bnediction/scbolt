@@ -146,7 +146,10 @@ parser.add_argument(
     required=False,
     default=1,
     metavar="INT",
-    help="minimum number of paths required to consider a gene pair as source-target candidates (default: 1)",
+    help=(
+        "minimum number of paths required to consider a gene pair as source-target "
+        "candidates (default: 1)"
+    ),
 )
 
 parser.add_argument(
@@ -168,7 +171,10 @@ parser.add_argument(
     max=1.0,
     required=False,
     default=0.75,
-    help="relative path-score threshold required to consider a source-target gene pair (default: 0.75)",
+    help=(
+        "relative path-score threshold required to consider a source-target gene pair "
+        "(default: 0.75)"
+    ),
 )
 
 parser.add_argument(

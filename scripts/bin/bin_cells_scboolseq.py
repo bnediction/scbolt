@@ -101,7 +101,10 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.10,
-    help="quantile used to classify cells as inactive/active when learned distribution is unimodal (default: 0.10)",
+    help=(
+        "quantile used to classify cells as inactive/active when learned distribution "
+        "is unimodal (default: 0.10)"
+    ),
 )
 
 parser.add_argument(
@@ -109,7 +112,10 @@ parser.add_argument(
     dest="zeroes_are_zeroes",
     required=False,
     action="store_true",
-    help="binarize zero values to zero instead of NaN when learned distribution is zero-inflated",
+    help=(
+        "binarize zero values to zero instead of NaN when learned distribution is "
+        "zero-inflated"
+    ),
 )
 
 parser.add_argument(
@@ -118,7 +124,10 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="input file storing interest genes to pass filtering (if not specified, all genes are considered)",
+    help=(
+        "input file storing interest genes to pass filtering (if not specified, all "
+        "genes are considered)"
+    ),
 )
 
 parser.add_argument(

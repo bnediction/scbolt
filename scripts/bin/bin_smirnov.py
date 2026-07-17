@@ -75,7 +75,10 @@ parser.add_argument(
     max=math.inf,
     required=False,
     default=0.25,
-    help="minimum log2 fold-change in absolute value for a gene to be binarized (default: 0.25)",
+    help=(
+        "minimum log2 fold-change in absolute value for a gene to be binarized "
+        "(default: 0.25)"
+    ),
 )
 
 parser.add_argument(
@@ -87,7 +90,10 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.05,
-    help="significance threshold for rejecting the null hypothesis that a gene is not differentially expressed (default: 0.05)",
+    help=(
+        "significance threshold for rejecting the null hypothesis that a gene is not "
+        "differentially expressed (default: 0.05)"
+    ),
 )
 
 parser.add_argument(
@@ -98,7 +104,10 @@ parser.add_argument(
     default="benjamini-hochberg",
     choices=["benjamini-hochberg", "bonferroni"],
     metavar="[benjamini-hochberg | bonferroni]",
-    help="method used for correcting the significance level (default: benjamini-hochberg)",
+    help=(
+        "method used for correcting the significance level (default: "
+        "benjamini-hochberg)"
+    ),
 )
 
 parser.add_argument(
@@ -121,7 +130,10 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     required=False,
     metavar="FILE",
-    help="input file storing interest genes to pass filtering (if not specified, all genes are considered)",
+    help=(
+        "input file storing interest genes to pass filtering (if not specified, all "
+        "genes are considered)"
+    ),
 )
 
 args = parser.parse_args()

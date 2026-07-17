@@ -47,7 +47,10 @@ parser.add_argument(
     required=False,
     metavar="FILE",
     default=None,
-    help="output file storing updated left dataset (format: h5ad; if not specified, replace left file)",
+    help=(
+        "output file storing updated left dataset (format: h5ad; if not specified, "
+        "replace left file)"
+    ),
 )
 
 parser.add_argument(
@@ -88,7 +91,10 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="adata.obs columns appended to the initial index for matching duplicated barcodes (default: None)",
+    help=(
+        "adata.obs columns appended to the initial index for matching duplicated "
+        "barcodes (default: None)"
+    ),
 )
 
 args = parser.parse_args()

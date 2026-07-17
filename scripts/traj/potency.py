@@ -110,7 +110,10 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="INT",
-    help="number of cells to process at once for the pipeline steps (recommended: 20000, default: all cells)",
+    help=(
+        "number of cells to process at once for the pipeline steps (recommended: "
+        "20000, default: all cells)"
+    ),
 )
 
 parser.add_argument(
@@ -120,7 +123,10 @@ parser.add_argument(
     required=False,
     default=1000,
     metavar="INT",
-    help="number of cells to subsample for the smoothing by diffusion step (recommended/default: 1000)",
+    help=(
+        "number of cells to subsample for the smoothing by diffusion step "
+        "(recommended/default: 1000)"
+    ),
 )
 
 parser.add_argument(
@@ -205,9 +211,13 @@ with std.disable_print():
     )
     torch.set_num_threads(cores_to_use_for_batch)
 
-std.print_debug(f"batch: [chunk: {chunk_number}, cpu cores: {cores_to_use_for_batch}]")
 std.print_debug(
-    f"smoothing batch: [chunk: {smooth_chunk_number}, cpu cores: {cores_to_use_for_smooth_batch}]"
+    f"configuring prediction batches (count={chunk_number}, "
+    f"threads={cores_to_use_for_batch})"
+)
+std.print_debug(
+    f"configuring smoothing batches (count={smooth_chunk_number}, "
+    f"workers={cores_to_use_for_smooth_batch})"
 )
 
 model = torch.load(

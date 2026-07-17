@@ -31,7 +31,10 @@ parser.add_argument(
     "outfile",
     type=lambda x: Path(x).resolve(),
     metavar="PATH",
-    help="output file storing standardized gene identifiers (same format as input file)",
+    help=(
+        "output file storing standardized gene identifiers (same format as input "
+        "file)"
+    ),
 )
 
 parser.add_argument(
@@ -52,7 +55,10 @@ parser.add_argument(
     default="index",
     required=False,
     metavar="[index | columns]",
-    help="dataframe axis to standardize when input format is CSV or TSV (default: index)",
+    help=(
+        "dataframe axis to standardize when input format is CSV or TSV (default: "
+        "index)"
+    ),
 )
 
 parser.add_argument(

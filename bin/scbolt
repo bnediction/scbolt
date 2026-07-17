@@ -1583,25 +1583,43 @@ print_kept_intermediate_results_if_inference_ran() {
 
 intermediate_gene_selection_status() {
     local params="$1"
+    local module="$2"
     local line
     local make_assignments=()
-    shift
+    shift 2
 
     while IFS= read -r line; do
         make_assignments+=("${line}")
     done < <(collect_make_assignments "$@")
 
     make -s -f "${SCBOLT_MAKEFILE}" __intermediate-gene-selection-status \
-        "PARAMS=${params}" "${make_assignments[@]}" 2>/dev/null || true
+        "PARAMS=${params}" \
+        "INTERMEDIATE_GENE_SELECTION_MODULE=${module}" \
+        "${make_assignments[@]}" 2>/dev/null || true
 }
 
 target_label_with_intermediate_status() {
     local params="$1"
     local target_label="$2"
+    local target_module
     local intermediate_status
     shift 2
 
-    intermediate_status="$(intermediate_gene_selection_status "${params}" "$@" | head -n 1)"
+    target_module="${target_label%% *}"
+    case "${target_module}" in
+        max-nodes-soft|max-consts-soft|max-nodes-relaxed|max-nodes-seed|max-nodes-lock)
+            ;;
+        *)
+            printf '%s\n' "${target_label}"
+            return 0
+            ;;
+    esac
+
+    intermediate_status="$(
+        intermediate_gene_selection_status \
+            "${params}" "${target_module}" "$@" \
+            | head -n 1
+    )"
     if [ -n "${intermediate_status}" ]; then
         printf '%s (%s)\n' "${target_label}" "${intermediate_status}"
     else
@@ -1630,24 +1648,20 @@ finalize_interrupted_gene_selection_results() {
 
 ensure_clean_output_line() {
     local file
-    local newest_file=""
     local last_byte
+    local needs_newline=false
 
     for file in "$@"; do
         if [ ! -s "${file}" ]; then
             continue
         fi
-        if [ -z "${newest_file}" ] || [ "${file}" -nt "${newest_file}" ]; then
-            newest_file="${file}"
+        last_byte="$(tail -c 1 "${file}" 2> /dev/null | od -An -tx1 | tr -d '[:space:]')"
+        if [ "${last_byte}" != "0a" ]; then
+            needs_newline=true
         fi
     done
 
-    if [ -z "${newest_file}" ]; then
-        return 0
-    fi
-
-    last_byte="$(tail -c 1 "${newest_file}" 2> /dev/null | od -An -tx1 | tr -d '[:space:]')"
-    if [ "${last_byte}" != "0a" ]; then
+    if [ "${needs_newline}" = "true" ]; then
         printf '\n'
     fi
 }
@@ -1714,8 +1728,6 @@ run_make_build_with_params() {
     local status=0
     local final_status
     local interrupted=0
-    local make_pid=""
-    local make_process_group=false
     local recipe_ran=false
     local stale_warning=false
     local build_start_seconds
@@ -1740,42 +1752,24 @@ run_make_build_with_params() {
     terminate_make_process() {
         interrupted=1
         trap - INT TERM
-
-        if [ -z "${make_pid}" ]; then
-            return
-        fi
-
-        if [ "${make_process_group}" = "true" ]; then
-            kill -INT "-${make_pid}" 2> /dev/null || true
-            sleep 1
-            kill -TERM "-${make_pid}" 2> /dev/null || true
-            sleep 1
-            kill -KILL "-${make_pid}" 2> /dev/null || true
-        else
-            kill -INT "${make_pid}" 2> /dev/null || true
-            sleep 1
-            kill -TERM "${make_pid}" 2> /dev/null || true
-            sleep 1
-            kill -KILL "${make_pid}" 2> /dev/null || true
-        fi
     }
 
     trap 'terminate_make_process' INT TERM
     build_start_seconds="${SECONDS}"
     set +e
-    if set -m 2> /dev/null; then
-        make_process_group=true
+    if [ -n "${terminal_device}" ]; then
+        make -f "${SCBOLT_MAKEFILE}" "$@" "PARAMS=${params}" \
+            "SCBOLT_INTERACTIVE=true" \
+            > "${stdout_pipe}" \
+            2> "${stderr_pipe}" \
+            < "${terminal_device}"
+        status=$?
+    else
+        make -f "${SCBOLT_MAKEFILE}" "$@" "PARAMS=${params}" \
+            > "${stdout_pipe}" \
+            2> "${stderr_pipe}"
+        status=$?
     fi
-    make -f "${SCBOLT_MAKEFILE}" "$@" "PARAMS=${params}" \
-        > "${stdout_pipe}" \
-        2> "${stderr_pipe}" &
-    make_pid=$!
-    if [ "${make_process_group}" = "true" ]; then
-        set +m 2> /dev/null || true
-    fi
-    wait "${make_pid}"
-    status=$?
-    wait "${make_pid}" 2> /dev/null || true
     wait "${stdout_tee_pid}" 2> /dev/null || true
     wait "${stderr_tee_pid}" 2> /dev/null || true
     set -e

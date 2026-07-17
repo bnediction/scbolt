@@ -97,7 +97,11 @@ parser.add_argument(
     choices=["kmeans", "ap", "sc"],
     default="kmeans",
     metavar="[kmeans | ap | sc]",
-    help="clustering method used (K-means clustering, affinity propagation, spectral clustering) for seeding the initial elastic principal graph (default: kmeans)",
+    help=(
+        "clustering method used (K-means clustering, affinity propagation, spectral "
+        "clustering) for seeding the initial elastic principal graph (default: "
+        "kmeans)"
+    ),
 )
 
 parser.add_argument(
@@ -117,7 +121,10 @@ parser.add_argument(
     required=False,
     default=0.01,
     metavar="FLOAT",
-    help="alpha parameter used for computing elastic energy, penalizing spurious branching events (default: 0.01)",
+    help=(
+        "alpha parameter used for computing elastic energy, penalizing spurious "
+        "branching events (default: 0.01)"
+    ),
 )
 
 parser.add_argument(
@@ -127,7 +134,10 @@ parser.add_argument(
     required=False,
     default=0.05,
     metavar="FLOAT",
-    help="mu parameter used for computing elastic energy, penalizing the deviation from harmonic embedding (default: 0.05)",
+    help=(
+        "mu parameter used for computing elastic energy, penalizing the deviation "
+        "from harmonic embedding (default: 0.05)"
+    ),
 )
 
 parser.add_argument(
@@ -137,7 +147,10 @@ parser.add_argument(
     required=False,
     default=0.05,
     metavar="FLOAT",
-    help="lambda parameter used for computing elastic energy, penalizing the total length of edges (default: 0.05)",
+    help=(
+        "lambda parameter used for computing elastic energy, penalizing the total "
+        "length of edges (default: 0.05)"
+    ),
 )
 
 parser.add_argument(
@@ -168,7 +181,10 @@ parser.add_argument(
     max=1,
     required=False,
     default=0.5,
-    help="STREAM parameter used to extend leaves (used only if --extend-epg, default: 0.5)",
+    help=(
+        "STREAM parameter used to extend leaves (used only if --extend-epg, default: "
+        "0.5)"
+    ),
 )
 
 parser.add_argument(
@@ -193,7 +209,10 @@ parser.add_argument(
     ],
     default="PointNumber",
     metavar="[PointNumber | PointNumber_Extrema | PointNumber_Leaves | EdgesNumber | EdgesLength]",
-    help="mode used to prune the graph (used only if --prune-epg, default: PointNumber)",
+    help=(
+        "mode used to prune the graph (used only if --prune-epg, default: "
+        "PointNumber)"
+    ),
 )
 
 parser.add_argument(
@@ -203,7 +222,10 @@ parser.add_argument(
     required=False,
     default=5,
     metavar="FLOAT",
-    help="STREAM parameter used to prune the graph (used only if --prune-epg, default: 5)",
+    help=(
+        "STREAM parameter used to prune the graph (used only if --prune-epg, default: "
+        "5)"
+    ),
 )
 
 parser.add_argument(
@@ -213,7 +235,10 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="INT",
-    help="minimum number of cells per macrostate; smaller macrostates are extended to neighboring elastic principal graph nodes (default: None)",
+    help=(
+        "minimum number of cells per macrostate; smaller macrostates are extended to "
+        "neighboring elastic principal graph nodes (default: None)"
+    ),
 )
 
 parser.add_argument(

@@ -38,7 +38,10 @@ parser.add_argument(
     dest="infile",
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
-    help="input file storing precomputed neighbors, principal components and embeddings (format: h5ad)",
+    help=(
+        "input file storing precomputed neighbors, principal components and "
+        "embeddings (format: h5ad)"
+    ),
 )
 
 parser.add_argument(
@@ -74,7 +77,10 @@ parser.add_argument(
     required=False,
     default=15,
     metavar="INT",
-    help="number of principal components taken into account for estimating moments (default: 15)",
+    help=(
+        "number of principal components taken into account for estimating moments "
+        "(default: 15)"
+    ),
 )
 
 parser.add_argument(

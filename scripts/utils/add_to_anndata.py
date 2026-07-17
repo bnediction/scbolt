@@ -88,7 +88,10 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="dataset labels ordered with --csv values (required when multiple files are passed to --csv)",
+    help=(
+        "dataset labels ordered with --csv values (required when multiple files are "
+        "passed to --csv)"
+    ),
 )
 
 parser.add_argument(
@@ -98,7 +101,10 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="column name in adata.obs distinguishing samples (required when multiple files are passed to --csv, default: None)",
+    help=(
+        "column name in adata.obs distinguishing samples (required when multiple "
+        "files are passed to --csv, default: None)"
+    ),
 )
 
 parser.add_argument(
@@ -109,7 +115,10 @@ parser.add_argument(
     required=False,
     default=[],
     metavar="LITERAL",
-    help="dataframe columns whose values receive the dataset label as prefix (not allowed with a single --csv file, default: None)",
+    help=(
+        "dataframe columns whose values receive the dataset label as prefix (not "
+        "allowed with a single --csv file, default: None)"
+    ),
 )
 
 parser.add_argument(
@@ -147,7 +156,10 @@ parser.add_argument(
     action=cli.Store_type,
     required=False,
     default=None,
-    help="dataframe value type (expected: str, int, float, complex, bool, category; default: None)",
+    help=(
+        "dataframe value type (expected: str, int, float, complex, bool, category; "
+        "default: None)"
+    ),
 )
 
 parser.add_argument(

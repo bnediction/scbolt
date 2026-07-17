@@ -44,7 +44,10 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="FILE",
-    help="output integrated dataset (format: h5ad; if not specified, replace input file)",
+    help=(
+        "output integrated dataset (format: h5ad; if not specified, replace input "
+        "file)"
+    ),
 )
 
 parser.add_argument(
@@ -74,7 +77,10 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help="column names in specific adata.obs tables to transfer (if not specified, transfer all columns)",
+    help=(
+        "column names in specific adata.obs tables to transfer (if not specified, "
+        "transfer all columns)"
+    ),
 )
 
 args = parser.parse_args()
