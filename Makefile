@@ -774,10 +774,11 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 	set +e; \
 	$(call start_inference_timer) \
 	$(call trap_inference_interrupt,max-nodes-soft,TIMEOUT_SOFT,,$(max_nodes_soft_domain)); \
-	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_SOFT)) python $(scripts_dir)/infer/infer.py filter-nodes \
+	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_SOFT)) python $(scripts_dir)/infer/selection.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--asp $(@D)/nodes.sh --solution $@ \
+		--witness $(@D)/witness.lp --clause-continuation \
 		--domain-nodes $(max_nodes_soft_domain) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
@@ -800,11 +801,12 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution) $(if $(geneinfo_
 	set +e; \
 	$(call start_inference_timer) \
 	$(call trap_inference_interrupt,max-consts-soft,TIMEOUT_CONSTS,,$(lastword $^)); \
-	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_CONSTS)) python $(scripts_dir)/infer/infer.py filter-consts \
+	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_CONSTS)) python $(scripts_dir)/infer/selection.py filter-consts \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--filter-grn $(lastword $^) \
 		--asp $(@D)/nodes.sh --solution $@ \
+		--witness $(@D)/witness.lp \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode soft --max-clause $(MAX_CLAUSE) $(min_self_loop_consts) \
@@ -825,11 +827,13 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_depend
 	set +e; \
 	$(call start_inference_timer) \
 	$(call trap_inference_interrupt,max-nodes-relaxed,TIMEOUT_RELAXED,,$(lastword $^)); \
-	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_RELAXED)) python $(scripts_dir)/infer/infer.py filter-nodes \
+	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_RELAXED)) python $(scripts_dir)/infer/selection.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
-		--solution $@ \
+		--solution $@ --witness $(@D)/witness.lp \
+		--initial-witness $(dir $(max_consts_soft))witness.lp \
+		--clause-continuation \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode relaxed --max-clause $(MAX_CLAUSE) \
@@ -851,11 +855,13 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_depende
 	set +e; \
 	$(call start_inference_timer) \
 	$(call trap_inference_interrupt,max-nodes-seed,TIMEOUT_SEED,,$(lastword $^)); \
-	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_SEED)) python $(scripts_dir)/infer/infer.py filter-nodes \
+	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_SEED)) python $(scripts_dir)/infer/selection.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
-		--solution $@ \
+		--solution $@ --witness $(@D)/witness.lp \
+		--initial-witness $(dir $(max_nodes_relaxed))witness.lp \
+		--clause-continuation \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
@@ -886,11 +892,13 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if 
 		$(call start_inference_timer) \
 		$(call trap_inference_interrupt,max-nodes-lock,TIMEOUT_LOCK,$(lastword $^),$(word 5,$^)); \
 		$(call system_tool,cat) $(word 4,$^) $(word 6,$^) | $(call system_tool,sort) -u > $(@D)/mandatory.txt; \
-		$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_LOCK)) python $(scripts_dir)/infer/infer.py filter-nodes \
+		$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_LOCK)) python $(scripts_dir)/infer/selection.py filter-nodes \
 			$(word 1,$^) $(word 2,$^) \
 			--important-nodes $(word 3,$^) --mandatory-nodes $(@D)/mandatory.txt \
 			--filter-grn $(word 5,$^) --asp $(@D)/nodes.sh \
-			--solution $@ \
+			--solution $@ --witness $(@D)/witness.lp \
+			--initial-witness $(dir $(max_nodes_seed))witness.lp \
+			--clause-continuation \
 			--domain $(prior_knowledge) --organism $(ORGANISM) \
 			$(prior_knowledge_args) \
 			--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
