@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+if [ "$#" -lt 3 ]; then
+    printf '%s\n' \
+        'usage: scbolt-timeout <status-file> <duration> <command> [<args>...]' >&2
+    exit 2
+fi
+
+status_file="$1"
+duration="$2"
+shift 2
+
+if [ -e "${status_file}" ]; then
+    rm -f "${status_file}"
+fi
+
+if [ -z "${duration}" ] || [ "${duration}" = "0" ]; then
+    exec "$@"
+fi
+
+timeout_command="$(command -v timeout 2>/dev/null || true)"
+if [ -z "${timeout_command}" ] && [ -n "${CONDA_PREFIX:-}" ]; then
+    system_timeout="${CONDA_PREFIX%/*}/scbolt-system/bin/timeout"
+    if [ -x "${system_timeout}" ]; then
+        timeout_command="${system_timeout}"
+    fi
+fi
+if [ -z "${timeout_command}" ]; then
+    printf '%s\n' 'command not found: timeout' >&2
+    exit 127
+fi
+
+"${timeout_command}" --foreground "${duration}" "$@"
+status="$?"
+
+if [ "${status}" -eq 124 ]; then
+    printf '%s\n' "${status}" > "${status_file}"
+    exit 0
+fi
+
+exit "${status}"

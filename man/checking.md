@@ -161,6 +161,7 @@ Examples:
 - `BIN_METHOD`
 - `BIN_HVG_METHOD`
 - `MAX_CLAUSE`
+- `CLAUSE_CONTINUATION_*`
 - `CLINGO_*`
 - `TIMEOUT_*`
 

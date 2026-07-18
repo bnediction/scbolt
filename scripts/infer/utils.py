@@ -430,7 +430,7 @@ def next_solution(view):
     except KeyboardInterrupt:
         close_progress(view, interrupted=True)
         raise
-    except RuntimeError:
+    except (RuntimeError, StopIteration):
         close_progress(view)
         raise
     close_progress(view)

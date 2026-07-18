@@ -498,6 +498,10 @@ else ifeq ($(HELP),false)
 	if grep -q 'CANONICAL_FILTER' "$${dry_run}"; then \
 		$(call check_bool_diagnostic,$(CANONICAL_FILTER),CANONICAL_FILTER,method); \
 	fi; \
+	$(foreach parameter,$(clause_continuation_params),\
+		if grep -q '$(parameter)' "$${dry_run}"; then \
+			$(call check_bool_diagnostic,$($(parameter)),$(parameter),method); \
+		fi;) \
 	if grep -q 'CANONICAL_INFER' "$${dry_run}"; then \
 		$(call check_bool_diagnostic,$(CANONICAL_INFER),CANONICAL_INFER,method); \
 	fi; \

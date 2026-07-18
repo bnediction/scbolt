@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
+      - run: bash tests/unit/test_clause_continuation.sh
       - run: bash tests/unit/test_memory.sh
 
   smoke:
@@ -119,6 +120,7 @@ jobs:
       - run: python -m pip install pandas
       - run: python tests/regression/test_annotation_composition.py
       - run: bash tests/regression/test_clean_sidecars.sh
+      - run: bash tests/regression/test_inference_timeout.sh
       - run: bash tests/regression/test_matrix_entry.sh
       - run: bash tests/regression/test_bn_output_check.sh
       - run: make --always-make --dry-run LOGGING=false __knnsc PARAMS=tests/fixtures/params.mk >/dev/null

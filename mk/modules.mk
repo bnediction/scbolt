@@ -129,7 +129,8 @@ max_nodes_soft_solution =       $(max_nodes_soft)
 max_nodes_soft_domain =         $(infer_dir)/genes/soft/domain.txt
 max_consts_soft =               $(infer_dir)/genes/consts/comps.txt
 max_nodes_relaxed =             $(infer_dir)/genes/relaxed/comps.txt
-max_nodes_seed =                $(infer_dir)/genes/seed/comps.txt
+max_nodes_seed =                $(infer_dir)/genes/seed/comps.txt \
+                                $(infer_dir)/genes/seed/witness.lp
 max_nodes_lock =                $(infer_dir)/genes/lock/comps.txt
 bn_min =                        $(infer_dir)/bn/min/model.bnet
 
@@ -358,6 +359,10 @@ prior_knowledge_params = PRIOR_KNOWLEDGE \
 
 min_self_loop_consts = $(if $(filter true,$(MIN_SELF_LOOP_CONSTS)),--minimize-self-loops)
 min_self_loop_infer = $(if $(filter true,$(MIN_SELF_LOOP_INFER)),--minimize-self-loops)
+clause_continuation_params = \
+	CLAUSE_CONTINUATION_SOFT CLAUSE_CONTINUATION_RELAXED \
+	CLAUSE_CONTINUATION_SEED CLAUSE_CONTINUATION_LOCK
+clause_continuation = $(if $(filter true,$($(1))),--clause-continuation)
 
 reset_stages = \
 	load-fastq load-matrix alignment cellranger star qc velocyto \
@@ -512,7 +517,7 @@ target_params_binarization = \
 target_params_spec = \
 	SPEC_FILE $(prior_knowledge_params)
 target_params_max-nodes-soft = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER CLAUSE_CONTINUATION_SOFT \
 	CLINGO_CONFIG_SOFT CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT \
 	JOBS_SOFT TIMEOUT_SOFT
 target_params_max-consts-soft = \
@@ -520,15 +525,15 @@ target_params_max-consts-soft = \
 	CLINGO_CONFIG_CONSTS CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS \
 	JOBS_CONSTS TIMEOUT_CONSTS
 target_params_max-nodes-relaxed = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER CLAUSE_CONTINUATION_RELAXED \
 	CLINGO_CONFIG_RELAXED CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED \
 	JOBS_RELAXED TIMEOUT_RELAXED
 target_params_max-nodes-seed = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER CLAUSE_CONTINUATION_SEED \
 	CLINGO_CONFIG_SEED CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED \
 	JOBS_SEED TIMEOUT_SEED
 target_params_max-nodes-lock = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER CLAUSE_CONTINUATION_LOCK \
 	CLINGO_CONFIG_LOCK CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK \
 	JOBS_LOCK TIMEOUT_LOCK
 target_params_bn-min = \
@@ -597,7 +602,7 @@ sensitive_params_binarization =
 sensitive_params_spec = \
 	SPEC_FILE $(prior_knowledge_params)
 sensitive_params_max-nodes-soft = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER CLAUSE_CONTINUATION_SOFT \
 	CLINGO_CONFIG_SOFT CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT \
 	JOBS_SOFT TIMEOUT_SOFT SEED
 sensitive_params_max-consts-soft = \
@@ -605,15 +610,15 @@ sensitive_params_max-consts-soft = \
 	CLINGO_CONFIG_CONSTS CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS \
 	JOBS_CONSTS TIMEOUT_CONSTS SEED
 sensitive_params_max-nodes-relaxed = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER CLAUSE_CONTINUATION_RELAXED \
 	CLINGO_CONFIG_RELAXED CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED \
 	JOBS_RELAXED TIMEOUT_RELAXED SEED
 sensitive_params_max-nodes-seed = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER CLAUSE_CONTINUATION_SEED \
 	CLINGO_CONFIG_SEED CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED \
 	JOBS_SEED TIMEOUT_SEED SEED
 sensitive_params_max-nodes-lock = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER CLAUSE_CONTINUATION_LOCK \
 	CLINGO_CONFIG_LOCK CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK \
 	JOBS_LOCK TIMEOUT_LOCK SEED
 sensitive_params_bn-min = \
@@ -704,6 +709,7 @@ method_config_param_set = \
 	BIN_METHOD \
 	MAX_CLAUSE DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS \
 	CANONICAL_FILTER CANONICAL_INFER \
+	$(clause_continuation_params) \
 	CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT JOBS_SOFT TIMEOUT_SOFT \
 	CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS JOBS_CONSTS TIMEOUT_CONSTS \
 	CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED JOBS_RELAXED TIMEOUT_RELAXED \

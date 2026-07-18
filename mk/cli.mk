@@ -1106,7 +1106,7 @@ __finalize-interrupted-gene-selection-results:
 	$(call ensure_partial_gene_selection_metadata,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain))
 	$(call ensure_partial_gene_selection_metadata,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution))
 	$(call ensure_partial_gene_selection_metadata,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft))
-	$(call ensure_partial_gene_selection_metadata,max-nodes-seed,$(max_nodes_seed),$(max_nodes_relaxed))
+	$(call ensure_partial_gene_selection_metadata,max-nodes-seed,$(firstword $(max_nodes_seed)),$(max_nodes_relaxed))
 	$(call ensure_partial_gene_selection_metadata,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed))
 	$(call finalize_interrupted_lock_gene_selection)
 endif
@@ -1121,7 +1121,7 @@ __kept-gene-selection-results:
 	@mkdir -p "$(tmpdir)"
 	@rm -f "$(tmpdir)/kept-gene-selection-reported"
 	$(call maybe_report_kept_gene_selection_result,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed),$(tmpdir)/kept-gene-selection-reported)
-	$(call maybe_report_kept_gene_selection_result,max-nodes-seed,$(max_nodes_seed),$(max_nodes_relaxed),$(tmpdir)/kept-gene-selection-reported)
+	$(call maybe_report_kept_gene_selection_result,max-nodes-seed,$(firstword $(max_nodes_seed)),$(max_nodes_relaxed),$(tmpdir)/kept-gene-selection-reported)
 	$(call maybe_report_kept_gene_selection_result,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft),$(tmpdir)/kept-gene-selection-reported)
 	$(call maybe_report_kept_gene_selection_result,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution),$(tmpdir)/kept-gene-selection-reported)
 	$(call maybe_report_kept_gene_selection_result,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain),$(tmpdir)/kept-gene-selection-reported)
@@ -1140,7 +1140,7 @@ __intermediate-gene-selection-status:
 	@mkdir -p "$(tmpdir)"
 	@rm -f "$(tmpdir)/intermediate-gene-selection-reported"
 	$(call maybe_report_intermediate_gene_selection_status,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed),$(tmpdir)/intermediate-gene-selection-reported)
-	$(call maybe_report_intermediate_gene_selection_status,max-nodes-seed,$(max_nodes_seed),$(max_nodes_relaxed),$(tmpdir)/intermediate-gene-selection-reported)
+	$(call maybe_report_intermediate_gene_selection_status,max-nodes-seed,$(firstword $(max_nodes_seed)),$(max_nodes_relaxed),$(tmpdir)/intermediate-gene-selection-reported)
 	$(call maybe_report_intermediate_gene_selection_status,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft),$(tmpdir)/intermediate-gene-selection-reported)
 	$(call maybe_report_intermediate_gene_selection_status,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution),$(tmpdir)/intermediate-gene-selection-reported)
 	$(call maybe_report_intermediate_gene_selection_status,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain),$(tmpdir)/intermediate-gene-selection-reported)

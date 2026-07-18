@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+tmpdir="$(mktemp -d)"
+
+trap 'rm -rf "${tmpdir}"' EXIT
+
+run_helper() {
+    local outfile="$1"
+    shift
+
+    make -s -C "${repo_root}" -f - "$@" > "${outfile}" <<'MAKE'
+diagnostic_mode = true
+include mk/default_params.mk
+include mk/modules.mk
+
+.PHONY: all
+all:
+	@printf '%s\n' \
+		'soft=$(call clause_continuation,CLAUSE_CONTINUATION_SOFT)' \
+		'soft_mode=$(CLINGO_OPT_MODE_SOFT)' \
+		'soft_strategy=$(CLINGO_OPT_STRATEGY_SOFT)' \
+		'relaxed=$(call clause_continuation,CLAUSE_CONTINUATION_RELAXED)' \
+		'relaxed_mode=$(CLINGO_OPT_MODE_RELAXED)' \
+		'relaxed_strategy=$(CLINGO_OPT_STRATEGY_RELAXED)' \
+		'seed=$(call clause_continuation,CLAUSE_CONTINUATION_SEED)' \
+		'seed_mode=$(CLINGO_OPT_MODE_SEED)' \
+		'seed_strategy=$(CLINGO_OPT_STRATEGY_SEED)' \
+		'lock=$(call clause_continuation,CLAUSE_CONTINUATION_LOCK)'
+	@printf '%s\n' \
+		'lock_mode=$(CLINGO_OPT_MODE_LOCK)' \
+		'lock_strategy=$(CLINGO_OPT_STRATEGY_LOCK)'
+MAKE
+}
+
+defaults="$(${repo_root}/bin/scbolt config --default --raw)"
+grep -qx 'CLAUSE_CONTINUATION_SOFT=false' <<< "${defaults}"
+grep -qx 'CLAUSE_CONTINUATION_RELAXED=true' <<< "${defaults}"
+grep -qx 'CLAUSE_CONTINUATION_SEED=true' <<< "${defaults}"
+grep -qx 'CLAUSE_CONTINUATION_LOCK=true' <<< "${defaults}"
+
+run_helper "${tmpdir}/defaults.out"
+grep -qx 'soft=' "${tmpdir}/defaults.out"
+grep -qx 'soft_mode=optN' "${tmpdir}/defaults.out"
+grep -qx 'soft_strategy=usc' "${tmpdir}/defaults.out"
+grep -qx 'relaxed=--clause-continuation' "${tmpdir}/defaults.out"
+grep -qx 'relaxed_mode=opt' "${tmpdir}/defaults.out"
+grep -qx 'relaxed_strategy=bb,lin' "${tmpdir}/defaults.out"
+grep -qx 'seed=--clause-continuation' "${tmpdir}/defaults.out"
+grep -qx 'seed_mode=opt' "${tmpdir}/defaults.out"
+grep -qx 'seed_strategy=bb,lin' "${tmpdir}/defaults.out"
+grep -qx 'lock=--clause-continuation' "${tmpdir}/defaults.out"
+grep -qx 'lock_mode=opt' "${tmpdir}/defaults.out"
+grep -qx 'lock_strategy=bb,lin' "${tmpdir}/defaults.out"
+
+run_helper "${tmpdir}/disabled.out" \
+    CLAUSE_CONTINUATION_SOFT=false \
+    CLAUSE_CONTINUATION_RELAXED=false \
+    CLAUSE_CONTINUATION_SEED=false \
+    CLAUSE_CONTINUATION_LOCK=false
+test "$(grep -c -- '--clause-continuation' "${tmpdir}/disabled.out" || true)" -eq 0
+grep -qx 'soft_mode=optN' "${tmpdir}/disabled.out"
+grep -qx 'soft_strategy=usc' "${tmpdir}/disabled.out"
+grep -qx 'relaxed_mode=optN' "${tmpdir}/disabled.out"
+grep -qx 'relaxed_strategy=usc' "${tmpdir}/disabled.out"
+grep -qx 'seed_mode=opt' "${tmpdir}/disabled.out"
+grep -qx 'seed_strategy=bb,inc' "${tmpdir}/disabled.out"
+grep -qx 'lock_mode=opt' "${tmpdir}/disabled.out"
+grep -qx 'lock_strategy=usc' "${tmpdir}/disabled.out"
+
+run_helper "${tmpdir}/soft-enabled.out" CLAUSE_CONTINUATION_SOFT=true
+grep -qx 'soft=--clause-continuation' "${tmpdir}/soft-enabled.out"
+grep -qx 'soft_mode=opt' "${tmpdir}/soft-enabled.out"
+grep -qx 'soft_strategy=bb,lin' "${tmpdir}/soft-enabled.out"
+
+run_helper "${tmpdir}/overridden.out" \
+    CLAUSE_CONTINUATION_RELAXED=true \
+    CLINGO_OPT_MODE_RELAXED=optN \
+    CLINGO_OPT_STRATEGY_RELAXED=usc
+grep -qx 'relaxed_mode=optN' "${tmpdir}/overridden.out"
+grep -qx 'relaxed_strategy=usc' "${tmpdir}/overridden.out"
+
+for stage in SOFT RELAXED SEED LOCK; do
+    grep -Fq \
+        "\$(call clause_continuation,CLAUSE_CONTINUATION_${stage})" \
+        "${repo_root}/Makefile"
+    grep -Fq -- \
+        "--clause-continuation-parameter CLAUSE_CONTINUATION_${stage}" \
+        "${repo_root}/Makefile"
+done
+
+! grep -Fq -- \
+    "--initial-witness \$(dir \$(max_consts_soft))witness.lp" \
+    "${repo_root}/Makefile"
+! grep -Fq -- \
+    "--initial-witness \$(dir \$(max_nodes_relaxed))witness.lp" \
+    "${repo_root}/Makefile"
+grep -Fq -- \
+    "--initial-witness \$(lastword \$^)" \
+    "${repo_root}/Makefile"
+grep -Fq -- \
+    "\$(max_nodes_lock): \$(bonesis_model) \$(max_nodes_relaxed) \$(max_nodes_seed)" \
+    "${repo_root}/Makefile"

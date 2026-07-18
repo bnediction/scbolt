@@ -1098,8 +1098,8 @@ conda_inference_env = $(conda_runtime_env) \
 conda_run_inference = $(conda_inference_env) \
 	micromamba run -n $(1)
 conda_run_inference_timeout = $(conda_inference_env) \
-	$(call inference_timeout,$(2)) \
-	micromamba run -n $(1)
+	micromamba run -n $(1) \
+	"$(scbolt_root)/bin/scbolt-timeout" "$(3)" "$(2)"
 else
 conda_run = $(container_base) $(container_runtime_env) --entrypoint micromamba "$(SCBOLT_IMAGE)" \
 	run -n $(1)
@@ -1107,9 +1107,9 @@ conda_run_cellrank = $(container_base) $(container_cellrank_env) --entrypoint mi
 	run -n $(1)
 conda_run_inference = $(container_base) $(container_inference_env) --entrypoint micromamba "$(SCBOLT_IMAGE)" \
 	run -n $(1)
-conda_run_inference_timeout = $(call inference_timeout,$(2)) \
+conda_run_inference_timeout = \
 	$(container_base) $(container_inference_env) --entrypoint micromamba "$(SCBOLT_IMAGE)" \
-	run -n $(1)
+	run -n $(1) "$(scbolt_root)/bin/scbolt-timeout" "$(3)" "$(2)"
 endif
 else
 conda_run_option = $(if $(filter conda,$(backend)),--no-capture-output)
@@ -1124,8 +1124,8 @@ conda_inference_env = $(conda_runtime_env) \
 conda_run_inference = $(conda_inference_env) \
 	$(conda_command) run $(conda_run_option) -n $(1)
 conda_run_inference_timeout = $(conda_inference_env) \
-	$(call inference_timeout,$(2)) \
-	$(conda_command) run $(conda_run_option) -n $(1)
+	$(conda_command) run $(conda_run_option) -n $(1) \
+	"$(scbolt_root)/bin/scbolt-timeout" "$(3)" "$(2)"
 endif
 nested_make = \
 	$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
@@ -1133,7 +1133,13 @@ nested_make = \
 	TQDM_DISABLE="$(TQDM_DISABLE)" \
 	TQDM_TO_TTY="$(TQDM_TO_TTY)" \
 	$(MAKE) --no-print-directory -f "$(makefile_path)" $(trust_make_options)
-inference_timeout = $(if $(filter-out 0,$(strip $(1))),$(call system_tool,timeout) --foreground $(strip $(1)),)
+define capture_inference_exit_status
+exit_status=$$?; \
+if [ -s "$(1)" ]; then \
+	IFS= read -r exit_status < "$(1)"; \
+fi; \
+$(call system_tool,rm) -f "$(1)";
+endef
 
 ifndef LOGGING
 run_logged = \
@@ -1335,24 +1341,24 @@ endef
 
 define finalize_interrupted_lock_gene_selection
 @if [ ! -s "$(max_nodes_lock)" ] \
-		&& [ -s "$(max_nodes_seed)" ] \
+		&& [ -s "$(firstword $(max_nodes_seed))" ] \
 		&& [ -s "$(max_nodes_relaxed)" ] \
 		&& { [ -f "$(dir $(max_nodes_lock))nodes.sh" ] \
 			|| [ -f "$(dir $(max_nodes_lock))mandatory.txt" ]; }; then \
 	mkdir -p "$(dir $(max_nodes_lock))"; \
-	$(call system_tool,cp) "$(max_nodes_seed)" "$(max_nodes_lock)"; \
+	$(call system_tool,cp) "$(firstword $(max_nodes_seed))" "$(max_nodes_lock)"; \
 	$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock),$(call interrupted_timeout_param,max-nodes-lock),$(call solution_metadata_args,partial,$(max_nodes_lock),$(max_nodes_relaxed))); \
 fi
 endef
 
 define check_inference_status
 	if [ $$exit_status -eq 0 ]; then \
-		$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@,,$(call solution_metadata_args,global,$@,$(5)));) \
+		$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$(if $(strip $(6)),$(6),$@),,$(call solution_metadata_args,global,$(if $(strip $(6)),$(6),$@),$(5)));) \
 		$(call print_debug,global optimum found); \
 	elif [ $$exit_status -eq 124 ]; then \
 		echo -e ''; \
-		if [ -s $@ ]; then \
-			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@,$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$@,$(5)));) \
+		if [ -s $(if $(strip $(6)),$(6),$@) ]; then \
+			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$(if $(strip $(6)),$(6),$@),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$(if $(strip $(6)),$(6),$@),$(5)));) \
 			$(call print_warning,user-defined time limit reached $(lparen)$(1)$(rparen): keeping partial solution); \
 		elif [ -n "$(4)" ] && [ -s "$(4)" ]; then \
 			$(call keep_inference_fallback,$(4),$(2),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),user-defined time limit reached $(lparen)$(1)$(rparen): keeping fallback solution,$(5)) \
@@ -1360,8 +1366,8 @@ define check_inference_status
 			$(call print_error,user-defined time limit reached $(lparen)$(1)$(rparen): no solution found); \
 		fi; \
 	elif [ $$exit_status -eq 130 ] || [ $$exit_status -eq 143 ]; then \
-		if [ -s $@ ]; then \
-			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@,$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$@,$(5)));) \
+		if [ -s $(if $(strip $(6)),$(6),$@) ]; then \
+			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$(if $(strip $(6)),$(6),$@),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$(if $(strip $(6)),$(6),$@),$(5)));) \
 			$(call print_warning,inference interrupted: keeping partial solutions); \
 		elif [ -n "$(4)" ] && [ -s "$(4)" ]; then \
 			$(call keep_inference_fallback,$(4),$(2),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),inference interrupted: keeping fallback solution,$(5)) \
@@ -1378,8 +1384,8 @@ endef
 define trap_inference_interrupt
 handle_inference_interrupt() { \
 	signal_status="$$1"; \
-	if [ -s $@ ]; then \
-		$(if $(strip $(1)),$(call write_scbolt_metadata,$(1),$@,$(if $(strip $(2)),$(2)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$@,$(4)));) \
+	if [ -s $(if $(strip $(5)),$(5),$@) ]; then \
+		$(if $(strip $(1)),$(call write_scbolt_metadata,$(1),$(if $(strip $(5)),$(5),$@),$(if $(strip $(2)),$(2)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$(if $(strip $(5)),$(5),$@),$(4)));) \
 		$(call log,WARNING,inference interrupted: keeping partial solutions); \
 	elif [ -n "$(3)" ] && [ -s "$(3)" ]; then \
 		$(call keep_inference_fallback,$(3),$(1),$(if $(strip $(2)),$(2)=$$(effective_inference_timeout)),inference interrupted: keeping fallback solution,$(4)) \

@@ -25,7 +25,6 @@ from utils import (
 
 bonesis.settings["quiet"] = True
 script_name = Path(__file__).name
-CLAUSE_CONTINUATION_PATIENCE = 30
 STRUCTURAL_ATOM_ARITIES = {
     "node": 1,
     "clause": 4,
@@ -228,18 +227,57 @@ def write_structural_witness(witness: Iterable[str], file: Path) -> None:
     write_lines((f"{atom}." for atom in sorted(set(witness))), file)
 
 
-def clause_continuation_bounds(max_clause: int) -> tuple[int, ...]:
-    """Return deduplicated clause bounds from one to the requested target."""
+def structural_witness_clause_bound(witness: Iterable[str]) -> int:
+    """Return the smallest clause bound compatible with a structural witness."""
+
+    bound = 1
+    for expression in witness:
+        atom = clingo.parse_term(expression)
+        if atom.name != "clause":
+            continue
+
+        clause_id = atom.arguments[1]
+        if clause_id.type != clingo.SymbolType.Number:
+            raise ValueError(f"invalid clause identifier in witness atom: {atom}")
+        bound = max(bound, clause_id.number)
+
+    return bound
+
+
+def clause_continuation_bounds(
+    max_clause: int,
+    lower_bound: int = 1,
+) -> tuple[int, ...]:
+    """Return increasing clause bounds compatible with the initial witness."""
 
     if max_clause < 1:
         raise ValueError("`max_clause` must be greater than or equal to 1")
+    if lower_bound < 1:
+        raise ValueError("`lower_bound` must be greater than or equal to 1")
+    if lower_bound > max_clause:
+        raise ValueError(
+            "initial structural witness requires "
+            f"max_clause >= {lower_bound} (got {max_clause})"
+        )
 
-    bounds = [1]
-    if max_clause >= 2:
-        bounds.append(2)
-    if max_clause > 2:
-        bounds.append(max_clause)
-    return tuple(bounds)
+    return tuple(range(lower_bound, max_clause + 1))
+
+
+def make_no_solution_error(
+    clause_continuation: bool,
+    parameter: str | None = None,
+) -> RuntimeError:
+    """Create an actionable error for an unsuccessful node selection."""
+
+    opposite = "false" if clause_continuation else "true"
+    if parameter is not None:
+        suggestion = f"with {parameter}={opposite}"
+    elif clause_continuation:
+        suggestion = "without --clause-continuation"
+    else:
+        suggestion = "with --clause-continuation"
+
+    return RuntimeError(f"no solution found (please try {suggestion})")
 
 
 def fork_bonesis(
@@ -368,6 +406,14 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--clause-continuation-parameter",
+    dest="clause_continuation_parameter",
+    type=str,
+    required=False,
+    default=None,
+    help=argparse.SUPPRESS,
+)
+parser.add_argument(
     "--initial-witness",
     dest="initial_witness",
     type=lambda x: Path(x).resolve(),
@@ -424,11 +470,7 @@ if args.action == "filter-nodes":
         [0, 0] if important_nodes_in_domain else [0]
     )
     nodes_in_data, nodes_in_domain, domain_edges = get_node_sets(bo)
-    initial_witness = (
-        read_structural_witness(args.initial_witness)
-        if args.clause_continuation
-        else ()
-    )
+    initial_witness = read_structural_witness(args.initial_witness)
 
     if not new_constraints:
         std.print_info("no new constraints added; stopping", flush=True)
@@ -437,7 +479,7 @@ if args.action == "filter-nodes":
             write_structural_witness(initial_witness, args.witness)
         sys.exit(0)
 
-    target_clingo_opt_strategy = args.clingo_opt_strategy or "bb,dec"
+    effective_clingo_opt_strategy = args.clingo_opt_strategy or "bb,dec"
     print_node_reference(
         nodes_in_data,
         nodes_in_domain,
@@ -446,7 +488,7 @@ if args.action == "filter-nodes":
     )
     print_clingo_optimization(
         args.clingo_opt_mode,
-        target_clingo_opt_strategy,
+        effective_clingo_opt_strategy,
         args.max_clause,
         canonical,
         configuration=args.clingo_configuration or "auto",
@@ -455,8 +497,19 @@ if args.action == "filter-nodes":
     )
     std.print_warning("this may take some time.", flush=True)
 
+    initial_witness_clause_bound = structural_witness_clause_bound(initial_witness)
+    if initial_witness_clause_bound > args.max_clause:
+        raise ValueError(
+            "initial structural witness requires "
+            f"max_clause >= {initial_witness_clause_bound} "
+            f"(got {args.max_clause})"
+        )
+
     bounds = (
-        clause_continuation_bounds(args.max_clause)
+        clause_continuation_bounds(
+            args.max_clause,
+            lower_bound=initial_witness_clause_bound,
+        )
         if args.clause_continuation
         else (args.max_clause,)
     )
@@ -465,20 +518,14 @@ if args.action == "filter-nodes":
 
     for stage_index, max_clause in enumerate(bounds, start=1):
         is_target = max_clause == args.max_clause
-        if is_target:
-            description = (
-                f"Target optimization [{stage_index}/{len(bounds)}, "
-                f"max clauses={max_clause}]"
-            )
-            clingo_opt_mode = args.clingo_opt_mode
-            clingo_opt_strategy = target_clingo_opt_strategy
-        else:
-            description = (
-                f"Clause continuation [{stage_index}/{len(bounds)}, "
-                f"max clauses={max_clause}]"
-            )
-            clingo_opt_mode = "opt"
-            clingo_opt_strategy = "bb,lin"
+        stage_name = "Target optimization" if is_target else "Clause continuation"
+        clingo_opt_mode = args.clingo_opt_mode
+        clingo_opt_strategy = effective_clingo_opt_strategy
+        description = (
+            f"{stage_name} [{stage_index}/{len(bounds)}, "
+            f"max clauses={max_clause}, mode={clingo_opt_mode}, "
+            f"strategy={clingo_opt_strategy}]"
+        )
 
         stage_bo = fork_bonesis(
             bo,
@@ -500,11 +547,6 @@ if args.action == "filter-nodes":
             args.clingo_configuration,
             *extra_clingo_options,
         )
-        if not is_target:
-            view_settings.update(
-                timeout=CLAUSE_CONTINUATION_PATIENCE,
-                fail_if_timeout=False,
-            )
 
         view = bonesis.NodesView(
             stage_bo,
@@ -522,9 +564,12 @@ if args.action == "filter-nodes":
             solution, current_witness = next_solution(view)
         except StopIteration:
             if is_target:
-                raise
+                raise make_no_solution_error(
+                    args.clause_continuation,
+                    args.clause_continuation_parameter,
+                ) from None
             std.print_warning(
-                "clause continuation found no witness "
+                "clause continuation produced no witness "
                 f"(max clauses={max_clause}); continuing",
                 flush=True,
             )
@@ -550,7 +595,10 @@ if args.action == "filter-nodes":
         write_node_solution(solution, args.solution)
 
     if solution is None:
-        raise RuntimeError("node selection produced no solution")
+        raise make_no_solution_error(
+            args.clause_continuation,
+            args.clause_continuation_parameter,
+        )
 
     print_node_solution(
         solution,

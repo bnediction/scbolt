@@ -272,10 +272,16 @@ $(eval DOROTHEA_LEVELS ?= A B C)            # DoRothEA confidence levels
 $(eval CANONICAL_FILTER ?= false)             # canonical functions during filtering
 $(eval CANONICAL_INFER ?= true)               # canonical functions during BN inference
 
+clause_continuation_clingo_default_strategy := bb,lin
+clingo_opt_strategy_seed_default := bb,inc
+clause_continuation_clingo_mode = $(if $(filter true,$($(1))),opt,$(2))
+clause_continuation_clingo_strategy = $(if $(filter true,$($(1))),$(clause_continuation_clingo_default_strategy),$(2))
+
 ## MAX-NODES-SOFT ##
+$(eval CLAUSE_CONTINUATION_SOFT ?= false)    # progressively increase clause bounds
 $(eval CLINGO_CONFIG_SOFT ?=)               # Clingo default configuration
-$(eval CLINGO_OPT_MODE_SOFT ?= optN)        # Clingo optimization mode
-$(eval CLINGO_OPT_STRATEGY_SOFT ?= usc)     # Clingo optimization strategy
+CLINGO_OPT_MODE_SOFT ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_SOFT,optN)
+CLINGO_OPT_STRATEGY_SOFT ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_SOFT,usc)
 $(eval JOBS_SOFT ?= 1)                      # solver jobs
 $(eval TIMEOUT_SOFT ?=)                     # timeout
 
@@ -288,24 +294,27 @@ $(eval JOBS_CONSTS ?= 1)                    # solver jobs
 $(eval TIMEOUT_CONSTS ?= 24h)               # timeout
 
 ## MAX-NODES-RELAXED ##
+$(eval CLAUSE_CONTINUATION_RELAXED ?= true)  # progressively increase clause bounds
 $(eval CLINGO_CONFIG_RELAXED ?=)            # Clingo default configuration
-$(eval CLINGO_OPT_MODE_RELAXED ?= optN)     # Clingo optimization mode
-$(eval CLINGO_OPT_STRATEGY_RELAXED ?= usc)  # Clingo optimization strategy
+CLINGO_OPT_MODE_RELAXED ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_RELAXED,optN)
+CLINGO_OPT_STRATEGY_RELAXED ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_RELAXED,usc)
 $(eval JOBS_RELAXED ?= 1)                   # solver jobs
 $(eval TIMEOUT_RELAXED ?= 48h)              # timeout
 
 ## MAX-NODES-SEED ##
 # TIMEOUT_SEED is required when max-nodes-seed is reached.
+$(eval CLAUSE_CONTINUATION_SEED ?= true)     # progressively increase clause bounds
 $(eval CLINGO_CONFIG_SEED ?=)               # Clingo default configuration
-$(eval CLINGO_OPT_MODE_SEED ?= opt)         # Clingo optimization mode
-$(eval CLINGO_OPT_STRATEGY_SEED ?= bb,inc)  # Clingo optimization strategy
+CLINGO_OPT_MODE_SEED ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_SEED,opt)
+CLINGO_OPT_STRATEGY_SEED ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_SEED,$(clingo_opt_strategy_seed_default))
 $(eval JOBS_SEED ?= 1)                      # solver jobs
 $(eval TIMEOUT_SEED ?= 24h)                 # timeout
 
 ## MAX-NODES-LOCK ##
+$(eval CLAUSE_CONTINUATION_LOCK ?= true)     # progressively increase clause bounds
 $(eval CLINGO_CONFIG_LOCK ?=)               # Clingo default configuration
-$(eval CLINGO_OPT_MODE_LOCK ?= opt)         # Clingo optimization mode
-$(eval CLINGO_OPT_STRATEGY_LOCK ?= usc)     # Clingo optimization strategy
+CLINGO_OPT_MODE_LOCK ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_LOCK,opt)
+CLINGO_OPT_STRATEGY_LOCK ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_LOCK,usc)
 $(eval JOBS_LOCK ?= 1)                      # solver jobs
 $(eval TIMEOUT_LOCK ?= 72h)                 # timeout
 

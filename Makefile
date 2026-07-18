@@ -770,15 +770,18 @@ $(bonesis_model)&: $(bin) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-soft)
 	$(call require_bonesis_filter_parameters,max-nodes-soft)
+	$(call require_bool,CLAUSE_CONTINUATION_SOFT,max-nodes-soft)
 	mkdir -p $(@D)
 	set +e; \
 	$(call start_inference_timer) \
 	$(call trap_inference_interrupt,max-nodes-soft,TIMEOUT_SOFT,,$(max_nodes_soft_domain)); \
-	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_SOFT)) python $(scripts_dir)/infer/selection.py filter-nodes \
+	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_SOFT),$(@D)/.inference-timeout) python $(scripts_dir)/infer/selection.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--asp $(@D)/nodes.sh --solution $@ \
-		--witness $(@D)/witness.lp --clause-continuation \
+		--witness $(@D)/witness.lp \
+		$(call clause_continuation,CLAUSE_CONTINUATION_SOFT) \
+		--clause-continuation-parameter CLAUSE_CONTINUATION_SOFT \
 		--domain-nodes $(max_nodes_soft_domain) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
@@ -788,7 +791,7 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SOFT) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SOFT) \
 		--jobs $(JOBS_SOFT); \
-	exit_status=$$?; \
+	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 	trap - INT TERM; \
 	set -e; \
 	$(call check_inference_status,$(TIMEOUT_SOFT),max-nodes-soft,TIMEOUT_SOFT,,$(max_nodes_soft_domain))
@@ -801,7 +804,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution) $(if $(geneinfo_
 	set +e; \
 	$(call start_inference_timer) \
 	$(call trap_inference_interrupt,max-consts-soft,TIMEOUT_CONSTS,,$(lastword $^)); \
-	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_CONSTS)) python $(scripts_dir)/infer/selection.py filter-consts \
+	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_CONSTS),$(@D)/.inference-timeout) python $(scripts_dir)/infer/selection.py filter-consts \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--filter-grn $(lastword $^) \
@@ -815,7 +818,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution) $(if $(geneinfo_
 		--clingo-opt-mode $(CLINGO_OPT_MODE_CONSTS) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_CONSTS) \
 		--jobs $(JOBS_CONSTS); \
-	exit_status=$$?; \
+	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 	trap - INT TERM; \
 	set -e; \
 	$(call check_inference_status,$(TIMEOUT_CONSTS),max-consts-soft,TIMEOUT_CONSTS,,$(lastword $^))
@@ -823,17 +826,18 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution) $(if $(geneinfo_
 $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-relaxed)
 	$(call require_bonesis_filter_parameters,max-nodes-relaxed)
+	$(call require_bool,CLAUSE_CONTINUATION_RELAXED,max-nodes-relaxed)
 	mkdir -p $(@D)
 	set +e; \
 	$(call start_inference_timer) \
 	$(call trap_inference_interrupt,max-nodes-relaxed,TIMEOUT_RELAXED,,$(lastword $^)); \
-	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_RELAXED)) python $(scripts_dir)/infer/selection.py filter-nodes \
+	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_RELAXED),$(@D)/.inference-timeout) python $(scripts_dir)/infer/selection.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
 		--solution $@ --witness $(@D)/witness.lp \
-		--initial-witness $(dir $(max_consts_soft))witness.lp \
-		--clause-continuation \
+		$(call clause_continuation,CLAUSE_CONTINUATION_RELAXED) \
+		--clause-continuation-parameter CLAUSE_CONTINUATION_RELAXED \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode relaxed --max-clause $(MAX_CLAUSE) \
@@ -842,26 +846,27 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_depend
 		--clingo-opt-mode $(CLINGO_OPT_MODE_RELAXED) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_RELAXED) \
 		--jobs $(JOBS_RELAXED); \
-	exit_status=$$?; \
+	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 	trap - INT TERM; \
 	set -e; \
 	$(call check_inference_status,$(TIMEOUT_RELAXED),max-nodes-relaxed,TIMEOUT_RELAXED,,$(lastword $^))
 
-$(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
+$(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-seed)
 	$(call require_bonesis_filter_parameters,max-nodes-seed)
+	$(call require_bool,CLAUSE_CONTINUATION_SEED,max-nodes-seed)
 	$(call check_parameter,$(TIMEOUT_SEED),TIMEOUT_SEED (needed by target 'max-nodes-seed'))
 	mkdir -p $(@D)
 	set +e; \
 	$(call start_inference_timer) \
-	$(call trap_inference_interrupt,max-nodes-seed,TIMEOUT_SEED,,$(lastword $^)); \
-	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_SEED)) python $(scripts_dir)/infer/selection.py filter-nodes \
+	$(call trap_inference_interrupt,max-nodes-seed,TIMEOUT_SEED,,$(lastword $^),$(@D)/comps.txt); \
+	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_SEED),$(@D)/.inference-timeout) python $(scripts_dir)/infer/selection.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
-		--solution $@ --witness $(@D)/witness.lp \
-		--initial-witness $(dir $(max_nodes_relaxed))witness.lp \
-		--clause-continuation \
+		--solution $(@D)/comps.txt --witness $(@D)/witness.lp \
+		$(call clause_continuation,CLAUSE_CONTINUATION_SEED) \
+		--clause-continuation-parameter CLAUSE_CONTINUATION_SEED \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
@@ -870,35 +875,37 @@ $(max_nodes_seed): $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_depende
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SEED) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SEED) \
 		--jobs $(JOBS_SEED); \
-	exit_status=$$?; \
+	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 	trap - INT TERM; \
 	set -e; \
-	$(call check_inference_status,$(TIMEOUT_SEED),max-nodes-seed,TIMEOUT_SEED,,$(lastword $^))
+	$(call check_inference_status,$(TIMEOUT_SEED),max-nodes-seed,TIMEOUT_SEED,,$(lastword $^),$(@D)/comps.txt)
 
 $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-lock)
 	$(call require_bonesis_filter_parameters,max-nodes-lock)
+	$(call require_bool,CLAUSE_CONTINUATION_LOCK,max-nodes-lock)
 	mkdir -p $(@D)
-	if [ "$$($(call metadata_solution_field,$(lastword $^),status) 2>/dev/null || true)" = "global" ]; then \
+	if [ "$$($(call metadata_solution_field,$(word 6,$^),status) 2>/dev/null || true)" = "global" ]; then \
 		$(call print_debug,solution already globally optimal: skipping lock optimization); \
-		$(call system_tool,cp) $(lastword $^) $@; \
+		$(call system_tool,cp) $(word 6,$^) $@; \
 		$(call write_scbolt_metadata,max-nodes-lock,$@,,$(call solution_metadata_args,global,$@,$(word 5,$^))); \
 	elif [ "$(strip $(TIMEOUT_LOCK))" = "0" ]; then \
 		$(call print_warning,TIMEOUT_LOCK=0: keeping seed solution); \
-		$(call system_tool,cp) $(lastword $^) $@; \
+		$(call system_tool,cp) $(word 6,$^) $@; \
 		$(call write_scbolt_metadata,max-nodes-lock,$@,,$(call solution_metadata_args,partial,$@,$(word 5,$^))); \
 	else \
 		set +e; \
 		$(call start_inference_timer) \
-		$(call trap_inference_interrupt,max-nodes-lock,TIMEOUT_LOCK,$(lastword $^),$(word 5,$^)); \
+		$(call trap_inference_interrupt,max-nodes-lock,TIMEOUT_LOCK,$(word 6,$^),$(word 5,$^)); \
 		$(call system_tool,cat) $(word 4,$^) $(word 6,$^) | $(call system_tool,sort) -u > $(@D)/mandatory.txt; \
-		$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_LOCK)) python $(scripts_dir)/infer/selection.py filter-nodes \
+		$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_LOCK),$(@D)/.inference-timeout) python $(scripts_dir)/infer/selection.py filter-nodes \
 			$(word 1,$^) $(word 2,$^) \
 			--important-nodes $(word 3,$^) --mandatory-nodes $(@D)/mandatory.txt \
 			--filter-grn $(word 5,$^) --asp $(@D)/nodes.sh \
 			--solution $@ --witness $(@D)/witness.lp \
-			--initial-witness $(dir $(max_nodes_seed))witness.lp \
-			--clause-continuation \
+			--initial-witness $(lastword $^) \
+			$(call clause_continuation,CLAUSE_CONTINUATION_LOCK) \
+			--clause-continuation-parameter CLAUSE_CONTINUATION_LOCK \
 			--domain $(prior_knowledge) --organism $(ORGANISM) \
 			$(prior_knowledge_args) \
 			--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
@@ -907,10 +914,10 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if 
 			--clingo-opt-mode $(CLINGO_OPT_MODE_LOCK) \
 			--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_LOCK) \
 			--jobs $(JOBS_LOCK); \
-		exit_status=$$?; \
+		$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 		trap - INT TERM; \
 		set -e; \
-		$(call check_inference_status,$(TIMEOUT_LOCK),max-nodes-lock,TIMEOUT_LOCK,$(lastword $^),$(word 5,$^)); \
+		$(call check_inference_status,$(TIMEOUT_LOCK),max-nodes-lock,TIMEOUT_LOCK,$(word 6,$^),$(word 5,$^)); \
 	fi
 
 $(bn_min): $(bonesis_model) $(max_nodes_lock) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
