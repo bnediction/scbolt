@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 
+import argparse
 from pathlib import Path
 
-import argparse
-import cli
-import std
-
 import anndata as ad
+
+from scbolt import cli, console, omics
 
 script_name = Path(__file__).name
 
@@ -38,10 +37,10 @@ args = parser.parse_args()
 
 adatas = []
 for infile in args.infiles:
-    std.print_task(f"loading AnnData (file={std.format_path(infile)})")
+    console.print_task(f"loading AnnData (file={console.format_path(infile)})")
     adatas.append(ad.read_h5ad(infile))
 
-std.print_task(f"concatenating AnnData objects (files={len(adatas)})")
+console.print_task(f"concatenating AnnData objects (files={len(adatas)})")
 try:
     adata = ad.concat(
         adatas=adatas,
@@ -54,6 +53,6 @@ try:
 except Exception as error:
     raise RuntimeError("AnnData concatenation failed") from error
 
-std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
+console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
 args.outfile.parent.mkdir(parents=True, exist_ok=True)
-std.write_h5ad(adata, filename=args.outfile, compression="gzip")
+omics.write_h5ad(adata, filename=args.outfile, compression="gzip")

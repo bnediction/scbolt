@@ -7,15 +7,22 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
 
-import cli
-import pandas as pd
-from pandas._typing import Axis
-from pandas import DataFrame
-from tqdm import tqdm
-
 import bonesis
 import bonesistools as bt
-import std
+import pandas as pd
+from pandas import DataFrame
+from pandas._typing import Axis
+from tqdm import tqdm
+
+from scbolt import cli, console
+from scbolt.runtime import (
+    SolverDeadline,
+    SolverPatience,
+    SolverPatienceExpired,
+    SolverTimeout,
+    iter_solutions,
+    parse_solver_timeout,
+)
 
 DISABLE_TQDM = os.getenv("TQDM_DISABLE", "0") == "1"
 TQDM_TO_TTY = os.getenv("TQDM_TO_TTY", "0") == "1"
@@ -105,6 +112,27 @@ def add_bonesis_arguments(parser: argparse.ArgumentParser) -> None:
         required=True,
         metavar="FILE | PATH",
         help="output storing the BoNesis solution",
+    )
+    parser.add_argument(
+        "--timeout",
+        dest="timeout",
+        type=parse_solver_timeout,
+        required=False,
+        default=0.0,
+        metavar="DURATION",
+        help=(
+            "maximum total solver runtime; suffixes s, m, h and d are "
+            "supported, and 0 disables the limit (default: 0)"
+        ),
+    )
+    parser.add_argument(
+        "--timeout-status-file",
+        dest="timeout_status_file",
+        type=lambda x: Path(x).resolve(),
+        required=False,
+        default=None,
+        metavar="FILE",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--domain",
@@ -256,27 +284,27 @@ def initialize_bonesis(
     """Build the BoNesis problem shared by selection and inference commands."""
 
     if args.bonesis_mode != "hard":
-        std.print_warning(
+        console.print_warning(
             f"some constraints are removed (bonesis mode: {args.bonesis_mode})"
         )
 
     clingo_parallel_jobs, clingo_parallel_option = get_clingo_parallel_mode(args.jobs)
     bonesis.settings["parallel"] = clingo_parallel_jobs
 
-    genesyn = bt.resources.ncbi.genesyn(
+    identifiers = bt.resources.ncbi.identifiers(
         organism=args.organism,
         version=args.geneinfo_version,
     )
-    std.print_task(
+    console.print_task(
         "loading partially binarized metastates "
-        f"(file={std.format_path(args.mstates)})"
+        f"(file={console.format_path(args.mstates)})"
     )
     mstates_df = pd.read_csv(args.mstates, index_col=0, sep=args.sep).fillna(
         float("nan")
     )
     mstates_cfg = get_cfg(mstates_df, axis="index")
 
-    std.print_task("initializing inference settings (engine=BoNesis)")
+    console.print_task("initializing inference settings (engine=BoNesis)")
 
     canonical = args.canonical
     if canonical is None:
@@ -292,7 +320,7 @@ def initialize_bonesis(
     grn = load_prior_network(
         args.domain,
         args.organism,
-        genesyn,
+        identifiers,
         args.dorothea_levels,
         args.omnipath_version,
         args.hcop_version,
@@ -300,7 +328,7 @@ def initialize_bonesis(
         args.dorothea_compatibility,
     )
     if args.filter_grn:
-        std.print_info(f"filtering prior network (genes={args.filter_grn})")
+        console.print_info(f"filtering prior network (genes={args.filter_grn})")
         with open(args.filter_grn) as file:
             nodes = [line.strip() for line in file.readlines()]
         grn = grn.subgraph(nodes)
@@ -363,7 +391,7 @@ def get_node_sets(bo: bonesis.BoNesis) -> tuple[set, set, int]:
 def print_node_reference(nodes_in_data, nodes_in_domain, domain_edges, **kwargs):
     """Print data and regulatory-domain sizes."""
 
-    std.print_info(
+    console.print_info(
         f"input graph: data nodes={len(nodes_in_data)}, "
         f"domain nodes={len(nodes_in_domain)}, domain edges={domain_edges}",
         **kwargs,
@@ -399,7 +427,7 @@ def print_clingo_optimization(
             f"canonical={canonical}",
         ]
     )
-    std.print_info(f"optimization options: {', '.join(options)}", **kwargs)
+    console.print_info(f"optimization options: {', '.join(options)}", **kwargs)
 
 
 def get_clingo_parallel_mode(value: str) -> tuple[int | None, str | None]:
@@ -422,22 +450,32 @@ def close_progress(view, leave=None, interrupted=False):
         progressbar.close()
 
 
-def next_solution(view):
+def next_solution(
+    view: Any,
+    deadline: Optional[SolverDeadline] = None,
+    patience: Optional[SolverPatience] = None,
+) -> Any:
     """Return the next view solution and close its progress bar."""
 
+    solutions = iter_solutions(view, deadline, patience)
     try:
-        solution = next(iter(view))
+        solution = next(solutions)
     except KeyboardInterrupt:
+        close_progress(view, interrupted=True)
+        raise
+    except (SolverPatienceExpired, SolverTimeout):
         close_progress(view, interrupted=True)
         raise
     except (RuntimeError, StopIteration):
         close_progress(view)
         raise
+    finally:
+        solutions.close()
     close_progress(view)
     return solution
 
 
-def get_cfg(df: DataFrame, axis: Axis = 0, genesyn: Optional[Any] = None) -> dict:
+def get_cfg(df: DataFrame, axis: Axis = 0, identifiers: Optional[Any] = None) -> dict:
     """
     Convert configurations from dataframe format into dictionary format.
 
@@ -447,8 +485,8 @@ def get_cfg(df: DataFrame, axis: Axis = 0, genesyn: Optional[Any] = None) -> dic
         DataFrame object.
     axis: pd.Axis (default: 0)
         Whether configuration names are df.index (0 or 'index') or df.obs (1 or 'column').
-    gensyn: callable (optional, default: None)
-        Gene synonym converter used for standardizing gene names.
+    identifiers: callable (optional, default: None)
+        Gene identifier converter used for standardizing gene names.
 
     Returns
     -------
@@ -464,8 +502,8 @@ def get_cfg(df: DataFrame, axis: Axis = 0, genesyn: Optional[Any] = None) -> dic
             f"invalid value for 'axis' (got {axis}, expected 'index' or 'column')"
         )
 
-    if genesyn is not None:
-        genesyn(df, axis=0, copy=False)
+    if identifiers is not None:
+        identifiers(df, axis=0, copy=False)
 
     return {config: genes.to_dict() for config, genes in df.items()}
 
@@ -507,7 +545,7 @@ def load_bonesis_code(
 def load_prior_network(
     domain: str,
     organism: str,
-    genesyn: Any,
+    identifiers: Any,
     dorothea_levels: Optional[Sequence[str]] = None,
     omnipath_version: str = "latest",
     hcop_version: str = "bundled",
@@ -515,7 +553,7 @@ def load_prior_network(
     dorothea_compatibility: bool = True,
 ):
     if domain == "collectri":
-        std.print_info(
+        console.print_info(
             f"loading CollecTRI prior network "
             f"(organism={organism}, version={omnipath_version}, "
             f"hcop={hcop_version})"
@@ -523,7 +561,7 @@ def load_prior_network(
         kwargs = {
             "organism": organism,
             "version": omnipath_version,
-            "genesyn": genesyn,
+            "identifiers": identifiers,
         }
         if (
             "hcop_version"
@@ -538,7 +576,7 @@ def load_prior_network(
             levels = ["A", "B", "C", "D"] if flavor == "legacy" else ["A", "B", "C"]
         else:
             levels = list(dorothea_levels)
-        std.print_info(
+        console.print_info(
             f"loading DoRothEA prior network "
             f"(organism={organism}, levels={','.join(levels)}, "
             f"version={omnipath_version}, hcop={hcop_version}, "
@@ -551,11 +589,11 @@ def load_prior_network(
             hcop_version=hcop_version,
             flavor=flavor,
             compatibility=dorothea_compatibility,
-            genesyn=genesyn,
+            identifiers=identifiers,
         )
 
-    std.print_task(f"loading custom prior network (file={std.format_path(domain)})")
-    return bt.logic.ig.read_influence_graph(
-        infile=domain,
-        genesyn=genesyn,
+    console.print_task(f"loading custom prior network (file={console.format_path(domain)})")
+    return bt.logic.io.read_influence_graph(
+        file=domain,
+        identifiers=identifiers,
     )

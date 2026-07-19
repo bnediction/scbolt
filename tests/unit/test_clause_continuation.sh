@@ -19,16 +19,20 @@ include mk/modules.mk
 all:
 	@printf '%s\n' \
 		'soft=$(call clause_continuation,CLAUSE_CONTINUATION_SOFT)' \
+		'soft_patience=$(PATIENCE_SOFT)' \
 		'soft_mode=$(CLINGO_OPT_MODE_SOFT)' \
 		'soft_strategy=$(CLINGO_OPT_STRATEGY_SOFT)' \
 		'relaxed=$(call clause_continuation,CLAUSE_CONTINUATION_RELAXED)' \
+		'relaxed_patience=$(PATIENCE_RELAXED)' \
 		'relaxed_mode=$(CLINGO_OPT_MODE_RELAXED)' \
 		'relaxed_strategy=$(CLINGO_OPT_STRATEGY_RELAXED)' \
 		'seed=$(call clause_continuation,CLAUSE_CONTINUATION_SEED)' \
+		'seed_patience=$(PATIENCE_SEED)' \
 		'seed_mode=$(CLINGO_OPT_MODE_SEED)' \
 		'seed_strategy=$(CLINGO_OPT_STRATEGY_SEED)' \
 		'lock=$(call clause_continuation,CLAUSE_CONTINUATION_LOCK)'
 	@printf '%s\n' \
+		'lock_patience=$(PATIENCE_LOCK)' \
 		'lock_mode=$(CLINGO_OPT_MODE_LOCK)' \
 		'lock_strategy=$(CLINGO_OPT_STRATEGY_LOCK)'
 MAKE
@@ -39,18 +43,26 @@ grep -qx 'CLAUSE_CONTINUATION_SOFT=false' <<< "${defaults}"
 grep -qx 'CLAUSE_CONTINUATION_RELAXED=true' <<< "${defaults}"
 grep -qx 'CLAUSE_CONTINUATION_SEED=true' <<< "${defaults}"
 grep -qx 'CLAUSE_CONTINUATION_LOCK=true' <<< "${defaults}"
+grep -qx 'PATIENCE_SOFT=30m' <<< "${defaults}"
+grep -qx 'PATIENCE_RELAXED=30m' <<< "${defaults}"
+grep -qx 'PATIENCE_SEED=30m' <<< "${defaults}"
+grep -qx 'PATIENCE_LOCK=30m' <<< "${defaults}"
 
 run_helper "${tmpdir}/defaults.out"
 grep -qx 'soft=' "${tmpdir}/defaults.out"
+grep -qx 'soft_patience=30m' "${tmpdir}/defaults.out"
 grep -qx 'soft_mode=optN' "${tmpdir}/defaults.out"
 grep -qx 'soft_strategy=usc' "${tmpdir}/defaults.out"
 grep -qx 'relaxed=--clause-continuation' "${tmpdir}/defaults.out"
+grep -qx 'relaxed_patience=30m' "${tmpdir}/defaults.out"
 grep -qx 'relaxed_mode=opt' "${tmpdir}/defaults.out"
 grep -qx 'relaxed_strategy=bb,lin' "${tmpdir}/defaults.out"
 grep -qx 'seed=--clause-continuation' "${tmpdir}/defaults.out"
+grep -qx 'seed_patience=30m' "${tmpdir}/defaults.out"
 grep -qx 'seed_mode=opt' "${tmpdir}/defaults.out"
 grep -qx 'seed_strategy=bb,lin' "${tmpdir}/defaults.out"
 grep -qx 'lock=--clause-continuation' "${tmpdir}/defaults.out"
+grep -qx 'lock_patience=30m' "${tmpdir}/defaults.out"
 grep -qx 'lock_mode=opt' "${tmpdir}/defaults.out"
 grep -qx 'lock_strategy=bb,lin' "${tmpdir}/defaults.out"
 
@@ -88,7 +100,17 @@ for stage in SOFT RELAXED SEED LOCK; do
     grep -Fq -- \
         "--clause-continuation-parameter CLAUSE_CONTINUATION_${stage}" \
         "${repo_root}/Makefile"
+    grep -Fq -- \
+        "--clause-continuation-patience \"\$(PATIENCE_${stage})\"" \
+        "${repo_root}/Makefile"
 done
+
+seed_help="$(
+    "${repo_root}/bin/scbolt" max-nodes-seed help \
+        --params="${repo_root}/tests/fixtures/params.mk"
+)"
+grep -Fq 'PATIENCE_SEED' <<< "${seed_help}"
+grep -Fq 'Maximum time without a Clingo objective improvement' <<< "${seed_help}"
 
 ! grep -Fq -- \
     "--initial-witness \$(dir \$(max_consts_soft))witness.lp" \

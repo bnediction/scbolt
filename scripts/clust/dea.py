@@ -1,17 +1,16 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
-import cli
+import math
+import os
 from pathlib import Path
 
-import math
-
-import pandas as pd
 import anndata as ad
 import bonesistools as bt
+import pandas as pd
 from pandas import ExcelWriter
+
+from scbolt import cli, console
 
 script_name = Path(__file__).name
 
@@ -61,12 +60,11 @@ parser.add_argument(
     "--expression",
     dest="expression",
     type=str,
-    required=False,
-    default=None,
+    required=True,
     metavar="LITERAL",
     help=(
-        "Expression layer to use. Expected data: log-normalized counts.\n"
-        "Default: adata.X."
+        "Expression layer to use. Expected data: log-normalized counts. "
+        "Required."
     ),
 )
 
@@ -148,11 +146,11 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
-std.print_task(f"ranking genes (scope=groups, method={args.method})")
+console.print_task(f"ranking genes (scope=groups, method={args.method})")
 
 markers_df = bt.omics.tl.dea(
     adata,
@@ -175,7 +173,7 @@ markers_df = markers_df.sort_values(
     kind="mergesort",
 ).reset_index(drop=True)
 
-std.print_task(f"saving CSV table (file={std.format_path(args.outfile)})")
+console.print_task(f"saving CSV table (file={console.format_path(args.outfile)})")
 markers_df.to_csv(
     args.outfile,
     sep=",",
@@ -183,8 +181,8 @@ markers_df.to_csv(
 )
 
 if args.xlsx:
-    std.print_task(
-        f"saving differential expression workbook (file={std.format_path(args.xlsx)})"
+    console.print_task(
+        f"saving differential expression workbook (file={console.format_path(args.xlsx)})"
     )
     with ExcelWriter(args.xlsx) as xlsx_writer:
         pd.DataFrame(adata.var_names).to_excel(

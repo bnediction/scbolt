@@ -1,18 +1,16 @@
 #!/usr/bin/env python
 
-import importlib.util
+import sys
 from pathlib import Path
 
 import pandas as pd
 from pandas.testing import assert_frame_equal
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-composition_path = REPO_ROOT / "scripts" / "clust" / "_composition.py"
-spec = importlib.util.spec_from_file_location("composition", composition_path)
-if spec is None or spec.loader is None:
-    raise RuntimeError(f"could not load {composition_path}")
-composition = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(composition)
+sys.path.insert(0, str(REPO_ROOT / "lib"))
+
+from scbolt.omics import check_exported_composition  # noqa: E402
+from scbolt.omics import composition_rows, compute_condition_composition
 
 
 def test_condition_enrichment_by_label_corrects_condition_imbalance() -> None:
@@ -49,7 +47,7 @@ def test_condition_enrichment_by_label_corrects_condition_imbalance() -> None:
         condition_by_label,
         label_by_condition,
         condition_enrichment_by_label,
-    ) = composition.compute_condition_composition(
+    ) = compute_condition_composition(
         obs,
         group_col="label",
         condition_col="condition",
@@ -85,14 +83,14 @@ def test_condition_enrichment_by_label_corrects_condition_imbalance() -> None:
     assert_frame_equal(condition_enrichment_by_label, expected_enrichment)
 
     rows = pd.DataFrame(
-        composition.composition_rows(
+        composition_rows(
             condition_by_group=condition_by_label,
             group_by_condition=label_by_condition,
             condition_enrichment_by_group=condition_enrichment_by_label,
             group_key="label",
         )
     )
-    composition.check_exported_composition(rows, group_key="label")
+    check_exported_composition(rows, group_key="label")
     assert set(rows["summary"]) == {
         "condition_by_label",
         "label_by_condition",
@@ -110,7 +108,7 @@ def test_cluster_composition_rows_include_condition_enrichment() -> None:
     )
     table.columns.name = "condition"
     rows = pd.DataFrame(
-        composition.composition_rows(
+        composition_rows(
             condition_by_group=table,
             group_by_condition=table,
             condition_enrichment_by_group=table,

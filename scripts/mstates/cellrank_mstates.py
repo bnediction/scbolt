@@ -1,20 +1,19 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
-import cli
+import math
+import os
+import random
 from pathlib import Path
 
-import math
-import random
+import anndata as ad
+import bonesistools as bt
+import cellrank as cr
 import numpy as np
 
-import anndata as ad
-import cellrank as cr
-import bonesistools as bt
+from scbolt import cli, console, omics
 
-std.set_default_plot_params(bt.omics.pl)
+omics.set_default_plot_params(bt.omics.pl)
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
@@ -203,19 +202,19 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
-std.print_task("computing kernels")
+console.print_task("computing kernels")
 
-std.print_info("computing RNA velocity-based kernel")
+console.print_info("computing RNA velocity-based kernel")
 velocity_kernel = cr.kernels.VelocityKernel(
     adata, xkey=args.scvelo_first_moment, vkey=args.scvelo_velocity
 )
 velocity_kernel.compute_transition_matrix(seed=args.seed)
 
 if args.cytotrace_score:
-    std.print_info("computing cell development potential-based kernel")
+    console.print_info("computing cell development potential-based kernel")
     potency_kernel = cr.kernels.CytoTRACEKernel(adata)
     scores = adata.obs[args.cytotrace_score].copy()
     scores -= scores.min()
@@ -223,15 +222,15 @@ if args.cytotrace_score:
     potency_kernel._pseudotime = 1 - scores
     potency_kernel.compute_transition_matrix(n_jobs=args.jobs)
 else:
-    std.print_warning(
+    console.print_warning(
         "cell development potential-based kernel is not computed: please specify argument --cytotrace-score"
     )
 
-std.print_info("computing similarity-based kernel")
+console.print_info("computing similarity-based kernel")
 connectivity_kernel = cr.kernels.ConnectivityKernel(adata)
 connectivity_kernel.compute_transition_matrix()
 
-std.print_info("combining kernels")
+console.print_info("combining kernels")
 if args.cytotrace_score:
     combined_kernel = (
         0.4 * velocity_kernel + 0.4 * potency_kernel + 0.2 * connectivity_kernel
@@ -239,12 +238,12 @@ if args.cytotrace_score:
 else:
     combined_kernel = 0.8 * velocity_kernel + 0.2 * connectivity_kernel
 
-std.print_task(
+console.print_task(
     "estimating macrostates (method=generalized perron cluster cluster analysis, abbreviation=GPCCA)"
 )
 gpcca = cr.estimators.GPCCA(combined_kernel)
 
-with std.disable_print():
+with console.suppress_output():
     gpcca.fit(cluster_key=args.obs, n_states=args.states, n_cells=args.size)
 
 try:
@@ -253,7 +252,7 @@ try:
 except ValueError as e:
     if str(e) == "No macrostates have been selected.":
         found_initial_states = False
-        std.print_warning("no initial states have been predicted")
+        console.print_warning("no initial states have been predicted")
     else:
         raise
 
@@ -270,7 +269,7 @@ try:
 except ValueError as e:
     if str(e) == "No macrostates have been selected.":
         found_final_states = False
-        std.print_warning("no final states have been predicted")
+        console.print_warning("no final states have been predicted")
     else:
         raise
 
@@ -292,7 +291,7 @@ else:
     adata.obs["final_states"] = adata.obs["final_states"].astype("category")
 
 cellrank_plot_dir = Path(os.path.dirname(args.outfile))
-std.print_task(
+console.print_task(
     f"plotting CellRank outputs (directory={os.path.relpath(cellrank_plot_dir)})"
 )
 macrostate_files = {
@@ -309,9 +308,9 @@ for obs, file in macrostate_files.items():
             representation="X_umap",
             figheight=6,
             figwidth=8,
-            xlabel=std.axis_label("UMAP", 1),
-            ylabel=std.axis_label("UMAP", 2),
-            zlabel=std.axis_label("UMAP", 3),
+            xlabel=omics.axis_label("UMAP", 1),
+            ylabel=omics.axis_label("UMAP", 2),
+            zlabel=omics.axis_label("UMAP", 3),
             s=4,
             labels={"fontsize": 15, "fontweight": "extra bold"},
             legend={
@@ -329,11 +328,11 @@ for obs, file in macrostate_files.items():
             outfile=file,
         )
     else:
-        std.print_warning(f"no plotting for '{obs}': no state found")
+        console.print_warning(f"no plotting for '{obs}': no state found")
 
-std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-std.write_h5ad(adata, filename=args.outfile, compression="gzip")
+console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
+omics.write_h5ad(adata, filename=args.outfile, compression="gzip")
 
 if args.csv:
-    std.print_task(f"saving CellRank macrostates (file={std.format_path(args.csv)})")
+    console.print_task(f"saving CellRank macrostates (file={console.format_path(args.csv)})")
     adata.obs["macrostate"].to_csv(args.csv, sep=",", index=True)

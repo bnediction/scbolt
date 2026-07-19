@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
-import cli
+import os
 from pathlib import Path
 
 import anndata as ad
-import numpy as np
 import bonesistools as bt
+import numpy as np
 from scipy import sparse
+
+from scbolt import cli, console, omics
 
 
 def normalize_by_library_size(adata, layer, target_sum=1e4):
@@ -69,10 +69,9 @@ parser.add_argument(
     "--expression",
     dest="expression",
     type=str,
-    required=False,
-    default=None,
+    required=True,
     metavar="LITERAL",
-    help=("Expression layer to use.\n" "Default: adata.X."),
+    help="Expression layer containing raw counts. Required.",
 )
 
 parser.add_argument(
@@ -115,20 +114,17 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
-if args.expression:
-    adata.X = adata.layers[args.expression].copy()
+console.print_task("normalizing read counts")
 
-std.print_task("normalizing read counts")
-
-std.print_info("normalizing counts by library size (layer=norm)")
-adata.layers["norm"] = adata.X.copy()
+console.print_info("normalizing counts by library size (layer=norm)")
+adata.layers["norm"] = adata.layers[args.expression].copy()
 normalize_by_library_size(adata, layer="norm", target_sum=1e4)
 
-std.print_info("performing log-transformation (layer=log-norm)")
+console.print_info("performing log-transformation (layer=log-norm)")
 bt.omics.pp.log1p(
     adata,
     expression="norm",
@@ -137,16 +133,8 @@ bt.omics.pp.log1p(
     copy=False,
 )
 
-std.print_info("scaling to unit variance and zero mean (layer=scale)")
-bt.omics.pp.scale(
-    adata,
-    expression="log-norm",
-    key_added="scale",
-    copy=False,
-)
-
 if args.correction:
-    std.print_info("correcting unwanted effects (layer: correct)")
+    console.print_info("correcting unwanted effects (layer: correct)")
     adata.layers["correct"] = adata.layers["log-norm"].copy()
     bt.omics.tl.regress_out(
         adata,
@@ -158,8 +146,14 @@ if args.correction:
     )
     bt.omics.pp.scale(adata, expression="correct", copy=False)
 else:
-    std.print_info("no unwanted effects specified")
-    adata.layers["correct"] = adata.layers["scale"].copy()
+    console.print_info("no unwanted effects specified")
+    bt.omics.pp.scale(
+        adata,
+        expression="log-norm",
+        key_added="correct",
+        copy=False,
+    )
 
-std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-std.write_h5ad(adata, filename=args.outfile, compression="gzip")
+console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
+omics.drop_expression_matrices(adata, layers=("norm", "scale"))
+omics.write_h5ad(adata, filename=args.outfile, compression="gzip")

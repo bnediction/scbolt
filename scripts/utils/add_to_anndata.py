@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 
-from typing import Sequence, Union, cast
-from pathlib import Path
-
-import std
 import argparse
-import cli
+from pathlib import Path
+from typing import Sequence, Union, cast
 
-import pandas as pd
 import anndata as ad
+import pandas as pd
+
+from scbolt import cli, console, omics
 
 PathLike = Union[str, Path]
 category = pd.Categorical
@@ -238,7 +237,7 @@ else:
     labels = cast(Sequence[str], args.labels)
     label_column = cast(str, args.label_column)
 
-std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 if str(args.infile).endswith("h5ad"):
     adata = ad.read_h5ad(filename=args.infile)
 elif str(args.infile).endswith("loom"):
@@ -249,7 +248,7 @@ else:
     )
 
 if len(args.csv) == 1:
-    std.print_task(f"loading tabular annotation (file={std.format_path(args.csv[0])})")
+    console.print_task(f"loading tabular annotation (file={console.format_path(args.csv[0])})")
     df = pd.read_csv(
         args.csv[0],
         sep=args.sep,
@@ -258,7 +257,7 @@ if len(args.csv) == 1:
     if args.axis in [0, "obs"]:
         cols_to_remove = set(adata.obs.columns) & set(df.columns)
         if cols_to_remove:
-            std.print_debug(
+            console.print_debug(
                 "removing columns (table=adata.obs, columns={0})".format(
                     "+".join(map(str, cols_to_remove))
                 )
@@ -270,7 +269,7 @@ if len(args.csv) == 1:
     else:
         cols_to_remove = set(adata.var.columns) & set(df.columns)
         if cols_to_remove:
-            std.print_debug(
+            console.print_debug(
                 "removing columns (table=adata.var, columns={0})".format(
                     "+".join(map(str, cols_to_remove))
                 )
@@ -280,9 +279,9 @@ if len(args.csv) == 1:
             right=df, how="left", left_index=True, right_index=True
         )
 else:
-    std.print_task(
+    console.print_task(
         "loading tabular annotations "
-        f"(files={', '.join(std.format_path(file) for file in args.csv)})"
+        f"(files={', '.join(console.format_path(file) for file in args.csv)})"
     )
     dfs = dict()
     add_prefix = args.add_prefix or []
@@ -304,7 +303,7 @@ else:
             [label_column]
         )
         if cols_to_remove:
-            std.print_debug(
+            console.print_debug(
                 "removing columns (table=adata.obs, columns={0})".format(
                     "+".join(map(str, cols_to_remove))
                 )
@@ -316,7 +315,7 @@ else:
             [label_column]
         )
         if cols_to_remove:
-            std.print_debug(
+            console.print_debug(
                 "removing columns (table=adata.var, columns={0})".format(
                     "+".join(map(str, cols_to_remove))
                 )
@@ -354,18 +353,18 @@ else:
         adata.var = adata_df
 
 if args.plot_obs:
-    std.print_task(f"plotting embeddings (file={std.format_path(args.plot_outfile)})")
-    std.plot_categorical_embedding(
+    console.print_task(f"plotting embeddings (file={console.format_path(args.plot_outfile)})")
+    omics.plot_categorical_embedding(
         adata,
         obs=args.plot_obs,
         embedding=args.plot_representation,
-        label=std.format_embedding(args.plot_representation),
+        label=console.format_embedding(args.plot_representation),
         outfile=args.plot_outfile,
     )
 
-std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
+console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
 if str(args.outfile).endswith("h5ad"):
-    std.write_h5ad(adata, filename=args.outfile, compression="gzip")
+    omics.write_h5ad(adata, filename=args.outfile)
 elif str(args.outfile).endswith("loom"):
     adata.write_loom(filename=args.outfile, write_obsm_varm=True)
 else:

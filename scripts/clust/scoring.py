@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
-import cli
+import json
+import os
 from pathlib import Path
 
-import json
-import pandas as pd
 import anndata as ad
 import bonesistools as bt
+import pandas as pd
+
+from scbolt import cli, console
 
 CLUSTER_INFO_ROWS = ["cells", "proportion", "median_expression", "median_reads"]
 CORRECTION_METHODS = ("none", "benjamini-hochberg", "bonferroni")
@@ -116,21 +116,21 @@ def write_signature_outputs(
     fold_enrichment_file = outdir / SIGNATURE_FOLD_ENRICHMENT_FILE
     ora_result_file = outdir / ORA_RESULT_FILE
 
-    std.print_task(f"saving raw p-value matrix (file={std.format_path(outfile)})")
+    console.print_task(f"saving raw p-value matrix (file={console.format_path(outfile)})")
     pvals.to_csv(outfile, sep=",", index=True)
 
-    std.print_task(
-        f"saving adjusted p-value matrix (file={std.format_path(pvals_adj_file)})"
+    console.print_task(
+        f"saving adjusted p-value matrix (file={console.format_path(pvals_adj_file)})"
     )
     pvals_adj.to_csv(pvals_adj_file, sep=",", index=True)
 
-    std.print_task(
+    console.print_task(
         "saving fold-enrichment matrix "
-        f"(file={std.format_path(fold_enrichment_file)})"
+        f"(file={console.format_path(fold_enrichment_file)})"
     )
     fold_enrichment.to_csv(fold_enrichment_file, sep=",", index=True)
 
-    std.print_task(f"saving full ORA results (file={std.format_path(ora_result_file)})")
+    console.print_task(f"saving full ORA results (file={console.format_path(ora_result_file)})")
     used_sheet_names: set[str] = set()
     with pd.ExcelWriter(ora_result_file) as writer:
         for cluster, ora_result in ora_results.items():
@@ -228,16 +228,16 @@ ora_correction = "benjamini-hochberg" if args.correction == "none" else args.cor
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
-std.print_task(
-    f"loading signature definitions (file={std.format_path(args.signatures)})"
+console.print_task(
+    f"loading signature definitions (file={console.format_path(args.signatures)})"
 )
 with open(args.signatures, "r") as file:
     signatures = json.load(file)
 
-std.print_task(f"loading marker workbook (file={std.format_path(args.markers)})")
+console.print_task(f"loading marker workbook (file={console.format_path(args.markers)})")
 ignored_sheets = set(args.ignore_sheets or [])
 with pd.ExcelFile(args.markers) as file:
     markers = {}
@@ -246,9 +246,9 @@ with pd.ExcelFile(args.markers) as file:
             df = file.parse(sheet_name, header=None)
             markers[sheet_name] = df[df.columns[0]].to_list()
 
-std.print_task("analyzing cell signatures")
+console.print_task("analyzing cell signatures")
 
-std.print_debug("deleting signature genes absent from AnnData")
+console.print_debug("deleting signature genes absent from AnnData")
 background = adata.var_names
 for phenotype, genes in signatures.items():
     signatures[phenotype] = {gene for gene in genes if gene in background}
@@ -256,7 +256,7 @@ signatures = {
     phenotype: signature for phenotype, signature in signatures.items() if signature
 }
 
-std.print_info(
+console.print_info(
     "estimating over-representation p-values " f"(correction={args.correction})"
 )
 
@@ -271,8 +271,8 @@ for group in sorted(adata.obs[args.cluster].unique()):
     group_info = dict()
     group_info["cells"] = group_adata.n_obs
     group_info["proportion"] = round(group_adata.n_obs / adata.n_obs, ndigits=6)
-    group_info["median_expression"] = group_adata.obs["n_genes_by_counts"].median()
-    group_info["median_reads"] = group_adata.obs["total_counts"].median()
+    group_info["median_expression"] = group_adata.obs["n_features"].median()
+    group_info["median_reads"] = group_adata.obs["total"].median()
     ora_result = bt.omics.tl.ora(
         query_set=markers[group],
         signatures=signatures,
@@ -295,7 +295,7 @@ for group in sorted(adata.obs[args.cluster].unique()):
     info[group] = group_info
 info = pd.DataFrame.from_dict(info)
 
-std.print_result("signature summary\n\n" f"{format_signature_summary(info)}\n")
+console.print_result("signature summary\n\n" f"{format_signature_summary(info)}\n")
 
 write_signature_outputs(
     outfile=args.outfile,

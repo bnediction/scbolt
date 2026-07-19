@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
+import argparse
+import csv
+import shlex
+import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import argparse
-import csv
-import shlex
-import sys
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
 
-import cli
+from scbolt import cli
 
 Field = tuple[str, str]
 script_name = Path(__file__).name
@@ -126,13 +125,13 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
         return Operation(
             [infile],
             [outfile],
-            {0: field("layers", "counts")},
+            {0: field("layers", option(tokens, "--expression"))},
             {
                 ("obs", "G1_score"),
                 ("obs", "S_score"),
                 ("obs", "G2M_score"),
-                ("obs", "n_genes_by_counts"),
-                ("obs", "total_counts"),
+                ("obs", "n_features"),
+                ("obs", "total"),
             },
         )
 
@@ -145,9 +144,7 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
             [outfile],
             {0: required},
             {
-                ("layers", "norm"),
                 ("layers", "log-norm"),
-                ("layers", "scale"),
                 ("layers", "correct"),
             },
         )
@@ -362,8 +359,8 @@ def parse_script_operation(tokens: list[str], script: str) -> Operation | None:
         infile = h5ad(args[0])
         required = {
             ("obs", option(tokens, "--cluster") or "cluster"),
-            ("obs", "n_genes_by_counts"),
-            ("obs", "total_counts"),
+            ("obs", "n_features"),
+            ("obs", "total"),
         }
         return Operation([infile], [], {0: required}, set(), None)
 

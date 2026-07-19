@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
-import cli
+import os
 from pathlib import Path
 
 import anndata as ad
@@ -11,15 +9,16 @@ import bonesistools as bt
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from _composition import (
+from scbolt import cli, console, omics
+from scbolt.omics import (
     check_exported_composition,
-    compute_condition_composition,
     composition_rows,
+    compute_condition_composition,
 )
 
 
 def plot_labels(adata, obs: str, embedding: str, outfile: Path) -> None:
-    std.plot_categorical_embedding(
+    omics.plot_categorical_embedding(
         adata,
         obs=obs,
         embedding=embedding,
@@ -50,7 +49,7 @@ def plot_composition(adata, obs: str, groupby: str, outfile: Path) -> None:
     bt.omics.pl.set_default_axis(ax)
     plt.savefig(outfile, bbox_inches="tight", pad_inches=0.3)
     plt.close(fig)
-    std.crop_pdf(outfile)
+    omics.crop_pdf(outfile)
 
 
 def compute_composition_tables(
@@ -111,7 +110,7 @@ def summarize_composition(
         "\n     ",
     )
 
-    std.print_result(
+    console.print_result(
         "composition\n\n"
         "     Condition proportions by label\n"
         "     ------------------------------\n"
@@ -129,20 +128,20 @@ def summarize_composition(
     )
 
     composition_file = outdir / "composition.csv"
-    std.print_task(
-        f"saving composition summary (file={std.format_path(composition_file)})"
+    console.print_task(
+        f"saving composition summary (file={console.format_path(composition_file)})"
     )
     composition = pd.DataFrame(rows)
     check_exported_composition(composition, group_key="label")
     composition.to_csv(composition_file, sep=",", index=False)
 
     labels_plot = outdir / "labels.pdf"
-    std.print_task(f"plotting embeddings (file={std.format_path(labels_plot)})")
+    console.print_task(f"plotting embeddings (file={console.format_path(labels_plot)})")
     plot_labels(adata, obs=label_col, embedding=embedding, outfile=labels_plot)
 
     condition_by_label_plot = outdir / "condition_by_label.pdf"
-    std.print_task(
-        f"plotting composition (file={std.format_path(condition_by_label_plot)})"
+    console.print_task(
+        f"plotting composition (file={console.format_path(condition_by_label_plot)})"
     )
     plot_composition(
         adata,
@@ -152,8 +151,8 @@ def summarize_composition(
     )
 
     label_by_condition_plot = outdir / "label_by_condition.pdf"
-    std.print_task(
-        f"plotting composition (file={std.format_path(label_by_condition_plot)})"
+    console.print_task(
+        f"plotting composition (file={console.format_path(label_by_condition_plot)})"
     )
     plot_composition(
         adata,
@@ -239,14 +238,14 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-std.set_default_plot_params(bt.omics.pl)
+omics.set_default_plot_params(bt.omics.pl)
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
 dict_to_str = ", ".join(f"{k} -> {v}" for k, v in args.labels.items())
 
-std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
@@ -257,7 +256,7 @@ elif not hasattr(adata.obs[args.obs], "cat"):
         f"series 'adata.obs[{args.obs}]' does not refer to a categorical variable"
     )
 
-std.print_task(f"renaming labels (column={args.obs}, labels={dict_to_str})")
+console.print_task(f"renaming labels (column={args.obs}, labels={dict_to_str})")
 
 categories = list(adata.obs[args.obs].cat.categories)
 category_by_name = {str(category): category for category in categories}
@@ -297,8 +296,8 @@ if args.condition_col is not None:
     )
 else:
     labels_plot = Path(os.path.dirname(args.outfile)) / "labels.pdf"
-    std.print_task(f"plotting embeddings (file={std.format_path(labels_plot)})")
+    console.print_task(f"plotting embeddings (file={console.format_path(labels_plot)})")
     plot_labels(adata, obs=label_col, embedding=args.embedding, outfile=labels_plot)
 
-std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-std.write_h5ad(adata, filename=args.outfile, compression="gzip")
+console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
+omics.write_h5ad(adata, filename=args.outfile, compression="gzip")

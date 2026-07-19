@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
-
 import argparse
 import json
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
 
-import cli
+from scbolt import cli
 
 script_name = Path(__file__).name
 

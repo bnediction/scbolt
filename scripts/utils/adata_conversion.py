@@ -1,17 +1,16 @@
 #!/usr/bin/env python
 
+import argparse
+import os
+import re
 from pathlib import Path
 
-import os
-import std
-import argparse
-import cli
-import re
-
 import anndata as ad
+import bonesistools as bt
 import pandas as pd
 import scanpy as sc
-import bonesistools as bt
+
+from scbolt import cli, console, omics
 
 script_name = Path(__file__).name
 
@@ -71,7 +70,7 @@ parser.add_argument(
     required=False,
     default=None,
     metavar="LITERAL",
-    help=("Expression layer saved when converting to CSV.\n" "Default: adata.X."),
+    help="Expression layer saved when converting AnnData to CSV.",
 )
 
 parser.add_argument(
@@ -138,13 +137,15 @@ to_format = args.to_format
 
 if from_format == to_format:
     raise ValueError("Argument --from and --to must be different")
+if from_format == "h5ad" and to_format == "csv" and args.expression is None:
+    parser.error("--expression is required when converting AnnData to CSV")
 
 if to_format == "csvs":
     os.makedirs(name=args.output, exist_ok=True)
 else:
     os.makedirs(name=os.path.dirname(args.output), exist_ok=True)
 
-std.print_task(f"loading data (file={std.format_path(args.input)})")
+console.print_task(f"loading data (file={console.format_path(args.input)})")
 if from_format == "h5ad":
     adata = sc.read_h5ad(filename=args.input)
 elif from_format == "loom":
@@ -162,7 +163,7 @@ adata.obs.index = pd.Index(
 )
 
 if args.only_hvg:
-    std.print_info("keeping highly variable genes only")
+    console.print_info("keeping highly variable genes only")
     if "highly_variable" in adata.var:
         adata._inplace_subset_var(adata.var["highly_variable"])
     else:
@@ -184,11 +185,14 @@ if args.metadata:
     add_metadata(adata, **metadata_d)
 
 if args.standardization:
-    std.print_info("standardizing gene names")
+    console.print_info("standardizing gene names")
     adata.var["symbol"] = list(adata.var.index)
-    for input_identifier_type in ["name", "gene_id", "ensembl_id"]:
+    for input_type in ["name", "gene_id", "ensembl_id"]:
         bt.omics.pp.convert_gene_identifiers(
-            adata, axis="var", input_identifier_type=input_identifier_type, copy=False
+            adata,
+            axis="var",
+            input_type=input_type,
+            copy=False,
         )
     bt.omics.pp.merge_duplicate_vars(
         adata,
@@ -198,9 +202,9 @@ if args.standardization:
 if args.sort:
     adata = adata[sorted(adata.obs.index), sorted(adata.var.index)].to_memory()
 
-std.print_task(f"saving data (file={std.format_path(args.output)})")
+console.print_task(f"saving data (file={console.format_path(args.output)})")
 if to_format == "h5ad":
-    std.write_h5ad(
+    omics.write_h5ad(
         adata,
         filename=args.output,
         compression="gzip" if args.compression else None,

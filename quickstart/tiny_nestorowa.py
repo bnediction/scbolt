@@ -28,7 +28,7 @@ bt.omics.pp.scale(
 
 adata.layers["correct"] = adata.layers["scale"].copy()
 
-bt.omics.pp.hvg(adata, expression="counts", n_features=2000, copy=False)
+bt.omics.pp.hvg(adata, expression="counts", n_features=2000)
 
 bt.omics.tl.pca(
     adata,

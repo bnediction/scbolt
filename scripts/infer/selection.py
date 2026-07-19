@@ -9,9 +9,6 @@ from typing import Callable, Iterable, Mapping, Sequence
 import bonesis
 import clingo
 from bonesis.asp_encoding import clingo_encode
-
-import cli
-import std
 from utils import (
     add_bonesis_arguments,
     apply_bonesis_mode,
@@ -21,6 +18,17 @@ from utils import (
     print_clingo_optimization,
     print_node_reference,
     ptqdm,
+)
+
+from scbolt import cli, console
+from scbolt.runtime import (
+    SolverDeadline,
+    SolverPatience,
+    SolverPatienceExpired,
+    SolverTimeout,
+    exit_solver_timeout,
+    parse_solver_timeout,
+    reset_solver_timeout_status,
 )
 
 bonesis.settings["quiet"] = True
@@ -146,8 +154,8 @@ def print_node_solution(solution, nodes_in_data, nodes_in_domain, **kwargs):
     """Print node-selection coverage against data and domain nodes."""
 
     solution = set(solution)
-    std.print_result(f"solution: nodes={len(solution)}", **kwargs)
-    std.print_result(
+    console.print_result(f"solution: nodes={len(solution)}", **kwargs)
+    console.print_result(
         format_node_coverage(
             "data",
             len(nodes_in_data & solution),
@@ -155,7 +163,7 @@ def print_node_solution(solution, nodes_in_data, nodes_in_domain, **kwargs):
         ),
         **kwargs,
     )
-    std.print_result(
+    console.print_result(
         format_node_coverage(
             "domain",
             len(nodes_in_domain & solution),
@@ -406,6 +414,19 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--clause-continuation-patience",
+    dest="clause_continuation_patience",
+    type=parse_solver_timeout,
+    required=False,
+    default=0.0,
+    metavar="DURATION",
+    help=(
+        "maximum time without a Clingo objective improvement before "
+        "continuing to the next intermediate clause bound; suffixes s, m, "
+        "h and d are supported, and 0 disables the patience (default: 0)"
+    ),
+)
+parser.add_argument(
     "--clause-continuation-parameter",
     dest="clause_continuation_parameter",
     type=str,
@@ -433,6 +454,7 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+reset_solver_timeout_status(args.timeout_status_file)
 if args.witness is None:
     args.witness = args.solution.with_name("witness.lp")
 
@@ -447,7 +469,7 @@ if args.domain_nodes is not None:
     write_node_solution(bo.domain.nodes, args.domain_nodes)
 
 if args.action == "filter-nodes":
-    std.print_task("maximizing satisfiable nodes")
+    console.print_task("maximizing satisfiable nodes")
 
     bo.maximize_nodes()
 
@@ -473,7 +495,7 @@ if args.action == "filter-nodes":
     initial_witness = read_structural_witness(args.initial_witness)
 
     if not new_constraints:
-        std.print_info("no new constraints added; stopping", flush=True)
+        console.print_info("no new constraints added; stopping", flush=True)
         write_node_solution(bo.domain.nodes, args.solution)
         if initial_witness:
             write_structural_witness(initial_witness, args.witness)
@@ -495,7 +517,7 @@ if args.action == "filter-nodes":
         jobs=args.jobs,
         flush=True,
     )
-    std.print_warning("this may take some time.", flush=True)
+    console.print_warning("this may take some time.", flush=True)
 
     initial_witness_clause_bound = structural_witness_clause_bound(initial_witness)
     if initial_witness_clause_bound > args.max_clause:
@@ -515,6 +537,7 @@ if args.action == "filter-nodes":
     )
     current_witness = initial_witness
     solution = None
+    deadline = SolverDeadline(args.timeout)
 
     for stage_index, max_clause in enumerate(bounds, start=1):
         is_target = max_clause == args.max_clause
@@ -532,8 +555,14 @@ if args.action == "filter-nodes":
             max_clause=max_clause,
             witness=current_witness,
         )
+        stage_patience = SolverPatience(
+            args.clause_continuation_patience if not is_target else 0.0
+        )
+        stage_best = [None]
 
         def intermediate_solution(model):
+            stage_best[0] = model
+            stage_patience.reset()
             nodes, witness = model
             write_structural_witness(witness, args.witness)
             write_node_solution(nodes, args.solution)
@@ -561,14 +590,31 @@ if args.action == "filter-nodes":
             view.standalone(output_filename=args.asp)
 
         try:
-            solution, current_witness = next_solution(view)
+            solution, current_witness = next_solution(
+                view,
+                deadline,
+                stage_patience,
+            )
+        except SolverTimeout:
+            exit_solver_timeout(args.timeout_status_file)
+        except SolverPatienceExpired:
+            if stage_best[0] is not None:
+                solution, current_witness = stage_best[0]
+            next_bound = bounds[stage_index]
+            console.print_warning(
+                "no Clingo objective improvement within the configured "
+                f"clause-continuation patience (max clauses={max_clause}); "
+                f"continuing with max clauses={next_bound}",
+                flush=True,
+            )
+            continue
         except StopIteration:
             if is_target:
                 raise make_no_solution_error(
                     args.clause_continuation,
                     args.clause_continuation_parameter,
                 ) from None
-            std.print_warning(
+            console.print_warning(
                 "clause continuation produced no witness "
                 f"(max clauses={max_clause}); continuing",
                 flush=True,
@@ -584,7 +630,7 @@ if args.action == "filter-nodes":
             current_witness = read_structural_witness(args.witness)
             if not solution or not current_witness:
                 raise
-            std.print_debug(
+            console.print_debug(
                 "selecting intermediate solution "
                 "(reason=final model parsing failed, "
                 "certification=partial/non-certified)",
@@ -608,7 +654,7 @@ if args.action == "filter-nodes":
     )
 
 elif args.action == "filter-consts":
-    std.print_task("maximizing strong constants")
+    console.print_task("maximizing strong constants")
 
     bo.maximize_strong_constants()
     if args.minimize_self_loops:
@@ -670,14 +716,18 @@ elif args.action == "filter-consts":
         configuration=args.clingo_configuration or "auto",
         jobs=args.jobs,
     )
-    std.print_warning("this may take some time.")
-    solution, witness = next_solution(view)
+    console.print_warning("this may take some time.")
+    deadline = SolverDeadline(args.timeout)
+    try:
+        solution, witness = next_solution(view, deadline)
+    except SolverTimeout:
+        exit_solver_timeout(args.timeout_status_file)
 
     write_structural_witness(witness, args.witness)
     write_node_solution(solution, args.solution)
 
     if important_nodes_in_domain:
-        std.print_result(
+        console.print_result(
             "important nodes: "
             f"kept={len(set(solution) & important_nodes_in_domain)}/"
             f"{len(important_nodes_in_domain)}"

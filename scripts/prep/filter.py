@@ -1,24 +1,22 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
-import cli
+import math
+import os
 import warnings
 from pathlib import Path
 
-import math
-import numpy as np
-
-import rdata
-import pandas as pd
 import anndata as ad
 import bonesistools as bt
-import pypairs
-
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import pypairs
+import rdata
 
-std.set_default_plot_params(bt.omics.pl)
+from scbolt import cli, console, omics
+
+omics.set_default_plot_params(bt.omics.pl)
 
 setattr(pd.DataFrame, "iteritems", pd.DataFrame.items)
 script_name = Path(__file__).name
@@ -26,19 +24,23 @@ script_name = Path(__file__).name
 
 def marker_pairs_converter(
     ensembl_id_marker_pairs,
-    genesyn,
-    output_identifier_type: str = "official_name",
+    identifiers,
+    output_type: str = "symbol",
 ):
     """Convert marker pairs from ensembl_id into their corresponding aliases."""
     converted_marker_pairs = dict()
     for cc, pairs in ensembl_id_marker_pairs.items():
         cycle_pairs = list()
         for _, (first, second) in pairs.iterrows():
-            first_alias = genesyn.conversion(
-                first, "ensembl_id", output_identifier_type
+            first_alias = identifiers.conversion(
+                first,
+                input_type="ensembl_id",
+                output_type=output_type,
             )
-            second_alias = genesyn.conversion(
-                second, "ensembl_id", output_identifier_type
+            second_alias = identifiers.conversion(
+                second,
+                input_type="ensembl_id",
+                output_type=output_type,
             )
             cycle_pairs.append(
                 [
@@ -137,6 +139,15 @@ parser.add_argument(
     type=lambda x: Path(x).resolve(),
     metavar="FILE",
     help="output file storing filtered counts (format: h5ad)",
+)
+
+parser.add_argument(
+    "--expression",
+    dest="expression",
+    type=str,
+    required=True,
+    metavar="LITERAL",
+    help="Expression layer containing raw counts. Required.",
 )
 
 parser.add_argument(
@@ -307,22 +318,23 @@ outpath = Path(os.path.dirname(args.outfile))
 if not outpath.exists():
     os.makedirs(outpath)
 
-std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 
 adata = ad.read_h5ad(Path(f"{args.infile}").resolve())
-genesyn = bt.resources.ncbi.genesyn(
+adata.X = None
+identifiers = bt.resources.ncbi.identifiers(
     organism=args.organism,
     version=args.geneinfo_version,
 )
 
-std.print_info("standardizing gene names")
+console.print_info("standardizing gene names")
 adata.var["symbol"] = list(adata.var.index)
-for input_identifier_type in ["name", "gene_id", "ensembl_id"]:
+for input_type in ["name", "gene_id", "ensembl_id"]:
     bt.omics.pp.convert_gene_identifiers(
         adata,
         axis="var",
-        input_identifier_type=input_identifier_type,
-        genesyn=genesyn,
+        input_type=input_type,
+        identifiers=identifiers,
         copy=False,
     )
 bt.omics.pp.merge_duplicate_vars(
@@ -335,38 +347,39 @@ bt.omics.pp.sort(adata, on="both", copy=False)
 
 shape = {"init": adata.shape}
 
-std.print_task("detecting mitochondrial genes")
+console.print_task("detecting mitochondrial genes")
 bt.omics.pp.mitochondrial_genes(
     adata,
     index_type="name",
     key="mt",
     axis="var",
     copy=False,
-    genesyn=genesyn,
+    identifiers=identifiers,
 )
 
-std.print_task("detecting ribosomal genes")
+console.print_task("detecting ribosomal genes")
 bt.omics.pp.ribosomal_genes(
     adata,
     index_type="name",
     key="rps",
     axis="var",
     copy=False,
-    genesyn=genesyn,
+    identifiers=identifiers,
 )
 
 if args.marker_infile is None:
-    std.print_warning("cannot classify cell cycle phases: marker file not specified")
+    console.print_warning("cannot classify cell cycle phases: marker file not specified")
 else:
-    std.print_task("classifying cells by cell-cycle phase")
-    std.print_info(
-        f"loading cell-cycle marker data (file={std.format_path(args.marker_infile)})"
+    console.print_task("classifying cells by cell-cycle phase")
+    console.print_info(
+        f"loading cell-cycle marker data (file={console.format_path(args.marker_infile)})"
     )
     parser = rdata.parser.parse_file(args.marker_infile)
-    std.print_debug("decoding marker data (format=RDS)")
+    console.print_debug("decoding marker data (format=RDS)")
     marker_pairs = rdata.conversion.convert(parser)
-    std.print_info("scoring cell cycle phases")
-    marker_pairs = marker_pairs_converter(marker_pairs, genesyn, "official_name")
+    console.print_info("scoring cell cycle phases")
+    marker_pairs = marker_pairs_converter(marker_pairs, identifiers)
+    adata.X = adata.layers[args.expression].copy()
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
@@ -374,6 +387,7 @@ else:
             module=r"pypairs(\.|$)",
         )
         scores = pypairs.pairs.cyclone(adata, marker_pairs)
+    adata.X = None
     adata.obs.rename(
         columns={
             "pypairs_G1": "G1_score",
@@ -383,9 +397,10 @@ else:
         inplace=True,
     )
 
-std.print_task("calculating quality control metrics")
+console.print_task("calculating quality control metrics")
 bt.omics.pp.qc(
     adata,
+    expression=args.expression,
     qc_vars=["mt", "rps"],
     percent_top=None,
     log1p=False,
@@ -393,7 +408,7 @@ bt.omics.pp.qc(
 )
 
 raw_plot = outpath / "raw-data.pdf"
-std.print_info(f"plotting QC summaries (directory={os.path.relpath(outpath)})")
+console.print_info(f"plotting QC summaries (directory={os.path.relpath(outpath)})")
 plot_qc_violins(adata, raw_plot)
 
 cell_totals = adata.obs["total"].to_numpy()
@@ -415,7 +430,7 @@ ax[0].axhline(reads[1], linewidth=1.5, linestyle="--", color=bt.omics.pl.get_col
 ax[0].set_ylim(ylim)
 ax[0].set(title="raw")
 
-std.print_task(
+console.print_task(
     "filtering genes "
     f"(dropout<={1e2 * args.gene_dropout:g}%, "
     f"expressed_cells={format_range(args.gene_expression)}, "
@@ -440,7 +455,7 @@ bt.omics.pp.filter_var(
     lambda x: (x >= args.gene_counts[0]) & (x < args.gene_counts[1]),
 )
 
-std.print_task(
+console.print_task(
     "filtering cells "
     f"(dropout<={1e2 * args.cell_dropout:g}%, "
     f"expressed_genes={format_range(args.cell_expression)}, "
@@ -480,10 +495,10 @@ bt.omics.pp.filter_obs(
 
 shape["final"] = adata.shape
 
-std.print_result(
+console.print_result(
     format_filtering_coverage("genes", shape["final"][1], shape["init"][1])
 )
-std.print_result(
+console.print_result(
     format_filtering_coverage("cells", shape["final"][0], shape["init"][0])
 )
 
@@ -503,5 +518,6 @@ if args.marker_infile:
     ax.set(xlabel="cell cycle phases")
     plt.savefig(f"{outpath}/cell-cycles-counting.pdf")
 
-std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-std.write_h5ad(adata, filename=args.outfile, compression="gzip")
+console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
+omics.drop_expression_matrices(adata)
+omics.write_h5ad(adata, filename=args.outfile, compression="gzip")

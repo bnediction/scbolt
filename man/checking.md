@@ -325,6 +325,8 @@ file per condition, ordered like `CONDITIONS`. When defined, filtering consumes
 these files directly instead of depending on Velocyto or public GEO matrix
 loading. Gene-name standardization is applied by `filter.py`, so count files,
 GEO matrices, and Velocyto outputs share the same downstream contract.
+Each file must contain `counts` in `layers`; `adata.X` is not used as a
+fallback expression matrix.
 
 Input routes are mutually exclusive:
 
@@ -350,6 +352,9 @@ The user-provided file must contain:
 - `condition` in `obs`, required when a single file is used for a
   multi-condition project;
 - `$(REPRESENTATION)` in `obsm`.
+
+Expression is always read from these named layers. `adata.X` is not used as a
+fallback expression matrix.
 
 If downstream HVG selection uses `BIN_HVG_METHOD=loess`, the file must also
 contain:
@@ -387,8 +392,8 @@ Provides:
 - `G1_score` in `obs`, only when `ORGANISM=mouse`
 - `S_score` in `obs`, only when `ORGANISM=mouse`
 - `G2M_score` in `obs`, only when `ORGANISM=mouse`
-- `n_genes_by_counts` in `obs`
-- `total_counts` in `obs`
+- `n_features` in `obs`
+- `total` in `obs`
 
 ### Normalization
 

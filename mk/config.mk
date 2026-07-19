@@ -396,14 +396,15 @@ define finalize_velocyto_h5ad
 $(call conda_run,scbolt-core) python -c '\
 import sys; \
 import anndata as ad; \
-import std; \
+from scbolt.omics import write_h5ad; \
 adata = ad.read_h5ad(sys.argv[1]); \
 adata.layers["counts"] = adata.X.copy(); \
-std.write_h5ad(adata, filename=sys.argv[2], compression="gzip"); \
 spliced = float(adata.layers["spliced"].sum()); \
 unspliced = float(adata.layers["unspliced"].sum()); \
 ambiguous = float(adata.layers["ambiguous"].sum()); \
 counts = float(adata.layers["counts"].sum()); \
+adata.X = None; \
+write_h5ad(adata, filename=sys.argv[2], compression="gzip"); \
 print(f"reads: spliced={spliced:.0f}, unspliced={unspliced:.0f}, ambiguous={ambiguous:.0f}"); \
 print(f"reads: spliced+unspliced+ambiguous={spliced + unspliced + ambiguous:.0f}, counts={counts:.0f}")' \
 $(1) $(2) | while IFS= read -r line; do $(call print_result,$$$$line); done

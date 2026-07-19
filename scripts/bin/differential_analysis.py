@@ -1,22 +1,20 @@
 #!/usr/bin/env python
 
-from typing import Iterable, Optional
-from collections import OrderedDict
-
-import std
 import argparse
-import cli
+import itertools
 import json
 import os
+from collections import OrderedDict
 from pathlib import Path
+from typing import Iterable, Optional
 
-import pandas as pd
-import decoupler as dc
-import numpy as np
 import bonesistools as bt
-
-import itertools
+import decoupler as dc
 import networkx as nx
+import numpy as np
+import pandas as pd
+
+from scbolt import cli, console
 
 
 def collectri_to_grn(
@@ -61,46 +59,20 @@ def sign_likelihood(
         raise ValueError(
             "`relative_threshold` must be between 0 and 1: `relative_threshold` = {relative_threshold}"
         )
-    if gene_set is None:
-        selected_genes = set(interaction_scores.keys())
-    else:
-        selected_genes = set(gene_set).intersection(set(interaction_scores.keys()))
+    selected_genes = set(interaction_scores)
+    if gene_set is not None:
+        selected_genes.intersection_update(gene_set)
 
-    interaction_signs = {gene: dict() for gene in selected_genes}
-
-    for u, v in itertools.combinations(selected_genes, 2):
-
-        from_u = interaction_scores[u][v]
-        from_v = interaction_scores[v][u]
-        _is_source = [False, False]
-        _sign = [0, 0]
-
-        if from_u.path_number >= minimum_path_number:
-            if (
-                abs(from_u.score) / from_u.maxscore
-                >= from_u.maxscore * relative_threshold
-            ):
-                _is_source[0] = True
-                _sign[0] = 1 if from_u.score > 0 else -1
-        if from_v.path_number >= minimum_path_number:
-            if (
-                abs(from_v.score) / from_v.maxscore
-                >= from_v.maxscore * relative_threshold
-            ):
-                _is_source[1] = True
-                _sign[1] = 1 if from_v.score > 0 else -1
-
-        if enable_loop is True:
-            if _is_source[0] is True:
-                interaction_signs[u][v] = _sign[0]
-            if _is_source[1] is True:
-                interaction_signs[v][u] = _sign[1]
-        else:
-            if _is_source[0] ^ _is_source[1]:
-                if _is_source[0] is True:
-                    interaction_signs[u][v] = _sign[0]
-                elif _is_source[1] is True:
-                    interaction_signs[v][u] = _sign[1]
+    interactions = bt.logic.ig.infer_signed_interactions(
+        scores=interaction_scores,
+        genes=selected_genes,
+        minimum_path_number=minimum_path_number,
+        threshold=relative_threshold,
+        allow_bidirectional=enable_loop,
+    )
+    interaction_signs = {gene: {} for gene in selected_genes}
+    for source, target, data in interactions:
+        interaction_signs[source][target] = data["sign"]
 
     return interaction_signs
 
@@ -194,39 +166,39 @@ def nexponential_fun(base, radius):
     return 1 / base ** np.arange(0, radius)
 
 
-bdc = bt.bpy.BooleanDifferentialCalculus()
+bdc = bt.logic.ba.BooleanPredecessorInference
 
-std.print_task(f"loading binarized matrix (file={std.format_path(args.infile)})")
+console.print_task(f"loading binarized matrix (file={console.format_path(args.infile)})")
 
 meta_bin = pd.read_csv(args.infile, index_col=0).transpose()
 
 collectri_db = dc.get_collectri(organism="mouse", split_complexes=True)
 grn = collectri_to_grn(collectri_db, sign_label="weight", remove_pmid=True)
 
-std.print_info(f"grn: {len(grn.nodes)} genes; {len(grn.edges)} interactions")
+console.print_info(f"grn: {len(grn.nodes)} genes; {len(grn.edges)} interactions")
 
-gene_synonyms = bt.dbs.ncbi.genesyn()
-gene_synonyms(data=meta_bin, axis=1, copy=False)
-gene_synonyms(data=grn, copy=False)
+identifiers = bt.resources.ncbi.identifiers()
+identifiers(meta_bin, axis=1, copy=False)
+identifiers(grn, copy=False)
 gene_set_before_cleaning = set(meta_bin.columns)
 gene_removal(meta_bin, grn, copy=False)
 gene_set = set(meta_bin.columns)
 
-std.print_info(
+console.print_info(
     f"dataframe: {len(gene_set_before_cleaning)} genes; {len(gene_set_before_cleaning)- len(gene_set)}/{len(gene_set_before_cleaning)} genes removed (no matching with grn genes)"
 )
 
-std.print_task("checking successors")
+console.print_task("checking successors")
 
-std.print_info("extracting paths (method=depth-first search)")
-interaction_scores = bt.grn.scoring(
+console.print_info("extracting paths (method=depth-first search)")
+interaction_scores = bt.logic.ig.interaction_scores_from_walks(
     graph=grn,
     weights=nexponential_fun(base=args.base, radius=args.radius),
-    radius=args.radius,
-    gene_set=gene_set,
+    max_depth=args.radius,
+    genes=gene_set,
 )
 
-std.print_info("estimating pairwise gene sign likelihood")
+console.print_info("estimating pairwise gene sign likelihood")
 interaction_signs = sign_likelihood(
     interaction_scores=interaction_scores,
     gene_set=gene_set,
@@ -238,7 +210,7 @@ interaction_signs = sign_likelihood(
 with open(f"{args.outpath}/sign_likelihood.json", "w") as outfile:
     json.dump(interaction_signs, outfile)
 
-std.print_info("testing predecessors (method=differential Boolean calculus)")
+console.print_info("testing predecessors (method=differential Boolean calculus)")
 
 score_matrix = OrderedDict({condition: {} for condition in meta_bin.index})
 for c1, c2 in itertools.product(meta_bin.index, repeat=2):
@@ -264,11 +236,11 @@ for source, targets in interaction_signs.items():
 
 score_df = pd.DataFrame.from_dict(score_matrix, orient="index")
 
-std.print_task(
+console.print_task(
     f"saving differential analysis outputs (directory={os.path.relpath(args.outpath)})"
 )
 
 score_df.to_csv(f"{args.outpath}/pairwise_predecessor_scores.csv", sep=",", index=True)
 
-std.print_result("pairwise scores:")
+console.print_result("pairwise scores:")
 print(f"\n{score_df}\n")

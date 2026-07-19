@@ -1,19 +1,13 @@
 #!/usr/bin/env python
 
-from typing import (
-    Union,
-    Sequence,
-    cast,
-)
-from pathlib import Path
-from datetime import date
-
+import argparse
 import math
 import re
 import shutil
 import textwrap
-
-import argparse
+from datetime import date
+from pathlib import Path
+from typing import Sequence, Union, cast
 
 
 class HelpFormatter(argparse.HelpFormatter):

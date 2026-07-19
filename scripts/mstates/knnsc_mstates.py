@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
-import cli
+import os
 from pathlib import Path
 
 import anndata as ad
 import bonesistools as bt
+
+from scbolt import cli, console, omics
+
+omics.set_default_plot_params(bt.omics.pl)
 
 script_name = Path(__file__).name
 
@@ -204,7 +206,7 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
 if adata.obs[args.obs].dtype.name != "category":
@@ -262,20 +264,20 @@ if empty_selected_clusters:
         + ", ".join(empty_selected_clusters)
     )
 
-std.print_task("estimating macrostates (method=KNNSC)")
+console.print_task("estimating macrostates (method=KNNSC)")
 knnsc = bt.omics.tl.KNNSC()
 
-std.print_info(
+console.print_info(
     f"initializing graph parameters "
-    f"(embedding={std.format_embedding(args.embedding)}, dimension={args.dimension}, "
+    f"(embedding={console.format_embedding(args.embedding)}, dimension={args.dimension}, "
     f"neighbors={args.neighbors}, metric={args.metric}, jobs={args.jobs})"
 )
-std.print_info(
+console.print_info(
     f"initializing distance parameters "
     f"(min_cluster_size={args.min_cluster_size}, "
     f"method={args.method}, jobs={args.jobs})"
 )
-std.print_info("fitting neighbors graph and shortest-path distances")
+console.print_info("fitting neighbors graph and shortest-path distances")
 knnsc.fit(
     adata,
     cluster_key=args.obs,
@@ -299,7 +301,7 @@ else:
         "{}" if args.periphery is None else "{" + ", ".join(args.periphery) + "}"
     )
 
-std.print_info(
+console.print_info(
     f"predicting subclusters "
     f"(centrality={centrality_log}, periphery={periphery_log})"
 )
@@ -313,18 +315,18 @@ adata.obs["macrostate"] = macrostates
 
 if args.plot_representation:
     plot = Path(f"{os.path.dirname(args.outfile)}/knnsc.pdf")
-    std.print_task(f"plotting embeddings (file={std.format_path(plot)})")
-    std.plot_categorical_embedding(
+    console.print_task(f"plotting embeddings (file={console.format_path(plot)})")
+    omics.plot_categorical_embedding(
         adata,
         obs="macrostate",
         embedding=args.plot_representation,
-        label=std.format_embedding(args.plot_representation),
+        label=console.format_embedding(args.plot_representation),
         outfile=plot,
     )
 
-std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-std.write_h5ad(adata, filename=args.outfile, compression="gzip")
+console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
+omics.write_h5ad(adata, filename=args.outfile, compression="gzip")
 
 if args.csv:
-    std.print_task(f"saving KNNSC macrostates (file={std.format_path(args.csv)})")
+    console.print_task(f"saving KNNSC macrostates (file={console.format_path(args.csv)})")
     adata.obs["macrostate"].to_csv(args.csv, sep=",", index=True)

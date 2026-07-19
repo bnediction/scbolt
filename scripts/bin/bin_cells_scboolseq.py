@@ -1,18 +1,16 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
-import cli
+import os
 from pathlib import Path
 
 import anndata as ad
 import bonesistools as bt
-
 import numpy as np
 import pandas as pd
-
 from scboolseq import scBoolSeq
+
+from scbolt import cli, console, omics
 
 script_name = Path(__file__).name
 
@@ -83,12 +81,11 @@ parser.add_argument(
     "--expression",
     dest="expression",
     type=str,
-    required=False,
-    default=None,
+    required=True,
     metavar="LITERAL",
     help=(
-        "Expression layer to use. Expected data: log-normalized counts.\n"
-        "Default: adata.X."
+        "Expression layer to use. Expected data: log-normalized counts. "
+        "Required."
     ),
 )
 
@@ -148,18 +145,18 @@ if not Path(os.path.dirname(args.outfile)).exists():
 if args.seed is not None:
     np.random.seed(args.seed)
 
-std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
-std.print_info(f"converting layer '{args.expression}' into dataframe")
+console.print_info(f"converting layer '{args.expression}' into dataframe")
 counts_df = bt.omics.tl.to_dataframe(adata, layer=args.expression)
 
 if args.filter_genes:
-    std.print_info(f"filtering genes (file={std.format_path(args.filter_genes)})")
+    console.print_info(f"filtering genes (file={console.format_path(args.filter_genes)})")
     with open(args.filter_genes) as file:
         counts_df = counts_df[[line.strip() for line in file.readlines()]]
 
-std.print_task("binarizing cells (method=scBoolSeq)")
+console.print_task("binarizing cells (method=scBoolSeq)")
 
 scbool = scBoolSeq(
     margin_quantile=args.quantile,
@@ -167,12 +164,12 @@ scbool = scBoolSeq(
     zeroes_are=0 if args.zeroes_are_zeroes else np.nan,
 )
 
-std.print_info("estimating parametric distributions")
-with std.disable_print():
+console.print_info("estimating parametric distributions")
+with console.suppress_output():
     scbool.fit(counts_df, simulation=False)
 
-std.print_info("converting counting values into Boolean values")
-with std.disable_print():
+console.print_info("converting counting values into Boolean values")
+with console.suppress_output():
     cell_df = scbool.binarize(counts_df)
     criteria_df = scbool.criteria_.copy()
 missing_genes = [gene for gene in adata.var.index if gene not in cell_df.columns]
@@ -197,29 +194,33 @@ adata.var["distribution"] = criteria_df["Category"]
 
 if args.representation:
     pct_bin_plot = Path(f"{os.path.dirname(args.outfile)}/pct_bin.pdf")
-    std.print_task(
+    console.print_task(
         "plotting binarization summaries "
         f"(directory={os.path.relpath(os.path.dirname(args.outfile))})"
     )
-    std.plot_continuous_embedding(
+    omics.plot_continuous_embedding(
         adata,
         obs="pct_bin",
         embedding=args.representation,
-        label=std.format_embedding(args.representation),
+        label=console.format_embedding(args.representation),
         colorbar_label=r"$\% \mathrm{bin}$",
         s=3,
         outfile=pct_bin_plot,
     )
 
-std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-std.write_h5ad(adata, filename=args.outfile, compression="gzip")
+console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
+omics.drop_expression_matrices(
+    adata,
+    layers=tuple(layer for layer in adata.layers if layer != "bin"),
+)
+omics.write_h5ad(adata, filename=args.outfile, compression="gzip")
 
 if args.bin:
-    std.print_task(f"saving binarized matrix (file={std.format_path(args.bin)})")
+    console.print_task(f"saving binarized matrix (file={console.format_path(args.bin)})")
     cell_df.to_csv(args.bin, sep=",", index=True)
 
 if args.statistics:
-    std.print_task(
-        f"saving statistical estimators (file={std.format_path(args.statistics)})"
+    console.print_task(
+        f"saving statistical estimators (file={console.format_path(args.statistics)})"
     )
     criteria_df.to_csv(args.statistics, sep=",", index=True)

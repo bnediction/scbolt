@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import tempfile
+from functools import lru_cache
+from pathlib import Path
 
 
 @lru_cache(maxsize=1)
@@ -83,18 +83,6 @@ def plain_text_label(label: str) -> str:
         return f"% {match.group(1)}"
 
     return label
-
-
-def plain_text_labels(value):
-    """Recursively convert common scBOLT TeX labels when TeX is unavailable."""
-
-    if isinstance(value, dict):
-        return {key: plain_text_labels(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [plain_text_labels(item) for item in value]
-    if isinstance(value, tuple):
-        return tuple(plain_text_labels(item) for item in value)
-    return plain_text_label(value)
 
 
 def plot_categorical_embedding(

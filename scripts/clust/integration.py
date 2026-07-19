@@ -1,31 +1,29 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
-import cli
-from pathlib import Path
-
-from typing import Optional, Sequence
-from anndata import AnnData
-
+import os
 import random
-import numpy as np
-import pandas as pd
+from pathlib import Path
+from typing import Optional, Sequence
 
 import anndata as ad
-import scanpy as sc
 import bonesistools as bt
+import numpy as np
+import pandas as pd
 import scanorama
+import scanpy as sc
+from anndata import AnnData
 from bonesistools.omics import _typing as omics_typing
 
-from _composition import (
+from scbolt import cli, console, omics
+from scbolt.omics import (
     check_exported_composition,
-    compute_condition_composition,
     composition_rows,
+    compute_condition_composition,
 )
+from scbolt.runtime import single_thread
 
-std.set_default_plot_params(bt.omics.pl)
+omics.set_default_plot_params(bt.omics.pl)
 
 
 @omics_typing.anndata_checker
@@ -112,10 +110,10 @@ EMBEDDINGS = (
 
 def compute_embedding(adata, method: str, args, representation: str = "X_pca") -> None:
     embedding_label = (
-        "spectral" if method == "spectral" else std.format_embedding(method)
+        "spectral" if method == "spectral" else console.format_embedding(method)
     )
     if method == "umap":
-        std.print_task(
+        console.print_task(
             f"computing embedding (method={embedding_label}, "
             f"dimensions={args.embedding_dimension}, "
             f"min_dist={args.min_dist}, "
@@ -133,7 +131,7 @@ def compute_embedding(adata, method: str, args, representation: str = "X_pca") -
             copy=False,
         )
     elif method == "tsne":
-        std.print_task(
+        console.print_task(
             f"computing embedding (method={embedding_label}, "
             f"dimensions={args.embedding_dimension}, "
             f"metric={args.metric}, "
@@ -150,7 +148,7 @@ def compute_embedding(adata, method: str, args, representation: str = "X_pca") -
             copy=False,
         )
     elif method == "spectral":
-        std.print_task(
+        console.print_task(
             f"computing embedding (method={embedding_label}, "
             f"dimensions={args.embedding_dimension})"
         )
@@ -177,14 +175,14 @@ def plot_embedding(
     outfile: Path,
     args,
 ) -> None:
-    embedding_label = std.format_embedding(method)
+    embedding_label = console.format_embedding(method)
     bt.omics.pl.embedding(
         adata,
         obs=obs,
         representation=representation,
-        xlabel=std.axis_label(embedding_label, 1),
-        ylabel=std.axis_label(embedding_label, 2),
-        zlabel=std.axis_label(embedding_label, 3),
+        xlabel=omics.axis_label(embedding_label, 1),
+        ylabel=omics.axis_label(embedding_label, 2),
+        zlabel=omics.axis_label(embedding_label, 3),
         figwidth=6,
         legend={
             "title": obs,
@@ -250,10 +248,9 @@ parser.add_argument(
     "--expression",
     dest="expression",
     type=str,
-    required=False,
-    default=None,
+    required=True,
     metavar="LITERAL",
-    help=("Expression layer to use.\n" "Default: adata.X."),
+    help="Expression layer used for integration and PCA. Required.",
 )
 
 parser.add_argument(
@@ -474,22 +471,23 @@ if not args.labels:
     args.labels = ["reference"]
     args.labels.extend([f"interest_{i}" for i in range(1, len(args.infiles))])
 
-std.print_task("loading datasets")
+console.print_task("loading datasets")
 
 adatas = []
 for infile, label in zip(args.infiles, args.labels):
-    std.print_task(
-        f"loading AnnData (condition={label}, file={std.format_path(infile)})"
+    console.print_task(
+        f"loading AnnData (condition={label}, file={console.format_path(infile)})"
     )
     adata = ad.read_h5ad(infile)
     namespace_obs_names(adata, condition=label)
     adatas.append(adata)
 
 for adata in adatas:
-    adata.X = adata.layers[args.expression].copy()
     clean_adata(adata)
+    if args.integration in {"ingest", "scanorama"}:
+        adata.X = adata.layers[args.expression].copy()
 
-std.print_debug(f"merging datasets (conditions={', '.join(args.labels)})")
+console.print_debug(f"merging datasets (conditions={', '.join(args.labels)})")
 try:
     adata = ad.concat(
         adatas=adatas,
@@ -503,9 +501,9 @@ except Exception as error:
     raise RuntimeError("anndatas concatenation not working") from error
 del adatas
 
-std.print_task(
+console.print_task(
     "estimating highly variable genes "
-    f"({std.format_hvg_parameters(method=args.method, number=args.top_hvg)})"
+    f"({console.format_hvg_parameters(method=args.method, number=args.top_hvg)})"
 )
 bt.omics.pp.hvg(
     adata,
@@ -516,35 +514,35 @@ bt.omics.pp.hvg(
     n_features=args.top_hvg,
     batch_key="condition",
     batch_selection="rank",
-    copy=False,
 )
 
 if args.integration == "ingest":
 
-    std.print_info("integrating data (method=ingest)")
+    console.print_info("integrating data (method=ingest)")
 
     reference = args.labels[0]
-    std.print_info(f"selecting reference condition (condition={reference})")
+    console.print_info(f"selecting reference condition (condition={reference})")
 
-    std.print_info(f"splitting datasets (conditions={', '.join(args.labels)})")
+    console.print_info(f"splitting datasets (conditions={', '.join(args.labels)})")
     adatas = dict()
     for label in args.labels:
         adatas[label] = adata[adata.obs["condition"] == label].to_memory()
 
-    std.print_task(
+    console.print_task(
         f"computing principal components (dimensions={args.pca_dimension}, condition={reference})"
     )
-    with std.single_thread():
+    with single_thread():
         bt.omics.tl.pca(
             adatas[reference],
             n_components=args.pca_dimension,
+            layer=args.expression,
             zero_center=args.centered_pca,
             var_subset="highly_variable" if args.only_hvg else None,
             seed=args.seed,
             copy=False,
         )
 
-    std.print_task(
+    console.print_task(
         f"computing nearest-neighbor graph (principal components={args.clustering_dimension}, condition={reference})"
     )
     bt.omics.tl.neighbors(
@@ -556,13 +554,16 @@ if args.integration == "ingest":
         copy=False,
     )
 
-    std.print_task(f"computing shared nearest-neighbor graph (condition={reference})")
+    console.print_task(f"computing shared nearest-neighbor graph (condition={reference})")
     bt.omics.tl.shared_neighbors(
-        adatas[reference], snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
+        adatas[reference],
+        key_added="shared_neighbors",
+        prune=1 / 15,
+        copy=False,
     )
 
     for label in args.labels[1:]:
-        std.print_task(f"mapping PCA embedding (condition={label})")
+        console.print_task(f"mapping PCA embedding (condition={label})")
         sc.tl.ingest(
             adata=adatas[label],
             adata_ref=adatas[reference],
@@ -573,7 +574,7 @@ if args.integration == "ingest":
             n_jobs=args.jobs,
         )
 
-    std.print_debug(f"concatenating datasets (conditions={'+'.join(args.labels)})")
+    console.print_debug(f"concatenating datasets (conditions={'+'.join(args.labels)})")
     try:
         adata = ad.concat(
             adatas=list(adatas.values()),
@@ -586,7 +587,7 @@ if args.integration == "ingest":
     except Exception as error:
         raise RuntimeError("anndatas concatenation not working") from error
 
-    std.print_task(
+    console.print_task(
         f"computing nearest-neighbor graph (principal components={args.clustering_dimension}, dataset=integrated)"
     )
     bt.omics.tl.neighbors(
@@ -598,12 +599,15 @@ if args.integration == "ingest":
         copy=False,
     )
 
-    std.print_task("computing shared nearest-neighbor graph (dataset=integrated)")
+    console.print_task("computing shared nearest-neighbor graph (dataset=integrated)")
     bt.omics.tl.shared_neighbors(
-        adata, snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
+        adata,
+        key_added="shared_neighbors",
+        prune=1 / 15,
+        copy=False,
     )
 
-    std.print_task(
+    console.print_task(
         f"clustering cells (algorithm=leiden, resolution={args.resolution}, dataset=integrated)"
     )
     bt.omics.tl.leiden(
@@ -618,21 +622,22 @@ if args.integration == "ingest":
 
 elif args.integration == "bbknn":
 
-    std.print_info("integrating data (method=BBKNN)")
+    console.print_info("integrating data (method=BBKNN)")
 
-    std.print_task(f"computing principal components (dimensions={args.pca_dimension})")
-    with std.single_thread():
+    console.print_task(f"computing principal components (dimensions={args.pca_dimension})")
+    with single_thread():
         bt.omics.tl.pca(
             adata,
             n_components=args.pca_dimension,
+            layer=args.expression,
             zero_center=args.centered_pca,
             var_subset="highly_variable" if args.only_hvg else None,
             seed=args.seed,
             copy=False,
         )
 
-    std.print_task("mapping embeddings")
-    with std.disable_print():
+    console.print_task("mapping embeddings")
+    with console.suppress_output():
         sc.external.pp.bbknn(
             adata,
             batch_key="condition",
@@ -648,7 +653,7 @@ elif args.integration == "bbknn":
             copy=False,
         )
 
-    std.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
+    console.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
     bt.omics.tl.leiden(
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
@@ -662,15 +667,15 @@ elif args.integration == "bbknn":
 
 elif args.integration == "scanorama":
 
-    std.print_info("integrating data (method=scanorama)")
+    console.print_info("integrating data (method=scanorama)")
 
-    std.print_info(f"splitting datasets (conditions={'+'.join(args.labels)})")
+    console.print_info(f"splitting datasets (conditions={'+'.join(args.labels)})")
     adatas = dict()
     for label in args.labels:
         adatas[label] = adata[adata.obs["condition"] == label].to_memory()
 
-    std.print_task(f"computing integrated embedding (dimensions={args.pca_dimension})")
-    with std.disable_print():
+    console.print_task(f"computing integrated embedding (dimensions={args.pca_dimension})")
+    with console.suppress_output():
         adatas = scanorama.correct_scanpy(
             list(adatas.values()),
             dimred=args.pca_dimension,
@@ -678,7 +683,7 @@ elif args.integration == "scanorama":
             hvg=args.top_hvg,
         )
 
-    std.print_debug(f"concatenating datasets (conditions={'+'.join(args.labels)})")
+    console.print_debug(f"concatenating datasets (conditions={'+'.join(args.labels)})")
     try:
         adata = ad.concat(
             adatas=adatas,
@@ -691,7 +696,7 @@ elif args.integration == "scanorama":
     except Exception as error:
         raise RuntimeError("anndatas concatenation not working") from error
 
-    std.print_task(
+    console.print_task(
         f"computing nearest-neighbor graph (principal components={args.clustering_dimension})"
     )
     bt.omics.tl.neighbors(
@@ -703,12 +708,15 @@ elif args.integration == "scanorama":
         copy=False,
     )
 
-    std.print_task("computing shared nearest-neighbor graph")
+    console.print_task("computing shared nearest-neighbor graph")
     bt.omics.tl.shared_neighbors(
-        adata, snn_key="shared_neighbors", prune_snn=1 / 15, copy=False
+        adata,
+        key_added="shared_neighbors",
+        prune=1 / 15,
+        copy=False,
     )
 
-    std.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
+    console.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
     bt.omics.tl.leiden(
         adata,
         neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
@@ -722,10 +730,10 @@ elif args.integration == "scanorama":
 
 composition = summarize_cluster_composition(adata)
 composition_file = Path(f"{os.path.dirname(args.outfile)}/composition.csv")
-std.print_task(f"saving cluster composition (file={std.format_path(composition_file)})")
+console.print_task(f"saving cluster composition (file={console.format_path(composition_file)})")
 composition.to_csv(composition_file, sep=",", index=False)
 
-std.print_info(
+console.print_info(
     f"plotting embeddings (directory={os.path.relpath(os.path.dirname(args.outfile))})"
 )
 pc_plot = Path(f"{os.path.dirname(args.outfile)}/pca.pdf")
@@ -733,8 +741,8 @@ bt.omics.pl.embedding(
     adata,
     obs="condition",
     representation="X_pca" if args.integration != "scanorama" else "X_scanorama",
-    xlabel=std.axis_label("PC", 1),
-    ylabel=std.axis_label("PC", 2),
+    xlabel=omics.axis_label("PC", 1),
+    ylabel=omics.axis_label("PC", 2),
     figwidth=6,
     legend={
         "title": "condition",
@@ -791,5 +799,9 @@ for obs, (groupby, filename) in composition_plots.items():
         outfile=composition_plot,
     )
 
-std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-std.write_h5ad(adata, filename=args.outfile, compression="gzip")
+console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
+omics.drop_expression_matrices(
+    adata,
+    layers=("norm", "scale", "correct"),
+)
+omics.write_h5ad(adata, filename=args.outfile, compression="gzip")

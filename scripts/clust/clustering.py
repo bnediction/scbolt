@@ -1,18 +1,18 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
-import cli
+import os
+import random
 from pathlib import Path
 
-import random
-
-import numpy as np
 import anndata as ad
 import bonesistools as bt
+import numpy as np
 
-std.set_default_plot_params(bt.omics.pl)
+from scbolt import cli, console, omics
+from scbolt.runtime import single_thread
+
+omics.set_default_plot_params(bt.omics.pl)
 
 
 def _format_percent_if_float(value):
@@ -32,10 +32,10 @@ EMBEDDINGS = (
 
 def compute_embedding(adata, method: str, args) -> None:
     embedding_label = (
-        "spectral" if method == "spectral" else std.format_embedding(method)
+        "spectral" if method == "spectral" else console.format_embedding(method)
     )
     if method == "umap":
-        std.print_task(
+        console.print_task(
             f"computing embedding (method={embedding_label}, "
             f"dimensions={args.embedding_dimension}, "
             f"min_dist={args.min_dist}, "
@@ -53,7 +53,7 @@ def compute_embedding(adata, method: str, args) -> None:
             copy=False,
         )
     elif method == "tsne":
-        std.print_task(
+        console.print_task(
             f"computing embedding (method={embedding_label}, "
             f"dimensions={args.embedding_dimension}, "
             f"metric={args.metric}, "
@@ -70,7 +70,7 @@ def compute_embedding(adata, method: str, args) -> None:
             copy=False,
         )
     elif method == "spectral":
-        std.print_task(
+        console.print_task(
             f"computing embedding (method={embedding_label}, "
             f"dimensions={args.embedding_dimension})"
         )
@@ -86,14 +86,14 @@ def compute_embedding(adata, method: str, args) -> None:
 def plot_embedding(
     adata, method: str, representation: str, outfile: Path, args
 ) -> None:
-    embedding_label = std.format_embedding(method)
+    embedding_label = console.format_embedding(method)
     bt.omics.pl.embedding(
         adata,
         obs="cluster",
         representation=representation,
-        xlabel=std.axis_label(embedding_label, 1),
-        ylabel=std.axis_label(embedding_label, 2),
-        zlabel=std.axis_label(embedding_label, 3),
+        xlabel=omics.axis_label(embedding_label, 1),
+        ylabel=omics.axis_label(embedding_label, 2),
+        zlabel=omics.axis_label(embedding_label, 3),
         figwidth=6,
         legend={
             "title": "clusters",
@@ -140,10 +140,9 @@ parser.add_argument(
     "--expression",
     dest="expression",
     type=str,
-    required=False,
-    default=None,
+    required=True,
     metavar="LITERAL",
-    help=("Expression layer to use.\n" "Default: adata.X."),
+    help="Expression layer used to compute principal components. Required.",
 )
 
 parser.add_argument(
@@ -336,17 +335,14 @@ if args.pca_dimension < args.clustering_dimension:
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
-if args.expression:
-    adata.X = adata.layers[args.expression].copy()
-
 if args.only_hvg:
-    std.print_task(
+    console.print_task(
         "estimating highly variable genes "
-        f"({std.format_hvg_parameters(method=args.method, number=args.top_hvg)})"
+        f"({console.format_hvg_parameters(method=args.method, number=args.top_hvg)})"
     )
     bt.omics.pp.hvg(
         adata,
@@ -355,23 +351,23 @@ if args.only_hvg:
         span=args.span,
         n_bins=args.bins,
         n_features=args.top_hvg,
-        copy=False,
     )
 
-std.print_task(f"computing principal components (dimensions={args.pca_dimension})")
+console.print_task(f"computing principal components (dimensions={args.pca_dimension})")
 if args.only_hvg:
-    std.print_info("filtering PCA features (scope=highly variable genes)")
-with std.single_thread():
+    console.print_info("filtering PCA features (scope=highly variable genes)")
+with single_thread():
     bt.omics.tl.pca(
         adata,
         n_components=args.pca_dimension,
+        layer=args.expression,
         zero_center=args.centered_pca,
         var_subset="highly_variable" if args.only_hvg else None,
         seed=args.seed,
         copy=False,
     )
 
-std.print_task(
+console.print_task(
     f"computing nearest-neighbor graph (principal components={args.clustering_dimension})"
 )
 bt.omics.tl.neighbors(
@@ -385,14 +381,17 @@ bt.omics.tl.neighbors(
 
 prune_snn = 1 / 15
 prune_snn_msg = _format_percent_if_float(prune_snn)
-std.print_task(
+console.print_task(
     f"computing shared nearest-neighbor graph (pruning_threshold={prune_snn_msg})"
 )
 bt.omics.tl.shared_neighbors(
-    adata, snn_key="shared_neighbors", prune_snn=prune_snn, copy=False
+    adata,
+    key_added="shared_neighbors",
+    prune=prune_snn,
+    copy=False,
 )
 
-std.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
+console.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
 bt.omics.tl.leiden(
     adata,
     neighbors_key="neighbors" if args.adjacency == "knn" else "shared_neighbors",
@@ -401,12 +400,12 @@ bt.omics.tl.leiden(
     seed=args.seed,
     copy=False,
 )
-std.print_result(f"identified {adata.obs['cluster'].nunique()} clusters")
+console.print_result(f"identified {adata.obs['cluster'].nunique()} clusters")
 
 for method, _, _ in EMBEDDINGS:
     compute_embedding(adata, method, args)
 
-std.print_info(
+console.print_info(
     f"plotting embeddings (directory={os.path.relpath(os.path.dirname(args.outfile))})"
 )
 for method, representation, filename in EMBEDDINGS:
@@ -418,5 +417,9 @@ for method, representation, filename in EMBEDDINGS:
         args,
     )
 
-std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-std.write_h5ad(adata, filename=args.outfile, compression="gzip")
+console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
+omics.drop_expression_matrices(
+    adata,
+    layers=("norm", "scale", "correct"),
+)
+omics.write_h5ad(adata, filename=args.outfile, compression="gzip")

@@ -30,6 +30,18 @@ def canonicalize_anndata(adata: Any) -> None:
         _canonicalize_sparse_matrix(adata.raw.X)
 
 
+def drop_expression_matrices(
+    adata: Any,
+    layers: Iterable[str] = (),
+) -> None:
+    """Drop ``X`` and selected expression layers from an AnnData object."""
+
+    adata.X = None
+    for layer in layers:
+        if layer in adata.layers:
+            del adata.layers[layer]
+
+
 def _is_tmp_path(filename: Any) -> bool:
     try:
         path = os.path.abspath(os.fspath(filename))

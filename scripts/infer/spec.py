@@ -1,17 +1,16 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
-import cli
-import yaml
+import os
 from pathlib import Path
 
-import pandas as pd
-import bonesistools as bt
-
 import bonesis
+import bonesistools as bt
+import pandas as pd
+import yaml
 from utils import get_cfg, load_bonesis_code, load_prior_network
+
+from scbolt import cli, console
 
 bonesis.settings["quiet"] = True
 script_name = Path(__file__).name
@@ -195,13 +194,13 @@ for outfile in [
     if not Path(os.path.dirname(outfile)).exists():
         os.makedirs(Path(os.path.dirname(outfile)))
 
-genesyn = bt.resources.ncbi.genesyn(
+identifiers = bt.resources.ncbi.identifiers(
     organism=args.organism,
     version=args.geneinfo_version,
 )
 
-std.print_task(
-    f"loading model specification (file={std.format_path(args.model_specification)})"
+console.print_task(
+    f"loading model specification (file={console.format_path(args.model_specification)})"
 )
 
 with open(args.model_specification, "r") as file:
@@ -231,16 +230,16 @@ dynamical_constraints = read_specification_list("dynamical_constraints", require
 important_nodes = set(read_specification_list("important_nodes"))
 mandatory_nodes = set(read_specification_list("mandatory_nodes"))
 
-std.print_task(f"loading CSV table (file={std.format_path(args.macrostates)})")
+console.print_task(f"loading CSV table (file={console.format_path(args.macrostates)})")
 
-macrostates_df = genesyn(
+macrostates_df = identifiers(
     pd.read_csv(args.macrostates, index_col=0, sep=args.sep), axis="columns"
 )
 
-std.print_task("getting binarized states")
+console.print_task("getting binarized states")
 
-important_nodes = genesyn(important_nodes)
-mandatory_nodes = genesyn(mandatory_nodes)
+important_nodes = identifiers(important_nodes)
+mandatory_nodes = identifiers(mandatory_nodes)
 
 has_defined_state = macrostates_df.apply(
     lambda values: pd.to_numeric(values, errors="coerce").isin([0, 1]).any(),
@@ -250,7 +249,7 @@ removed_nodes = macrostates_df.columns[~has_defined_state]
 if len(removed_nodes) > 0:
     kept_nodes = int(has_defined_state.sum())
     total_nodes = len(has_defined_state)
-    std.print_info(
+    console.print_info(
         "removing undefined features "
         f"(kept={kept_nodes}/{total_nodes} "
         f"({100 * kept_nodes / total_nodes:.1f}%), "
@@ -258,14 +257,14 @@ if len(removed_nodes) > 0:
     )
     macrostates_df = macrostates_df.loc[:, has_defined_state]
 
-macrostates_cfg = get_cfg(macrostates_df, axis="index", genesyn=genesyn)
+macrostates_cfg = get_cfg(macrostates_df, axis="index", identifiers=identifiers)
 
-std.print_info("checking Boolean properties")
+console.print_info("checking Boolean properties")
 
 grn = load_prior_network(
     args.domain,
     args.organism,
-    genesyn,
+    identifiers,
     args.dorothea_levels,
     args.omnipath_version,
     args.hcop_version,
@@ -294,23 +293,23 @@ for constraint in dynamical_constraints:
             f"invalid dynamical Boolean constraint: {constraint}"
         ) from error
 
-std.print_task(f"saving Boolean specification (file={std.format_path(args.model)})")
+console.print_task(f"saving Boolean specification (file={console.format_path(args.model)})")
 
 with open(args.model, "w") as file:
     for constraint in dynamical_constraints:
         file.write(f"{constraint}\n")
 
-std.print_task(f"saving CSV table (file={std.format_path(args.metastates)})")
+console.print_task(f"saving CSV table (file={console.format_path(args.metastates)})")
 
 macrostates_df.to_csv(args.metastates, sep=",", index=True)
 
-std.print_task(f"saving node list (file={std.format_path(args.important_nodes)})")
+console.print_task(f"saving node list (file={console.format_path(args.important_nodes)})")
 
 with open(args.important_nodes, "w") as file:
     for node in important_nodes:
         file.write(f"{node}\n")
 
-std.print_task(f"saving node list (file={std.format_path(args.mandatory_nodes)})")
+console.print_task(f"saving node list (file={console.format_path(args.mandatory_nodes)})")
 
 with open(args.mandatory_nodes, "w") as file:
     for node in mandatory_nodes:

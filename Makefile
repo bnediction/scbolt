@@ -359,6 +359,7 @@ $(filtering_$(1)): $(count_input_$(1)) $(if $(filter true,$(CC_CORRECTION)),$(if
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/prep/filter.py \
 		$$(firstword $$^) $$@ $(if $(filter true,$(CC_CORRECTION)),$(if $(filter mouse,$(ORGANISM)),--marker $$(lastword $$^))) \
+		--expression counts \
 		--gene-dropout $(GENE_DROPOUT) --gene-expression $(GENE_EXPRESSION) --gene-counts $(GENE_COUNTS) \
 		--cell-dropout $(CELL_DROPOUT) --cell-expression $(CELL_EXPRESSION) --cell-reads $(CELL_READS) \
 		--mad-deviation $(MAD_DEVIATION) $(consistent_mad) --mt $(MT) \
@@ -647,7 +648,6 @@ $(bin_cells)&: $(bin_input_h5ads)
 	$(if $(filter true,$(BIN_SCBOOLSEQ_ONLY_HVG)),$(call build_bin_hvg,bin-cells))
 	$(call conda_run,scbolt-scboolseq) python $(scripts_dir)/bin/bin_cells_scboolseq.py \
 		$< --outfile $(firstword $(bin_cells)) \
-		--bin $(shell echo $@ | $(call system_tool,sed) "s/.h5ad/.csv/") \
 		--statistics $(lastword $(bin_cells)) \
 		--expression log-norm \
 		--representation $(REPRESENTATION) \
@@ -775,13 +775,14 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 	set +e; \
 	$(call start_inference_timer) \
 	$(call trap_inference_interrupt,max-nodes-soft,TIMEOUT_SOFT,,$(max_nodes_soft_domain)); \
-	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_SOFT),$(@D)/.inference-timeout) python $(scripts_dir)/infer/selection.py filter-nodes \
+	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/selection.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--asp $(@D)/nodes.sh --solution $@ \
 		--witness $(@D)/witness.lp \
 		$(call clause_continuation,CLAUSE_CONTINUATION_SOFT) \
 		--clause-continuation-parameter CLAUSE_CONTINUATION_SOFT \
+		$(if $(strip $(PATIENCE_SOFT)),--clause-continuation-patience "$(PATIENCE_SOFT)") \
 		--domain-nodes $(max_nodes_soft_domain) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
@@ -790,7 +791,8 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 		$(if $(strip $(CLINGO_CONFIG_SOFT)),--clingo-configuration $(CLINGO_CONFIG_SOFT)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SOFT) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SOFT) \
-		--jobs $(JOBS_SOFT); \
+		--jobs $(JOBS_SOFT) $(if $(strip $(TIMEOUT_SOFT)),--timeout "$(TIMEOUT_SOFT)") \
+		--timeout-status-file "$(@D)/.inference-timeout"; \
 	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 	trap - INT TERM; \
 	set -e; \
@@ -804,7 +806,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution) $(if $(geneinfo_
 	set +e; \
 	$(call start_inference_timer) \
 	$(call trap_inference_interrupt,max-consts-soft,TIMEOUT_CONSTS,,$(lastword $^)); \
-	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_CONSTS),$(@D)/.inference-timeout) python $(scripts_dir)/infer/selection.py filter-consts \
+	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/selection.py filter-consts \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--filter-grn $(lastword $^) \
@@ -817,7 +819,8 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution) $(if $(geneinfo_
 		$(if $(strip $(CLINGO_CONFIG_CONSTS)),--clingo-configuration $(CLINGO_CONFIG_CONSTS)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_CONSTS) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_CONSTS) \
-		--jobs $(JOBS_CONSTS); \
+		--jobs $(JOBS_CONSTS) $(if $(strip $(TIMEOUT_CONSTS)),--timeout "$(TIMEOUT_CONSTS)") \
+		--timeout-status-file "$(@D)/.inference-timeout"; \
 	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 	trap - INT TERM; \
 	set -e; \
@@ -831,13 +834,14 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_depend
 	set +e; \
 	$(call start_inference_timer) \
 	$(call trap_inference_interrupt,max-nodes-relaxed,TIMEOUT_RELAXED,,$(lastword $^)); \
-	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_RELAXED),$(@D)/.inference-timeout) python $(scripts_dir)/infer/selection.py filter-nodes \
+	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/selection.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
 		--solution $@ --witness $(@D)/witness.lp \
 		$(call clause_continuation,CLAUSE_CONTINUATION_RELAXED) \
 		--clause-continuation-parameter CLAUSE_CONTINUATION_RELAXED \
+		$(if $(strip $(PATIENCE_RELAXED)),--clause-continuation-patience "$(PATIENCE_RELAXED)") \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode relaxed --max-clause $(MAX_CLAUSE) \
@@ -845,7 +849,8 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_depend
 		$(if $(strip $(CLINGO_CONFIG_RELAXED)),--clingo-configuration $(CLINGO_CONFIG_RELAXED)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_RELAXED) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_RELAXED) \
-		--jobs $(JOBS_RELAXED); \
+		--jobs $(JOBS_RELAXED) $(if $(strip $(TIMEOUT_RELAXED)),--timeout "$(TIMEOUT_RELAXED)") \
+		--timeout-status-file "$(@D)/.inference-timeout"; \
 	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 	trap - INT TERM; \
 	set -e; \
@@ -860,13 +865,14 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_depend
 	set +e; \
 	$(call start_inference_timer) \
 	$(call trap_inference_interrupt,max-nodes-seed,TIMEOUT_SEED,,$(lastword $^),$(@D)/comps.txt); \
-	$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_SEED),$(@D)/.inference-timeout) python $(scripts_dir)/infer/selection.py filter-nodes \
+	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/selection.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
 		--solution $(@D)/comps.txt --witness $(@D)/witness.lp \
 		$(call clause_continuation,CLAUSE_CONTINUATION_SEED) \
 		--clause-continuation-parameter CLAUSE_CONTINUATION_SEED \
+		$(if $(strip $(PATIENCE_SEED)),--clause-continuation-patience "$(PATIENCE_SEED)") \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
@@ -874,7 +880,8 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_depend
 		$(if $(strip $(CLINGO_CONFIG_SEED)),--clingo-configuration $(CLINGO_CONFIG_SEED)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SEED) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SEED) \
-		--jobs $(JOBS_SEED); \
+		--jobs $(JOBS_SEED) $(if $(strip $(TIMEOUT_SEED)),--timeout "$(TIMEOUT_SEED)") \
+		--timeout-status-file "$(@D)/.inference-timeout"; \
 	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 	trap - INT TERM; \
 	set -e; \
@@ -898,7 +905,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if 
 		$(call start_inference_timer) \
 		$(call trap_inference_interrupt,max-nodes-lock,TIMEOUT_LOCK,$(word 6,$^),$(word 5,$^)); \
 		$(call system_tool,cat) $(word 4,$^) $(word 6,$^) | $(call system_tool,sort) -u > $(@D)/mandatory.txt; \
-		$(call conda_run_inference_timeout,scbolt-bonesis,$(TIMEOUT_LOCK),$(@D)/.inference-timeout) python $(scripts_dir)/infer/selection.py filter-nodes \
+		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/selection.py filter-nodes \
 			$(word 1,$^) $(word 2,$^) \
 			--important-nodes $(word 3,$^) --mandatory-nodes $(@D)/mandatory.txt \
 			--filter-grn $(word 5,$^) --asp $(@D)/nodes.sh \
@@ -906,6 +913,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if 
 			--initial-witness $(lastword $^) \
 			$(call clause_continuation,CLAUSE_CONTINUATION_LOCK) \
 			--clause-continuation-parameter CLAUSE_CONTINUATION_LOCK \
+			$(if $(strip $(PATIENCE_LOCK)),--clause-continuation-patience "$(PATIENCE_LOCK)") \
 			--domain $(prior_knowledge) --organism $(ORGANISM) \
 			$(prior_knowledge_args) \
 			--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
@@ -913,7 +921,8 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if 
 			$(if $(strip $(CLINGO_CONFIG_LOCK)),--clingo-configuration $(CLINGO_CONFIG_LOCK)) \
 			--clingo-opt-mode $(CLINGO_OPT_MODE_LOCK) \
 			--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_LOCK) \
-			--jobs $(JOBS_LOCK); \
+			--jobs $(JOBS_LOCK) $(if $(strip $(TIMEOUT_LOCK)),--timeout "$(TIMEOUT_LOCK)") \
+			--timeout-status-file "$(@D)/.inference-timeout"; \
 		$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 		trap - INT TERM; \
 		set -e; \

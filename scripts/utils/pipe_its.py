@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
-import cli
+import os
 from pathlib import Path
 
 import anndata as ad
 import bonesistools as bt
 import pandas as pd
+
+from scbolt import cli, console, omics
 
 script_name = Path(__file__).name
 
@@ -124,7 +124,7 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-std.set_default_plot_params(bt.omics.pl)
+omics.set_default_plot_params(bt.omics.pl)
 
 
 def reindex_boolean_series(series, target_index):
@@ -155,7 +155,7 @@ def remove_obs_name_prefix(adata, sep=":"):
 
 
 def plot_labels(adata, obs: str, embedding: str, outfile: Path) -> None:
-    std.plot_categorical_embedding(
+    omics.plot_categorical_embedding(
         adata,
         obs=obs,
         embedding=embedding,
@@ -195,14 +195,14 @@ for outfile in args.outfiles:
     if not Path(os.path.dirname(outfile)).exists():
         os.makedirs(Path(os.path.dirname(outfile)))
 
-std.print_task(
-    f"loading AnnData (dataset=integrated, file={std.format_path(args.integrated)})"
+console.print_task(
+    f"loading AnnData (dataset=integrated, file={console.format_path(args.integrated)})"
 )
 integrated_ad = ad.read_h5ad(args.integrated)
 
 specific_ad = {}
 for name, file in zip(args.labels, args.specifics):
-    std.print_task(f"loading AnnData (dataset={name}, file={std.format_path(file)})")
+    console.print_task(f"loading AnnData (dataset={name}, file={console.format_path(file)})")
     specific_ad[name] = ad.read_h5ad(file)
 
 if args.obs_label not in integrated_ad.obs.columns:
@@ -221,7 +221,7 @@ if args.var is not None:
         if column not in integrated_ad.var:
             raise KeyError(f"column `{column}` not found in integrated_ad.var")
 
-std.print_task("transferring observations (source=integrated, target=specific)")
+console.print_task("transferring observations (source=integrated, target=specific)")
 for name, adata in specific_ad.items():
     source_ad = integrated_ad[integrated_ad.obs[args.obs_label] == name].copy()
     remove_obs_name_prefix(source_ad)
@@ -235,7 +235,7 @@ for name, adata in specific_ad.items():
 
     cols_to_remove = set(args.obs).intersection(set(adata.obs.columns))
     if cols_to_remove:
-        std.print_debug(
+        console.print_debug(
             "removing columns (dataset={0}, columns={1})".format(
                 name, "+".join(map(str, cols_to_remove))
             )
@@ -244,11 +244,11 @@ for name, adata in specific_ad.items():
     adata.obs = adata.obs.join(transferred_obs, how="left")
 
 if args.var is not None:
-    std.print_task("transferring variables (source=integrated, target=specific)")
+    console.print_task("transferring variables (source=integrated, target=specific)")
     for name, adata in specific_ad.items():
         cols_to_remove = set(args.var).intersection(set(adata.var.columns))
         if cols_to_remove:
-            std.print_debug(
+            console.print_debug(
                 "removing columns (dataset={0}, columns={1})".format(
                     name, "+".join(map(str, cols_to_remove))
                 )
@@ -266,8 +266,8 @@ if args.var is not None:
 for name, outfile in zip(args.labels, args.outfiles):
     if args.plot_obs is not None:
         labels_plot = Path(os.path.dirname(outfile)) / "labels.pdf"
-        std.print_task(
-            f"plotting embeddings (dataset={name}, file={std.format_path(labels_plot)})"
+        console.print_task(
+            f"plotting embeddings (dataset={name}, file={console.format_path(labels_plot)})"
         )
         plot_labels(
             specific_ad[name],
@@ -276,5 +276,5 @@ for name, outfile in zip(args.labels, args.outfiles):
             outfile=labels_plot,
         )
 
-    std.print_task(f"saving AnnData (dataset={name}, file={std.format_path(outfile)})")
-    std.write_h5ad(specific_ad[name], filename=outfile, compression="gzip")
+    console.print_task(f"saving AnnData (dataset={name}, file={console.format_path(outfile)})")
+    omics.write_h5ad(specific_ad[name], filename=outfile, compression="gzip")

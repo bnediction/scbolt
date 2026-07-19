@@ -1,17 +1,16 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
-import cli
+import os
+import warnings
 from pathlib import Path
 
 import anndata as ad
 import bonesistools as bt
+import matplotlib.pyplot as plt
 import scvelo as scv
 
-import matplotlib.pyplot as plt
-import warnings
+from scbolt import cli, console, omics
 
 warnings.filterwarnings(
     "ignore",
@@ -19,7 +18,7 @@ warnings.filterwarnings(
     category=DeprecationWarning,
 )
 
-std.set_default_plot_params(bt.omics.pl)
+omics.set_default_plot_params(bt.omics.pl)
 
 script_name = Path(__file__).name
 
@@ -55,10 +54,9 @@ parser.add_argument(
     "--expression",
     dest="expression",
     type=str,
-    required=False,
-    default=None,
+    required=True,
     metavar="LITERAL",
-    help=("Expression layer to use.\n" "Default: adata.X."),
+    help="Expression layer containing raw counts. Required.",
 )
 
 parser.add_argument(
@@ -137,7 +135,7 @@ outpath = os.path.dirname(args.outfile)
 if not Path(outpath).exists():
     os.makedirs(outpath)
 
-std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
 adata.obs["clusters"] = adata.obs[args.cluster]
@@ -146,7 +144,7 @@ if args.expression:
     adata.X = adata.layers[args.expression].copy()
 
 plot_dir = Path(outpath)
-std.print_task(f"plotting velocity outputs (directory={os.path.relpath(plot_dir)})")
+console.print_task(f"plotting velocity outputs (directory={os.path.relpath(plot_dir)})")
 
 with warnings.catch_warnings():
     warnings.filterwarnings(
@@ -166,8 +164,8 @@ with warnings.catch_warnings():
         plt.savefig(Path(f"{outpath}/proportions.pdf"))
         plt.close()
 
-std.print_task("computing moments (orders=first, second)")
-with std.disable_print():
+console.print_task("computing moments (orders=first, second)")
+with console.suppress_output():
     scv.pp.moments(
         adata,
         n_neighbors=None,
@@ -179,8 +177,8 @@ with std.disable_print():
         copy=False,
     )
 
-std.print_task(f"estimating RNA velocities (mode={args.mode})")
-with std.disable_print():
+console.print_task(f"estimating RNA velocities (mode={args.mode})")
+with console.suppress_output():
     scv.tl.velocity(
         adata,
         vkey="velocity",
@@ -189,16 +187,16 @@ with std.disable_print():
         copy=False,
     )
 
-std.print_task("inferring velocity graph")
-with std.disable_print():
+console.print_task("inferring velocity graph")
+with console.suppress_output():
     scv.tl.velocity_graph(adata, vkey="velocity", copy=False, n_jobs=args.jobs)
 
-std.print_task("estimating velocity pseudotime")
-with std.disable_print():
+console.print_task("estimating velocity pseudotime")
+with console.suppress_output():
     scv.tl.velocity_pseudotime(adata, vkey="velocity", use_velocity_graph=True)
 
-std.print_task("estimating PAGA graph (edges=velocity-directed)")
-with std.disable_print():
+console.print_task("estimating PAGA graph (edges=velocity-directed)")
+with console.suppress_output():
     scv.tl.paga(adata, vkey="velocity", groups=args.cluster, copy=False)
     adata.uns["transitions_confidence"] = adata.uns["paga"]["transitions_confidence"]
 
@@ -218,7 +216,7 @@ with warnings.catch_warnings():
         category=DeprecationWarning,
     )
 
-    with std.disable_print():
+    with console.suppress_output():
         ax = scv.pl.velocity_embedding_stream(
             adata,
             basis=args.embedding,
@@ -246,9 +244,9 @@ with warnings.catch_warnings():
         adata,
         obs="velocity_pseudotime",
         representation="X_umap" if args.embedding == "umap" else "X_tsne",
-        xlabel=std.axis_label(embedding_label, 1),
-        ylabel=std.axis_label(embedding_label, 2),
-        zlabel=std.axis_label(embedding_label, 3),
+        xlabel=omics.axis_label(embedding_label, 1),
+        ylabel=omics.axis_label(embedding_label, 2),
+        zlabel=omics.axis_label(embedding_label, 3),
         figwidth=6,
         s=4,
         legend={
@@ -270,9 +268,9 @@ with warnings.catch_warnings():
         adata,
         obs=args.cluster,
         representation="X_umap" if args.embedding == "umap" else "X_tsne",
-        xlabel=std.axis_label(embedding_label, 1),
-        ylabel=std.axis_label(embedding_label, 2),
-        zlabel=std.axis_label(embedding_label, 3),
+        xlabel=omics.axis_label(embedding_label, 1),
+        ylabel=omics.axis_label(embedding_label, 2),
+        zlabel=omics.axis_label(embedding_label, 3),
         figwidth=6,
         s=4,
         legend={
@@ -292,7 +290,7 @@ with warnings.catch_warnings():
         background_visible=False,
     )
     plt.axis("off")
-    ax = bt.omics.pl.draw_paga(
+    ax = bt.omics.pl.paga(
         adata=adata,
         obs=args.cluster,
         representation="X_umap" if args.embedding == "umap" else "X_tsne",
@@ -307,7 +305,8 @@ with warnings.catch_warnings():
     plt.savefig(Path(f"{outpath}/paga.pdf"))
     plt.close()
 
-std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
+console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
 if args.cluster != "clusters":
     del adata.obs["clusters"]
-std.write_h5ad(adata, filename=args.outfile, compression="gzip")
+omics.drop_expression_matrices(adata)
+omics.write_h5ad(adata, filename=args.outfile, compression="gzip")

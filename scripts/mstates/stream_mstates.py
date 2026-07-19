@@ -1,24 +1,21 @@
 #!/usr/bin/env python
 
-import os
-import std
-import re
 import argparse
-import cli
+import os
+import re
 from pathlib import Path
 
-import numpy as np
-
 import anndata as ad
-import stream as st
 import bonesistools as bt
-
 import matplotlib.pyplot as plt
-
+import numpy as np
+import stream as st
 from networkx.classes.graph import Graph
 from rpy2.rinterface import ListSexpVector
 
-std.set_default_plot_params(bt.omics.pl)
+from scbolt import cli, console, omics
+
+omics.set_default_plot_params(bt.omics.pl)
 script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
@@ -262,28 +259,29 @@ embedding_label = (
 outpath = os.path.dirname(args.outfile)
 os.makedirs(f"{outpath}/streamplot", exist_ok=True)
 
-std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 adata.uns["workdir"] = str(outpath)
 
 representation_mtx = bt.omics.tl.get_representation(
-    adata, representation=args.representation
+    adata,
+    obsm=args.representation,
 )
 adata.uns["dr"] = args.representation
 adata.obsm["X_dr"] = representation_mtx.copy()
 
 adata.obs[args.obs] = adata.obs[args.obs].astype(object)
 
-std.print_task("computing elastic principal graph")
+console.print_task("computing elastic principal graph")
 
-std.print_info("initializing elastic principal graph")
-with std.disable_print():
+console.print_info("initializing elastic principal graph")
+with console.suppress_output():
     st.seed_elastic_principal_graph(
         adata, clustering=args.clustering, n_clusters=args.cluster_number
     )
 
-std.print_info("learning elastic principal graph")
-with std.disable_print():
+console.print_info("learning elastic principal graph")
+with console.suppress_output():
     st.elastic_principal_graph(
         adata,
         epg_alpha=args.alpha_epg,
@@ -293,17 +291,17 @@ with std.disable_print():
     )
 
 if args.extend_epg:
-    std.print_info("extending leaves of elastic principal graph")
-    with std.disable_print():
+    console.print_info("extending leaves of elastic principal graph")
+    with console.suppress_output():
         st.extend_elastic_principal_graph(
             adata, epg_ext_mode=args.extend_mode, epg_ext_par=args.extend_parameter
         )
 else:
-    std.print_info("not extending leaves of elastic principal graph")
+    console.print_info("not extending leaves of elastic principal graph")
 
 if args.prune_epg:
-    std.print_info("pruning elastic principal graph by filtering out trivial branches")
-    with std.disable_print():
+    console.print_info("pruning elastic principal graph by filtering out trivial branches")
+    with console.suppress_output():
         st.prune_elastic_principal_graph(
             adata,
             epg_collapse_mode=args.collapse_mode,
@@ -311,11 +309,11 @@ if args.prune_epg:
             epg_n_processes=args.jobs,
         )
 else:
-    std.print_info(
+    console.print_info(
         "not prunning elastic principal graph by filtering out trivial branches"
     )
 
-std.print_task("retrieving clusters (method=STREAM)")
+console.print_task("retrieving clusters (method=STREAM)")
 
 
 def get_stream_cluster(value):
@@ -349,7 +347,7 @@ if args.size is not None:
     size = adata.obs["macrostate"].value_counts()
     for i, v in size.items():
         if v < args.size:
-            std.print_debug(
+            console.print_debug(
                 f"macrostate {i} too small ({v}): extend to neighborhood nodes"
             )
             _true = adata.obs["node"].isin(list(adata.uns["epg"][flat_to_epg[i]]))
@@ -359,11 +357,11 @@ info_str = "macrostate size:"
 for i, v in adata.obs["macrostate"].value_counts().sort_index().items():
     info_str += f" {i}: {v}; "
 info_str = info_str[:-2]
-std.print_info(info_str)
+console.print_info(info_str)
 
 groups = set([args.obs]).union({"kmeans", "macrostate"})
 
-std.print_task(f"plotting STREAM outputs (directory={os.path.relpath(outpath)})")
+console.print_task(f"plotting STREAM outputs (directory={os.path.relpath(outpath)})")
 for group in groups:
     epg_plot = Path(f"{outpath}/epg_{group}.pdf")
     bt.omics.pl.trajectory(
@@ -371,9 +369,9 @@ for group in groups:
         obs=group,
         representation=args.representation,
         graph_key="epg",
-        xlabel=std.axis_label(embedding_label, 1),
-        ylabel=std.axis_label(embedding_label, 2),
-        zlabel=std.axis_label(embedding_label, 3),
+        xlabel=omics.axis_label(embedding_label, 1),
+        ylabel=omics.axis_label(embedding_label, 2),
+        zlabel=omics.axis_label(embedding_label, 3),
         figwidth=6,
         alpha=0.7,
         legend={
@@ -424,11 +422,11 @@ for root in adata.obs["macrostate"].cat.categories:
     plt.close()
 
 if args.pkl:
-    std.print_task(f"saving STREAM object (file={std.format_path(args.pkl)})")
-    with std.disable_print():
+    console.print_task(f"saving STREAM object (file={console.format_path(args.pkl)})")
+    with console.suppress_output():
         st.write(adata, file_name=args.pkl)
 
-std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
+console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
 del adata.uns["workdir"]
 for key in list(adata.obs.keys()):
     if isinstance(adata.obs[key][0], tuple):
@@ -441,8 +439,8 @@ for key in list(adata.uns.keys()):
 adata.uns.pop("dr", None)
 if "X_dr" in adata.obsm:
     del adata.obsm["X_dr"]
-std.write_h5ad(adata, filename=args.outfile, compression="gzip")
+omics.write_h5ad(adata, filename=args.outfile, compression="gzip")
 
 if args.csv:
-    std.print_task(f"saving STREAM macrostates (file={std.format_path(args.csv)})")
+    console.print_task(f"saving STREAM macrostates (file={console.format_path(args.csv)})")
     adata.obs["macrostate"].to_csv(args.csv, sep=",", index=True)

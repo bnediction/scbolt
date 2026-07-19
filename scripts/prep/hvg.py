@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
-import cli
+import os
 from pathlib import Path
 
 import anndata as ad
 import bonesistools as bt
+
+from scbolt import cli, console
 
 script_name = Path(__file__).name
 
@@ -57,13 +57,11 @@ parser.add_argument(
     "--expression",
     dest="expression",
     type=str,
-    required=False,
-    default=None,
+    required=True,
     metavar="LITERAL",
     help=(
         "Expression layer used for HVG selection. Expected data: counts with "
-        "loess, otherwise log-normalized counts.\n"
-        "Default: counts with loess, otherwise log-norm."
+        "loess, otherwise log-normalized counts. Required."
     ),
 )
 
@@ -104,9 +102,6 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-if args.expression is None:
-    args.expression = "counts" if args.method == "loess" else "log-norm"
-
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
@@ -128,9 +123,9 @@ if "variances" in adata.var:
     del adata.var["variances"]
 if "variances_norm" in adata.var:
     del adata.var["variances_norm"]
-std.print_task(
+console.print_task(
     "estimating highly variable genes "
-    f"({std.format_hvg_parameters(method=args.method, number=args.hvg)})"
+    f"({console.format_hvg_parameters(method=args.method, number=args.hvg)})"
 )
 bt.omics.pp.hvg(
     adata,
@@ -141,11 +136,10 @@ bt.omics.pp.hvg(
     n_features=args.hvg,
     batch_key=args.batch,
     batch_selection="rank",
-    copy=False,
 )
 adata._inplace_subset_var(adata.var.highly_variable)
 
-std.print_result(f"identified {adata.n_vars} highly variable genes")
+console.print_result(f"identified {adata.n_vars} highly variable genes")
 
 with open(args.outfile, "w") as file:
     for gene in adata.var.index:

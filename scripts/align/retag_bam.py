@@ -6,10 +6,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-import cli
-import std
-
 import pysam
+
+from scbolt import cli, console
 
 
 def load_barcodes(barcode_file: str | Path | None) -> set[str] | None:
@@ -160,14 +159,14 @@ if args.jobs <= 0:
 if args.outfile.parent:
     os.makedirs(args.outfile.parent, exist_ok=True)
 
-std.print_task(f"loading BAM (file={std.format_path(args.infile)})")
+console.print_task(f"loading BAM (file={console.format_path(args.infile)})")
 if args.barcodes is not None:
-    std.print_task(f"loading selected barcodes (file={std.format_path(args.barcodes)})")
+    console.print_task(f"loading selected barcodes (file={console.format_path(args.barcodes)})")
 barcodes = load_barcodes(args.barcodes)
 if barcodes is not None:
-    std.print_info(f"identified {len(barcodes)} barcodes")
+    console.print_info(f"identified {len(barcodes)} barcodes")
 
-std.print_task(f"saving retagged BAM (file={std.format_path(args.outfile)})")
+console.print_task(f"saving retagged BAM (file={console.format_path(args.outfile)})")
 
 copied, kept_reads, skipped_reads = copy_bam_tags(
     args.infile,
@@ -193,9 +192,9 @@ copied_str = ", ".join(
     f"{source}->{destination} for {count} reads"
     for (source, destination), count in copied.items()
 )
-std.print_result(f"copied {copied_str}")
+console.print_result(f"copied {copied_str}")
 
 if barcodes is not None:
     total_reads = kept_reads + skipped_reads
     kept_fraction = kept_reads / total_reads if total_reads else 0
-    std.print_result(f"kept {kept_reads}/{total_reads} reads " f"({kept_fraction:.1%})")
+    console.print_result(f"kept {kept_reads}/{total_reads} reads " f"({kept_fraction:.1%})")

@@ -253,6 +253,9 @@ obsm:
   X_umap, X_tsne, or X_se (matching REPRESENTATION)
 ```
 
+scBOLT reads expression from the named layers and does not use `adata.X` as a
+fallback for this entry point.
+
 ### Starting from precomputed binarizations
 
 ```bash

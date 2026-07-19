@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
 import json
+import os
 from pathlib import Path
 
-import cli
 import bonesistools as bt
 import pandas as pd
+
+from scbolt import cli, console
 
 
 def file2signatures(file):
@@ -96,11 +96,11 @@ outpath = os.path.dirname(args.outfile)
 if not outpath:
     os.makedirs(outpath)
 
-std.print_task(f"loading table signatures (file={std.format_path(args.table_infile)})")
+console.print_task(f"loading table signatures (file={console.format_path(args.table_infile)})")
 table_signatures_df = pd.read_excel(io=args.table_infile, sheet_name=None)
 table_signatures_d = file2signatures(table_signatures_df)
 
-std.print_task(f"loading list signatures (file={std.format_path(args.list_infile)})")
+console.print_task(f"loading list signatures (file={console.format_path(args.list_infile)})")
 list_signatures_df = pd.read_excel(io=args.list_infile, sheet_name=0)
 list_signatures_df.columns = list(list_signatures_df.iloc[0])
 list_signatures_df.drop([0, 1], axis=0, inplace=True)
@@ -108,17 +108,17 @@ list_signatures_d = df2signatures(list_signatures_df)
 
 signatures_d = {**table_signatures_d, **list_signatures_d}
 
-std.print_info("standardizing signature gene names")
-genesyn = bt.resources.ncbi.genesyn(
+console.print_info("standardizing signature gene names")
+identifiers = bt.resources.ncbi.identifiers(
     organism=args.organism,
     version=args.geneinfo_version,
 )
 for k, v in signatures_d.items():
-    signatures_d[k] = genesyn(v)
+    signatures_d[k] = identifiers(v)
 signatures_d = {
     phenotype: signature for phenotype, signature in signatures_d.items() if signature
 }
 
-std.print_task(f"saving signatures (file={std.format_path(args.outfile)})")
+console.print_task(f"saving signatures (file={console.format_path(args.outfile)})")
 with open(f"{args.outfile}", "w") as file:
     json.dump(signatures_d, file, indent=1)

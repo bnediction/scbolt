@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 
+import argparse
 from pathlib import Path
 from typing import Any
 
-import argparse
-import cli
-import std
-
 import anndata as ad
+
+from scbolt import cli, console, omics
 
 
 def require_key(collection: Any, key: str, group: str) -> None:
@@ -86,10 +85,10 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
-std.print_task("validating macrostate AnnData metadata")
+console.print_task("validating macrostate AnnData metadata")
 require_key(adata.layers, "log-norm", "layers")
 require_key(adata.obs, args.macrostate_obs, "obs")
 require_key(adata.obsm, args.representation, "obsm")
@@ -97,7 +96,7 @@ require_key(adata.obsm, args.representation, "obsm")
 if args.condition is not None:
     if args.condition_obs is None:
         args.condition_obs = "condition"
-    std.print_task(
+    console.print_task(
         f"assigning condition (condition={args.condition}, obs={args.condition_obs})"
     )
     adata.obs[args.condition_obs] = args.condition
@@ -108,7 +107,7 @@ if args.prefix_macrostates:
             "--condition-obs is required when --prefix-macrostates is used"
         )
     require_key(adata.obs, args.condition_obs, "obs")
-    std.print_task(
+    console.print_task(
         "prefixing macrostates "
         f"(condition={args.condition_obs}, obs={args.macrostate_obs})"
     )
@@ -124,6 +123,7 @@ if args.prefix_macrostates:
         prefixes + macrostates,
     ).astype("category")
 
-std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
+console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
 args.outfile.parent.mkdir(parents=True, exist_ok=True)
-std.write_h5ad(adata, filename=args.outfile, compression="gzip")
+omics.drop_expression_matrices(adata)
+omics.write_h5ad(adata, filename=args.outfile, compression="gzip")

@@ -9,14 +9,14 @@ import os
 import re
 import subprocess
 import sys
-from pathlib import Path
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
 
-import cli
+from scbolt import cli
 
 Status = Literal["done", "stale", "pending", "untracked"]
 State = tuple[Status, str, list[Path], list[Path]]

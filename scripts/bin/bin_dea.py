@@ -1,16 +1,15 @@
 #!/usr/bin/env python
 
-import os
-import std
 import argparse
-import cli
+import math
+import os
 from pathlib import Path
 
-import math
-
-import pandas as pd
 import anndata as ad
 import bonesistools as bt
+import pandas as pd
+
+from scbolt import cli, console, omics
 
 script_name = Path(__file__).name
 
@@ -52,12 +51,11 @@ parser.add_argument(
     "--expression",
     dest="expression",
     type=str,
-    required=False,
-    default=None,
+    required=True,
     metavar="LITERAL",
     help=(
-        "Expression layer to use. Expected data: log-normalized counts.\n"
-        "Default: adata.X."
+        "Expression layer to use. Expected data: log-normalized counts. "
+        "Required."
     ),
 )
 
@@ -160,7 +158,7 @@ args = parser.parse_args()
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 
 adata = ad.read_h5ad(args.infile)
 
@@ -168,11 +166,11 @@ features = list(adata.var_names)
 var_subset = None
 
 if args.filter_genes:
-    std.print_info(f"filtering genes (file={std.format_path(args.filter_genes)})")
+    console.print_info(f"filtering genes (file={console.format_path(args.filter_genes)})")
     with open(args.filter_genes) as file:
         var_subset = [line.strip() for line in file.readlines()]
 
-std.print_task(f"ranking genes (scope=groups, method={args.method})")
+console.print_task(f"ranking genes (scope=groups, method={args.method})")
 
 adata.obs[args.cluster] = adata.obs[args.cluster].cat.remove_unused_categories()
 
@@ -191,7 +189,7 @@ binarizer.fit(
     var_subset=var_subset,
 )
 
-std.print_task("binarizing cell populations (source=differential expression analysis)")
+console.print_task("binarizing cell populations (source=differential expression analysis)")
 
 cluster_bin = binarizer.binarize()
 cluster_bin = cluster_bin.reindex(columns=pd.Index(features))
@@ -199,32 +197,32 @@ cluster_bin = cluster_bin.reindex(columns=pd.Index(features))
 if args.representation:
     macrostate_plot = Path(f"{os.path.dirname(args.outfile)}/{args.cluster}s.pdf")
     pct_bin_plot = Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf")
-    std.print_task(
+    console.print_task(
         "plotting binarization summaries "
         f"(directory={os.path.relpath(os.path.dirname(args.outfile))})"
     )
-    std.plot_categorical_embedding(
+    omics.plot_categorical_embedding(
         adata,
         obs=args.cluster,
         embedding=args.representation,
-        label=std.format_embedding(args.representation),
+        label=console.format_embedding(args.representation),
         outfile=macrostate_plot,
     )
     pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
     adata.obs[f"pct_bin_{args.cluster}"] = (
         adata.obs[args.cluster].map(pct_bin).astype(float)
     )
-    std.plot_continuous_embedding(
+    omics.plot_continuous_embedding(
         adata,
         obs=f"pct_bin_{args.cluster}",
         embedding=args.representation,
-        label=std.format_embedding(args.representation),
+        label=console.format_embedding(args.representation),
         outfile=pct_bin_plot,
     )
 
 dea_results = Path(f"{os.path.dirname(args.outfile)}/dea_results.csv")
-std.print_task(f"saving DEA results (file={std.format_path(dea_results)})")
+console.print_task(f"saving DEA results (file={console.format_path(dea_results)})")
 binarizer.dea_.to_csv(dea_results, sep=",", index=False)
 
-std.print_task(f"saving binarized matrix (file={std.format_path(args.outfile)})")
+console.print_task(f"saving binarized matrix (file={console.format_path(args.outfile)})")
 cluster_bin.to_csv(args.outfile, sep=",", index=True)

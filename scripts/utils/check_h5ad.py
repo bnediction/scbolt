@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
+import argparse
 import sys
 from pathlib import Path
 
-import argparse
-import cli
 import h5py
-import std
+
+from scbolt import cli, console
 
 script_name = Path(__file__).name
 
@@ -83,21 +83,21 @@ parser.add_argument(
 args = parser.parse_args()
 
 if len(args.h5ad) == 1:
-    std.print_task(f"checking AnnData metadata (file={std.format_path(args.h5ad[0])})")
+    console.print_task(f"checking AnnData metadata (file={console.format_path(args.h5ad[0])})")
 else:
-    std.print_task(f"checking AnnData metadata (files={len(args.h5ad)})")
+    console.print_task(f"checking AnnData metadata (files={len(args.h5ad)})")
 
 missing = []
 for path in args.h5ad:
     if not path.is_file():
-        missing.append(f"{std.format_path(path)}")
+        missing.append(f"{console.format_path(path)}")
         continue
 
     try:
         h5ad = h5py.File(path, "r")
     except OSError as error:
         print(
-            f"invalid AnnData file: {std.format_path(path)} ({error})", file=sys.stderr
+            f"invalid AnnData file: {console.format_path(path)} ({error})", file=sys.stderr
         )
         sys.exit(1)
 
@@ -114,9 +114,9 @@ for path in args.h5ad:
                 else 0
             )
             if obs_size == 0:
-                missing.append(f"{std.format_path(path)}:obs/_index non-empty")
+                missing.append(f"{console.format_path(path)}:obs/_index non-empty")
             if var_size == 0:
-                missing.append(f"{std.format_path(path)}:var/_index non-empty")
+                missing.append(f"{console.format_path(path)}:var/_index non-empty")
         for group_name, keys in {
             "obs": args.obs,
             "var": args.var,
@@ -126,10 +126,10 @@ for path in args.h5ad:
         }.items():
             for key in keys:
                 if group_name not in h5ad or key not in h5ad[group_name]:
-                    missing.append(f"{std.format_path(path)}:{group_name}/{key}")
+                    missing.append(f"{console.format_path(path)}:{group_name}/{key}")
 
 if missing:
     print(f"missing AnnData keys/files: {', '.join(missing)}", file=sys.stderr)
     sys.exit(1)
 
-std.print_result("h5ad metadata check passed")
+console.print_result("h5ad metadata check passed")

@@ -1,29 +1,25 @@
 #!/usr/bin/env python
 
-import os
-import inspect
-import std
 import argparse
-import cli
+import inspect
+import math
+import os
+import random
+import re
+import warnings
 from pathlib import Path
 
-import re
-
-import random
-import math
-import numpy as np
-
-import pandas as pd
 import anndata as ad
 import bonesistools as bt
-
-import torch
 import cytotrace2_py as cytotrace
-
 import matplotlib.pyplot as plt
-import warnings
+import numpy as np
+import pandas as pd
+import torch
 
-std.set_default_plot_params(bt.omics.pl)
+from scbolt import cli, console, omics
+
+omics.set_default_plot_params(bt.omics.pl)
 
 parser_description = """Compute scores related to cell development potential (lower the score, higher the differentiation potential) and classify cells by their cell potency using the CytoTRACE framework.
 
@@ -85,12 +81,11 @@ parser.add_argument(
     "--expression",
     dest="expression",
     type=str,
-    required=False,
-    default=None,
+    required=True,
     metavar="LITERAL",
     help=(
-        "Expression layer to use. Expected data: raw counts or CPM/TPM.\n"
-        "Default: adata.X."
+        "Expression layer to use. Expected data: raw counts or CPM/TPM. "
+        "Required."
     ),
 )
 
@@ -177,7 +172,7 @@ if not args.outpath.exists():
 
 np.random.seed(args.seed)
 
-std.print_task(f"loading AnnData (file={std.format_path(args.infile)})")
+console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 adata = ad.read_h5ad(args.infile)
 
 counts = bt.omics.tl.to_dataframe(adata, layer=args.expression)
@@ -198,7 +193,7 @@ if args.smooth_batch_size is None:
 elif args.smooth_batch_size > len(counts) or args.smooth_batch_size > args.batch_size:
     args.smooth_batch_size = min(len(counts), args.batch_size)
 
-with std.disable_print():
+with console.suppress_output():
     chunk_number = math.ceil(len(counts) / args.batch_size)
     smooth_chunk_number = math.ceil(args.batch_size / args.smooth_batch_size)
     cores_to_use_for_batch, cores_to_use_for_smooth_batch = (
@@ -211,11 +206,11 @@ with std.disable_print():
     )
     torch.set_num_threads(cores_to_use_for_batch)
 
-std.print_debug(
+console.print_debug(
     f"configuring prediction batches (count={chunk_number}, "
     f"threads={cores_to_use_for_batch})"
 )
-std.print_debug(
+console.print_debug(
     f"configuring smoothing batches (count={smooth_chunk_number}, "
     f"workers={cores_to_use_for_smooth_batch})"
 )
@@ -234,9 +229,9 @@ subsamples = np.array_split(subsamples_indices, chunk_number)
 predictions = list()
 results = list()
 
-std.print_task("predicting cell potencies")
+console.print_task("predicting cell potencies")
 
-with std.disable_print():
+with console.suppress_output():
     for idx in range(chunk_number):
         chunked_counts = counts.iloc[subsamples[idx], :]
         smooth_by_knn_df = cytotrace.process_subset(
@@ -255,7 +250,7 @@ with std.disable_print():
         )
         predictions.append(smooth_by_knn_df)
 
-std.print_task("aggregating batch results")
+console.print_task("aggregating batch results")
 potency_df = pd.concat(predictions, ignore_index=False)
 potency_df = potency_df.loc[original_names]
 ranges = np.linspace(0, 1, 7)
@@ -283,7 +278,7 @@ potency_df["normalized_score"] = scores
 
 if args.csv:
     csv_outfile = args.outpath / args.csv
-    std.print_task(f"saving cell potency table (file={std.format_path(csv_outfile)})")
+    console.print_task(f"saving cell potency table (file={console.format_path(csv_outfile)})")
     potency_df.to_csv(csv_outfile, sep=",", index=True)
 
 adata.obs = adata.obs.merge(
@@ -298,15 +293,15 @@ try:
 except IndexError:
     embedding_label = args.representation
 plot_dir = os.path.relpath(args.outpath)
-std.print_task(f"plotting potency outputs (directory={plot_dir})")
+console.print_task(f"plotting potency outputs (directory={plot_dir})")
 for obs in ["score", "normalized_score", "potency"]:
     bt.omics.pl.embedding(
         adata,
         obs=f"cytotrace_{obs}",
         representation=args.representation,
-        xlabel=std.axis_label(embedding_label, 1),
-        ylabel=std.axis_label(embedding_label, 2),
-        zlabel=std.axis_label(embedding_label, 3),
+        xlabel=omics.axis_label(embedding_label, 1),
+        ylabel=omics.axis_label(embedding_label, 2),
+        zlabel=omics.axis_label(embedding_label, 3),
         figwidth=6 if obs == "potency" else 8,
         s=8,
         legend={
@@ -363,5 +358,5 @@ bt.omics.pl.distribution(
 
 if args.h5ad:
     h5ad_outfile = args.outpath / args.h5ad
-    std.print_task(f"saving AnnData (file={std.format_path(h5ad_outfile)})")
-    std.write_h5ad(adata, filename=h5ad_outfile, compression="gzip")
+    console.print_task(f"saving AnnData (file={console.format_path(h5ad_outfile)})")
+    omics.write_h5ad(adata, filename=h5ad_outfile, compression="gzip")

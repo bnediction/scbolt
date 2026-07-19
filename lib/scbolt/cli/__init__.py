@@ -1,25 +1,25 @@
 #!/usr/bin/env python
 
-from ._argtype import (
-    HelpFormatter,
-    Memory,
-    Range,
-    Min_and_max,
-    Str_or_min_and_max,
-    Store_boolean,
-    Store_prefix,
-    Store_dict,
-    Store_organism,
-    Store_version,
-    Required_length,
-    Store_axis,
-    Store_type,
-    Store_metric,
+from ._argparse import (
     Bonesis_domain,
     Bonesis_mode,
     Clingo_opt_mode,
     Clingo_opt_strategy,
     Clingo_parallel_mode,
+    HelpFormatter,
+    Memory,
+    Min_and_max,
+    Range,
+    Required_length,
+    Store_axis,
+    Store_boolean,
+    Store_dict,
+    Store_metric,
+    Store_organism,
+    Store_prefix,
+    Store_type,
+    Store_version,
+    Str_or_min_and_max,
 )
 
 __all__ = [

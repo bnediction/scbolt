@@ -1,63 +1,31 @@
 #!/usr/bin/env python
 
 import contextlib
+import datetime
 import os
 import sys
 import warnings
-
-import datetime
 from pathlib import Path
-from typing import Iterable, Iterator, Mapping, Optional, Union
+from typing import Iterator, Mapping, Optional, Union
 
 
 @contextlib.contextmanager
-def single_thread() -> Iterator[None]:
-    try:
-        from threadpoolctl import threadpool_limits
-    except ImportError:
-        yield
-    else:
-        with threadpool_limits(limits=1):
-            yield
+def suppress_output(
+    suppress: bool = True,
+    suppress_warnings: bool = True,
+) -> Iterator[None]:
+    """Temporarily suppress standard output and warnings."""
 
-
-@contextlib.contextmanager
-def disable_print(disable: bool = True, disable_warnings: bool = True):
     with contextlib.ExitStack() as stack:
-        if disable_warnings is True:
+        if suppress_warnings:
             stack.enter_context(warnings.catch_warnings())
             warnings.simplefilter("ignore")
 
-        if disable is True:
+        if suppress:
             f = stack.enter_context(open(os.devnull, "w"))
             stack.enter_context(contextlib.redirect_stdout(f))
 
         yield
-
-
-class Section(object):
-
-    def __init__(self, init: int = 1, verbose: bool = True):
-        self.init = init
-        self._i = init
-        self._verbose = verbose
-
-    def __call__(self, v: str, reset: bool = False):
-        self._i = self.init if reset else self._i
-        if self._verbose is True:
-            print(f"{self._i}) {v}")
-        self._i += 1
-        return None
-
-    def reset(self):
-        self._i = self.init
-        return None
-
-    def quiet(self):
-        self._verbose = False
-
-    def verbose(self):
-        self._verbose = True
 
 
 def print_task(message: Optional[str] = None, file=sys.stdout, flush=True) -> None:
@@ -102,10 +70,6 @@ def format_hvg_parameters(method: str, number: Optional[int] = None) -> str:
     if number is None:
         return f"method={method}"
     return f"method={method}, number={number}"
-
-
-def format_set(values: Iterable[object]) -> str:
-    return "{" + ", ".join(sorted(map(str, values))) + "}"
 
 
 def format_mapping(values: Mapping[object, object]) -> str:

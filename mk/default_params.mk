@@ -72,12 +72,14 @@ $(eval STAR_TOP_BARCODES ?=)               # optional number of top barcodes
 # unnamed mono-condition project, SRA_<CONDITION>/GSM_<CONDITION> for named
 # conditions, COUNT_FILES, MACROSTATE_FILES, or BINARIZATION_FILE.
 # COUNT_FILES skips alignment/counting and restarts from one count AnnData file
-# per condition, ordered like CONDITIONS.
+# per condition, ordered like CONDITIONS. Files must contain layer 'counts';
+# adata.X is not used as a fallback expression matrix.
 # BINARIZATION_FILE overrides the binarization target when set.
 # MACROSTATE_FILES skips macrostate inference and restarts from either one
 # multi-condition AnnData file or one AnnData file per condition, ordered like
 # CONDITIONS. Files must contain layer 'log-norm', obs 'macrostate', and obsm
-# REPRESENTATION. A single multi-condition file must also contain obs 'condition'.
+# REPRESENTATION. adata.X is not used as a fallback expression matrix. A single
+# multi-condition file must also contain obs 'condition'.
 # If BIN_HVG_METHOD=loess is used downstream, macrostate files must also
 # contain layer 'counts'.
 # REPRESENTATION must name an embedding in adata.obsm, usually created by clustering.
@@ -260,17 +262,19 @@ $(eval SPEC_FILE ?= spec.yml)               # BoNesis model specification file
 # certified optima; ignore tests satisfiability.
 # CANONICAL_FILTER controls filter-nodes/filter-consts.
 # CANONICAL_INFER controls min/submin/diverse.
-# TIMEOUT_* values are passed to GNU timeout; empty means no timeout.
+# TIMEOUT_* values bound the total solver runtime; empty means no timeout.
+# PATIENCE_* values bound time without an objective improvement at intermediate
+# clause bounds; 0 or empty disables early continuation.
 $(eval MAX_CLAUSE ?= 8)                     # maximum literals per propositional formula
 $(eval PRIOR_KNOWLEDGE ?= collectri)        # prior GRN domain
 $(eval GENEINFO_VERSION ?= bundled)         # NCBI gene_info source
 $(eval OMNIPATH_VERSION ?= latest)          # OmniPath resource version
 $(eval HCOP_VERSION ?= bundled)             # HCOP orthology version
-$(eval DOROTHEA_API ?= modern)             # DoRothEA API source
+$(eval DOROTHEA_API ?= modern)              # DoRothEA API source
 $(eval DOROTHEA_COMPATIBILITY ?= true)      # reproduce decoupler DoRothEA deduplication
 $(eval DOROTHEA_LEVELS ?= A B C)            # DoRothEA confidence levels
-$(eval CANONICAL_FILTER ?= false)             # canonical functions during filtering
-$(eval CANONICAL_INFER ?= true)               # canonical functions during BN inference
+$(eval CANONICAL_FILTER ?= false)           # canonical functions during filtering
+$(eval CANONICAL_INFER ?= true)             # canonical functions during BN inference
 
 clause_continuation_clingo_default_strategy := bb,lin
 clingo_opt_strategy_seed_default := bb,inc
@@ -278,7 +282,8 @@ clause_continuation_clingo_mode = $(if $(filter true,$($(1))),opt,$(2))
 clause_continuation_clingo_strategy = $(if $(filter true,$($(1))),$(clause_continuation_clingo_default_strategy),$(2))
 
 ## MAX-NODES-SOFT ##
-$(eval CLAUSE_CONTINUATION_SOFT ?= false)    # progressively increase clause bounds
+$(eval CLAUSE_CONTINUATION_SOFT ?= false)   # progressively increase clause bounds
+$(eval PATIENCE_SOFT ?= 30m)                # time without improvement per intermediate bound
 $(eval CLINGO_CONFIG_SOFT ?=)               # Clingo default configuration
 CLINGO_OPT_MODE_SOFT ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_SOFT,optN)
 CLINGO_OPT_STRATEGY_SOFT ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_SOFT,usc)
@@ -294,7 +299,8 @@ $(eval JOBS_CONSTS ?= 1)                    # solver jobs
 $(eval TIMEOUT_CONSTS ?= 24h)               # timeout
 
 ## MAX-NODES-RELAXED ##
-$(eval CLAUSE_CONTINUATION_RELAXED ?= true)  # progressively increase clause bounds
+$(eval CLAUSE_CONTINUATION_RELAXED ?= true) # progressively increase clause bounds
+$(eval PATIENCE_RELAXED ?= 30m)             # time without improvement per intermediate bound
 $(eval CLINGO_CONFIG_RELAXED ?=)            # Clingo default configuration
 CLINGO_OPT_MODE_RELAXED ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_RELAXED,optN)
 CLINGO_OPT_STRATEGY_RELAXED ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_RELAXED,usc)
@@ -303,7 +309,8 @@ $(eval TIMEOUT_RELAXED ?= 48h)              # timeout
 
 ## MAX-NODES-SEED ##
 # TIMEOUT_SEED is required when max-nodes-seed is reached.
-$(eval CLAUSE_CONTINUATION_SEED ?= true)     # progressively increase clause bounds
+$(eval CLAUSE_CONTINUATION_SEED ?= true)    # progressively increase clause bounds
+$(eval PATIENCE_SEED ?= 30m)                # time without improvement per intermediate bound
 $(eval CLINGO_CONFIG_SEED ?=)               # Clingo default configuration
 CLINGO_OPT_MODE_SEED ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_SEED,opt)
 CLINGO_OPT_STRATEGY_SEED ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_SEED,$(clingo_opt_strategy_seed_default))
@@ -311,7 +318,8 @@ $(eval JOBS_SEED ?= 1)                      # solver jobs
 $(eval TIMEOUT_SEED ?= 24h)                 # timeout
 
 ## MAX-NODES-LOCK ##
-$(eval CLAUSE_CONTINUATION_LOCK ?= true)     # progressively increase clause bounds
+$(eval CLAUSE_CONTINUATION_LOCK ?= true)    # progressively increase clause bounds
+$(eval PATIENCE_LOCK ?= 30m)                # time without improvement per intermediate bound
 $(eval CLINGO_CONFIG_LOCK ?=)               # Clingo default configuration
 CLINGO_OPT_MODE_LOCK ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_LOCK,opt)
 CLINGO_OPT_STRATEGY_LOCK ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_LOCK,usc)

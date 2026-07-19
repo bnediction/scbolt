@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import argparse
-import cli
 import tempfile
 import warnings
 from pathlib import Path
@@ -9,7 +8,7 @@ from pathlib import Path
 import bonesistools as bt
 import pandas as pd
 
-import std
+from scbolt import cli, console, omics
 
 script_name = Path(__file__).name
 
@@ -28,7 +27,7 @@ parser.add_argument("--quiet", action="store_true")
 
 args = parser.parse_args()
 
-std.print_task(f"loading GEO count matrix (sample={args.gsm})")
+console.print_task(f"loading GEO count matrix (sample={args.gsm})")
 if args.cache_dir is None:
     with tempfile.TemporaryDirectory(prefix="scbolt-geo-") as cache_dir:
         adata = bt.omics.io.from_geo(
@@ -46,7 +45,7 @@ else:
 if "symbol" in adata.var:
     symbols = pd.Index(adata.var["symbol"].astype(str), name=None)
     if symbols.has_duplicates:
-        std.print_info("merging duplicated gene symbols")
+        console.print_info("merging duplicated gene symbols")
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
@@ -65,6 +64,7 @@ adata = adata[sorted(adata.obs.index), sorted(adata.var.index)].to_memory()
 adata.obs.index.name = None
 adata.var.index.name = None
 adata.layers["counts"] = adata.X.copy()
+adata.X = None
 adata.uns["scbolt"] = {
     "input_source": "GEO",
     "gsm": args.gsm,
@@ -77,5 +77,5 @@ if adata.n_vars == 0:
     raise ValueError("imported AnnData has no genes")
 
 args.outfile.parent.mkdir(parents=True, exist_ok=True)
-std.print_task(f"saving AnnData (file={std.format_path(args.outfile)})")
-std.write_h5ad(adata, filename=args.outfile)
+console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
+omics.write_h5ad(adata, filename=args.outfile)

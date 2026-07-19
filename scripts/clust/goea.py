@@ -3,22 +3,19 @@
 import argparse
 import gzip
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
 
-import cli
-import re
-import std
-
-from pandas import ExcelFile, ExcelWriter, read_excel
-
 import bonesistools as bt
-
-from goatools.obo_parser import GODag
 from goatools.anno.gaf_reader import GafReader
 from goatools.anno.genetogo_reader import Gene2GoReader
 from goatools.goea.go_enrichment_ns import GOEnrichmentStudyNS
+from goatools.obo_parser import GODag
+from pandas import ExcelFile, ExcelWriter, read_excel
+
+from scbolt import cli, console
 
 script_name = Path(__file__).name
 GO_NAMESPACE_ORDER = {"BP": 0, "MF": 1, "CC": 2}
@@ -150,12 +147,12 @@ else:
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
-genesyn = bt.resources.ncbi.genesyn(
+identifiers = bt.resources.ncbi.identifiers(
     organism=args.organism,
     version=args.geneinfo_version,
 )
 
-std.print_task(f"loading gene set workbook (file={std.format_path(args.infile)})")
+console.print_task(f"loading gene set workbook (file={console.format_path(args.infile)})")
 with ExcelFile(args.infile) as file:
     study_geneset = {}
     for sheet_name in file.sheet_names:
@@ -166,16 +163,16 @@ background_geneset = study_geneset[args.background]
 del study_geneset[args.background]
 
 if args.gene_type != annotations_type:
-    std.print_debug(
+    console.print_debug(
         f"standardizing gene identifiers ({args.gene_type} -> {annotations_type})"
     )
 
 for cluster, geneset in study_geneset.items():
     geneset = (
-        genesyn(
+        identifiers(
             geneset,
-            input_identifier_type=args.gene_type,
-            output_identifier_type=annotations_type,
+            input_type=args.gene_type,
+            output_type=annotations_type,
         )
         if args.gene_type != annotations_type
         else geneset
@@ -187,10 +184,10 @@ for cluster, geneset in study_geneset.items():
     study_geneset[cluster] = geneset
 
 background_geneset = (
-    genesyn(
+    identifiers(
         background_geneset,
-        input_identifier_type=args.gene_type,
-        output_identifier_type=annotations_type,
+        input_type=args.gene_type,
+        output_type=annotations_type,
     )
     if args.gene_type != annotations_type
     else background_geneset
@@ -207,7 +204,7 @@ go_file = args.go
 if go_file is None:
     raise ValueError("argument --go is required")
 
-std.print_task(f"loading gene ontology (file={std.format_path(go_file)})")
+console.print_task(f"loading gene ontology (file={console.format_path(go_file)})")
 
 go_dag = GODag(obo_file=go_file, prt=open(os.devnull, "w"))
 
@@ -232,11 +229,11 @@ with open(go_file, "r") as go_reader:
             else:
                 continue
 
-std.print_task(
+console.print_task(
     "loading gene-to-GO associations "
-    f"(file={std.format_path(args.gene2go if args.gene2go else args.annotations)})"
+    f"(file={console.format_path(args.gene2go if args.gene2go else args.annotations)})"
 )
-with std.disable_print():
+with console.suppress_output():
     if args.gene2go:
         associations = read_gene2go(args.gene2go)
     else:
@@ -244,9 +241,9 @@ with std.disable_print():
         associations = annotations.get_ns2assc()
 
 for namespace, gene_id2go in associations.items():
-    std.print_info(f"{namespace} {len(gene_id2go):,} annotated {args.organism} genes")
+    console.print_info(f"{namespace} {len(gene_id2go):,} annotated {args.organism} genes")
 
-std.print_task("performing gene ontology enrichment analysis (method=GOEA)")
+console.print_task("performing gene ontology enrichment analysis (method=GOEA)")
 
 goea = GOEnrichmentStudyNS(
     pop=background_geneset,
@@ -264,17 +261,17 @@ for cluster, geneset in study_geneset.items():
         result for result in _goea_all_results if result.p_fdr_bh < 0.05
     ]
     if not _goea_significant_results:
-        std.print_warning(f"no GOEA enrichment results for cluster {cluster}")
+        console.print_warning(f"no GOEA enrichment results for cluster {cluster}")
     else:
-        std.print_result(
+        console.print_result(
             f"{len(_goea_significant_results)} enrichment results for cluster {cluster}"
         )
-        with std.disable_print():
+        with console.suppress_output():
             goea.wr_xlsx(
                 f"{os.path.dirname(args.outfile)}/{cluster}", _goea_significant_results
             )
 
-std.print_task(f"saving GOEA workbook (file={std.format_path(args.outfile)})")
+console.print_task(f"saving GOEA workbook (file={console.format_path(args.outfile)})")
 
 with ExcelWriter(args.outfile) as xlsx_writer:
     for cluster in study_geneset.keys():
@@ -320,4 +317,4 @@ with ExcelWriter(args.outfile) as xlsx_writer:
             goea_results.to_excel(xlsx_writer, sheet_name=cluster, index=False)
             os.remove(xlsx_infile)
         else:
-            std.print_warning(f"file {xlsx_infile} not found")
+            console.print_warning(f"file {xlsx_infile} not found")

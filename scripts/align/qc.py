@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 
 import argparse
-import cli
 import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-import std
+from scbolt import cli
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
 import numpy as np
+
+from scbolt import console
 
 
 def read_matrix_shape(matrix_file: Path) -> tuple[int, int, int]:
@@ -40,7 +41,7 @@ def barcode_umi_counts(matrix_file: Path) -> np.ndarray:
             _, barcode, value = line.split()
             counts[int(barcode) - 1] += int(value)
 
-    std.print_info(f"matrix entries: {n_values}")
+    console.print_info(f"matrix entries: {n_values}")
     return counts
 
 
@@ -192,11 +193,11 @@ if args.method == "auto" and args.top_barcodes is not None:
 if args.outfile.parent:
     os.makedirs(args.outfile.parent, exist_ok=True)
 
-std.print_task(f"loading count matrix (file={std.format_path(args.matrix)})")
+console.print_task(f"loading count matrix (file={console.format_path(args.matrix)})")
 counts = barcode_umi_counts(args.matrix)
 
-std.print_task("selecting cell barcodes")
-std.print_info(selection_summary(args.method, args.min_umi, args.top_barcodes))
+console.print_task("selecting cell barcodes")
+console.print_info(selection_summary(args.method, args.min_umi, args.top_barcodes))
 indices = selected_indices(
     counts=counts,
     method=args.method,
@@ -209,10 +210,10 @@ if len(indices) == 0:
 
 threshold = int(counts[indices].min())
 total_positive = int(np.count_nonzero(counts))
-std.print_result(
+console.print_result(
     f"selected {len(indices)}/{total_positive} expressed barcodes "
     f"(minimum UMI count: {threshold})"
 )
 
-std.print_task(f"saving barcodes (file={std.format_path(args.outfile)})")
+console.print_task(f"saving barcodes (file={console.format_path(args.outfile)})")
 write_barcodes(args.barcodes, args.outfile, indices)
