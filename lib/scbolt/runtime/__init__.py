@@ -7,6 +7,7 @@ from ._timeout import (
     SolverPatienceExpired,
     SolverTimeout,
     exit_solver_timeout,
+    format_duration,
     iter_solutions,
     parse_solver_timeout,
     reset_solver_timeout_status,
@@ -18,9 +19,9 @@ __all__ = [
     "SolverPatienceExpired",
     "SolverTimeout",
     "exit_solver_timeout",
+    "format_duration",
     "iter_solutions",
     "parse_solver_timeout",
     "reset_solver_timeout_status",
     "single_thread",
 ]
-

@@ -34,6 +34,7 @@ class ptqdm(tqdm):
 
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("leave", True)
+        kwargs.setdefault("dynamic_ncols", True)
 
         self._tqdm_file = None
         if TQDM_TO_TTY:
@@ -280,6 +281,7 @@ def initialize_bonesis(
     *,
     allow_skipping_nodes: bool,
     default_canonical: bool,
+    forbidden_nodes_file: Path | None = None,
 ) -> tuple[bonesis.BoNesis, bool, str | None]:
     """Build the BoNesis problem shared by selection and inference commands."""
 
@@ -327,6 +329,13 @@ def initialize_bonesis(
         args.dorothea_api,
         args.dorothea_compatibility,
     )
+    if forbidden_nodes_file is not None:
+        with open(forbidden_nodes_file) as file:
+            forbidden_nodes = {
+                line.rstrip() for line in file if line.rstrip()
+            }
+        forbidden_nodes = set(identifiers(forbidden_nodes))
+        grn = remove_forbidden_nodes(grn, forbidden_nodes)
     if args.filter_grn:
         console.print_info(f"filtering prior network (genes={args.filter_grn})")
         with open(args.filter_grn) as file:
@@ -597,3 +606,21 @@ def load_prior_network(
         file=domain,
         identifiers=identifiers,
     )
+
+
+def remove_forbidden_nodes(grn: Any, forbidden_nodes: set[str]) -> Any:
+    """Return the prior network induced by nodes that are not forbidden."""
+
+    prior_nodes = set(grn.nodes)
+    forbidden_in_domain = prior_nodes & forbidden_nodes
+    if not forbidden_in_domain:
+        return grn
+
+    kept_nodes = len(prior_nodes) - len(forbidden_in_domain)
+    console.print_info(
+        "removing forbidden nodes from prior network "
+        f"(kept={kept_nodes}/{len(prior_nodes)} "
+        f"({100 * kept_nodes / len(prior_nodes):.1f}%), "
+        f"removed={len(forbidden_in_domain)})"
+    )
+    return grn.subgraph(prior_nodes - forbidden_nodes)

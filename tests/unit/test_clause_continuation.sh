@@ -111,6 +111,15 @@ seed_help="$(
 )"
 grep -Fq 'PATIENCE_SEED' <<< "${seed_help}"
 grep -Fq 'Maximum time without a Clingo objective improvement' <<< "${seed_help}"
+grep -Fq \
+    '0.0 if is_target else args.clause_continuation_patience' \
+    "${repo_root}/scripts/infer/selection.py"
+grep -Fq \
+    '"{desc}: {n_fmt}it [{elapsed}{postfix}]"' \
+    "${repo_root}/scripts/infer/selection.py"
+grep -Fq \
+    'f"{stage_name} {stage_index}/{len(bounds)}, q={max_clause}"' \
+    "${repo_root}/scripts/infer/selection.py"
 
 ! grep -Fq -- \
     "--initial-witness \$(dir \$(max_consts_soft))witness.lp" \

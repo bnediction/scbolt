@@ -16,6 +16,7 @@ from scbolt.runtime import (  # noqa: E402
     SolverPatienceExpired,
     SolverTimeout,
     exit_solver_timeout,
+    format_duration,
     iter_solutions,
     parse_solver_timeout,
     reset_solver_timeout_status,
@@ -47,12 +48,33 @@ class BlockingView:
         self.released.set()
 
 
+class ReinitializingView:
+    def __init__(self):
+        self.iter_calls = 0
+
+    def __iter__(self):
+        self.iter_calls += 1
+        self.solutions = iter(("solution",))
+        return self
+
+    def __next__(self):
+        return next(self.solutions)
+
+
 assert parse_solver_timeout("30") == 30.0
 assert parse_solver_timeout("30s") == 30.0
 assert parse_solver_timeout("1.5m") == 90.0
 assert parse_solver_timeout("24h") == 86400.0
 assert parse_solver_timeout("2d") == 172800.0
 assert parse_solver_timeout("0") == 0.0
+assert format_duration(30) == "30s"
+assert format_duration(90) == "1m30s"
+assert format_duration(1800) == "30m"
+assert format_duration(9000) == "2h30m"
+assert format_duration(172800) == "2d"
+
+disabled_patience = SolverPatience(0.0)
+assert disabled_patience.remaining() is None
 
 try:
     parse_solver_timeout("1h30m")
@@ -66,6 +88,14 @@ try:
     assert next(solutions) == "solution"
 finally:
     solutions.close()
+
+view = ReinitializingView()
+solutions = iter_solutions(view)
+try:
+    assert next(solutions) == "solution"
+finally:
+    solutions.close()
+assert view.iter_calls == 1
 
 view = BlockingView()
 started = time.monotonic()

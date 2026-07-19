@@ -22,8 +22,6 @@ REQUIRED_EXPRESSION_SCRIPTS = {
 
 NAMED_DEFAULT_EXPRESSION_SCRIPTS = {
     "scripts/bin/bin_clust_scboolseq.py": "bin",
-    "scripts/fig/plot_clustering_grid.py": "correct",
-    "scripts/fig/plot_integrated_cluster_projection_grid.py": "correct",
 }
 
 

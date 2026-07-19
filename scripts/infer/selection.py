@@ -27,6 +27,7 @@ from scbolt.runtime import (
     SolverPatienceExpired,
     SolverTimeout,
     exit_solver_timeout,
+    format_duration,
     parse_solver_timeout,
     reset_solver_timeout_status,
 )
@@ -322,6 +323,10 @@ def make_stage_progress(description: str):
 
     def progress(*args, **kwargs):
         kwargs["desc"] = description
+        kwargs.setdefault(
+            "bar_format",
+            "{desc}: {n_fmt}it [{elapsed}{postfix}]",
+        )
         return ptqdm(*args, **kwargs)
 
     return progress
@@ -376,6 +381,15 @@ parser.add_argument(
     help=(
         "input file storing mandatory nodes forced to appear " "(format: json or txt)"
     ),
+)
+parser.add_argument(
+    "--forbidden-nodes",
+    dest="forbidden_nodes",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=None,
+    metavar="FILE",
+    help="input file storing nodes excluded from the regulatory domain",
 )
 parser.add_argument(
     "--domain-nodes",
@@ -462,6 +476,7 @@ bo, canonical, clingo_parallel_option = initialize_bonesis(
     args,
     allow_skipping_nodes=args.action == "filter-nodes",
     default_canonical=False,
+    forbidden_nodes_file=args.forbidden_nodes,
 )
 new_constraints = apply_bonesis_mode(bo, args.bonesis_mode)
 
@@ -544,20 +559,17 @@ if args.action == "filter-nodes":
         stage_name = "Target optimization" if is_target else "Clause continuation"
         clingo_opt_mode = args.clingo_opt_mode
         clingo_opt_strategy = effective_clingo_opt_strategy
-        description = (
-            f"{stage_name} [{stage_index}/{len(bounds)}, "
-            f"max clauses={max_clause}, mode={clingo_opt_mode}, "
-            f"strategy={clingo_opt_strategy}]"
-        )
+        description = f"{stage_name} {stage_index}/{len(bounds)}, q={max_clause}"
 
         stage_bo = fork_bonesis(
             bo,
             max_clause=max_clause,
             witness=current_witness,
         )
-        stage_patience = SolverPatience(
-            args.clause_continuation_patience if not is_target else 0.0
+        stage_patience_seconds = (
+            0.0 if is_target else args.clause_continuation_patience
         )
+        stage_patience = SolverPatience(stage_patience_seconds)
         stage_best = [None]
 
         def intermediate_solution(model):
@@ -600,11 +612,10 @@ if args.action == "filter-nodes":
         except SolverPatienceExpired:
             if stage_best[0] is not None:
                 solution, current_witness = stage_best[0]
-            next_bound = bounds[stage_index]
             console.print_warning(
-                "no Clingo objective improvement within the configured "
-                f"clause-continuation patience (max clauses={max_clause}); "
-                f"continuing with max clauses={next_bound}",
+                "no objective improvement within the clause-continuation "
+                "patience "
+                f"(time={format_duration(args.clause_continuation_patience)})",
                 flush=True,
             )
             continue

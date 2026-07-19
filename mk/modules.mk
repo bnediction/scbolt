@@ -123,7 +123,8 @@ bin_consensus =                 $(bin_dir)/consensus/$(MACROSTATE_METHOD)/mstate
 bonesis_model =                 $(infer_dir)/spec/model.bo \
                                 $(infer_dir)/spec/mstates.csv \
                                 $(infer_dir)/spec/important.txt \
-                                $(infer_dir)/spec/mandatory.txt
+                                $(infer_dir)/spec/mandatory.txt \
+                                $(infer_dir)/spec/forbidden.txt
 max_nodes_soft =                $(infer_dir)/genes/soft/comps.txt
 max_nodes_soft_solution =       $(max_nodes_soft)
 max_nodes_soft_domain =         $(infer_dir)/genes/soft/domain.txt

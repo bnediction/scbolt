@@ -96,6 +96,40 @@ def parse_solver_timeout(value: str) -> float:
     return timeout * _DURATION_UNITS[match.group("unit")]
 
 
+def format_duration(seconds: float) -> str:
+    """Format a non-negative duration using compact day-to-second units."""
+
+    if seconds < 0:
+        raise ValueError("duration must be non-negative")
+    if not float(seconds).is_integer():
+        return f"{seconds:g}s"
+
+    seconds = int(seconds)
+    days, seconds = divmod(seconds, 24 * 60 * 60)
+    hours, seconds = divmod(seconds, 60 * 60)
+    minutes, seconds = divmod(seconds, 60)
+
+    if days:
+        if seconds:
+            return f"{days}d{hours:02d}h{minutes:02d}m{seconds:02d}s"
+        if minutes:
+            return f"{days}d{hours:02d}h{minutes:02d}m"
+        if hours:
+            return f"{days}d{hours:02d}h"
+        return f"{days}d"
+    if hours:
+        if seconds:
+            return f"{hours}h{minutes:02d}m{seconds:02d}s"
+        if minutes:
+            return f"{hours}h{minutes:02d}m"
+        return f"{hours}h"
+    if minutes:
+        if seconds:
+            return f"{minutes}m{seconds:02d}s"
+        return f"{minutes}m"
+    return f"{seconds}s"
+
+
 def reset_solver_timeout_status(file: Optional[Path]) -> None:
     """Remove a stale solver-timeout status marker when one is configured."""
 
@@ -177,8 +211,12 @@ def iter_solutions(
     iterator = iter(view)
     remaining, _ = _next_solver_stop(deadline, patience)
     if remaining is None:
-        yield from iterator
-        return
+        while True:
+            try:
+                solution = next(iterator)
+            except StopIteration:
+                return
+            yield solution
 
     stopped = Event()
     finished = Event()

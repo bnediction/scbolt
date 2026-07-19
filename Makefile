@@ -19,6 +19,7 @@ include $(scbolt_root)/mk/clean.mk
 ## preserve target even if make is killed or interrupted
 .PRECIOUS: $(max_nodes_soft_solution)
 .PRECIOUS: $(max_consts_soft)
+.PRECIOUS: $(max_nodes_relaxed)
 .PRECIOUS: $(max_nodes_seed)
 .PRECIOUS: $(max_nodes_lock)
 .PRECIOUS: $(dir $(bn_submin))
@@ -761,10 +762,12 @@ $(bonesis_model)&: $(bin) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call conda_run,scbolt-bonesis) python $(scripts_dir)/infer/spec.py $(SPEC_FILE) $< \
 		--model $(word 1,$(bonesis_model)) --metastates $(word 2,$(bonesis_model)) \
 		--important-nodes $(word 3,$(bonesis_model)) --mandatory-nodes $(word 4,$(bonesis_model)) \
+		--forbidden-nodes $(word 5,$(bonesis_model)) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args)
 	$(call system_tool,sort) -u $(word 3,$(bonesis_model)) -o $(word 3,$(bonesis_model))
 	$(call system_tool,sort) -u $(word 4,$(bonesis_model)) -o $(word 4,$(bonesis_model))
+	$(call system_tool,sort) -u $(word 5,$(bonesis_model)) -o $(word 5,$(bonesis_model))
 	$(call write_scbolt_metadata,spec,$(bonesis_model))
 
 $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
@@ -778,6 +781,7 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/selection.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
+		--forbidden-nodes $(word 5,$^) \
 		--asp $(@D)/nodes.sh --solution $@ \
 		--witness $(@D)/witness.lp \
 		$(call clause_continuation,CLAUSE_CONTINUATION_SOFT) \
@@ -892,23 +896,23 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if 
 	$(call require_bonesis_filter_parameters,max-nodes-lock)
 	$(call require_bool,CLAUSE_CONTINUATION_LOCK,max-nodes-lock)
 	mkdir -p $(@D)
-	if [ "$$($(call metadata_solution_field,$(word 6,$^),status) 2>/dev/null || true)" = "global" ]; then \
+	if [ "$$($(call metadata_solution_field,$(word 7,$^),status) 2>/dev/null || true)" = "global" ]; then \
 		$(call print_debug,solution already globally optimal: skipping lock optimization); \
-		$(call system_tool,cp) $(word 6,$^) $@; \
-		$(call write_scbolt_metadata,max-nodes-lock,$@,,$(call solution_metadata_args,global,$@,$(word 5,$^))); \
+		$(call system_tool,cp) $(word 7,$^) $@; \
+		$(call write_scbolt_metadata,max-nodes-lock,$@,,$(call solution_metadata_args,global,$@,$(word 6,$^))); \
 	elif [ "$(strip $(TIMEOUT_LOCK))" = "0" ]; then \
 		$(call print_warning,TIMEOUT_LOCK=0: keeping seed solution); \
-		$(call system_tool,cp) $(word 6,$^) $@; \
-		$(call write_scbolt_metadata,max-nodes-lock,$@,,$(call solution_metadata_args,partial,$@,$(word 5,$^))); \
+		$(call system_tool,cp) $(word 7,$^) $@; \
+		$(call write_scbolt_metadata,max-nodes-lock,$@,,$(call solution_metadata_args,partial,$@,$(word 6,$^))); \
 	else \
 		set +e; \
 		$(call start_inference_timer) \
-		$(call trap_inference_interrupt,max-nodes-lock,TIMEOUT_LOCK,$(word 6,$^),$(word 5,$^)); \
-		$(call system_tool,cat) $(word 4,$^) $(word 6,$^) | $(call system_tool,sort) -u > $(@D)/mandatory.txt; \
+		$(call trap_inference_interrupt,max-nodes-lock,TIMEOUT_LOCK,$(word 7,$^),$(word 6,$^)); \
+		$(call system_tool,cat) $(word 4,$^) $(word 7,$^) | $(call system_tool,sort) -u > $(@D)/mandatory.txt; \
 		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/selection.py filter-nodes \
 			$(word 1,$^) $(word 2,$^) \
 			--important-nodes $(word 3,$^) --mandatory-nodes $(@D)/mandatory.txt \
-			--filter-grn $(word 5,$^) --asp $(@D)/nodes.sh \
+			--filter-grn $(word 6,$^) --asp $(@D)/nodes.sh \
 			--solution $@ --witness $(@D)/witness.lp \
 			--initial-witness $(lastword $^) \
 			$(call clause_continuation,CLAUSE_CONTINUATION_LOCK) \
@@ -926,7 +930,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if 
 		$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 		trap - INT TERM; \
 		set -e; \
-		$(call check_inference_status,$(TIMEOUT_LOCK),max-nodes-lock,TIMEOUT_LOCK,$(word 6,$^),$(word 5,$^)); \
+		$(call check_inference_status,$(TIMEOUT_LOCK),max-nodes-lock,TIMEOUT_LOCK,$(word 7,$^),$(word 6,$^)); \
 	fi
 
 $(bn_min): $(bonesis_model) $(max_nodes_lock) $(if $(geneinfo_dependency),| $(geneinfo_dependency))

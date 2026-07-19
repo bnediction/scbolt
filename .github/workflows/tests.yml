@@ -12,6 +12,7 @@ jobs:
       - uses: actions/checkout@v6
       - run: bash tests/unit/test_clause_continuation.sh
       - run: python3 tests/unit/test_expression_layers.py
+      - run: bash tests/unit/test_forbidden_nodes.sh
       - run: python3 tests/unit/test_solver_timeout.py
       - run: bash tests/unit/test_memory.sh
 
@@ -122,6 +123,7 @@ jobs:
       - run: python -m pip install pandas
       - run: python tests/regression/test_annotation_composition.py
       - run: bash tests/regression/test_clean_sidecars.sh
+      - run: bash tests/regression/test_gene_selection_partial_outputs.sh
       - run: bash tests/regression/test_inference_timeout.sh
       - run: bash tests/regression/test_matrix_entry.sh
       - run: bash tests/regression/test_bn_output_check.sh

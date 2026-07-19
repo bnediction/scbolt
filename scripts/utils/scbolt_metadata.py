@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
 
 from scbolt import cli
+from scbolt.runtime import format_duration
 
 Status = Literal["done", "stale", "pending", "untracked"]
 State = tuple[Status, str, list[Path], list[Path]]
@@ -672,32 +673,6 @@ def format_labels(labels: list[str], all_labels: list[str]) -> str:
         hidden = len(labels) - MAX_DISPLAYED_LABELS
         labels = labels[:MAX_DISPLAYED_LABELS] + [f"{hidden} more output(s)"]
     return f" ({', '.join(labels)})"
-
-
-def format_duration(seconds: int) -> str:
-    days, seconds = divmod(seconds, 24 * 60 * 60)
-    hours, seconds = divmod(seconds, 60 * 60)
-    minutes, seconds = divmod(seconds, 60)
-
-    if days:
-        if seconds:
-            return f"{days}d{hours:02d}h{minutes:02d}m{seconds:02d}s"
-        if minutes:
-            return f"{days}d{hours:02d}h{minutes:02d}m"
-        if hours:
-            return f"{days}d{hours:02d}h"
-        return f"{days}d"
-    if hours:
-        if seconds:
-            return f"{hours}h{minutes:02d}m{seconds:02d}s"
-        if minutes:
-            return f"{hours}h{minutes:02d}m"
-        return f"{hours}h"
-    if minutes:
-        if seconds:
-            return f"{minutes}m{seconds:02d}s"
-        return f"{minutes}m"
-    return f"{seconds}s"
 
 
 def format_parameter_value(name: str, value: str) -> str:

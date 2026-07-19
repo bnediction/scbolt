@@ -33,12 +33,14 @@ outputs=(
     "${spec_dir}/mstates.csv"
     "${spec_dir}/important.txt"
     "${spec_dir}/mandatory.txt"
+    "${spec_dir}/forbidden.txt"
 )
 sidecars=(
     "${spec_dir}/model.scbolt.json"
     "${spec_dir}/mstates.scbolt.json"
     "${spec_dir}/important.scbolt.json"
     "${spec_dir}/mandatory.scbolt.json"
+    "${spec_dir}/forbidden.scbolt.json"
 )
 
 touch "${outputs[@]}" "${sidecars[@]}" "${spec_dir}/unrelated.scbolt.json"

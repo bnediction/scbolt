@@ -644,6 +644,8 @@ else
 				printf '%s\n' '    - ...'; \
 				printf '%s\n' '  mandatory_nodes:'; \
 				printf '%s\n' '    - ...'; \
+				printf '%s\n' '  forbidden_nodes:'; \
+				printf '%s\n' '    - ...'; \
 			fi; \
 		fi
 endif

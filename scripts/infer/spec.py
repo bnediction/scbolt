@@ -8,7 +8,12 @@ import bonesis
 import bonesistools as bt
 import pandas as pd
 import yaml
-from utils import get_cfg, load_bonesis_code, load_prior_network
+from utils import (
+    get_cfg,
+    load_bonesis_code,
+    load_prior_network,
+    remove_forbidden_nodes,
+)
 
 from scbolt import cli, console
 
@@ -18,20 +23,26 @@ script_name = Path(__file__).name
 
 parser = argparse.ArgumentParser(
     prog="spec",
-    description="""Check whether BoNesis properties are well defined and convert model specifications (format: yml) and binarized macrostates (format: csv) into four files:
+    description="""Check whether BoNesis properties are well defined and
+convert model specifications (format: yml) and binarized macrostates
+(format: csv) into five files:
     - model (txt): dynamical Boolean properties
     - metastates (csv): partially binarized metastates
     - important-nodes (txt): nodes prioritized to appear in Boolean network solutions
     - mandatory-nodes (txt): nodes forced to appear in Boolean network solutions
+    - forbidden-nodes (txt): nodes excluded from Boolean network solutions
 
-The model specification file (format: yml) must contain:
-    - dynamical_constraints (list of dynamical Boolean properties in BoNesis syntax)
+The model specification file (format: yml) recognizes four sections:
+    - dynamical_constraints (required list of dynamical Boolean properties in
+      BoNesis syntax)
     - important_nodes (list of nodes prioritized to appear in Boolean network solutions)
     - mandatory_nodes (list of nodes forced to appear in Boolean network solutions)
+    - forbidden_nodes (list of nodes excluded from Boolean network solutions)
 """,
     usage=(
         f"python {script_name} <FILE> <FILE> --model <FILE> --metastates <FILE> "
-        "--mandatory-nodes <FILE> --important-nodes <FILE> [<args>]"
+        "--mandatory-nodes <FILE> --important-nodes <FILE> "
+        "--forbidden-nodes <FILE> [<args>]"
     ),
     formatter_class=cli.HelpFormatter,
 )
@@ -86,6 +97,15 @@ parser.add_argument(
     required=False,
     metavar="FILE",
     help="output file storing mandatory nodes forced to appear (format: json or txt)",
+)
+
+parser.add_argument(
+    "--forbidden-nodes",
+    dest="forbidden_nodes",
+    type=lambda x: Path(x).resolve(),
+    required=True,
+    metavar="FILE",
+    help="output file storing nodes excluded from the inferred networks (format: txt)",
 )
 
 parser.add_argument(
@@ -190,6 +210,7 @@ for outfile in [
     args.model,
     args.mandatory_nodes,
     args.important_nodes,
+    args.forbidden_nodes,
 ]:
     if not Path(os.path.dirname(outfile)).exists():
         os.makedirs(Path(os.path.dirname(outfile)))
@@ -199,9 +220,8 @@ identifiers = bt.resources.ncbi.identifiers(
     version=args.geneinfo_version,
 )
 
-console.print_task(
-    f"loading model specification (file={console.format_path(args.model_specification)})"
-)
+model_specification_path = console.format_path(args.model_specification)
+console.print_task(f"loading model specification (file={model_specification_path})")
 
 with open(args.model_specification, "r") as file:
     specification = yaml.safe_load(file) or {}
@@ -229,6 +249,7 @@ def read_specification_list(key: str, *, required: bool = False) -> list[str]:
 dynamical_constraints = read_specification_list("dynamical_constraints", required=True)
 important_nodes = set(read_specification_list("important_nodes"))
 mandatory_nodes = set(read_specification_list("mandatory_nodes"))
+forbidden_nodes = set(read_specification_list("forbidden_nodes"))
 
 console.print_task(f"loading CSV table (file={console.format_path(args.macrostates)})")
 
@@ -238,8 +259,33 @@ macrostates_df = identifiers(
 
 console.print_task("getting binarized states")
 
-important_nodes = identifiers(important_nodes)
-mandatory_nodes = identifiers(mandatory_nodes)
+important_nodes = set(identifiers(important_nodes))
+mandatory_nodes = set(identifiers(mandatory_nodes))
+forbidden_nodes = set(identifiers(forbidden_nodes))
+
+for section, nodes in (
+    ("important_nodes", important_nodes),
+    ("mandatory_nodes", mandatory_nodes),
+):
+    conflicts = forbidden_nodes & nodes
+    if conflicts:
+        parser.error(
+            "model specification sections 'forbidden_nodes' and "
+            f"'{section}' overlap: {', '.join(sorted(conflicts))}"
+        )
+
+forbidden_in_data = macrostates_df.columns.isin(forbidden_nodes)
+if forbidden_in_data.any():
+    removed_count = int(forbidden_in_data.sum())
+    total_nodes = len(forbidden_in_data)
+    kept_nodes = total_nodes - removed_count
+    console.print_info(
+        "removing forbidden features "
+        f"(kept={kept_nodes}/{total_nodes} "
+        f"({100 * kept_nodes / total_nodes:.1f}%), "
+        f"removed={removed_count})"
+    )
+    macrostates_df = macrostates_df.loc[:, ~forbidden_in_data]
 
 has_defined_state = macrostates_df.apply(
     lambda values: pd.to_numeric(values, errors="coerce").isin([0, 1]).any(),
@@ -271,6 +317,7 @@ grn = load_prior_network(
     args.dorothea_api,
     args.dorothea_compatibility,
 )
+grn = remove_forbidden_nodes(grn, forbidden_nodes)
 pkn_options = {
     "canonic": True,
     "maxclause": 8,
@@ -293,7 +340,8 @@ for constraint in dynamical_constraints:
             f"invalid dynamical Boolean constraint: {constraint}"
         ) from error
 
-console.print_task(f"saving Boolean specification (file={console.format_path(args.model)})")
+model_path = console.format_path(args.model)
+console.print_task(f"saving Boolean specification (file={model_path})")
 
 with open(args.model, "w") as file:
     for constraint in dynamical_constraints:
@@ -303,14 +351,23 @@ console.print_task(f"saving CSV table (file={console.format_path(args.metastates
 
 macrostates_df.to_csv(args.metastates, sep=",", index=True)
 
-console.print_task(f"saving node list (file={console.format_path(args.important_nodes)})")
+important_nodes_path = console.format_path(args.important_nodes)
+console.print_task(f"saving node list (file={important_nodes_path})")
 
 with open(args.important_nodes, "w") as file:
-    for node in important_nodes:
+    for node in sorted(important_nodes):
         file.write(f"{node}\n")
 
-console.print_task(f"saving node list (file={console.format_path(args.mandatory_nodes)})")
+mandatory_nodes_path = console.format_path(args.mandatory_nodes)
+console.print_task(f"saving node list (file={mandatory_nodes_path})")
 
 with open(args.mandatory_nodes, "w") as file:
-    for node in mandatory_nodes:
+    for node in sorted(mandatory_nodes):
+        file.write(f"{node}\n")
+
+forbidden_nodes_path = console.format_path(args.forbidden_nodes)
+console.print_task(f"saving node list (file={forbidden_nodes_path})")
+
+with open(args.forbidden_nodes, "w") as file:
+    for node in sorted(forbidden_nodes):
         file.write(f"{node}\n")

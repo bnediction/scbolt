@@ -120,6 +120,7 @@ touch \
     "${spec_dir}/mstates.csv" \
     "${spec_dir}/important.txt" \
     "${spec_dir}/mandatory.txt" \
+    "${spec_dir}/forbidden.txt" \
     "${lock_dir}/comps.txt" \
     "${influence_graph}/aggregate.pdf"
 
@@ -128,6 +129,7 @@ old_files=(
     "${spec_dir}/mstates.csv"
     "${spec_dir}/important.txt"
     "${spec_dir}/mandatory.txt"
+    "${spec_dir}/forbidden.txt"
     "${lock_dir}/comps.txt"
 )
 old_file_args=()

@@ -25,3 +25,5 @@ important_nodes:
   - Pf4
 
 mandatory_nodes:
+
+forbidden_nodes:
