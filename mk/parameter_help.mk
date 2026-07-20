@@ -305,6 +305,9 @@ parameter_help_domain_continuation_patience_note = Use NUMBER[s|m|h|d]; 0 or an 
 parameter_help_note_PATIENCE_DOMAIN_CONTINUATION_SOFT = $(parameter_help_domain_continuation_patience_note)
 parameter_help_note_PATIENCE_DOMAIN_CONTINUATION_RELAXED = $(parameter_help_domain_continuation_patience_note)
 parameter_help_note_PATIENCE_DOMAIN_CONTINUATION_SEED = $(parameter_help_domain_continuation_patience_note)
+parameter_help_hint_MIN_DOMAIN_YIELD = >= 0, < 1
+parameter_help_description_MIN_DOMAIN_YIELD = Minimum cumulative retained-node gain per node added during domain expansion.
+parameter_help_note_MIN_DOMAIN_YIELD = Low-yield expansions are refreshed at constant size. Zero disables yield-based domain refreshes.
 parameter_help_hint_MIN_SELF_LOOP_CONSTS = $(parameter_help_bool)
 parameter_help_description_MIN_SELF_LOOP_CONSTS = Minimize one-node feedbacks.
 parameter_help_hint_MIN_SELF_LOOP_INFER = $(parameter_help_bool)

@@ -41,7 +41,13 @@ for arg in "$@"; do
             fi
             exit 0
             ;;
-        __finalize-interrupted-gene-selection-results|__kept-gene-selection-results)
+        __finalize-interrupted-gene-selection-results)
+            exit 0
+            ;;
+        __kept-gene-selection-results)
+            if [ -n "${SCBOLT_TEST_KEPT_RESULT:-}" ]; then
+                printf '%s\n' "${SCBOLT_TEST_KEPT_RESULT}"
+            fi
             exit 0
             ;;
     esac
@@ -419,6 +425,42 @@ if (
 fi
 grep -qx '⚠ interrupted by user (stream)' "${tmpdir}/module-interrupted.out"
 ! grep -q '^make.*\*\*\*' "${tmpdir}/module-interrupted.err"
+
+if (
+    cd "${project}"
+    PATH="${fakebin}:${PATH}" \
+        SCBOLT_TEST_RECORD="${record}" \
+        SCBOLT_TEST_MAKE_STATUS=130 \
+        SCBOLT_TEST_MAKE_STDOUT='2026-01-01 00:00:00.000 - RULE - max-nodes-soft' \
+        SCBOLT_TEST_KEPT_RESULT='max-nodes-soft partial (447/5198)' \
+        "${scbolt}" max-nodes-soft > "${tmpdir}/module-partial-direct.out" \
+        2> "${tmpdir}/module-partial-direct.err"
+); then
+    printf '%s\n' "expected interrupted gene selection to fail" >&2
+    exit 1
+fi
+grep -qx '⚠ interrupted by user (max-nodes-soft)' \
+    "${tmpdir}/module-partial-direct.out"
+grep -qx '✓ kept partial solution: 447/5198' \
+    "${tmpdir}/module-partial-direct.out"
+
+if (
+    cd "${project}"
+    PATH="${fakebin}:${PATH}" \
+        SCBOLT_TEST_RECORD="${record}" \
+        SCBOLT_TEST_MAKE_STATUS=130 \
+        SCBOLT_TEST_MAKE_STDOUT='2026-01-01 00:00:00.000 - RULE - max-nodes-soft' \
+        SCBOLT_TEST_KEPT_RESULT='max-nodes-soft partial (447/5198)' \
+        "${scbolt}" bn-submin > "${tmpdir}/module-partial-nested.out" \
+        2> "${tmpdir}/module-partial-nested.err"
+); then
+    printf '%s\n' "expected interrupted aggregate target to fail" >&2
+    exit 1
+fi
+grep -qx '⚠ interrupted by user (bn-submin)' \
+    "${tmpdir}/module-partial-nested.out"
+grep -qx '✓ kept partial solution (max-nodes-soft): 447/5198' \
+    "${tmpdir}/module-partial-nested.out"
 
 if (
     cd "${project}"

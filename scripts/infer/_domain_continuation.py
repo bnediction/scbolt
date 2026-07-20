@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
+from itertools import combinations
 from math import ceil
 from typing import Collection, Iterable, Literal, Sequence
 
 DomainOutcome = Literal["sat", "unsat", "unknown", "cancelled"]
+MAX_DOMAIN_REFRESH_WAVES = 5
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,48 @@ def solution_objective(
     return len(nodes & set(important_nodes)), len(nodes)
 
 
+def continuation_base_domain(
+    solution_nodes: Iterable[str],
+    required_nodes: Collection[str],
+    complete_nodes: Collection[str],
+) -> frozenset[str]:
+    """Build the domain retained when continuing at another clause bound."""
+
+    complete = frozenset(complete_nodes)
+    base = frozenset(solution_nodes) | frozenset(required_nodes)
+    if not base <= complete:
+        raise ValueError("continuation domain exceeds the complete domain")
+    return base
+
+
+def domain_expansion_gains(
+    previous_solution: Iterable[str],
+    current_solution: Iterable[str],
+    important_nodes: Collection[str],
+) -> tuple[int, int]:
+    """Return cumulative important and total gains for one expansion."""
+
+    previous = set(previous_solution)
+    current = set(current_solution)
+    important = set(important_nodes)
+    return (
+        max(0, len(current & important) - len(previous & important)),
+        max(0, len(current) - len(previous)),
+    )
+
+
+def minimum_domain_gain(expansion_size: int, minimum_yield: float) -> int:
+    """Return the retained-node gain required to accept an expansion."""
+
+    if expansion_size < 0:
+        raise ValueError("domain expansion size cannot be negative")
+    if not 0 <= minimum_yield < 1:
+        raise ValueError("minimum domain yield must be at least 0 and below 1")
+    if expansion_size == 0 or minimum_yield == 0:
+        return 0
+    return max(1, ceil(expansion_size * minimum_yield))
+
+
 def initial_domain_size(required_size: int, complete_size: int) -> int:
     """Return the midpoint used by the first acquisition wave."""
 
@@ -95,6 +139,7 @@ def build_candidate_wave(
     seed: int,
     clause_bound: int,
     wave: int,
+    excluded_domains: Collection[Collection[str]] = (),
 ) -> tuple[DomainCandidate, ...]:
     """Build distinct, equally sized supersets of the current domain."""
 
@@ -109,10 +154,14 @@ def build_candidate_wave(
     if jobs < 1:
         raise ValueError("domain continuation jobs must be positive")
 
+    excluded = {frozenset(nodes) for nodes in excluded_domains}
     addition_count = target_size - len(current)
     available = sorted(complete - current)
     if addition_count == 0 or addition_count == len(available):
-        return (DomainCandidate(1, frozenset(complete if addition_count else current)),)
+        nodes = frozenset(complete if addition_count else current)
+        if nodes in excluded:
+            return ()
+        return (DomainCandidate(1, nodes),)
 
     candidates = []
     seen = set()
@@ -127,10 +176,20 @@ def build_candidate_wave(
         random.Random(branch_seed).shuffle(ordered)
         nodes = frozenset((*current, *ordered[:addition_count]))
         attempt += 1
-        if nodes in seen:
+        if nodes in seen or nodes in excluded:
             continue
         seen.add(nodes)
         candidates.append(DomainCandidate(candidate_index, nodes))
+
+    if len(candidates) < jobs:
+        for additions in combinations(available, addition_count):
+            nodes = frozenset((*current, *additions))
+            if nodes in seen or nodes in excluded:
+                continue
+            seen.add(nodes)
+            candidates.append(DomainCandidate(len(candidates) + 1, nodes))
+            if len(candidates) == jobs:
+                break
 
     return tuple(candidates)
 

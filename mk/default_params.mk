@@ -266,6 +266,7 @@ $(eval SPEC_FILE ?= spec.yml)               # BoNesis model specification file
 # PATIENCE_CLAUSE_CONTINUATION_* values bound time without an objective
 # improvement at intermediate clause bounds.
 # PATIENCE_DOMAIN_CONTINUATION_* values bound portfolio stagnation per wave.
+# MIN_DOMAIN_YIELD is a fraction in [0,1); zero disables domain refreshes.
 $(eval MAX_CLAUSE ?= 8)                     # maximum literals per propositional formula
 $(eval PRIOR_KNOWLEDGE ?= collectri)        # prior GRN domain
 $(eval GENEINFO_VERSION ?= bundled)         # NCBI gene_info source
@@ -276,6 +277,7 @@ $(eval DOROTHEA_COMPATIBILITY ?= true)      # reproduce decoupler DoRothEA dedup
 $(eval DOROTHEA_LEVELS ?= A B C)            # DoRothEA confidence levels
 $(eval CANONICAL_FILTER ?= false)           # canonical functions during filtering
 $(eval CANONICAL_INFER ?= true)             # canonical functions during BN inference
+$(eval MIN_DOMAIN_YIELD ?= 0.10)            # minimum productive domain expansion yield
 
 clause_continuation_clingo_default_strategy := bb,lin
 clingo_opt_strategy_seed_default := bb,inc

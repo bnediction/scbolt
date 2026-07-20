@@ -279,26 +279,84 @@ After a witness is selected:
 6. scBOLT selects the best successful candidate deterministically by stage
    objective and then by candidate index;
 7. the selected candidate and its best witness become the current domain and
-   witness for the next wave;
-8. expansion waves continue while another strict subdomain can be tested;
-9. when the next expansion would be the complete domain, the portfolio stops
+   witness;
+8. scBOLT evaluates the retained-node yield of the expansion and may refresh
+   its unproductive additions at constant domain size;
+9. expansion resumes after the configured yield is reached, five refresh waves
+   have been attempted, or all distinct refresh domains have been exhausted;
+10. when the next expansion would be the complete domain, the portfolio stops
     and one final Clingo instance resumes optimization using
     `JOBS_CLINGO_<STAGE>`.
+
+The same policy is applied at every clause bound. After completing a bound
+`q`, scBOLT uses the retained solution as the base domain for `q+1`:
+
+```text
+next base domain = retained solution nodes + required nodes
+next witness = retained structural witness
+```
+
+The retained nodes are present in every candidate subdomain; they do not
+become mandatory solver constraints. Because `MAX_CLAUSE` is an upper bound, a
+witness found at `q` remains admissible at `q+1` and provides a valid heuristic
+for the new expansion. For a retained solution of 500 nodes in a complete
+550-node domain, midpoint expansion therefore visits domains of sizes 525,
+538, 544, 547, and 549 before the final complete-domain optimization. This
+rebasing also applies when a clause bound ends through patience or without a
+new complete-domain witness.
 
 For example, a witness retaining 230 nodes in a 250-node domain can warm-start
 several alternative 380-node domains. Every 380-node candidate contains the
 same initial 250 nodes, while their 130 additional nodes differ. The selected
-380-node domain and its best witness then form the common base of the next
-expansion wave. Across waves, selected domains are therefore nested; within one
-wave, sibling candidates are not nested relative to each other. This gradual
-and diversified expansion avoids both reintroducing the original
-complete-domain bottleneck immediately and committing permanently to the node
-order that produced the first witness.
+380-node domain and its best witness normally form the common base of the next
+expansion wave. If its yield is insufficient, a constant-size refresh instead
+preserves the initial 250-node domain and all newly selected witness nodes while
+replacing only the remaining additions. Expansion domains are therefore nested
+along the productive path, whereas refresh domains deliberately replace the
+unproductive part of one expansion shell. Within one wave, sibling candidates
+are not nested relative to each other. This gradual and diversified expansion
+avoids both reintroducing the original complete-domain bottleneck immediately
+and committing permanently to the node order that produced the first witness.
 
 Expansion sizes also use midpoints. After retaining a domain `D`, the next
 target lies halfway between `D` and `G`. If a complete expansion wave produces
 no successful candidate, scBOLT halves the expansion step and generates new
 candidate compositions while preserving `D` and its witness.
+
+For a successful expansion from `D0` to `D1`, scBOLT measures:
+
+```text
+expansion capacity = |D1| - |D0|
+cumulative gain = |best solution on D1| - |solution on D0|
+domain yield = cumulative gain / expansion capacity
+```
+
+The baseline domain and solution remain fixed while `D1` is refreshed, so the
+gain is cumulative across refresh waves and the denominator is never increased
+by resampling. An improvement of the primary important-node objective is always
+considered productive. Otherwise, expansion continues when the cumulative gain
+reaches `MIN_DOMAIN_YIELD`.
+
+When the yield is insufficient, scBOLT protects `D0` together with every node
+used by the best current witness outside `D0`. It then fills the remaining
+places up to `|D1|` with previously untested deterministic samples. A net gain
+of one retained node does not necessarily imply one protected addition because
+a new witness may add several nodes while dropping older selected nodes. The
+protected set is therefore derived from the actual witness rather than from the
+numeric gain alone.
+
+At most five constant-size refresh waves are attempted for one expansion size.
+This internal limit is reset only after the domain size increases; objective
+improvements do not reset it. Reaching the limit or exhausting every distinct
+candidate composition advances to the next midpoint with the best retained
+witness even when the requested yield was not reached. The policy is therefore
+strict but cannot block domain growth. Setting `MIN_DOMAIN_YIELD=0` disables
+yield-based refreshes and preserves direct midpoint expansion.
+
+Domain yield and solver optimality are independent. A candidate may have a
+certified optimum with low yield, while an uncertified intermediate witness may
+already exceed the yield threshold. `MIN_DOMAIN_YIELD` controls domain
+scheduling; Clingo completion and optimization mode control certification.
 
 The two job controls are not nested:
 
@@ -328,6 +386,13 @@ retained by the continuation algorithm. Candidate progress therefore reports
 the best inherited or locally improved objective, rather than restarting
 visually from zero.
 
+Sequential clause-bound progress follows the same rule: before Clingo emits a
+new model, its `0it` display reports the objective inherited from the preceding
+bound. All solver progress bars are transient and cleared when their solve
+finishes or is interrupted. This applies to classic optimization, clause and
+domain continuation, target optimization, and Boolean network enumeration.
+Durable `INFO`, `WARNING`, and `RESULT` messages retain the solver history.
+
 ### Special Cases
 
 The combined domain and clause transition policy is:
@@ -342,6 +407,14 @@ The combined domain and clause transition policy is:
   witness and domain, then reduce the expansion step or generate a new wave
   with different additional nodes. Individual `UNKNOWN` candidates do not
   block successful siblings.
+- **Successful expansion with insufficient yield:** retain the best witness,
+  protect its useful additions, and refresh only the remaining expansion shell
+  at constant size. Continue expansion after the yield threshold, five refresh
+  waves, or candidate-space exhaustion.
+- **Certified candidate optimum without sufficient yield:** treat the candidate
+  as `SAT` and fully solved for its exact subdomain, but continue refreshing
+  other compositions at the same size. Certification does not imply that a
+  different subdomain cannot improve the retained objective.
 - **Minimal domain `UNKNOWN`:** try another deterministic candidate
   composition when alternatives exist. If the minimal domain is fixed by the
   required nodes, repeat attempts remain bounded by clause patience. At
@@ -422,6 +495,16 @@ for q in 1..MAX_CLAUSE:
             after wave completion, select the best candidate deterministically
             retain its domain and best witness
 
+            compute cumulative retained-node gain / expansion capacity
+
+            insufficient yield:
+                preserve the previous domain and useful witness additions
+                resample the remaining slots at constant size
+                stop after five refresh waves or candidate-space exhaustion
+
+            sufficient yield or refresh limit:
+                continue to the next midpoint expansion
+
         no successful candidate:
             preserve the previous witness
             reduce the expansion step or diversify added nodes
@@ -433,6 +516,8 @@ for q in 1..MAX_CLAUSE:
         stop
 
     if q < MAX_CLAUSE:
+        rebase the next domain on the retained solution and required nodes
+        preserve the retained structural witness
         continue with q+1
 ```
 
@@ -491,11 +576,14 @@ zero patience disables early advancement based on missing improvements.
 | --- | --- |
 | `DOMAIN_CONTINUATION_<STAGE>` | Enable adaptive first-witness search and progressive witness-guided domain expansion. |
 | `PATIENCE_DOMAIN_CONTINUATION_<STAGE>` | Maximum time without a strict improvement of the best portfolio objective within one acquisition or expansion wave. |
+| `MIN_DOMAIN_YIELD` | Minimum cumulative retained-node gain per node added during one domain expansion. Values must be at least 0 and below 1; zero disables constant-size refreshes. |
 
 Domain continuation supports only `SOFT`, `RELAXED`, and `SEED`. No
 `DOMAIN_CONTINUATION_LOCK` or `PATIENCE_DOMAIN_CONTINUATION_LOCK` parameter is
 defined. The global `JOBS` parameter controls the number of candidate domains
-evaluated simultaneously, and every candidate uses one Clingo job.
+evaluated simultaneously, and every candidate uses one Clingo job. The refresh
+limit is an internal scheduling safeguard fixed at five waves per expansion
+size; it is not a user parameter.
 
 ### Clingo Optimization
 
@@ -517,6 +605,7 @@ The following configuration shows the default seed strategy.
 ```make
 DOMAIN_CONTINUATION_SEED = true
 CLAUSE_CONTINUATION_SEED = true
+MIN_DOMAIN_YIELD = 0.10
 
 PATIENCE_DOMAIN_CONTINUATION_SEED = 5m
 PATIENCE_CLAUSE_CONTINUATION_SEED = 30m
@@ -536,10 +625,12 @@ becomes the wave leader, and each strict improvement of the best portfolio
 objective restarts the shared five-minute patience. Once that patience expires,
 unresolved candidates become `UNKNOWN` and the best successful candidate
 becomes the common base of the following expansion wave. Expansion waves apply
-the same rule to larger candidate domains. On the complete domain, one final
-instance uses one Clingo job. Thirty minutes without an objective improvement
-advances an intermediate clause bound, while the 24-hour timeout is shared by
-the complete seed stage.
+the same rule to larger candidate domains. An expansion retaining less than 10%
+of its added capacity triggers up to five constant-size refresh waves before
+domain growth resumes. On the complete domain, one final instance uses one
+Clingo job. Thirty minutes without an objective improvement advances an
+intermediate clause bound, while the 24-hour timeout is shared by the complete
+seed stage.
 
 ## Time Budgets and Partial Results
 
@@ -550,7 +641,9 @@ Three time controls have distinct meanings:
    reset by the first wave witness and every strict leader improvement, but not
    by equal or globally inferior results. Expiration interrupts all unresolved
    workers; workers without a witness become `UNKNOWN`, while successful
-   candidates remain eligible for deterministic selection.
+   candidates remain eligible for deterministic selection. Every constant-size
+   refresh receives a new wave patience clock, while the five-wave refresh
+   limit remains attached to the current expansion size.
 2. `PATIENCE_CLAUSE_CONTINUATION_<STAGE>` bounds the time without objective
    improvement across all attempts at one intermediate clause bound. Every
    improvement resets this clause-level patience.

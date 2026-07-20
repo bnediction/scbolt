@@ -20,8 +20,6 @@ from scbolt import cli, console
 from scbolt.runtime import (
     SolverDeadline,
     SolverPatience,
-    SolverPatienceExpired,
-    SolverTimeout,
     iter_solutions,
     parse_solver_timeout,
 )
@@ -35,7 +33,7 @@ class ptqdm(tqdm):
     initial_postfix: Mapping[str, str] | None = None
 
     def __init__(self, *args, **kwargs):
-        kwargs.setdefault("leave", True)
+        kwargs["leave"] = False
         kwargs.setdefault("dynamic_ncols", True)
 
         self._tqdm_file = None
@@ -467,15 +465,12 @@ def get_clingo_parallel_mode(value: str) -> tuple[int | None, str | None]:
     return int(value), None
 
 
-def close_progress(view, leave=None, interrupted=False):
-    """Close a BoNesis view progress bar when present."""
+def close_progress(view):
+    """Close and clear a BoNesis view progress bar when present."""
 
     progressbar = getattr(view, "_progressbar", None)
     if progressbar is not None:
-        if leave is not None:
-            progressbar.leave = leave
-        elif interrupted:
-            progressbar.leave = True
+        progressbar.leave = False
         progressbar.close()
 
 
@@ -484,24 +479,14 @@ def next_solution(
     deadline: Optional[SolverDeadline] = None,
     patience: Optional[SolverPatience] = None,
 ) -> Any:
-    """Return the next view solution and close its progress bar."""
+    """Return the next view solution and clear its progress bar."""
 
     solutions = iter_solutions(view, deadline, patience)
     try:
-        solution = next(solutions)
-    except KeyboardInterrupt:
-        close_progress(view, interrupted=True)
-        raise
-    except (SolverPatienceExpired, SolverTimeout):
-        close_progress(view, interrupted=True)
-        raise
-    except (RuntimeError, StopIteration):
-        close_progress(view)
-        raise
+        return next(solutions)
     finally:
         solutions.close()
-    close_progress(view)
-    return solution
+        close_progress(view)
 
 
 def get_cfg(df: DataFrame, axis: Axis = 0, identifiers: Optional[Any] = None) -> dict:

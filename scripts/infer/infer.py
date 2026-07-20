@@ -282,8 +282,9 @@ def run_bn_view(
 
     bns = []
 
+    solutions = iter_solutions(view, deadline)
     try:
-        for i, solution in enumerate(iter_solutions(view, deadline), start=1):
+        for i, solution in enumerate(solutions, start=1):
             if isinstance(view, bonesis.DiverseBooleanNetworksView):
                 bn, configs = solution
             elif isinstance(view, bonesis.InfluenceGraphView):
@@ -313,13 +314,8 @@ def run_bn_view(
                 graph_formats=graph_formats,
                 remove_isolated_nodes=remove_isolated_nodes,
             )
-    except KeyboardInterrupt:
-        close_progress(view, interrupted=True)
-        raise
-    except SolverTimeout:
-        close_progress(view, interrupted=True)
-        raise
-    else:
+    finally:
+        solutions.close()
         close_progress(view)
 
     return bns

@@ -14,13 +14,17 @@ import bonesis
 import clingo
 from bonesis.asp_encoding import clingo_encode
 from _domain_continuation import (
+    MAX_DOMAIN_REFRESH_WAVES,
     DomainCandidate,
     DomainCandidateResult,
     DomainWaveLeader,
     bounded_midpoint,
     build_candidate_wave,
+    continuation_base_domain,
+    domain_expansion_gains,
     expansion_domain_size,
     initial_domain_size,
+    minimum_domain_gain,
     outcome_counts,
     select_best_candidate,
     solution_objective,
@@ -56,6 +60,22 @@ STRUCTURAL_ATOM_ARITIES = {
     "clause": 4,
     "constant": 2,
 }
+
+
+def parse_min_domain_yield(value: str) -> float:
+    """Parse a half-open unit-interval domain-yield threshold."""
+
+    try:
+        minimum_yield = float(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(
+            "expected a numeric value greater than or equal to 0 and below 1"
+        ) from error
+    if not 0 <= minimum_yield < 1:
+        raise argparse.ArgumentTypeError(
+            "expected a value greater than or equal to 0 and below 1"
+        )
+    return minimum_yield
 
 
 def read_gene_list(file: str | Path | None) -> list[str]:
@@ -113,6 +133,43 @@ def make_filter_nodes_score_formatter(
         return fields or {"score": str(list(score))}
 
     return format_score
+
+
+class InheritedObjectiveProgress(ptqdm):
+    """Keep a retained node-selection objective visible until it improves."""
+
+    def __init__(
+        self,
+        *args,
+        inherited_objective: tuple[int, int],
+        has_important_nodes: bool,
+        score_formatter: Callable[[Sequence[int]], Mapping[str, str]],
+        **kwargs,
+    ) -> None:
+        self._displayed_objective = inherited_objective
+        self._has_important_nodes = has_important_nodes
+        self._inherited_score_formatter = score_formatter
+        super().__init__(*args, **kwargs)
+
+    def set_postfix(self, ordered_dict=None, refresh=True, **kwargs) -> None:
+        if ordered_dict is not None and "score" in ordered_dict:
+            observed = _filter_nodes_objective(
+                ordered_dict["score"],
+                has_important_nodes=self._has_important_nodes,
+            )
+            self._displayed_objective = max(
+                self._displayed_objective,
+                observed,
+            )
+            important, total = self._displayed_objective
+            score = (important, total) if self._has_important_nodes else (total,)
+            ordered_dict = {
+                key: value
+                for key, value in ordered_dict.items()
+                if key != "score"
+            }
+            ordered_dict.update(self._inherited_score_formatter(score))
+        super().set_postfix(ordered_dict, refresh=refresh, **kwargs)
 
 
 def make_filter_consts_score_formatter(
@@ -385,16 +442,35 @@ def fork_bonesis(
     return stage
 
 
-def make_stage_progress(description: str):
+def make_stage_progress(
+    description: str,
+    inherited_objective: tuple[int, int],
+    score_formatter: Callable[[Sequence[int]], Mapping[str, str]],
+    *,
+    has_important_nodes: bool,
+):
     """Create a progress factory with a stage-specific description."""
+
+    important, total = inherited_objective
+    inherited_score = (
+        (important, total) if has_important_nodes else (total,)
+    )
+    initial_postfix = score_formatter(inherited_score)
 
     def progress(*args, **kwargs):
         kwargs["desc"] = description
+        kwargs["postfix"] = initial_postfix
         kwargs.setdefault(
             "bar_format",
-            "{desc}: {n_fmt}it [{elapsed}{postfix}]",
+            "{desc}: {n_fmt}it ({elapsed}{postfix})",
         )
-        return ptqdm(*args, **kwargs)
+        return InheritedObjectiveProgress(
+            *args,
+            inherited_objective=inherited_objective,
+            has_important_nodes=has_important_nodes,
+            score_formatter=score_formatter,
+            **kwargs,
+        )
 
     return progress
 
@@ -629,9 +705,8 @@ def run_domain_wave(
             ),
             postfix=format_candidate_objective(candidate.index),
             position=position,
-            leave=False,
             file=progress_stream,
-            bar_format="{desc}: {n_fmt:>4}it [{elapsed}{postfix}]",
+            bar_format="{desc}: {n_fmt:>4}it ({elapsed}{postfix})",
             **progress_options,
         )
         for position, candidate in enumerate(candidates)
@@ -816,25 +891,30 @@ def print_domain_wave_summary(
     """Persist one compact summary after clearing dynamic candidate bars."""
 
     counts = outcome_counts(results)
-    fields = [
+    context = [
         f"phase={phase}",
         f"max clauses={max_clause}",
         f"wave={wave}",
+    ]
+    outcomes = [
         f"sat={counts['sat']}",
         f"unsat={counts['unsat']}",
         f"unknown={counts['unknown']}",
     ]
     if counts["cancelled"]:
-        fields.append(f"cancelled={counts['cancelled']}")
+        outcomes.append(f"cancelled={counts['cancelled']}")
     if selected is not None:
-        fields.extend(
-            [
-                f"selected={selected.candidate.index}/{len(results)}",
-                f"domain={len(selected.candidate.nodes)}",
-                f"solution={len(selected.solution)}/{len(selected.candidate.nodes)}",
-            ]
+        result = (
+            f"solution={len(selected.solution)}/"
+            f"{len(selected.candidate.nodes)}"
         )
-    console.print_info(f"domain continuation ({', '.join(fields)})", flush=True)
+    else:
+        result = "no solution"
+    console.print_info(
+        f"domain continuation [{', '.join(context)}]: "
+        f"{result} ({', '.join(outcomes)})",
+        flush=True,
+    )
 
 
 def continue_domain_at_clause_bound(
@@ -852,6 +932,7 @@ def continue_domain_at_clause_bound(
     clingo_opt_strategy: str,
     clingo_configuration: str | None,
     domain_patience_seconds: float,
+    minimum_domain_yield: float,
     clause_patience: SolverPatience,
     deadline: SolverDeadline,
     on_model: Callable[[frozenset[str], Sequence[str], Sequence[str]], bool],
@@ -953,21 +1034,54 @@ def continue_domain_at_clause_bound(
 
             raise RuntimeError("domain continuation ended without a solver outcome")
 
+    def adopt_candidate(selected: DomainCandidateResult) -> None:
+        """Retain one candidate domain without regressing the best witness."""
+
+        nonlocal current_domain, current_solution, current_witness
+
+        selected_objective = solution_objective(
+            selected.solution,
+            important_nodes,
+        )
+        current_objective = solution_objective(
+            current_solution,
+            important_nodes,
+        )
+        current_domain = selected.candidate.nodes
+        if selected_objective >= current_objective:
+            current_solution = selected.solution
+            current_witness = selected.witness
+        on_selected(
+            current_domain,
+            current_solution,
+            current_witness,
+        )
+
     expansion_target = expansion_domain_size(
         len(current_domain),
         len(complete_domain),
     )
     while expansion_target < len(complete_domain):
+        expansion_base_domain = current_domain
+        expansion_base_solution = current_solution
+        expansion_size = expansion_target - len(expansion_base_domain)
+        required_gain = minimum_domain_gain(
+            expansion_size,
+            minimum_domain_yield,
+        )
+        evaluated_domains: set[frozenset[str]] = set()
+
         wave += 1
         candidates = build_candidate_wave(
             complete_domain,
-            current_domain,
+            expansion_base_domain,
             target_size=expansion_target,
             jobs=jobs,
             seed=seed,
             clause_bound=max_clause,
             wave=wave,
         )
+        evaluated_domains.update(candidate.nodes for candidate in candidates)
         results = run_domain_wave(
             bo,
             candidates,
@@ -993,32 +1107,120 @@ def continue_domain_at_clause_bound(
             results=results,
             selected=selected,
         )
-        if selected is not None:
-            selected_objective = (
-                len(set(selected.solution) & important_nodes),
-                len(selected.solution),
-            )
-            current_objective = (
-                len(set(current_solution) & important_nodes),
-                len(current_solution),
-            )
-            current_domain = selected.candidate.nodes
-            if selected_objective >= current_objective:
-                current_solution = selected.solution
-                current_witness = selected.witness
-            on_selected(
-                current_domain,
-                current_solution,
-                current_witness,
-            )
-            expansion_target = expansion_domain_size(
-                len(current_domain),
-                len(complete_domain),
-            )
+        if selected is None:
+            reduced_step = max(1, expansion_size // 2)
+            expansion_target = len(expansion_base_domain) + reduced_step
             continue
 
-        reduced_step = max(1, (expansion_target - len(current_domain)) // 2)
-        expansion_target = len(current_domain) + reduced_step
+        adopt_candidate(selected)
+        important_gain, retained_gain = domain_expansion_gains(
+            expansion_base_solution,
+            current_solution,
+            important_nodes,
+        )
+        refresh_count = 0
+        refresh_space_exhausted = False
+
+        while (
+            minimum_domain_yield > 0
+            and important_gain == 0
+            and retained_gain < required_gain
+            and refresh_count < MAX_DOMAIN_REFRESH_WAVES
+        ):
+            refresh_core = expansion_base_domain | frozenset(current_solution)
+            next_wave = wave + 1
+            candidates = build_candidate_wave(
+                complete_domain,
+                refresh_core,
+                target_size=expansion_target,
+                jobs=jobs,
+                seed=seed,
+                clause_bound=max_clause,
+                wave=next_wave,
+                excluded_domains=evaluated_domains,
+            )
+            if not candidates:
+                refresh_space_exhausted = True
+                break
+
+            wave = next_wave
+            refresh_count += 1
+            evaluated_domains.update(candidate.nodes for candidate in candidates)
+            protected_additions = len(refresh_core - expansion_base_domain)
+            resampled = expansion_target - len(refresh_core)
+            console.print_info(
+                "refreshing domain at constant size "
+                f"(domain={expansion_target}, "
+                f"refresh={refresh_count}/{MAX_DOMAIN_REFRESH_WAVES}, "
+                f"cumulative gain={retained_gain}/{expansion_size} "
+                f"({retained_gain / expansion_size:.1%}), "
+                f"minimum={minimum_domain_yield:.1%}, "
+                f"protected additions={protected_additions}, "
+                f"resampled={resampled})",
+                flush=True,
+            )
+            results = run_domain_wave(
+                bo,
+                candidates,
+                phase="refresh",
+                wave=wave,
+                max_clause=max_clause,
+                witness=current_witness,
+                incumbent_solution=current_solution,
+                clingo_opt_mode=clingo_opt_mode,
+                clingo_opt_strategy=clingo_opt_strategy,
+                clingo_configuration=clingo_configuration,
+                patience_seconds=domain_patience_seconds,
+                clause_patience=clause_patience,
+                deadline=deadline,
+                important_nodes=important_nodes,
+                on_model=on_model,
+            )
+            selected = select_best_candidate(results, important_nodes)
+            print_domain_wave_summary(
+                phase="refresh",
+                max_clause=max_clause,
+                wave=wave,
+                results=results,
+                selected=selected,
+            )
+            if selected is not None:
+                adopt_candidate(selected)
+            important_gain, retained_gain = domain_expansion_gains(
+                expansion_base_solution,
+                current_solution,
+                important_nodes,
+            )
+
+        if (
+            minimum_domain_yield > 0
+            and important_gain == 0
+            and retained_gain < required_gain
+        ):
+            gain = (
+                f"{retained_gain}/{expansion_size} "
+                f"({retained_gain / expansion_size:.1%})"
+            )
+            if refresh_space_exhausted:
+                console.print_warning(
+                    "domain refresh space exhausted "
+                    f"(gain={gain}, minimum={minimum_domain_yield:.1%}, "
+                    f"domains tested={len(evaluated_domains)}); "
+                    "expanding domain",
+                    flush=True,
+                )
+            elif refresh_count == MAX_DOMAIN_REFRESH_WAVES:
+                console.print_warning(
+                    "minimum domain yield not reached before refresh limit "
+                    f"(gain={gain}, minimum={minimum_domain_yield:.1%}, "
+                    f"refreshes={refresh_count}); expanding domain",
+                    flush=True,
+                )
+
+        expansion_target = expansion_domain_size(
+            len(current_domain),
+            len(complete_domain),
+        )
 
     return DomainContinuationState(
         current_domain,
@@ -1166,6 +1368,19 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--min-domain-yield",
+    dest="min_domain_yield",
+    type=parse_min_domain_yield,
+    required=False,
+    default=0.10,
+    metavar="FLOAT",
+    help=(
+        "minimum cumulative retained-node gain per node added during domain "
+        "expansion; low-yield expansions are refreshed at constant size, "
+        "and 0 disables refreshes (default: 0.10)"
+    ),
+)
+parser.add_argument(
     "--domain-continuation-jobs",
     dest="domain_continuation_jobs",
     type=int,
@@ -1309,6 +1524,8 @@ if args.action == "filter-nodes":
             "candidate threads=1, "
             "patience="
             f"{format_duration(args.domain_continuation_patience)}, "
+            f"minimum yield={args.min_domain_yield:.1%}, "
+            f"refresh limit={MAX_DOMAIN_REFRESH_WAVES}, "
             f"seed={args.domain_continuation_seed}",
             flush=True,
         )
@@ -1322,7 +1539,11 @@ if args.action == "filter-nodes":
     initial_solution = structural_witness_nodes(initial_witness)
     current_witness = initial_witness
     current_domain = (
-        frozenset((*required_nodes, *initial_solution))
+        continuation_base_domain(
+            initial_solution,
+            required_nodes,
+            complete_domain,
+        )
         if args.domain_continuation
         else complete_domain
     )
@@ -1336,9 +1557,28 @@ if args.action == "filter-nodes":
             len(solution),
         ),
     }
+
+    def rebase_for_next_clause_bound(nodes):
+        """Retain selected and required nodes for the next clause bound."""
+
+        domain = (
+            continuation_base_domain(
+                nodes,
+                required_nodes,
+                complete_domain,
+            )
+            if args.domain_continuation
+            else complete_domain
+        )
+        retained["domain"] = domain
+        return domain
+
     deadline = SolverDeadline(args.timeout)
 
     for stage_index, max_clause in enumerate(bounds, start=1):
+        if stage_index > 1:
+            current_domain = rebase_for_next_clause_bound(solution)
+
         is_target = max_clause == args.max_clause
         stage_name = "Target optimization" if is_target else "Clause continuation"
         clingo_opt_mode = args.clingo_opt_mode
@@ -1396,6 +1636,7 @@ if args.action == "filter-nodes":
                     clingo_opt_strategy=clingo_opt_strategy,
                     clingo_configuration=args.clingo_configuration,
                     domain_patience_seconds=args.domain_continuation_patience,
+                    minimum_domain_yield=args.min_domain_yield,
                     clause_patience=stage_patience,
                     deadline=deadline,
                     on_model=retain_model,
@@ -1406,7 +1647,6 @@ if args.action == "filter-nodes":
             except SolverPatienceExpired:
                 solution = tuple(retained["solution"])
                 current_witness = tuple(retained["witness"])
-                current_domain = frozenset(retained["domain"])
                 console.print_warning(
                     "no objective improvement within the clause-continuation "
                     "patience "
@@ -1421,6 +1661,8 @@ if args.action == "filter-nodes":
                         args.clause_continuation,
                         args.clause_continuation_parameter,
                     )
+                solution = tuple(retained["solution"])
+                current_witness = tuple(retained["witness"])
                 console.print_warning(
                     "domain continuation proved the complete domain "
                     f"unsatisfiable (max clauses={max_clause}); continuing",
@@ -1462,7 +1704,12 @@ if args.action == "filter-nodes":
             extra=structural_witness,
             intermediate_model_cb=intermediate_solution,
             clingo_opt_strategy=clingo_opt_strategy,
-            progress=make_stage_progress(description),
+            progress=make_stage_progress(
+                description,
+                retained["objective"],
+                filter_nodes_score_formatter,
+                has_important_nodes=bool(important_nodes_in_domain),
+            ),
             **view_settings,
         )
         if is_target:
@@ -1482,7 +1729,6 @@ if args.action == "filter-nodes":
             elif retained["solution"]:
                 solution = tuple(retained["solution"])
                 current_witness = tuple(retained["witness"])
-            current_domain = frozenset(retained["domain"])
             console.print_warning(
                 "no objective improvement within the clause-continuation "
                 "patience "
@@ -1496,6 +1742,8 @@ if args.action == "filter-nodes":
                     args.clause_continuation,
                     args.clause_continuation_parameter,
                 ) from None
+            solution = tuple(retained["solution"])
+            current_witness = tuple(retained["witness"])
             console.print_warning(
                 "clause continuation produced no witness "
                 f"(max clauses={max_clause}); continuing",

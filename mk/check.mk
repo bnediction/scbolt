@@ -506,6 +506,10 @@ else ifeq ($(HELP),false)
 		if grep -q '$(parameter)' "$${dry_run}"; then \
 			$(call check_bool_diagnostic,$($(parameter)),$(parameter),method); \
 		fi;) \
+	if grep -q -- '--min-domain-yield' "$${dry_run}"; then \
+		$(call check_half_open_unit_interval_diagnostic,\
+			$(MIN_DOMAIN_YIELD),MIN_DOMAIN_YIELD,method); \
+	fi; \
 	$(foreach parameter,$(clingo_jobs_params),\
 		if grep -q '$(parameter)' "$${dry_run}"; then \
 			$(call check_positive_integer_diagnostic,$($(parameter)),$(parameter),method); \

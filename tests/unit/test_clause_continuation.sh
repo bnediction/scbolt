@@ -54,6 +54,7 @@ grep -qx 'DOMAIN_CONTINUATION_SOFT=false' <<< "${defaults}"
 grep -qx 'DOMAIN_CONTINUATION_RELAXED=false' <<< "${defaults}"
 grep -qx 'DOMAIN_CONTINUATION_SEED=true' <<< "${defaults}"
 grep -qx 'PATIENCE_DOMAIN_CONTINUATION_SEED=5m' <<< "${defaults}"
+grep -qx 'MIN_DOMAIN_YIELD=0.10' <<< "${defaults}"
 grep -qx 'JOBS_CLINGO_SEED=1' <<< "${defaults}"
 
 run_helper "${tmpdir}/defaults.out"
@@ -130,6 +131,9 @@ for stage in SOFT RELAXED SEED; do
     grep -Fq -- \
         "--domain-continuation-seed \$(SEED)" \
         "${repo_root}/Makefile"
+    grep -Fq -- \
+        "--min-domain-yield \$(MIN_DOMAIN_YIELD)" \
+        "${repo_root}/Makefile"
 done
 
 for stage in SOFT CONSTS RELAXED SEED LOCK; do
@@ -146,6 +150,8 @@ seed_help="$(
 )"
 grep -Fq 'PATIENCE_CLAUSE_CONTINUATION_SEED' <<< "${seed_help}"
 grep -Fq 'DOMAIN_CONTINUATION_SEED' <<< "${seed_help}"
+grep -Fq 'MIN_DOMAIN_YIELD' <<< "${seed_help}"
+grep -Fq 'Low-yield expansions are refreshed at constant size' <<< "${seed_help}"
 grep -Fq 'JOBS' <<< "${seed_help}"
 grep -Fq 'Maximum time without a Clingo objective improvement' <<< "${seed_help}"
 grep -Fq \
@@ -155,7 +161,7 @@ grep -Fq \
     '0.0 if is_target else args.clause_continuation_patience' \
     "${repo_root}/scripts/infer/selection.py"
 grep -Fq \
-    '"{desc}: {n_fmt}it [{elapsed}{postfix}]"' \
+    '"{desc}: {n_fmt}it ({elapsed}{postfix})"' \
     "${repo_root}/scripts/infer/selection.py"
 grep -Fq \
     'f"{stage_name} [{stage_index}/{len(bounds)}, "' \
@@ -168,6 +174,26 @@ grep -Fq \
 ! grep -Fq 'candidate_patience' \
     "${repo_root}/scripts/infer/selection.py"
 ! grep -Fq 'stop_on_first_witness' \
+    "${repo_root}/scripts/infer/selection.py"
+! grep -Fq 'f"selected=' \
+    "${repo_root}/scripts/infer/selection.py"
+grep -Fq \
+    "f\"domain continuation [{', '.join(context)}]: \"" \
+    "${repo_root}/scripts/infer/selection.py"
+grep -Fq \
+    "f\"{result} ({', '.join(outcomes)})\"" \
+    "${repo_root}/scripts/infer/selection.py"
+grep -Fq 'MAX_DOMAIN_REFRESH_WAVES = 5' \
+    "${repo_root}/scripts/infer/_domain_continuation.py"
+grep -Fq 'class InheritedObjectiveProgress(ptqdm):' \
+    "${repo_root}/scripts/infer/selection.py"
+grep -Fq 'retained["objective"],' \
+    "${repo_root}/scripts/infer/selection.py"
+grep -Fq 'kwargs["leave"] = False' \
+    "${repo_root}/scripts/infer/utils.py"
+! grep -Fq 'leave_progress' \
+    "${repo_root}/scripts/infer/utils.py"
+! grep -Fq 'leave=is_target' \
     "${repo_root}/scripts/infer/selection.py"
 
 ! grep -Fq -- \

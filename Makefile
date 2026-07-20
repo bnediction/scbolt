@@ -775,6 +775,7 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 	$(call require_bonesis_filter_parameters,max-nodes-soft)
 	$(call require_bool,CLAUSE_CONTINUATION_SOFT,max-nodes-soft)
 	$(call require_bool,DOMAIN_CONTINUATION_SOFT,max-nodes-soft)
+	$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),$(call require_half_open_unit_interval,MIN_DOMAIN_YIELD))
 	mkdir -p $(@D)
 	set +e; \
 	$(call start_inference_timer) \
@@ -790,6 +791,7 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 		$(if $(strip $(PATIENCE_CLAUSE_CONTINUATION_SOFT)),--clause-continuation-patience "$(PATIENCE_CLAUSE_CONTINUATION_SOFT)") \
 		$(call domain_continuation,DOMAIN_CONTINUATION_SOFT) \
 		$(if $(strip $(PATIENCE_DOMAIN_CONTINUATION_SOFT)),--domain-continuation-patience "$(PATIENCE_DOMAIN_CONTINUATION_SOFT)") \
+		$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),--min-domain-yield $(MIN_DOMAIN_YIELD)) \
 		--domain-continuation-jobs $(JOBS) \
 		--domain-continuation-seed $(SEED) \
 		--domain-nodes $(max_nodes_soft_domain) \
@@ -840,6 +842,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_depend
 	$(call require_bonesis_filter_parameters,max-nodes-relaxed)
 	$(call require_bool,CLAUSE_CONTINUATION_RELAXED,max-nodes-relaxed)
 	$(call require_bool,DOMAIN_CONTINUATION_RELAXED,max-nodes-relaxed)
+	$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),$(call require_half_open_unit_interval,MIN_DOMAIN_YIELD))
 	mkdir -p $(@D)
 	set +e; \
 	$(call start_inference_timer) \
@@ -854,6 +857,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_depend
 		$(if $(strip $(PATIENCE_CLAUSE_CONTINUATION_RELAXED)),--clause-continuation-patience "$(PATIENCE_CLAUSE_CONTINUATION_RELAXED)") \
 		$(call domain_continuation,DOMAIN_CONTINUATION_RELAXED) \
 		$(if $(strip $(PATIENCE_DOMAIN_CONTINUATION_RELAXED)),--domain-continuation-patience "$(PATIENCE_DOMAIN_CONTINUATION_RELAXED)") \
+		$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),--min-domain-yield $(MIN_DOMAIN_YIELD)) \
 		--domain-continuation-jobs $(JOBS) \
 		--domain-continuation-seed $(SEED) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
@@ -875,6 +879,7 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_depend
 	$(call require_bonesis_filter_parameters,max-nodes-seed)
 	$(call require_bool,CLAUSE_CONTINUATION_SEED,max-nodes-seed)
 	$(call require_bool,DOMAIN_CONTINUATION_SEED,max-nodes-seed)
+	$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),$(call require_half_open_unit_interval,MIN_DOMAIN_YIELD))
 	$(call check_parameter,$(TIMEOUT_SEED),TIMEOUT_SEED (needed by target 'max-nodes-seed'))
 	mkdir -p $(@D)
 	set +e; \
@@ -890,6 +895,7 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_depend
 		$(if $(strip $(PATIENCE_CLAUSE_CONTINUATION_SEED)),--clause-continuation-patience "$(PATIENCE_CLAUSE_CONTINUATION_SEED)") \
 		$(call domain_continuation,DOMAIN_CONTINUATION_SEED) \
 		$(if $(strip $(PATIENCE_DOMAIN_CONTINUATION_SEED)),--domain-continuation-patience "$(PATIENCE_DOMAIN_CONTINUATION_SEED)") \
+		$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),--min-domain-yield $(MIN_DOMAIN_YIELD)) \
 		--domain-continuation-jobs $(JOBS) \
 		--domain-continuation-seed $(SEED) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \

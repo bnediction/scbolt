@@ -1536,11 +1536,13 @@ collect_make_assignments() {
 
 print_kept_intermediate_results() {
     local params="$1"
+    local target_label="$2"
     local line
     local module
     local coverage
+    local label
     local make_assignments=()
-    shift
+    shift 2
 
     while IFS= read -r line; do
         make_assignments+=("${line}")
@@ -1548,7 +1550,13 @@ print_kept_intermediate_results() {
 
     while read -r module coverage; do
         if [ -n "${module}" ] && [ -n "${coverage}" ]; then
-            print_warning_status "kept intermediate solution (${module})" "${coverage}"
+            coverage="${coverage#partial (}"
+            coverage="${coverage%)}"
+            label="kept partial solution"
+            if [ "${module}" != "${target_label}" ]; then
+                label+=" (${module})"
+            fi
+            print_success "${label}: ${coverage}"
         fi
     done < <(
         make -s -f "${SCBOLT_MAKEFILE}" __kept-gene-selection-results \
@@ -1568,8 +1576,9 @@ interrupted_inference_module() {
 print_kept_intermediate_results_if_inference_ran() {
     local params="$1"
     local stdout_file="$2"
+    local target_label="$3"
     local module
-    shift 2
+    shift 3
 
     module="$(
         interrupted_inference_module "${stdout_file}"
@@ -1577,7 +1586,8 @@ print_kept_intermediate_results_if_inference_ran() {
 
     if [ -n "${module}" ]; then
         print_kept_intermediate_results \
-            "${params}" "INTERRUPTED_INFERENCE_MODULE=${module}" "$@"
+            "${params}" "${target_label}" \
+            "INTERRUPTED_INFERENCE_MODULE=${module}" "$@"
     fi
 }
 
@@ -1819,14 +1829,16 @@ run_make_build_with_params() {
             interrupted_module="$(interrupted_inference_module "${stdout_file}")"
             finalize_interrupted_gene_selection_results \
                 "${params}" "${interrupted_module:-${target_label}}" "${elapsed}" "$@"
-            print_kept_intermediate_results_if_inference_ran "${params}" "${stdout_file}" "$@"
+            print_kept_intermediate_results_if_inference_ran \
+                "${params}" "${stdout_file}" "${target_label}" "$@"
             ;;
         143)
             print_warning "interrupted by user (${target_label})"
             interrupted_module="$(interrupted_inference_module "${stdout_file}")"
             finalize_interrupted_gene_selection_results \
                 "${params}" "${interrupted_module:-${target_label}}" "${elapsed}" "$@"
-            print_kept_intermediate_results_if_inference_ran "${params}" "${stdout_file}" "$@"
+            print_kept_intermediate_results_if_inference_ran \
+                "${params}" "${stdout_file}" "${target_label}" "$@"
             ;;
         *)
             print_failure_status "${target_label}"

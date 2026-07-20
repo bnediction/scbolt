@@ -482,6 +482,14 @@ if ! printf '%s\n' "$(strip $($(1)))" \
 fi
 endef
 
+define require_half_open_unit_interval
+$(call require_float,$(1)); \
+if ! $(call system_tool,awk) -v value="$(strip $($(1)))" \
+		'BEGIN { exit !(value >= 0 && value < 1) }'; then \
+	$(call print_error,required value >= 0 and < 1 for parameter $(1) (current: $(strip $($(1))))); \
+fi
+endef
+
 define require_optional_hvg_method
 case "$(strip $($(1)))" in \
 	""|loess|binning) ;; \
@@ -666,6 +674,7 @@ require_positive_integer =
 require_nonnegative_integer =
 require_optional_positive_integer =
 require_float =
+require_half_open_unit_interval =
 require_optional_hvg_method =
 require_hvg_method =
 require_prior_knowledge =
@@ -795,6 +804,19 @@ if printf '%s\n' "$(strip $(1))" \
 		$(call parameter_assignment,$(1),$(2))); \
 else \
 	$(call report_check_error,required numeric value for \
+		$(call parameter_description,$(1),$(2),$(3)) (current: $(strip $(1)))); \
+fi
+endef
+
+define check_half_open_unit_interval_diagnostic
+if printf '%s\n' "$(strip $(1))" \
+		| grep -Eq '^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$$$$' \
+		&& $(call system_tool,awk) -v value="$(strip $(1))" \
+			'BEGIN { exit !(value >= 0 && value < 1) }'; then \
+	$(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: \
+		$(call parameter_assignment,$(1),$(2))); \
+else \
+	$(call report_check_error,required value >= 0 and < 1 for \
 		$(call parameter_description,$(1),$(2),$(3)) (current: $(strip $(1)))); \
 fi
 endef
