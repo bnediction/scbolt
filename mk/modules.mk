@@ -220,6 +220,8 @@ endif
 
 ## BEGIN PARAMETERS ##
 
+TRUST_EXISTING ?= false
+
 ifeq ($(diagnostic_mode),)
 ifneq ($(memory_valid),true)
 $(error parameter MEMORY must be a positive memory size (current: $(MEMORY)))
@@ -232,6 +234,9 @@ $(error parameter SEED must be a positive integer (current: $(SEED)))
 endif
 ifneq ($(filter $(LOGGING),true false),$(LOGGING))
 $(error unsupported value for parameter LOGGING (supported values: true, false))
+endif
+ifneq ($(filter $(TRUST_EXISTING),true false),$(TRUST_EXISTING))
+$(error unsupported value for parameter TRUST_EXISTING (supported values: true, false))
 endif
 ifneq ($(call is_creatable_path,$(PROJECT_DIR)),true)
 $(error parameter PROJECT_DIR must be a valid output path (current: $(PROJECT_DIR)))
@@ -363,19 +368,19 @@ min_self_loop_infer = $(if $(filter true,$(MIN_SELF_LOOP_INFER)),--minimize-self
 clause_continuation_params = \
 	CLAUSE_CONTINUATION_SOFT CLAUSE_CONTINUATION_RELAXED \
 	CLAUSE_CONTINUATION_SEED CLAUSE_CONTINUATION_LOCK
-clause_continuation_patience_params = \
-	PATIENCE_CLAUSE_CONTINUATION_SOFT \
-	PATIENCE_CLAUSE_CONTINUATION_RELAXED \
-	PATIENCE_CLAUSE_CONTINUATION_SEED \
-	PATIENCE_CLAUSE_CONTINUATION_LOCK
+clause_bound_patience_params = \
+	PATIENCE_CLAUSE_BOUND_SOFT \
+	PATIENCE_CLAUSE_BOUND_RELAXED \
+	PATIENCE_CLAUSE_BOUND_SEED \
+	PATIENCE_CLAUSE_BOUND_LOCK
 clause_continuation = $(if $(filter true,$($(1))),--clause-continuation)
 domain_continuation_params = \
 	DOMAIN_CONTINUATION_SOFT DOMAIN_CONTINUATION_RELAXED \
 	DOMAIN_CONTINUATION_SEED
-domain_continuation_patience_params = \
-	PATIENCE_DOMAIN_CONTINUATION_SOFT \
-	PATIENCE_DOMAIN_CONTINUATION_RELAXED \
-	PATIENCE_DOMAIN_CONTINUATION_SEED
+domain_wave_patience_params = \
+	PATIENCE_DOMAIN_WAVE_SOFT \
+	PATIENCE_DOMAIN_WAVE_RELAXED \
+	PATIENCE_DOMAIN_WAVE_SEED
 domain_continuation = $(if $(filter true,$($(1))),--domain-continuation)
 clingo_jobs_params = \
 	JOBS_CLINGO_SOFT JOBS_CLINGO_CONSTS JOBS_CLINGO_RELAXED \
@@ -388,6 +393,46 @@ reset_stages = \
 	bin-cells bin-macrostates bin-dea bin-consensus binarization \
 	spec max-nodes-soft max-consts-soft max-nodes-relaxed \
 	max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
+
+progress_deps_load-matrix =
+progress_deps_alignment = $(ALIGNMENT_TOOL)
+progress_deps_cellranger = load-fastq
+progress_deps_star = load-fastq
+progress_deps_qc = star
+progress_deps_velocyto = $(if $(filter star,$(ALIGNMENT_TOOL)),qc,cellranger)
+progress_deps_filtering = $(count_input_module)
+progress_deps_normalization = filtering
+progress_deps_clustering = normalization
+progress_deps_dea = clustering
+progress_deps_scoring = clustering
+progress_deps_goea = dea
+progress_deps_annotation = clustering
+progress_deps_velocity = annotation
+progress_deps_potency = annotation
+progress_deps_cotan = annotation
+progress_deps_cellrank = velocity potency
+progress_deps_stream = annotation
+progress_deps_knnsc = annotation
+progress_deps_macrostates = $(if $(MACROSTATE_FILES),,$(MACROSTATE_METHOD))
+progress_deps_bin-cells = $(if $(MACROSTATE_FILES),,annotation)
+progress_deps_bin-macrostates = \
+	bin-cells $(if $(MACROSTATE_FILES),,macrostates)
+progress_deps_bin-dea = $(if $(MACROSTATE_FILES),,annotation macrostates)
+progress_deps_bin-consensus = bin-macrostates bin-cells bin-dea
+progress_deps_binarization = $(if $(BINARIZATION_FILE),,\
+	$(if $(filter scboolseq,$(BIN_METHOD)),bin-macrostates,\
+	$(if $(filter dea,$(BIN_METHOD)),bin-dea,\
+	$(if $(filter consensus,$(BIN_METHOD)),bin-consensus))))
+progress_deps_spec = $(if $(BINARIZATION_FILE),,binarization)
+progress_deps_max-nodes-soft = spec
+progress_deps_max-consts-soft = spec max-nodes-soft
+progress_deps_max-nodes-relaxed = spec max-consts-soft
+progress_deps_max-nodes-seed = spec max-nodes-relaxed
+progress_deps_max-nodes-lock = spec max-nodes-relaxed max-nodes-seed
+progress_deps_bn-min = spec max-nodes-lock
+progress_deps_bn-submin = spec max-nodes-lock
+progress_deps_bn-diverse = spec max-nodes-lock
+
 RESET_TARGET_load-fastq = $(fastq_target)
 RESET_TARGET_load-matrix = $(load_matrix_target)
 RESET_TARGET_alignment = $(alignment_target)
@@ -461,16 +506,34 @@ reset_targets := $(strip $(foreach module,$(reset_modules),\
 	$(if $(RESET_BUILD_TARGET_$(module)),\
 		$(RESET_BUILD_TARGET_$(module)),\
 		$(RESET_TARGET_$(module)))))
+module_rebuilds_after_reset = $(strip $(or \
+	$(filter $(1),$(reset_modules)),\
+	$(foreach dependency,$(progress_deps_$(1)),\
+		$(call module_rebuilds_after_reset,$(dependency)))))
+reset_rebuild_modules := $(strip $(foreach module,$(reset_stages),\
+	$(if $(call module_rebuilds_after_reset,$(module)),$(module))))
+reset_rebuild_targets := $(strip $(foreach module,$(reset_rebuild_modules),\
+	$(RESET_TARGET_$(module))))
+blocked_trust_targets := $(call uniq,$(reset_targets) $(reset_rebuild_targets))
 trust_targets := $(strip $(foreach module,$(trust_modules),$(RESET_TARGET_$(module))))
 known_scbolt_targets := $(call uniq,$(foreach module,$(reset_stages),$(RESET_TARGET_$(module))))
+existing_scbolt_targets := $(strip $(foreach target,$(known_scbolt_targets),\
+	$(if $(wildcard $(target)),$(target))))
+trust_existing_candidates := $(if $(filter true,$(TRUST_EXISTING)),\
+	$(existing_scbolt_targets))
+trust_existing_targets := $(filter-out $(blocked_trust_targets),\
+	$(trust_existing_candidates))
+trusted_make_targets := $(filter-out $(blocked_trust_targets),\
+	$(call uniq,$(trust_targets) $(trust_existing_targets)))
+trusted_old_files := $(filter-out $(blocked_trust_targets),$(OLD_FILES))
 unknown_old_files := $(filter-out $(known_scbolt_targets),$(OLD_FILES))
-missing_old_files := $(strip $(foreach path,$(OLD_FILES),$(if $(wildcard $(path)),,$(path))))
+missing_old_files := $(strip $(foreach path,$(trusted_old_files),$(if $(wildcard $(path)),,$(path))))
 ifneq ($(reset_targets),)
 .PHONY: $(reset_targets)
 endif
 trust_make_options := \
-	$(foreach target,$(trust_targets),--old-file="$(target)") \
-	$(foreach target,$(OLD_FILES),--old-file="$(target)")
+	$(foreach target,$(trusted_make_targets),--old-file="$(target)") \
+	$(foreach target,$(trusted_old_files),--old-file="$(target)")
 ifeq ($(diagnostic_mode),)
 ifneq ($(missing_old_files),)
 $(error old file not found: $(missing_old_files))
@@ -535,8 +598,8 @@ target_params_spec = \
 	SPEC_FILE $(prior_knowledge_params)
 target_params_max-nodes-soft = \
 	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
-	CLAUSE_CONTINUATION_SOFT PATIENCE_CLAUSE_CONTINUATION_SOFT \
-	DOMAIN_CONTINUATION_SOFT PATIENCE_DOMAIN_CONTINUATION_SOFT \
+	CLAUSE_CONTINUATION_SOFT PATIENCE_CLAUSE_BOUND_SOFT \
+	DOMAIN_CONTINUATION_SOFT PATIENCE_DOMAIN_WAVE_SOFT \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),MIN_DOMAIN_YIELD JOBS) \
 	CLINGO_CONFIG_SOFT CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT \
 	JOBS_CLINGO_SOFT TIMEOUT_SOFT
@@ -546,21 +609,21 @@ target_params_max-consts-soft = \
 	JOBS_CLINGO_CONSTS TIMEOUT_CONSTS
 target_params_max-nodes-relaxed = \
 	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
-	CLAUSE_CONTINUATION_RELAXED PATIENCE_CLAUSE_CONTINUATION_RELAXED \
-	DOMAIN_CONTINUATION_RELAXED PATIENCE_DOMAIN_CONTINUATION_RELAXED \
+	CLAUSE_CONTINUATION_RELAXED PATIENCE_CLAUSE_BOUND_RELAXED \
+	DOMAIN_CONTINUATION_RELAXED PATIENCE_DOMAIN_WAVE_RELAXED \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),MIN_DOMAIN_YIELD JOBS) \
 	CLINGO_CONFIG_RELAXED CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED \
 	JOBS_CLINGO_RELAXED TIMEOUT_RELAXED
 target_params_max-nodes-seed = \
 	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
-	CLAUSE_CONTINUATION_SEED PATIENCE_CLAUSE_CONTINUATION_SEED \
-	DOMAIN_CONTINUATION_SEED PATIENCE_DOMAIN_CONTINUATION_SEED \
+	CLAUSE_CONTINUATION_SEED PATIENCE_CLAUSE_BOUND_SEED \
+	DOMAIN_CONTINUATION_SEED PATIENCE_DOMAIN_WAVE_SEED \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),MIN_DOMAIN_YIELD JOBS) \
 	CLINGO_CONFIG_SEED CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED \
 	JOBS_CLINGO_SEED TIMEOUT_SEED
 target_params_max-nodes-lock = \
 	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
-	CLAUSE_CONTINUATION_LOCK PATIENCE_CLAUSE_CONTINUATION_LOCK \
+	CLAUSE_CONTINUATION_LOCK PATIENCE_CLAUSE_BOUND_LOCK \
 	CLINGO_CONFIG_LOCK CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK \
 	JOBS_CLINGO_LOCK TIMEOUT_LOCK
 target_params_bn-min = \
@@ -630,8 +693,8 @@ sensitive_params_spec = \
 	SPEC_FILE $(prior_knowledge_params)
 sensitive_params_max-nodes-soft = \
 	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
-	CLAUSE_CONTINUATION_SOFT PATIENCE_CLAUSE_CONTINUATION_SOFT \
-	DOMAIN_CONTINUATION_SOFT PATIENCE_DOMAIN_CONTINUATION_SOFT \
+	CLAUSE_CONTINUATION_SOFT PATIENCE_CLAUSE_BOUND_SOFT \
+	DOMAIN_CONTINUATION_SOFT PATIENCE_DOMAIN_WAVE_SOFT \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),MIN_DOMAIN_YIELD JOBS) \
 	CLINGO_CONFIG_SOFT CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT \
 	JOBS_CLINGO_SOFT TIMEOUT_SOFT SEED
@@ -641,21 +704,21 @@ sensitive_params_max-consts-soft = \
 	JOBS_CLINGO_CONSTS TIMEOUT_CONSTS SEED
 sensitive_params_max-nodes-relaxed = \
 	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
-	CLAUSE_CONTINUATION_RELAXED PATIENCE_CLAUSE_CONTINUATION_RELAXED \
-	DOMAIN_CONTINUATION_RELAXED PATIENCE_DOMAIN_CONTINUATION_RELAXED \
+	CLAUSE_CONTINUATION_RELAXED PATIENCE_CLAUSE_BOUND_RELAXED \
+	DOMAIN_CONTINUATION_RELAXED PATIENCE_DOMAIN_WAVE_RELAXED \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),MIN_DOMAIN_YIELD JOBS) \
 	CLINGO_CONFIG_RELAXED CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED \
 	JOBS_CLINGO_RELAXED TIMEOUT_RELAXED SEED
 sensitive_params_max-nodes-seed = \
 	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
-	CLAUSE_CONTINUATION_SEED PATIENCE_CLAUSE_CONTINUATION_SEED \
-	DOMAIN_CONTINUATION_SEED PATIENCE_DOMAIN_CONTINUATION_SEED \
+	CLAUSE_CONTINUATION_SEED PATIENCE_CLAUSE_BOUND_SEED \
+	DOMAIN_CONTINUATION_SEED PATIENCE_DOMAIN_WAVE_SEED \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),MIN_DOMAIN_YIELD JOBS) \
 	CLINGO_CONFIG_SEED CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED \
 	JOBS_CLINGO_SEED TIMEOUT_SEED SEED
 sensitive_params_max-nodes-lock = \
 	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
-	CLAUSE_CONTINUATION_LOCK PATIENCE_CLAUSE_CONTINUATION_LOCK \
+	CLAUSE_CONTINUATION_LOCK PATIENCE_CLAUSE_BOUND_LOCK \
 	CLINGO_CONFIG_LOCK CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK \
 	JOBS_CLINGO_LOCK TIMEOUT_LOCK SEED
 sensitive_params_bn-min = \
@@ -747,9 +810,9 @@ method_config_param_set = \
 	MAX_CLAUSE DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS \
 	CANONICAL_FILTER CANONICAL_INFER \
 	$(clause_continuation_params) \
-	$(clause_continuation_patience_params) \
+	$(clause_bound_patience_params) \
 	$(domain_continuation_params) \
-	$(domain_continuation_patience_params) \
+	$(domain_wave_patience_params) \
 	MIN_DOMAIN_YIELD \
 	JOBS \
 	CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT JOBS_CLINGO_SOFT TIMEOUT_SOFT \

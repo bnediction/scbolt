@@ -13,6 +13,8 @@ help_reset_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--reset-target=<module...>], [RESET_TARGET=<module...>])
 help_trust_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--trust-target=<module...>], [TRUST_TARGET=<module...>])
+help_trust_existing_option = $(if $(filter true,$(SCBOLT_CLI)),\
+	 [--trust-existing], [TRUST_EXISTING=<bool>])
 help_old_file_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--old-file=<file>...], [OLD_FILES=<file...>])
 help_logging_option = $(if $(filter true,$(SCBOLT_CLI)), [--logging=<bool>], [LOGGING=<bool>])
@@ -56,44 +58,6 @@ progress_modules = $(call uniq,\
 progress_scan_modules = $(if $(filter true,$(PROGRESS_ALL)),\
 	$(reset_stages),$(filter $(reset_stages),$(progress_modules)))
 progress_unknown_targets = $(filter-out $(reset_stages),$(progress_targets))
-progress_deps_load-matrix =
-progress_deps_alignment = $(ALIGNMENT_TOOL)
-progress_deps_cellranger = load-fastq
-progress_deps_star = load-fastq
-progress_deps_qc = star
-progress_deps_velocyto = $(if $(filter star,$(ALIGNMENT_TOOL)),qc,cellranger)
-progress_deps_filtering = $(count_input_module)
-progress_deps_normalization = filtering
-progress_deps_clustering = normalization
-progress_deps_dea = clustering
-progress_deps_scoring = clustering
-progress_deps_goea = dea
-progress_deps_annotation = clustering
-progress_deps_velocity = annotation
-progress_deps_potency = annotation
-progress_deps_cotan = annotation
-progress_deps_cellrank = velocity potency
-progress_deps_stream = annotation
-progress_deps_knnsc = annotation
-progress_deps_macrostates = $(if $(MACROSTATE_FILES),,$(MACROSTATE_METHOD))
-progress_deps_bin-cells = $(if $(MACROSTATE_FILES),,annotation)
-progress_deps_bin-macrostates = \
-	bin-cells $(if $(MACROSTATE_FILES),,macrostates)
-progress_deps_bin-dea = $(if $(MACROSTATE_FILES),,annotation macrostates)
-progress_deps_bin-consensus = bin-macrostates bin-cells bin-dea
-progress_deps_binarization = $(if $(BINARIZATION_FILE),,\
-	$(if $(filter scboolseq,$(BIN_METHOD)),bin-macrostates,\
-	$(if $(filter dea,$(BIN_METHOD)),bin-dea,\
-	$(if $(filter consensus,$(BIN_METHOD)),bin-consensus))))
-progress_deps_spec = $(if $(BINARIZATION_FILE),,binarization)
-progress_deps_max-nodes-soft = spec
-progress_deps_max-consts-soft = spec max-nodes-soft
-progress_deps_max-nodes-relaxed = spec max-consts-soft
-progress_deps_max-nodes-seed = spec max-nodes-relaxed
-progress_deps_max-nodes-lock = spec max-nodes-relaxed max-nodes-seed
-progress_deps_bn-min = spec max-nodes-lock
-progress_deps_bn-submin = spec max-nodes-lock
-progress_deps_bn-diverse = spec max-nodes-lock
 
 module_help_target = $(strip $(TARGET))
 module_help_unknown_targets = $(filter-out $(reset_stages),$(module_help_target))
@@ -217,6 +181,7 @@ define show_config_help
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict the run to selected references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'preview configuration with forced rebuild context'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'preview configuration while trusting selected outputs'; \
+		printf '  %-31s %s\n' '--trust-existing' 'preview configuration while trusting existing outputs'; \
 		printf '  %-31s %s\n' '--old-file=<file>' 'trust one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
@@ -227,6 +192,7 @@ define show_config_help
 		printf '  %-31s %s\n' 'REFERENCES=<condition...>' 'restrict the run to selected references'; \
 		printf '  %-31s %s\n' 'RESET_TARGET=<module...>' 'preview configuration with forced rebuild context'; \
 		printf '  %-31s %s\n' 'TRUST_TARGET=<module...>' 'preview configuration while trusting selected outputs'; \
+		printf '  %-31s %s\n' 'TRUST_EXISTING=<bool>' 'preview configuration while trusting existing outputs'; \
 		printf '  %-31s %s\n' 'OLD_FILES=<file...>' 'trust existing DAG files'; \
 		printf '  %-31s %s\n' '<PARAMETER>=<value>' 'override any Make parameter'; \
 	fi
@@ -246,6 +212,7 @@ define dry_run_help
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict the preview to selected references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'preview rebuild from these modules'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'preview while trusting selected module outputs'; \
+		printf '  %-31s %s\n' '--trust-existing' 'preview while trusting existing outputs'; \
 		printf '  %-31s %s\n' '--old-file=<file>' 'preview while trusting one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
@@ -254,6 +221,7 @@ define dry_run_help
 		printf '  %-31s %s\n' 'REFERENCES=<condition...>' 'restrict the preview to selected references'; \
 		printf '  %-31s %s\n' 'RESET_TARGET=<module...>' 'preview rebuild from these modules'; \
 		printf '  %-31s %s\n' 'TRUST_TARGET=<module...>' 'preview while trusting selected module outputs'; \
+		printf '  %-31s %s\n' 'TRUST_EXISTING=<bool>' 'preview while trusting existing outputs'; \
 		printf '  %-31s %s\n' 'OLD_FILES=<file...>' 'preview while trusting existing DAG files'; \
 		printf '  %-31s %s\n' '<PARAMETER>=<value>' 'override any Make parameter'; \
 	fi
@@ -291,6 +259,7 @@ define progress_help
 		printf '  %-31s %s\n' '--references=<condition...>' 'select references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'inspect progress with forced rebuild context'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'inspect progress while trusting selected outputs'; \
+		printf '  %-31s %s\n' '--trust-existing' 'inspect progress while trusting existing outputs'; \
 		printf '  %-31s %s\n' '--old-file=<file>' 'inspect progress while trusting one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
@@ -300,6 +269,7 @@ define progress_help
 		printf '  %-31s %s\n' 'REFERENCES=<condition...>' 'select references'; \
 		printf '  %-31s %s\n' 'RESET_TARGET=<module...>' 'inspect progress with forced rebuild context'; \
 		printf '  %-31s %s\n' 'TRUST_TARGET=<module...>' 'inspect progress while trusting selected outputs'; \
+		printf '  %-31s %s\n' 'TRUST_EXISTING=<bool>' 'inspect progress while trusting existing outputs'; \
 		printf '  %-31s %s\n' 'OLD_FILES=<file...>' 'inspect progress while trusting existing DAG files'; \
 		printf '  %-31s %s\n' '<PARAMETER>=<value>' 'override any Make parameter'; \
 	fi
@@ -441,6 +411,7 @@ help: ## display help
 		BEGIN {FS = ":.*##"; \
 			hanging("usage: $(help_command) $(help_module_usage)$(help_params_option)" \
 				"$(help_references_option)$(help_reset_option)$(help_trust_option)" \
+				"$(help_trust_existing_option)" \
 				"$(help_old_file_option)$(help_logging_option)$(help_override_option)", \
 				$(help_usage_width), "       "); \
 			printf "\n"; \
@@ -459,6 +430,7 @@ help: ## display help
 					printf "  %-31s %s\n", "", "default: $(display_references_label)"; \
 					printf "  %-31s %s\n", "--reset-target=<module...>", "rebuild from modules"; \
 					printf "  %-31s %s\n", "--trust-target=<module...>", "skip rebuilding modules"; \
+					printf "  %-31s %s\n", "--trust-existing", "skip rebuilding existing outputs"; \
 					printf "  %-31s %s\n", "--old-file=<file>", "trust existing DAG file"; \
 					printf "  %-31s %s\n", "--logging=<bool>", "enable logging"; \
 					printf "  %-31s %s\n", "--help", "display command help"; \
@@ -470,6 +442,7 @@ help: ## display help
 					printf "  %-31s %s\n", "RESOURCES_DIR=<dir>", "select resource directory"; \
 					printf "  %-31s %s\n", "RESET_TARGET=<module...>", "rebuild from modules"; \
 					printf "  %-31s %s\n", "TRUST_TARGET=<module...>", "skip rebuilding modules"; \
+					printf "  %-31s %s\n", "TRUST_EXISTING=<bool>", "skip rebuilding existing outputs"; \
 					printf "  %-31s %s\n", "OLD_FILES=<file...>", "trust existing DAG files"; \
 					printf "  %-31s %s\n", "LOGGING=<bool>", "enable logging"; \
 					printf "  %-31s %s\n", "CONFIG_RAW=true", "display raw config listing"; \

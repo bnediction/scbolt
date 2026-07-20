@@ -1,6 +1,6 @@
 # Rebuild Controls
 
-scBOLT exposes three controls for changing how existing outputs are treated by
+scBOLT exposes four controls for changing how existing outputs are treated by
 the build engine.
 
 They are intentionally separate from biological entry-point parameters such as
@@ -52,6 +52,34 @@ scbolt bn-submin TRUST_TARGET="clustering annotation"
 Repeated `--trust-target=<module>` options are appended to Make-style
 `TRUST_TARGET=<module...>` assignments.
 
+## `TRUST_EXISTING`
+
+`TRUST_EXISTING` trusts every known scBOLT DAG output that is already present
+when the command starts.
+
+```bash
+scbolt bn-submin --trust-existing
+```
+
+The equivalent direct Make invocation is:
+
+```bash
+make bn-submin TRUST_EXISTING=true
+```
+
+Missing outputs are not fabricated or trusted: Make builds them normally.
+This makes `--trust-existing` useful when resuming a project whose existing
+outputs should be accepted without listing each module or file individually.
+
+Trust only affects Make's timestamp-based rebuild decisions. Metadata drift
+is still reported so that changes in parameters, dependencies, or runtime
+environments remain visible.
+
+`RESET_TARGET` has absolute priority. Outputs from the reset module and every
+downstream module scheduled for reconstruction are excluded from trust,
+including trust requested through `TRUST_TARGET`, `TRUST_EXISTING`, or
+`OLD_FILES`. Existing outputs on unrelated DAG branches remain trusted.
+
 ## `OLD_FILES`
 
 `OLD_FILES` trusts individual files already belonging to the scBOLT DAG.
@@ -96,11 +124,13 @@ files, not every output produced by the corresponding module.
 | ------- | ----- | ------ |
 | `RESET_TARGET` | module | Rebuild from selected modules. |
 | `TRUST_TARGET` | module | Trust all outputs from selected modules. |
+| `TRUST_EXISTING` | project | Trust known outputs that already exist. |
 | `OLD_FILES` | file | Trust selected files only. |
 
 ## Validation
 
-Trusted old files must exist.
+Active trusted old files must exist. An `OLD_FILES` entry excluded by
+`RESET_TARGET` is not validated as trusted because that output will be rebuilt.
 
 `scbolt check <module>` reports:
 

@@ -211,25 +211,25 @@ _scbolt_help_parameters() {
 _scbolt_module_options() {
     local target="$1"
 
-    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
+    printf '%s\n' --params= --references= --reset-target= --trust-target= --trust-existing --old-file= \
         --project-dir= --resources-dir= --memory= --jobs= --seed= --representation= --label-col= \
         --backend= --logging= --help help
     _scbolt_help_parameters "${target}"
 }
 
 _scbolt_run_options() {
-    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
+    printf '%s\n' --params= --references= --reset-target= --trust-target= --trust-existing --old-file= \
         --project-dir= --resources-dir= --memory= --jobs= --seed= --representation= --label-col= \
         --backend= --logging= --help
 }
 
 _scbolt_diagnostic_options() {
-    printf '%s\n' --params= --references= --reset-target= --trust-target= --old-file= \
+    printf '%s\n' --params= --references= --reset-target= --trust-target= --trust-existing --old-file= \
         --resources-dir= --backend= --help
 }
 
 _scbolt_progress_options() {
-    printf '%s\n' --all --params= --resources-dir= --references= --old-file= --backend= --help
+    printf '%s\n' --all --params= --resources-dir= --references= --trust-existing --old-file= --backend= --help
 }
 
 _scbolt_clean_options() {

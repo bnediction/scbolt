@@ -25,6 +25,7 @@ define check_help
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict checks to selected references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'check what would be required after rebuilding from these modules'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'check while trusting selected module outputs'; \
+		printf '  %-31s %s\n' '--trust-existing' 'check while trusting existing outputs'; \
 		printf '  %-31s %s\n' '--old-file=<file>' 'check while trusting one existing DAG file'; \
 		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
 	else \
@@ -33,6 +34,7 @@ define check_help
 		printf '  %-31s %s\n' 'REFERENCES=<condition...>' 'restrict checks to selected references'; \
 		printf '  %-31s %s\n' 'RESET_TARGET=<module...>' 'check what would be required after rebuilding from these modules'; \
 		printf '  %-31s %s\n' 'TRUST_TARGET=<module...>' 'check while trusting selected module outputs'; \
+		printf '  %-31s %s\n' 'TRUST_EXISTING=<bool>' 'check while trusting existing outputs'; \
 		printf '  %-31s %s\n' '__check_externals__=false' 'skip external command and conda environment checks'; \
 		printf '  %-31s %s\n' '<PARAMETER>=<value>' 'override any Make parameter'; \
 	fi

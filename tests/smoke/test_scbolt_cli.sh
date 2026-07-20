@@ -299,6 +299,12 @@ complete_scbolt "${project}" 2 scbolt config "" > "${tmpdir}/config-completion.o
 grep -qx -- '--default' "${tmpdir}/config-completion.out"
 grep -qx -- '--raw' "${tmpdir}/config-completion.out"
 
+complete_scbolt "${project}" 2 scbolt bn-submin "" \
+    > "${tmpdir}/module-completion.out"
+grep -qx -- '--trust-target=' "${tmpdir}/module-completion.out"
+grep -qx -- '--trust-existing' "${tmpdir}/module-completion.out"
+! grep -qx -- '--trust-existing=' "${tmpdir}/module-completion.out"
+
 (
     cd "${project}"
     "${scbolt}" init params.mk > "${tmpdir}/init.out" 2> "${tmpdir}/init.err"
@@ -811,6 +817,41 @@ expect_make_args \
     "TRUST_TARGET=clustering annotation" \
     "CLI_TRUST_TARGETS+=velocity potency" \
     "PARAMS=${project}/spaced.mk"
+
+run_scbolt "${project}" bn-submin --trust-existing
+expect_make_args \
+    -f "${makefile}" \
+    bn-submin \
+    TRUST_EXISTING=true \
+    "PARAMS=${project}/spaced.mk"
+
+run_scbolt "${project}" --trust-existing bn-submin
+expect_make_args \
+    -f "${makefile}" \
+    bn-submin \
+    TRUST_EXISTING=true \
+    "PARAMS=${project}/spaced.mk"
+
+run_scbolt "${project}" trust_existing=false bn-submin
+expect_make_args \
+    -f "${makefile}" \
+    bn-submin \
+    TRUST_EXISTING=false \
+    "PARAMS=${project}/spaced.mk"
+
+if run_scbolt "${project}" bn-submin --trust-existing=true \
+    > "${tmpdir}/trust-existing-value.out" \
+    2> "${tmpdir}/trust-existing-value.err"; then
+    printf '%s\n' "expected --trust-existing with a value to fail" >&2
+    exit 1
+fi
+test ! -e "${record}"
+grep -qx \
+    '✗ Unsupported scbolt option with value: --trust-existing' \
+    "${tmpdir}/trust-existing-value.err"
+grep -qx \
+    "Use '--trust-existing' without a value." \
+    "${tmpdir}/trust-existing-value.err"
 
 run_scbolt "${project}" bn-submin 'old_files=file1.h5ad file2.csv' \
     '--old-file=file3.h5ad file4.csv' old_file=file5.txt

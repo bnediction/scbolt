@@ -565,7 +565,7 @@ branch, or Clingo instance changes.
 | Parameter | Meaning |
 | --- | --- |
 | `CLAUSE_CONTINUATION_<STAGE>` | Enable progressive clause bounds for the selected node-selection stage. |
-| `PATIENCE_CLAUSE_CONTINUATION_<STAGE>` | Maximum time without an objective improvement at an intermediate clause bound. Disabled at `MAX_CLAUSE`. |
+| `PATIENCE_CLAUSE_BOUND_<STAGE>` | Maximum time without an objective improvement at an intermediate clause bound. Disabled at `MAX_CLAUSE`. |
 
 Clause continuation supports `SOFT`, `RELAXED`, `SEED`, and `LOCK`. An empty or
 zero patience disables early advancement based on missing improvements.
@@ -575,11 +575,11 @@ zero patience disables early advancement based on missing improvements.
 | Parameter | Meaning |
 | --- | --- |
 | `DOMAIN_CONTINUATION_<STAGE>` | Enable adaptive first-witness search and progressive witness-guided domain expansion. |
-| `PATIENCE_DOMAIN_CONTINUATION_<STAGE>` | Maximum time without a strict improvement of the best portfolio objective within one acquisition or expansion wave. |
+| `PATIENCE_DOMAIN_WAVE_<STAGE>` | Maximum time without a strict improvement of the best portfolio objective within one acquisition or expansion wave. |
 | `MIN_DOMAIN_YIELD` | Minimum cumulative retained-node gain per node added during one domain expansion. Values must be at least 0 and below 1; zero disables constant-size refreshes. |
 
 Domain continuation supports only `SOFT`, `RELAXED`, and `SEED`. No
-`DOMAIN_CONTINUATION_LOCK` or `PATIENCE_DOMAIN_CONTINUATION_LOCK` parameter is
+`DOMAIN_CONTINUATION_LOCK` or `PATIENCE_DOMAIN_WAVE_LOCK` parameter is
 defined. The global `JOBS` parameter controls the number of candidate domains
 evaluated simultaneously, and every candidate uses one Clingo job. The refresh
 limit is an internal scheduling safeguard fixed at five waves per expansion
@@ -607,8 +607,8 @@ DOMAIN_CONTINUATION_SEED = true
 CLAUSE_CONTINUATION_SEED = true
 MIN_DOMAIN_YIELD = 0.10
 
-PATIENCE_DOMAIN_CONTINUATION_SEED = 5m
-PATIENCE_CLAUSE_CONTINUATION_SEED = 30m
+PATIENCE_DOMAIN_WAVE_SEED = 5m
+PATIENCE_CLAUSE_BOUND_SEED = 30m
 TIMEOUT_SEED = 24h
 
 JOBS = 8
@@ -636,7 +636,7 @@ seed stage.
 
 Three time controls have distinct meanings:
 
-1. `PATIENCE_DOMAIN_CONTINUATION_<STAGE>` bounds stagnation of the best
+1. `PATIENCE_DOMAIN_WAVE_<STAGE>` bounds stagnation of the best
    portfolio objective within one acquisition or expansion wave. Its clock is
    reset by the first wave witness and every strict leader improvement, but not
    by equal or globally inferior results. Expiration interrupts all unresolved
@@ -644,7 +644,7 @@ Three time controls have distinct meanings:
    candidates remain eligible for deterministic selection. Every constant-size
    refresh receives a new wave patience clock, while the five-wave refresh
    limit remains attached to the current expansion size.
-2. `PATIENCE_CLAUSE_CONTINUATION_<STAGE>` bounds the time without objective
+2. `PATIENCE_CLAUSE_BOUND_<STAGE>` bounds the time without objective
    improvement across all attempts at one intermediate clause bound. Every
    improvement resets this clause-level patience.
 3. `TIMEOUT_<STAGE>` bounds the complete solver execution of the stage and is

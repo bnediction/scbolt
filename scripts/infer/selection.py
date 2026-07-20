@@ -93,6 +93,21 @@ def _format_progress_ratio(value: int, total: int) -> str:
     return f"{value:>{len(str(total))}}/{total}"
 
 
+def _format_solution_objective(
+    objective: tuple[int, int],
+    *,
+    node_total: int,
+    important_total: int,
+) -> str:
+    """Format the retained node-selection objective for a durable message."""
+
+    important, total = objective
+    summary = f"solution={total}/{node_total}"
+    if important_total:
+        summary += f" (important={important}/{important_total})"
+    return summary
+
+
 def _filter_nodes_objective(
     score: Sequence[int],
     *,
@@ -1325,8 +1340,8 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
-    "--clause-continuation-patience",
-    dest="clause_continuation_patience",
+    "--clause-bound-patience",
+    dest="clause_bound_patience",
     type=parse_solver_timeout,
     required=False,
     default=0.0,
@@ -1355,8 +1370,8 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
-    "--domain-continuation-patience",
-    dest="domain_continuation_patience",
+    "--domain-wave-patience",
+    dest="domain_wave_patience",
     type=parse_solver_timeout,
     required=False,
     default=0.0,
@@ -1510,8 +1525,8 @@ if args.action == "filter-nodes":
         console.print_options(
             "clause continuation: "
             f"bounds={bounds_text}, "
-            "patience="
-            f"{format_duration(args.clause_continuation_patience)}",
+            "bound patience="
+            f"{format_duration(args.clause_bound_patience)}",
             flush=True,
         )
     else:
@@ -1522,8 +1537,8 @@ if args.action == "filter-nodes":
             "domain continuation: "
             f"candidates={args.domain_continuation_jobs}, "
             "candidate threads=1, "
-            "patience="
-            f"{format_duration(args.domain_continuation_patience)}, "
+            "wave patience="
+            f"{format_duration(args.domain_wave_patience)}, "
             f"minimum yield={args.min_domain_yield:.1%}, "
             f"refresh limit={MAX_DOMAIN_REFRESH_WAVES}, "
             f"seed={args.domain_continuation_seed}",
@@ -1558,6 +1573,22 @@ if args.action == "filter-nodes":
         ),
     }
 
+    def print_clause_bound_patience_warning(max_clause: int) -> None:
+        """Report the best objective retained at an exhausted clause bound."""
+
+        solution_summary = _format_solution_objective(
+            retained["objective"],
+            node_total=len(complete_domain),
+            important_total=len(important_nodes_in_domain),
+        )
+        console.print_warning(
+            "no objective improvement within the clause-bound patience "
+            f"[max clauses={max_clause}, "
+            f"time={format_duration(args.clause_bound_patience)}]: "
+            f"{solution_summary}",
+            flush=True,
+        )
+
     def rebase_for_next_clause_bound(nodes):
         """Retain selected and required nodes for the next clause bound."""
 
@@ -1589,7 +1620,7 @@ if args.action == "filter-nodes":
         )
 
         stage_patience_seconds = (
-            0.0 if is_target else args.clause_continuation_patience
+            0.0 if is_target else args.clause_bound_patience
         )
         stage_patience = SolverPatience(stage_patience_seconds)
         stage_best = [None]
@@ -1635,7 +1666,7 @@ if args.action == "filter-nodes":
                     clingo_opt_mode=clingo_opt_mode,
                     clingo_opt_strategy=clingo_opt_strategy,
                     clingo_configuration=args.clingo_configuration,
-                    domain_patience_seconds=args.domain_continuation_patience,
+                    domain_patience_seconds=args.domain_wave_patience,
                     minimum_domain_yield=args.min_domain_yield,
                     clause_patience=stage_patience,
                     deadline=deadline,
@@ -1647,12 +1678,7 @@ if args.action == "filter-nodes":
             except SolverPatienceExpired:
                 solution = tuple(retained["solution"])
                 current_witness = tuple(retained["witness"])
-                console.print_warning(
-                    "no objective improvement within the clause-continuation "
-                    "patience "
-                    f"(time={format_duration(args.clause_continuation_patience)})",
-                    flush=True,
-                )
+                print_clause_bound_patience_warning(max_clause)
                 continue
 
             if continuation.complete_domain_unsat:
@@ -1729,12 +1755,7 @@ if args.action == "filter-nodes":
             elif retained["solution"]:
                 solution = tuple(retained["solution"])
                 current_witness = tuple(retained["witness"])
-            console.print_warning(
-                "no objective improvement within the clause-continuation "
-                "patience "
-                f"(time={format_duration(args.clause_continuation_patience)})",
-                flush=True,
-            )
+            print_clause_bound_patience_warning(max_clause)
             continue
         except StopIteration:
             if is_target:

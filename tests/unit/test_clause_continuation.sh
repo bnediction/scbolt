@@ -19,20 +19,20 @@ include mk/modules.mk
 all:
 	@printf '%s\n' \
 		'soft=$(call clause_continuation,CLAUSE_CONTINUATION_SOFT)' \
-		'soft_patience=$(PATIENCE_CLAUSE_CONTINUATION_SOFT)' \
+		'soft_patience=$(PATIENCE_CLAUSE_BOUND_SOFT)' \
 		'soft_mode=$(CLINGO_OPT_MODE_SOFT)' \
 		'soft_strategy=$(CLINGO_OPT_STRATEGY_SOFT)' \
 		'relaxed=$(call clause_continuation,CLAUSE_CONTINUATION_RELAXED)' \
-		'relaxed_patience=$(PATIENCE_CLAUSE_CONTINUATION_RELAXED)' \
+		'relaxed_patience=$(PATIENCE_CLAUSE_BOUND_RELAXED)' \
 		'relaxed_mode=$(CLINGO_OPT_MODE_RELAXED)' \
 		'relaxed_strategy=$(CLINGO_OPT_STRATEGY_RELAXED)' \
 		'seed=$(call clause_continuation,CLAUSE_CONTINUATION_SEED)' \
-		'seed_patience=$(PATIENCE_CLAUSE_CONTINUATION_SEED)' \
+		'seed_patience=$(PATIENCE_CLAUSE_BOUND_SEED)' \
 		'seed_mode=$(CLINGO_OPT_MODE_SEED)' \
 		'seed_strategy=$(CLINGO_OPT_STRATEGY_SEED)' \
 		'lock=$(call clause_continuation,CLAUSE_CONTINUATION_LOCK)'
 	@printf '%s\n' \
-		'lock_patience=$(PATIENCE_CLAUSE_CONTINUATION_LOCK)' \
+		'lock_patience=$(PATIENCE_CLAUSE_BOUND_LOCK)' \
 		'lock_mode=$(CLINGO_OPT_MODE_LOCK)' \
 		'lock_strategy=$(CLINGO_OPT_STRATEGY_LOCK)' \
 		'domain_soft=$(call domain_continuation,DOMAIN_CONTINUATION_SOFT)' \
@@ -46,14 +46,14 @@ grep -qx 'CLAUSE_CONTINUATION_SOFT=false' <<< "${defaults}"
 grep -qx 'CLAUSE_CONTINUATION_RELAXED=true' <<< "${defaults}"
 grep -qx 'CLAUSE_CONTINUATION_SEED=true' <<< "${defaults}"
 grep -qx 'CLAUSE_CONTINUATION_LOCK=true' <<< "${defaults}"
-grep -qx 'PATIENCE_CLAUSE_CONTINUATION_SOFT=30m' <<< "${defaults}"
-grep -qx 'PATIENCE_CLAUSE_CONTINUATION_RELAXED=30m' <<< "${defaults}"
-grep -qx 'PATIENCE_CLAUSE_CONTINUATION_SEED=30m' <<< "${defaults}"
-grep -qx 'PATIENCE_CLAUSE_CONTINUATION_LOCK=30m' <<< "${defaults}"
+grep -qx 'PATIENCE_CLAUSE_BOUND_SOFT=30m' <<< "${defaults}"
+grep -qx 'PATIENCE_CLAUSE_BOUND_RELAXED=30m' <<< "${defaults}"
+grep -qx 'PATIENCE_CLAUSE_BOUND_SEED=30m' <<< "${defaults}"
+grep -qx 'PATIENCE_CLAUSE_BOUND_LOCK=30m' <<< "${defaults}"
 grep -qx 'DOMAIN_CONTINUATION_SOFT=false' <<< "${defaults}"
 grep -qx 'DOMAIN_CONTINUATION_RELAXED=false' <<< "${defaults}"
 grep -qx 'DOMAIN_CONTINUATION_SEED=true' <<< "${defaults}"
-grep -qx 'PATIENCE_DOMAIN_CONTINUATION_SEED=5m' <<< "${defaults}"
+grep -qx 'PATIENCE_DOMAIN_WAVE_SEED=5m' <<< "${defaults}"
 grep -qx 'MIN_DOMAIN_YIELD=0.10' <<< "${defaults}"
 grep -qx 'JOBS_CLINGO_SEED=1' <<< "${defaults}"
 
@@ -114,7 +114,7 @@ for stage in SOFT RELAXED SEED LOCK; do
         "--clause-continuation-parameter CLAUSE_CONTINUATION_${stage}" \
         "${repo_root}/Makefile"
     grep -Fq -- \
-        "--clause-continuation-patience \"\$(PATIENCE_CLAUSE_CONTINUATION_${stage})\"" \
+        "--clause-bound-patience \"\$(PATIENCE_CLAUSE_BOUND_${stage})\"" \
         "${repo_root}/Makefile"
 done
 
@@ -123,7 +123,7 @@ for stage in SOFT RELAXED SEED; do
         "\$(call domain_continuation,DOMAIN_CONTINUATION_${stage})" \
         "${repo_root}/Makefile"
     grep -Fq -- \
-        "--domain-continuation-patience \"\$(PATIENCE_DOMAIN_CONTINUATION_${stage})\"" \
+        "--domain-wave-patience \"\$(PATIENCE_DOMAIN_WAVE_${stage})\"" \
         "${repo_root}/Makefile"
     grep -Fq -- \
         "--domain-continuation-jobs \$(JOBS)" \
@@ -148,7 +148,8 @@ seed_help="$(
     "${repo_root}/bin/scbolt" max-nodes-seed help \
         --params="${repo_root}/tests/fixtures/params.mk"
 )"
-grep -Fq 'PATIENCE_CLAUSE_CONTINUATION_SEED' <<< "${seed_help}"
+grep -Fq 'PATIENCE_CLAUSE_BOUND_SEED' <<< "${seed_help}"
+grep -Fq 'PATIENCE_DOMAIN_WAVE_SEED' <<< "${seed_help}"
 grep -Fq 'DOMAIN_CONTINUATION_SEED' <<< "${seed_help}"
 grep -Fq 'MIN_DOMAIN_YIELD' <<< "${seed_help}"
 grep -Fq 'Low-yield expansions are refreshed at constant size' <<< "${seed_help}"
@@ -158,7 +159,7 @@ grep -Fq \
     'Maximum time without an improvement of the best portfolio objective' \
     <<< "${seed_help}"
 grep -Fq \
-    '0.0 if is_target else args.clause_continuation_patience' \
+    '0.0 if is_target else args.clause_bound_patience' \
     "${repo_root}/scripts/infer/selection.py"
 grep -Fq \
     '"{desc}: {n_fmt}it ({elapsed}{postfix})"' \
@@ -188,6 +189,16 @@ grep -Fq 'MAX_DOMAIN_REFRESH_WAVES = 5' \
 grep -Fq 'class InheritedObjectiveProgress(ptqdm):' \
     "${repo_root}/scripts/infer/selection.py"
 grep -Fq 'retained["objective"],' \
+    "${repo_root}/scripts/infer/selection.py"
+grep -Fq \
+    '"no objective improvement within the clause-bound patience "' \
+    "${repo_root}/scripts/infer/selection.py"
+grep -Fq \
+    'f"[max clauses={max_clause}, "' \
+    "${repo_root}/scripts/infer/selection.py"
+grep -Fq 'f"{solution_summary}"' \
+    "${repo_root}/scripts/infer/selection.py"
+! grep -Fq 'models=' \
     "${repo_root}/scripts/infer/selection.py"
 grep -Fq 'kwargs["leave"] = False' \
     "${repo_root}/scripts/infer/utils.py"

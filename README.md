@@ -208,17 +208,22 @@ With `--all`, it asks before removing cache, logs, and all generated module outp
 | `--references=<condition...>`  | Restrict execution to selected references.            |
 | `--reset-target=<module...>`   | Rebuild from these modules.                           |
 | `--trust-target=<module...>`   | Trust all outputs from selected modules.              |
-| `--old-file=<file>` | Trust one existing scBOLT DAG file.                  |
+| `--trust-existing`             | Trust every existing scBOLT DAG output.               |
+| `--old-file=<file>`            | Trust one existing scBOLT DAG file.                   |
 | `--logging=false`              | Disable persistent logging.                           |
 | `--help`                       | Display command-specific help when supported.         |
 | `--raw`                        | Display raw `config` listing.                         |
 | `--<parameter>=<value>`        | Override any Make parameter using dash-separated option names. |
 | `--prior-knowledge=<resource>` | Use `collectri`, `dorothea`, or a custom regulatory network. |
 
+`--trust-existing` only trusts known DAG outputs present when the command
+starts; missing outputs are built normally. `--reset-target` always takes
+priority and excludes the requested rebuild path from trust.
+
 Make-style assignments such as `PRIOR_KNOWLEDGE=dorothea` remain supported.
 
 Advanced documentation is available in: `man/`, including rebuild controls in
-`man/rebuild_controls.md`.
+`man/rebuilds.md`.
 
 Examples:
 

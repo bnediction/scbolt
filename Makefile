@@ -788,9 +788,9 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 		--witness $(@D)/witness.lp \
 		$(call clause_continuation,CLAUSE_CONTINUATION_SOFT) \
 		--clause-continuation-parameter CLAUSE_CONTINUATION_SOFT \
-		$(if $(strip $(PATIENCE_CLAUSE_CONTINUATION_SOFT)),--clause-continuation-patience "$(PATIENCE_CLAUSE_CONTINUATION_SOFT)") \
+		$(if $(strip $(PATIENCE_CLAUSE_BOUND_SOFT)),--clause-bound-patience "$(PATIENCE_CLAUSE_BOUND_SOFT)") \
 		$(call domain_continuation,DOMAIN_CONTINUATION_SOFT) \
-		$(if $(strip $(PATIENCE_DOMAIN_CONTINUATION_SOFT)),--domain-continuation-patience "$(PATIENCE_DOMAIN_CONTINUATION_SOFT)") \
+		$(if $(strip $(PATIENCE_DOMAIN_WAVE_SOFT)),--domain-wave-patience "$(PATIENCE_DOMAIN_WAVE_SOFT)") \
 		$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),--min-domain-yield $(MIN_DOMAIN_YIELD)) \
 		--domain-continuation-jobs $(JOBS) \
 		--domain-continuation-seed $(SEED) \
@@ -854,9 +854,9 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_depend
 		--solution $@ --witness $(@D)/witness.lp \
 		$(call clause_continuation,CLAUSE_CONTINUATION_RELAXED) \
 		--clause-continuation-parameter CLAUSE_CONTINUATION_RELAXED \
-		$(if $(strip $(PATIENCE_CLAUSE_CONTINUATION_RELAXED)),--clause-continuation-patience "$(PATIENCE_CLAUSE_CONTINUATION_RELAXED)") \
+		$(if $(strip $(PATIENCE_CLAUSE_BOUND_RELAXED)),--clause-bound-patience "$(PATIENCE_CLAUSE_BOUND_RELAXED)") \
 		$(call domain_continuation,DOMAIN_CONTINUATION_RELAXED) \
-		$(if $(strip $(PATIENCE_DOMAIN_CONTINUATION_RELAXED)),--domain-continuation-patience "$(PATIENCE_DOMAIN_CONTINUATION_RELAXED)") \
+		$(if $(strip $(PATIENCE_DOMAIN_WAVE_RELAXED)),--domain-wave-patience "$(PATIENCE_DOMAIN_WAVE_RELAXED)") \
 		$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),--min-domain-yield $(MIN_DOMAIN_YIELD)) \
 		--domain-continuation-jobs $(JOBS) \
 		--domain-continuation-seed $(SEED) \
@@ -892,9 +892,9 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_depend
 		--solution $(@D)/comps.txt --witness $(@D)/witness.lp \
 		$(call clause_continuation,CLAUSE_CONTINUATION_SEED) \
 		--clause-continuation-parameter CLAUSE_CONTINUATION_SEED \
-		$(if $(strip $(PATIENCE_CLAUSE_CONTINUATION_SEED)),--clause-continuation-patience "$(PATIENCE_CLAUSE_CONTINUATION_SEED)") \
+		$(if $(strip $(PATIENCE_CLAUSE_BOUND_SEED)),--clause-bound-patience "$(PATIENCE_CLAUSE_BOUND_SEED)") \
 		$(call domain_continuation,DOMAIN_CONTINUATION_SEED) \
-		$(if $(strip $(PATIENCE_DOMAIN_CONTINUATION_SEED)),--domain-continuation-patience "$(PATIENCE_DOMAIN_CONTINUATION_SEED)") \
+		$(if $(strip $(PATIENCE_DOMAIN_WAVE_SEED)),--domain-wave-patience "$(PATIENCE_DOMAIN_WAVE_SEED)") \
 		$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),--min-domain-yield $(MIN_DOMAIN_YIELD)) \
 		--domain-continuation-jobs $(JOBS) \
 		--domain-continuation-seed $(SEED) \
@@ -938,7 +938,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if 
 			--initial-witness $(lastword $^) \
 			$(call clause_continuation,CLAUSE_CONTINUATION_LOCK) \
 			--clause-continuation-parameter CLAUSE_CONTINUATION_LOCK \
-			$(if $(strip $(PATIENCE_CLAUSE_CONTINUATION_LOCK)),--clause-continuation-patience "$(PATIENCE_CLAUSE_CONTINUATION_LOCK)") \
+			$(if $(strip $(PATIENCE_CLAUSE_BOUND_LOCK)),--clause-bound-patience "$(PATIENCE_CLAUSE_BOUND_LOCK)") \
 			--domain $(prior_knowledge) --organism $(ORGANISM) \
 			$(prior_knowledge_args) \
 			--bonesis-mode hard --max-clause $(MAX_CLAUSE) \

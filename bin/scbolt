@@ -34,7 +34,7 @@ bin-cells bin-macrostates bin-dea bin-consensus binarization
 spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock
 bn-min bn-submin bn-diverse"
 SCBOLT_COMMANDS="init help version config progress check dry-run clean ${SCBOLT_MODULES}"
-SCBOLT_COMMON_OPTIONS="--params --references --reset-target --trust-target --old-file --logging --target --backend"
+SCBOLT_COMMON_OPTIONS="--params --references --reset-target --trust-target --trust-existing --old-file --logging --target --backend"
 SCBOLT_GLOBAL_OPTIONS="${SCBOLT_COMMON_OPTIONS} --raw"
 SCBOLT_OPTIONS_init="--remove --show --params --references --old-file --backend --help"
 SCBOLT_OPTIONS_clean="${SCBOLT_COMMON_OPTIONS} --all --stale --force --help"
@@ -1322,6 +1322,15 @@ collect_global_args() {
                 leading_args+=("$1" "$2")
                 shift 2
                 ;;
+            --trust-existing)
+                leading_args+=("$1")
+                shift
+                ;;
+            --trust-existing=*)
+                print_error "Unsupported scbolt option with value: --trust-existing"
+                printf '%s\n' "Use '--trust-existing' without a value." >&2
+                exit 1
+                ;;
             --raw)
                 leading_args+=("$1")
                 shift
@@ -1413,6 +1422,14 @@ translate_args() {
                 make_args+=("CLI_TRUST_TARGETS+=$1")
                 shift
                 ;;
+            --trust-existing)
+                make_args+=("TRUST_EXISTING=true")
+                ;;
+            --trust-existing=*)
+                print_error "Unsupported scbolt option with value: --trust-existing"
+                printf '%s\n' "Use '--trust-existing' without a value." >&2
+                exit 1
+                ;;
             --old-file=*)
                 make_args+=("CLI_OLD_FILES+=${arg#--old-file=}")
                 ;;
@@ -1475,6 +1492,9 @@ translate_args() {
                 ;;
             TRUST_TARGET=*|trust_target=*)
                 make_args+=("TRUST_TARGET=${arg#*=}")
+                ;;
+            TRUST_EXISTING=*|trust_existing=*)
+                make_args+=("TRUST_EXISTING=${arg#*=}")
                 ;;
             OLD_FILES=*|old_files=*)
                 make_args+=("OLD_FILES=${arg#*=}")
