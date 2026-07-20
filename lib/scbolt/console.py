@@ -86,6 +86,15 @@ def print_info(message: Optional[str] = None, file=sys.stdout, flush=True) -> No
     return None
 
 
+def print_options(message: Optional[str] = None, file=sys.stdout, flush=True) -> None:
+    print(
+        f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - OPTIONS - {message}",
+        file=file,
+        flush=flush,
+    )
+    return None
+
+
 def print_warning(message: Optional[str] = None, file=sys.stdout, flush=True) -> None:
     print(
         f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - WARNING - {message}",

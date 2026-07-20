@@ -502,6 +502,14 @@ else ifeq ($(HELP),false)
 		if grep -q '$(parameter)' "$${dry_run}"; then \
 			$(call check_bool_diagnostic,$($(parameter)),$(parameter),method); \
 		fi;) \
+	$(foreach parameter,$(domain_continuation_params),\
+		if grep -q '$(parameter)' "$${dry_run}"; then \
+			$(call check_bool_diagnostic,$($(parameter)),$(parameter),method); \
+		fi;) \
+	$(foreach parameter,$(clingo_jobs_params),\
+		if grep -q '$(parameter)' "$${dry_run}"; then \
+			$(call check_positive_integer_diagnostic,$($(parameter)),$(parameter),method); \
+		fi;) \
 	if grep -q 'CANONICAL_INFER' "$${dry_run}"; then \
 		$(call check_bool_diagnostic,$(CANONICAL_INFER),CANONICAL_INFER,method); \
 	fi; \

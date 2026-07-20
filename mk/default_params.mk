@@ -259,12 +259,13 @@ $(eval SPEC_FILE ?= spec.yml)               # BoNesis model specification file
 # Clingo filter opt modes: opt, optN, ignore.
 # Clingo opt strategies: bb[,<method>] or usc[,<method>].
 # Diagnostic opt modes: opt gives fast anytime solutions; optN targets
-# certified optima; ignore tests satisfiability.
+# certified optima; ignore disables optimization objectives.
 # CANONICAL_FILTER controls filter-nodes/filter-consts.
 # CANONICAL_INFER controls min/submin/diverse.
 # TIMEOUT_* values bound the total solver runtime; empty means no timeout.
-# PATIENCE_* values bound time without an objective improvement at intermediate
-# clause bounds; 0 or empty disables early continuation.
+# PATIENCE_CLAUSE_CONTINUATION_* values bound time without an objective
+# improvement at intermediate clause bounds.
+# PATIENCE_DOMAIN_CONTINUATION_* values bound portfolio stagnation per wave.
 $(eval MAX_CLAUSE ?= 8)                     # maximum literals per propositional formula
 $(eval PRIOR_KNOWLEDGE ?= collectri)        # prior GRN domain
 $(eval GENEINFO_VERSION ?= bundled)         # NCBI gene_info source
@@ -283,11 +284,13 @@ clause_continuation_clingo_strategy = $(if $(filter true,$($(1))),$(clause_conti
 
 ## MAX-NODES-SOFT ##
 $(eval CLAUSE_CONTINUATION_SOFT ?= false)   # progressively increase clause bounds
-$(eval PATIENCE_SOFT ?= 30m)                # time without improvement per intermediate bound
+$(eval DOMAIN_CONTINUATION_SOFT ?= false)   # search and expand candidate subdomains
+$(eval PATIENCE_CLAUSE_CONTINUATION_SOFT ?= 30m)
+$(eval PATIENCE_DOMAIN_CONTINUATION_SOFT ?= 5m)
 $(eval CLINGO_CONFIG_SOFT ?=)               # Clingo default configuration
 CLINGO_OPT_MODE_SOFT ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_SOFT,optN)
 CLINGO_OPT_STRATEGY_SOFT ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_SOFT,usc)
-$(eval JOBS_SOFT ?= 1)                      # solver jobs
+$(eval JOBS_CLINGO_SOFT ?= 1)               # jobs for complete-domain solving
 $(eval TIMEOUT_SOFT ?=)                     # timeout
 
 ## MAX-CONSTS-SOFT ##
@@ -295,35 +298,39 @@ $(eval MIN_SELF_LOOP_CONSTS ?= true)        # minimize one-node feedbacks
 $(eval CLINGO_CONFIG_CONSTS ?=)             # Clingo default configuration
 $(eval CLINGO_OPT_MODE_CONSTS ?= optN)      # Clingo optimization mode
 $(eval CLINGO_OPT_STRATEGY_CONSTS ?= usc)   # Clingo optimization strategy
-$(eval JOBS_CONSTS ?= 1)                    # solver jobs
+$(eval JOBS_CLINGO_CONSTS ?= 1)             # solver jobs
 $(eval TIMEOUT_CONSTS ?= 24h)               # timeout
 
 ## MAX-NODES-RELAXED ##
 $(eval CLAUSE_CONTINUATION_RELAXED ?= true) # progressively increase clause bounds
-$(eval PATIENCE_RELAXED ?= 30m)             # time without improvement per intermediate bound
+$(eval DOMAIN_CONTINUATION_RELAXED ?= false) # search and expand candidate subdomains
+$(eval PATIENCE_CLAUSE_CONTINUATION_RELAXED ?= 30m)
+$(eval PATIENCE_DOMAIN_CONTINUATION_RELAXED ?= 5m)
 $(eval CLINGO_CONFIG_RELAXED ?=)            # Clingo default configuration
 CLINGO_OPT_MODE_RELAXED ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_RELAXED,optN)
 CLINGO_OPT_STRATEGY_RELAXED ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_RELAXED,usc)
-$(eval JOBS_RELAXED ?= 1)                   # solver jobs
+$(eval JOBS_CLINGO_RELAXED ?= 1)            # jobs for complete-domain solving
 $(eval TIMEOUT_RELAXED ?= 48h)              # timeout
 
 ## MAX-NODES-SEED ##
 # TIMEOUT_SEED is required when max-nodes-seed is reached.
 $(eval CLAUSE_CONTINUATION_SEED ?= true)    # progressively increase clause bounds
-$(eval PATIENCE_SEED ?= 30m)                # time without improvement per intermediate bound
+$(eval DOMAIN_CONTINUATION_SEED ?= true)    # search and expand candidate subdomains
+$(eval PATIENCE_CLAUSE_CONTINUATION_SEED ?= 30m)
+$(eval PATIENCE_DOMAIN_CONTINUATION_SEED ?= 5m)
 $(eval CLINGO_CONFIG_SEED ?=)               # Clingo default configuration
 CLINGO_OPT_MODE_SEED ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_SEED,opt)
 CLINGO_OPT_STRATEGY_SEED ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_SEED,$(clingo_opt_strategy_seed_default))
-$(eval JOBS_SEED ?= 1)                      # solver jobs
+$(eval JOBS_CLINGO_SEED ?= 1)               # jobs for complete-domain solving
 $(eval TIMEOUT_SEED ?= 24h)                 # timeout
 
 ## MAX-NODES-LOCK ##
 $(eval CLAUSE_CONTINUATION_LOCK ?= true)    # progressively increase clause bounds
-$(eval PATIENCE_LOCK ?= 30m)                # time without improvement per intermediate bound
+$(eval PATIENCE_CLAUSE_CONTINUATION_LOCK ?= 30m)
 $(eval CLINGO_CONFIG_LOCK ?=)               # Clingo default configuration
 CLINGO_OPT_MODE_LOCK ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_LOCK,opt)
 CLINGO_OPT_STRATEGY_LOCK ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_LOCK,usc)
-$(eval JOBS_LOCK ?= 1)                      # solver jobs
+$(eval JOBS_CLINGO_LOCK ?= 1)               # solver jobs
 $(eval TIMEOUT_LOCK ?= 72h)                 # timeout
 
 ## OUTPUTS ##

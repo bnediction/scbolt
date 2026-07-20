@@ -18,7 +18,7 @@ from utils import (
     get_node_sets,
     initialize_bonesis,
     next_solution,
-    print_clingo_optimization,
+    print_solver_options,
     print_node_reference,
     ptqdm,
 )
@@ -464,7 +464,7 @@ if args.action == "min":
     view.standalone(output_filename=args.asp)
 
     print_node_reference(*get_node_sets(bo))
-    print_clingo_optimization(
+    print_solver_options(
         args.clingo_opt_mode,
         clingo_opt_strategy,
         args.max_clause,

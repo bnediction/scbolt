@@ -1,9 +1,8 @@
 # Solver Strategies
 
-**Status:** this document is a design draft. It describes the intended solver
-behavior before implementation and is not yet the source of truth for the
-current scBOLT code. Parameter names, defaults, and transition policies may be
-adjusted after experimental validation.
+**Status:** domain continuation is implemented experimentally. This document
+describes its current contract and rationale, but transition policies may still
+be adjusted after validation on larger case studies.
 
 ## Scope
 
@@ -209,54 +208,80 @@ nodes follow deterministic, seed-dependent priority orders so that both the
 acquisition portfolio and expansion waves explore domain compositions
 reproducibly.
 
-Each portfolio branch defines nested candidate domains:
+Within one acquisition wave, all candidates have the same size and contain the
+required nodes:
 
 ```text
-required nodes <= D1 <= D2 <= ... <= G
+required nodes <= Di <= G
 ```
 
-Nested domains make an `UNSAT` result informative within one branch: if `D1` is
-proved unsatisfiable, its smaller prefixes need not be reconsidered. Different
-branches use different node orders and can therefore test alternative
-compositions at similar sizes.
+Different candidates use different deterministic node orders and therefore
+test alternative compositions at that size. An `UNSAT` result applies only to
+the exact candidate that was solved. When every candidate in a wave is
+`UNSAT`, scBOLT increases the target size and generates another deterministic
+wave; this is a scheduling decision, not a proof that every domain of the
+smaller size is unsatisfiable.
 
 Before the first witness is found, domain size is adapted according to the
 solver outcome rather than following a fixed increasing schedule:
 
 | Outcome | Domain-continuation action |
 | --- | --- |
-| `SAT` | Stop competing portfolio workers, retain the successful branch, and begin witness-guided expansion. |
+| `SAT` | Make the first successful candidate the wave leader, continue the portfolio while its best objective improves, then retain the best candidate for witness-guided expansion. |
 | `UNSAT` | Increase the domain because the tested subdomain lacks a satisfiable structure. |
 | `UNKNOWN` | Reduce or change the domain because the current search encountered a computational bottleneck. |
 
-Within one branch, the largest domain proved `UNSAT` forms a logical lower
-bound on useful domain size. The smallest domain returning `UNKNOWN` forms a
-heuristic upper bound on tractable search size. A subsequent candidate can be
-chosen between these bounds. The `UNKNOWN` bound is computational rather than
-logical because solver runtime is not guaranteed to vary monotonically with
+The largest size at which a complete tested wave is `UNSAT` forms a scheduling
+lower bound. The smallest size returning `UNKNOWN` forms a heuristic upper
+bound on tractable search size. A subsequent wave is chosen between these
+bounds. Neither size is a logical statement about untested domain
+compositions, and solver runtime is not guaranteed to vary monotonically with
 domain size.
 
-Portfolio workers seek a first satisfiable witness and therefore use one
-Clingo job each. They do not run the complete optimization assigned to the
-stage. If several workers report `SAT` during the same coordination round,
-scBOLT selects a witness deterministically by objective value and then by
-portfolio index.
+The first acquisition wave starts halfway between the required-node domain and
+the complete domain. A wave containing only `UNSAT` candidates moves the next
+target halfway toward the complete domain. A wave containing `UNKNOWN`
+candidates moves the target halfway toward the remaining smaller interval.
+When no interior size remains, scBOLT changes deterministic candidate
+compositions at the same boundary until clause patience or the stage timeout
+decides the transition.
+
+Portfolio workers use one Clingo job each. Finding the first satisfiable
+witness does not terminate the acquisition wave. The first witness becomes the
+wave leader, and the remaining workers continue searching for a better
+objective until the shared wave patience expires or every worker finishes.
+
+Every acquisition and expansion wave owns one shared patience clock. The clock
+starts when all candidate instances are launched. The first valid witness in
+the new candidate domains becomes the leader and resets the clock. A later
+witness resets it only when its lexicographic objective
+`(important nodes, total nodes)` is strictly better than the current leader's
+objective. A worker improving its own solution without overtaking the leader
+does not reset the clock, and an objective equal to the leader does not reset
+it either. This prevents staggered but equivalent results from extending a
+wave without improving its retained solution.
+
+When the shared patience expires, all unresolved workers are interrupted.
+Candidates that already produced a witness remain `SAT`; interrupted
+candidates without a witness become `UNKNOWN`. scBOLT then selects the best
+successful candidate deterministically by objective value and candidate index.
+The patience clock is newly initialized for every wave.
 
 After a witness is selected:
 
-1. all remaining first-witness portfolio workers are terminated;
-2. the successful candidate domain becomes the current domain;
-3. scBOLT constructs a wave of larger candidate domains of the same size;
-4. every candidate contains the complete current domain but differs in the
-   additional nodes selected by its deterministic branch;
-5. the current witness is injected into every candidate as a soft heuristic;
-6. the candidates are evaluated in parallel, using one Clingo job each;
-7. scBOLT selects the best successful candidate deterministically by stage
+1. the best successful candidate domain becomes the current domain;
+2. scBOLT constructs a wave of larger candidate domains of the same size;
+3. every candidate contains the complete current domain but differs in the
+   additional nodes selected by its deterministic ordering;
+4. the current witness is injected into every candidate as a soft heuristic;
+5. the candidates are evaluated in parallel, using one Clingo job each and the
+   same leader-based wave patience as during acquisition;
+6. scBOLT selects the best successful candidate deterministically by stage
    objective and then by candidate index;
-8. the selected candidate and its best witness become the current domain and
+7. the selected candidate and its best witness become the current domain and
    witness for the next wave;
-9. expansion waves continue while another strict subdomain can be tested;
-10. when the next expansion would be the complete domain, the portfolio stops
+8. expansion waves continue while another strict subdomain can be tested;
+9. when the next expansion would be the complete domain, the portfolio stops
     and one final Clingo instance resumes optimization using
     `JOBS_CLINGO_<STAGE>`.
 
@@ -270,18 +295,38 @@ and diversified expansion avoids both reintroducing the original
 complete-domain bottleneck immediately and committing permanently to the node
 order that produced the first witness.
 
+Expansion sizes also use midpoints. After retaining a domain `D`, the next
+target lies halfway between `D` and `G`. If a complete expansion wave produces
+no successful candidate, scBOLT halves the expansion step and generates new
+candidate compositions while preserving `D` and its witness.
+
 The two job controls are not nested:
 
 ```make
-JOBS_DOMAIN_CONTINUATION_SEED = 8
-JOBS_CLINGO_SEED = 4
+JOBS = 8
+JOBS_CLINGO_SEED = 1
 ```
 
-This configuration means that every acquisition or expansion wave evaluates
-up to eight candidate domains simultaneously, each with one Clingo job. Once
+`JOBS` controls the number of candidate domains evaluated simultaneously in
+every acquisition or expansion wave, with one Clingo job per candidate. Once
 the complete domain is reached, the candidate portfolio stops and one final
-optimization instance uses four jobs. The maximum concurrent job count is
-therefore the maximum of the two values, not their product.
+optimization instance uses `JOBS_CLINGO_<STAGE>`. The maximum concurrent job
+count is therefore the maximum of the two values, not their product.
+
+Each candidate owns an independent BoNesis problem and Clingo control. The
+patience clock and leader objective belong to the coordinating wave, not to an
+individual candidate. Portable Python worker threads coordinate these controls
+on Linux and macOS; the Clingo solves themselves execute outside the Python
+GIL. Only the coordinator writes outputs and renders progress. An interactive
+terminal displays one reusable progress line per active candidate, whereas log
+files retain only completed wave summaries and solver outcomes.
+
+Expansion progress starts from the objective of the inherited witness for
+every candidate. Although each Clingo control must reconstruct a model on its
+larger domain, scBOLT does not display a regression below the solution already
+retained by the continuation algorithm. Candidate progress therefore reports
+the best inherited or locally improved objective, rather than restarting
+visually from zero.
 
 ### Special Cases
 
@@ -297,13 +342,14 @@ The combined domain and clause transition policy is:
   witness and domain, then reduce the expansion step or generate a new wave
   with different additional nodes. Individual `UNKNOWN` candidates do not
   block successful siblings.
-- **Minimal domain `UNKNOWN`:** try another deterministic branch or Clingo
-  configuration. If all minimal-domain alternatives remain unknown, the
-  clause-continuation patience eventually advances to the next clause bound.
-  At `MAX_CLAUSE`, only the stage timeout or user interruption can end the
+- **Minimal domain `UNKNOWN`:** try another deterministic candidate
+  composition when alternatives exist. If the minimal domain is fixed by the
+  required nodes, repeat attempts remain bounded by clause patience. At
+  `MAX_CLAUSE`, only the stage timeout or user interruption can end the
   unresolved search.
-- **Witness found:** stop the competing first-witness workers and begin
-  parallel witness-guided expansion waves toward the complete domain.
+- **Witness found:** make the first witness the wave leader, continue until the
+  shared wave patience expires without a strict portfolio improvement, then
+  use the selected leader for expansion toward the complete domain.
 - **Complete domain `UNSAT` at `MAX_CLAUSE`:** no solution exists for the
   complete problem represented by the current constraint set and regulatory
   domain.
@@ -319,6 +365,9 @@ stages. It does not apply to the `CONSTS` stage. It is intentionally unavailable
 for `LOCK`, which receives the seed witness, forces its selected nodes to remain
 mandatory, and starts directly on the complete retained domain. If no seed
 witness exists, the lock stage cannot provide a meaningful fallback.
+
+It is enabled by default for `SEED` and disabled by default for `SOFT` and
+`RELAXED` while the strategy remains under experimental validation.
 
 Domain and clause continuation are independent. With clause continuation
 disabled, domain continuation operates directly at `MAX_CLAUSE`. With domain
@@ -336,16 +385,26 @@ for q in 1..MAX_CLAUSE:
     while no witness exists:
         evaluate candidate domains in parallel
 
-        SAT:
-            retain one deterministic witness
-            stop competing portfolio workers
-            retain the successful domain
+        first SAT:
+            set the wave leader
+            reset shared wave patience
 
-        UNSAT on a subdomain:
-            enlarge that branch
+        strictly better (important nodes, total nodes):
+            replace the wave leader
+            reset shared wave patience
 
-        UNKNOWN on a subdomain:
-            reduce or diversify that branch
+        equal or locally improved but globally inferior objective:
+            do not reset shared wave patience
+
+        shared wave patience expires:
+            interrupt unresolved workers
+            retain the best successful domain and witness
+
+        UNSAT across the candidate wave:
+            increase the target size and generate another wave
+
+        UNKNOWN in the candidate wave:
+            reduce the target size or diversify candidate composition
 
         UNSAT on the complete domain:
             continue with q+1
@@ -355,8 +414,12 @@ for q in 1..MAX_CLAUSE:
         inject the current witness into every candidate
         evaluate candidates in parallel with one Clingo job each
 
+        first SAT or strict portfolio improvement:
+            update the wave leader
+            reset shared wave patience
+
         one or more successful candidates:
-            select the best candidate deterministically
+            after wave completion, select the best candidate deterministically
             retain its domain and best witness
 
         no successful candidate:
@@ -380,8 +443,8 @@ to the next module.
 ## Make Parameter Reference
 
 `<STAGE>` denotes `SOFT`, `RELAXED`, `SEED`, or `LOCK`, except where a smaller
-set is stated explicitly. The explicit parameter names below form the intended
-interface of this design draft.
+set is stated explicitly. The explicit parameter names below form the current
+solver interface.
 
 ### Problem Definition
 
@@ -427,32 +490,29 @@ zero patience disables early advancement based on missing improvements.
 | Parameter | Meaning |
 | --- | --- |
 | `DOMAIN_CONTINUATION_<STAGE>` | Enable adaptive first-witness search and progressive witness-guided domain expansion. |
-| `PATIENCE_DOMAIN_CONTINUATION_<STAGE>` | Maximum search time assigned to one candidate-domain attempt before its result becomes `UNKNOWN`. |
-| `JOBS_DOMAIN_CONTINUATION_<STAGE>` | Maximum number of candidate domains evaluated simultaneously in any acquisition or expansion wave. Every candidate uses one Clingo job. |
+| `PATIENCE_DOMAIN_CONTINUATION_<STAGE>` | Maximum time without a strict improvement of the best portfolio objective within one acquisition or expansion wave. |
 
 Domain continuation supports only `SOFT`, `RELAXED`, and `SEED`. No
-`DOMAIN_CONTINUATION_LOCK`, `PATIENCE_DOMAIN_CONTINUATION_LOCK`, or
-`JOBS_DOMAIN_CONTINUATION_LOCK` parameter is defined.
+`DOMAIN_CONTINUATION_LOCK` or `PATIENCE_DOMAIN_CONTINUATION_LOCK` parameter is
+defined. The global `JOBS` parameter controls the number of candidate domains
+evaluated simultaneously, and every candidate uses one Clingo job.
 
 ### Clingo Optimization
 
 | Parameter | Meaning |
 | --- | --- |
 | `CLINGO_CONFIG_<STAGE>` | Named Clingo configuration or custom configuration file used by the stage. |
-| `CLINGO_OPT_MODE_<STAGE>` | Optimization handling mode: `opt` for anytime optimization, `optN` for optimum enumeration and certification, or `ignore` for satisfiability only. |
+| `CLINGO_OPT_MODE_<STAGE>` | Optimization handling mode: `opt` for anytime optimization, `optN` for optimum enumeration and certification, or `ignore` to disable optimization objectives and accept a satisfiable model. |
 | `CLINGO_OPT_STRATEGY_<STAGE>` | Clingo optimization algorithm, such as branch-and-bound (`bb,*`) or unsatisfiable-core optimization (`usc,*`). |
 | `JOBS_CLINGO_<STAGE>` | Number of Clingo jobs used by the final optimization instance on the complete domain. |
 
 `JOBS_CLINGO_CONSTS` is the corresponding control for
 `max-consts-soft`. Domain-continuation workers always use one Clingo job and do
-not multiply `JOBS_CLINGO_<STAGE>` by
-`JOBS_DOMAIN_CONTINUATION_<STAGE>`.
+not multiply `JOBS_CLINGO_<STAGE>` by `JOBS`.
 
 ### Illustrative Seed Configuration
 
-The following configuration illustrates the separation between the two
-continuation strategies and their parallelism controls. The values are examples
-for design discussion, not finalized defaults.
+The following configuration shows the default seed strategy.
 
 ```make
 DOMAIN_CONTINUATION_SEED = true
@@ -462,8 +522,8 @@ PATIENCE_DOMAIN_CONTINUATION_SEED = 5m
 PATIENCE_CLAUSE_CONTINUATION_SEED = 30m
 TIMEOUT_SEED = 24h
 
-JOBS_DOMAIN_CONTINUATION_SEED = 8
-JOBS_CLINGO_SEED = 4
+JOBS = 8
+JOBS_CLINGO_SEED = 1
 
 CLINGO_CONFIG_SEED =
 CLINGO_OPT_MODE_SEED = opt
@@ -471,23 +531,26 @@ CLINGO_OPT_STRATEGY_SEED = bb,lin
 ```
 
 At a clause bound without a witness, this configuration evaluates up to eight
-candidate domains in parallel with one Clingo job each. One candidate becomes
-`UNKNOWN` after five minutes without a witness or an `UNSAT` proof. Once a
-witness exists, each expansion wave evaluates up to eight larger candidate
-domains, again with one Clingo job each. The selected candidate becomes the
-common base of the following wave. On the complete domain, one final instance
-uses four Clingo jobs. Thirty minutes without an objective improvement advances
-an intermediate clause bound, while the 24-hour timeout is shared by the
-complete seed stage.
+candidate domains in parallel with one Clingo job each. The first witness
+becomes the wave leader, and each strict improvement of the best portfolio
+objective restarts the shared five-minute patience. Once that patience expires,
+unresolved candidates become `UNKNOWN` and the best successful candidate
+becomes the common base of the following expansion wave. Expansion waves apply
+the same rule to larger candidate domains. On the complete domain, one final
+instance uses one Clingo job. Thirty minutes without an objective improvement
+advances an intermediate clause bound, while the 24-hour timeout is shared by
+the complete seed stage.
 
 ## Time Budgets and Partial Results
 
 Three time controls have distinct meanings:
 
-1. `PATIENCE_DOMAIN_CONTINUATION_<STAGE>` bounds one candidate-domain attempt,
-   either during first-witness acquisition or witness-guided expansion.
-   Expiration produces `UNKNOWN` for that attempt. Any witness retained from a
-   previous successful domain remains available as a partial solution.
+1. `PATIENCE_DOMAIN_CONTINUATION_<STAGE>` bounds stagnation of the best
+   portfolio objective within one acquisition or expansion wave. Its clock is
+   reset by the first wave witness and every strict leader improvement, but not
+   by equal or globally inferior results. Expiration interrupts all unresolved
+   workers; workers without a witness become `UNKNOWN`, while successful
+   candidates remain eligible for deterministic selection.
 2. `PATIENCE_CLAUSE_CONTINUATION_<STAGE>` bounds the time without objective
    improvement across all attempts at one intermediate clause bound. Every
    improvement resets this clause-level patience.

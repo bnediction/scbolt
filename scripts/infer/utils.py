@@ -4,6 +4,8 @@ import argparse
 import inspect
 import os
 import sys
+from collections import OrderedDict
+from numbers import Number
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
 
@@ -37,7 +39,7 @@ class ptqdm(tqdm):
         kwargs.setdefault("dynamic_ncols", True)
 
         self._tqdm_file = None
-        if TQDM_TO_TTY:
+        if TQDM_TO_TTY and "file" not in kwargs:
             try:
                 self._tqdm_file = open("/dev/tty", "w")
                 kwargs.setdefault("file", self._tqdm_file)
@@ -65,11 +67,22 @@ class ptqdm(tqdm):
             and "score" in ordered_dict
         ):
             ordered_dict = score_formatter(ordered_dict["score"])
-        return super().set_postfix(
-            ordered_dict=ordered_dict,
-            refresh=refresh,
-            **kwargs,
+
+        postfix = OrderedDict([] if ordered_dict is None else ordered_dict)
+        for key in sorted(kwargs):
+            postfix[key] = kwargs[key]
+        for key, value in postfix.items():
+            if isinstance(value, Number):
+                postfix[key] = self.format_num(value)
+            elif not isinstance(value, str):
+                postfix[key] = str(value)
+
+        # tqdm strips string values, which removes deliberate numeric padding.
+        self.postfix = ", ".join(
+            f"{key}={value}" for key, value in postfix.items()
         )
+        if refresh:
+            self.refresh()
 
 
 def add_bonesis_arguments(parser: argparse.ArgumentParser) -> None:
@@ -407,7 +420,7 @@ def print_node_reference(nodes_in_data, nodes_in_domain, domain_edges, **kwargs)
     )
 
 
-def print_clingo_optimization(
+def print_solver_options(
     mode,
     strategy,
     max_clause,
@@ -416,27 +429,34 @@ def print_clingo_optimization(
     jobs=None,
     **kwargs,
 ):
-    """Print the effective Clingo optimization settings."""
+    """Print the effective solver and Boolean encoding settings."""
 
-    options = []
-    strategy = "unused" if mode == "ignore" or mode.startswith("enum,") else strategy
+    solver_options = ["engine=Clingo"]
+    strategy = (
+        "unused"
+        if mode == "ignore" or mode.startswith("enum,")
+        else strategy
+    )
     if configuration is not None:
-        options.append(f"clingo config={configuration}")
-    options.extend(
+        solver_options.append(f"config={configuration}")
+    solver_options.extend(
         [
-            f"clingo mode={mode}",
-            f"clingo strategy={strategy}",
+            f"mode={mode}",
+            f"strategy={strategy}",
         ]
     )
     if jobs is not None:
-        options.append(f"clingo jobs={jobs}")
-    options.extend(
-        [
-            f"max clauses={max_clause}",
-            f"canonical={canonical}",
-        ]
+        solver_options.append(f"threads={jobs}")
+
+    console.print_options(
+        f"solver: {', '.join(solver_options)}",
+        **kwargs,
     )
-    console.print_info(f"optimization options: {', '.join(options)}", **kwargs)
+    console.print_options(
+        "encoding: "
+        f"max clauses={max_clause}, canonical={str(canonical).lower()}",
+        **kwargs,
+    )
 
 
 def get_clingo_parallel_mode(value: str) -> tuple[int | None, str | None]:

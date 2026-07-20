@@ -774,6 +774,7 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 	$(call print_rule,max-nodes-soft)
 	$(call require_bonesis_filter_parameters,max-nodes-soft)
 	$(call require_bool,CLAUSE_CONTINUATION_SOFT,max-nodes-soft)
+	$(call require_bool,DOMAIN_CONTINUATION_SOFT,max-nodes-soft)
 	mkdir -p $(@D)
 	set +e; \
 	$(call start_inference_timer) \
@@ -786,7 +787,11 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 		--witness $(@D)/witness.lp \
 		$(call clause_continuation,CLAUSE_CONTINUATION_SOFT) \
 		--clause-continuation-parameter CLAUSE_CONTINUATION_SOFT \
-		$(if $(strip $(PATIENCE_SOFT)),--clause-continuation-patience "$(PATIENCE_SOFT)") \
+		$(if $(strip $(PATIENCE_CLAUSE_CONTINUATION_SOFT)),--clause-continuation-patience "$(PATIENCE_CLAUSE_CONTINUATION_SOFT)") \
+		$(call domain_continuation,DOMAIN_CONTINUATION_SOFT) \
+		$(if $(strip $(PATIENCE_DOMAIN_CONTINUATION_SOFT)),--domain-continuation-patience "$(PATIENCE_DOMAIN_CONTINUATION_SOFT)") \
+		--domain-continuation-jobs $(JOBS) \
+		--domain-continuation-seed $(SEED) \
 		--domain-nodes $(max_nodes_soft_domain) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
@@ -795,7 +800,7 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 		$(if $(strip $(CLINGO_CONFIG_SOFT)),--clingo-configuration $(CLINGO_CONFIG_SOFT)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SOFT) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SOFT) \
-		--jobs $(JOBS_SOFT) $(if $(strip $(TIMEOUT_SOFT)),--timeout "$(TIMEOUT_SOFT)") \
+		--jobs $(JOBS_CLINGO_SOFT) $(if $(strip $(TIMEOUT_SOFT)),--timeout "$(TIMEOUT_SOFT)") \
 		--timeout-status-file "$(@D)/.inference-timeout"; \
 	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 	trap - INT TERM; \
@@ -823,7 +828,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution) $(if $(geneinfo_
 		$(if $(strip $(CLINGO_CONFIG_CONSTS)),--clingo-configuration $(CLINGO_CONFIG_CONSTS)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_CONSTS) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_CONSTS) \
-		--jobs $(JOBS_CONSTS) $(if $(strip $(TIMEOUT_CONSTS)),--timeout "$(TIMEOUT_CONSTS)") \
+		--jobs $(JOBS_CLINGO_CONSTS) $(if $(strip $(TIMEOUT_CONSTS)),--timeout "$(TIMEOUT_CONSTS)") \
 		--timeout-status-file "$(@D)/.inference-timeout"; \
 	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 	trap - INT TERM; \
@@ -834,6 +839,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_depend
 	$(call print_rule,max-nodes-relaxed)
 	$(call require_bonesis_filter_parameters,max-nodes-relaxed)
 	$(call require_bool,CLAUSE_CONTINUATION_RELAXED,max-nodes-relaxed)
+	$(call require_bool,DOMAIN_CONTINUATION_RELAXED,max-nodes-relaxed)
 	mkdir -p $(@D)
 	set +e; \
 	$(call start_inference_timer) \
@@ -845,7 +851,11 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_depend
 		--solution $@ --witness $(@D)/witness.lp \
 		$(call clause_continuation,CLAUSE_CONTINUATION_RELAXED) \
 		--clause-continuation-parameter CLAUSE_CONTINUATION_RELAXED \
-		$(if $(strip $(PATIENCE_RELAXED)),--clause-continuation-patience "$(PATIENCE_RELAXED)") \
+		$(if $(strip $(PATIENCE_CLAUSE_CONTINUATION_RELAXED)),--clause-continuation-patience "$(PATIENCE_CLAUSE_CONTINUATION_RELAXED)") \
+		$(call domain_continuation,DOMAIN_CONTINUATION_RELAXED) \
+		$(if $(strip $(PATIENCE_DOMAIN_CONTINUATION_RELAXED)),--domain-continuation-patience "$(PATIENCE_DOMAIN_CONTINUATION_RELAXED)") \
+		--domain-continuation-jobs $(JOBS) \
+		--domain-continuation-seed $(SEED) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode relaxed --max-clause $(MAX_CLAUSE) \
@@ -853,7 +863,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_depend
 		$(if $(strip $(CLINGO_CONFIG_RELAXED)),--clingo-configuration $(CLINGO_CONFIG_RELAXED)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_RELAXED) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_RELAXED) \
-		--jobs $(JOBS_RELAXED) $(if $(strip $(TIMEOUT_RELAXED)),--timeout "$(TIMEOUT_RELAXED)") \
+		--jobs $(JOBS_CLINGO_RELAXED) $(if $(strip $(TIMEOUT_RELAXED)),--timeout "$(TIMEOUT_RELAXED)") \
 		--timeout-status-file "$(@D)/.inference-timeout"; \
 	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 	trap - INT TERM; \
@@ -864,6 +874,7 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_depend
 	$(call print_rule,max-nodes-seed)
 	$(call require_bonesis_filter_parameters,max-nodes-seed)
 	$(call require_bool,CLAUSE_CONTINUATION_SEED,max-nodes-seed)
+	$(call require_bool,DOMAIN_CONTINUATION_SEED,max-nodes-seed)
 	$(call check_parameter,$(TIMEOUT_SEED),TIMEOUT_SEED (needed by target 'max-nodes-seed'))
 	mkdir -p $(@D)
 	set +e; \
@@ -876,7 +887,11 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_depend
 		--solution $(@D)/comps.txt --witness $(@D)/witness.lp \
 		$(call clause_continuation,CLAUSE_CONTINUATION_SEED) \
 		--clause-continuation-parameter CLAUSE_CONTINUATION_SEED \
-		$(if $(strip $(PATIENCE_SEED)),--clause-continuation-patience "$(PATIENCE_SEED)") \
+		$(if $(strip $(PATIENCE_CLAUSE_CONTINUATION_SEED)),--clause-continuation-patience "$(PATIENCE_CLAUSE_CONTINUATION_SEED)") \
+		$(call domain_continuation,DOMAIN_CONTINUATION_SEED) \
+		$(if $(strip $(PATIENCE_DOMAIN_CONTINUATION_SEED)),--domain-continuation-patience "$(PATIENCE_DOMAIN_CONTINUATION_SEED)") \
+		--domain-continuation-jobs $(JOBS) \
+		--domain-continuation-seed $(SEED) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
@@ -884,7 +899,7 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_depend
 		$(if $(strip $(CLINGO_CONFIG_SEED)),--clingo-configuration $(CLINGO_CONFIG_SEED)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SEED) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SEED) \
-		--jobs $(JOBS_SEED) $(if $(strip $(TIMEOUT_SEED)),--timeout "$(TIMEOUT_SEED)") \
+		--jobs $(JOBS_CLINGO_SEED) $(if $(strip $(TIMEOUT_SEED)),--timeout "$(TIMEOUT_SEED)") \
 		--timeout-status-file "$(@D)/.inference-timeout"; \
 	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 	trap - INT TERM; \
@@ -917,7 +932,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if 
 			--initial-witness $(lastword $^) \
 			$(call clause_continuation,CLAUSE_CONTINUATION_LOCK) \
 			--clause-continuation-parameter CLAUSE_CONTINUATION_LOCK \
-			$(if $(strip $(PATIENCE_LOCK)),--clause-continuation-patience "$(PATIENCE_LOCK)") \
+			$(if $(strip $(PATIENCE_CLAUSE_CONTINUATION_LOCK)),--clause-continuation-patience "$(PATIENCE_CLAUSE_CONTINUATION_LOCK)") \
 			--domain $(prior_knowledge) --organism $(ORGANISM) \
 			$(prior_knowledge_args) \
 			--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
@@ -925,7 +940,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if 
 			$(if $(strip $(CLINGO_CONFIG_LOCK)),--clingo-configuration $(CLINGO_CONFIG_LOCK)) \
 			--clingo-opt-mode $(CLINGO_OPT_MODE_LOCK) \
 			--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_LOCK) \
-			--jobs $(JOBS_LOCK) $(if $(strip $(TIMEOUT_LOCK)),--timeout "$(TIMEOUT_LOCK)") \
+			--jobs $(JOBS_CLINGO_LOCK) $(if $(strip $(TIMEOUT_LOCK)),--timeout "$(TIMEOUT_LOCK)") \
 			--timeout-status-file "$(@D)/.inference-timeout"; \
 		$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
 		trap - INT TERM; \
