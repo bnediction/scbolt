@@ -133,7 +133,7 @@ show_config_inference_modules = \
 show_config_has_inference = $(filter $(show_config_inference_modules),$(show_config_param_modules))
 show_config_inference_params = \
 	PRIOR_KNOWLEDGE OMNIPATH_VERSION HCOP_VERSION \
-	DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS MAX_CLAUSE
+	DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS MAX_CLAUSES
 show_config_has_analysis_hvg = $(filter clustering,$(show_config_modules))
 show_config_binarization_hvg_modules = bin-cells bin-dea bin-consensus spec
 show_config_has_binarization_hvg = \
@@ -308,7 +308,7 @@ $(if $(filter collectri dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'HCO
 $(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'DoRothEA API' "$(call show_config_display_value,$(DOROTHEA_API))")
 $(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Compatibility' "$(call show_config_display_value,$(DOROTHEA_COMPATIBILITY))")
 $(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Levels' "$(call show_config_display_value,$(DOROTHEA_LEVELS))")
-@printf '%-16s : %s\n' 'Max clause' "$(call show_config_display_value,$(MAX_CLAUSE))")
+@printf '%-16s : %s\n' 'Max clauses' "$(call show_config_display_value,$(MAX_CLAUSES))")
 endef
 
 define show_config_print_hvg

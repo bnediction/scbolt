@@ -303,7 +303,11 @@ complete_scbolt "${project}" 2 scbolt bn-submin "" \
     > "${tmpdir}/module-completion.out"
 grep -qx -- '--trust-target=' "${tmpdir}/module-completion.out"
 grep -qx -- '--trust-existing' "${tmpdir}/module-completion.out"
+grep -qx -- '--max-clauses=' "${tmpdir}/module-completion.out"
 ! grep -qx -- '--trust-existing=' "${tmpdir}/module-completion.out"
+! grep -qx -- '--max-clause=' "${tmpdir}/module-completion.out"
+! grep -qx -- '--canonical-filter=' "${tmpdir}/module-completion.out"
+! grep -qx -- '--canonical-infer=' "${tmpdir}/module-completion.out"
 
 (
     cd "${project}"
@@ -758,11 +762,11 @@ expect_make_args -f "${makefile}" bn-submin PARAMS=override.mk
 run_scbolt "${project}" PARAMS=override.mk bn-submin
 expect_make_args -f "${makefile}" bn-submin PARAMS=override.mk
 
-run_scbolt "${project}" bn-submin --max-clause=12 --clingo-opt-strategy-seed=bb,inc
+run_scbolt "${project}" bn-submin --max-clauses=12 --clingo-opt-strategy-seed=bb,inc
 expect_make_args \
     -f "${makefile}" \
     bn-submin \
-    MAX_CLAUSE=12 \
+    MAX_CLAUSES=12 \
     CLINGO_OPT_STRATEGY_SEED=bb,inc \
     "PARAMS=${project}/spaced.mk"
 

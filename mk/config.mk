@@ -654,14 +654,9 @@ $(call require_dorothea_compatibility,$(1)); \
 $(call require_dorothea_levels)
 endef
 
-define require_bonesis_filter_parameters
+define require_bonesis_parameters
 $(call require_prior_parameters,$(1)); \
-$(call require_bool,CANONICAL_FILTER,$(1))
-endef
-
-define require_bonesis_infer_parameters
-$(call require_prior_parameters,$(1)); \
-$(call require_bool,CANONICAL_INFER,$(1))
+$(call require_positive_integer,MAX_CLAUSES)
 endef
 
 ifneq ($(__dry_run_output),)
@@ -697,8 +692,7 @@ require_bin_mstates_parameters =
 require_bin_dea_parameters =
 require_binarization_parameters =
 require_prior_parameters =
-require_bonesis_filter_parameters =
-require_bonesis_infer_parameters =
+require_bonesis_parameters =
 endif
 
 check_success = check_success "$(1)"

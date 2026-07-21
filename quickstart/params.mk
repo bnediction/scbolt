@@ -42,5 +42,5 @@ PRUNE_EPG = false
 ### BN inference ###
 
 BIN_HVG_TOP = 40
-MAX_CLAUSE = 8
+MAX_CLAUSES = 8
 INFER_LIMIT = 100

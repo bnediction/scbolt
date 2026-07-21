@@ -234,14 +234,15 @@ def add_bonesis_arguments(parser: argparse.ArgumentParser) -> None:
         action=cli.Bonesis_mode,
     )
     parser.add_argument(
-        "--max-clause",
-        dest="max_clause",
+        "--max-clauses",
+        dest="max_clauses",
         type=int,
         required=False,
         default=8,
         metavar="INT",
         help=(
-            "maximum number of literals/atoms in each propositional formula "
+            "maximum number of conjunctive terms joined by OR in each "
+            "Boolean update function "
             "(default: 8)"
         ),
     )
@@ -251,7 +252,9 @@ def add_bonesis_arguments(parser: argparse.ArgumentParser) -> None:
         action=cli.Store_boolean,
         required=False,
         default=None,
-        help="use canonical logical function representation",
+        help=(
+            "normalize DNF term ordering and reject directly subsumed terms"
+        ),
     )
     parser.add_argument(
         "--minimize-self-loops",
@@ -325,7 +328,7 @@ def initialize_bonesis(
 
     pkn_options = {
         "canonic": canonical,
-        "maxclause": args.max_clause,
+        "maxclause": args.max_clauses,
     }
     if allow_skipping_nodes:
         pkn_options["allow_skipping_nodes"] = True

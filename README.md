@@ -232,7 +232,7 @@ scbolt bn-submin
 scbolt bn-submin --references=ctrl
 scbolt check velocity
 scbolt bn-submin --logging=false
-scbolt bn-submin --max-clause=12
+scbolt bn-submin --max-clauses=12
 ```
 
 Internally, scBOLT uses GNU Make as its workflow engine. Advanced users can

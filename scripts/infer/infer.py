@@ -10,6 +10,11 @@ import bonesis
 import bonesistools as bt
 import pandas as pd
 from mpbn import MPBooleanNetwork
+from _witness import (
+    apply_structural_witness_heuristics,
+    canonicalize_structural_witness,
+    read_structural_witness,
+)
 from utils import (
     add_bonesis_arguments,
     apply_bonesis_mode,
@@ -112,10 +117,7 @@ def get_subset_minimal_clingo_settings(jobs):
     if parallel_jobs <= 1:
         return {}
 
-    return {
-        "parallel": None,
-        "clingo_options": [f"--parallel-mode={min(parallel_jobs, 14)}"],
-    }
+    return {"parallel": min(parallel_jobs, 14)}
 
 
 def write_noi(bn: MPBooleanNetwork, file):
@@ -350,6 +352,18 @@ parser.add_argument(
 )
 add_bonesis_arguments(parser)
 parser.add_argument(
+    "--initial-witness",
+    dest="initial_witness",
+    type=lambda value: Path(value).resolve(),
+    required=False,
+    default=None,
+    metavar="FILE",
+    help=(
+        "structural witness used as a soft warm start for subset-minimal "
+        "enumeration"
+    ),
+)
+parser.add_argument(
     "--config-formats",
     dest="config_formats",
     nargs="+",
@@ -402,6 +416,24 @@ bo, canonical, _ = initialize_bonesis(
     default_canonical=True,
 )
 apply_bonesis_mode(bo, args.bonesis_mode)
+
+if args.initial_witness is not None:
+    if args.action != "submin":
+        parser.error("--initial-witness is only supported with action 'submin'")
+
+    witness = read_structural_witness(args.initial_witness)
+    if witness:
+        witness = canonicalize_structural_witness(witness)
+        apply_structural_witness_heuristics(bo, witness)
+        console.print_info(
+            "applying canonical structural warm start "
+            f"(file={console.format_path(args.initial_witness)})"
+        )
+    else:
+        console.print_warning(
+            "structural warm-start witness is unavailable "
+            f"(file={console.format_path(args.initial_witness)})"
+        )
 
 normalized_to_original_gene_names = {
     gene.replace("-", "_"): gene for gene in bo.domain.nodes if "-" in gene
@@ -463,7 +495,7 @@ if args.action == "min":
     print_solver_options(
         args.clingo_opt_mode,
         clingo_opt_strategy,
-        args.max_clause,
+        args.max_clauses,
         canonical,
         jobs=args.jobs,
     )
@@ -507,7 +539,9 @@ elif args.action == "submin":
             f"(kind=subset-minimal, limit={args.limit})"
         )
     else:
-        console.print_task("enumerating Boolean network solutions (kind=subset-minimal)")
+        console.print_task(
+            "enumerating Boolean network solutions (kind=subset-minimal)"
+        )
 
     print_node_reference(*get_node_sets(bo))
     console.print_warning("this may take some time.")

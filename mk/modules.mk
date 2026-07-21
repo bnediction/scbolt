@@ -133,6 +133,7 @@ max_nodes_relaxed =             $(infer_dir)/genes/relaxed/comps.txt
 max_nodes_seed =                $(infer_dir)/genes/seed/comps.txt \
                                 $(infer_dir)/genes/seed/witness.lp
 max_nodes_lock =                $(infer_dir)/genes/lock/comps.txt
+max_nodes_lock_witness =        $(infer_dir)/genes/lock/witness.lp
 bn_min =                        $(infer_dir)/bn/min/model.bnet
 
 bn_submin_dir = $(infer_dir)/bn/submin
@@ -376,11 +377,12 @@ clause_bound_patience_params = \
 clause_continuation = $(if $(filter true,$($(1))),--clause-continuation)
 domain_continuation_params = \
 	DOMAIN_CONTINUATION_SOFT DOMAIN_CONTINUATION_RELAXED \
-	DOMAIN_CONTINUATION_SEED
+	DOMAIN_CONTINUATION_SEED DOMAIN_CONTINUATION_LOCK
 domain_wave_patience_params = \
 	PATIENCE_DOMAIN_WAVE_SOFT \
 	PATIENCE_DOMAIN_WAVE_RELAXED \
-	PATIENCE_DOMAIN_WAVE_SEED
+	PATIENCE_DOMAIN_WAVE_SEED \
+	PATIENCE_DOMAIN_WAVE_LOCK
 domain_continuation = $(if $(filter true,$($(1))),--domain-continuation)
 clingo_jobs_params = \
 	JOBS_CLINGO_SOFT JOBS_CLINGO_CONSTS JOBS_CLINGO_RELAXED \
@@ -464,7 +466,7 @@ RESET_TARGET_max-nodes-soft = $(max_nodes_soft)
 RESET_TARGET_max-consts-soft = $(max_consts_soft)
 RESET_TARGET_max-nodes-relaxed = $(max_nodes_relaxed)
 RESET_TARGET_max-nodes-seed = $(max_nodes_seed)
-RESET_TARGET_max-nodes-lock = $(max_nodes_lock)
+RESET_TARGET_max-nodes-lock = $(max_nodes_lock) $(max_nodes_lock_witness)
 RESET_TARGET_bn-min = $(bn_min)
 RESET_TARGET_bn-submin = $(bn_submin_metadata)
 RESET_TARGET_bn-diverse = $(bn_diverse_metadata)
@@ -597,43 +599,45 @@ target_params_binarization = \
 target_params_spec = \
 	SPEC_FILE $(prior_knowledge_params)
 target_params_max-nodes-soft = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSES \
 	CLAUSE_CONTINUATION_SOFT PATIENCE_CLAUSE_BOUND_SOFT \
 	DOMAIN_CONTINUATION_SOFT PATIENCE_DOMAIN_WAVE_SOFT \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),MIN_DOMAIN_YIELD JOBS) \
 	CLINGO_CONFIG_SOFT CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT \
 	JOBS_CLINGO_SOFT TIMEOUT_SOFT
 target_params_max-consts-soft = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER MIN_SELF_LOOP_CONSTS \
+	$(prior_knowledge_params) MAX_CLAUSES MIN_SELF_LOOP_CONSTS \
 	CLINGO_CONFIG_CONSTS CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS \
 	JOBS_CLINGO_CONSTS TIMEOUT_CONSTS
 target_params_max-nodes-relaxed = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSES \
 	CLAUSE_CONTINUATION_RELAXED PATIENCE_CLAUSE_BOUND_RELAXED \
 	DOMAIN_CONTINUATION_RELAXED PATIENCE_DOMAIN_WAVE_RELAXED \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),MIN_DOMAIN_YIELD JOBS) \
 	CLINGO_CONFIG_RELAXED CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED \
 	JOBS_CLINGO_RELAXED TIMEOUT_RELAXED
 target_params_max-nodes-seed = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSES \
 	CLAUSE_CONTINUATION_SEED PATIENCE_CLAUSE_BOUND_SEED \
 	DOMAIN_CONTINUATION_SEED PATIENCE_DOMAIN_WAVE_SEED \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),MIN_DOMAIN_YIELD JOBS) \
 	CLINGO_CONFIG_SEED CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED \
 	JOBS_CLINGO_SEED TIMEOUT_SEED
 target_params_max-nodes-lock = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSES \
 	CLAUSE_CONTINUATION_LOCK PATIENCE_CLAUSE_BOUND_LOCK \
+	DOMAIN_CONTINUATION_LOCK PATIENCE_DOMAIN_WAVE_LOCK \
+	$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),MIN_DOMAIN_YIELD JOBS) \
 	CLINGO_CONFIG_LOCK CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK \
 	JOBS_CLINGO_LOCK TIMEOUT_LOCK
 target_params_bn-min = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_INFER MIN_SELF_LOOP_INFER \
+	$(prior_knowledge_params) MAX_CLAUSES MIN_SELF_LOOP_INFER \
 	CLINGO_OPT_MODE_MIN GRAPH_FORMATS
 target_params_bn-submin = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_INFER \
+	$(prior_knowledge_params) MAX_CLAUSES \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 target_params_bn-diverse = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_INFER \
+	$(prior_knowledge_params) MAX_CLAUSES \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 
 sensitive_params_load-fastq = $(foreach condition,$(conditions),$(call sra_var,$(condition)))
@@ -692,43 +696,45 @@ sensitive_params_binarization =
 sensitive_params_spec = \
 	SPEC_FILE $(prior_knowledge_params)
 sensitive_params_max-nodes-soft = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSES \
 	CLAUSE_CONTINUATION_SOFT PATIENCE_CLAUSE_BOUND_SOFT \
 	DOMAIN_CONTINUATION_SOFT PATIENCE_DOMAIN_WAVE_SOFT \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),MIN_DOMAIN_YIELD JOBS) \
 	CLINGO_CONFIG_SOFT CLINGO_OPT_MODE_SOFT CLINGO_OPT_STRATEGY_SOFT \
 	JOBS_CLINGO_SOFT TIMEOUT_SOFT SEED
 sensitive_params_max-consts-soft = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER MIN_SELF_LOOP_CONSTS \
+	$(prior_knowledge_params) MAX_CLAUSES MIN_SELF_LOOP_CONSTS \
 	CLINGO_CONFIG_CONSTS CLINGO_OPT_MODE_CONSTS CLINGO_OPT_STRATEGY_CONSTS \
 	JOBS_CLINGO_CONSTS TIMEOUT_CONSTS SEED
 sensitive_params_max-nodes-relaxed = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSES \
 	CLAUSE_CONTINUATION_RELAXED PATIENCE_CLAUSE_BOUND_RELAXED \
 	DOMAIN_CONTINUATION_RELAXED PATIENCE_DOMAIN_WAVE_RELAXED \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),MIN_DOMAIN_YIELD JOBS) \
 	CLINGO_CONFIG_RELAXED CLINGO_OPT_MODE_RELAXED CLINGO_OPT_STRATEGY_RELAXED \
 	JOBS_CLINGO_RELAXED TIMEOUT_RELAXED SEED
 sensitive_params_max-nodes-seed = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSES \
 	CLAUSE_CONTINUATION_SEED PATIENCE_CLAUSE_BOUND_SEED \
 	DOMAIN_CONTINUATION_SEED PATIENCE_DOMAIN_WAVE_SEED \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),MIN_DOMAIN_YIELD JOBS) \
 	CLINGO_CONFIG_SEED CLINGO_OPT_MODE_SEED CLINGO_OPT_STRATEGY_SEED \
 	JOBS_CLINGO_SEED TIMEOUT_SEED SEED
 sensitive_params_max-nodes-lock = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_FILTER \
+	$(prior_knowledge_params) MAX_CLAUSES \
 	CLAUSE_CONTINUATION_LOCK PATIENCE_CLAUSE_BOUND_LOCK \
+	DOMAIN_CONTINUATION_LOCK PATIENCE_DOMAIN_WAVE_LOCK \
+	$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),MIN_DOMAIN_YIELD JOBS) \
 	CLINGO_CONFIG_LOCK CLINGO_OPT_MODE_LOCK CLINGO_OPT_STRATEGY_LOCK \
 	JOBS_CLINGO_LOCK TIMEOUT_LOCK SEED
 sensitive_params_bn-min = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_INFER MIN_SELF_LOOP_INFER \
+	$(prior_knowledge_params) MAX_CLAUSES MIN_SELF_LOOP_INFER \
 	CLINGO_OPT_MODE_MIN GRAPH_FORMATS SEED
 sensitive_params_bn-submin = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_INFER \
+	$(prior_knowledge_params) MAX_CLAUSES \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS SEED
 sensitive_params_bn-diverse = \
-	$(prior_knowledge_params) MAX_CLAUSE CANONICAL_INFER \
+	$(prior_knowledge_params) MAX_CLAUSES \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS SEED
 
 runtime_envs_load-fastq = scbolt-fastq
@@ -807,8 +813,7 @@ method_config_param_set = \
 	BIN_DEA_ONLY_HVG BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
 	BIN_LOGFC BIN_CORRECTION BIN_ALPHA \
 	BIN_METHOD \
-	MAX_CLAUSE DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS \
-	CANONICAL_FILTER CANONICAL_INFER \
+	MAX_CLAUSES DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS \
 	$(clause_continuation_params) \
 	$(clause_bound_patience_params) \
 	$(domain_continuation_params) \

@@ -497,8 +497,8 @@ else ifeq ($(HELP),false)
 			$(call check_success,method parameter valid: DOROTHEA_LEVELS=$(DOROTHEA_LEVELS)); \
 		fi; \
 	fi; \
-	if grep -q 'CANONICAL_FILTER' "$${dry_run}"; then \
-		$(call check_bool_diagnostic,$(CANONICAL_FILTER),CANONICAL_FILTER,method); \
+	if grep -q -- '--max-clauses' "$${dry_run}"; then \
+		$(call check_positive_integer_diagnostic,$(MAX_CLAUSES),MAX_CLAUSES,method); \
 	fi; \
 	$(foreach parameter,$(clause_continuation_params),\
 		if grep -q '$(parameter)' "$${dry_run}"; then \
@@ -516,9 +516,6 @@ else ifeq ($(HELP),false)
 		if grep -q '$(parameter)' "$${dry_run}"; then \
 			$(call check_positive_integer_diagnostic,$($(parameter)),$(parameter),method); \
 		fi;) \
-	if grep -q 'CANONICAL_INFER' "$${dry_run}"; then \
-		$(call check_bool_diagnostic,$(CANONICAL_INFER),CANONICAL_INFER,method); \
-	fi; \
 	if grep -q 'MIN_SELF_LOOP_CONSTS' "$${dry_run}"; then \
 		$(call check_bool_diagnostic,$(MIN_SELF_LOOP_CONSTS),MIN_SELF_LOOP_CONSTS,method); \
 	fi; \

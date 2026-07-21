@@ -260,14 +260,12 @@ $(eval SPEC_FILE ?= spec.yml)               # BoNesis model specification file
 # Clingo opt strategies: bb[,<method>] or usc[,<method>].
 # Diagnostic opt modes: opt gives fast anytime solutions; optN targets
 # certified optima; ignore disables optimization objectives.
-# CANONICAL_FILTER controls filter-nodes/filter-consts.
-# CANONICAL_INFER controls min/submin/diverse.
 # TIMEOUT_* values bound the total solver runtime; empty means no timeout.
 # PATIENCE_CLAUSE_BOUND_* values bound time without an objective
 # improvement at intermediate clause bounds.
 # PATIENCE_DOMAIN_WAVE_* values bound portfolio stagnation per domain wave.
 # MIN_DOMAIN_YIELD is a fraction in [0,1); zero disables domain refreshes.
-$(eval MAX_CLAUSE ?= 8)                     # maximum literals per propositional formula
+$(eval MAX_CLAUSES ?= 8)                    # maximum conjunctive terms per Boolean update function
 $(eval PRIOR_KNOWLEDGE ?= collectri)        # prior GRN domain
 $(eval GENEINFO_VERSION ?= bundled)         # NCBI gene_info source
 $(eval OMNIPATH_VERSION ?= latest)          # OmniPath resource version
@@ -275,8 +273,6 @@ $(eval HCOP_VERSION ?= bundled)             # HCOP orthology version
 $(eval DOROTHEA_API ?= modern)              # DoRothEA API source
 $(eval DOROTHEA_COMPATIBILITY ?= true)      # reproduce decoupler DoRothEA deduplication
 $(eval DOROTHEA_LEVELS ?= A B C)            # DoRothEA confidence levels
-$(eval CANONICAL_FILTER ?= false)           # canonical functions during filtering
-$(eval CANONICAL_INFER ?= true)             # canonical functions during BN inference
 $(eval MIN_DOMAIN_YIELD ?= 0.10)            # minimum productive domain expansion yield
 
 clause_continuation_clingo_default_strategy := bb,lin
@@ -328,11 +324,13 @@ $(eval TIMEOUT_SEED ?= 24h)                 # timeout
 
 ## MAX-NODES-LOCK ##
 $(eval CLAUSE_CONTINUATION_LOCK ?= true)    # progressively increase clause bounds
+$(eval DOMAIN_CONTINUATION_LOCK ?= true)    # expand the retained seed witness
 $(eval PATIENCE_CLAUSE_BOUND_LOCK ?= 30m)
+$(eval PATIENCE_DOMAIN_WAVE_LOCK ?= 5m)
 $(eval CLINGO_CONFIG_LOCK ?=)               # Clingo default configuration
 CLINGO_OPT_MODE_LOCK ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_LOCK,opt)
 CLINGO_OPT_STRATEGY_LOCK ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_LOCK,usc)
-$(eval JOBS_CLINGO_LOCK ?= 1)               # solver jobs
+$(eval JOBS_CLINGO_LOCK ?= 1)               # jobs for complete-domain solving
 $(eval TIMEOUT_LOCK ?= 72h)                 # timeout
 
 ## OUTPUTS ##

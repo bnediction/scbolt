@@ -29,6 +29,13 @@ from _domain_continuation import (
     select_best_candidate,
     solution_objective,
 )
+from _witness import (
+    apply_structural_witness_heuristics,
+    read_structural_witness,
+    structural_witness,
+    structural_witness_clause_bound,
+    structural_witness_nodes,
+)
 from utils import (
     TQDM_TO_TTY,
     add_bonesis_arguments,
@@ -55,11 +62,6 @@ from scbolt.runtime import (
 
 bonesis.settings["quiet"] = True
 script_name = Path(__file__).name
-STRUCTURAL_ATOM_ARITIES = {
-    "node": 1,
-    "clause": 4,
-    "constant": 2,
-}
 
 
 def parse_min_domain_yield(value: str) -> float:
@@ -310,101 +312,29 @@ def write_node_solution(nodes: Iterable[str], file: Path) -> None:
     write_lines(nodes, file)
 
 
-def structural_witness(atoms: Iterable[clingo.Symbol]) -> tuple[str, ...]:
-    """Extract the Boolean-network structure needed for a solver warm start."""
-
-    return tuple(
-        sorted(
-            str(atom)
-            for atom in atoms
-            if STRUCTURAL_ATOM_ARITIES.get(atom.name) == len(atom.arguments)
-        )
-    )
-
-
-def read_structural_witness(file: Path | None) -> tuple[str, ...]:
-    """Read and validate a structural witness when one is available."""
-
-    if file is None or not file.is_file():
-        return ()
-
-    witness = []
-    with open(file) as stream:
-        for line_number, line in enumerate(stream, start=1):
-            expression = line.strip().removesuffix(".")
-            if not expression:
-                continue
-            try:
-                atom = clingo.parse_term(expression)
-            except RuntimeError as error:
-                raise ValueError(
-                    f"invalid structural witness at {file}:{line_number}"
-                ) from error
-            if STRUCTURAL_ATOM_ARITIES.get(atom.name) != len(atom.arguments):
-                raise ValueError(
-                    f"unsupported structural witness atom at "
-                    f"{file}:{line_number}: {atom}"
-                )
-            witness.append(str(atom))
-    return tuple(sorted(set(witness)))
-
-
 def write_structural_witness(witness: Iterable[str], file: Path) -> None:
     """Write an executable structural witness as ASP facts."""
 
     write_lines((f"{atom}." for atom in sorted(set(witness))), file)
 
 
-def structural_witness_clause_bound(witness: Iterable[str]) -> int:
-    """Return the smallest clause bound compatible with a structural witness."""
-
-    bound = 1
-    for expression in witness:
-        atom = clingo.parse_term(expression)
-        if atom.name != "clause":
-            continue
-
-        clause_id = atom.arguments[1]
-        if clause_id.type != clingo.SymbolType.Number:
-            raise ValueError(f"invalid clause identifier in witness atom: {atom}")
-        bound = max(bound, clause_id.number)
-
-    return bound
-
-
-def structural_witness_nodes(witness: Iterable[str]) -> tuple[str, ...]:
-    """Extract selected node names from a serialized structural witness."""
-
-    nodes = []
-    for expression in witness:
-        atom = clingo.parse_term(expression)
-        if atom.name == "node" and len(atom.arguments) == 1:
-            node = atom.arguments[0]
-            nodes.append(
-                node.string
-                if node.type == clingo.SymbolType.String
-                else str(node)
-            )
-    return tuple(sorted(set(nodes)))
-
-
 def clause_continuation_bounds(
-    max_clause: int,
+    max_clauses: int,
     lower_bound: int = 1,
 ) -> tuple[int, ...]:
     """Return increasing clause bounds compatible with the initial witness."""
 
-    if max_clause < 1:
-        raise ValueError("`max_clause` must be greater than or equal to 1")
+    if max_clauses < 1:
+        raise ValueError("`max_clauses` must be greater than or equal to 1")
     if lower_bound < 1:
         raise ValueError("`lower_bound` must be greater than or equal to 1")
-    if lower_bound > max_clause:
+    if lower_bound > max_clauses:
         raise ValueError(
             "initial structural witness requires "
-            f"max_clause >= {lower_bound} (got {max_clause})"
+            f"max_clauses >= {lower_bound} (got {max_clauses})"
         )
 
-    return tuple(range(lower_bound, max_clause + 1))
+    return tuple(range(lower_bound, max_clauses + 1))
 
 
 def make_no_solution_error(
@@ -442,17 +372,7 @@ def fork_bonesis(
     stage = bonesis.BoNesis(domain, bo.data)
     stage.manager.reset_from(bo.manager)
 
-    witness = tuple(witness)
-    if witness:
-        # BoNesis serializes custom lines as facts and appends a final dot.
-        # Clingo directives such as #heuristic must not receive a dot after
-        # their weight tuple, so the trailing comment absorbs it.
-        for atom in witness:
-            stage.custom(f"#heuristic {atom}. [1000@100,true] %")
-        stage.custom(
-            "#heuristic clause(N,C,L,S) : in(L,N,S), maxC(N,M), C=1..M. "
-            "[1@10,false] %"
-        )
+    apply_structural_witness_heuristics(stage, witness)
 
     return stage
 
@@ -907,9 +827,9 @@ def print_domain_wave_summary(
 
     counts = outcome_counts(results)
     context = [
+        f"wave={wave}",
         f"phase={phase}",
         f"max clauses={max_clause}",
-        f"wave={wave}",
     ]
     outcomes = [
         f"sat={counts['sat']}",
@@ -939,6 +859,7 @@ def continue_domain_at_clause_bound(
     initial_domain: Iterable[str],
     initial_solution: Iterable[str],
     initial_witness: Iterable[str],
+    expansion_only: bool,
     required_nodes: set[str],
     important_nodes: set[str],
     jobs: int,
@@ -953,7 +874,7 @@ def continue_domain_at_clause_bound(
     on_model: Callable[[frozenset[str], Sequence[str], Sequence[str]], bool],
     on_selected: Callable[[frozenset[str], Sequence[str], Sequence[str]], None],
 ) -> DomainContinuationState:
-    """Acquire and expand a witness at one clause bound."""
+    """Acquire or only expand a witness at one clause bound."""
 
     complete_domain = frozenset(bo.domain.nodes)
     current_domain = frozenset(initial_domain)
@@ -965,6 +886,11 @@ def continue_domain_at_clause_bound(
         current_domain = frozenset(required_nodes & complete_domain)
     if not current_domain <= complete_domain:
         raise ValueError("initial continuation domain exceeds the complete domain")
+    if expansion_only and (not current_solution or not current_witness):
+        raise ValueError(
+            "expansion-only domain continuation requires an initial "
+            "structural witness with selected nodes"
+        )
 
     if not current_witness:
         minimum_size = len(current_domain)
@@ -1162,16 +1088,14 @@ def continue_domain_at_clause_bound(
             refresh_count += 1
             evaluated_domains.update(candidate.nodes for candidate in candidates)
             protected_additions = len(refresh_core - expansion_base_domain)
-            resampled = expansion_target - len(refresh_core)
-            console.print_info(
-                "refreshing domain at constant size "
-                f"(domain={expansion_target}, "
-                f"refresh={refresh_count}/{MAX_DOMAIN_REFRESH_WAVES}, "
-                f"cumulative gain={retained_gain}/{expansion_size} "
-                f"({retained_gain / expansion_size:.1%}), "
-                f"minimum={minimum_domain_yield:.1%}, "
-                f"protected additions={protected_additions}, "
-                f"resampled={resampled})",
+            console.print_debug(
+                "refreshing domain "
+                f"(attempt={refresh_count}/{MAX_DOMAIN_REFRESH_WAVES}, "
+                f"size={expansion_target}, "
+                f"yield={retained_gain}/{expansion_size} "
+                f"[{retained_gain / expansion_size:.1%} < "
+                f"{minimum_domain_yield:.1%}], "
+                f"protected={protected_additions})",
                 flush=True,
             )
             results = run_domain_wave(
@@ -1370,6 +1294,12 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--domain-continuation-expansion-only",
+    dest="domain_continuation_expansion_only",
+    action="store_true",
+    help=argparse.SUPPRESS,
+)
+parser.add_argument(
     "--domain-wave-patience",
     dest="domain_wave_patience",
     type=parse_solver_timeout,
@@ -1436,6 +1366,15 @@ if args.domain_continuation_jobs < 1:
     parser.error("--domain-continuation-jobs must be greater than or equal to 1")
 if args.domain_continuation and args.action != "filter-nodes":
     parser.error("--domain-continuation is only available with filter-nodes")
+if args.domain_continuation_expansion_only and not args.domain_continuation:
+    parser.error(
+        "--domain-continuation-expansion-only requires "
+        "--domain-continuation"
+    )
+if args.domain_continuation_expansion_only and args.initial_witness is None:
+    parser.error(
+        "--domain-continuation-expansion-only requires --initial-witness"
+    )
 reset_solver_timeout_status(args.timeout_status_file)
 if args.witness is None:
     args.witness = args.solution.with_name("witness.lp")
@@ -1476,6 +1415,11 @@ if args.action == "filter-nodes":
     )
     nodes_in_data, nodes_in_domain, domain_edges = get_node_sets(bo)
     initial_witness = read_structural_witness(args.initial_witness)
+    if args.domain_continuation_expansion_only and not initial_witness:
+        parser.error(
+            "--domain-continuation-expansion-only requires a non-empty "
+            "structural witness"
+        )
 
     if not new_constraints:
         console.print_info("no new constraints added; stopping", flush=True)
@@ -1494,27 +1438,27 @@ if args.action == "filter-nodes":
     print_solver_options(
         args.clingo_opt_mode,
         effective_clingo_opt_strategy,
-        args.max_clause,
+        args.max_clauses,
         canonical,
         configuration=args.clingo_configuration or "auto",
         jobs=args.jobs,
         flush=True,
     )
     initial_witness_clause_bound = structural_witness_clause_bound(initial_witness)
-    if initial_witness_clause_bound > args.max_clause:
+    if initial_witness_clause_bound > args.max_clauses:
         raise ValueError(
             "initial structural witness requires "
-            f"max_clause >= {initial_witness_clause_bound} "
-            f"(got {args.max_clause})"
+            f"max_clauses >= {initial_witness_clause_bound} "
+            f"(got {args.max_clauses})"
         )
 
     bounds = (
         clause_continuation_bounds(
-            args.max_clause,
+            args.max_clauses,
             lower_bound=initial_witness_clause_bound,
         )
         if args.clause_continuation
-        else (args.max_clause,)
+        else (args.max_clauses,)
     )
     if args.clause_continuation:
         bounds_text = (
@@ -1533,8 +1477,14 @@ if args.action == "filter-nodes":
         console.print_options("clause continuation: none", flush=True)
 
     if args.domain_continuation:
+        continuation_mode = (
+            "expansion"
+            if args.domain_continuation_expansion_only
+            else "adaptive"
+        )
         console.print_options(
             "domain continuation: "
+            f"mode={continuation_mode}, "
             f"candidates={args.domain_continuation_jobs}, "
             "candidate threads=1, "
             "wave patience="
@@ -1610,7 +1560,7 @@ if args.action == "filter-nodes":
         if stage_index > 1:
             current_domain = rebase_for_next_clause_bound(solution)
 
-        is_target = max_clause == args.max_clause
+        is_target = max_clause == args.max_clauses
         stage_name = "Target optimization" if is_target else "Clause continuation"
         clingo_opt_mode = args.clingo_opt_mode
         clingo_opt_strategy = effective_clingo_opt_strategy
@@ -1659,6 +1609,7 @@ if args.action == "filter-nodes":
                     initial_domain=current_domain,
                     initial_solution=solution,
                     initial_witness=current_witness,
+                    expansion_only=args.domain_continuation_expansion_only,
                     required_nodes=required_nodes,
                     important_nodes=important_nodes_in_domain,
                     jobs=args.domain_continuation_jobs,
@@ -1883,7 +1834,7 @@ elif args.action == "filter-consts":
     print_solver_options(
         args.clingo_opt_mode,
         clingo_opt_strategy,
-        args.max_clause,
+        args.max_clauses,
         canonical,
         configuration=args.clingo_configuration or "auto",
         jobs=args.jobs,

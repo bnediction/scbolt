@@ -76,6 +76,19 @@ base_with_unselected_requirement = continuation_base_domain(
 )
 assert base_with_unselected_requirement == selected_500 | {"n525"}
 
+# LOCK starts from the complete SEED solution and only expands toward the
+# RELAXED domain; it never needs a first-witness acquisition domain.
+lock_seed_solution = {f"n{i}" for i in range(500)}
+lock_required_nodes = lock_seed_solution | {"n525"}
+lock_base = continuation_base_domain(
+    lock_seed_solution,
+    lock_required_nodes,
+    complete_550,
+)
+assert lock_seed_solution <= lock_base
+assert len(lock_base) == 501
+assert expansion_domain_size(len(lock_base), len(complete_550)) == 526
+
 try:
     continuation_base_domain({"outside"}, (), complete_550)
 except ValueError:

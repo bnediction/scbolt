@@ -21,7 +21,7 @@ include $(scbolt_root)/mk/clean.mk
 .PRECIOUS: $(max_consts_soft)
 .PRECIOUS: $(max_nodes_relaxed)
 .PRECIOUS: $(max_nodes_seed)
-.PRECIOUS: $(max_nodes_lock)
+.PRECIOUS: $(max_nodes_lock) $(max_nodes_lock_witness)
 .PRECIOUS: $(dir $(bn_submin))
 .PRECIOUS: $(dir $(bn_diverse))
 
@@ -772,7 +772,7 @@ $(bonesis_model)&: $(bin) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 
 $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-soft)
-	$(call require_bonesis_filter_parameters,max-nodes-soft)
+	$(call require_bonesis_parameters,max-nodes-soft)
 	$(call require_bool,CLAUSE_CONTINUATION_SOFT,max-nodes-soft)
 	$(call require_bool,DOMAIN_CONTINUATION_SOFT,max-nodes-soft)
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),$(call require_half_open_unit_interval,MIN_DOMAIN_YIELD))
@@ -797,8 +797,7 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 		--domain-nodes $(max_nodes_soft_domain) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
-		--bonesis-mode soft --max-clause $(MAX_CLAUSE) \
-		--canonical $(CANONICAL_FILTER) \
+		--bonesis-mode soft --max-clauses $(MAX_CLAUSES) \
 		$(if $(strip $(CLINGO_CONFIG_SOFT)),--clingo-configuration $(CLINGO_CONFIG_SOFT)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SOFT) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SOFT) \
@@ -811,7 +810,7 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 
 $(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-consts-soft)
-	$(call require_bonesis_filter_parameters,max-consts-soft)
+	$(call require_bonesis_parameters,max-consts-soft)
 	$(call require_bool,MIN_SELF_LOOP_CONSTS,max-consts-soft)
 	mkdir -p $(@D)
 	set +e; \
@@ -825,8 +824,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution) $(if $(geneinfo_
 		--witness $(@D)/witness.lp \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
-		--bonesis-mode soft --max-clause $(MAX_CLAUSE) $(min_self_loop_consts) \
-		--canonical $(CANONICAL_FILTER) \
+		--bonesis-mode soft --max-clauses $(MAX_CLAUSES) $(min_self_loop_consts) \
 		$(if $(strip $(CLINGO_CONFIG_CONSTS)),--clingo-configuration $(CLINGO_CONFIG_CONSTS)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_CONSTS) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_CONSTS) \
@@ -839,7 +837,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution) $(if $(geneinfo_
 
 $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-relaxed)
-	$(call require_bonesis_filter_parameters,max-nodes-relaxed)
+	$(call require_bonesis_parameters,max-nodes-relaxed)
 	$(call require_bool,CLAUSE_CONTINUATION_RELAXED,max-nodes-relaxed)
 	$(call require_bool,DOMAIN_CONTINUATION_RELAXED,max-nodes-relaxed)
 	$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),$(call require_half_open_unit_interval,MIN_DOMAIN_YIELD))
@@ -862,8 +860,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_depend
 		--domain-continuation-seed $(SEED) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
-		--bonesis-mode relaxed --max-clause $(MAX_CLAUSE) \
-		--canonical $(CANONICAL_FILTER) \
+		--bonesis-mode relaxed --max-clauses $(MAX_CLAUSES) \
 		$(if $(strip $(CLINGO_CONFIG_RELAXED)),--clingo-configuration $(CLINGO_CONFIG_RELAXED)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_RELAXED) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_RELAXED) \
@@ -876,7 +873,7 @@ $(max_nodes_relaxed): $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_depend
 
 $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-seed)
-	$(call require_bonesis_filter_parameters,max-nodes-seed)
+	$(call require_bonesis_parameters,max-nodes-seed)
 	$(call require_bool,CLAUSE_CONTINUATION_SEED,max-nodes-seed)
 	$(call require_bool,DOMAIN_CONTINUATION_SEED,max-nodes-seed)
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),$(call require_half_open_unit_interval,MIN_DOMAIN_YIELD))
@@ -900,8 +897,7 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_depend
 		--domain-continuation-seed $(SEED) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
-		--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
-		--canonical $(CANONICAL_FILTER) \
+		--bonesis-mode hard --max-clauses $(MAX_CLAUSES) \
 		$(if $(strip $(CLINGO_CONFIG_SEED)),--clingo-configuration $(CLINGO_CONFIG_SEED)) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_SEED) \
 		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SEED) \
@@ -912,43 +908,52 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(if $(geneinfo_depend
 	set -e; \
 	$(call check_inference_status,$(TIMEOUT_SEED),max-nodes-seed,TIMEOUT_SEED,,$(lastword $^),$(@D)/comps.txt)
 
-$(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
+$(max_nodes_lock) $(max_nodes_lock_witness) &: $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-lock)
-	$(call require_bonesis_filter_parameters,max-nodes-lock)
+	$(call require_bonesis_parameters,max-nodes-lock)
 	$(call require_bool,CLAUSE_CONTINUATION_LOCK,max-nodes-lock)
-	mkdir -p $(@D)
+	$(call require_bool,DOMAIN_CONTINUATION_LOCK,max-nodes-lock)
+	$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),$(call require_half_open_unit_interval,MIN_DOMAIN_YIELD))
+	mkdir -p $(dir $(max_nodes_lock))
 	if [ "$$($(call metadata_solution_field,$(word 7,$^),status) 2>/dev/null || true)" = "global" ]; then \
 		$(call print_debug,solution already globally optimal: skipping lock optimization); \
-		$(call system_tool,cp) $(word 7,$^) $@; \
-		$(call write_scbolt_metadata,max-nodes-lock,$@,,$(call solution_metadata_args,global,$@,$(word 6,$^))); \
+		$(call system_tool,cp) $(word 7,$^) $(max_nodes_lock); \
+		$(call system_tool,cp) $(lastword $^) $(max_nodes_lock_witness); \
+		$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock),,$(call solution_metadata_args,global,$(max_nodes_lock),$(word 6,$^))); \
 	elif [ "$(strip $(TIMEOUT_LOCK))" = "0" ]; then \
 		$(call print_warning,TIMEOUT_LOCK=0: keeping seed solution); \
-		$(call system_tool,cp) $(word 7,$^) $@; \
-		$(call write_scbolt_metadata,max-nodes-lock,$@,,$(call solution_metadata_args,partial,$@,$(word 6,$^))); \
+		$(call system_tool,cp) $(word 7,$^) $(max_nodes_lock); \
+		$(call system_tool,cp) $(lastword $^) $(max_nodes_lock_witness); \
+		$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock),,$(call solution_metadata_args,partial,$(max_nodes_lock),$(word 6,$^))); \
 	else \
 		set +e; \
 		$(call start_inference_timer) \
 		$(call trap_inference_interrupt,max-nodes-lock,TIMEOUT_LOCK,$(word 7,$^),$(word 6,$^)); \
-		$(call system_tool,cat) $(word 4,$^) $(word 7,$^) | $(call system_tool,sort) -u > $(@D)/mandatory.txt; \
+		$(call system_tool,cat) $(word 4,$^) $(word 7,$^) | $(call system_tool,sort) -u > $(dir $(max_nodes_lock))mandatory.txt; \
 		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/selection.py filter-nodes \
 			$(word 1,$^) $(word 2,$^) \
-			--important-nodes $(word 3,$^) --mandatory-nodes $(@D)/mandatory.txt \
-			--filter-grn $(word 6,$^) --asp $(@D)/nodes.sh \
-			--solution $@ --witness $(@D)/witness.lp \
+			--important-nodes $(word 3,$^) --mandatory-nodes $(dir $(max_nodes_lock))mandatory.txt \
+			--filter-grn $(word 6,$^) --asp $(dir $(max_nodes_lock))nodes.sh \
+			--solution $(max_nodes_lock) --witness $(max_nodes_lock_witness) \
 			--initial-witness $(lastword $^) \
 			$(call clause_continuation,CLAUSE_CONTINUATION_LOCK) \
 			--clause-continuation-parameter CLAUSE_CONTINUATION_LOCK \
 			$(if $(strip $(PATIENCE_CLAUSE_BOUND_LOCK)),--clause-bound-patience "$(PATIENCE_CLAUSE_BOUND_LOCK)") \
+			$(call domain_continuation,DOMAIN_CONTINUATION_LOCK) \
+			$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),--domain-continuation-expansion-only) \
+			$(if $(strip $(PATIENCE_DOMAIN_WAVE_LOCK)),--domain-wave-patience "$(PATIENCE_DOMAIN_WAVE_LOCK)") \
+			$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),--min-domain-yield $(MIN_DOMAIN_YIELD)) \
+			--domain-continuation-jobs $(JOBS) \
+			--domain-continuation-seed $(SEED) \
 			--domain $(prior_knowledge) --organism $(ORGANISM) \
 			$(prior_knowledge_args) \
-			--bonesis-mode hard --max-clause $(MAX_CLAUSE) \
-			--canonical $(CANONICAL_FILTER) \
+			--bonesis-mode hard --max-clauses $(MAX_CLAUSES) \
 			$(if $(strip $(CLINGO_CONFIG_LOCK)),--clingo-configuration $(CLINGO_CONFIG_LOCK)) \
 			--clingo-opt-mode $(CLINGO_OPT_MODE_LOCK) \
 			--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_LOCK) \
 			--jobs $(JOBS_CLINGO_LOCK) $(if $(strip $(TIMEOUT_LOCK)),--timeout "$(TIMEOUT_LOCK)") \
-			--timeout-status-file "$(@D)/.inference-timeout"; \
-		$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
+			--timeout-status-file "$(dir $(max_nodes_lock)).inference-timeout"; \
+		$(call capture_inference_exit_status,$(dir $(max_nodes_lock)).inference-timeout) \
 		trap - INT TERM; \
 		set -e; \
 		$(call check_inference_status,$(TIMEOUT_LOCK),max-nodes-lock,TIMEOUT_LOCK,$(word 7,$^),$(word 6,$^)); \
@@ -956,7 +961,7 @@ $(max_nodes_lock): $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if 
 
 $(bn_min): $(bonesis_model) $(max_nodes_lock) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,bn-min)
-	$(call require_bonesis_infer_parameters,bn-min)
+	$(call require_bonesis_parameters,bn-min)
 	$(call require_bool,MIN_SELF_LOOP_INFER,bn-min)
 	mkdir -p $(@D)
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py min \
@@ -967,8 +972,7 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock) $(if $(geneinfo_dependency),| $(ge
 		--domain $(prior_knowledge) \
 		--organism $(ORGANISM) \
 		$(prior_knowledge_args) \
-		--max-clause $(MAX_CLAUSE) $(min_self_loop_infer) \
-		--canonical $(CANONICAL_INFER) \
+		--max-clauses $(MAX_CLAUSES) $(min_self_loop_infer) \
 		--clingo-opt-mode $(CLINGO_OPT_MODE_MIN) --jobs 1 \
 		--graph-formats $(GRAPH_FORMATS)
 		if command -v dot >/dev/null 2>&1; then
@@ -986,21 +990,21 @@ __check-bn-submin-outputs:
 __check-bn-diverse-outputs:
 	$(call check_bn_outputs,$(bn_diverse_dir),bn-diverse,$(CONFIG_FORMATS),$(GRAPH_FORMATS),$(INFER_LIMIT))
 
-$(bn_submin)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-submin-outputs $(geneinfo_dependency)
+$(bn_submin)&: $(bonesis_model) $(max_nodes_lock) $(max_nodes_lock_witness) | __check-bn-submin-outputs $(geneinfo_dependency)
 	$(call print_rule,bn-submin)
-	$(call require_bonesis_infer_parameters,bn-submin)
+	$(call require_bonesis_parameters,bn-submin)
 	rm -rf $(bn_submin_dir)
 	mkdir -p $(bn_submin_dir)
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py submin \
 		$(word 1,$^) $(word 2,$^) \
-		--filter-grn $(lastword $^) \
+		--filter-grn $(max_nodes_lock) \
+		--initial-witness $(max_nodes_lock_witness) \
 		--asp $(bn_submin_dir)/submin.sh \
 		--solution $(bn_submin_dir) \
 		--domain $(prior_knowledge) \
 		--organism $(ORGANISM) \
 		$(prior_knowledge_args) \
-		--max-clause $(MAX_CLAUSE) \
-		--canonical $(CANONICAL_INFER) \
+		--max-clauses $(MAX_CLAUSES) \
 		--jobs $(JOBS) \
 		$(if $(strip $(INFER_LIMIT)),--limit $(INFER_LIMIT)) \
 		--config-formats $(CONFIG_FORMATS) \
@@ -1010,7 +1014,7 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-submin-outputs $(
 
 $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-diverse-outputs $(geneinfo_dependency)
 	$(call print_rule,bn-diverse)
-	$(call require_bonesis_infer_parameters,bn-diverse)
+	$(call require_bonesis_parameters,bn-diverse)
 	rm -rf $(bn_diverse_dir)
 	mkdir -p $(bn_diverse_dir)
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py diverse \
@@ -1021,8 +1025,7 @@ $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-diverse-outputs 
 		--domain $(prior_knowledge) \
 		--organism $(ORGANISM) \
 		$(prior_knowledge_args) \
-		--max-clause $(MAX_CLAUSE) \
-		--canonical $(CANONICAL_INFER) \
+		--max-clauses $(MAX_CLAUSES) \
 		--jobs $(JOBS) \
 		$(if $(strip $(INFER_LIMIT)),--limit $(INFER_LIMIT)) \
 		--config-formats $(CONFIG_FORMATS) \
