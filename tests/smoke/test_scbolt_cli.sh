@@ -109,6 +109,7 @@ complete_scbolt() {
 
     (
         cd "${project_dir}"
+        PATH="${repo_root}/bin:${PATH}"
         source "${repo_root}/bin/completion.bash"
         COMP_WORDS=("$@")
         COMP_CWORD="${cword}"
