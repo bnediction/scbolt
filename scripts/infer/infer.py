@@ -146,13 +146,15 @@ def write_influence_graph(
     """Write the Boolean network influence graph using Graphviz."""
 
     graph_bn = to_bonesistools_boolean_network(bn)
+    influence_graph = graph_bn.to_influence_graph()
 
     if remove_isolated_nodes:
-        for node in list(graph_bn):
-            if graph_bn[node] in [graph_bn.ba.FALSE, graph_bn.ba.TRUE]:
-                del graph_bn[node]
+        isolated_nodes = [
+            node for node, degree in influence_graph.degree if degree == 0
+        ]
+        influence_graph.remove_nodes_from(isolated_nodes)
 
-    graph = graph_bn.to_pydot()
+    graph = influence_graph.to_pydot()
 
     for program in programs:
         graph.write(
@@ -256,7 +258,10 @@ def write_ensemble_influence_graphs(
     if not bns:
         raise RuntimeError("cannot export aggregated influence graphs: no BN solution")
 
-    console.print_task(f"generating aggregated influence graphs (folder={outdir})")
+    console.print_task(
+        "generating aggregated influence graphs "
+        f"(folder={console.format_path(outdir)})"
+    )
     graph = ensemble.to_influence_graph()
 
     for filename, options in AGGREGATED_INFLUENCE_GRAPH_OPTIONS.items():

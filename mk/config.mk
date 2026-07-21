@@ -1288,12 +1288,14 @@ $(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$@,$(3),$(call solution_met
 $(call print_warning,$(4));
 endef
 
-count_nonempty_lines = $(call system_tool,awk) 'NF { n++ } END { print n + 0 }' "$(1)"
+count_solution_items = $(if $(filter %.count,$(1)),\
+	$(call system_tool,awk) 'NR == 1 && /^[0-9]+$$/ { n = $$0; valid = 1 } END { if (NR != 1 || !valid) exit 1; print n }' "$(1)",\
+	$(call system_tool,awk) 'NF { n++ } END { print n + 0 }' "$(1)")
 metadata_solution_field = $(python) $(scripts_dir)/utils/scbolt_metadata.py solution --target "$(1)" --field "$(2)"
 solution_metadata_args = \
 	$(if $(strip $(1)),--solution-status "$(1)") \
-	$(if $(strip $(2)),--solution-kept "$$($(call count_nonempty_lines,$(2)))") \
-	$(if $(strip $(3)),--solution-total "$$($(call count_nonempty_lines,$(3)))")
+	$(if $(strip $(2)),--solution-kept "$$($(call count_solution_items,$(2)))") \
+	$(if $(strip $(3)),--solution-total "$$($(call count_solution_items,$(3)))")
 timeout_param_for_module = \
 	$(if $(filter max-nodes-soft,$(1)),TIMEOUT_SOFT,\
 	$(if $(filter max-consts-soft,$(1)),TIMEOUT_CONSTS,\
@@ -1310,9 +1312,9 @@ define report_kept_gene_selection_result
 	if [ "$${solution_status}" = "partial" ]; then \
 		solution_label="$$($(call metadata_solution_field,$(2),label) 2>/dev/null || true)"; \
 		if [ -z "$${solution_label}" ]; then \
-			kept="$$($(call count_nonempty_lines,$(2)))"; \
+			kept="$$($(call count_solution_items,$(2)))"; \
 			if [ -n "$(3)" ] && [ -s "$(3)" ]; then \
-				total="$$($(call count_nonempty_lines,$(3)))"; \
+				total="$$($(call count_solution_items,$(3)))"; \
 				solution_label="partial ($${kept}/$${total})"; \
 			else \
 				solution_label="partial ($${kept})"; \
@@ -1330,9 +1332,9 @@ define report_intermediate_gene_selection_status
 	if [ "$${solution_status}" = "partial" ]; then \
 		solution_coverage="$$($(call metadata_solution_field,$(2),coverage) 2>/dev/null || true)"; \
 		if [ -z "$${solution_coverage}" ]; then \
-			kept="$$($(call count_nonempty_lines,$(2)))"; \
+			kept="$$($(call count_solution_items,$(2)))"; \
 			if [ -n "$(3)" ] && [ -s "$(3)" ]; then \
-				total="$$($(call count_nonempty_lines,$(3)))"; \
+				total="$$($(call count_solution_items,$(3)))"; \
 				solution_coverage="$${kept}/$${total}"; \
 			else \
 				solution_coverage="$${kept}"; \

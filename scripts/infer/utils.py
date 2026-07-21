@@ -320,7 +320,7 @@ def initialize_bonesis(
     )
     mstates_cfg = get_cfg(mstates_df, axis="index")
 
-    console.print_task("initializing inference settings (engine=BoNesis)")
+    console.print_task("initializing BoNesis inference (engine=BoNesis)")
 
     canonical = args.canonical
     if canonical is None:
@@ -432,7 +432,7 @@ def print_solver_options(
 ):
     """Print the effective solver and Boolean encoding settings."""
 
-    solver_options = ["engine=Clingo"]
+    solver_options = []
     strategy = (
         "unused"
         if mode == "ignore" or mode.startswith("enum,")
@@ -450,7 +450,7 @@ def print_solver_options(
         solver_options.append(f"threads={jobs}")
 
     console.print_options(
-        f"solver: {', '.join(solver_options)}",
+        f"clingo solver: {', '.join(solver_options)}",
         **kwargs,
     )
     console.print_options(

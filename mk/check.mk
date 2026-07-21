@@ -512,7 +512,11 @@ else ifeq ($(HELP),false)
 		$(call check_half_open_unit_interval_diagnostic,\
 			$(MIN_DOMAIN_YIELD),MIN_DOMAIN_YIELD,method); \
 	fi; \
-	$(foreach parameter,$(clingo_jobs_params),\
+	if grep -q -- '--max-domain-refreshes' "$${dry_run}"; then \
+		$(call check_nonnegative_integer_diagnostic,\
+			$(MAX_DOMAIN_REFRESHES),MAX_DOMAIN_REFRESHES,method); \
+	fi; \
+	$(foreach parameter,$(clingo_threads_params),\
 		if grep -q '$(parameter)' "$${dry_run}"; then \
 			$(call check_positive_integer_diagnostic,$($(parameter)),$(parameter),method); \
 		fi;) \

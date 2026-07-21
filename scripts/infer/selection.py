@@ -14,7 +14,6 @@ import bonesis
 import clingo
 from bonesis.asp_encoding import clingo_encode
 from _domain_continuation import (
-    MAX_DOMAIN_REFRESH_WAVES,
     DomainCandidate,
     DomainCandidateResult,
     DomainWaveLeader,
@@ -869,6 +868,7 @@ def continue_domain_at_clause_bound(
     clingo_configuration: str | None,
     domain_patience_seconds: float,
     minimum_domain_yield: float,
+    max_domain_refreshes: int,
     clause_patience: SolverPatience,
     deadline: SolverDeadline,
     on_model: Callable[[frozenset[str], Sequence[str], Sequence[str]], bool],
@@ -1066,7 +1066,7 @@ def continue_domain_at_clause_bound(
             minimum_domain_yield > 0
             and important_gain == 0
             and retained_gain < required_gain
-            and refresh_count < MAX_DOMAIN_REFRESH_WAVES
+            and refresh_count < max_domain_refreshes
         ):
             refresh_core = expansion_base_domain | frozenset(current_solution)
             next_wave = wave + 1
@@ -1090,7 +1090,7 @@ def continue_domain_at_clause_bound(
             protected_additions = len(refresh_core - expansion_base_domain)
             console.print_debug(
                 "refreshing domain "
-                f"(attempt={refresh_count}/{MAX_DOMAIN_REFRESH_WAVES}, "
+                f"(attempt={refresh_count}/{max_domain_refreshes}, "
                 f"size={expansion_target}, "
                 f"yield={retained_gain}/{expansion_size} "
                 f"[{retained_gain / expansion_size:.1%} < "
@@ -1148,7 +1148,7 @@ def continue_domain_at_clause_bound(
                     "expanding domain",
                     flush=True,
                 )
-            elif refresh_count == MAX_DOMAIN_REFRESH_WAVES:
+            elif refresh_count == max_domain_refreshes:
                 console.print_warning(
                     "minimum domain yield not reached before refresh limit "
                     f"(gain={gain}, minimum={minimum_domain_yield:.1%}, "
@@ -1228,13 +1228,13 @@ parser.add_argument(
     help="input file storing nodes excluded from the regulatory domain",
 )
 parser.add_argument(
-    "--domain-nodes",
-    dest="domain_nodes",
+    "--domain-size-file",
+    dest="domain_size_file",
     type=lambda x: Path(x).resolve(),
     required=False,
     default=None,
     metavar="FILE",
-    help="optional output storing the full domain node set",
+    help="optional output storing the full domain size",
 )
 parser.add_argument(
     "--clingo-configuration",
@@ -1326,6 +1326,18 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--max-domain-refreshes",
+    dest="max_domain_refreshes",
+    type=int,
+    required=False,
+    default=2,
+    metavar="INT",
+    help=(
+        "maximum number of constant-size domain refreshes before expansion "
+        "resumes; 0 disables domain refreshes (default: 2)"
+    ),
+)
+parser.add_argument(
     "--domain-continuation-jobs",
     dest="domain_continuation_jobs",
     type=int,
@@ -1364,6 +1376,8 @@ parser.add_argument(
 args = parser.parse_args()
 if args.domain_continuation_jobs < 1:
     parser.error("--domain-continuation-jobs must be greater than or equal to 1")
+if args.max_domain_refreshes < 0:
+    parser.error("--max-domain-refreshes must be greater than or equal to 0")
 if args.domain_continuation and args.action != "filter-nodes":
     parser.error("--domain-continuation is only available with filter-nodes")
 if args.domain_continuation_expansion_only and not args.domain_continuation:
@@ -1387,8 +1401,8 @@ bo, canonical, clingo_parallel_option = initialize_bonesis(
 )
 new_constraints = apply_bonesis_mode(bo, args.bonesis_mode)
 
-if args.domain_nodes is not None:
-    write_node_solution(bo.domain.nodes, args.domain_nodes)
+if args.domain_size_file is not None:
+    write_lines((str(len(bo.domain.nodes)),), args.domain_size_file)
 
 if args.action == "filter-nodes":
     console.print_task("maximizing satisfiable nodes")
@@ -1490,7 +1504,7 @@ if args.action == "filter-nodes":
             "wave patience="
             f"{format_duration(args.domain_wave_patience)}, "
             f"minimum yield={args.min_domain_yield:.1%}, "
-            f"refresh limit={MAX_DOMAIN_REFRESH_WAVES}, "
+            f"refresh limit={args.max_domain_refreshes}, "
             f"seed={args.domain_continuation_seed}",
             flush=True,
         )
@@ -1619,6 +1633,7 @@ if args.action == "filter-nodes":
                     clingo_configuration=args.clingo_configuration,
                     domain_patience_seconds=args.domain_wave_patience,
                     minimum_domain_yield=args.min_domain_yield,
+                    max_domain_refreshes=args.max_domain_refreshes,
                     clause_patience=stage_patience,
                     deadline=deadline,
                     on_model=retain_model,

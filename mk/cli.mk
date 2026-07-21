@@ -61,7 +61,13 @@ progress_unknown_targets = $(filter-out $(reset_stages),$(progress_targets))
 
 module_help_target = $(strip $(TARGET))
 module_help_unknown_targets = $(filter-out $(reset_stages),$(module_help_target))
-module_help_params = $(call uniq,$(target_params_$(module_help_target)))
+module_help_prior_note_targets = \
+	max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock \
+	bn-min bn-submin bn-diverse
+module_help_has_prior_note = $(filter $(module_help_prior_note_targets),$(module_help_target))
+module_help_hidden_params = $(if $(module_help_has_prior_note),$(prior_knowledge_params))
+module_help_params = $(call uniq,$(filter-out $(module_help_hidden_params),\
+	$(target_params_$(module_help_target))))
 module_help_deps = $(call uniq,$(progress_deps_$(module_help_target)))
 module_help_targets = $(RESET_TARGET_$(module_help_target))
 module_help_has_bin_hvg = $(filter BIN_HVG_TOP,$(module_help_params))
@@ -599,15 +605,24 @@ else
 					'$(parameter_help_note3_$(param))' \
 					'$(parameter_help_note4_$(param))';) \
 		fi; \
-		if [ -n "$(module_help_has_bin_hvg)" ] || [ -n "$(module_help_has_spec_note)" ]; then \
+		if [ -n "$(module_help_has_bin_hvg)" ] || \
+				[ -n "$(module_help_has_prior_note)" ] || \
+				[ -n "$(module_help_has_spec_note)" ]; then \
 			printf '\n'; \
 			printf '%s\n' 'Notes'; \
 			printf '%s\n' '-----'; \
 			if [ -n "$(module_help_has_bin_hvg)" ]; then \
 				printf '%s\n' 'Empty top HVG count means automatic estimation.'; \
 			fi; \
-			if [ -n "$(module_help_has_spec_note)" ]; then \
+			if [ -n "$(module_help_has_prior_note)" ]; then \
 				if [ -n "$(module_help_has_bin_hvg)" ]; then \
+					printf '\n'; \
+				fi; \
+				printf '%s\n' "Use 'scbolt spec help' for prior-network configuration."; \
+			fi; \
+			if [ -n "$(module_help_has_spec_note)" ]; then \
+				if [ -n "$(module_help_has_bin_hvg)" ] || \
+						[ -n "$(module_help_has_prior_note)" ]; then \
 					printf '\n'; \
 				fi; \
 				printf '%s\n' 'SPEC_FILE must be a YAML file with entries such as:'; \
@@ -1078,7 +1093,7 @@ __finalize-interrupted-gene-selection-results:
 	@:
 else
 __finalize-interrupted-gene-selection-results:
-	$(call ensure_partial_gene_selection_metadata,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain))
+	$(call ensure_partial_gene_selection_metadata,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain_size))
 	$(call ensure_partial_gene_selection_metadata,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution))
 	$(call ensure_partial_gene_selection_metadata,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft))
 	$(call ensure_partial_gene_selection_metadata,max-nodes-seed,$(firstword $(max_nodes_seed)),$(max_nodes_relaxed))
@@ -1099,7 +1114,7 @@ __kept-gene-selection-results:
 	$(call maybe_report_kept_gene_selection_result,max-nodes-seed,$(firstword $(max_nodes_seed)),$(max_nodes_relaxed),$(tmpdir)/kept-gene-selection-reported)
 	$(call maybe_report_kept_gene_selection_result,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft),$(tmpdir)/kept-gene-selection-reported)
 	$(call maybe_report_kept_gene_selection_result,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution),$(tmpdir)/kept-gene-selection-reported)
-	$(call maybe_report_kept_gene_selection_result,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain),$(tmpdir)/kept-gene-selection-reported)
+	$(call maybe_report_kept_gene_selection_result,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain_size),$(tmpdir)/kept-gene-selection-reported)
 	@rm -f "$(tmpdir)/kept-gene-selection-reported"
 
 .PHONY: __intermediate-gene-selection-status
@@ -1118,7 +1133,7 @@ __intermediate-gene-selection-status:
 	$(call maybe_report_intermediate_gene_selection_status,max-nodes-seed,$(firstword $(max_nodes_seed)),$(max_nodes_relaxed),$(tmpdir)/intermediate-gene-selection-reported)
 	$(call maybe_report_intermediate_gene_selection_status,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft),$(tmpdir)/intermediate-gene-selection-reported)
 	$(call maybe_report_intermediate_gene_selection_status,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution),$(tmpdir)/intermediate-gene-selection-reported)
-	$(call maybe_report_intermediate_gene_selection_status,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain),$(tmpdir)/intermediate-gene-selection-reported)
+	$(call maybe_report_intermediate_gene_selection_status,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain_size),$(tmpdir)/intermediate-gene-selection-reported)
 	@rm -f "$(tmpdir)/intermediate-gene-selection-reported"
 
 .PHONY: bn-min __bn-min

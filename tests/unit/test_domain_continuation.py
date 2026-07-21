@@ -7,7 +7,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "infer"))
 
 from _domain_continuation import (  # noqa: E402
-    MAX_DOMAIN_REFRESH_WAVES,
     DomainCandidate,
     DomainCandidateResult,
     DomainWaveLeader,
@@ -29,7 +28,6 @@ current = {"g0", "g1", "g2"}
 assert initial_domain_size(3, 20) == 12
 assert expansion_domain_size(12, 20) == 16
 assert bounded_midpoint(3, 20) == 12
-assert MAX_DOMAIN_REFRESH_WAVES == 5
 assert minimum_domain_gain(120, 0.10) == 12
 assert minimum_domain_gain(5, 0.99) == 5
 assert minimum_domain_gain(5, 0) == 0

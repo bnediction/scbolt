@@ -9,7 +9,6 @@ from math import ceil
 from typing import Collection, Iterable, Literal, Sequence
 
 DomainOutcome = Literal["sat", "unsat", "unknown", "cancelled"]
-MAX_DOMAIN_REFRESH_WAVES = 5
 
 
 @dataclass(frozen=True)

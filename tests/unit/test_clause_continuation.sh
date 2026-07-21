@@ -19,26 +19,27 @@ include mk/modules.mk
 all:
 	@printf '%s\n' \
 		'soft=$(call clause_continuation,CLAUSE_CONTINUATION_SOFT)' \
-		'soft_patience=$(PATIENCE_CLAUSE_BOUND_SOFT)' \
+		'soft_patience=$(PATIENCE_CLAUSE_BOUND)' \
 		'soft_mode=$(CLINGO_OPT_MODE_SOFT)' \
 		'soft_strategy=$(CLINGO_OPT_STRATEGY_SOFT)' \
 		'relaxed=$(call clause_continuation,CLAUSE_CONTINUATION_RELAXED)' \
-		'relaxed_patience=$(PATIENCE_CLAUSE_BOUND_RELAXED)' \
+		'relaxed_patience=$(PATIENCE_CLAUSE_BOUND)' \
 		'relaxed_mode=$(CLINGO_OPT_MODE_RELAXED)' \
 		'relaxed_strategy=$(CLINGO_OPT_STRATEGY_RELAXED)' \
 		'seed=$(call clause_continuation,CLAUSE_CONTINUATION_SEED)' \
-		'seed_patience=$(PATIENCE_CLAUSE_BOUND_SEED)' \
+		'seed_patience=$(PATIENCE_CLAUSE_BOUND)' \
 		'seed_mode=$(CLINGO_OPT_MODE_SEED)' \
 		'seed_strategy=$(CLINGO_OPT_STRATEGY_SEED)' \
 		'lock=$(call clause_continuation,CLAUSE_CONTINUATION_LOCK)'
 	@printf '%s\n' \
-		'lock_patience=$(PATIENCE_CLAUSE_BOUND_LOCK)' \
+		'lock_patience=$(PATIENCE_CLAUSE_BOUND)' \
 		'lock_mode=$(CLINGO_OPT_MODE_LOCK)' \
 		'lock_strategy=$(CLINGO_OPT_STRATEGY_LOCK)' \
 		'domain_soft=$(call domain_continuation,DOMAIN_CONTINUATION_SOFT)' \
 		'domain_relaxed=$(call domain_continuation,DOMAIN_CONTINUATION_RELAXED)' \
 		'domain_seed=$(call domain_continuation,DOMAIN_CONTINUATION_SEED)' \
-		'domain_lock=$(call domain_continuation,DOMAIN_CONTINUATION_LOCK)'
+		'domain_lock=$(call domain_continuation,DOMAIN_CONTINUATION_LOCK)' \
+		'domain_patience=$(PATIENCE_DOMAIN_WAVE)'
 MAKE
 }
 
@@ -47,18 +48,18 @@ grep -qx 'CLAUSE_CONTINUATION_SOFT=false' <<< "${defaults}"
 grep -qx 'CLAUSE_CONTINUATION_RELAXED=true' <<< "${defaults}"
 grep -qx 'CLAUSE_CONTINUATION_SEED=true' <<< "${defaults}"
 grep -qx 'CLAUSE_CONTINUATION_LOCK=true' <<< "${defaults}"
-grep -qx 'PATIENCE_CLAUSE_BOUND_SOFT=30m' <<< "${defaults}"
-grep -qx 'PATIENCE_CLAUSE_BOUND_RELAXED=30m' <<< "${defaults}"
-grep -qx 'PATIENCE_CLAUSE_BOUND_SEED=30m' <<< "${defaults}"
-grep -qx 'PATIENCE_CLAUSE_BOUND_LOCK=30m' <<< "${defaults}"
+grep -qx 'PATIENCE_CLAUSE_BOUND=30m' <<< "${defaults}"
 grep -qx 'DOMAIN_CONTINUATION_SOFT=false' <<< "${defaults}"
 grep -qx 'DOMAIN_CONTINUATION_RELAXED=false' <<< "${defaults}"
 grep -qx 'DOMAIN_CONTINUATION_SEED=true' <<< "${defaults}"
 grep -qx 'DOMAIN_CONTINUATION_LOCK=true' <<< "${defaults}"
-grep -qx 'PATIENCE_DOMAIN_WAVE_SEED=5m' <<< "${defaults}"
-grep -qx 'PATIENCE_DOMAIN_WAVE_LOCK=5m' <<< "${defaults}"
+grep -qx 'PATIENCE_DOMAIN_WAVE=5m' <<< "${defaults}"
+! grep -Eq '^PATIENCE_(CLAUSE_BOUND|DOMAIN_WAVE)_(SOFT|RELAXED|SEED|LOCK)=' \
+    <<< "${defaults}"
 grep -qx 'MIN_DOMAIN_YIELD=0.10' <<< "${defaults}"
-grep -qx 'JOBS_CLINGO_SEED=1' <<< "${defaults}"
+grep -qx 'MAX_DOMAIN_REFRESHES=2' <<< "${defaults}"
+grep -qx 'CLINGO_THREADS=1' <<< "${defaults}"
+! grep -Eq '^JOBS_CLINGO_(SOFT|CONSTS|RELAXED|SEED|LOCK)=' <<< "${defaults}"
 
 run_helper "${tmpdir}/defaults.out"
 grep -qx 'soft=' "${tmpdir}/defaults.out"
@@ -81,6 +82,15 @@ grep -qx 'domain_soft=' "${tmpdir}/defaults.out"
 grep -qx 'domain_relaxed=' "${tmpdir}/defaults.out"
 grep -qx 'domain_seed=--domain-continuation' "${tmpdir}/defaults.out"
 grep -qx 'domain_lock=--domain-continuation' "${tmpdir}/defaults.out"
+
+run_helper "${tmpdir}/shared-patience.out" \
+    PATIENCE_CLAUSE_BOUND=17m \
+    PATIENCE_DOMAIN_WAVE=90s
+grep -qx 'soft_patience=17m' "${tmpdir}/shared-patience.out"
+grep -qx 'relaxed_patience=17m' "${tmpdir}/shared-patience.out"
+grep -qx 'seed_patience=17m' "${tmpdir}/shared-patience.out"
+grep -qx 'lock_patience=17m' "${tmpdir}/shared-patience.out"
+grep -qx 'domain_patience=90s' "${tmpdir}/shared-patience.out"
 
 run_helper "${tmpdir}/disabled.out" \
     CLAUSE_CONTINUATION_SOFT=false \
@@ -119,7 +129,7 @@ for stage in SOFT RELAXED SEED LOCK; do
         "--clause-continuation-parameter CLAUSE_CONTINUATION_${stage}" \
         "${repo_root}/Makefile"
     grep -Fq -- \
-        "--clause-bound-patience \"\$(PATIENCE_CLAUSE_BOUND_${stage})\"" \
+        '--clause-bound-patience "$(PATIENCE_CLAUSE_BOUND)"' \
         "${repo_root}/Makefile"
 done
 
@@ -128,7 +138,7 @@ for stage in SOFT RELAXED SEED LOCK; do
         "\$(call domain_continuation,DOMAIN_CONTINUATION_${stage})" \
         "${repo_root}/Makefile"
     grep -Fq -- \
-        "--domain-wave-patience \"\$(PATIENCE_DOMAIN_WAVE_${stage})\"" \
+        '--domain-wave-patience "$(PATIENCE_DOMAIN_WAVE)"' \
         "${repo_root}/Makefile"
     grep -Fq -- \
         "--domain-continuation-jobs \$(JOBS)" \
@@ -139,13 +149,12 @@ for stage in SOFT RELAXED SEED LOCK; do
     grep -Fq -- \
         "--min-domain-yield \$(MIN_DOMAIN_YIELD)" \
         "${repo_root}/Makefile"
-done
-
-for stage in SOFT CONSTS RELAXED SEED LOCK; do
     grep -Fq -- \
-        "--jobs \$(JOBS_CLINGO_${stage})" \
+        "--max-domain-refreshes \$(MAX_DOMAIN_REFRESHES)" \
         "${repo_root}/Makefile"
 done
+
+[[ "$(grep -Fc -- '--jobs $(CLINGO_THREADS)' "${repo_root}/Makefile")" -eq 5 ]]
 
 grep -Fq -- \
     '$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),--domain-continuation-expansion-only)' \
@@ -155,10 +164,14 @@ seed_help="$(
     "${repo_root}/bin/scbolt" max-nodes-seed help \
         --params="${repo_root}/tests/fixtures/params.mk"
 )"
-grep -Fq 'PATIENCE_CLAUSE_BOUND_SEED' <<< "${seed_help}"
-grep -Fq 'PATIENCE_DOMAIN_WAVE_SEED' <<< "${seed_help}"
+grep -Fq 'PATIENCE_CLAUSE_BOUND' <<< "${seed_help}"
+grep -Fq 'PATIENCE_DOMAIN_WAVE' <<< "${seed_help}"
+! grep -Fq 'PATIENCE_CLAUSE_BOUND_SEED' <<< "${seed_help}"
+! grep -Fq 'PATIENCE_DOMAIN_WAVE_SEED' <<< "${seed_help}"
 grep -Fq 'DOMAIN_CONTINUATION_SEED' <<< "${seed_help}"
 grep -Fq 'MIN_DOMAIN_YIELD' <<< "${seed_help}"
+grep -Fq 'MAX_DOMAIN_REFRESHES' <<< "${seed_help}"
+grep -Fq 'CLINGO_THREADS' <<< "${seed_help}"
 grep -Fq 'Low-yield expansions are refreshed at constant size' <<< "${seed_help}"
 grep -Fq 'JOBS' <<< "${seed_help}"
 grep -Fq 'Maximum time without a Clingo objective improvement' <<< "${seed_help}"
@@ -166,13 +179,26 @@ grep -Fq \
     'Maximum time without an improvement of the best portfolio objective' \
     <<< "${seed_help}"
 
+soft_help="$(
+    "${repo_root}/bin/scbolt" max-nodes-soft help \
+        --params="${repo_root}/tests/fixtures/params.mk"
+)"
+grep -Fq 'DOMAIN_CONTINUATION_SOFT   false' <<< "${soft_help}"
+grep -Fq 'MIN_DOMAIN_YIELD' <<< "${soft_help}"
+grep -Fq 'MAX_DOMAIN_REFRESHES' <<< "${soft_help}"
+grep -Fq 'Ignored when domain continuation is disabled' <<< "${soft_help}"
+
 lock_help="$(
     "${repo_root}/bin/scbolt" max-nodes-lock help \
         --params="${repo_root}/tests/fixtures/params.mk"
 )"
-grep -Fq 'PATIENCE_DOMAIN_WAVE_LOCK' <<< "${lock_help}"
+grep -Fq 'PATIENCE_CLAUSE_BOUND' <<< "${lock_help}"
+grep -Fq 'PATIENCE_DOMAIN_WAVE' <<< "${lock_help}"
+! grep -Fq 'PATIENCE_CLAUSE_BOUND_LOCK' <<< "${lock_help}"
+! grep -Fq 'PATIENCE_DOMAIN_WAVE_LOCK' <<< "${lock_help}"
 grep -Fq 'DOMAIN_CONTINUATION_LOCK' <<< "${lock_help}"
 grep -Fq 'MIN_DOMAIN_YIELD' <<< "${lock_help}"
+grep -Fq 'MAX_DOMAIN_REFRESHES' <<< "${lock_help}"
 grep -Fq \
     'Expand the retained SEED witness through candidate subdomains' \
     <<< "${lock_help}"
@@ -205,8 +231,8 @@ grep -Fq \
 grep -Fq \
     "f\"{result} ({', '.join(outcomes)})\"" \
     "${repo_root}/scripts/infer/selection.py"
-grep -Fq 'MAX_DOMAIN_REFRESH_WAVES = 5' \
-    "${repo_root}/scripts/infer/_domain_continuation.py"
+! grep -Fq 'MAX_DOMAIN_REFRESH_WAVES' \
+    "${repo_root}/scripts/infer/selection.py"
 grep -Fq 'class InheritedObjectiveProgress(ptqdm):' \
     "${repo_root}/scripts/infer/selection.py"
 grep -Fq 'retained["objective"],' \

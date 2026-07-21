@@ -259,7 +259,7 @@ When no interior size remains, scBOLT changes deterministic candidate
 compositions at the same boundary until clause patience or the stage timeout
 decides the transition.
 
-Portfolio workers use one Clingo job each. Finding the first satisfiable
+Portfolio workers use one Clingo thread each. Finding the first satisfiable
 witness does not terminate the acquisition wave. The first witness becomes the
 wave leader, and the remaining workers continue searching for a better
 objective until the shared wave patience expires or every worker finishes.
@@ -287,7 +287,7 @@ After a witness is selected:
 3. every candidate contains the complete current domain but differs in the
    additional nodes selected by its deterministic ordering;
 4. the current witness is injected into every candidate as a soft heuristic;
-5. the candidates are evaluated in parallel, using one Clingo job each and the
+5. the candidates are evaluated in parallel, using one Clingo thread each and the
    same leader-based wave patience as during acquisition;
 6. scBOLT selects the best successful candidate deterministically by stage
    objective and then by candidate index;
@@ -295,11 +295,12 @@ After a witness is selected:
    witness;
 8. scBOLT evaluates the retained-node yield of the expansion and may refresh
    its unproductive additions at constant domain size;
-9. expansion resumes after the configured yield is reached, five refresh waves
-   have been attempted, or all distinct refresh domains have been exhausted;
+9. expansion resumes after the configured yield is reached, the configured
+   number of refreshes has been attempted, or all distinct refresh domains
+   have been exhausted;
 10. when the next expansion would be the complete domain, the portfolio stops
     and one final Clingo instance resumes optimization using
-    `JOBS_CLINGO_<STAGE>`.
+    `CLINGO_THREADS`.
 
 For `LOCK`, the initial current domain is the union of the selected `SEED`
 nodes and the nodes required by the lock problem. Every expansion candidate
@@ -365,30 +366,31 @@ a new witness may add several nodes while dropping older selected nodes. The
 protected set is therefore derived from the actual witness rather than from the
 numeric gain alone.
 
-At most five constant-size refresh waves are attempted for one expansion size.
-This internal limit is reset only after the domain size increases; objective
-improvements do not reset it. Reaching the limit or exhausting every distinct
-candidate composition advances to the next midpoint with the best retained
-witness even when the requested yield was not reached. The policy is therefore
-strict but cannot block domain growth. Setting `MIN_DOMAIN_YIELD=0` disables
-yield-based refreshes and preserves direct midpoint expansion.
+At most `MAX_DOMAIN_REFRESHES` constant-size refresh waves are attempted for
+one expansion size. This limit is reset only after the domain size increases;
+objective improvements do not reset it. Reaching the limit or exhausting every
+distinct candidate composition advances to the next midpoint with the best
+retained witness even when the requested yield was not reached. The policy is
+therefore strict but cannot block domain growth. Setting either
+`MIN_DOMAIN_YIELD=0` or `MAX_DOMAIN_REFRESHES=0` disables yield-based refreshes
+and preserves direct midpoint expansion.
 
 Domain yield and solver optimality are independent. A candidate may have a
 certified optimum with low yield, while an uncertified intermediate witness may
 already exceed the yield threshold. `MIN_DOMAIN_YIELD` controls domain
 scheduling; Clingo completion and optimization mode control certification.
 
-The two job controls are not nested:
+The two parallelism controls are not nested:
 
 ```make
 JOBS = 8
-JOBS_CLINGO_SEED = 1
+CLINGO_THREADS = 1
 ```
 
 `JOBS` controls the number of candidate domains evaluated simultaneously in
-every acquisition or expansion wave, with one Clingo job per candidate. Once
+every acquisition or expansion wave, with one Clingo thread per candidate. Once
 the complete domain is reached, the candidate portfolio stops and one final
-optimization instance uses `JOBS_CLINGO_<STAGE>`. The maximum concurrent job
+optimization instance uses `CLINGO_THREADS`. The maximum concurrent thread
 count is therefore the maximum of the two values, not their product.
 
 Each candidate owns an independent BoNesis problem and Clingo control. The
@@ -429,8 +431,8 @@ The combined domain and clause transition policy is:
   block successful siblings.
 - **Successful expansion with insufficient yield:** retain the best witness,
   protect its useful additions, and refresh only the remaining expansion shell
-  at constant size. Continue expansion after the yield threshold, five refresh
-  waves, or candidate-space exhaustion.
+  at constant size. Continue expansion after the yield threshold,
+  `MAX_DOMAIN_REFRESHES` refreshes, or candidate-space exhaustion.
 - **Certified candidate optimum without sufficient yield:** treat the candidate
   as `SAT` and fully solved for its exact subdomain, but continue refreshing
   other compositions at the same size. Certification does not imply that a
@@ -504,7 +506,7 @@ for q in 1..MAX_CLAUSES:
     while the next expansion remains a proper subdomain of the complete domain:
         construct a wave of equally sized candidate supersets
         inject the current witness into every candidate
-        evaluate candidates in parallel with one Clingo job each
+        evaluate candidates in parallel with one Clingo thread each
 
         first SAT or strict portfolio improvement:
             update the wave leader
@@ -519,7 +521,8 @@ for q in 1..MAX_CLAUSES:
             insufficient yield:
                 preserve the previous domain and useful witness additions
                 resample the remaining slots at constant size
-                stop after five refresh waves or candidate-space exhaustion
+                stop after MAX_DOMAIN_REFRESHES refreshes
+                or candidate-space exhaustion
 
             sufficient yield or refresh limit:
                 continue to the next midpoint expansion
@@ -529,7 +532,7 @@ for q in 1..MAX_CLAUSES:
             reduce the expansion step or diversify added nodes
 
     optimize the complete domain at q using the best witness and
-    JOBS_CLINGO_<STAGE>
+    CLINGO_THREADS
 
     if the theoretical maximum objective is reached:
         stop
@@ -610,25 +613,30 @@ branch, or Clingo instance changes.
 | Parameter | Meaning |
 | --- | --- |
 | `CLAUSE_CONTINUATION_<STAGE>` | Enable progressive clause bounds for the selected node-selection stage. |
-| `PATIENCE_CLAUSE_BOUND_<STAGE>` | Maximum time without an objective improvement at an intermediate clause bound. Disabled at `MAX_CLAUSES`. |
+| `PATIENCE_CLAUSE_BOUND` | Shared maximum time without an objective improvement at an intermediate clause bound. Disabled at `MAX_CLAUSES`. |
 
 Clause continuation supports `SOFT`, `RELAXED`, `SEED`, and `LOCK`. An empty or
-zero patience disables early advancement based on missing improvements.
+zero patience disables early advancement based on missing improvements. Each
+stage remains independently enabled through its `CLAUSE_CONTINUATION_<STAGE>`
+parameter, while the patience is uniform across enabled stages.
 
 ### Domain Continuation
 
 | Parameter | Meaning |
 | --- | --- |
 | `DOMAIN_CONTINUATION_<STAGE>` | Enable adaptive first-witness search and progressive witness-guided expansion; `LOCK` uses expansion only. |
-| `PATIENCE_DOMAIN_WAVE_<STAGE>` | Maximum time without a strict improvement of the best portfolio objective within one acquisition or expansion wave. |
+| `PATIENCE_DOMAIN_WAVE` | Shared maximum time without a strict improvement of the best portfolio objective within one acquisition or expansion wave. |
 | `MIN_DOMAIN_YIELD` | Minimum cumulative retained-node gain per node added during one domain expansion. Values must be at least 0 and below 1; zero disables constant-size refreshes. |
+| `MAX_DOMAIN_REFRESHES` | Maximum number of constant-size domain refreshes before expansion resumes. Zero disables refreshes. |
 
 Domain continuation supports `SOFT`, `RELAXED`, `SEED`, and `LOCK`. The global
 `JOBS` parameter controls the number of candidate domains evaluated
-simultaneously, and every candidate uses one Clingo job. For `LOCK`, candidate
+simultaneously, and every candidate uses one Clingo thread. For `LOCK`, candidate
 domains are supersets of the retained seed core and no acquisition portfolio is
-run. The refresh limit is an internal scheduling safeguard fixed at five waves
-per expansion size; it is not a user parameter.
+run. Each stage remains independently enabled through its
+`DOMAIN_CONTINUATION_<STAGE>` parameter, while the wave patience is uniform
+across enabled stages. `MAX_DOMAIN_REFRESHES` is shared by all enabled stages
+and defaults to two retries per expansion size.
 
 ### Clingo Optimization
 
@@ -637,11 +645,11 @@ per expansion size; it is not a user parameter.
 | `CLINGO_CONFIG_<STAGE>` | Named Clingo configuration or custom configuration file used by the stage. |
 | `CLINGO_OPT_MODE_<STAGE>` | Optimization handling mode: `opt` for anytime optimization, `optN` for optimum enumeration and certification, or `ignore` to disable optimization objectives and accept a satisfiable model. |
 | `CLINGO_OPT_STRATEGY_<STAGE>` | Clingo optimization algorithm, such as branch-and-bound (`bb,*`) or unsatisfiable-core optimization (`usc,*`). |
-| `JOBS_CLINGO_<STAGE>` | Number of Clingo jobs used by the final optimization instance on the complete domain. |
+| `CLINGO_THREADS` | Number of threads used by the stage-level Clingo solver. |
 
-`JOBS_CLINGO_CONSTS` is the corresponding control for
-`max-consts-soft`. Domain-continuation workers always use one Clingo job and do
-not multiply `JOBS_CLINGO_<STAGE>` by `JOBS`.
+The same value applies to every gene-selection stage, including
+`max-consts-soft`. Domain-continuation workers always use one Clingo thread and
+do not multiply `CLINGO_THREADS` by `JOBS`.
 
 ### Illustrative Seed Configuration
 
@@ -651,13 +659,14 @@ The following configuration shows the default seed strategy.
 DOMAIN_CONTINUATION_SEED = true
 CLAUSE_CONTINUATION_SEED = true
 MIN_DOMAIN_YIELD = 0.10
+MAX_DOMAIN_REFRESHES = 2
 
-PATIENCE_DOMAIN_WAVE_SEED = 5m
-PATIENCE_CLAUSE_BOUND_SEED = 30m
+PATIENCE_DOMAIN_WAVE = 5m
+PATIENCE_CLAUSE_BOUND = 30m
 TIMEOUT_SEED = 24h
 
 JOBS = 8
-JOBS_CLINGO_SEED = 1
+CLINGO_THREADS = 1
 
 CLINGO_CONFIG_SEED =
 CLINGO_OPT_MODE_SEED = opt
@@ -665,15 +674,15 @@ CLINGO_OPT_STRATEGY_SEED = bb,lin
 ```
 
 At a clause bound without a witness, this configuration evaluates up to eight
-candidate domains in parallel with one Clingo job each. The first witness
+candidate domains in parallel with one Clingo thread each. The first witness
 becomes the wave leader, and each strict improvement of the best portfolio
 objective restarts the shared five-minute patience. Once that patience expires,
 unresolved candidates become `UNKNOWN` and the best successful candidate
 becomes the common base of the following expansion wave. Expansion waves apply
 the same rule to larger candidate domains. An expansion retaining less than 10%
-of its added capacity triggers up to five constant-size refresh waves before
+of its added capacity triggers up to two constant-size refresh waves before
 domain growth resumes. On the complete domain, one final instance uses one
-Clingo job. Thirty minutes without an objective improvement advances an
+Clingo thread. Thirty minutes without an objective improvement advances an
 intermediate clause bound, while the 24-hour timeout is shared by the complete
 seed stage.
 
@@ -686,13 +695,14 @@ acquisition phase:
 DOMAIN_CONTINUATION_LOCK = true
 CLAUSE_CONTINUATION_LOCK = true
 MIN_DOMAIN_YIELD = 0.10
+MAX_DOMAIN_REFRESHES = 2
 
-PATIENCE_DOMAIN_WAVE_LOCK = 5m
-PATIENCE_CLAUSE_BOUND_LOCK = 30m
+PATIENCE_DOMAIN_WAVE = 5m
+PATIENCE_CLAUSE_BOUND = 30m
 TIMEOUT_LOCK = 72h
 
 JOBS = 8
-JOBS_CLINGO_LOCK = 1
+CLINGO_THREADS = 1
 ```
 
 Each candidate contains every selected seed node, because these nodes are
@@ -705,15 +715,15 @@ solver.
 
 Three time controls have distinct meanings:
 
-1. `PATIENCE_DOMAIN_WAVE_<STAGE>` bounds stagnation of the best
+1. `PATIENCE_DOMAIN_WAVE` bounds stagnation of the best
    portfolio objective within one acquisition or expansion wave. Its clock is
    reset by the first wave witness and every strict leader improvement, but not
    by equal or globally inferior results. Expiration interrupts all unresolved
    workers; workers without a witness become `UNKNOWN`, while successful
    candidates remain eligible for deterministic selection. Every constant-size
-   refresh receives a new wave patience clock, while the five-wave refresh
+   refresh receives a new wave patience clock, while the configured refresh
    limit remains attached to the current expansion size.
-2. `PATIENCE_CLAUSE_BOUND_<STAGE>` bounds the time without objective
+2. `PATIENCE_CLAUSE_BOUND` bounds the time without objective
    improvement across all attempts at one intermediate clause bound. Every
    improvement resets this clause-level patience.
 3. `TIMEOUT_<STAGE>` bounds the complete solver execution of the stage and is
