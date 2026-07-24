@@ -281,7 +281,7 @@ $(eval MAX_DOMAIN_REFRESHES ?= 2)           # maximum constant-size domain refre
 $(eval CLINGO_THREADS ?= 1)                 # threads for the stage-level Clingo solver
 
 clause_continuation_clingo_default_strategy := bb,lin
-clingo_opt_strategy_seed_default := bb,inc
+clingo_strategy_seed_default := bb,inc
 clause_continuation_clingo_mode = $(if $(filter true,$($(1))),opt,$(2))
 clause_continuation_clingo_strategy = $(if $(filter true,$($(1))),$(clause_continuation_clingo_default_strategy),$(2))
 
@@ -289,23 +289,23 @@ clause_continuation_clingo_strategy = $(if $(filter true,$($(1))),$(clause_conti
 $(eval CLAUSE_CONTINUATION_SOFT ?= false)   # progressively increase clause bounds
 $(eval DOMAIN_CONTINUATION_SOFT ?= false)   # search and expand candidate subdomains
 $(eval CLINGO_CONFIG_SOFT ?=)               # Clingo default configuration
-CLINGO_OPT_MODE_SOFT ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_SOFT,optN)
-CLINGO_OPT_STRATEGY_SOFT ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_SOFT,usc)
+CLINGO_MODE_SOFT ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_SOFT,optN)
+CLINGO_STRATEGY_SOFT ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_SOFT,usc)
 $(eval TIMEOUT_SOFT ?=)                     # timeout
 
 ## MAX-CONSTS-SOFT ##
 $(eval MIN_SELF_LOOP_CONSTS ?= true)        # minimize one-node feedbacks
 $(eval CLINGO_CONFIG_CONSTS ?=)             # Clingo default configuration
-$(eval CLINGO_OPT_MODE_CONSTS ?= optN)      # Clingo optimization mode
-$(eval CLINGO_OPT_STRATEGY_CONSTS ?= usc)   # Clingo optimization strategy
+$(eval CLINGO_MODE_CONSTS ?= optN)      # Clingo optimization mode
+$(eval CLINGO_STRATEGY_CONSTS ?= usc)   # Clingo optimization strategy
 $(eval TIMEOUT_CONSTS ?= 24h)               # timeout
 
 ## MAX-NODES-RELAXED ##
 $(eval CLAUSE_CONTINUATION_RELAXED ?= true) # progressively increase clause bounds
 $(eval DOMAIN_CONTINUATION_RELAXED ?= false) # search and expand candidate subdomains
 $(eval CLINGO_CONFIG_RELAXED ?=)            # Clingo default configuration
-CLINGO_OPT_MODE_RELAXED ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_RELAXED,optN)
-CLINGO_OPT_STRATEGY_RELAXED ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_RELAXED,usc)
+CLINGO_MODE_RELAXED ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_RELAXED,optN)
+CLINGO_STRATEGY_RELAXED ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_RELAXED,usc)
 $(eval TIMEOUT_RELAXED ?= 48h)              # timeout
 
 ## MAX-NODES-SEED ##
@@ -313,16 +313,16 @@ $(eval TIMEOUT_RELAXED ?= 48h)              # timeout
 $(eval CLAUSE_CONTINUATION_SEED ?= true)    # progressively increase clause bounds
 $(eval DOMAIN_CONTINUATION_SEED ?= true)    # search and expand candidate subdomains
 $(eval CLINGO_CONFIG_SEED ?=)               # Clingo default configuration
-CLINGO_OPT_MODE_SEED ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_SEED,opt)
-CLINGO_OPT_STRATEGY_SEED ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_SEED,$(clingo_opt_strategy_seed_default))
+CLINGO_MODE_SEED ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_SEED,opt)
+CLINGO_STRATEGY_SEED ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_SEED,$(clingo_strategy_seed_default))
 $(eval TIMEOUT_SEED ?= 24h)                 # timeout
 
 ## MAX-NODES-LOCK ##
 $(eval CLAUSE_CONTINUATION_LOCK ?= true)    # progressively increase clause bounds
 $(eval DOMAIN_CONTINUATION_LOCK ?= true)    # expand the retained seed witness
 $(eval CLINGO_CONFIG_LOCK ?=)               # Clingo default configuration
-CLINGO_OPT_MODE_LOCK ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_LOCK,opt)
-CLINGO_OPT_STRATEGY_LOCK ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_LOCK,usc)
+CLINGO_MODE_LOCK ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_LOCK,opt)
+CLINGO_STRATEGY_LOCK ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_LOCK,usc)
 $(eval TIMEOUT_LOCK ?= 72h)                 # timeout
 
 ## OUTPUTS ##
@@ -333,7 +333,7 @@ $(eval GRAPH_FORMATS = dot)                 # Graphviz layouts to export
 
 ## BONESIS-MIN ##
 $(eval MIN_SELF_LOOP_INFER ?= true)         # minimize one-node feedbacks at inference stage
-$(eval CLINGO_OPT_MODE_MIN ?= optN)         # Clingo optimization mode
+$(eval CLINGO_MODE_MIN ?= optN)         # Clingo optimization mode
 
 ## BONESIS-DIVERSE / BONESIS-SUBMIN ##
 $(eval INFER_LIMIT ?=)                      # diverse/subset-minimal solution limit

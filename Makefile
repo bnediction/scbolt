@@ -802,8 +802,8 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 		$(prior_knowledge_args) \
 		--bonesis-mode soft --max-clauses $(MAX_CLAUSES) \
 		$(if $(strip $(CLINGO_CONFIG_SOFT)),--clingo-configuration $(CLINGO_CONFIG_SOFT)) \
-		--clingo-opt-mode $(CLINGO_OPT_MODE_SOFT) \
-		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SOFT) \
+		--clingo-mode $(CLINGO_MODE_SOFT) \
+		--clingo-strategy $(CLINGO_STRATEGY_SOFT) \
 		--jobs $(CLINGO_THREADS) $(if $(strip $(TIMEOUT_SOFT)),--timeout "$(TIMEOUT_SOFT)") \
 		--timeout-status-file "$(@D)/.inference-timeout"; \
 	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
@@ -829,8 +829,8 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution) $(if $(geneinfo_
 		$(prior_knowledge_args) \
 		--bonesis-mode soft --max-clauses $(MAX_CLAUSES) $(min_self_loop_consts) \
 		$(if $(strip $(CLINGO_CONFIG_CONSTS)),--clingo-configuration $(CLINGO_CONFIG_CONSTS)) \
-		--clingo-opt-mode $(CLINGO_OPT_MODE_CONSTS) \
-		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_CONSTS) \
+		--clingo-mode $(CLINGO_MODE_CONSTS) \
+		--clingo-strategy $(CLINGO_STRATEGY_CONSTS) \
 		--jobs $(CLINGO_THREADS) $(if $(strip $(TIMEOUT_CONSTS)),--timeout "$(TIMEOUT_CONSTS)") \
 		--timeout-status-file "$(@D)/.inference-timeout"; \
 	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
@@ -869,8 +869,8 @@ $(max_nodes_relaxed) $(max_nodes_relaxed_witness) &: $(bonesis_model) $(max_cons
 		$(prior_knowledge_args) \
 		--bonesis-mode relaxed --max-clauses $(MAX_CLAUSES) \
 		$(if $(strip $(CLINGO_CONFIG_RELAXED)),--clingo-configuration $(CLINGO_CONFIG_RELAXED)) \
-		--clingo-opt-mode $(CLINGO_OPT_MODE_RELAXED) \
-		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_RELAXED) \
+		--clingo-mode $(CLINGO_MODE_RELAXED) \
+		--clingo-strategy $(CLINGO_STRATEGY_RELAXED) \
 		--jobs $(CLINGO_THREADS) $(if $(strip $(TIMEOUT_RELAXED)),--timeout "$(TIMEOUT_RELAXED)") \
 		--timeout-status-file "$(@D)/.inference-timeout"; \
 	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
@@ -916,8 +916,8 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_relaxed_wi
 		$(prior_knowledge_args) \
 		--bonesis-mode hard --max-clauses $(MAX_CLAUSES) \
 		$(if $(strip $(CLINGO_CONFIG_SEED)),--clingo-configuration $(CLINGO_CONFIG_SEED)) \
-		--clingo-opt-mode $(CLINGO_OPT_MODE_SEED) \
-		--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_SEED) \
+		--clingo-mode $(CLINGO_MODE_SEED) \
+		--clingo-strategy $(CLINGO_STRATEGY_SEED) \
 		--jobs $(CLINGO_THREADS) $(if $(strip $(TIMEOUT_SEED)),--timeout "$(TIMEOUT_SEED)") \
 		--timeout-status-file "$(@D)/.inference-timeout"; \
 	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
@@ -986,8 +986,8 @@ $(max_nodes_lock) $(max_nodes_lock_witness) &: $(bonesis_model) $(max_nodes_rela
 			$(prior_knowledge_args) \
 			--bonesis-mode hard --max-clauses $(MAX_CLAUSES) \
 			$(if $(strip $(CLINGO_CONFIG_LOCK)),--clingo-configuration $(CLINGO_CONFIG_LOCK)) \
-			--clingo-opt-mode $(CLINGO_OPT_MODE_LOCK) \
-			--clingo-opt-strategy $(CLINGO_OPT_STRATEGY_LOCK) \
+			--clingo-mode $(CLINGO_MODE_LOCK) \
+			--clingo-strategy $(CLINGO_STRATEGY_LOCK) \
 			--jobs $(CLINGO_THREADS) $(if $(strip $(TIMEOUT_LOCK)),--timeout "$(TIMEOUT_LOCK)") \
 			--timeout-status-file "$(dir $(max_nodes_lock)).inference-timeout"; \
 		$(call capture_inference_exit_status,$(dir $(max_nodes_lock)).inference-timeout) \
@@ -1010,7 +1010,7 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock) $(if $(geneinfo_dependency),| $(ge
 		--organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--max-clauses $(MAX_CLAUSES) $(min_self_loop_infer) \
-		--clingo-opt-mode $(CLINGO_OPT_MODE_MIN) --jobs 1 \
+		--clingo-mode $(CLINGO_MODE_MIN) --jobs 1 \
 		--graph-formats $(GRAPH_FORMATS)
 		if command -v dot >/dev/null 2>&1; then
 		    for file in $(@D)/*.dot; do

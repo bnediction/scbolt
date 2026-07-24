@@ -3,8 +3,8 @@
 from ._argparse import (
     Bonesis_domain,
     Bonesis_mode,
-    Clingo_opt_mode,
-    Clingo_opt_strategy,
+    Clingo_mode,
+    Clingo_strategy,
     Clingo_parallel_mode,
     HelpFormatter,
     Memory,
@@ -25,8 +25,8 @@ from ._argparse import (
 __all__ = [
     "Bonesis_domain",
     "Bonesis_mode",
-    "Clingo_opt_mode",
-    "Clingo_opt_strategy",
+    "Clingo_mode",
+    "Clingo_strategy",
     "Clingo_parallel_mode",
     "HelpFormatter",
     "Memory",

@@ -264,9 +264,9 @@ def add_bonesis_arguments(parser: argparse.ArgumentParser) -> None:
         help="minimize the number of self loops",
     )
     parser.add_argument(
-        "--clingo-opt-mode",
-        dest="clingo_opt_mode",
-        action=cli.Clingo_opt_mode,
+        "--clingo-mode",
+        dest="clingo_mode",
+        action=cli.Clingo_mode,
         required=False,
         default="optN",
     )

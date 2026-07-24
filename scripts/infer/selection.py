@@ -478,8 +478,8 @@ def solve_domain_candidate(
     *,
     max_clause: int,
     witness: Iterable[str],
-    clingo_opt_mode: str,
-    clingo_opt_strategy: str,
+    clingo_mode: str,
+    clingo_strategy: str,
     clingo_configuration: str | None,
     events: Queue,
     active_views: ActiveCandidateViews,
@@ -513,18 +513,18 @@ def solve_domain_candidate(
     )
     extra_clingo_options = ["--heuristic=Domain"] if witness else []
     view_settings = get_filter_clingo_settings(
-        clingo_opt_mode,
-        clingo_opt_strategy,
+        clingo_mode,
+        clingo_strategy,
         clingo_configuration,
         *extra_clingo_options,
     )
     view_settings["parallel"] = 1
     view = bonesis.NodesView(
         stage_bo,
-        mode=clingo_opt_mode,
+        mode=clingo_mode,
         extra=structural_witness,
         intermediate_model_cb=intermediate_solution,
-        clingo_opt_strategy=clingo_opt_strategy,
+        clingo_opt_strategy=clingo_strategy,
         progress=progress,
         **view_settings,
     )
@@ -564,8 +564,8 @@ def run_domain_wave(
     max_clause: int,
     witness: Iterable[str],
     incumbent_solution: Iterable[str],
-    clingo_opt_mode: str,
-    clingo_opt_strategy: str,
+    clingo_mode: str,
+    clingo_strategy: str,
     clingo_configuration: str | None,
     patience_seconds: float,
     clause_patience: SolverPatience,
@@ -694,8 +694,8 @@ def run_domain_wave(
             candidate,
             max_clause=max_clause,
             witness=witness,
-            clingo_opt_mode=clingo_opt_mode,
-            clingo_opt_strategy=clingo_opt_strategy,
+            clingo_mode=clingo_mode,
+            clingo_strategy=clingo_strategy,
             clingo_configuration=clingo_configuration,
             events=events,
             active_views=active_views,
@@ -872,8 +872,8 @@ def continue_domain_at_clause_bound(
     important_nodes: set[str],
     jobs: int,
     seed: int,
-    clingo_opt_mode: str,
-    clingo_opt_strategy: str,
+    clingo_mode: str,
+    clingo_strategy: str,
     clingo_configuration: str | None,
     domain_patience_seconds: float,
     minimum_domain_yield: float,
@@ -926,8 +926,8 @@ def continue_domain_at_clause_bound(
                 max_clause=max_clause,
                 witness=(),
                 incumbent_solution=current_solution,
-                clingo_opt_mode=clingo_opt_mode,
-                clingo_opt_strategy=clingo_opt_strategy,
+                clingo_mode=clingo_mode,
+                clingo_strategy=clingo_strategy,
                 clingo_configuration=clingo_configuration,
                 patience_seconds=domain_patience_seconds,
                 clause_patience=clause_patience,
@@ -1040,8 +1040,8 @@ def continue_domain_at_clause_bound(
             max_clause=max_clause,
             witness=current_witness,
             incumbent_solution=current_solution,
-            clingo_opt_mode=clingo_opt_mode,
-            clingo_opt_strategy=clingo_opt_strategy,
+            clingo_mode=clingo_mode,
+            clingo_strategy=clingo_strategy,
             clingo_configuration=clingo_configuration,
             patience_seconds=domain_patience_seconds,
             clause_patience=clause_patience,
@@ -1115,8 +1115,8 @@ def continue_domain_at_clause_bound(
                 max_clause=max_clause,
                 witness=current_witness,
                 incumbent_solution=current_solution,
-                clingo_opt_mode=clingo_opt_mode,
-                clingo_opt_strategy=clingo_opt_strategy,
+                clingo_mode=clingo_mode,
+                clingo_strategy=clingo_strategy,
                 clingo_configuration=clingo_configuration,
                 patience_seconds=domain_patience_seconds,
                 clause_patience=clause_patience,
@@ -1258,9 +1258,9 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
-    "--clingo-opt-strategy",
-    dest="clingo_opt_strategy",
-    action=cli.Clingo_opt_strategy,
+    "--clingo-strategy",
+    dest="clingo_strategy",
+    action=cli.Clingo_strategy,
     required=False,
 )
 parser.add_argument(
@@ -1484,7 +1484,7 @@ if args.action == "filter-nodes":
             "structural witness"
         )
 
-    effective_clingo_opt_strategy = args.clingo_opt_strategy or "bb,dec"
+    effective_clingo_strategy = args.clingo_strategy or "bb,dec"
     print_node_reference(
         nodes_in_data,
         nodes_in_domain,
@@ -1492,8 +1492,8 @@ if args.action == "filter-nodes":
         flush=True,
     )
     print_solver_options(
-        args.clingo_opt_mode,
-        effective_clingo_opt_strategy,
+        args.clingo_mode,
+        effective_clingo_strategy,
         args.max_clauses,
         canonical,
         configuration=args.clingo_configuration or "auto",
@@ -1621,8 +1621,8 @@ if args.action == "filter-nodes":
 
         is_target = max_clause == args.max_clauses
         stage_name = "Target optimization" if is_target else "Clause continuation"
-        clingo_opt_mode = args.clingo_opt_mode
-        clingo_opt_strategy = effective_clingo_opt_strategy
+        clingo_mode = args.clingo_mode
+        clingo_strategy = effective_clingo_strategy
         description = (
             f"{stage_name} [{stage_index}/{len(bounds)}, "
             f"max clauses={max_clause}]"
@@ -1673,8 +1673,8 @@ if args.action == "filter-nodes":
                     important_nodes=important_nodes_in_domain,
                     jobs=args.domain_continuation_jobs,
                     seed=args.domain_continuation_seed,
-                    clingo_opt_mode=clingo_opt_mode,
-                    clingo_opt_strategy=clingo_opt_strategy,
+                    clingo_mode=clingo_mode,
+                    clingo_strategy=clingo_strategy,
                     clingo_configuration=args.clingo_configuration,
                     domain_patience_seconds=args.domain_wave_patience,
                     minimum_domain_yield=args.min_domain_yield,
@@ -1729,18 +1729,18 @@ if args.action == "filter-nodes":
         if current_witness:
             extra_clingo_options.insert(0, "--heuristic=Domain")
         view_settings = get_filter_clingo_settings(
-            clingo_opt_mode,
-            clingo_opt_strategy,
+            clingo_mode,
+            clingo_strategy,
             args.clingo_configuration,
             *extra_clingo_options,
         )
 
         view = bonesis.NodesView(
             stage_bo,
-            mode=clingo_opt_mode,
+            mode=clingo_mode,
             extra=structural_witness,
             intermediate_model_cb=intermediate_solution,
-            clingo_opt_strategy=clingo_opt_strategy,
+            clingo_opt_strategy=clingo_strategy,
             progress=make_stage_progress(
                 description,
                 retained["objective"],
@@ -1856,7 +1856,7 @@ elif args.action == "filter-consts":
         write_structural_witness(witness, args.witness)
         write_node_solution(nodes, args.solution)
 
-    clingo_opt_strategy = "usc"
+    clingo_strategy = "usc"
     ptqdm.score_formatter = make_filter_consts_score_formatter(
         node_total=len(bo.domain.nodes),
         important_total=len(important_nodes_in_domain),
@@ -1874,14 +1874,14 @@ elif args.action == "filter-consts":
         }
     view = bonesis.NonStrongConstantNodesView(
         bo,
-        mode=args.clingo_opt_mode,
+        mode=args.clingo_mode,
         extra=structural_witness,
         intermediate_model_cb=intermediate_solution,
-        clingo_opt_strategy=clingo_opt_strategy,
+        clingo_opt_strategy=clingo_strategy,
         progress=ptqdm,
         **get_filter_clingo_settings(
-            args.clingo_opt_mode,
-            clingo_opt_strategy,
+            args.clingo_mode,
+            clingo_strategy,
             args.clingo_configuration,
             "--opt-usc-shrink=inv",
             clingo_parallel_option,
@@ -1892,8 +1892,8 @@ elif args.action == "filter-consts":
     nodes_in_data, nodes_in_domain, domain_edges = get_node_sets(bo)
     print_node_reference(nodes_in_data, nodes_in_domain, domain_edges)
     print_solver_options(
-        args.clingo_opt_mode,
-        clingo_opt_strategy,
+        args.clingo_mode,
+        clingo_strategy,
         args.max_clauses,
         canonical,
         configuration=args.clingo_configuration or "auto",

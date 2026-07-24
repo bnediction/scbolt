@@ -20,21 +20,21 @@ all:
 	@printf '%s\n' \
 		'soft=$(call clause_continuation,CLAUSE_CONTINUATION_SOFT)' \
 		'soft_patience=$(PATIENCE_CLAUSE_BOUND)' \
-		'soft_mode=$(CLINGO_OPT_MODE_SOFT)' \
-		'soft_strategy=$(CLINGO_OPT_STRATEGY_SOFT)' \
+		'soft_mode=$(CLINGO_MODE_SOFT)' \
+		'soft_strategy=$(CLINGO_STRATEGY_SOFT)' \
 		'relaxed=$(call clause_continuation,CLAUSE_CONTINUATION_RELAXED)' \
 		'relaxed_patience=$(PATIENCE_CLAUSE_BOUND)' \
-		'relaxed_mode=$(CLINGO_OPT_MODE_RELAXED)' \
-		'relaxed_strategy=$(CLINGO_OPT_STRATEGY_RELAXED)' \
+		'relaxed_mode=$(CLINGO_MODE_RELAXED)' \
+		'relaxed_strategy=$(CLINGO_STRATEGY_RELAXED)' \
 		'seed=$(call clause_continuation,CLAUSE_CONTINUATION_SEED)' \
 		'seed_patience=$(PATIENCE_CLAUSE_BOUND)' \
-		'seed_mode=$(CLINGO_OPT_MODE_SEED)' \
-		'seed_strategy=$(CLINGO_OPT_STRATEGY_SEED)' \
+		'seed_mode=$(CLINGO_MODE_SEED)' \
+		'seed_strategy=$(CLINGO_STRATEGY_SEED)' \
 		'lock=$(call clause_continuation,CLAUSE_CONTINUATION_LOCK)'
 	@printf '%s\n' \
 		'lock_patience=$(PATIENCE_CLAUSE_BOUND)' \
-		'lock_mode=$(CLINGO_OPT_MODE_LOCK)' \
-		'lock_strategy=$(CLINGO_OPT_STRATEGY_LOCK)' \
+		'lock_mode=$(CLINGO_MODE_LOCK)' \
+		'lock_strategy=$(CLINGO_STRATEGY_LOCK)' \
 		'domain_soft=$(call domain_continuation,DOMAIN_CONTINUATION_SOFT)' \
 		'domain_relaxed=$(call domain_continuation,DOMAIN_CONTINUATION_RELAXED)' \
 		'domain_seed=$(call domain_continuation,DOMAIN_CONTINUATION_SEED)' \
@@ -116,8 +116,8 @@ grep -qx 'soft_strategy=bb,lin' "${tmpdir}/soft-enabled.out"
 
 run_helper "${tmpdir}/overridden.out" \
     CLAUSE_CONTINUATION_RELAXED=true \
-    CLINGO_OPT_MODE_RELAXED=optN \
-    CLINGO_OPT_STRATEGY_RELAXED=usc
+    CLINGO_MODE_RELAXED=optN \
+    CLINGO_STRATEGY_RELAXED=usc
 grep -qx 'relaxed_mode=optN' "${tmpdir}/overridden.out"
 grep -qx 'relaxed_strategy=usc' "${tmpdir}/overridden.out"
 

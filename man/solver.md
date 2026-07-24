@@ -213,8 +213,8 @@ nodes.
 When clause continuation is enabled and optimization settings are not
 explicitly overridden, scBOLT uses an anytime-oriented Clingo mode and
 branch-and-bound strategy suitable for producing intermediate witnesses.
-Explicit `CLINGO_OPT_MODE_<STAGE>` and
-`CLINGO_OPT_STRATEGY_<STAGE>` values always take precedence over these derived
+Explicit `CLINGO_MODE_<STAGE>` and
+`CLINGO_STRATEGY_<STAGE>` values always take precedence over these derived
 defaults.
 
 Clause continuation is available for `SOFT`, `RELAXED`, `SEED`, and `LOCK` node
@@ -677,8 +677,8 @@ and defaults to two retries per expansion size.
 | Parameter | Meaning |
 | --- | --- |
 | `CLINGO_CONFIG_<STAGE>` | Named Clingo configuration or custom configuration file used by the stage. |
-| `CLINGO_OPT_MODE_<STAGE>` | Optimization handling mode: `opt` for anytime optimization, `optN` for optimum enumeration and certification, or `ignore` to disable optimization objectives and accept a satisfiable model. |
-| `CLINGO_OPT_STRATEGY_<STAGE>` | Clingo optimization algorithm, such as branch-and-bound (`bb,*`) or unsatisfiable-core optimization (`usc,*`). |
+| `CLINGO_MODE_<STAGE>` | Optimization handling mode: `opt` for anytime optimization, `optN` for optimum enumeration and certification, or `ignore` to disable optimization objectives and accept a satisfiable model. |
+| `CLINGO_STRATEGY_<STAGE>` | Clingo optimization algorithm, such as branch-and-bound (`bb,*`) or unsatisfiable-core optimization (`usc,*`). |
 | `CLINGO_THREADS` | Number of threads used by the stage-level Clingo solver. |
 
 The same value applies to every gene-selection stage, including
@@ -703,8 +703,8 @@ JOBS = 8
 CLINGO_THREADS = 1
 
 CLINGO_CONFIG_SEED =
-CLINGO_OPT_MODE_SEED = opt
-CLINGO_OPT_STRATEGY_SEED = bb,lin
+CLINGO_MODE_SEED = opt
+CLINGO_STRATEGY_SEED = bb,lin
 ```
 
 At a clause bound without a witness, this configuration evaluates up to eight

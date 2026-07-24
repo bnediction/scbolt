@@ -712,7 +712,7 @@ class Bonesis_mode(argparse.Action):
         setattr(namespace, self.dest, value)
 
 
-class Clingo_opt_mode(argparse.Action):
+class Clingo_mode(argparse.Action):
 
     VALID_MODES = ("opt", "optN", "ignore")
     ENUM_PREFIX = "enum,"
@@ -720,7 +720,7 @@ class Clingo_opt_mode(argparse.Action):
     def __init__(self, *args, **kwargs):
         default = kwargs.get("default", None)
         if default is not None:
-            self._check_opt_mode(default)
+            self._check_mode(default)
         kwargs.update(
             {
                 "type": str,
@@ -733,13 +733,13 @@ class Clingo_opt_mode(argparse.Action):
                 ),
             }
         )
-        super(Clingo_opt_mode, self).__init__(*args, **kwargs)
+        super(Clingo_mode, self).__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_string=None):
-        self._check_opt_mode(value)
+        self._check_mode(value)
         setattr(namespace, self.dest, value)
 
-    def _check_opt_mode(self, value):
+    def _check_mode(self, value):
         if value in self.VALID_MODES:
             return None
         if value.startswith(self.ENUM_PREFIX):
@@ -763,9 +763,9 @@ class Clingo_opt_mode(argparse.Action):
         return True
 
 
-class Clingo_opt_strategy(argparse.Action):
+class Clingo_strategy(argparse.Action):
 
-    def check_opt_strategy(self, v):
+    def check_strategy(self, v):
         if v.startswith("bb") or v.startswith("usc"):
             return None
         else:
@@ -773,7 +773,7 @@ class Clingo_opt_strategy(argparse.Action):
 
     def __init__(self, *args, **kwargs):
         if "default" in kwargs:
-            self.check_opt_strategy(kwargs["default"])
+            self.check_strategy(kwargs["default"])
             default = kwargs["default"]
         else:
             default = None
@@ -789,10 +789,10 @@ class Clingo_opt_strategy(argparse.Action):
                 ),
             }
         )
-        super(Clingo_opt_strategy, self).__init__(*args, **kwargs)
+        super(Clingo_strategy, self).__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_string=None):
-        self.check_opt_strategy(value)
+        self.check_strategy(value)
         setattr(namespace, self.dest, value)
 
 

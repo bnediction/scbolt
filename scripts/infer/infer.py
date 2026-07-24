@@ -486,11 +486,11 @@ if args.action == "min":
     if args.minimize_self_loops:
         bo.custom("#minimize { 1@100,A: edge(A,A) }.")
 
-    clingo_opt_strategy = "usc"
+    clingo_strategy = "usc"
     view = bonesis.InfluenceGraphView(
         bo,
-        mode=args.clingo_opt_mode,
-        clingo_opt_strategy=clingo_opt_strategy,
+        mode=args.clingo_mode,
+        clingo_opt_strategy=clingo_strategy,
         extra=("boolean-network", "configurations"),
         progress=ptqdm,
     )
@@ -498,8 +498,8 @@ if args.action == "min":
 
     print_node_reference(*get_node_sets(bo))
     print_solver_options(
-        args.clingo_opt_mode,
-        clingo_opt_strategy,
+        args.clingo_mode,
+        clingo_strategy,
         args.max_clauses,
         canonical,
         jobs=args.jobs,

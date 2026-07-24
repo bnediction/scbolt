@@ -763,12 +763,12 @@ expect_make_args -f "${makefile}" bn-submin PARAMS=override.mk
 run_scbolt "${project}" PARAMS=override.mk bn-submin
 expect_make_args -f "${makefile}" bn-submin PARAMS=override.mk
 
-run_scbolt "${project}" bn-submin --max-clauses=12 --clingo-opt-strategy-seed=bb,inc
+run_scbolt "${project}" bn-submin --max-clauses=12 --clingo-strategy-seed=bb,inc
 expect_make_args \
     -f "${makefile}" \
     bn-submin \
     MAX_CLAUSES=12 \
-    CLINGO_OPT_STRATEGY_SEED=bb,inc \
+    CLINGO_STRATEGY_SEED=bb,inc \
     "PARAMS=${project}/spaced.mk"
 
 run_scbolt "${project}" bn-submin --resources-dir=shared-resources
