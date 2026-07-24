@@ -595,7 +595,7 @@ target_params_max-nodes-soft = \
 	CLAUSE_CONTINUATION_SOFT PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_SOFT PATIENCE_DOMAIN_WAVE \
 	$(domain_continuation_policy_params) \
-	$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),JOBS) \
+	$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),MEMORY JOBS) \
 	CLINGO_CONFIG_SOFT CLINGO_MODE_SOFT CLINGO_STRATEGY_SOFT \
 	CLINGO_THREADS TIMEOUT_SOFT
 target_params_max-consts-soft = \
@@ -607,7 +607,7 @@ target_params_max-nodes-relaxed = \
 	CLAUSE_CONTINUATION_RELAXED PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_RELAXED PATIENCE_DOMAIN_WAVE \
 	$(domain_continuation_policy_params) \
-	$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),JOBS) \
+	$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),MEMORY JOBS) \
 	CLINGO_CONFIG_RELAXED CLINGO_MODE_RELAXED CLINGO_STRATEGY_RELAXED \
 	CLINGO_THREADS TIMEOUT_RELAXED
 target_params_max-nodes-seed = \
@@ -615,7 +615,7 @@ target_params_max-nodes-seed = \
 	CLAUSE_CONTINUATION_SEED PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_SEED PATIENCE_DOMAIN_WAVE \
 	$(domain_continuation_policy_params) \
-	$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),JOBS) \
+	$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),MEMORY JOBS) \
 	CLINGO_CONFIG_SEED CLINGO_MODE_SEED CLINGO_STRATEGY_SEED \
 	CLINGO_THREADS TIMEOUT_SEED
 target_params_max-nodes-lock = \
@@ -623,7 +623,7 @@ target_params_max-nodes-lock = \
 	CLAUSE_CONTINUATION_LOCK PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_LOCK PATIENCE_DOMAIN_WAVE \
 	$(domain_continuation_policy_params) \
-	$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),JOBS) \
+	$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),MEMORY JOBS) \
 	CLINGO_CONFIG_LOCK CLINGO_MODE_LOCK CLINGO_STRATEGY_LOCK \
 	CLINGO_THREADS TIMEOUT_LOCK
 target_params_bn-min = \
@@ -696,7 +696,7 @@ sensitive_params_max-nodes-soft = \
 	CLAUSE_CONTINUATION_SOFT PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_SOFT PATIENCE_DOMAIN_WAVE \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),\
-		$(domain_continuation_policy_params) JOBS) \
+		$(domain_continuation_policy_params) MEMORY JOBS) \
 	CLINGO_CONFIG_SOFT CLINGO_MODE_SOFT CLINGO_STRATEGY_SOFT \
 	CLINGO_THREADS TIMEOUT_SOFT SEED
 sensitive_params_max-consts-soft = \
@@ -708,7 +708,7 @@ sensitive_params_max-nodes-relaxed = \
 	CLAUSE_CONTINUATION_RELAXED PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_RELAXED PATIENCE_DOMAIN_WAVE \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),\
-		$(domain_continuation_policy_params) JOBS) \
+		$(domain_continuation_policy_params) MEMORY JOBS) \
 	CLINGO_CONFIG_RELAXED CLINGO_MODE_RELAXED CLINGO_STRATEGY_RELAXED \
 	CLINGO_THREADS TIMEOUT_RELAXED SEED
 sensitive_params_max-nodes-seed = \
@@ -716,7 +716,7 @@ sensitive_params_max-nodes-seed = \
 	CLAUSE_CONTINUATION_SEED PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_SEED PATIENCE_DOMAIN_WAVE \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),\
-		$(domain_continuation_policy_params) JOBS) \
+		$(domain_continuation_policy_params) MEMORY JOBS) \
 	CLINGO_CONFIG_SEED CLINGO_MODE_SEED CLINGO_STRATEGY_SEED \
 	CLINGO_THREADS TIMEOUT_SEED SEED
 sensitive_params_max-nodes-lock = \
@@ -724,7 +724,7 @@ sensitive_params_max-nodes-lock = \
 	CLAUSE_CONTINUATION_LOCK PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_LOCK PATIENCE_DOMAIN_WAVE \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),\
-		$(domain_continuation_policy_params) JOBS) \
+		$(domain_continuation_policy_params) MEMORY JOBS) \
 	CLINGO_CONFIG_LOCK CLINGO_MODE_LOCK CLINGO_STRATEGY_LOCK \
 	CLINGO_THREADS TIMEOUT_LOCK SEED
 sensitive_params_bn-min = \

@@ -2,9 +2,6 @@ FROM mambaorg/micromamba:debian12-slim
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-ARG SCBOLT_ENV_FILES="system align bonesis cellrank core cotan fastq potency scboolseq stream velocity velocyto"
-ARG SCBOLT_GIT_COMMIT=unknown
-
 USER root
 
 RUN apt-get update \
@@ -33,6 +30,8 @@ RUN apt-get update \
 
 USER $MAMBA_USER
 
+ARG SCBOLT_ENV_FILES="system align bonesis cellrank core cotan fastq potency scboolseq stream velocity velocyto"
+
 COPY --chown=$MAMBA_USER:$MAMBA_USER envs/conda/ /tmp/scbolt-conda-envs/
 
 RUN for env_file in ${SCBOLT_ENV_FILES}; do \
@@ -42,6 +41,8 @@ RUN for env_file in ${SCBOLT_ENV_FILES}; do \
     && rm -rf /tmp/scbolt-conda-envs
 
 COPY --chown=$MAMBA_USER:$MAMBA_USER . /opt/scbolt
+
+ARG SCBOLT_GIT_COMMIT=unknown
 
 ENV SCBOLT_HOME=/opt/scbolt \
     SCBOLT_GIT_COMMIT=${SCBOLT_GIT_COMMIT} \

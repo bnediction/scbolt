@@ -2,7 +2,9 @@
 
 import argparse
 import os
+import resource
 import sys
+import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
@@ -61,6 +63,81 @@ from scbolt.runtime import (
 
 bonesis.settings["quiet"] = True
 script_name = Path(__file__).name
+DOMAIN_LAUNCH_INTERVAL_SECONDS = 2.0
+DOMAIN_MEMORY_COST_FACTOR = 1.10
+
+
+def parse_memory_limit(value: str) -> int | None:
+    """Parse a memory size and return bytes."""
+
+    value = value.strip()
+    if not value:
+        return None
+
+    units = {
+        "kb": 1000,
+        "mb": 1000**2,
+        "gb": 1000**3,
+        "tb": 1000**4,
+        "kib": 1024,
+        "mib": 1024**2,
+        "gib": 1024**3,
+        "tib": 1024**4,
+    }
+    if value.isdigit():
+        return int(value) * units["gb"]
+
+    for unit, multiplier in units.items():
+        if value.lower().endswith(unit):
+            number = value[: -len(unit)]
+            try:
+                size = float(number)
+            except ValueError as error:
+                raise argparse.ArgumentTypeError(
+                    f"expected positive memory size but received {value}"
+                ) from error
+            if size <= 0:
+                raise argparse.ArgumentTypeError(
+                    f"expected positive memory size but received {value}"
+                )
+            return int(size * multiplier)
+
+    raise argparse.ArgumentTypeError(
+        "expected positive memory size; integers are interpreted as GB"
+    )
+
+
+def current_rss_bytes() -> int | None:
+    """Return resident memory using a current or conservative platform value."""
+
+    status = Path("/proc/self/status")
+    if status.exists():
+        for line in status.read_text().splitlines():
+            if line.startswith("VmRSS:"):
+                fields = line.split()
+                if len(fields) >= 2 and fields[1].isdigit():
+                    return int(fields[1]) * 1024
+
+    # macOS exposes peak rather than current RSS through the standard library.
+    # This is deliberately conservative: after pressure is observed, queued
+    # candidates continue one at a time instead of assuming memory was freed.
+    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if usage <= 0:
+        return None
+    if sys.platform == "darwin":
+        return int(usage)
+    return int(usage) * 1024
+
+
+def format_memory_size(size: int | None) -> str:
+    """Format memory bytes for logs."""
+
+    if size is None:
+        return "unknown"
+    for unit, divisor in (("TB", 1000**4), ("GB", 1000**3), ("MB", 1000**2)):
+        if size >= divisor:
+            return f"{size / divisor:.1f}{unit}"
+    return f"{size}B"
 
 
 def parse_min_domain_yield(value: str) -> float:
@@ -448,6 +525,7 @@ class ActiveCandidateViews:
     def __init__(self) -> None:
         self._lock = Lock()
         self._views = {}
+        self._interrupted_candidates = set()
         self._interrupted = False
 
     def register(self, candidate_index: int, view: Any) -> bool:
@@ -461,15 +539,36 @@ class ActiveCandidateViews:
         with self._lock:
             self._views.pop(candidate_index, None)
 
+    def interrupt_one(self, candidate_index: int) -> bool:
+        with self._lock:
+            view = self._views.get(candidate_index)
+            if view is None:
+                return False
+            self._interrupted_candidates.add(candidate_index)
+        try:
+            view.interrupt()
+        except (AttributeError, RuntimeError):
+            pass
+        return True
+
     def interrupt_all(self) -> None:
         with self._lock:
             self._interrupted = True
+            self._interrupted_candidates.update(self._views)
             views = tuple(self._views.values())
         for view in views:
             try:
                 view.interrupt()
             except (AttributeError, RuntimeError):
                 pass
+
+    def candidate_interrupted(self, candidate_index: int) -> bool:
+        with self._lock:
+            return candidate_index in self._interrupted_candidates
+
+    def active_candidates(self) -> tuple[int, ...]:
+        with self._lock:
+            return tuple(self._views)
 
 
 def solve_domain_candidate(
@@ -537,9 +636,16 @@ def solve_domain_candidate(
     try:
         solution, structural_model = next_solution(view)
     except StopIteration:
-        outcome = "cancelled" if cancelled.is_set() else "unsat"
+        outcome = (
+            "cancelled"
+            if cancelled.is_set() or active_views.candidate_interrupted(candidate.index)
+            else "unsat"
+        )
     except RuntimeError:
-        if not cancelled.is_set():
+        if (
+            not cancelled.is_set()
+            and not active_views.candidate_interrupted(candidate.index)
+        ):
             raise
         outcome = "cancelled"
         if best_model[0] is not None:
@@ -571,6 +677,7 @@ def run_domain_wave(
     clause_patience: SolverPatience,
     deadline: SolverDeadline,
     important_nodes: set[str],
+    memory_limit: int | None,
     on_model: Callable[[frozenset[str], Sequence[str], Sequence[str]], bool],
 ) -> tuple[DomainCandidateResult, ...]:
     """Evaluate one domain wave while rendering all progress in the parent."""
@@ -683,12 +790,22 @@ def run_domain_wave(
     wave_patience = SolverPatience(patience_seconds)
     wave_leader = DomainWaveLeader()
     stop_reason = None
+    memory_interrupted = set()
     executor = ThreadPoolExecutor(
         max_workers=len(candidates),
         thread_name_prefix="scbolt-domain",
     )
-    futures = {
-        executor.submit(
+    candidate_queue = list(candidates)
+    futures = {}
+    pending = set()
+    last_launch_at = 0.0
+    memory_baseline = (
+        current_rss_bytes() if memory_limit is not None else None
+    )
+    maximum_candidate_cost = 0.0
+
+    def submit_candidate(candidate: DomainCandidate) -> None:
+        future = executor.submit(
             solve_domain_candidate,
             bo,
             candidate,
@@ -700,10 +817,91 @@ def run_domain_wave(
             events=events,
             active_views=active_views,
             cancelled=cancelled,
-        ): candidate
-        for candidate in candidates
-    }
-    pending = set(futures)
+        )
+        futures[future] = candidate
+        pending.add(future)
+
+    def observe_memory() -> tuple[int | None, float | None]:
+        nonlocal maximum_candidate_cost
+
+        rss = current_rss_bytes()
+        if rss is None or memory_limit is None or memory_baseline is None:
+            return rss, None
+        if pending:
+            candidate_cost = max(0, rss - memory_baseline) / len(pending)
+            maximum_candidate_cost = max(
+                maximum_candidate_cost,
+                candidate_cost,
+            )
+        return rss, maximum_candidate_cost
+
+    def can_launch_candidate(*, force: bool = False) -> bool:
+        if not candidate_queue:
+            return False
+        if len(pending) >= len(candidates):
+            return False
+        if pending and not force:
+            elapsed = time.monotonic() - last_launch_at
+            if elapsed < DOMAIN_LAUNCH_INTERVAL_SECONDS:
+                return False
+        if not pending:
+            return True
+        rss, candidate_cost = observe_memory()
+        if rss is None or candidate_cost is None:
+            return True
+        projected_rss = rss + DOMAIN_MEMORY_COST_FACTOR * candidate_cost
+        return projected_rss <= memory_limit
+
+    def launch_candidate(*, force: bool = False) -> bool:
+        nonlocal last_launch_at
+        if not can_launch_candidate(force=force):
+            return False
+        submit_candidate(candidate_queue.pop(0))
+        last_launch_at = time.monotonic()
+        return True
+
+    def least_advanced_active_candidate() -> int | None:
+        active_candidates = {
+            candidate_index
+            for candidate_index in active_views.active_candidates()
+            if candidate_index not in memory_interrupted
+        }
+        if len(active_candidates) <= 1:
+            return None
+
+        def candidate_key(candidate_index: int) -> tuple[int, int, int, int]:
+            has_model = int(candidate_index in observed_models)
+            important, total = displayed_objectives[candidate_index]
+            return has_model, important, total, -candidate_index
+
+        return min(active_candidates, key=candidate_key)
+
+    def enforce_memory_limit() -> None:
+        if memory_limit is None:
+            return
+        rss, _ = observe_memory()
+        if rss is None or rss <= memory_limit:
+            return
+        if any(
+            futures[future].index in memory_interrupted
+            for future in pending
+        ):
+            return
+        candidate_index = least_advanced_active_candidate()
+        if candidate_index is None:
+            return
+        if active_views.interrupt_one(candidate_index):
+            active_count = len(active_views.active_candidates())
+            memory_interrupted.add(candidate_index)
+            console.print_warning(
+                "memory limit reached; reducing domain portfolio "
+                f"(active={active_count} -> {active_count - 1}, "
+                f"rss={format_memory_size(rss)}, "
+                f"limit={format_memory_size(memory_limit)})",
+                flush=True,
+            )
+
+    launch_candidate(force=True)
 
     def process_event(event) -> None:
         kind, candidate_index, *payload = event
@@ -745,7 +943,10 @@ def run_domain_wave(
                 clause_patience.reset()
 
     try:
-        while pending:
+        while pending or candidate_queue:
+            if stop_reason is None:
+                while launch_candidate():
+                    pass
             try:
                 event = events.get(timeout=0.05)
             except Empty:
@@ -773,15 +974,18 @@ def run_domain_wave(
                     ):
                         stop_reason = "domain-patience"
 
+            if stop_reason is None:
+                enforce_memory_limit()
             if stop_reason is not None:
                 cancelled.set()
                 active_views.interrupt_all()
 
-            done, pending = wait(
+            done, current_pending = wait(
                 pending,
                 timeout=0,
                 return_when=FIRST_COMPLETED,
             )
+            pending = set(current_pending)
             if stop_reason is not None and not pending:
                 break
 
@@ -796,9 +1000,19 @@ def run_domain_wave(
             result = future.result()
             if candidate.index in observed_models and result.outcome == "cancelled":
                 result = observed_models[candidate.index]
+            elif (
+                candidate.index in memory_interrupted
+                and result.outcome == "cancelled"
+            ):
+                result = DomainCandidateResult(candidate, "unknown")
             elif stop_reason == "domain-patience" and result.outcome == "cancelled":
                 result = DomainCandidateResult(candidate, "unknown")
             results.append(result)
+        if stop_reason == "domain-patience":
+            results.extend(
+                DomainCandidateResult(candidate, "unknown")
+                for candidate in candidate_queue
+            )
     finally:
         close_progress_display()
         cancelled.set()
@@ -880,6 +1094,7 @@ def continue_domain_at_clause_bound(
     max_domain_refreshes: int,
     clause_patience: SolverPatience,
     deadline: SolverDeadline,
+    memory_limit: int | None,
     on_model: Callable[[frozenset[str], Sequence[str], Sequence[str]], bool],
     on_selected: Callable[[frozenset[str], Sequence[str], Sequence[str]], None],
 ) -> DomainContinuationState:
@@ -933,6 +1148,7 @@ def continue_domain_at_clause_bound(
                 clause_patience=clause_patience,
                 deadline=deadline,
                 important_nodes=important_nodes,
+                memory_limit=memory_limit,
                 on_model=on_model,
             )
             selected = select_best_candidate(results, important_nodes)
@@ -1047,6 +1263,7 @@ def continue_domain_at_clause_bound(
             clause_patience=clause_patience,
             deadline=deadline,
             important_nodes=important_nodes,
+            memory_limit=memory_limit,
             on_model=on_model,
         )
         selected = select_best_candidate(results, important_nodes)
@@ -1122,6 +1339,7 @@ def continue_domain_at_clause_bound(
                 clause_patience=clause_patience,
                 deadline=deadline,
                 important_nodes=important_nodes,
+                memory_limit=memory_limit,
                 on_model=on_model,
             )
             selected = select_best_candidate(results, important_nodes)
@@ -1356,6 +1574,18 @@ parser.add_argument(
     help="maximum candidate domains evaluated simultaneously (default: 1)",
 )
 parser.add_argument(
+    "--memory-limit",
+    dest="memory_limit",
+    type=parse_memory_limit,
+    required=False,
+    default=None,
+    metavar="MEMORY",
+    help=(
+        "soft process-memory limit used to schedule domain candidates; "
+        "integers are interpreted as GB"
+    ),
+)
+parser.add_argument(
     "--domain-continuation-seed",
     dest="domain_continuation_seed",
     type=int,
@@ -1550,6 +1780,15 @@ if args.action == "filter-nodes":
             f"seed={args.domain_continuation_seed}",
             flush=True,
         )
+        if args.memory_limit is not None:
+            console.print_options(
+                "domain memory: "
+                f"limit={format_memory_size(args.memory_limit)}, "
+                f"launch interval={DOMAIN_LAUNCH_INTERVAL_SECONDS:g}s, "
+                "candidate margin="
+                f"{DOMAIN_MEMORY_COST_FACTOR - 1:.0%}",
+                flush=True,
+            )
     else:
         console.print_options("domain continuation: none", flush=True)
     console.print_warning("this may take some time.", flush=True)
@@ -1681,6 +1920,7 @@ if args.action == "filter-nodes":
                     max_domain_refreshes=args.max_domain_refreshes,
                     clause_patience=stage_patience,
                     deadline=deadline,
+                    memory_limit=args.memory_limit,
                     on_model=retain_model,
                     on_selected=retain_selected,
                 )

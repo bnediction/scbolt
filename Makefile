@@ -373,7 +373,7 @@ $(normalization_$(1)): $(filtering_$(1))
 	$(call require_cc_correction,normalization)
 	mkdir -p $$(@D)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/prep/norm.py \
-		$$< $$@ $(cc_correction) --expression counts --jobs $(JOBS) --max-memory "$(memory_bonesistools)"
+		$$< $$@ $(cc_correction) --expression counts --jobs $(JOBS) --max-memory "$(memory_normalized)"
 	$$(call write_scbolt_metadata,normalization,$$(normalization_$(1)))
 
 $(clustering_$(1)): $(normalization_$(1))
@@ -532,7 +532,7 @@ $(dea_$(1))&: $(clustering_$(1))
 		--xlsx $(lastword $(dea_$(1))) \
 		--cluster cluster --expression log-norm --is-log \
 		--method $(DEA_METHOD) --logfc $(LOGFC) --alpha $(ALPHA) --correction $(CORRECTION) \
-		--max-memory "$(memory_bonesistools)"
+		--max-memory "$(memory_normalized)"
 	$$(call write_scbolt_metadata,dea,$$(dea_$(1)))
 
 $(scoring_$(1))&: $(clustering_$(1)) $(lastword $(signatures)) $(lastword $(dea_$(1)))
@@ -719,7 +719,7 @@ $(bin_dea): \
 	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_dea.py $(tmpdir)/integrated/bin/dea/mcts.h5ad $@ \
 		--cluster macrostate --expression log-norm --is-log --method wilcoxon --representation $(REPRESENTATION) \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION) \
-		--max-memory "$(memory_bonesistools)" \
+		--max-memory "$(memory_normalized)" \
 		$(bin_dea_hvg)
 	$(call write_scbolt_metadata,bin-dea,$@)
 else
@@ -732,7 +732,7 @@ $(bin_dea): $(bin_input_h5ads)
 	$(call conda_run,scbolt-core) python $(scripts_dir)/bin/bin_dea.py $< $@ \
 		--cluster macrostate --expression log-norm --is-log --method wilcoxon --representation $(REPRESENTATION) \
 		--logfc $(BIN_LOGFC) --alpha $(BIN_ALPHA) --correction $(BIN_CORRECTION) \
-		--max-memory "$(memory_bonesistools)" \
+		--max-memory "$(memory_normalized)" \
 		$(bin_dea_hvg)
 	$(call write_scbolt_metadata,bin-dea,$@)
 endif
@@ -797,6 +797,7 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 		$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),--max-domain-refreshes $(MAX_DOMAIN_REFRESHES)) \
 		--domain-continuation-jobs $(JOBS) \
 		--domain-continuation-seed $(SEED) \
+		$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),--memory-limit "$(memory_normalized)") \
 		--domain-size-file $(max_nodes_soft_domain_size) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
@@ -865,6 +866,7 @@ $(max_nodes_relaxed) $(max_nodes_relaxed_witness) &: $(bonesis_model) $(max_cons
 		$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),--max-domain-refreshes $(MAX_DOMAIN_REFRESHES)) \
 		--domain-continuation-jobs $(JOBS) \
 		--domain-continuation-seed $(SEED) \
+		$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),--memory-limit "$(memory_normalized)") \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode relaxed --max-clauses $(MAX_CLAUSES) \
@@ -912,6 +914,7 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_relaxed_wi
 		$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),--max-domain-refreshes $(MAX_DOMAIN_REFRESHES)) \
 		--domain-continuation-jobs $(JOBS) \
 		--domain-continuation-seed $(SEED) \
+		$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),--memory-limit "$(memory_normalized)") \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode hard --max-clauses $(MAX_CLAUSES) \
@@ -982,6 +985,7 @@ $(max_nodes_lock) $(max_nodes_lock_witness) &: $(bonesis_model) $(max_nodes_rela
 			$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),--max-domain-refreshes $(MAX_DOMAIN_REFRESHES)) \
 			--domain-continuation-jobs $(JOBS) \
 			--domain-continuation-seed $(SEED) \
+			$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),--memory-limit "$(memory_normalized)") \
 			--domain $(prior_knowledge) --organism $(ORGANISM) \
 			$(prior_knowledge_args) \
 			--bonesis-mode hard --max-clauses $(MAX_CLAUSES) \

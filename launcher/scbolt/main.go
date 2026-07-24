@@ -10,12 +10,16 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 )
 
 const (
 	defaultBackend = "conda"
-	defaultImage   = "ghcr.io/bnediction/scbolt:latest"
+)
+
+var (
+	launcherVersion = "dev"
+	sourceRevision  = "unknown"
+	defaultImage    = "ghcr.io/bnediction/scbolt:latest"
 )
 
 type config struct {
@@ -28,14 +32,13 @@ type config struct {
 }
 
 func main() {
-	root, err := scboltRoot()
-	if err != nil {
-		fatal(err)
-	}
-
 	args := os.Args[1:]
-	if isInstallCommand(args) && os.Getenv("SCBOLT_IN_DOCKER") != "true" {
-		execInstall(root, installArgs(args))
+	handled, commandErr := handleLauncherCommand(args)
+	if commandErr != nil {
+		fatal(commandErr)
+	}
+	if handled {
+		return
 	}
 
 	cfg, err := effectiveConfig(args)
@@ -43,11 +46,38 @@ func main() {
 		fatal(err)
 	}
 
-	if os.Getenv("SCBOLT_IN_DOCKER") == "true" || cfg.backend != "docker" || skipDocker(args) {
+	if os.Getenv("SCBOLT_IN_DOCKER") == "true" {
+		root, rootErr := scboltRoot()
+		if rootErr != nil {
+			fatal(rootErr)
+		}
 		execLocal(root, args)
 	}
 
-	execDocker(root, cfg, args)
+	if isInstallCommand(args) {
+		if cfg.backend == "docker" {
+			if installErr := installDockerLauncher(cfg); installErr != nil {
+				fatal(installErr)
+			}
+			return
+		}
+		root, rootErr := scboltRoot()
+		if rootErr != nil {
+			fatal(rootErr)
+		}
+		execInstall(root, installArgs(args))
+	}
+
+	if cfg.backend == "docker" {
+		execDocker(cfg, args)
+		return
+	}
+
+	root, err := scboltRoot()
+	if err != nil {
+		fatal(err)
+	}
+	execLocal(root, args)
 }
 
 func fatal(err error) {
@@ -110,7 +140,7 @@ func execLocal(root string, args []string) {
 	execPath(local, append([]string{local}, args...))
 }
 
-func execDocker(root string, cfg config, args []string) {
+func execDocker(cfg config, args []string) {
 	dryRun := truthy(os.Getenv("SCBOLT_LAUNCHER_DRY_RUN"))
 	imageID := ""
 	imageDigests := ""
@@ -134,13 +164,13 @@ func execDocker(root string, cfg config, args []string) {
 		fatal(err)
 	}
 
-	mounts := newMountSet()
+	mounts := newMountSet(cwd)
 	mounts.add(cwd)
-	mounts.add(root)
 	if projectFile := findProjectFile(cwd); projectFile != "" {
 		mounts.add(filepath.Dir(projectFile))
 	}
-	if params := paramsPathFromArgs(args); params != "" {
+	params := paramsPathFromArgs(args)
+	if params != "" {
 		mounts.add(filepath.Dir(params))
 	}
 	for _, mount := range strings.Fields(cfg.containerMounts) {
@@ -154,10 +184,18 @@ func execDocker(root string, cfg config, args []string) {
 	if cfg.containerArgs != "" {
 		dockerArgs = append(dockerArgs, strings.Fields(cfg.containerArgs)...)
 	} else {
-		dockerArgs = append(dockerArgs, "--user", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()))
+		dockerArgs = append(dockerArgs, defaultDockerUserArgs()...)
 	}
 	for _, mount := range mounts.values() {
-		dockerArgs = append(dockerArgs, "-v", mount+":"+mount)
+		dockerArgs = append(
+			dockerArgs,
+			"--mount",
+			fmt.Sprintf(
+				"type=bind,source=%s,target=%s",
+				mount.source,
+				mount.target,
+			),
+		)
 	}
 
 	envs := map[string]string{
@@ -175,7 +213,7 @@ func execDocker(root string, cfg config, args []string) {
 		"MPLCONFIGDIR":                  "/tmp/scbolt-matplotlib",
 	}
 
-	dockerArgs = append(dockerArgs, "-w", cwd)
+	dockerArgs = append(dockerArgs, "-w", mounts.containerPath(cwd))
 	keys := make([]string, 0, len(envs))
 	for key := range envs {
 		keys = append(keys, key)
@@ -185,7 +223,10 @@ func execDocker(root string, cfg config, args []string) {
 		dockerArgs = append(dockerArgs, "-e", key+"="+envs[key])
 	}
 	dockerArgs = append(dockerArgs, "--entrypoint", "scbolt", cfg.image)
-	dockerArgs = append(dockerArgs, args...)
+	dockerArgs = append(
+		dockerArgs,
+		rewriteDockerPaths(dockerForwardedArgs(args), params, mounts)...,
+	)
 
 	if dryRun {
 		fmt.Println(shellJoin(append([]string{cfg.engine}, dockerArgs...)))
@@ -376,14 +417,11 @@ func stripComment(line string) string {
 }
 
 func userConfigPath() string {
-	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return filepath.Join(xdg, "scbolt", "config.mk")
-	}
-	home, err := os.UserHomeDir()
+	configHome, err := os.UserConfigDir()
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(home, ".config", "scbolt", "config.mk")
+	return filepath.Join(configHome, "scbolt", "config.mk")
 }
 
 func readLegacyBackend() string {
@@ -507,9 +545,11 @@ func runCommand(name string, args ...string) {
 }
 
 func execPath(path string, argv []string) {
-	if err := syscall.Exec(path, argv, os.Environ()); err != nil {
+	exitCode, err := executeProcess(path, argv)
+	if err != nil {
 		fatal(err)
 	}
+	os.Exit(exitCode)
 }
 
 func exists(path string) bool {
@@ -546,33 +586,152 @@ func isTerminal(file *os.File) bool {
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
+type bindMount struct {
+	source string
+	target string
+}
+
 type mountSet struct {
-	seen map[string]bool
-	list []string
+	workingDirectory string
+	targets          map[string]string
+	list             []bindMount
 }
 
-func newMountSet() *mountSet {
-	return &mountSet{seen: map[string]bool{}}
+func newMountSet(workingDirectory string) *mountSet {
+	return &mountSet{
+		workingDirectory: workingDirectory,
+		targets:          map[string]string{},
+	}
 }
 
-func (set *mountSet) add(path string) {
+func (set *mountSet) add(path string) string {
 	if path == "" || !exists(path) {
-		return
+		return ""
 	}
 	absolute, err := filepath.Abs(path)
 	if err != nil {
-		return
+		return ""
 	}
 	if resolved, err := filepath.EvalSymlinks(absolute); err == nil {
 		absolute = resolved
 	}
-	if set.seen[absolute] {
-		return
+	if target, found := set.targets[absolute]; found {
+		return target
 	}
-	set.seen[absolute] = true
-	set.list = append(set.list, absolute)
+	target := dockerMountTarget(
+		absolute,
+		set.workingDirectory,
+		len(set.list),
+	)
+	set.targets[absolute] = target
+	set.list = append(set.list, bindMount{source: absolute, target: target})
+	return target
 }
 
-func (set *mountSet) values() []string {
-	return append([]string{}, set.list...)
+func (set *mountSet) containerPath(path string) string {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return path
+	}
+	if resolved, err := filepath.EvalSymlinks(absolute); err == nil {
+		absolute = resolved
+	}
+
+	bestSource := ""
+	bestTarget := ""
+	for source, target := range set.targets {
+		relative, relErr := filepath.Rel(source, absolute)
+		if relErr != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			continue
+		}
+		if len(source) > len(bestSource) {
+			bestSource = source
+			bestTarget = target
+		}
+	}
+	if bestSource == "" {
+		return path
+	}
+	relative, _ := filepath.Rel(bestSource, absolute)
+	if relative == "." {
+		return bestTarget
+	}
+	return filepath.ToSlash(filepath.Join(bestTarget, relative))
+}
+
+func (set *mountSet) values() []bindMount {
+	return append([]bindMount{}, set.list...)
+}
+
+func rewriteDockerPaths(args []string, params string, mounts *mountSet) []string {
+	rewritten := append([]string{}, args...)
+	explicitParams := false
+	for index := 0; index < len(rewritten); index++ {
+		argument := rewritten[index]
+		switch {
+		case argument == "--params" && index+1 < len(rewritten):
+			explicitParams = true
+			rewritten[index+1] = mounts.containerPath(params)
+			index++
+		case strings.HasPrefix(argument, "--params="):
+			explicitParams = true
+			rewritten[index] = "--params=" + mounts.containerPath(params)
+		case strings.HasPrefix(strings.ToUpper(argument), "PARAMS="):
+			explicitParams = true
+			rewritten[index] = "PARAMS=" + mounts.containerPath(params)
+		}
+	}
+	if params != "" && !explicitParams && dockerNeedsPathTranslation() {
+		rewritten = append(rewritten, "--params="+mounts.containerPath(params))
+	}
+	return rewritten
+}
+
+func dockerForwardedArgs(args []string) []string {
+	forwarded := make([]string, 0, len(args))
+	for index := 0; index < len(args); index++ {
+		argument := args[index]
+		if isLauncherAssignment(argument) {
+			continue
+		}
+		if isLauncherOption(argument) {
+			if !strings.Contains(argument, "=") && index+1 < len(args) {
+				index++
+			}
+			continue
+		}
+		forwarded = append(forwarded, argument)
+	}
+	return forwarded
+}
+
+func isLauncherAssignment(argument string) bool {
+	name, _, found := strings.Cut(argument, "=")
+	if !found {
+		return false
+	}
+	switch strings.ToUpper(strings.TrimSpace(name)) {
+	case "BACKEND",
+		"SCBOLT_IMAGE",
+		"SCBOLT_CONTAINER_ENGINE",
+		"SCBOLT_CONTAINER_ARGS",
+		"SCBOLT_CONTAINER_MOUNTS":
+		return true
+	default:
+		return false
+	}
+}
+
+func isLauncherOption(argument string) bool {
+	name, _, _ := strings.Cut(argument, "=")
+	switch name {
+	case "--backend",
+		"--scbolt-image",
+		"--scbolt-container-engine",
+		"--scbolt-container-args",
+		"--scbolt-container-mounts":
+		return true
+	default:
+		return false
+	}
 }

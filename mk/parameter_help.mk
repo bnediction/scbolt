@@ -29,6 +29,7 @@ parameter_help_hint_MEMORY = memory size
 parameter_help_description_MEMORY = Memory budget. Integers are interpreted as GB.
 parameter_help_note_MEMORY = Cell Ranger receives an integer GB value.
 parameter_help_note2_MEMORY = Velocyto receives MB per Samtools thread, computed from MEMORY/JOBS.
+parameter_help_note3_MEMORY = Domain continuation uses MEMORY as a soft candidate-portfolio limit.
 parameter_help_hint_JOBS = $(parameter_help_positive_integer)
 parameter_help_description_JOBS = Maximum number of parallel workflow jobs.
 parameter_help_note_JOBS = Domain continuation evaluates up to JOBS candidate domains simultaneously.

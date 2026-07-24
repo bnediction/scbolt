@@ -268,11 +268,11 @@ BEGIN { \
 }' 2>/dev/null))
 endef
 memory_values := $(call memory_conversion_values,$(MEMORY),$(JOBS))
-memory_bonesistools := $(word 1,$(memory_values))
+memory_normalized := $(word 1,$(memory_values))
 memory_gb := $(word 2,$(memory_values))
 memory_mb := $(word 3,$(memory_values))
 memory_velocyto := $(word 4,$(memory_values))
-memory_valid := $(if $(memory_bonesistools),true,false)
+memory_valid := $(if $(memory_normalized),true,false)
 is_memory_size = $(if $(call memory_conversion_values,$(1),1),true,false)
 is_creatable_path = $(shell { test -n "$(strip $(1))" && $(call system_tool,mkdir) -p "$(strip $(1))"; } \
 	>/dev/null 2>&1 && echo true || echo false)

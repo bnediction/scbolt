@@ -295,20 +295,21 @@ wave leader, and the remaining workers continue searching for a better
 objective until the shared wave patience expires or every worker finishes.
 
 Every acquisition and expansion wave owns one shared patience clock. The clock
-starts when all candidate instances are launched. The first valid witness in
-the new candidate domains becomes the leader and resets the clock. A later
-witness resets it only when its lexicographic objective
+starts with the wave. The first valid witness in the new candidate domains
+becomes the leader and resets the clock. A later witness resets it only when
+its lexicographic objective
 `(important nodes, total nodes)` is strictly better than the current leader's
 objective. A worker improving its own solution without overtaking the leader
 does not reset the clock, and an objective equal to the leader does not reset
 it either. This prevents staggered but equivalent results from extending a
 wave without improving its retained solution.
 
-When the shared patience expires, all unresolved workers are interrupted.
-Candidates that already produced a witness remain `SAT`; interrupted
-candidates without a witness become `UNKNOWN`. scBOLT then selects the best
-successful candidate deterministically by objective value and candidate index.
-The patience clock is newly initialized for every wave.
+When the shared patience expires, all unresolved workers are interrupted and
+queued candidates are not started. Candidates that already produced a witness
+remain `SAT`; interrupted or unstarted candidates without a witness become
+`UNKNOWN`. scBOLT then selects the best successful candidate deterministically
+by objective value and candidate index. The patience clock is newly initialized
+for every wave.
 
 After a witness is selected:
 
@@ -417,11 +418,36 @@ JOBS = 8
 CLINGO_THREADS = 1
 ```
 
-`JOBS` controls the number of candidate domains evaluated simultaneously in
+`JOBS` is the maximum number of candidate domains evaluated simultaneously in
 every acquisition or expansion wave, with one Clingo thread per candidate. Once
 the complete domain is reached, the candidate portfolio stops and one final
 optimization instance uses `CLINGO_THREADS`. The maximum concurrent thread
 count is therefore the maximum of the two values, not their product.
+
+Candidate launches are staggered internally by two seconds. The coordinator
+monitors the resident memory of the complete selection process and uses
+`MEMORY` as a soft portfolio limit. Within each wave, it subtracts the RSS
+measured before the first candidate and divides the remaining RSS by the number
+of active candidates. The maximum per-candidate cost observed during that wave
+is retained. A queued candidate is launched only when:
+
+```text
+current RSS + 1.10 * maximum observed candidate cost <= MEMORY
+```
+
+The 10% candidate-cost margin accounts for continued Clingo growth after a
+measurement without reserving a second fixed fraction of the complete memory
+budget. If resident memory nevertheless exceeds `MEMORY`, the least advanced
+active candidate is interrupted before another candidate is considered, while
+at least one solver instance is always retained. A candidate that already
+emitted a witness remains eligible for selection; otherwise a
+memory-interrupted candidate is reported as `UNKNOWN`.
+
+This policy adapts effective portfolio width as domains and Clingo groundings
+grow. It is a scheduling guard rather than an operating-system hard limit: one
+solver instance may allocate memory faster than the coordinator can react, and
+the single retained instance is allowed to continue even when it alone exceeds
+the configured budget.
 
 Each candidate owns an independent BoNesis problem and Clingo control. The
 patience clock and leader objective belong to the coordinating wave, not to an
@@ -661,9 +687,10 @@ parameter, while the patience is uniform across enabled stages.
 | `PATIENCE_DOMAIN_WAVE` | Shared maximum time without a strict improvement of the best portfolio objective within one acquisition or expansion wave. |
 | `MIN_DOMAIN_YIELD` | Minimum cumulative retained-node gain per node added during one domain expansion. Values must be at least 0 and below 1; zero disables constant-size refreshes. |
 | `MAX_DOMAIN_REFRESHES` | Maximum number of constant-size domain refreshes before expansion resumes. Zero disables refreshes. |
+| `MEMORY` | Soft resident-memory budget used to queue and reduce the candidate portfolio while retaining at least one solver instance. |
 
 Domain continuation supports `SOFT`, `RELAXED`, `SEED`, and `LOCK`. The global
-`JOBS` parameter controls the number of candidate domains evaluated
+`JOBS` parameter controls the maximum number of candidate domains evaluated
 simultaneously, and every candidate uses one Clingo thread. For `LOCK`, candidate
 domains are supersets of the retained `SEED` core and no acquisition portfolio
 is run. A forwarded or absent witness makes `LOCK` forward the `SEED` output

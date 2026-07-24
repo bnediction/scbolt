@@ -154,6 +154,9 @@ for stage in SOFT RELAXED SEED LOCK; do
         "${repo_root}/Makefile"
 done
 
+[[ "$(grep -Fc -- '--memory-limit "$(memory_normalized)"' \
+    "${repo_root}/Makefile")" -eq 4 ]]
+
 [[ "$(grep -Fc -- '--jobs $(CLINGO_THREADS)' "${repo_root}/Makefile")" -eq 5 ]]
 
 grep -Fq -- \
@@ -172,6 +175,7 @@ grep -Fq 'DOMAIN_CONTINUATION_SEED' <<< "${seed_help}"
 grep -Fq 'MIN_DOMAIN_YIELD' <<< "${seed_help}"
 grep -Fq 'MAX_DOMAIN_REFRESHES' <<< "${seed_help}"
 grep -Fq 'CLINGO_THREADS' <<< "${seed_help}"
+grep -Fq 'MEMORY' <<< "${seed_help}"
 grep -Fq 'Low-yield expansions are refreshed at constant size' <<< "${seed_help}"
 grep -Fq 'JOBS' <<< "${seed_help}"
 grep -Fq 'Maximum time without a Clingo objective improvement' <<< "${seed_help}"
