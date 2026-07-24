@@ -135,21 +135,25 @@ dependencies:
   - xz=5.2.6=h166bdaf_0
   - zstd=1.5.6=ha6fb4c9_0
   - pip:
+      - astutils==0.0.6
       - attrs==23.2.0
-      - bonesistools==1.4.0
+      - bonesistools==1.6.0
       - boolean-py==5.0
       - cffi==2.1.0
       - charset-normalizer==3.3.2
       - clingo==5.8.0
+      - dd==0.6.0
       - decoupler==1.6.0
       - docrep==0.3.2
       - idna==3.7
       - inflect==7.2.1
       - more-itertools==10.2.0
       - omnipath==1.0.8
+      - ply==3.10
       - prompt-toolkit==3.0.43
       - pycparser==3.0
       - requests==2.31.0
       - typeguard==4.2.1
       - urllib3==2.2.1
       - wrapt==1.16.0
+prefix: /home/roncalli/anaconda3/envs/scbolt-scboolseq

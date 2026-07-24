@@ -317,6 +317,15 @@ def write_structural_witness(witness: Iterable[str], file: Path) -> None:
     write_lines((f"{atom}." for atom in sorted(set(witness))), file)
 
 
+def should_forward_previous_solution(
+    new_constraints: bool,
+    initial_witness: Iterable[str],
+) -> bool:
+    """Return whether this stage can forward its predecessor unchanged."""
+
+    return not new_constraints and not tuple(initial_witness)
+
+
 def clause_continuation_bounds(
     max_clauses: int,
     lower_bound: int = 1,
@@ -1364,6 +1373,24 @@ parser.add_argument(
     help=argparse.SUPPRESS,
 )
 parser.add_argument(
+    "--forward-witness",
+    dest="forward_witness",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=None,
+    metavar="FILE",
+    help=argparse.SUPPRESS,
+)
+parser.add_argument(
+    "--forwarded-status-file",
+    dest="forwarded_status_file",
+    type=lambda x: Path(x).resolve(),
+    required=False,
+    default=None,
+    metavar="FILE",
+    help=argparse.SUPPRESS,
+)
+parser.add_argument(
     "--witness",
     dest="witness",
     type=lambda x: Path(x).resolve(),
@@ -1389,7 +1416,11 @@ if args.domain_continuation_expansion_only and args.initial_witness is None:
     parser.error(
         "--domain-continuation-expansion-only requires --initial-witness"
     )
+if args.initial_witness is not None and args.forward_witness is not None:
+    parser.error("--initial-witness and --forward-witness are mutually exclusive")
 reset_solver_timeout_status(args.timeout_status_file)
+if args.forwarded_status_file is not None:
+    args.forwarded_status_file.unlink(missing_ok=True)
 if args.witness is None:
     args.witness = args.solution.with_name("witness.lp")
 
@@ -1429,18 +1460,29 @@ if args.action == "filter-nodes":
     )
     nodes_in_data, nodes_in_domain, domain_edges = get_node_sets(bo)
     initial_witness = read_structural_witness(args.initial_witness)
+
+    if should_forward_previous_solution(new_constraints, initial_witness):
+        forwarded_nodes = (
+            read_gene_list(args.filter_grn)
+            if args.filter_grn is not None
+            else sorted(bo.domain.nodes)
+        )
+        forwarded_witness = read_structural_witness(args.forward_witness)
+        console.print_info(
+            "no new constraints added; forwarding previous solution",
+            flush=True,
+        )
+        write_node_solution(forwarded_nodes, args.solution)
+        write_structural_witness(forwarded_witness, args.witness)
+        if args.forwarded_status_file is not None:
+            write_lines(("forwarded",), args.forwarded_status_file)
+        sys.exit(0)
+
     if args.domain_continuation_expansion_only and not initial_witness:
         parser.error(
             "--domain-continuation-expansion-only requires a non-empty "
             "structural witness"
         )
-
-    if not new_constraints:
-        console.print_info("no new constraints added; stopping", flush=True)
-        write_node_solution(bo.domain.nodes, args.solution)
-        if initial_witness:
-            write_structural_witness(initial_witness, args.witness)
-        sys.exit(0)
 
     effective_clingo_opt_strategy = args.clingo_opt_strategy or "bb,dec"
     print_node_reference(
@@ -1536,6 +1578,9 @@ if args.action == "filter-nodes":
             len(solution),
         ),
     }
+    if current_witness:
+        write_node_solution(solution, args.solution)
+        write_structural_witness(current_witness, args.witness)
 
     def print_clause_bound_patience_warning(max_clause: int) -> None:
         """Report the best objective retained at an exhausted clause bound."""

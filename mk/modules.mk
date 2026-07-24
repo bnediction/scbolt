@@ -130,6 +130,7 @@ max_nodes_soft_solution =       $(max_nodes_soft)
 max_nodes_soft_domain_size =    $(tmpdir)/max-nodes-soft-domain.count
 max_consts_soft =               $(infer_dir)/genes/consts/comps.txt
 max_nodes_relaxed =             $(infer_dir)/genes/relaxed/comps.txt
+max_nodes_relaxed_witness =     $(infer_dir)/genes/relaxed/witness.lp
 max_nodes_seed =                $(infer_dir)/genes/seed/comps.txt \
                                 $(infer_dir)/genes/seed/witness.lp
 max_nodes_lock =                $(infer_dir)/genes/lock/comps.txt
@@ -455,7 +456,7 @@ RESET_TARGET_binarization = $(bin)
 RESET_TARGET_spec = $(bonesis_model)
 RESET_TARGET_max-nodes-soft = $(max_nodes_soft)
 RESET_TARGET_max-consts-soft = $(max_consts_soft)
-RESET_TARGET_max-nodes-relaxed = $(max_nodes_relaxed)
+RESET_TARGET_max-nodes-relaxed = $(max_nodes_relaxed) $(max_nodes_relaxed_witness)
 RESET_TARGET_max-nodes-seed = $(max_nodes_seed)
 RESET_TARGET_max-nodes-lock = $(max_nodes_lock) $(max_nodes_lock_witness)
 RESET_TARGET_bn-min = $(bn_min)

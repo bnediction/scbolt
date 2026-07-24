@@ -109,9 +109,9 @@ The corresponding selection modules are:
 | --- | --- | --- |
 | `max-nodes-soft` | soft | Maximize satisfiable nodes under the least expensive constraint set. |
 | `max-consts-soft` | soft | Identify strong constants and retain components contributing dynamical variability. |
-| `max-nodes-relaxed` | soft + intermediate | Re-optimize the reduced domain after introducing non-reachability constraints. |
-| `max-nodes-seed` | complete | Search for a bounded-time seed solution under all constraints. |
-| `max-nodes-lock` | complete | Resume from the seed witness, force retained seed nodes to remain selected, and expand toward the complete relaxed domain. |
+| `max-nodes-relaxed` | soft + intermediate | Introduce non-reachability constraints, or forward the `CONSTS` solution when none exist. |
+| `max-nodes-seed` | complete | Introduce hard constraints, or forward the `RELAXED` solution and witness when none exist. |
+| `max-nodes-lock` | complete | Improve a witness computed by `SEED` within the domain retained by `RELAXED`, or forward the `SEED` output unchanged. |
 
 The procedure is a domain-reduction heuristic. Selecting one admissible optimum
 at an intermediate stage is not formally equivalent to solving all constraints
@@ -130,12 +130,40 @@ the initial regulatory domain. Because every later selection stage operates on
 the domain retained by its predecessor, the exclusion is applied only once and
 forbidden components cannot be reintroduced downstream.
 
-The `seed` and `lock` stages have distinct roles. `max-nodes-seed` is allowed to
-return a partial bounded-time solution. `max-nodes-lock` receives its structural
-witness and makes the selected seed nodes mandatory, preventing later solving
-from replacing already admissible components while trying to improve coverage.
-When domain continuation is enabled, `LOCK` expands this retained seed core
-progressively through the domain produced by `RELAXED`.
+Structural witnesses follow the active constraint level rather than a fixed
+module name. A stage that introduces constraints computes a witness for its new
+problem. A stage that introduces no constraints forwards the previous solution
+and witness without solving. The status and coverage of a forwarded partial
+solution are preserved. Its sidecar also records the immediate source so that a
+later `LOCK` stage can distinguish a witness computed by `SEED` from one merely
+forwarded by it.
+
+| Intermediate constraints | Hard constraints | `RELAXED` witness | `SEED` witness |
+| --- | --- | --- | --- |
+| absent | absent | absent | absent |
+| present | absent | computed | forwarded from `RELAXED` |
+| absent | present | absent | computed by `SEED` |
+| present | present | computed | recomputed by `SEED` |
+
+The witness produced under `SOFT` constraints is not forwarded through
+`CONSTS`, because strong-constant selection changes the regulatory domain. A
+`RELAXED` witness is likewise never treated as already feasible after hard
+constraints are introduced.
+
+The `seed` and `lock` stages retain distinct roles. `max-nodes-seed` may return
+a partial bounded-time solution after introducing hard constraints. In this
+case, `max-nodes-lock` makes the selected nodes mandatory and tries to improve
+coverage within the domain retained in `RELAXED/comps.txt`. It first stores the
+incoming solution and witness as its fallback; a new `LOCK` result replaces
+them, while interruption or absence of improvement retains them.
+
+When no hard constraints are introduced, `SEED` forwards the `RELAXED`
+solution and witness. `LOCK` then forwards the `SEED` outputs too, without
+starting another solve. This remains true when the `RELAXED` solution is
+partial: its `comps.txt` is the authoritative downstream domain, so nodes
+omitted by `RELAXED` are never reintroduced by `SEED` or `LOCK`. Improving that
+partial reduction requires rerunning `RELAXED` with a different budget or
+solver policy.
 
 ## Clause Continuation
 
@@ -158,7 +186,7 @@ Each satisfiable stage writes a structural witness. The witness is passed to the
 next clause bound as a soft Clingo heuristic, not as a hard restriction. The
 next stage may therefore improve or replace the previous structure.
 
-When `LOCK` reuses a seed witness requiring more than one clause, clause
+When `LOCK` reuses a `SEED`-computed witness requiring more than one clause, clause
 continuation starts at the smallest compatible bound instead of returning to
 `q=1`.
 
@@ -206,9 +234,11 @@ Domain continuation has up to two phases:
    parallel waves of larger candidate domains and reuses the best structural
    witness as a warm start until the complete domain is reached.
 
-Stages without an initial witness use both phases. `LOCK` already receives the
-structural witness retained by `SEED`, so it skips the first-witness portfolio
-and enters directly into witness-guided expansion.
+Stages that must solve without an initial witness use both phases. When `LOCK`
+receives a structural witness computed by `SEED`, it skips the first-witness
+portfolio and enters directly into witness-guided expansion. A witness merely
+forwarded by `SEED`, or an absent witness, makes `LOCK` forward the node
+solution without starting a solver.
 
 ```text
 no witness -> acquisition portfolio -> witness on D0
@@ -302,12 +332,12 @@ After a witness is selected:
     and one final Clingo instance resumes optimization using
     `CLINGO_THREADS`.
 
-For `LOCK`, the initial current domain is the union of the selected `SEED`
-nodes and the nodes required by the lock problem. Every expansion candidate
-contains this complete core. The candidate universe is the domain retained by
-`RELAXED`; the seed nodes are mandatory solver constraints, while newly tested
-nodes remain optional. An absent or empty seed witness is therefore an error
-for expansion-only lock continuation rather than a reason to start acquisition.
+When `SEED` computed its witness, the initial `LOCK` domain is the union of its
+selected nodes and the nodes required by the lock problem. Every expansion
+candidate contains this complete core. The candidate universe is exactly the
+domain retained by `RELAXED`; witnessed nodes are mandatory solver constraints,
+while newly tested nodes remain optional. A forwarded or absent witness
+bypasses lock solving rather than starting a new acquisition portfolio.
 
 The same policy is applied at every clause bound. After completing a bound
 `q`, scBOLT uses the retained solution as the base domain for `q+1`:
@@ -457,8 +487,9 @@ acquisition.
 
 Domain continuation supports the `SOFT`, `RELAXED`, `SEED`, and `LOCK`
 node-selection stages. It does not apply to the `CONSTS` stage. `SOFT`,
-`RELAXED`, and `SEED` use adaptive acquisition whenever no witness exists;
-`LOCK` is expansion-only and requires the `SEED` witness.
+`RELAXED`, and `SEED` use adaptive acquisition when they must solve without a
+witness. `LOCK` is expansion-only for a witness computed by `SEED`; it forwards
+the `SEED` output in all other cases.
 
 It is enabled by default for `SEED` and `LOCK`, and disabled by default for
 `SOFT` and `RELAXED` while the strategy remains under experimental validation.
@@ -547,13 +578,14 @@ Constraint relaxation surrounds this control flow: each selection module uses
 its own active constraint set and passes a reduced domain or structural witness
 to the next module.
 
-`LOCK` enters the same control flow after the acquisition loop:
+`LOCK` enters the same control flow after the acquisition loop only when
+`SEED` computed a witness:
 
 ```text
-seed witness + mandatory seed nodes -> initial lock domain
-                                      -> expansion portfolios
-                                      -> complete relaxed domain
-                                      -> final lock optimization
+SEED witness + mandatory witnessed nodes -> initial lock domain
+                                           -> expansion portfolios
+                                           -> complete relaxed domain
+                                           -> final lock optimization
 ```
 
 Consequently, disabling `DOMAIN_CONTINUATION_LOCK` restores direct
@@ -563,10 +595,11 @@ solving entirely and retains the seed solution.
 ## Subset-Minimal Warm Start
 
 `LOCK` stores both its retained node set and the corresponding structural
-witness. Before subset-minimal network enumeration, scBOLT converts this
-witness to the canonical clause representation required by the inference
-encoding. Redundant conjunctive terms are removed and the remaining terms are
-renumbered deterministically.
+witness when one exists. Before subset-minimal network enumeration, scBOLT
+converts this witness to the canonical clause representation required by the
+inference encoding. Redundant conjunctive terms are removed and the remaining
+terms are renumbered deterministically. With an explicitly empty witness file,
+enumeration starts normally without a warm start.
 
 The canonical witness is injected as a Clingo heuristic, not as a constraint.
 It therefore guides acquisition of the first subset-minimal network without
@@ -624,7 +657,7 @@ parameter, while the patience is uniform across enabled stages.
 
 | Parameter | Meaning |
 | --- | --- |
-| `DOMAIN_CONTINUATION_<STAGE>` | Enable adaptive first-witness search and progressive witness-guided expansion; `LOCK` uses expansion only. |
+| `DOMAIN_CONTINUATION_<STAGE>` | Enable adaptive first-witness search and progressive witness-guided expansion; `LOCK` expands only a witness computed by `SEED`. |
 | `PATIENCE_DOMAIN_WAVE` | Shared maximum time without a strict improvement of the best portfolio objective within one acquisition or expansion wave. |
 | `MIN_DOMAIN_YIELD` | Minimum cumulative retained-node gain per node added during one domain expansion. Values must be at least 0 and below 1; zero disables constant-size refreshes. |
 | `MAX_DOMAIN_REFRESHES` | Maximum number of constant-size domain refreshes before expansion resumes. Zero disables refreshes. |
@@ -632,8 +665,9 @@ parameter, while the patience is uniform across enabled stages.
 Domain continuation supports `SOFT`, `RELAXED`, `SEED`, and `LOCK`. The global
 `JOBS` parameter controls the number of candidate domains evaluated
 simultaneously, and every candidate uses one Clingo thread. For `LOCK`, candidate
-domains are supersets of the retained seed core and no acquisition portfolio is
-run. Each stage remains independently enabled through its
+domains are supersets of the retained `SEED` core and no acquisition portfolio
+is run. A forwarded or absent witness makes `LOCK` forward the `SEED` output
+instead. Each stage remains independently enabled through its
 `DOMAIN_CONTINUATION_<STAGE>` parameter, while the wave patience is uniform
 across enabled stages. `MAX_DOMAIN_REFRESHES` is shared by all enabled stages
 and defaults to two retries per expansion size.
@@ -688,8 +722,8 @@ seed stage.
 
 ### Illustrative Lock Configuration
 
-The default lock strategy reuses the seed witness and expands it without a new
-acquisition phase:
+The default lock strategy reuses a witness computed by `SEED` and expands it
+without a new acquisition phase:
 
 ```make
 DOMAIN_CONTINUATION_LOCK = true
@@ -705,11 +739,11 @@ JOBS = 8
 CLINGO_THREADS = 1
 ```
 
-Each candidate contains every selected seed node, because these nodes are
-mandatory during `LOCK`. The remaining slots sample nodes from the larger
-`RELAXED` domain. If the seed solution is already global, scBOLT skips this
-stage; if `TIMEOUT_LOCK=0`, it retains the seed solution without launching a
-solver.
+Each candidate contains every witnessed node, because these nodes are mandatory
+during `LOCK`. The remaining slots sample nodes from the larger `RELAXED`
+domain. If `SEED` only forwarded `RELAXED`, if its solution is already global,
+or if it has no structural witness, scBOLT skips this solve. If
+`TIMEOUT_LOCK=0`, it retains the `SEED` solution without launching a solver.
 
 ## Time Budgets and Partial Results
 

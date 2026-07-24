@@ -179,15 +179,17 @@ dependencies:
   - xz=5.2.6=h166bdaf_0
   - zstd=1.5.5=hfc55251_0
   - pip:
+      - astutils==0.0.6
       - beautifulsoup4==4.14.2
       - biodivine-aeon==1.2.5
-      - bonesistools==1.4.0
+      - bonesistools==1.6.0
       - boolean-py==5.0
       - cffi==2.0.0
       - charset-normalizer==3.3.2
       - click==8.1.7
       - clingo==5.8.0
       - colomoto-jupyter==0.9.2
+      - dd==0.5.7
       - decoupler==1.8.0
       - dill==0.4.0
       - docopt==0.6.2
@@ -201,6 +203,7 @@ dependencies:
       - multiprocess==0.70.18
       - numpy-groupies==0.11.2
       - openpyxl==3.1.2
+      - ply==3.10
       - pycparser==2.23
       - pydot==2.0.0
       - pygments==2.20.0
@@ -210,3 +213,4 @@ dependencies:
       - tqdm==4.66.5
       - urllib3==2.2.1
       - xlsxwriter==3.2.0
+prefix: /home/roncalli/anaconda3/envs/scbolt-core

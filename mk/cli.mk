@@ -1072,7 +1072,7 @@ __max-consts-soft: $(max_consts_soft)
 .PHONY: max-nodes-relaxed __max-nodes-relaxed
 max-nodes-relaxed: ## maximize nodes (relaxed constraints)
 	$(call run_logged,max-nodes-relaxed)
-__max-nodes-relaxed: $(max_nodes_relaxed)
+__max-nodes-relaxed: $(max_nodes_relaxed) $(max_nodes_relaxed_witness)
 
 .PHONY: max-nodes-seed __max-nodes-seed
 max-nodes-seed: ## maximize nodes (hard constraints, stage 1)
@@ -1082,7 +1082,7 @@ __max-nodes-seed: $(max_nodes_seed)
 .PHONY: max-nodes-lock __max-nodes-lock
 max-nodes-lock: ## maximize nodes (hard constraints, stage 2)
 	$(call run_logged,max-nodes-lock)
-__max-nodes-lock: $(max_nodes_lock)
+__max-nodes-lock: $(max_nodes_lock) $(max_nodes_lock_witness)
 
 interrupted_gene_selection_targets = max-nodes-soft max-consts-soft \
 	max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse

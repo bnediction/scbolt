@@ -434,7 +434,7 @@ if args.initial_witness is not None:
             "applying canonical structural warm start "
             f"(file={console.format_path(args.initial_witness)})"
         )
-    else:
+    elif not args.initial_witness.is_file():
         console.print_warning(
             "structural warm-start witness is unavailable "
             f"(file={console.format_path(args.initial_witness)})"

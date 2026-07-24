@@ -200,10 +200,10 @@ grep -Fq 'DOMAIN_CONTINUATION_LOCK' <<< "${lock_help}"
 grep -Fq 'MIN_DOMAIN_YIELD' <<< "${lock_help}"
 grep -Fq 'MAX_DOMAIN_REFRESHES' <<< "${lock_help}"
 grep -Fq \
-    'Expand the retained SEED witness through candidate subdomains' \
+    'Expand a SEED-computed witness through candidate subdomains' \
     <<< "${lock_help}"
 grep -Fq \
-    'LOCK skips first-witness acquisition' \
+    'LOCK keeps the SEED solution when its witness was forwarded' \
     <<< "${lock_help}"
 grep -Fq \
     '0.0 if is_target else args.clause_bound_patience' \
@@ -261,6 +261,9 @@ grep -Fq 'kwargs["leave"] = False' \
     "--initial-witness \$(dir \$(max_nodes_relaxed))witness.lp" \
     "${repo_root}/Makefile"
 grep -Fq -- \
+    "--forward-witness \$(word 7,\$^)" \
+    "${repo_root}/Makefile"
+grep -Fq -- \
     "--initial-witness \$(lastword \$^)" \
     "${repo_root}/Makefile"
 grep -Fq -- \
@@ -276,4 +279,28 @@ grep -Fq \
     "${repo_root}/scripts/infer/selection.py"
 grep -Fq -- \
     "\$(max_nodes_lock) \$(max_nodes_lock_witness) &: \$(bonesis_model)" \
+    "${repo_root}/Makefile"
+grep -Fq -- \
+    "\$(max_nodes_relaxed) \$(max_nodes_relaxed_witness) &: \$(bonesis_model)" \
+    "${repo_root}/Makefile"
+grep -Fq -- \
+    "__max-nodes-relaxed: \$(max_nodes_relaxed) \$(max_nodes_relaxed_witness)" \
+    "${repo_root}/mk/cli.mk"
+grep -Fq -- \
+    "__max-nodes-lock: \$(max_nodes_lock) \$(max_nodes_lock_witness)" \
+    "${repo_root}/mk/cli.mk"
+grep -Fq \
+    'if should_forward_previous_solution(new_constraints, initial_witness):' \
+    "${repo_root}/scripts/infer/selection.py"
+grep -Fq \
+    'write_structural_witness(forwarded_witness, args.witness)' \
+    "${repo_root}/scripts/infer/selection.py"
+grep -Fq \
+    'read_gene_list(args.filter_grn)' \
+    "${repo_root}/scripts/infer/selection.py"
+grep -Fq \
+    'if [ ! -s "$(lastword $^)" ]; then' \
+    "${repo_root}/Makefile"
+grep -Fq \
+    'metadata_solution_field,$(word 7,$^),forwarded-from' \
     "${repo_root}/Makefile"

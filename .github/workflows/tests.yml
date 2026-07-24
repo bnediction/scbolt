@@ -13,6 +13,7 @@ jobs:
       - run: bash tests/unit/test_clause_continuation.sh
       - run: bash tests/unit/test_trust_existing.sh
       - run: python3 tests/unit/test_domain_continuation.py
+      - run: python3 tests/unit/test_witness_propagation.py
       - run: python3 tests/unit/test_expression_layers.py
       - run: bash tests/unit/test_forbidden_nodes.sh
       - run: python3 tests/unit/test_solver_timeout.py

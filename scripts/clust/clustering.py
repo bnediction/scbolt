@@ -368,7 +368,9 @@ with single_thread():
     )
 
 console.print_task(
-    f"computing nearest-neighbor graph (principal components={args.clustering_dimension})"
+    "computing nearest-neighbor graph "
+    f"(principal components={args.clustering_dimension}, "
+    f"neighbors={args.neighbors}, metric={args.metric})"
 )
 bt.omics.tl.neighbors(
     adata,
@@ -379,17 +381,18 @@ bt.omics.tl.neighbors(
     copy=False,
 )
 
-prune_snn = 1 / 15
-prune_snn_msg = _format_percent_if_float(prune_snn)
-console.print_task(
-    f"computing shared nearest-neighbor graph (pruning_threshold={prune_snn_msg})"
-)
-bt.omics.tl.shared_neighbors(
-    adata,
-    key_added="shared_neighbors",
-    prune=prune_snn,
-    copy=False,
-)
+if args.adjacency == "snn":
+    prune_snn = 1 / 15
+    prune_snn_msg = _format_percent_if_float(prune_snn)
+    console.print_task(
+        f"computing shared nearest-neighbor graph (pruning_threshold={prune_snn_msg})"
+    )
+    bt.omics.tl.shared_neighbors(
+        adata,
+        key_added="shared_neighbors",
+        prune=prune_snn,
+        copy=False,
+    )
 
 console.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
 bt.omics.tl.leiden(

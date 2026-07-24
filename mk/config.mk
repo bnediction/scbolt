@@ -1296,6 +1296,22 @@ solution_metadata_args = \
 	$(if $(strip $(1)),--solution-status "$(1)") \
 	$(if $(strip $(2)),--solution-kept "$$($(call count_solution_items,$(2)))") \
 	$(if $(strip $(3)),--solution-total "$$($(call count_solution_items,$(3)))")
+define write_forwarded_solution_metadata
+forwarded_solution_status="$$($(call metadata_solution_field,$(3),status) 2>/dev/null || true)"; \
+if [ "$${forwarded_solution_status}" != "global" ] \
+		&& [ "$${forwarded_solution_status}" != "partial" ]; then \
+	forwarded_solution_status="partial"; \
+fi; \
+forwarded_solution_kept="$$($(call metadata_solution_field,$(3),kept) 2>/dev/null || true)"; \
+case "$${forwarded_solution_kept}" in \
+	''|*[!0-9]*) forwarded_solution_kept="$$($(call count_solution_items,$(4)))" ;; \
+esac; \
+forwarded_solution_total="$$($(call metadata_solution_field,$(3),total) 2>/dev/null || true)"; \
+case "$${forwarded_solution_total}" in \
+	''|*[!0-9]*) forwarded_solution_total="$$($(call count_solution_items,$(5)))" ;; \
+esac; \
+$(call write_scbolt_metadata,$(1),$(2),,--solution-status "$${forwarded_solution_status}" --solution-kept "$${forwarded_solution_kept}" --solution-total "$${forwarded_solution_total}" --solution-forwarded-from "$(3)")
+endef
 timeout_param_for_module = \
 	$(if $(filter max-nodes-soft,$(1)),TIMEOUT_SOFT,\
 	$(if $(filter max-consts-soft,$(1)),TIMEOUT_CONSTS,\
@@ -1366,18 +1382,22 @@ define finalize_interrupted_lock_gene_selection
 			|| [ -f "$(dir $(max_nodes_lock))mandatory.txt" ]; }; then \
 	mkdir -p "$(dir $(max_nodes_lock))"; \
 	$(call system_tool,cp) "$(firstword $(max_nodes_seed))" "$(max_nodes_lock)"; \
-	$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock),$(call interrupted_timeout_param,max-nodes-lock),$(call solution_metadata_args,partial,$(max_nodes_lock),$(max_nodes_relaxed))); \
+	if [ -e "$(lastword $(max_nodes_seed))" ]; then \
+		$(call system_tool,cp) "$(lastword $(max_nodes_seed))" "$(max_nodes_lock_witness)"; \
+	else \
+		: > "$(max_nodes_lock_witness)"; \
+	fi; \
+	$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock) $(max_nodes_lock_witness),$(call interrupted_timeout_param,max-nodes-lock),$(call solution_metadata_args,partial,$(max_nodes_lock),$(max_nodes_relaxed))); \
 fi
 endef
 
 define check_inference_status
 	if [ $$exit_status -eq 0 ]; then \
-		$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$(if $(strip $(6)),$(6),$@),,$(call solution_metadata_args,global,$(if $(strip $(6)),$(6),$@),$(5)));) \
+		$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$(if $(strip $(7)),$(7),$(if $(strip $(6)),$(6),$@)),,$(call solution_metadata_args,global,$(if $(strip $(6)),$(6),$@),$(5)));) \
 		$(call print_debug,global optimum found); \
 	elif [ $$exit_status -eq 124 ]; then \
-		echo -e ''; \
 		if [ -s $(if $(strip $(6)),$(6),$@) ]; then \
-			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$(if $(strip $(6)),$(6),$@),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$(if $(strip $(6)),$(6),$@),$(5)));) \
+			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$(if $(strip $(7)),$(7),$(if $(strip $(6)),$(6),$@)),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$(if $(strip $(6)),$(6),$@),$(5)));) \
 			$(call print_warning,user-defined time limit reached $(lparen)$(1)$(rparen): keeping partial solution); \
 		elif [ -n "$(4)" ] && [ -s "$(4)" ]; then \
 			$(call keep_inference_fallback,$(4),$(2),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),user-defined time limit reached $(lparen)$(1)$(rparen): keeping fallback solution,$(5)) \
@@ -1386,7 +1406,7 @@ define check_inference_status
 		fi; \
 	elif [ $$exit_status -eq 130 ] || [ $$exit_status -eq 143 ]; then \
 		if [ -s $(if $(strip $(6)),$(6),$@) ]; then \
-			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$(if $(strip $(6)),$(6),$@),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$(if $(strip $(6)),$(6),$@),$(5)));) \
+			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$(if $(strip $(7)),$(7),$(if $(strip $(6)),$(6),$@)),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$(if $(strip $(6)),$(6),$@),$(5)));) \
 			$(call print_warning,inference interrupted: keeping partial solutions); \
 		elif [ -n "$(4)" ] && [ -s "$(4)" ]; then \
 			$(call keep_inference_fallback,$(4),$(2),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),inference interrupted: keeping fallback solution,$(5)) \
@@ -1404,7 +1424,7 @@ define trap_inference_interrupt
 handle_inference_interrupt() { \
 	signal_status="$$1"; \
 	if [ -s $(if $(strip $(5)),$(5),$@) ]; then \
-		$(if $(strip $(1)),$(call write_scbolt_metadata,$(1),$(if $(strip $(5)),$(5),$@),$(if $(strip $(2)),$(2)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$(if $(strip $(5)),$(5),$@),$(4)));) \
+		$(if $(strip $(1)),$(call write_scbolt_metadata,$(1),$(if $(strip $(6)),$(6),$(if $(strip $(5)),$(5),$@)),$(if $(strip $(2)),$(2)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$(if $(strip $(5)),$(5),$@),$(4)));) \
 		$(call log,WARNING,inference interrupted: keeping partial solutions); \
 	elif [ -n "$(3)" ] && [ -s "$(3)" ]; then \
 		$(call keep_inference_fallback,$(3),$(1),$(if $(strip $(2)),$(2)=$$(effective_inference_timeout)),inference interrupted: keeping fallback solution,$(4)) \

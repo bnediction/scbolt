@@ -520,7 +520,7 @@ def runtime_changes(
             visible = package_changes[:8]
             if len(package_changes) > len(visible):
                 visible.append(f"{len(package_changes) - len(visible)} more package(s)")
-            messages.append(f"runtime drift: {env} ({'; '.join(visible)})")
+            messages.append(f"runtime drift: {env}; {'; '.join(visible)}")
 
     return messages
 
@@ -538,10 +538,11 @@ def solution_payload(
     status: SolutionStatus | None,
     kept: int | None,
     total: int | None,
+    forwarded_from: str | None,
 ) -> dict[str, object] | None:
     if status is None:
-        if kept is not None or total is not None:
-            raise SystemExit("solution counts require --solution-status")
+        if kept is not None or total is not None or forwarded_from is not None:
+            raise SystemExit("solution metadata require --solution-status")
         return None
 
     payload: dict[str, object] = {"status": status}
@@ -551,6 +552,8 @@ def solution_payload(
         payload["total"] = total
     if kept is not None and total is not None:
         payload["coverage"] = f"{kept}/{total}"
+    if forwarded_from is not None:
+        payload["forwarded_from"] = forwarded_from
     return payload
 
 
@@ -994,6 +997,7 @@ def write_metadata(args: argparse.Namespace) -> None:
         args.solution_status,
         args.solution_kept,
         args.solution_total,
+        args.solution_forwarded_from,
     )
     current_container = container_metadata(
         args.runtime_backend,
@@ -1068,6 +1072,10 @@ def print_solution(args: argparse.Namespace) -> None:
             print(value)
     elif args.field == "coverage":
         value = solution.get("coverage")
+        if value is not None:
+            print(value)
+    elif args.field == "forwarded-from":
+        value = solution.get("forwarded_from")
         if value is not None:
             print(value)
 
@@ -1351,6 +1359,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     write.add_argument("--solution-kept", type=int, default=None)
     write.add_argument("--solution-total", type=int, default=None)
+    write.add_argument("--solution-forwarded-from", default=None)
     write.add_argument("--runtime-env", action="append", default=[])
     add_runtime_arguments(write)
     write.set_defaults(func=write_metadata)
@@ -1363,7 +1372,15 @@ def build_parser() -> argparse.ArgumentParser:
     solution.add_argument("--target", required=True)
     solution.add_argument(
         "--field",
-        choices=["json", "label", "status", "kept", "total", "coverage"],
+        choices=[
+            "json",
+            "label",
+            "status",
+            "kept",
+            "total",
+            "coverage",
+            "forwarded-from",
+        ],
         default="label",
     )
     solution.set_defaults(func=print_solution)

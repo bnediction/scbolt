@@ -61,6 +61,27 @@ def clean_adata(
     return adata if copy else None
 
 
+def compute_shared_neighbors_if_needed(
+    adata: AnnData,
+    args: argparse.Namespace,
+    *,
+    context: Optional[str] = None,
+) -> None:
+    if args.adjacency != "snn":
+        return
+
+    message = "computing shared nearest-neighbor graph"
+    if context:
+        message = f"{message} ({context})"
+    console.print_task(message)
+    bt.omics.tl.shared_neighbors(
+        adata,
+        key_added="shared_neighbors",
+        prune=1 / 15,
+        copy=False,
+    )
+
+
 def namespace_obs_names(
     adata: AnnData,
     condition: str,
@@ -543,7 +564,9 @@ if args.integration == "ingest":
         )
 
     console.print_task(
-        f"computing nearest-neighbor graph (principal components={args.clustering_dimension}, condition={reference})"
+        "computing nearest-neighbor graph "
+        f"(principal components={args.clustering_dimension}, "
+        f"neighbors={args.neighbors}, metric={args.metric}, condition={reference})"
     )
     bt.omics.tl.neighbors(
         adatas[reference],
@@ -551,14 +574,6 @@ if args.integration == "ingest":
         representation="X_pca",
         n_pcs=args.clustering_dimension,
         metric=args.metric,
-        copy=False,
-    )
-
-    console.print_task(f"computing shared nearest-neighbor graph (condition={reference})")
-    bt.omics.tl.shared_neighbors(
-        adatas[reference],
-        key_added="shared_neighbors",
-        prune=1 / 15,
         copy=False,
     )
 
@@ -588,7 +603,9 @@ if args.integration == "ingest":
         raise RuntimeError("anndatas concatenation not working") from error
 
     console.print_task(
-        f"computing nearest-neighbor graph (principal components={args.clustering_dimension}, dataset=integrated)"
+        "computing nearest-neighbor graph "
+        f"(principal components={args.clustering_dimension}, "
+        f"neighbors={args.neighbors}, metric={args.metric}, dataset=integrated)"
     )
     bt.omics.tl.neighbors(
         adata,
@@ -599,13 +616,7 @@ if args.integration == "ingest":
         copy=False,
     )
 
-    console.print_task("computing shared nearest-neighbor graph (dataset=integrated)")
-    bt.omics.tl.shared_neighbors(
-        adata,
-        key_added="shared_neighbors",
-        prune=1 / 15,
-        copy=False,
-    )
+    compute_shared_neighbors_if_needed(adata, args, context="dataset=integrated")
 
     console.print_task(
         f"clustering cells (algorithm=leiden, resolution={args.resolution}, dataset=integrated)"
@@ -636,7 +647,10 @@ elif args.integration == "bbknn":
             copy=False,
         )
 
-    console.print_task("mapping embeddings")
+    console.print_task(
+        "mapping embeddings "
+        f"(neighbors within batch={args.neighbors}, metric={args.metric})"
+    )
     with console.suppress_output():
         sc.external.pp.bbknn(
             adata,
@@ -652,6 +666,8 @@ elif args.integration == "bbknn":
             pynndescent_random_state=args.seed,
             copy=False,
         )
+
+    compute_shared_neighbors_if_needed(adata, args)
 
     console.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
     bt.omics.tl.leiden(
@@ -697,7 +713,9 @@ elif args.integration == "scanorama":
         raise RuntimeError("anndatas concatenation not working") from error
 
     console.print_task(
-        f"computing nearest-neighbor graph (principal components={args.clustering_dimension})"
+        "computing nearest-neighbor graph "
+        f"(principal components={args.clustering_dimension}, "
+        f"neighbors={args.neighbors}, metric={args.metric})"
     )
     bt.omics.tl.neighbors(
         adata,
@@ -708,13 +726,7 @@ elif args.integration == "scanorama":
         copy=False,
     )
 
-    console.print_task("computing shared nearest-neighbor graph")
-    bt.omics.tl.shared_neighbors(
-        adata,
-        key_added="shared_neighbors",
-        prune=1 / 15,
-        copy=False,
-    )
+    compute_shared_neighbors_if_needed(adata, args)
 
     console.print_task(f"clustering cells (algorithm=leiden, resolution={args.resolution})")
     bt.omics.tl.leiden(

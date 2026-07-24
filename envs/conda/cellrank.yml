@@ -188,18 +188,22 @@ dependencies:
   - zstandard=0.23.0=py312hef9b889_1
   - zstd=1.5.6=ha6fb4c9_0
   - pip:
-      - bonesistools==1.4.0
+      - astutils==0.0.6
+      - bonesistools==1.6.0
       - boolean-py==5.0
       - cellrank==2.0.6
       - click==8.1.7
       - clingo==5.8.0
+      - dd==0.6.0
       - jinja2==3.0.3
       - loompy==3.0.7
       - markupsafe==3.0.2
       - numpy-groupies==0.11.2
+      - ply==3.10
       - progressbar2==4.5.0
       - pygam==0.9.1
       - pygpcca==1.0.4
       - python-utils==3.9.0
       - scipy==1.11.4
       - scvelo==0.3.2
+prefix: /home/roncalli/anaconda3/envs/scbolt-cellrank
