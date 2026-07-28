@@ -9,7 +9,7 @@ cleanup() {
     if [ -n "${child_pid}" ] && kill -0 "${child_pid}" 2>/dev/null; then
         kill -KILL "${child_pid}" 2>/dev/null || true
     fi
-    for file in child.pid timeout.status; do
+    for file in child.pid solution.txt timeout.status; do
         if [ -f "${tmpdir}/${file}" ]; then
             unlink "${tmpdir}/${file}"
         fi
@@ -18,6 +18,39 @@ cleanup() {
 }
 
 trap cleanup EXIT
+
+printf '%s\n' solution > "${tmpdir}/solution.txt"
+metadata_timeout="$(
+    make -f "${repo_root}/Makefile" --no-print-directory \
+        PARAMS="${repo_root}/tests/fixtures/params.mk" \
+        TEST_SOLUTION="${tmpdir}/solution.txt" \
+        TIMEOUT_SOFT=5h \
+        --eval='override write_scbolt_metadata = echo "$(3)"' \
+        --eval='override print_warning = :' \
+        --eval='.PHONY: __test_timeout_metadata' \
+        --eval='__test_timeout_metadata: ; @exit_status=124; $(call check_inference_status,5h,max-nodes-soft,TIMEOUT_SOFT,,,${TEST_SOLUTION})' \
+        __test_timeout_metadata
+)"
+test "${metadata_timeout}" = 'TIMEOUT_SOFT=5h'
+
+set +e
+metadata_interrupt="$(
+    make -f "${repo_root}/Makefile" --no-print-directory \
+        PARAMS="${repo_root}/tests/fixtures/params.mk" \
+        TEST_SOLUTION="${tmpdir}/solution.txt" \
+        TIMEOUT_SOFT=5h \
+        --eval='override write_scbolt_metadata = echo "$(3)"' \
+        --eval='override print_warning = :' \
+        --eval='.PHONY: __test_interrupt_metadata' \
+        --eval='__test_interrupt_metadata: ; @effective_inference_timeout() { echo 17s; }; exit_status=130; $(call check_inference_status,5h,max-nodes-soft,TIMEOUT_SOFT,,,${TEST_SOLUTION})' \
+        __test_interrupt_metadata 2>/dev/null
+)"
+interrupt_status="$?"
+set -e
+
+test "${interrupt_status}" -ne 0
+test "${metadata_interrupt}" = 'TIMEOUT_SOFT=17s'
+unlink "${tmpdir}/solution.txt"
 
 set +e
 "${repo_root}/bin/scbolt-timeout" \

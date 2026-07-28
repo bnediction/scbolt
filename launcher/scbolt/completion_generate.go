@@ -12,8 +12,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-
-	"github.com/bnediction/scbolt/launcher/internal/completiondata"
 )
 
 var (
@@ -42,57 +40,95 @@ var fileOptions = map[string]bool{
 	"--star-whitelist=":    true,
 }
 
-func main() {
-	root := flag.String("root", ".", "scBOLT repository root")
-	output := flag.String(
+var clingoConfigurations = []string{
+	"auto",
+	"frumpy",
+	"jumpy",
+	"tweety",
+	"handy",
+	"crafty",
+	"trendy",
+	"many",
+}
+
+var clingoStrategies = []string{
+	"bb",
+	"bb,lin",
+	"bb,hier",
+	"bb,inc",
+	"bb,dec",
+	"usc",
+	"usc,oll",
+	"usc,one",
+	"usc,k",
+	"usc,pmres",
+}
+
+var priorKnowledgeValues = []string{
+	"dorothea",
+	"collectri",
+}
+
+var organismValues = []string{
+	"mouse",
+	"human",
+}
+
+func generateCompletionManifest(arguments []string) error {
+	flags := flag.NewFlagSet("__generate-completion-manifest", flag.ContinueOnError)
+	root := flags.String("root", ".", "scBOLT repository root")
+	output := flags.String(
 		"output",
 		"launcher/scbolt/completion_manifest.json",
 		"generated manifest path",
 	)
-	params := flag.String(
+	params := flags.String(
 		"params",
 		"quickstart/params.mk",
 		"parameter file used to render module help",
 	)
-	flag.Parse()
+	if err := flags.Parse(arguments); err != nil {
+		return err
+	}
 
 	absoluteRoot, err := filepath.Abs(*root)
-	check(err)
+	if err != nil {
+		return err
+	}
 	manifest, err := generateManifest(absoluteRoot, *params)
-	check(err)
+	if err != nil {
+		return err
+	}
 
 	encoded, err := json.MarshalIndent(manifest, "", "  ")
-	check(err)
+	if err != nil {
+		return err
+	}
 	encoded = append(encoded, '\n')
 
 	outputPath := *output
 	if !filepath.IsAbs(outputPath) {
 		outputPath = filepath.Join(absoluteRoot, outputPath)
 	}
-	check(os.MkdirAll(filepath.Dir(outputPath), 0o755))
-	check(os.WriteFile(outputPath, encoded, 0o644))
-}
-
-func check(err error) {
-	if err == nil {
-		return
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return err
 	}
-	fmt.Fprintf(os.Stderr, "generate completion manifest: %v\n", err)
-	os.Exit(1)
+	return os.WriteFile(outputPath, encoded, 0o644)
 }
 
-func generateManifest(root string, params string) (completiondata.Manifest, error) {
+func generateManifest(root string, params string) (completionManifest, error) {
 	topHelp, err := scboltOutput(root, "help", "--params", params)
 	if err != nil {
-		return completiondata.Manifest{}, err
+		return completionManifest{}, err
 	}
 	commands := parseCommands(topHelp)
 	commands = appendLauncherCommands(commands)
 	globalOptions := mergeOptions(
 		parseHelpOptions(topHelp),
-		[]completiondata.Option{
+		[]completionOption{
 			{Name: "--backend=", Values: []string{"conda", "mamba", "micromamba", "docker"}},
 			{Name: "--logging=", Values: []string{"true", "false"}},
+			{Name: "--organism=", Values: append([]string{}, organismValues...)},
 			{Name: "--target="},
 		},
 	)
@@ -112,7 +148,7 @@ func generateManifest(root string, params string) (completiondata.Manifest, erro
 			)
 			if helpErr != nil {
 				command.Options = append(
-					[]completiondata.Option{},
+					[]completionOption{},
 					globalOptions...,
 				)
 				continue
@@ -138,34 +174,34 @@ func generateManifest(root string, params string) (completiondata.Manifest, erro
 				params,
 			)
 			if helpErr != nil {
-				return completiondata.Manifest{}, helpErr
+				return completionManifest{}, helpErr
 			}
 			command.Options = parseHelpOptions(help)
 		}
 	}
 
-	return completiondata.Manifest{
-		SchemaVersion: completiondata.SchemaVersion,
+	return completionManifest{
+		SchemaVersion: completionManifestSchemaVersion,
 		Commands:      commands,
 		Modules:       modules,
 		GlobalOptions: globalOptions,
 	}, nil
 }
 
-func appendLauncherCommands(commands []completiondata.Command) []completiondata.Command {
+func appendLauncherCommands(commands []completionCommand) []completionCommand {
 	commands = append(commands,
-		completiondata.Command{
+		completionCommand{
 			Name:        "install",
 			Description: "install the launcher or runtime backend",
 			Kind:        "utility",
-			Options: []completiondata.Option{
+			Options: []completionOption{
 				{Name: "--backend=", Values: []string{"conda", "mamba", "micromamba", "docker"}},
 				{Name: "--help"},
 				{Name: "--scbolt-container-engine=", Values: []string{"docker", "podman"}},
 				{Name: "--scbolt-image="},
 			},
 		},
-		completiondata.Command{
+		completionCommand{
 			Name:        "completion",
 			Description: "generate shell completion",
 			Kind:        "utility",
@@ -193,8 +229,8 @@ func scboltOutput(root string, args ...string) (string, error) {
 	return output.String(), nil
 }
 
-func parseCommands(help string) []completiondata.Command {
-	commands := make([]completiondata.Command, 0)
+func parseCommands(help string) []completionCommand {
+	commands := make([]completionCommand, 0)
 	section := ""
 	scanner := bufio.NewScanner(strings.NewReader(help))
 	for scanner.Scan() {
@@ -211,7 +247,7 @@ func parseCommands(help string) []completiondata.Command {
 		if section == "Utilities" {
 			kind = "utility"
 		}
-		commands = append(commands, completiondata.Command{
+		commands = append(commands, completionCommand{
 			Name:        match[1],
 			Description: strings.TrimSpace(match[2]),
 			Kind:        kind,
@@ -220,8 +256,8 @@ func parseCommands(help string) []completiondata.Command {
 	return commands
 }
 
-func parseHelpOptions(help string) []completiondata.Option {
-	options := make([]completiondata.Option, 0)
+func parseHelpOptions(help string) []completionOption {
+	options := make([]completionOption, 0)
 	scanner := bufio.NewScanner(strings.NewReader(help))
 	for scanner.Scan() {
 		match := optionPattern.FindStringSubmatch(scanner.Text())
@@ -229,7 +265,7 @@ func parseHelpOptions(help string) []completiondata.Option {
 			continue
 		}
 		name := normalizeOption(match[1])
-		options = append(options, completiondata.Option{
+		options = append(options, completionOption{
 			Name: name,
 			File: fileOptions[name],
 		})
@@ -237,8 +273,8 @@ func parseHelpOptions(help string) []completiondata.Option {
 	return uniqueOptions(options)
 }
 
-func parseParameterOptions(help string) []completiondata.Option {
-	options := make([]completiondata.Option, 0)
+func parseParameterOptions(help string) []completionOption {
+	options := make([]completionOption, 0)
 	inParameters := false
 	scanner := bufio.NewScanner(strings.NewReader(help))
 	for scanner.Scan() {
@@ -258,9 +294,9 @@ func parseParameterOptions(help string) []completiondata.Option {
 			continue
 		}
 		name := "--" + strings.ToLower(strings.ReplaceAll(match[1], "_", "-")) + "="
-		options = append(options, completiondata.Option{
+		options = append(options, completionOption{
 			Name:   name,
-			Values: closedValues(match[2]),
+			Values: parameterValues(match[1], match[2]),
 			File:   fileOptions[name],
 		})
 	}
@@ -272,6 +308,21 @@ func normalizeOption(option string) string {
 		return option[:strings.Index(option, "=<")] + "="
 	}
 	return option
+}
+
+func parameterValues(parameter string, hint string) []string {
+	switch {
+	case parameter == "PRIOR_KNOWLEDGE":
+		return append([]string{}, priorKnowledgeValues...)
+	case parameter == "ORGANISM":
+		return append([]string{}, organismValues...)
+	case strings.HasPrefix(parameter, "CLINGO_CONFIG_"):
+		return append([]string{}, clingoConfigurations...)
+	case strings.HasPrefix(parameter, "CLINGO_STRATEGY_"):
+		return append([]string{}, clingoStrategies...)
+	default:
+		return closedValues(hint)
+	}
 }
 
 func closedValues(text string) []string {
@@ -295,16 +346,16 @@ func closedValues(text string) []string {
 	return closed
 }
 
-func mergeOptions(groups ...[]completiondata.Option) []completiondata.Option {
-	merged := make([]completiondata.Option, 0)
+func mergeOptions(groups ...[]completionOption) []completionOption {
+	merged := make([]completionOption, 0)
 	for _, group := range groups {
 		merged = append(merged, group...)
 	}
 	return uniqueOptions(merged)
 }
 
-func uniqueOptions(options []completiondata.Option) []completiondata.Option {
-	byName := make(map[string]completiondata.Option)
+func uniqueOptions(options []completionOption) []completionOption {
+	byName := make(map[string]completionOption)
 	for _, option := range options {
 		existing, found := byName[option.Name]
 		if found {
@@ -322,7 +373,7 @@ func uniqueOptions(options []completiondata.Option) []completiondata.Option {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	unique := make([]completiondata.Option, 0, len(names))
+	unique := make([]completionOption, 0, len(names))
 	for _, name := range names {
 		unique = append(unique, byName[name])
 	}

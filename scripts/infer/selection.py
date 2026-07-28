@@ -515,8 +515,13 @@ class CandidateProgressProxy:
     def refresh(self) -> None:
         self.events.put(("refresh", self.candidate_index))
 
+    def clear(self) -> None:
+        # The parent coordinator clears the complete multi-bar display.
+        return None
+
     def close(self) -> None:
-        self.events.put(("close", self.candidate_index))
+        # Worker completion is tracked by its future, not by the proxy bar.
+        return None
 
 
 class ActiveCandidateViews:
@@ -780,9 +785,6 @@ def run_domain_wave(
             progress_stream.write("\033[u\r\033[J")
             progress_stream.flush()
 
-        if close_progress_stream:
-            progress_stream.close()
-
     candidate_by_index = {
         candidate.index: candidate for candidate in candidates
     }
@@ -876,6 +878,22 @@ def run_domain_wave(
 
         return min(active_candidates, key=candidate_key)
 
+    def print_wave_warning(message: str) -> None:
+        """Write a warning without corrupting the active multi-bar display."""
+
+        line = console.format_message("WARNING", message)
+        with ptqdm.external_write_mode(file=progress_stream):
+            print(line, file=progress_stream, flush=True)
+
+        if close_progress_stream and os.getenv("SCBOLT_LOGGING_TO_FILE") == "true":
+            logfile = os.getenv("LOGFILE")
+            if logfile:
+                try:
+                    with open(logfile, "a", encoding="utf-8") as stream:
+                        print(line, file=stream, flush=True)
+                except OSError:
+                    pass
+
     def enforce_memory_limit() -> None:
         if memory_limit is None:
             return
@@ -893,15 +911,12 @@ def run_domain_wave(
         if active_views.interrupt_one(candidate_index):
             active_count = len(active_views.active_candidates())
             memory_interrupted.add(candidate_index)
-            console.print_warning(
+            print_wave_warning(
                 "memory limit reached; reducing domain portfolio "
                 f"(active={active_count} -> {active_count - 1}, "
                 f"rss={format_memory_size(rss)}, "
-                f"limit={format_memory_size(memory_limit)})",
-                flush=True,
+                f"limit={format_memory_size(memory_limit)})"
             )
-
-    launch_candidate(force=True)
 
     def process_event(event) -> None:
         kind, candidate_index, *payload = event
@@ -942,7 +957,10 @@ def run_domain_wave(
             ):
                 clause_patience.reset()
 
+    progress_input_guard = console.guard_progress_input(progress_stream)
     try:
+        progress_input_guard.__enter__()
+        launch_candidate(force=True)
         while pending or candidate_queue:
             if stop_reason is None:
                 while launch_candidate():
@@ -1014,10 +1032,17 @@ def run_domain_wave(
                 for candidate in candidate_queue
             )
     finally:
-        close_progress_display()
-        cancelled.set()
-        active_views.interrupt_all()
-        executor.shutdown(wait=True, cancel_futures=True)
+        try:
+            close_progress_display()
+        finally:
+            try:
+                cancelled.set()
+                active_views.interrupt_all()
+                executor.shutdown(wait=True, cancel_futures=True)
+            finally:
+                progress_input_guard.__exit__(*sys.exc_info())
+                if close_progress_stream:
+                    progress_stream.close()
 
     if stop_reason == "timeout":
         raise SolverTimeout

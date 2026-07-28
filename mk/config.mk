@@ -7,13 +7,17 @@ launch_dir := $(CURDIR)
 lib_dir := $(scbolt_root)/lib
 scripts_dir := $(scbolt_root)/scripts
 scbolt_tool := $(scbolt_root)/bin/scbolt-tool
-conda_command = $(if $(and $(filter conda,$(backend)),$(CONDA_EXE)),$(CONDA_EXE),$(backend))
+SCBOLT_ENV_MANAGER ?=
+SCBOLT_SYSTEM_BIN ?=
+conda_command = $(if $(strip $(SCBOLT_ENV_MANAGER)),$(SCBOLT_ENV_MANAGER),\
+	$(if $(and $(filter conda,$(backend)),$(CONDA_EXE)),$(CONDA_EXE),$(backend)))
 SCBOLT_SYSTEM_ENV ?= scbolt-system
 SCBOLT_LOGGING_TO_FILE ?= false
 conda_base_from_exe = $(patsubst %/condabin/conda,%,$(patsubst %/bin/conda,%,$(1)))
 conda_base = $(if $(and $(filter conda,$(backend)),$(CONDA_EXE)),$(call conda_base_from_exe,$(CONDA_EXE)))
 python ?= $(if $(and $(conda_base),$(wildcard $(conda_base)/bin/python)),$(conda_base)/bin/python,python3)
-scbolt_system_bin = $(if $(conda_base),$(conda_base)/envs/$(SCBOLT_SYSTEM_ENV)/bin)
+scbolt_system_bin = $(if $(strip $(SCBOLT_SYSTEM_BIN)),$(strip $(SCBOLT_SYSTEM_BIN)),\
+	$(if $(conda_base),$(conda_base)/envs/$(SCBOLT_SYSTEM_ENV)/bin))
 system_tool = $(if $(wildcard $(scbolt_system_bin)/$(1)),$(scbolt_system_bin)/$(1),$(1))
 define wget_download
 if [ "$(SCBOLT_LOGGING_TO_FILE)" = "true" ]; then \
@@ -1321,6 +1325,8 @@ timeout_param_for_module = \
 interrupted_timeout_param = $(strip \
 	$(if $(and $(filter $(INTERRUPTED_TARGET),$(1)),$(strip $(INTERRUPTED_ELAPSED))),\
 		$(call timeout_param_for_module,$(1))=$(INTERRUPTED_ELAPSED)))
+configured_inference_timeout = $(strip \
+	$(if $(and $(strip $(1)),$(strip $($(1)))),$(1)=$($(1))))
 
 define report_kept_gene_selection_result
 @if [ ! -f "$(4)" ] && [ -s "$(2)" ]; then \
@@ -1397,10 +1403,10 @@ define check_inference_status
 		$(call print_debug,global optimum found); \
 	elif [ $$exit_status -eq 124 ]; then \
 		if [ -s $(if $(strip $(6)),$(6),$@) ]; then \
-			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$(if $(strip $(7)),$(7),$(if $(strip $(6)),$(6),$@)),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$(if $(strip $(6)),$(6),$@),$(5)));) \
+			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$(if $(strip $(7)),$(7),$(if $(strip $(6)),$(6),$@)),$(call configured_inference_timeout,$(3)),$(call solution_metadata_args,partial,$(if $(strip $(6)),$(6),$@),$(5)));) \
 			$(call print_warning,user-defined time limit reached $(lparen)$(1)$(rparen): keeping partial solution); \
 		elif [ -n "$(4)" ] && [ -s "$(4)" ]; then \
-			$(call keep_inference_fallback,$(4),$(2),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),user-defined time limit reached $(lparen)$(1)$(rparen): keeping fallback solution,$(5)) \
+			$(call keep_inference_fallback,$(4),$(2),$(call configured_inference_timeout,$(3)),user-defined time limit reached $(lparen)$(1)$(rparen): keeping fallback solution,$(5)) \
 		else \
 			$(call print_error,user-defined time limit reached $(lparen)$(1)$(rparen): no solution found); \
 		fi; \

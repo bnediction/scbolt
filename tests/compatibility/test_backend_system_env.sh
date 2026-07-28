@@ -32,14 +32,12 @@ HOME="${home}" XDG_CONFIG_HOME="${xdg_config}" \
 PATH="${home}/.local/bin:${PATH}" \
 HOME="${home}" \
 XDG_CONFIG_HOME="${xdg_config}" \
-SCBOLT_IN_DOCKER=true \
     scbolt --version >/dev/null
 
 output="$(
     PATH="${home}/.local/bin:${PATH}" \
     HOME="${home}" \
     XDG_CONFIG_HOME="${xdg_config}" \
-    SCBOLT_IN_DOCKER=true \
         scbolt config --default --raw
 )"
 awk -F= '$1 == "BACKEND" { print $2; exit }' <<< "${output}" \

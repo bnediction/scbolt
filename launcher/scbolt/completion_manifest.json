@@ -220,6 +220,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -275,6 +282,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -337,6 +351,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -392,6 +413,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -451,6 +479,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -506,6 +541,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -573,6 +615,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -645,6 +694,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -703,6 +759,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -770,6 +833,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -851,6 +921,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -966,6 +1043,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -1031,6 +1115,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -1139,6 +1230,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -1233,6 +1331,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -1288,6 +1393,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -1355,6 +1467,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -1415,6 +1534,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -1473,6 +1599,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -1548,6 +1681,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -1631,6 +1771,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -1707,6 +1854,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -1820,6 +1974,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -1899,6 +2060,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -1970,6 +2138,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -2056,6 +2231,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -2140,6 +2322,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -2248,6 +2437,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -2354,6 +2550,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -2447,6 +2650,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -2546,15 +2756,21 @@
           ]
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
         {
           "name": "--prior-knowledge=",
           "values": [
-            "collectri",
             "dorothea",
-            "file"
+            "collectri"
           ],
           "file": true
         },
@@ -2609,7 +2825,17 @@
           ]
         },
         {
-          "name": "--clingo-config-soft="
+          "name": "--clingo-config-soft=",
+          "values": [
+            "auto",
+            "frumpy",
+            "jumpy",
+            "tweety",
+            "handy",
+            "crafty",
+            "trendy",
+            "many"
+          ]
         },
         {
           "name": "--clingo-mode-soft=",
@@ -2620,7 +2846,19 @@
           ]
         },
         {
-          "name": "--clingo-strategy-soft="
+          "name": "--clingo-strategy-soft=",
+          "values": [
+            "bb",
+            "bb,lin",
+            "bb,hier",
+            "bb,inc",
+            "bb,dec",
+            "usc",
+            "usc,oll",
+            "usc,one",
+            "usc,k",
+            "usc,pmres"
+          ]
         },
         {
           "name": "--clingo-threads="
@@ -2654,6 +2892,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -2708,7 +2953,17 @@
           ]
         },
         {
-          "name": "--clingo-config-consts="
+          "name": "--clingo-config-consts=",
+          "values": [
+            "auto",
+            "frumpy",
+            "jumpy",
+            "tweety",
+            "handy",
+            "crafty",
+            "trendy",
+            "many"
+          ]
         },
         {
           "name": "--clingo-mode-consts=",
@@ -2719,7 +2974,19 @@
           ]
         },
         {
-          "name": "--clingo-strategy-consts="
+          "name": "--clingo-strategy-consts=",
+          "values": [
+            "bb",
+            "bb,lin",
+            "bb,hier",
+            "bb,inc",
+            "bb,dec",
+            "usc",
+            "usc,oll",
+            "usc,one",
+            "usc,k",
+            "usc,pmres"
+          ]
         },
         {
           "name": "--clingo-threads="
@@ -2747,6 +3014,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -2802,7 +3076,17 @@
           ]
         },
         {
-          "name": "--clingo-config-relaxed="
+          "name": "--clingo-config-relaxed=",
+          "values": [
+            "auto",
+            "frumpy",
+            "jumpy",
+            "tweety",
+            "handy",
+            "crafty",
+            "trendy",
+            "many"
+          ]
         },
         {
           "name": "--clingo-mode-relaxed=",
@@ -2813,7 +3097,19 @@
           ]
         },
         {
-          "name": "--clingo-strategy-relaxed="
+          "name": "--clingo-strategy-relaxed=",
+          "values": [
+            "bb",
+            "bb,lin",
+            "bb,hier",
+            "bb,inc",
+            "bb,dec",
+            "usc",
+            "usc,oll",
+            "usc,one",
+            "usc,k",
+            "usc,pmres"
+          ]
         },
         {
           "name": "--clingo-threads="
@@ -2847,6 +3143,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -2908,7 +3211,17 @@
           ]
         },
         {
-          "name": "--clingo-config-seed="
+          "name": "--clingo-config-seed=",
+          "values": [
+            "auto",
+            "frumpy",
+            "jumpy",
+            "tweety",
+            "handy",
+            "crafty",
+            "trendy",
+            "many"
+          ]
         },
         {
           "name": "--clingo-mode-seed=",
@@ -2919,7 +3232,19 @@
           ]
         },
         {
-          "name": "--clingo-strategy-seed="
+          "name": "--clingo-strategy-seed=",
+          "values": [
+            "bb",
+            "bb,lin",
+            "bb,hier",
+            "bb,inc",
+            "bb,dec",
+            "usc",
+            "usc,oll",
+            "usc,one",
+            "usc,k",
+            "usc,pmres"
+          ]
         },
         {
           "name": "--clingo-threads="
@@ -2959,6 +3284,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -3020,7 +3352,17 @@
           ]
         },
         {
-          "name": "--clingo-config-lock="
+          "name": "--clingo-config-lock=",
+          "values": [
+            "auto",
+            "frumpy",
+            "jumpy",
+            "tweety",
+            "handy",
+            "crafty",
+            "trendy",
+            "many"
+          ]
         },
         {
           "name": "--clingo-mode-lock=",
@@ -3031,7 +3373,19 @@
           ]
         },
         {
-          "name": "--clingo-strategy-lock="
+          "name": "--clingo-strategy-lock=",
+          "values": [
+            "bb",
+            "bb,lin",
+            "bb,hier",
+            "bb,inc",
+            "bb,dec",
+            "usc",
+            "usc,oll",
+            "usc,one",
+            "usc,k",
+            "usc,pmres"
+          ]
         },
         {
           "name": "--clingo-threads="
@@ -3071,6 +3425,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -3160,6 +3521,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -3229,6 +3597,13 @@
           "file": true
         },
         {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
+        },
+        {
           "name": "--params=",
           "file": true
         },
@@ -3296,6 +3671,13 @@
         {
           "name": "--old-file=",
           "file": true
+        },
+        {
+          "name": "--organism=",
+          "values": [
+            "mouse",
+            "human"
+          ]
         },
         {
           "name": "--params=",
@@ -3425,6 +3807,13 @@
     {
       "name": "--old-file=",
       "file": true
+    },
+    {
+      "name": "--organism=",
+      "values": [
+        "mouse",
+        "human"
+      ]
     },
     {
       "name": "--params=",

@@ -9,7 +9,7 @@ import (
 )
 
 func TestEmbeddedCompletionManifest(t *testing.T) {
-	manifest, err := completionManifest()
+	manifest, err := loadCompletionManifest()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func TestEmbeddedCompletionManifest(t *testing.T) {
 }
 
 func TestCompleteCommandsAndModuleOptions(t *testing.T) {
-	manifest, err := completionManifest()
+	manifest, err := loadCompletionManifest()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,6 +51,41 @@ func TestCompleteCommandsAndModuleOptions(t *testing.T) {
 			want:  []string{"--backend=docker"},
 		},
 		{
+			words: []string{"scbolt", "clustering", "--analysis-hvg-method=b"},
+			index: 2,
+			want:  []string{"--analysis-hvg-method=binning"},
+		},
+		{
+			words: []string{"scbolt", "spec", "--dorothea-api=m"},
+			index: 2,
+			want:  []string{"--dorothea-api=modern"},
+		},
+		{
+			words: []string{"scbolt", "spec", "--prior-knowledge=d"},
+			index: 2,
+			want:  []string{"--prior-knowledge=dorothea"},
+		},
+		{
+			words: []string{"scbolt", "spec", "--organism=m"},
+			index: 2,
+			want:  []string{"--organism=mouse"},
+		},
+		{
+			words: []string{"scbolt", "max-nodes-soft", "--clause-continuation-soft=t"},
+			index: 2,
+			want:  []string{"--clause-continuation-soft=true"},
+		},
+		{
+			words: []string{"scbolt", "max-nodes-soft", "--clingo-config-soft=hand"},
+			index: 2,
+			want:  []string{"--clingo-config-soft=handy"},
+		},
+		{
+			words: []string{"scbolt", "max-nodes-soft", "--clingo-strategy-soft=bb,i"},
+			index: 2,
+			want:  []string{"--clingo-strategy-soft=bb,inc"},
+		},
+		{
 			words: []string{"scbolt", "completion", "p"},
 			index: 2,
 			want:  []string{"powershell"},
@@ -65,7 +100,7 @@ func TestCompleteCommandsAndModuleOptions(t *testing.T) {
 }
 
 func TestCompleteProjectReferences(t *testing.T) {
-	manifest, err := completionManifest()
+	manifest, err := loadCompletionManifest()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,6 +121,43 @@ func TestCompleteProjectReferences(t *testing.T) {
 	want := []string{"--references=treated"}
 	if got := completeWords(manifest, words, 3); !reflect.DeepEqual(got, want) {
 		t.Fatalf("reference completion: got %v, want %v", got, want)
+	}
+}
+
+func TestCompletePriorKnowledgeResourcesAndFiles(t *testing.T) {
+	manifest, err := loadCompletionManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	if err := os.WriteFile(filepath.Join(directory, "custom-prior.sif"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(directory, "prior-dir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(directory); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(workingDirectory); err != nil {
+			t.Errorf("restore working directory: %v", err)
+		}
+	})
+
+	words := []string{"scbolt", "spec", "--prior-knowledge="}
+	want := []string{
+		"--prior-knowledge=dorothea",
+		"--prior-knowledge=collectri",
+		"--prior-knowledge=custom-prior.sif",
+		"--prior-knowledge=prior-dir" + string(filepath.Separator),
+	}
+	if got := completeWords(manifest, words, 2); !reflect.DeepEqual(got, want) {
+		t.Fatalf("prior-knowledge completion: got %v, want %v", got, want)
 	}
 }
 
@@ -112,6 +184,11 @@ func TestBashCompletionSupportsAppleBash(t *testing.T) {
 	for _, unsupported := range []string{"mapfile", "-o nosort"} {
 		if strings.Contains(script, unsupported) {
 			t.Fatalf("Bash completion uses unsupported Bash 3.2 feature %q", unsupported)
+		}
+	}
+	for _, fallback := range []string{"-o bashdefault", "-o default"} {
+		if strings.Contains(script, fallback) {
+			t.Fatalf("Bash completion enables filename fallback %q", fallback)
 		}
 	}
 }

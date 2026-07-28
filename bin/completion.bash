@@ -17,6 +17,11 @@ _scbolt_boolean_options="--logging= --pca-only-hvg= --velocity-only-hvg=
 --consistent-mad= --cc-correction= --dorothea-compatibility="
 _scbolt_file_options="--params= --old-file= --project-dir= --resources-dir= --star-whitelist=
 --binarization-file= --macrostate-files= --prior-knowledge= --spec-file="
+_scbolt_clingo_configs="auto frumpy jumpy tweety handy crafty trendy many"
+_scbolt_clingo_strategies="bb bb,lin bb,hier bb,inc bb,dec
+usc usc,oll usc,one usc,k usc,pmres"
+_scbolt_prior_knowledge_values="dorothea collectri"
+_scbolt_organisms="mouse human"
 
 _scbolt_complete_words() {
     local choices="$1"
@@ -206,6 +211,137 @@ _scbolt_help_parameters() {
             _scbolt_parameter_to_option "${parameter}"
         fi
     done < <(command scbolt "${target}" help "${params_args[@]}" 2> /dev/null)
+}
+
+_scbolt_help_parameter_values() {
+    local target="$1"
+    local option="$2"
+    local parameter
+    local in_parameters=false
+    local line
+    local line_parameter
+    local hint
+    local value
+    local params_args=()
+
+    parameter="${option#--}"
+    parameter="${parameter%=}"
+    parameter="$(printf '%s\n' "${parameter}" | tr '[:lower:]-' '[:upper:]_')"
+
+    case "${parameter}" in
+        PRIOR_KNOWLEDGE)
+            printf '%s\n' ${_scbolt_prior_knowledge_values}
+            return 0
+            ;;
+        ORGANISM)
+            printf '%s\n' ${_scbolt_organisms}
+            return 0
+            ;;
+        CLINGO_CONFIG_*)
+            printf '%s\n' ${_scbolt_clingo_configs}
+            return 0
+            ;;
+        CLINGO_STRATEGY_*)
+            printf '%s\n' ${_scbolt_clingo_strategies}
+            return 0
+            ;;
+    esac
+
+    if [ -z "${target}" ]; then
+        return 1
+    fi
+
+    mapfile -t params_args < <(_scbolt_params_args)
+    while IFS= read -r line; do
+        case "${line}" in
+            Parameters)
+                in_parameters=true
+                continue
+                ;;
+            Description|Targets|Dependencies|Project|Workflow|Methods|Execution|Notes)
+                in_parameters=false
+                ;;
+        esac
+
+        if [ "${in_parameters}" != "true" ]; then
+            continue
+        fi
+
+        line="${line#"${line%%[![:space:]]*}"}"
+        line_parameter="${line%%[[:space:]]*}"
+        if [ "${line_parameter}" != "${parameter}" ]; then
+            continue
+        fi
+
+        if [[ "${line}" =~ \(([^()]*)\)[[:space:]]*$ ]]; then
+            hint="${BASH_REMATCH[1]}"
+            if [[ "${hint}" == *"|"* ]]; then
+                while IFS= read -r value; do
+                    value="${value#"${value%%[![:space:]]*}"}"
+                    value="${value%"${value##*[![:space:]]}"}"
+                    if [[ "${value}" =~ ^[[:alnum:]_.-]+$ ]]; then
+                        printf '%s\n' "${value}"
+                    fi
+                done < <(printf '%s\n' "${hint}" | tr '|' '\n')
+            fi
+        fi
+        return 0
+    done < <(command scbolt "${target}" help "${params_args[@]}" 2> /dev/null)
+
+    return 1
+}
+
+_scbolt_complete_parameter_value() {
+    local target="$1"
+    local option="$2"
+    local prefix="$3"
+    local current="$4"
+    local choices=""
+    local choice
+    local item
+    local known=false
+    local complete_files=false
+
+    if choices="$(_scbolt_help_parameter_values "${target}" "${option}")"; then
+        known=true
+    fi
+    if [ -z "${choices}" ]; then
+        case " ${_scbolt_boolean_options} " in
+            *" ${option} "*)
+                choices="true false"
+                known=true
+                ;;
+        esac
+    fi
+    case " ${_scbolt_file_options} " in
+        *" ${option} "*)
+            complete_files=true
+            known=true
+            ;;
+    esac
+
+    if [ "${known}" != "true" ]; then
+        return 1
+    fi
+
+    COMPREPLY=()
+    for choice in ${choices}; do
+        if [[ "${choice}" == "${current}"* ]]; then
+            COMPREPLY+=("${prefix}${choice}")
+        fi
+    done
+    if [ "${complete_files}" = "true" ]; then
+        while IFS= read -r item; do
+            if [ -d "${item}" ]; then
+                COMPREPLY+=("${prefix}${item}/")
+            else
+                COMPREPLY+=("${prefix}${item}")
+            fi
+        done < <(compgen -f -- "${current}")
+        _scbolt_keep_directory_open
+    fi
+    compopt +o default +o bashdefault 2> /dev/null || true
+    return 0
 }
 
 _scbolt_module_options() {
@@ -415,6 +551,7 @@ _scbolt() {
     fi
 
     command="$(_scbolt_first_command || true)"
+    target="$(_scbolt_target_from_args "${command}" || true)"
 
     case "${cur}" in
         --params=*)
@@ -466,18 +603,10 @@ _scbolt() {
             ;;
         --*=*)
             option="${cur%%=*}="
-            case " ${_scbolt_boolean_options} " in
-                *" ${option} "*)
-                    _scbolt_complete_prefixed_words "${option}" "true false" "${cur#*=}"
-                    return 0
-                    ;;
-            esac
-            case " ${_scbolt_file_options} " in
-                *" ${option} "*)
-                    _scbolt_complete_files "${option}" "${cur#*=}"
-                    return 0
-                    ;;
-            esac
+            if _scbolt_complete_parameter_value \
+                "${target}" "${option}" "${option}" "${cur#*=}"; then
+                return 0
+            fi
             _scbolt_no_completion
             return 0
             ;;
@@ -511,6 +640,10 @@ _scbolt() {
                 return 0
                 ;;
         esac
+        if _scbolt_complete_parameter_value \
+            "${target}" "${assignment_option}=" "" "${cur}"; then
+            return 0
+        fi
         _scbolt_no_completion
         return 0
     fi
@@ -553,12 +686,20 @@ _scbolt() {
             return 0
             ;;
         --*=)
+            if _scbolt_complete_parameter_value \
+                "${target}" "${prev%=}=" "" "${cur}"; then
+                return 0
+            fi
             _scbolt_no_completion
             return 0
             ;;
+        --*)
+            if _scbolt_complete_parameter_value \
+                "${target}" "${prev}=" "" "${cur}"; then
+                return 0
+            fi
+            ;;
     esac
-
-    target="$(_scbolt_target_from_args "${command}" || true)"
 
     if [ -z "${command}" ]; then
         _scbolt_complete_words "${_scbolt_commands}" "${cur}"
@@ -660,6 +801,6 @@ _scbolt() {
     esac
 }
 
-if ! complete -o nosort -o bashdefault -o default -F _scbolt scbolt 2> /dev/null; then
-    complete -o bashdefault -o default -F _scbolt scbolt
+if ! complete -o nosort -F _scbolt scbolt 2> /dev/null; then
+    complete -F _scbolt scbolt
 fi

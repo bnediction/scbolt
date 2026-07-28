@@ -1696,6 +1696,12 @@ ensure_clean_output_line() {
     fi
 }
 
+clear_terminal_progress_line() {
+    if [ -n "${terminal_device}" ]; then
+        printf '\r\033[2K' > "${terminal_device}" 2> /dev/null || true
+    fi
+}
+
 format_elapsed_duration() {
     local duration_seconds="$1"
     local duration_days
@@ -1823,7 +1829,18 @@ run_make_build_with_params() {
             "${stderr_file}"; then
         final_status=124
     fi
-    ensure_clean_output_line "${stdout_file}" "${stderr_file}"
+    case "${final_status}" in
+        130|143)
+            if [ -n "${terminal_device}" ]; then
+                clear_terminal_progress_line
+            else
+                ensure_clean_output_line "${stdout_file}" "${stderr_file}"
+            fi
+            ;;
+        *)
+            ensure_clean_output_line "${stdout_file}" "${stderr_file}"
+            ;;
+    esac
     elapsed_seconds=$((SECONDS - build_start_seconds))
     if [ "${elapsed_seconds}" -lt 1 ]; then
         elapsed_seconds=1

@@ -40,10 +40,20 @@ func main() {
 	if handled {
 		return
 	}
+	if isVersionInvocation(args) {
+		printLauncherVersion()
+		return
+	}
 
 	cfg, err := effectiveConfig(args)
 	if err != nil {
 		fatal(err)
+	}
+	if firstCommand(args) == "init" {
+		if initErr := runInit(cfg, args); initErr != nil {
+			fatal(initErr)
+		}
+		return
 	}
 
 	if os.Getenv("SCBOLT_IN_DOCKER") == "true" {
@@ -51,7 +61,7 @@ func main() {
 		if rootErr != nil {
 			fatal(rootErr)
 		}
-		execLocal(root, args)
+		exitLocal(root, cfg, args)
 	}
 
 	if isInstallCommand(args) {
@@ -77,10 +87,14 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	execLocal(root, args)
+	exitLocal(root, cfg, args)
 }
 
 func fatal(err error) {
+	var reported *reportedError
+	if errors.As(err, &reported) {
+		os.Exit(reported.status)
+	}
 	fmt.Fprintf(os.Stderr, "✗ %s\n", err)
 	os.Exit(1)
 }
@@ -93,9 +107,8 @@ func scboltRoot() (string, error) {
 	exe, err := os.Executable()
 	if err == nil {
 		exe, _ = filepath.EvalSymlinks(exe)
-		dir := filepath.Dir(exe)
-		if filepath.Base(dir) == "bin" && exists(filepath.Join(filepath.Dir(dir), "Makefile")) {
-			return filepath.Dir(dir), nil
+		if root := findScboltRoot(filepath.Dir(exe)); root != "" {
+			return root, nil
 		}
 	}
 
@@ -103,17 +116,24 @@ func scboltRoot() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for dir := wd; ; dir = filepath.Dir(dir) {
-		if exists(filepath.Join(dir, "Makefile")) && exists(filepath.Join(dir, "bin", "scbolt")) {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
+	if root := findScboltRoot(wd); root != "" {
+		return root, nil
 	}
 
 	return "", errors.New("cannot locate scBOLT root; set SCBOLT_ROOT")
+}
+
+func findScboltRoot(start string) string {
+	for dir := start; ; dir = filepath.Dir(dir) {
+		if exists(filepath.Join(dir, "Makefile")) &&
+			exists(filepath.Join(dir, "mk", "default_params.mk")) {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+	}
 }
 
 func execInstall(root string, args []string) {
@@ -121,23 +141,23 @@ func execInstall(root string, args []string) {
 	if !exists(install) {
 		fatal(fmt.Errorf("install script not found: %s", install))
 	}
+	if os.Getenv("SCBOLT_LAUNCHER_INSTALL_SOURCE") == "" {
+		if executable, err := os.Executable(); err == nil {
+			if resolved, resolveErr := filepath.EvalSymlinks(executable); resolveErr == nil {
+				executable = resolved
+			}
+			_ = os.Setenv("SCBOLT_LAUNCHER_INSTALL_SOURCE", executable)
+		}
+	}
 	execPath(install, append([]string{install}, args...))
 }
 
-func execLocal(root string, args []string) {
-	local := filepath.Join(root, "bin", "scbolt-local")
-	if !exists(local) {
-		local = filepath.Join(root, "bin", "scbolt")
+func exitLocal(root string, cfg config, args []string) {
+	status, err := runLocal(root, cfg, args)
+	if err != nil {
+		fatal(err)
 	}
-
-	exe, _ := os.Executable()
-	exe, _ = filepath.EvalSymlinks(exe)
-	localResolved, _ := filepath.EvalSymlinks(local)
-	if exe != "" && localResolved == exe {
-		fatal(fmt.Errorf("local scBOLT wrapper not found: %s", filepath.Join(root, "bin", "scbolt-local")))
-	}
-
-	execPath(local, append([]string{local}, args...))
+	os.Exit(status)
 }
 
 func execDocker(cfg config, args []string) {

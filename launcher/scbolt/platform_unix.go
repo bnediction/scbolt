@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -12,6 +13,25 @@ import (
 
 func executeProcess(path string, argv []string) (int, error) {
 	return 1, syscall.Exec(path, argv, os.Environ())
+}
+
+func configureManagedProcess(command *exec.Cmd) {
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+}
+
+func signalManagedProcess(command *exec.Cmd, signal os.Signal) error {
+	if command.Process == nil {
+		return nil
+	}
+	systemSignal, ok := signal.(syscall.Signal)
+	if !ok {
+		return command.Process.Signal(signal)
+	}
+	return syscall.Kill(-command.Process.Pid, systemSignal)
+}
+
+func openTerminalInput() (*os.File, error) {
+	return os.OpenFile("/dev/tty", os.O_RDWR, 0)
 }
 
 func defaultDockerUserArgs() []string {

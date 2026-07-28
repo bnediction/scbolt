@@ -27,6 +27,22 @@ func executeProcess(path string, argv []string) (int, error) {
 	return 1, err
 }
 
+func configureManagedProcess(_ *exec.Cmd) {}
+
+func signalManagedProcess(command *exec.Cmd, signal os.Signal) error {
+	if command.Process == nil {
+		return nil
+	}
+	return command.Process.Signal(signal)
+}
+
+func openTerminalInput() (*os.File, error) {
+	if !isTerminal(os.Stdin) {
+		return nil, errors.New("terminal input is unavailable")
+	}
+	return os.Stdin, nil
+}
+
 func defaultDockerUserArgs() []string {
 	return nil
 }

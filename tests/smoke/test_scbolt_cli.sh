@@ -59,6 +59,9 @@ fi
 if [ -n "${SCBOLT_TEST_MAKE_STDOUT_RAW:-}" ]; then
     printf '%s' "${SCBOLT_TEST_MAKE_STDOUT_RAW}"
 fi
+if [ -n "${SCBOLT_TEST_MAKE_TTY_RAW:-}" ]; then
+    printf '%s' "${SCBOLT_TEST_MAKE_TTY_RAW}" > /dev/tty
+fi
 case "${status}" in
     0) ;;
     124|130|143)
@@ -125,7 +128,9 @@ complete_scbolt() {
 
 project="${tmpdir}/project"
 mkdir -p "${project}"
-printf '# test params\n' > "${project}/params.mk"
+printf '# test params\nPRIOR_KNOWLEDGE = dorothea\n' > "${project}/params.mk"
+touch "${project}/custom-prior.sif"
+mkdir -p "${project}/prior-dir"
 
 for help_arg in "" help -h --help; do
     if [ -z "${help_arg}" ]; then
@@ -310,6 +315,58 @@ grep -qx -- '--max-clauses=' "${tmpdir}/module-completion.out"
 ! grep -qx -- '--canonical-filter=' "${tmpdir}/module-completion.out"
 ! grep -qx -- '--canonical-infer=' "${tmpdir}/module-completion.out"
 
+complete_scbolt "${project}" 2 scbolt max-nodes-soft \
+    "--clingo-strategy-soft=" > "${tmpdir}/clingo-strategy-completion.out"
+printf '%s\n' \
+    --clingo-strategy-soft=bb \
+    --clingo-strategy-soft=bb,lin \
+    --clingo-strategy-soft=bb,hier \
+    --clingo-strategy-soft=bb,inc \
+    --clingo-strategy-soft=bb,dec \
+    --clingo-strategy-soft=usc \
+    --clingo-strategy-soft=usc,oll \
+    --clingo-strategy-soft=usc,one \
+    --clingo-strategy-soft=usc,k \
+    --clingo-strategy-soft=usc,pmres \
+    > "${tmpdir}/clingo-strategy-completion.expected"
+diff -u "${tmpdir}/clingo-strategy-completion.expected" \
+    "${tmpdir}/clingo-strategy-completion.out"
+
+complete_scbolt "${project}" 2 scbolt clustering \
+    "--analysis-hvg-method=b" > "${tmpdir}/hvg-method-completion.out"
+grep -qx -- '--analysis-hvg-method=binning' \
+    "${tmpdir}/hvg-method-completion.out"
+
+complete_scbolt "${project}" 2 scbolt spec \
+    "--dorothea-api=m" > "${tmpdir}/dorothea-api-completion.out"
+grep -qx -- '--dorothea-api=modern' "${tmpdir}/dorothea-api-completion.out"
+
+complete_scbolt "${project}" 2 scbolt spec \
+    "--prior-knowledge=" > "${tmpdir}/prior-knowledge-completion.out"
+sed -n '1p' "${tmpdir}/prior-knowledge-completion.out" \
+    | grep -qx -- '--prior-knowledge=dorothea'
+sed -n '2p' "${tmpdir}/prior-knowledge-completion.out" \
+    | grep -qx -- '--prior-knowledge=collectri'
+grep -qx -- '--prior-knowledge=custom-prior.sif' \
+    "${tmpdir}/prior-knowledge-completion.out"
+grep -qx -- '--prior-knowledge=prior-dir/' \
+    "${tmpdir}/prior-knowledge-completion.out"
+! grep -qx -- '--prior-knowledge=file' \
+    "${tmpdir}/prior-knowledge-completion.out"
+
+complete_scbolt "${project}" 2 scbolt spec \
+    "--organism=m" > "${tmpdir}/organism-completion.out"
+grep -qx -- '--organism=mouse' "${tmpdir}/organism-completion.out"
+
+complete_scbolt "${project}" 2 scbolt max-nodes-soft \
+    "--clause-continuation-soft=t" > "${tmpdir}/boolean-completion.out"
+grep -qx -- '--clause-continuation-soft=true' \
+    "${tmpdir}/boolean-completion.out"
+
+complete_scbolt "${project}" 2 scbolt max-nodes-soft \
+    "--max-clauses=" > "${tmpdir}/numeric-completion.out"
+! grep -q '[^[:space:]]' "${tmpdir}/numeric-completion.out"
+
 (
     cd "${project}"
     "${scbolt}" init params.mk > "${tmpdir}/init.out" 2> "${tmpdir}/init.err"
@@ -489,6 +546,29 @@ grep -qx 'Found 0/100 solutions' "${tmpdir}/module-progress-interrupted.out"
 grep -qx '⚠ interrupted by user (bn-submin)' \
     "${tmpdir}/module-progress-interrupted.out"
 ! grep -q 'solutions⚠' "${tmpdir}/module-progress-interrupted.out"
+
+tty_command=""
+printf -v tty_project '%q' "${project}"
+printf -v tty_path '%q' "${fakebin}:${PATH}"
+printf -v tty_record '%q' "${record}"
+printf -v tty_progress '%q' \
+    'Target optimization [1/1, max clauses=4]: 22it (07:36)'
+printf -v tty_scbolt '%q' "${scbolt}"
+tty_command="cd ${tty_project} && env PATH=${tty_path} "
+tty_command+="SCBOLT_TEST_RECORD=${tty_record} SCBOLT_TEST_MAKE_STATUS=130 "
+tty_command+="SCBOLT_TEST_MAKE_TTY_RAW=${tty_progress} "
+tty_command+="${tty_scbolt} max-nodes-soft"
+tty_status=0
+script -q -e -f -c "${tty_command}" \
+    "${tmpdir}/module-tty-progress-interrupted.out" \
+    > /dev/null 2>&1 || tty_status=$?
+if [ "${tty_status}" -ne 130 ]; then
+    printf '%s\n' "expected pseudo-terminal execution to exit with status 130" >&2
+    exit 1
+fi
+grep -Fq $'\r\033[2K' "${tmpdir}/module-tty-progress-interrupted.out"
+grep -Fq 'interrupted by user (max-nodes-soft)' \
+    "${tmpdir}/module-tty-progress-interrupted.out"
 
 if (
     cd "${project}"

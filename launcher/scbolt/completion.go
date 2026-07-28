@@ -11,18 +11,39 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-
-	"github.com/bnediction/scbolt/launcher/internal/completiondata"
 )
 
-//go:generate go run ../generate-completion --root ../.. --output launcher/scbolt/completion_manifest.json
+//go:generate go run . __generate-completion-manifest --root ../.. --output launcher/scbolt/completion_manifest.json
+
+const completionManifestSchemaVersion = 1
+
+type completionManifest struct {
+	SchemaVersion int                 `json:"schema_version"`
+	Commands      []completionCommand `json:"commands"`
+	Modules       []string            `json:"modules"`
+	GlobalOptions []completionOption  `json:"global_options"`
+}
+
+type completionCommand struct {
+	Name           string             `json:"name"`
+	Description    string             `json:"description,omitempty"`
+	Kind           string             `json:"kind"`
+	AcceptsModules bool               `json:"accepts_modules,omitempty"`
+	Options        []completionOption `json:"options,omitempty"`
+}
+
+type completionOption struct {
+	Name   string   `json:"name"`
+	Values []string `json:"values,omitempty"`
+	File   bool     `json:"file,omitempty"`
+}
 
 //go:embed completion_manifest.json
 var embeddedCompletionManifest []byte
 
 var (
 	manifestOnce sync.Once
-	manifestData completiondata.Manifest
+	manifestData completionManifest
 	manifestErr  error
 )
 
@@ -64,29 +85,36 @@ func handleLauncherCommand(args []string) (bool, error) {
 			fmt.Println(candidate)
 		}
 		return true, nil
+	case "__generate-completion-manifest":
+		if err := generateCompletionManifest(args[1:]); err != nil {
+			return true, fmt.Errorf("generate completion manifest: %w", err)
+		}
+		return true, nil
 	default:
 		return false, nil
 	}
 }
 
-const launcherInstallHelp = `usage: scbolt install --backend=docker [options]
+const launcherInstallHelp = `usage: scbolt install [--all] [--cli] [--env=NAME] [--backend=BACKEND]
 
-Install the standalone scBOLT launcher and Docker backend.
+Install the scBOLT launcher and selected runtime environments.
 
 Options
-  --backend=docker               select the Docker runtime backend
-  --scbolt-image=<image>         override the scBOLT container image
-  --scbolt-container-engine=<e>  select Docker or a compatible engine
-  --help                         display this help
+  --all                  install the CLI and all runtime environments
+  --cli                  install the scBOLT launcher and completion
+  --env=NAME             install one environment; can be repeated
+  --backend=BACKEND      conda, mamba, micromamba, or docker
+  --scbolt-image=IMAGE   override the Docker image
+  --help                 display this help
 `
 
-func completionManifest() (completiondata.Manifest, error) {
+func loadCompletionManifest() (completionManifest, error) {
 	manifestOnce.Do(func() {
 		manifestErr = json.Unmarshal(
 			embeddedCompletionManifest,
 			&manifestData,
 		)
-		if manifestErr == nil && manifestData.SchemaVersion != completiondata.SchemaVersion {
+		if manifestErr == nil && manifestData.SchemaVersion != completionManifestSchemaVersion {
 			manifestErr = fmt.Errorf(
 				"unsupported completion manifest schema: %d",
 				manifestData.SchemaVersion,
@@ -127,7 +155,7 @@ func completeInvocation(args []string) ([]string, error) {
 	for len(words) <= index {
 		words = append(words, "")
 	}
-	manifest, err := completionManifest()
+	manifest, err := loadCompletionManifest()
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +163,7 @@ func completeInvocation(args []string) ([]string, error) {
 }
 
 func completeWords(
-	manifest completiondata.Manifest,
+	manifest completionManifest,
 	words []string,
 	index int,
 ) []string {
@@ -143,7 +171,7 @@ func completeWords(
 		return nil
 	}
 	current := words[index]
-	command, commandIndex := completionCommand(manifest, words, index)
+	command, commandIndex := findCompletionCommand(manifest, words, index)
 	if command == nil {
 		candidates := commandNames(manifest)
 		candidates = append(candidates, optionNames(manifest.GlobalOptions)...)
@@ -194,12 +222,12 @@ func completeWords(
 	return matchingCandidates(optionNames(options), current)
 }
 
-func completionCommand(
-	manifest completiondata.Manifest,
+func findCompletionCommand(
+	manifest completionManifest,
 	words []string,
 	index int,
-) (*completiondata.Command, int) {
-	commands := make(map[string]*completiondata.Command)
+) (*completionCommand, int) {
+	commands := make(map[string]*completionCommand)
 	for commandIndex := range manifest.Commands {
 		command := &manifest.Commands[commandIndex]
 		commands[command.Name] = command
@@ -220,8 +248,8 @@ func completionCommand(
 }
 
 func completionTarget(
-	manifest completiondata.Manifest,
-	command completiondata.Command,
+	manifest completionManifest,
+	command completionCommand,
 	words []string,
 	commandIndex int,
 	cursorIndex int,
@@ -245,11 +273,11 @@ func completionTarget(
 }
 
 func completionOptions(
-	manifest completiondata.Manifest,
-	command completiondata.Command,
+	manifest completionManifest,
+	command completionCommand,
 	target string,
-) []completiondata.Option {
-	options := append([]completiondata.Option{}, manifest.GlobalOptions...)
+) []completionOption {
+	options := append([]completionOption{}, manifest.GlobalOptions...)
 	options = append(options, command.Options...)
 	if target != "" && target != command.Name {
 		if targetCommand := commandByName(manifest, target); targetCommand != nil {
@@ -260,9 +288,9 @@ func completionOptions(
 }
 
 func attachedCompletionOption(
-	options []completiondata.Option,
+	options []completionOption,
 	current string,
-) (completiondata.Option, string, bool) {
+) (completionOption, string, bool) {
 	for _, option := range options {
 		if !strings.HasSuffix(option.Name, "=") {
 			continue
@@ -271,24 +299,24 @@ func attachedCompletionOption(
 			return option, strings.TrimPrefix(current, option.Name), true
 		}
 	}
-	return completiondata.Option{}, "", false
+	return completionOption{}, "", false
 }
 
 func separatedCompletionOption(
-	options []completiondata.Option,
+	options []completionOption,
 	previous string,
-) (completiondata.Option, bool) {
+) (completionOption, bool) {
 	for _, option := range options {
 		if strings.TrimSuffix(option.Name, "=") == previous && strings.HasSuffix(option.Name, "=") {
 			return option, true
 		}
 	}
-	return completiondata.Option{}, false
+	return completionOption{}, false
 }
 
 func completeOptionValue(
-	manifest completiondata.Manifest,
-	option completiondata.Option,
+	manifest completionManifest,
+	option completionOption,
 	prefix string,
 	attachedPrefix string,
 	words []string,
@@ -305,15 +333,28 @@ func completeOptionValue(
 		values = manifest.Modules
 	}
 	if option.File {
-		values = completeFiles(prefix)
+		values = append(values, completeFiles(prefix)...)
 	}
-	values = matchingCandidates(values, prefix)
+	values = matchingCandidatesInOrder(values, prefix)
 	if attachedPrefix != "" {
 		for index := range values {
 			values[index] = attachedPrefix + values[index]
 		}
 	}
 	return values
+}
+
+func matchingCandidatesInOrder(candidates []string, prefix string) []string {
+	seen := make(map[string]bool)
+	matches := make([]string, 0)
+	for _, candidate := range candidates {
+		if candidate == "" || seen[candidate] || !strings.HasPrefix(candidate, prefix) {
+			continue
+		}
+		seen[candidate] = true
+		matches = append(matches, candidate)
+	}
+	return matches
 }
 
 func completionReferences(words []string) []string {
@@ -335,8 +376,12 @@ func completionReferences(words []string) []string {
 func completeFiles(prefix string) []string {
 	directory := filepath.Dir(prefix)
 	base := filepath.Base(prefix)
-	if directory == "." && !strings.ContainsAny(prefix, `/\\`) {
+	if prefix == "" {
 		directory = "."
+		base = ""
+	} else if strings.HasSuffix(prefix, "/") || strings.HasSuffix(prefix, "\\") {
+		directory = filepath.Clean(prefix)
+		base = ""
 	}
 	entries, err := os.ReadDir(directory)
 	if err != nil {
@@ -361,9 +406,9 @@ func completeFiles(prefix string) []string {
 }
 
 func commandByName(
-	manifest completiondata.Manifest,
+	manifest completionManifest,
 	name string,
-) *completiondata.Command {
+) *completionCommand {
 	for index := range manifest.Commands {
 		if manifest.Commands[index].Name == name {
 			return &manifest.Commands[index]
@@ -372,7 +417,7 @@ func commandByName(
 	return nil
 }
 
-func commandNames(manifest completiondata.Manifest) []string {
+func commandNames(manifest completionManifest) []string {
 	names := make([]string, 0, len(manifest.Commands))
 	for _, command := range manifest.Commands {
 		names = append(names, command.Name)
@@ -380,15 +425,15 @@ func commandNames(manifest completiondata.Manifest) []string {
 	return names
 }
 
-func optionMap(options []completiondata.Option) map[string]completiondata.Option {
-	mapped := make(map[string]completiondata.Option)
+func optionMap(options []completionOption) map[string]completionOption {
+	mapped := make(map[string]completionOption)
 	for _, option := range options {
 		mapped[option.Name] = option
 	}
 	return mapped
 }
 
-func optionNames(options []completiondata.Option) []string {
+func optionNames(options []completionOption) []string {
 	names := make([]string, 0, len(options))
 	for _, option := range options {
 		names = append(names, option.Name)
@@ -396,14 +441,14 @@ func optionNames(options []completiondata.Option) []string {
 	return names
 }
 
-func uniqueCompletionOptions(options []completiondata.Option) []completiondata.Option {
+func uniqueCompletionOptions(options []completionOption) []completionOption {
 	byName := optionMap(options)
 	names := make([]string, 0, len(byName))
 	for name := range byName {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	unique := make([]completiondata.Option, 0, len(names))
+	unique := make([]completionOption, 0, len(names))
 	for _, name := range names {
 		unique = append(unique, byName[name])
 	}
@@ -453,7 +498,7 @@ _scbolt_go_complete() {
         fi
     done
 }
-complete -o bashdefault -o default -F _scbolt_go_complete scbolt
+complete -F _scbolt_go_complete scbolt
 `
 
 const zshCompletionScript = `#compdef scbolt

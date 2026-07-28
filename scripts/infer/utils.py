@@ -468,12 +468,13 @@ def get_clingo_parallel_mode(value: str) -> tuple[int | None, str | None]:
     return int(value), None
 
 
-def close_progress(view):
+def close_progress(view: Any) -> None:
     """Close and clear a BoNesis view progress bar when present."""
 
     progressbar = getattr(view, "_progressbar", None)
     if progressbar is not None:
         progressbar.leave = False
+        progressbar.clear()
         progressbar.close()
 
 

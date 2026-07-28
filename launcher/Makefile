@@ -15,26 +15,34 @@ GO_LDFLAGS := -s -w \
 	-X main.sourceRevision=$(REVISION) \
 	-X main.defaultImage=$(IMAGE)
 
-.PHONY: all manifest manifest-check test linux-amd64 windows-amd64 darwin-amd64 darwin-arm64
+.PHONY: all manifest manifest-check test native linux-amd64 windows-amd64 darwin-amd64 darwin-arm64
 
 all: linux-amd64 windows-amd64 darwin-amd64 darwin-arm64
 
 manifest:
 	cd $(ROOT)
-	env GOCACHE=$(GOCACHE) go run ./launcher/generate-completion --root .
+	env GOCACHE=$(GOCACHE) go run ./launcher/scbolt \
+		__generate-completion-manifest --root .
 
 manifest-check:
 	cd $(ROOT)
 	tmp="$$(mktemp)"
 	trap 'rm -f "$${tmp}"' EXIT
-	env GOCACHE=$(GOCACHE) go run ./launcher/generate-completion \
-		--root . \
+	env GOCACHE=$(GOCACHE) go run ./launcher/scbolt \
+		__generate-completion-manifest --root . \
 		--output "$${tmp}"
 	cmp launcher/scbolt/completion_manifest.json "$${tmp}"
 
 test: manifest-check
 	cd $(ROOT)
 	env GOCACHE=$(GOCACHE) go test ./launcher/...
+
+native: manifest
+	mkdir -p $(BUILD_DIR)
+	cd $(ROOT)
+	$(GO_BUILD) \
+		-ldflags '$(GO_LDFLAGS)' \
+		-o $(BUILD_DIR)/scbolt-native ./launcher/scbolt
 
 linux-amd64: manifest
 	mkdir -p $(BUILD_DIR)

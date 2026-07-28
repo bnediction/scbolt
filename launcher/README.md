@@ -34,8 +34,15 @@ On Windows, run the equivalent executable from PowerShell:
 .\scbolt-windows-amd64.exe install --backend=docker
 ```
 
-The local Conda, Mamba, and Micromamba backends continue to delegate to the
-existing repository installer and therefore still use a local scBOLT checkout.
+The local Conda, Mamba, and Micromamba backends use the same launcher binary.
+They require a local scBOLT checkout and a matching `scbolt-system`
+environment. The launcher resolves GNU Make and Bash from that environment,
+then invokes the scBOLT Makefile directly; it does not pass through the Bash
+CLI wrapper. The scripts under `bin/` remain available for development.
+
+When installing from a checkout, `./install --cli` builds the native launcher.
+Go is needed only for that source build. Users of a prebuilt release launcher
+do not need Go.
 
 ## Completion
 

@@ -20,9 +20,16 @@ for backend in conda mamba micromamba docker; do
 
     if [ "${backend}" = "docker" ]; then
         grep -q '^SCBOLT_IMAGE = ghcr.io/bnediction/scbolt:latest$' "${config}"
+        test ! -L "${home}/.local/bin/scbolt"
     else
         ! grep -q '^SCBOLT_IMAGE =' "${config}"
+        test -L "${home}/.local/bin/scbolt"
+        test "$(readlink -f "${home}/.local/bin/scbolt")" \
+            = "${repo_root}/build/launcher/scbolt-native"
     fi
+
+    grep -q 'scbolt __complete' \
+        "${home}/.local/share/bash-completion/completions/scbolt"
 
     PATH="${home}/.local/bin:${PATH}" HOME="${home}" XDG_CONFIG_HOME="${xdg_config}" \
         scbolt --version >/dev/null

@@ -3,7 +3,8 @@
 .ONESHELL:
 .SHELLFLAGS := -eu -o pipefail -c
 
-SHELL := /bin/bash
+SCBOLT_SHELL ?= /bin/bash
+SHELL := $(SCBOLT_SHELL)
 MAKEFLAGS += --silent --no-builtin-rules
 
 makefile_path := $(abspath $(lastword $(MAKEFILE_LIST)))

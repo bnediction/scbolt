@@ -8,6 +8,11 @@ import warnings
 from pathlib import Path
 from typing import Iterator, Mapping, Optional, Union
 
+try:
+    import termios
+except ImportError:  # pragma: no cover - unavailable on non-POSIX systems
+    termios = None
+
 
 @contextlib.contextmanager
 def suppress_output(
@@ -28,12 +33,54 @@ def suppress_output(
         yield
 
 
+@contextlib.contextmanager
+def guard_progress_input(file=sys.stdout) -> Iterator[None]:
+    """Prevent typed input from corrupting a transient progress display."""
+
+    terminal_fd = None
+    original_attributes = None
+
+    if termios is not None and getattr(file, "isatty", lambda: False)():
+        try:
+            terminal_fd = file.fileno()
+            original_attributes = termios.tcgetattr(terminal_fd)
+            guarded_attributes = original_attributes.copy()
+            guarded_attributes[3] &= ~(
+                termios.ECHO | getattr(termios, "ECHONL", 0)
+            )
+            termios.tcsetattr(
+                terminal_fd,
+                termios.TCSANOW,
+                guarded_attributes,
+            )
+        except OSError:
+            terminal_fd = None
+            original_attributes = None
+
+    try:
+        yield
+    finally:
+        if terminal_fd is not None and original_attributes is not None:
+            try:
+                termios.tcflush(terminal_fd, termios.TCIFLUSH)
+                termios.tcsetattr(
+                    terminal_fd,
+                    termios.TCSANOW,
+                    original_attributes,
+                )
+            except OSError:
+                pass
+
+
+def format_message(level: str, message: Optional[str] = None) -> str:
+    """Format one timestamped console message."""
+
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+    return f"{timestamp} - {level} - {message}"
+
+
 def print_task(message: Optional[str] = None, file=sys.stdout, flush=True) -> None:
-    print(
-        f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - TASK - {message}",
-        file=file,
-        flush=flush,
-    )
+    print(format_message("TASK", message), file=file, flush=flush)
     return None
 
 
@@ -78,45 +125,25 @@ def format_mapping(values: Mapping[object, object]) -> str:
 
 
 def print_info(message: Optional[str] = None, file=sys.stdout, flush=True) -> None:
-    print(
-        f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - INFO - {message}",
-        file=file,
-        flush=flush,
-    )
+    print(format_message("INFO", message), file=file, flush=flush)
     return None
 
 
 def print_options(message: Optional[str] = None, file=sys.stdout, flush=True) -> None:
-    print(
-        f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - OPTIONS - {message}",
-        file=file,
-        flush=flush,
-    )
+    print(format_message("OPTIONS", message), file=file, flush=flush)
     return None
 
 
 def print_warning(message: Optional[str] = None, file=sys.stdout, flush=True) -> None:
-    print(
-        f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - WARNING - {message}",
-        file=file,
-        flush=flush,
-    )
+    print(format_message("WARNING", message), file=file, flush=flush)
     return None
 
 
 def print_debug(message: Optional[str] = None, file=sys.stdout, flush=True) -> None:
-    print(
-        f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - DEBUG - {message}",
-        file=file,
-        flush=flush,
-    )
+    print(format_message("DEBUG", message), file=file, flush=flush)
     return None
 
 
 def print_result(message: Optional[str] = None, file=sys.stdout, flush=True) -> None:
-    print(
-        f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - RESULT - {message}",
-        file=file,
-        flush=flush,
-    )
+    print(format_message("RESULT", message), file=file, flush=flush)
     return None

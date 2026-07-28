@@ -5,8 +5,7 @@ set -e
 scbolt_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 env_dir="${scbolt_root}/envs/conda"
 lib_dir="${scbolt_root}/lib"
-scbolt_command="${scbolt_root}/bin/scbolt"
-scbolt_completion="${scbolt_root}/bin/completion.bash"
+scbolt_launcher="${scbolt_root}/build/launcher/scbolt-native"
 local_bin="${HOME}/.local/bin"
 local_completion_dir="${HOME}/.local/share/bash-completion/completions"
 local_config_dir="${XDG_CONFIG_HOME:-${HOME}/.config}/scbolt"
@@ -519,12 +518,7 @@ install_env() {
 install_scbolt_command() {
     local choice
     local installed_command="${local_bin}/scbolt"
-
-    if [ ! -x "${scbolt_command}" ];
-    then
-        echo "scBOLT command not found: ${scbolt_command}"
-        return 1
-    fi
+    local launcher_source
 
     if is_yes_enabled;
     then
@@ -544,11 +538,28 @@ install_scbolt_command() {
         return 1
     fi
 
+    launcher_source="$(build_scbolt_launcher)" || return 1
+    if [ ! -x "${launcher_source}" ]; then
+        echo "scBOLT launcher not found: ${launcher_source}"
+        return 1
+    fi
+
     mkdir -p "${local_bin}"
-    ln -sfn "${scbolt_command}" "${installed_command}"
+    if [ "${backend}" = "docker" ]; then
+        local temporary_command="${installed_command}.tmp.$$"
+        cp "${launcher_source}" "${temporary_command}"
+        chmod 755 "${temporary_command}"
+        mv -f "${temporary_command}" "${installed_command}"
+    else
+        ln -sfn "${launcher_source}" "${installed_command}"
+    fi
 
     echo "Installed:"
-    echo "  ${installed_command} -> ${scbolt_command}"
+    if [ "${backend}" = "docker" ]; then
+        echo "  ${installed_command}"
+    else
+        echo "  ${installed_command} -> ${launcher_source}"
+    fi
 
     case ":${PATH}:" in
         *":${local_bin}:"*) ;;
@@ -564,18 +575,62 @@ install_scbolt_command() {
     return 0
 }
 
+build_scbolt_launcher() {
+    local source="${SCBOLT_LAUNCHER_INSTALL_SOURCE:-}"
+    local version
+    local revision
+
+    if [ -n "${source}" ]; then
+        if [ ! -x "${source}" ]; then
+            printf 'scBOLT launcher not found: %s\n' "${source}" >&2
+            return 1
+        fi
+        mkdir -p "$(dirname "${scbolt_launcher}")"
+        if [ "${source}" != "${scbolt_launcher}" ]; then
+            local temporary_launcher="${scbolt_launcher}.tmp.$$"
+            cp "${source}" "${temporary_launcher}"
+            chmod 755 "${temporary_launcher}"
+            mv -f "${temporary_launcher}" "${scbolt_launcher}"
+        fi
+        printf '%s\n' "${scbolt_launcher}"
+        return 0
+    fi
+
+    if ! command -v go >/dev/null 2>&1; then
+        printf '%s\n' \
+            "Go is required to build the scBOLT launcher from this checkout." >&2
+        printf '%s\n' \
+            "Install Go, or set SCBOLT_LAUNCHER_INSTALL_SOURCE to a prebuilt launcher." >&2
+        return 1
+    fi
+
+    version="$(tr -d '[:space:]' < "${scbolt_root}/VERSION")"
+    revision="$(git -C "${scbolt_root}" rev-parse HEAD 2>/dev/null || printf unknown)"
+    mkdir -p "$(dirname "${scbolt_launcher}")"
+    (
+        cd "${scbolt_root}"
+        CGO_ENABLED=0 go build \
+            -ldflags "-s -w -X main.launcherVersion=${version} -X main.sourceRevision=${revision} -X main.defaultImage=${default_image}" \
+            -o "${scbolt_launcher}" \
+            ./launcher/scbolt
+    ) >&2
+    printf '%s\n' "${scbolt_launcher}"
+}
+
 install_scbolt_completion() {
-    if [ ! -f "${scbolt_completion}" ];
-    then
-        echo "scBOLT Bash completion not found: ${scbolt_completion}"
+    local installed_command="${local_bin}/scbolt"
+    local installed_completion="${local_completion_dir}/scbolt"
+
+    if [ ! -x "${installed_command}" ]; then
+        echo "scBOLT command not found: ${installed_command}"
         return
     fi
 
     mkdir -p "${local_completion_dir}"
-    ln -sfn "${scbolt_completion}" "${local_completion_dir}/scbolt"
+    "${installed_command}" completion bash > "${installed_completion}"
 
     echo "Installed Bash completion:"
-    echo "  ${local_completion_dir}/scbolt -> ${scbolt_completion}"
+    echo "  ${installed_completion}"
     echo
     echo "Restart your shell, or run:"
     echo
