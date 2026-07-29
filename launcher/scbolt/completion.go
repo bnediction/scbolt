@@ -19,6 +19,7 @@ const completionManifestSchemaVersion = 1
 
 type completionManifest struct {
 	SchemaVersion int                 `json:"schema_version"`
+	Help          string              `json:"help,omitempty"`
 	Commands      []completionCommand `json:"commands"`
 	Modules       []string            `json:"modules"`
 	GlobalOptions []completionOption  `json:"global_options"`
@@ -95,18 +96,38 @@ func handleLauncherCommand(args []string) (bool, error) {
 	}
 }
 
-const launcherInstallHelp = `usage: scbolt install [--all] [--cli] [--env=NAME] [--backend=BACKEND]
+const launcherInstallHelp = `usage: scbolt install [BACKEND] [--all] [--env=NAME]
 
-Install the scBOLT launcher and selected runtime environments.
+Install a scBOLT runtime backend.
+
+Arguments
+  BACKEND                conda, mamba, micromamba, or docker
 
 Options
-  --all                  install the CLI and all runtime environments
-  --cli                  install the scBOLT launcher and completion
+  --all                  install all runtime environments without prompts
   --env=NAME             install one environment; can be repeated
-  --backend=BACKEND      conda, mamba, micromamba, or docker
+  --backend=BACKEND      alternate syntax for selecting BACKEND
   --scbolt-image=IMAGE   override the Docker image
   --help                 display this help
 `
+
+func printLauncherHelp() {
+	manifest, err := loadCompletionManifest()
+	if err != nil || strings.TrimSpace(manifest.Help) == "" {
+		fmt.Println("usage: scbolt <command...> [options]")
+		fmt.Println()
+		fmt.Println("Use 'scbolt help' for detailed command help.")
+		return
+	}
+	help := strings.Replace(
+		manifest.Help,
+		"\n\nDownload\n",
+		"\n  install                 install a runtime backend\n"+
+			"  completion              generate shell completion\n\nDownload\n",
+		1,
+	)
+	fmt.Print(help)
+}
 
 func loadCompletionManifest() (completionManifest, error) {
 	manifestOnce.Do(func() {
@@ -213,6 +234,11 @@ func completeWords(
 	if strings.HasPrefix(current, "-") {
 		return matchingCandidates(optionNames(options), current)
 	}
+	if command.Name == "install" &&
+		index > commandIndex &&
+		!installBackendBeforeCursor(words, commandIndex, index) {
+		return matchingCandidates(installBackendNames, current)
+	}
 
 	if command.AcceptsModules {
 		candidates := append([]string{}, manifest.Modules...)
@@ -220,6 +246,25 @@ func completeWords(
 		return matchingCandidates(candidates, current)
 	}
 	return matchingCandidates(optionNames(options), current)
+}
+
+func installBackendBeforeCursor(
+	words []string,
+	commandIndex int,
+	cursorIndex int,
+) bool {
+	for position := commandIndex + 1; position < cursorIndex; position++ {
+		word := words[position]
+		if isInstallBackend(word) ||
+			strings.HasPrefix(word, "--backend=") ||
+			strings.HasPrefix(strings.ToUpper(word), "BACKEND=") {
+			return true
+		}
+		if word == "--backend" && position+1 < cursorIndex {
+			return true
+		}
+	}
+	return false
 }
 
 func findCompletionCommand(

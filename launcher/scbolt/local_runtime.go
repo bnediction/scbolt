@@ -157,7 +157,8 @@ func systemEnvironmentPrefix(manager string, backend string) (string, error) {
 	}
 
 	return "", fmt.Errorf(
-		"%s environment not found for the %s backend; run ./install --env=system --backend=%s",
+		"%s environment not found for the %s backend; "+
+			"run scbolt install %s --env=system",
 		systemEnvironment,
 		backend,
 		backend,
@@ -302,11 +303,32 @@ var makeErrorLine = regexp.MustCompile(
 )
 
 type makeOutputWriter struct {
-	mu          sync.Mutex
-	destination io.Writer
-	capture     bytes.Buffer
-	pending     bytes.Buffer
-	passthrough bool
+	mu              sync.Mutex
+	destination     io.Writer
+	pending         bytes.Buffer
+	passthrough     bool
+	hasOutput       bool
+	lastByte        byte
+	rule            bool
+	stale           bool
+	interrupted     bool
+	terminated      bool
+	timedOut        bool
+	inferenceModule string
+	summaryTail     []byte
+}
+
+const outputSummaryTailLimit = 4096
+
+type makeOutputSummary struct {
+	hasOutput       bool
+	lastByte        byte
+	rule            bool
+	stale           bool
+	interrupted     bool
+	terminated      bool
+	timedOut        bool
+	inferenceModule string
 }
 
 func newMakeOutputWriter(destination io.Writer) *makeOutputWriter {
@@ -316,7 +338,7 @@ func newMakeOutputWriter(destination io.Writer) *makeOutputWriter {
 func (writer *makeOutputWriter) Write(data []byte) (int, error) {
 	writer.mu.Lock()
 	defer writer.mu.Unlock()
-	_, _ = writer.capture.Write(data)
+	writer.observe(data)
 
 	for _, character := range data {
 		if writer.passthrough {
@@ -352,6 +374,30 @@ func (writer *makeOutputWriter) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
+func (writer *makeOutputWriter) observe(data []byte) {
+	if len(data) == 0 {
+		return
+	}
+	writer.hasOutput = true
+	writer.lastByte = data[len(data)-1]
+	combined := make([]byte, 0, len(writer.summaryTail)+len(data))
+	combined = append(combined, writer.summaryTail...)
+	combined = append(combined, data...)
+	text := string(combined)
+	writer.rule = writer.rule || rulePattern.MatchString(text)
+	writer.stale = writer.stale || stalePattern.MatchString(text)
+	writer.interrupted = writer.interrupted || interruptPattern.MatchString(text)
+	writer.terminated = writer.terminated || terminationPattern.MatchString(text)
+	writer.timedOut = writer.timedOut || timeoutPattern.MatchString(text)
+	if module := lastInferenceModule(text); module != "" {
+		writer.inferenceModule = module
+	}
+	if len(combined) > outputSummaryTailLimit {
+		combined = combined[len(combined)-outputSummaryTailLimit:]
+	}
+	writer.summaryTail = append([]byte{}, combined...)
+}
+
 func (writer *makeOutputWriter) flush() error {
 	writer.mu.Lock()
 	defer writer.mu.Unlock()
@@ -367,8 +413,17 @@ func (writer *makeOutputWriter) flush() error {
 	return err
 }
 
-func (writer *makeOutputWriter) bytes() []byte {
+func (writer *makeOutputWriter) summary() makeOutputSummary {
 	writer.mu.Lock()
 	defer writer.mu.Unlock()
-	return append([]byte{}, writer.capture.Bytes()...)
+	return makeOutputSummary{
+		hasOutput:       writer.hasOutput,
+		lastByte:        writer.lastByte,
+		rule:            writer.rule,
+		stale:           writer.stale,
+		interrupted:     writer.interrupted,
+		terminated:      writer.terminated,
+		timedOut:        writer.timedOut,
+		inferenceModule: writer.inferenceModule,
+	}
 }

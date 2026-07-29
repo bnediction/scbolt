@@ -4,6 +4,7 @@ SHELL := /bin/bash
 
 ROOT := $(abspath ..)
 BUILD_DIR ?= $(ROOT)/build/launcher
+DIST_DIR ?= $(ROOT)/dist
 VERSION ?= $(shell tr -d '[:space:]' < $(ROOT)/VERSION)
 REVISION ?= $(shell git -C $(ROOT) rev-parse HEAD 2>/dev/null || printf unknown)
 IMAGE ?= ghcr.io/bnediction/scbolt:v$(VERSION)
@@ -15,9 +16,12 @@ GO_LDFLAGS := -s -w \
 	-X main.sourceRevision=$(REVISION) \
 	-X main.defaultImage=$(IMAGE)
 
-.PHONY: all manifest manifest-check test native linux-amd64 windows-amd64 darwin-amd64 darwin-arm64
+.PHONY: all release manifest manifest-check test native linux-amd64 windows-amd64 darwin-amd64 darwin-arm64
 
 all: linux-amd64 windows-amd64 darwin-amd64 darwin-arm64
+
+release: BUILD_DIR := $(DIST_DIR)
+release: all
 
 manifest:
 	cd $(ROOT)

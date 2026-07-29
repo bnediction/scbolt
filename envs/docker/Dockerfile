@@ -67,11 +67,7 @@ ENV SCBOLT_HOME=/opt/scbolt \
     SCBOLT_IN_DOCKER=true \
     SCBOLT_DEFAULT_BACKEND=docker \
     PATH=/usr/local/bin:/opt/scbolt/bin:${PATH} \
-    PYTHONUNBUFFERED=1 \
-    OPENBLAS_NUM_THREADS=1 \
-    OMP_NUM_THREADS=1 \
-    MKL_NUM_THREADS=1 \
-    NUMEXPR_NUM_THREADS=1
+    PYTHONUNBUFFERED=1
 
 WORKDIR /work
 

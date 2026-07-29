@@ -31,18 +31,48 @@ env \
     XDG_CONFIG_HOME="${home_dir}/config" \
     XDG_DATA_HOME="${home_dir}/data" \
     SCBOLT_INSTALL_BIN_DIR="${home_dir}/bin" \
-    SCBOLT_INSTALL_SKIP_IMAGE=true \
-    "${launcher}" install --backend=docker > "${tmpdir}/install.out"
+    "${launcher}" </dev/null > "${tmpdir}/bootstrap.out"
 
 installed_launcher="${home_dir}/bin/scbolt"
 test -x "${installed_launcher}"
-grep -qx 'BACKEND = docker' "${home_dir}/config/scbolt/config.mk"
-grep -qx 'SCBOLT_CONTAINER_ENGINE = docker' \
-    "${home_dir}/config/scbolt/config.mk"
+cmp "${launcher}" "${installed_launcher}"
+test ! -e "${home_dir}/config/scbolt/config.mk"
 test -f "${home_dir}/data/bash-completion/completions/scbolt"
 test -f "${home_dir}/data/zsh/site-functions/_scbolt"
 test -f "${home_dir}/config/fish/completions/scbolt.fish"
 test -f "${home_dir}/data/scbolt/completions/scbolt.ps1"
+
+env \
+    HOME="${home_dir}" \
+    XDG_CONFIG_HOME="${home_dir}/config" \
+    XDG_DATA_HOME="${home_dir}/data" \
+    SCBOLT_INSTALL_BIN_DIR="${home_dir}/bin" \
+    "${installed_launcher}" > "${tmpdir}/help.out"
+grep -q '^usage: scbolt ' "${tmpdir}/help.out"
+
+env \
+    HOME="${home_dir}" \
+    XDG_CONFIG_HOME="${home_dir}/config" \
+    XDG_DATA_HOME="${home_dir}/data" \
+    SCBOLT_INSTALL_BIN_DIR="${home_dir}/bin" \
+    SCBOLT_INSTALL_SKIP_IMAGE=true \
+    "${installed_launcher}" install docker > "${tmpdir}/install.out"
+
+grep -qx 'BACKEND = docker' "${home_dir}/config/scbolt/config.mk"
+grep -qx 'SCBOLT_CONTAINER_ENGINE = docker' \
+    "${home_dir}/config/scbolt/config.mk"
+
+env \
+    HOME="${home_dir}" \
+    XDG_CONFIG_HOME="${home_dir}/config" \
+    XDG_DATA_HOME="${home_dir}/data" \
+    SCBOLT_LAUNCHER_DRY_RUN=true \
+    "${installed_launcher}" help > "${tmpdir}/docker-help.out"
+grep -q '^usage: scbolt ' "${tmpdir}/docker-help.out"
+if grep -q '"docker" "run"' "${tmpdir}/docker-help.out"; then
+    printf '%s\n' "top-level help unexpectedly launched Docker" >&2
+    exit 1
+fi
 
 (
     cd "${tmpdir}"

@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 from threading import Event, Lock, Thread
-from typing import Any, Generator, Literal, NoReturn, Optional
+from typing import Any, Generator, Iterator, Literal, NoReturn, Optional
 
 _DURATION_PATTERN = re.compile(
     r"^(?P<value>(?:\d+(?:\.\d*)?|\.\d+))(?P<unit>[smhd]?)$"
@@ -20,6 +20,11 @@ _DURATION_UNITS = {
     "d": 86400.0,
 }
 
+CLASP_PROGRAM_NODE_LIMIT = (1 << 28) - 1
+_CLASP_PROGRAM_NODE_LIMIT_ERROR = (
+    "Value too large for defined data type: Id out of range"
+)
+
 
 class SolverTimeout(TimeoutError):
     """Signal that the configured global solver deadline was reached."""
@@ -27,6 +32,10 @@ class SolverTimeout(TimeoutError):
 
 class SolverPatienceExpired(TimeoutError):
     """Signal that no solver improvement occurred within the patience."""
+
+
+class SolverCapacityError(RuntimeError):
+    """Signal that an ASP program exceeded the solver representation limit."""
 
 
 class SolverDeadline:
@@ -140,12 +149,24 @@ def reset_solver_timeout_status(file: Optional[Path]) -> None:
 def exit_solver_timeout(file: Optional[Path]) -> NoReturn:
     """Report a solver timeout to the caller without exposing a process error."""
 
+    _exit_solver_status(file, 124)
+
+
+def exit_solver_capacity(file: Optional[Path]) -> NoReturn:
+    """Report a solver capacity stop without exposing a process traceback."""
+
+    _exit_solver_status(file, 125)
+
+
+def _exit_solver_status(file: Optional[Path], status: int) -> NoReturn:
+    """Persist one solver exit status for the surrounding runtime wrapper."""
+
     if file is None:
-        sys.exit(124)
+        sys.exit(status)
 
     file.parent.mkdir(parents=True, exist_ok=True)
     temporary = file.with_name(f".{file.name}.tmp")
-    temporary.write_text("124\n")
+    temporary.write_text(f"{status}\n")
     os.replace(temporary, file)
     sys.exit(0)
 
@@ -186,6 +207,36 @@ def _raise_solver_stop(
     raise SolverPatienceExpired from error
 
 
+def interrupt_solver_view(view: Any) -> None:
+    """Interrupt a solver view and cancel its asynchronous solve handle."""
+
+    try:
+        view.interrupt()
+    except (AttributeError, RuntimeError):
+        pass
+
+    solve_handler = getattr(view, "_solve_handler", None)
+    if solve_handler is not None:
+        try:
+            solve_handler.cancel()
+        except (AttributeError, RuntimeError):
+            pass
+
+
+def iter_solver_view(view: Any) -> Iterator[Any]:
+    """Initialize a solver view and normalize known capacity failures."""
+
+    try:
+        return iter(view)
+    except RuntimeError as error:
+        if _CLASP_PROGRAM_NODE_LIMIT_ERROR not in str(error):
+            raise
+        raise SolverCapacityError(
+            "ASP grounding exceeded Clasp's internal program-node limit "
+            f"({CLASP_PROGRAM_NODE_LIMIT:,})"
+        ) from error
+
+
 def _claim_solver_stop(
     deadline: Optional[SolverDeadline],
     patience: Optional[SolverPatience],
@@ -208,7 +259,7 @@ def iter_solutions(
 ) -> Generator[Any, None, None]:
     """Iterate until completion, the global deadline, or patience expiry."""
 
-    iterator = iter(view)
+    iterator = iter_solver_view(view)
     remaining, _ = _next_solver_stop(deadline, patience)
     if remaining is None:
         while True:
@@ -233,17 +284,7 @@ def iter_solutions(
             stop_reason = reason
             stopped.set()
 
-        try:
-            view.interrupt()
-        except (AttributeError, RuntimeError):
-            pass
-
-        solve_handler = getattr(view, "_solve_handler", None)
-        if solve_handler is not None:
-            try:
-                solve_handler.cancel()
-            except RuntimeError:
-                pass
+        interrupt_solver_view(view)
 
     if remaining is not None and remaining <= 0:
         initial_reason = _claim_solver_stop(deadline, patience)

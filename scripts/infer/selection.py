@@ -41,6 +41,7 @@ from utils import (
     TQDM_TO_TTY,
     add_bonesis_arguments,
     apply_bonesis_mode,
+    close_progress,
     get_node_sets,
     initialize_bonesis,
     next_solution,
@@ -51,12 +52,16 @@ from utils import (
 
 from scbolt import cli, console
 from scbolt.runtime import (
+    SolverCapacityError,
     SolverDeadline,
     SolverPatience,
     SolverPatienceExpired,
     SolverTimeout,
+    exit_solver_capacity,
     exit_solver_timeout,
     format_duration,
+    interrupt_solver_view,
+    iter_solver_view,
     parse_solver_timeout,
     reset_solver_timeout_status,
 )
@@ -439,6 +444,40 @@ def make_no_solution_error(
     return RuntimeError(f"no solution found (please try {suggestion})")
 
 
+def make_solver_capacity_error(
+    error: SolverCapacityError,
+    *,
+    domain_continuation: bool,
+    clause_continuation_parameter: str | None,
+    domain_continuation_available: bool = True,
+) -> SolverCapacityError:
+    """Add the stage-specific recovery path to a Clasp capacity failure."""
+
+    if domain_continuation:
+        suggestion = (
+            "the complete regulatory domain still exceeds this limit; "
+            "reduce the prior network"
+        )
+    elif not domain_continuation_available:
+        suggestion = "reduce the prior network"
+    elif clause_continuation_parameter is not None:
+        parameter = clause_continuation_parameter.replace(
+            "CLAUSE_CONTINUATION_",
+            "DOMAIN_CONTINUATION_",
+            1,
+        )
+        suggestion = (
+            f"enable domain continuation with {parameter}=true or reduce "
+            "the prior network"
+        )
+    else:
+        suggestion = (
+            "enable domain continuation or reduce the prior network"
+        )
+
+    return SolverCapacityError(f"{error}; {suggestion}")
+
+
 def fork_bonesis(
     bo: bonesis.BoNesis,
     *,
@@ -550,10 +589,7 @@ class ActiveCandidateViews:
             if view is None:
                 return False
             self._interrupted_candidates.add(candidate_index)
-        try:
-            view.interrupt()
-        except (AttributeError, RuntimeError):
-            pass
+        interrupt_solver_view(view)
         return True
 
     def interrupt_all(self) -> None:
@@ -562,10 +598,7 @@ class ActiveCandidateViews:
             self._interrupted_candidates.update(self._views)
             views = tuple(self._views.values())
         for view in views:
-            try:
-                view.interrupt()
-            except (AttributeError, RuntimeError):
-                pass
+            interrupt_solver_view(view)
 
     def candidate_interrupted(self, candidate_index: int) -> bool:
         with self._lock:
@@ -632,14 +665,25 @@ def solve_domain_candidate(
         progress=progress,
         **view_settings,
     )
+    try:
+        iterator = iter_solver_view(view)
+    except SolverCapacityError:
+        close_progress(view)
+        return DomainCandidateResult(
+            candidate,
+            "unknown",
+            unknown_reason="capacity",
+        )
     if not active_views.register(candidate.index, view):
+        interrupt_solver_view(view)
+        close_progress(view)
         return DomainCandidateResult(candidate, "cancelled")
 
     outcome = "sat"
     solution = ()
     structural_model = ()
     try:
-        solution, structural_model = next_solution(view)
+        solution, structural_model = next(iterator)
     except StopIteration:
         outcome = (
             "cancelled"
@@ -657,6 +701,7 @@ def solve_domain_candidate(
             solution, structural_model = best_model[0]
     finally:
         active_views.unregister(candidate.index)
+        close_progress(view)
 
     return DomainCandidateResult(
         candidate=candidate,
@@ -705,8 +750,8 @@ def run_domain_wave(
         try:
             terminal_rows = os.get_terminal_size(progress_stream.fileno()).lines
         except OSError:
-            terminal_rows = len(candidates) + 1
-        progress_rows = min(len(candidates), max(1, terminal_rows - 1))
+            terminal_rows = len(candidates) + 2
+        progress_rows = min(len(candidates) + 1, max(1, terminal_rows - 1))
         progress_options["nrows"] = progress_rows
 
         # Reserve the complete display before tqdm writes into it. This keeps
@@ -749,14 +794,23 @@ def run_domain_wave(
         return score_formatters[candidate_index](score)
 
     candidate_width = len(str(len(candidates)))
+    progress_header = ptqdm(
+        total=0,
+        desc=(
+            f"Domain {phase} [max clauses={max_clause}, wave={wave}]"
+        ),
+        position=0,
+        file=progress_stream,
+        bar_format="{desc}",
+        **progress_options,
+    )
     bars = {
         candidate.index: ptqdm(
             total=float("inf"),
             desc=(
-                f"Domain {phase} [max clauses={max_clause}, wave={wave}, "
-                f"candidate={candidate.index:>{candidate_width}}/"
-                f"{len(candidates)}, "
-                f"nodes={len(candidate.nodes)}]"
+                f"Domain {phase} "
+                f"[candidate={candidate.index:>{candidate_width}}/"
+                f"{len(candidates)}]"
             ),
             postfix=format_candidate_objective(candidate.index),
             position=position,
@@ -764,7 +818,7 @@ def run_domain_wave(
             bar_format="{desc}: {n_fmt:>4}it ({elapsed}{postfix})",
             **progress_options,
         )
-        for position, candidate in enumerate(candidates)
+        for position, candidate in enumerate(candidates, start=1)
     }
     progress_display_closed = False
 
@@ -778,6 +832,7 @@ def run_domain_wave(
 
         for bar in reversed(tuple(bars.values())):
             bar.close()
+        progress_header.close()
 
         if progress_cursor_saved:
             # Restore the stable anchor saved before tqdm allocated its bars,
@@ -1097,6 +1152,16 @@ def print_domain_wave_summary(
         f"{result} ({', '.join(outcomes)})",
         flush=True,
     )
+    capacity_count = sum(
+        candidate.unknown_reason == "capacity" for candidate in results
+    )
+    if capacity_count:
+        console.print_warning(
+            "solver grounding capacity reached in domain portfolio "
+            f"[{', '.join(context)}]: "
+            f"affected={capacity_count}/{len(results)}, outcome=UNKNOWN",
+            flush=True,
+        )
 
 
 def continue_domain_at_clause_bound(
@@ -1796,13 +1861,10 @@ if args.action == "filter-nodes":
         console.print_options(
             "domain continuation: "
             f"mode={continuation_mode}, "
-            f"candidates={args.domain_continuation_jobs}, "
-            "candidate threads=1, "
-            "wave patience="
+            "patience="
             f"{format_duration(args.domain_wave_patience)}, "
-            f"minimum yield={args.min_domain_yield:.1%}, "
-            f"refresh limit={args.max_domain_refreshes}, "
-            f"seed={args.domain_continuation_seed}",
+            f"yield={args.min_domain_yield:.1%}, "
+            f"refreshes={args.max_domain_refreshes}",
             flush=True,
         )
         if args.memory_limit is not None:
@@ -2033,6 +2095,14 @@ if args.action == "filter-nodes":
                 current_witness = tuple(retained["witness"])
             print_clause_bound_patience_warning(max_clause)
             continue
+        except SolverCapacityError as error:
+            capacity_error = make_solver_capacity_error(
+                error,
+                domain_continuation=args.domain_continuation,
+                clause_continuation_parameter=args.clause_continuation_parameter,
+            )
+            console.print_warning(str(capacity_error), flush=True)
+            exit_solver_capacity(args.timeout_status_file)
         except StopIteration:
             if is_target:
                 raise make_no_solution_error(
@@ -2172,6 +2242,15 @@ elif args.action == "filter-consts":
         solution, witness = next_solution(view, deadline)
     except SolverTimeout:
         exit_solver_timeout(args.timeout_status_file)
+    except SolverCapacityError as error:
+        capacity_error = make_solver_capacity_error(
+            error,
+            domain_continuation=False,
+            clause_continuation_parameter=None,
+            domain_continuation_available=False,
+        )
+        console.print_warning(str(capacity_error), flush=True)
+        exit_solver_capacity(args.timeout_status_file)
 
     write_structural_witness(witness, args.witness)
     write_node_solution(solution, args.solution)

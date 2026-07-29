@@ -151,7 +151,37 @@ func TestMakeOutputWriterFiltersOnlyGenericMakeErrors(t *testing.T) {
 	if got, want := output.String(), "useful error\nnext line\n"; got != want {
 		t.Fatalf("filtered output = %q, want %q", got, want)
 	}
-	if got := string(writer.bytes()); got != input {
-		t.Fatalf("captured output = %q, want %q", got, input)
+	if summary := writer.summary(); !summary.hasOutput || summary.lastByte != '\n' {
+		t.Fatalf("unexpected output summary: %#v", summary)
+	}
+}
+
+func TestMakeOutputWriterKeepsBoundedStreamSummary(t *testing.T) {
+	var output strings.Builder
+	writer := newMakeOutputWriter(&output)
+	chunks := []string{
+		strings.Repeat("progress\r", outputSummaryTailLimit),
+		"2026-07-29 10:00:00 - RU",
+		"LE - max-nodes-seed\n",
+		"2026-07-29 10:00:01 - WARNING - stale module output: spec\n",
+		"user-defined time limit reached\n",
+	}
+	for _, chunk := range chunks {
+		if _, err := writer.Write([]byte(chunk)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.flush(); err != nil {
+		t.Fatal(err)
+	}
+	summary := writer.summary()
+	if !summary.rule || !summary.stale || !summary.timedOut {
+		t.Fatalf("stream events were not retained: %#v", summary)
+	}
+	if summary.inferenceModule != "max-nodes-seed" {
+		t.Fatalf("inference module = %q", summary.inferenceModule)
+	}
+	if len(writer.summaryTail) > outputSummaryTailLimit {
+		t.Fatalf("summary tail grew to %d bytes", len(writer.summaryTail))
 	}
 }

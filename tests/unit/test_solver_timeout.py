@@ -11,12 +11,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "lib"))
 
 from scbolt.runtime import (  # noqa: E402
+    SolverCapacityError,
     SolverDeadline,
     SolverPatience,
     SolverPatienceExpired,
     SolverTimeout,
+    exit_solver_capacity,
     exit_solver_timeout,
     format_duration,
+    interrupt_solver_view,
     iter_solutions,
     parse_solver_timeout,
     reset_solver_timeout_status,
@@ -61,6 +64,36 @@ class ReinitializingView:
         return next(self.solutions)
 
 
+class SolveHandler:
+    def __init__(self):
+        self.cancelled = False
+
+    def cancel(self):
+        self.cancelled = True
+
+
+class AsyncView:
+    def __init__(self):
+        self.interrupted = False
+        self._solve_handler = SolveHandler()
+
+    def interrupt(self):
+        self.interrupted = True
+
+
+class CapacityView:
+    def __iter__(self):
+        raise RuntimeError(
+            "Clasp::Asp::PrgNode::PrgNode@403: Value too large for "
+            "defined data type: Id out of range"
+        )
+
+
+class InvalidView:
+    def __iter__(self):
+        raise RuntimeError("unrelated solver failure")
+
+
 assert parse_solver_timeout("30") == 30.0
 assert parse_solver_timeout("30s") == 30.0
 assert parse_solver_timeout("1.5m") == 90.0
@@ -96,6 +129,26 @@ try:
 finally:
     solutions.close()
 assert view.iter_calls == 1
+
+view = AsyncView()
+interrupt_solver_view(view)
+assert view.interrupted
+assert view._solve_handler.cancelled
+
+try:
+    next(iter_solutions(CapacityView()))
+except SolverCapacityError as error:
+    assert "268,435,455" in str(error)
+else:
+    raise AssertionError("Clasp program-node overflow was not normalized")
+
+try:
+    next(iter_solutions(InvalidView()))
+except RuntimeError as error:
+    assert type(error) is RuntimeError
+    assert str(error) == "unrelated solver failure"
+else:
+    raise AssertionError("unrelated solver failure was suppressed")
 
 view = BlockingView()
 started = time.monotonic()
@@ -193,11 +246,26 @@ with tempfile.TemporaryDirectory() as directory:
         raise AssertionError("timeout status did not terminate execution")
     assert status_file.read_text() == "124\n"
 
+    try:
+        exit_solver_capacity(status_file)
+    except SystemExit as error:
+        assert error.code == 0
+    else:
+        raise AssertionError("capacity status did not terminate execution")
+    assert status_file.read_text() == "125\n"
+
 try:
     exit_solver_timeout(None)
 except SystemExit as error:
     assert error.code == 124
 else:
     raise AssertionError("standalone timeout did not return status 124")
+
+try:
+    exit_solver_capacity(None)
+except SystemExit as error:
+    assert error.code == 125
+else:
+    raise AssertionError("standalone capacity stop did not return status 125")
 
 print("solver timeout tests passed")

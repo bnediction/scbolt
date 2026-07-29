@@ -50,7 +50,7 @@ grep -qx 'CLAUSE_CONTINUATION_SEED=true' <<< "${defaults}"
 grep -qx 'CLAUSE_CONTINUATION_LOCK=true' <<< "${defaults}"
 grep -qx 'PATIENCE_CLAUSE_BOUND=30m' <<< "${defaults}"
 grep -qx 'DOMAIN_CONTINUATION_SOFT=false' <<< "${defaults}"
-grep -qx 'DOMAIN_CONTINUATION_RELAXED=false' <<< "${defaults}"
+grep -qx 'DOMAIN_CONTINUATION_RELAXED=true' <<< "${defaults}"
 grep -qx 'DOMAIN_CONTINUATION_SEED=true' <<< "${defaults}"
 grep -qx 'DOMAIN_CONTINUATION_LOCK=true' <<< "${defaults}"
 grep -qx 'PATIENCE_DOMAIN_WAVE=5m' <<< "${defaults}"
@@ -79,7 +79,7 @@ grep -qx 'lock_patience=30m' "${tmpdir}/defaults.out"
 grep -qx 'lock_mode=opt' "${tmpdir}/defaults.out"
 grep -qx 'lock_strategy=bb,lin' "${tmpdir}/defaults.out"
 grep -qx 'domain_soft=' "${tmpdir}/defaults.out"
-grep -qx 'domain_relaxed=' "${tmpdir}/defaults.out"
+grep -qx 'domain_relaxed=--domain-continuation' "${tmpdir}/defaults.out"
 grep -qx 'domain_seed=--domain-continuation' "${tmpdir}/defaults.out"
 grep -qx 'domain_lock=--domain-continuation' "${tmpdir}/defaults.out"
 
@@ -97,6 +97,7 @@ run_helper "${tmpdir}/disabled.out" \
     CLAUSE_CONTINUATION_RELAXED=false \
     CLAUSE_CONTINUATION_SEED=false \
     CLAUSE_CONTINUATION_LOCK=false \
+    DOMAIN_CONTINUATION_RELAXED=false \
     DOMAIN_CONTINUATION_SEED=false \
     DOMAIN_CONTINUATION_LOCK=false
 test "$(grep -c -- '--clause-continuation' "${tmpdir}/disabled.out" || true)" -eq 0

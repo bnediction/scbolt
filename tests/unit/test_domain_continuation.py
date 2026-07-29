@@ -219,6 +219,13 @@ assert outcome_counts(results) == {
     "cancelled": 0,
 }
 
+capacity_result = DomainCandidateResult(
+    wave[2],
+    "unknown",
+    unknown_reason="capacity",
+)
+assert capacity_result.unknown_reason == "capacity"
+
 leader = DomainWaveLeader()
 assert leader.update(1, ("g0",), {"g0", "g1"})
 assert leader.candidate_index == 1

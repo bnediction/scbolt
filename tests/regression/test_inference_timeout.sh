@@ -33,6 +33,18 @@ metadata_timeout="$(
 )"
 test "${metadata_timeout}" = 'TIMEOUT_SOFT=5h'
 
+metadata_capacity="$(
+    make -f "${repo_root}/Makefile" --no-print-directory \
+        PARAMS="${repo_root}/tests/fixtures/params.mk" \
+        TEST_SOLUTION="${tmpdir}/solution.txt" \
+        --eval='override write_scbolt_metadata = echo "$(4)"' \
+        --eval='override print_warning = :' \
+        --eval='.PHONY: __test_capacity_metadata' \
+        --eval='__test_capacity_metadata: ; @exit_status=125; $(call check_inference_status,,max-nodes-soft,,,,${TEST_SOLUTION})' \
+        __test_capacity_metadata
+)"
+grep -Fq -- '--solution-status partial' <<< "${metadata_capacity}"
+
 set +e
 metadata_interrupt="$(
     make -f "${repo_root}/Makefile" --no-print-directory \

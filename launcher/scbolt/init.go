@@ -216,7 +216,7 @@ func removeProjectConfiguration() error {
 }
 
 func showProjectConfiguration() error {
-	params := resolveLocalProjectParams()
+	params := resolveProjectParams()
 	if params == "" {
 		return errors.New("No parameter file found")
 	}

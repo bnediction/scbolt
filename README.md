@@ -32,44 +32,76 @@ scBOLT relies on the BoNesis framework for exact Boolean network synthesis.
 
 # Installation
 
-## Required dependencies
+The `scbolt` command is distributed as a native executable. Choose either:
 
-scBOLT requires:
-1. GNU Make (>= 4.3)
-2. One Conda-compatible environment backend:
-   * [Anaconda](https://www.anaconda.com/download/)
-   * [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html)
-   * [Micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)
+* a local backend using
+  [Conda](https://docs.conda.io/),
+  [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html),
+  or [Micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html);
+* the Docker backend, which only requires Docker after launcher installation.
 
-Alternatively, scBOLT can run through Docker. In that mode, the local `scbolt`
-command keeps the same interface and delegates execution to the scBOLT Docker
-image.
+GNU Make and Bash are provided by the managed `scbolt-system` environment for
+local backends; they are not required as host installation or runtime
+dependencies.
 
-Install the required system dependencies:
-```sh
-apt-get install build-essential
-```
+## Prebuilt launcher
 
----
+Prebuilt executables are available for:
 
-## Setup
+| Platform | Launcher |
+| --- | --- |
+| Linux x86-64 | [`scbolt-linux-amd64`](dist/scbolt-linux-amd64) |
+| macOS Intel | [`scbolt-darwin-amd64`](dist/scbolt-darwin-amd64) |
+| macOS Apple silicon | [`scbolt-darwin-arm64`](dist/scbolt-darwin-arm64) |
+| Windows x86-64 | [`scbolt-windows-amd64.exe`](dist/scbolt-windows-amd64.exe) |
 
-Clone and configure the project:
+For a local backend, clone scBOLT and run the matching launcher from the
+checkout:
 
 ```sh
 git clone https://github.com/bnediction/scbolt.git scbolt
 cd scbolt
-./install
+./dist/scbolt-linux-amd64
 ```
 
-To use Docker as the default runtime backend:
+The executable installs itself and shell completion, then proposes Conda,
+Mamba, Micromamba, and Docker. Select the local backend to create the scBOLT
+environments. An already installed launcher can install or replace a backend
+explicitly with `scbolt install conda`, `scbolt install mamba`, or
+`scbolt install micromamba`.
+
+For Docker, run the downloaded launcher with:
 
 ```sh
-./install --backend=docker
+chmod +x scbolt-linux-amd64
+./scbolt-linux-amd64
 ```
 
-This writes `~/.config/scbolt/config.mk`, pulls the configured scBOLT image if
-needed, and keeps normal commands such as `scbolt bn-submin` unchanged.
+Select Docker in the proposed backend menu. This writes
+`~/.config/scbolt/config.mk`, pulls the configured scBOLT image if needed, and
+keeps normal commands such as `scbolt bn-submin` unchanged. The checkout is not
+needed after a Docker installation. Docker can later be selected explicitly
+with `scbolt install docker`.
+
+On Windows, use the corresponding command from PowerShell:
+
+```powershell
+.\scbolt-windows-amd64.exe
+```
+
+## Source installation
+
+Building the launcher from source requires Go 1.22 or newer:
+
+```sh
+git clone https://github.com/bnediction/scbolt.git scbolt
+cd scbolt
+go build -o build/launcher/scbolt-native ./launcher/scbolt
+./build/launcher/scbolt-native
+```
+
+The legacy `./install` script remains available for POSIX development workflows,
+but the native installer does not invoke it and does not require host Bash.
 
 Initialize a project in any working directory:
 
@@ -82,7 +114,7 @@ scbolt init params.mk
 Verify the installation:
 
 ```sh
-make check
+scbolt check
 ```
 
 ---

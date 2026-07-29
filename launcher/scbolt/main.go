@@ -33,6 +33,32 @@ type config struct {
 
 func main() {
 	args := os.Args[1:]
+	if len(args) == 0 {
+		if os.Getenv("SCBOLT_IN_DOCKER") == "true" {
+			printLauncherHelp()
+			return
+		}
+		bootstrap, err := launcherNeedsBootstrap()
+		if err != nil {
+			fatal(err)
+		}
+		if bootstrap {
+			cfg, configErr := effectiveConfig(nil)
+			if configErr != nil {
+				fatal(configErr)
+			}
+			if bootstrapErr := runLauncherBootstrap(cfg); bootstrapErr != nil {
+				fatal(bootstrapErr)
+			}
+			return
+		}
+		printLauncherHelp()
+		return
+	}
+	if isHelpToken(args[0]) || firstCommand(args) == "help" {
+		printLauncherHelp()
+		return
+	}
 	handled, commandErr := handleLauncherCommand(args)
 	if commandErr != nil {
 		fatal(commandErr)
@@ -65,17 +91,10 @@ func main() {
 	}
 
 	if isInstallCommand(args) {
-		if cfg.backend == "docker" {
-			if installErr := installDockerLauncher(cfg); installErr != nil {
-				fatal(installErr)
-			}
-			return
+		if installErr := runInstall(cfg, installArgs(args)); installErr != nil {
+			fatal(installErr)
 		}
-		root, rootErr := scboltRoot()
-		if rootErr != nil {
-			fatal(rootErr)
-		}
-		execInstall(root, installArgs(args))
+		return
 	}
 
 	if cfg.backend == "docker" {
@@ -119,8 +138,17 @@ func scboltRoot() (string, error) {
 	if root := findScboltRoot(wd); root != "" {
 		return root, nil
 	}
+	if root := readConfigVariable(userConfigPath(), "SCBOLT_ROOT"); root != "" {
+		absolute, absoluteErr := filepath.Abs(root)
+		if absoluteErr == nil && findScboltRoot(absolute) == absolute {
+			return absolute, nil
+		}
+	}
 
-	return "", errors.New("cannot locate scBOLT root; set SCBOLT_ROOT")
+	return "", errors.New(
+		"cannot locate scBOLT root; run the launcher from a scBOLT checkout " +
+			"or set SCBOLT_ROOT",
+	)
 }
 
 func findScboltRoot(start string) string {
@@ -134,22 +162,6 @@ func findScboltRoot(start string) string {
 			return ""
 		}
 	}
-}
-
-func execInstall(root string, args []string) {
-	install := filepath.Join(root, "install")
-	if !exists(install) {
-		fatal(fmt.Errorf("install script not found: %s", install))
-	}
-	if os.Getenv("SCBOLT_LAUNCHER_INSTALL_SOURCE") == "" {
-		if executable, err := os.Executable(); err == nil {
-			if resolved, resolveErr := filepath.EvalSymlinks(executable); resolveErr == nil {
-				executable = resolved
-			}
-			_ = os.Setenv("SCBOLT_LAUNCHER_INSTALL_SOURCE", executable)
-		}
-	}
-	execPath(install, append([]string{install}, args...))
 }
 
 func exitLocal(root string, cfg config, args []string) {
@@ -225,10 +237,6 @@ func execDocker(cfg config, args []string) {
 		"SCBOLT_IMAGE":                  cfg.image,
 		"SCBOLT_IMAGE_ID":               imageID,
 		"SCBOLT_IMAGE_REPO_DIGESTS":     imageDigests,
-		"OPENBLAS_NUM_THREADS":          envDefault("OPENBLAS_NUM_THREADS", "1"),
-		"OMP_NUM_THREADS":               envDefault("OMP_NUM_THREADS", "1"),
-		"MKL_NUM_THREADS":               envDefault("MKL_NUM_THREADS", "1"),
-		"NUMEXPR_NUM_THREADS":           envDefault("NUMEXPR_NUM_THREADS", "1"),
 		"HOME":                          "/tmp/scbolt-home",
 		"MPLCONFIGDIR":                  "/tmp/scbolt-matplotlib",
 	}
@@ -384,17 +392,20 @@ func paramsPathFromArgs(args []string) string {
 
 func resolveProjectParams() string {
 	projectFile := findProjectFileFromCwd()
-	if projectFile == "" {
-		return ""
+	if projectFile != "" {
+		value := readProjectParams(projectFile)
+		if value == "" {
+			return ""
+		}
+		if filepath.IsAbs(value) {
+			return filepath.Clean(value)
+		}
+		return filepath.Clean(filepath.Join(filepath.Dir(projectFile), value))
 	}
-	value := readConfigVariable(projectFile, "PARAMS")
-	if value == "" {
-		return ""
+	if exists("params.mk") {
+		return "params.mk"
 	}
-	if filepath.IsAbs(value) {
-		return value
-	}
-	return filepath.Join(filepath.Dir(projectFile), value)
+	return ""
 }
 
 func readConfigVariable(path string, variable string) string {
@@ -460,19 +471,6 @@ func readLegacyBackend() string {
 	default:
 		return ""
 	}
-}
-
-func skipDocker(args []string) bool {
-	cmd := firstCommand(args)
-	if cmd == "" || cmd == "-h" || cmd == "--help" || cmd == "help" || cmd == "init" {
-		return true
-	}
-	for _, arg := range args {
-		if arg == "-h" || arg == "--help" || arg == "help" {
-			return true
-		}
-	}
-	return false
 }
 
 func firstCommand(args []string) string {
@@ -603,7 +601,14 @@ func shellJoin(args []string) string {
 
 func isTerminal(file *os.File) bool {
 	info, err := file.Stat()
-	return err == nil && info.Mode()&os.ModeCharDevice != 0
+	if err != nil || info.Mode()&os.ModeCharDevice == 0 {
+		return false
+	}
+	if nullInfo, nullErr := os.Stat(os.DevNull); nullErr == nil &&
+		os.SameFile(info, nullInfo) {
+		return false
+	}
+	return true
 }
 
 type bindMount struct {

@@ -173,6 +173,49 @@ translate_case = $(eval _=$1)$(strip $(foreach pair,$(_lower2upper),\
 toupper = $(call translate_case,$1,_lower,_upper)
 tolower = $(call translate_case,$1,_upper,_lower)
 
+## BEGIN NUMERICAL PROFILE ##
+
+cpu_architecture := $(strip $(shell uname -m 2>/dev/null || true))
+cpu_features := $(strip $(shell \
+	if [ -r /proc/cpuinfo ]; then \
+		$(call system_tool,awk) -F: '/^(flags|Features)[[:space:]]*:/ { print tolower($$2); exit }' /proc/cpuinfo; \
+	elif command -v sysctl >/dev/null 2>&1; then \
+		{ sysctl -n machdep.cpu.features 2>/dev/null; \
+			sysctl -n machdep.cpu.leaf7_features 2>/dev/null; } \
+			| $(call system_tool,tr) '[:upper:]' '[:lower:]'; \
+	fi))
+haswell_compatible := $(if $(and \
+	$(filter x86_64 amd64,$(cpu_architecture)), \
+	$(filter avx2 avx2.0,$(cpu_features)), \
+	$(filter fma,$(cpu_features))),true,false)
+
+ifeq ($(origin OPENBLAS_CORETYPE),undefined)
+ifeq ($(haswell_compatible),true)
+OPENBLAS_CORETYPE := HASWELL
+endif
+endif
+
+ifneq ($(strip $(OPENBLAS_CORETYPE)),)
+export OPENBLAS_CORETYPE
+endif
+
+numerical_profile := $(strip $(if $(strip $(OPENBLAS_CORETYPE)),\
+	openblas-$(call tolower,$(strip $(OPENBLAS_CORETYPE))),openblas-auto))
+ifeq ($(strip $(OPENBLAS_CORETYPE)),)
+ifneq ($(haswell_compatible),true)
+numerical_profile_warning := Haswell numerical profile unavailable; using OpenBLAS autodetection
+endif
+else ifeq ($(call toupper,$(strip $(OPENBLAS_CORETYPE))),HASWELL)
+ifneq ($(haswell_compatible),true)
+numerical_profile_warning := configured Haswell numerical profile may be unsupported by this CPU
+endif
+endif
+
+warn_numerical_profile = $(if $(strip $(numerical_profile_warning)),\
+	$(call print_warning,$(numerical_profile_warning));)
+
+## END NUMERICAL PROFILE ##
+
 comma := ,
 empty :=
 space := $(empty) $(empty)
@@ -1094,6 +1137,7 @@ container_base = $(SCBOLT_CONTAINER_ENGINE) run --rm \
 	-w "$(launch_dir)" \
 	$(SCBOLT_CONTAINER_ARGS)
 container_runtime_env = \
+	$(if $(strip $(OPENBLAS_CORETYPE)),-e OPENBLAS_CORETYPE="$(OPENBLAS_CORETYPE)") \
 	-e LOKY_MAX_CPU_COUNT="$(LOKY_MAX_CPU_COUNT)" \
 	-e PYTHONPATH="$(lib_dir)$(if $(PYTHONPATH),:$(PYTHONPATH))" \
 	-e PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
@@ -1164,6 +1208,7 @@ endef
 
 ifndef LOGGING
 run_logged = \
+	$(call warn_numerical_profile) \
 	$(call warn_stale_outputs,$(1)) \
 	$(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
 else ifeq ($(LOGGING),true)
@@ -1184,6 +1229,7 @@ run_logged = \
 		printf '%s\n' '[CONTEXT]'; \
 		printf 'SEED=%s\n' "$(SEED)"; \
 		printf 'JOBS=%s\n' "$(JOBS)"; \
+		printf 'NUMERICAL PROFILE=%s\n' "$(numerical_profile)"; \
 		printf 'CONDITIONS=%s\n' "$(CONDITIONS)"; \
 		printf 'REFERENCES=%s\n' "$(REFERENCES)"; \
 		printf '\n'; \
@@ -1194,6 +1240,7 @@ run_logged = \
 		printf '%s\n' '[OUTPUT]'; \
 	} >> "$(LOGFILE)"; \
 	{ \
+		$(call warn_numerical_profile) \
 		$(call warn_stale_outputs,$(1)) \
 		$(if $(PYTHONPATH),PYTHONPATH="$(PYTHONPATH)") \
 		PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
@@ -1204,10 +1251,12 @@ run_logged = \
 	} 2>&1 | $(call system_tool,tee) -a "$(LOGFILE)"
 else ifeq ($(LOGGING),false)
 run_logged = \
+	$(call warn_numerical_profile) \
 	$(call warn_stale_outputs,$(1)) \
 	$(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
 else
 run_logged = \
+	$(call warn_numerical_profile) \
 	$(call warn_stale_outputs,$(1)) \
 	$(nested_make) LOGGING=false __$(1) LOGFILE="$(LOGFILE)"
 endif
@@ -1409,6 +1458,15 @@ define check_inference_status
 			$(call keep_inference_fallback,$(4),$(2),$(call configured_inference_timeout,$(3)),user-defined time limit reached $(lparen)$(1)$(rparen): keeping fallback solution,$(5)) \
 		else \
 			$(call print_error,user-defined time limit reached $(lparen)$(1)$(rparen): no solution found); \
+		fi; \
+	elif [ $$exit_status -eq 125 ]; then \
+		if [ -s $(if $(strip $(6)),$(6),$@) ]; then \
+			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$(if $(strip $(7)),$(7),$(if $(strip $(6)),$(6),$@)),,$(call solution_metadata_args,partial,$(if $(strip $(6)),$(6),$@),$(5)));) \
+			$(call print_warning,solver grounding capacity reached: keeping partial solution); \
+		elif [ -n "$(4)" ] && [ -s "$(4)" ]; then \
+			$(call keep_inference_fallback,$(4),$(2),,solver grounding capacity reached: keeping fallback solution,$(5)) \
+		else \
+			$(call print_error,solver grounding capacity reached: no solution found); \
 		fi; \
 	elif [ $$exit_status -eq 130 ] || [ $$exit_status -eq 143 ]; then \
 		if [ -s $(if $(strip $(6)),$(6),$@) ]; then \

@@ -80,6 +80,7 @@ within the allocated search budget. Typical causes include:
 - the stage-wide timeout;
 - user interruption;
 - an explicit solver interruption.
+- an internal solver-capacity limit reached while grounding the ASP program.
 
 `UNKNOWN` must never be reported or interpreted as `UNSAT`. It indicates a
 computational bottleneck rather than a logical conclusion.
@@ -332,6 +333,15 @@ After a witness is selected:
 10. when the next expansion would be the complete domain, the portfolio stops
     and one final Clingo instance resumes optimization using
     `CLINGO_THREADS`.
+
+A grounding-capacity failure is local to the candidate that encountered it and
+is therefore classified as `UNKNOWN`; the other portfolio candidates continue.
+Domain continuation can recover a useful witness from tractable subdomains, but
+it cannot certify a complete domain whose grounded ASP program exceeds Clasp's
+internal representation limit. When this happens, scBOLT retains an available
+witness as a partial, non-certified solution; without a witness, the stage
+fails. Certifying the complete domain requires reducing it, for example by
+using a more restrictive prior network.
 
 When `SEED` computed its witness, the initial `LOCK` domain is the union of its
 selected nodes and the nodes required by the lock problem. Every expansion

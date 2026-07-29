@@ -24,7 +24,10 @@ var scboltModules = []string{
 }
 
 var scboltCommands = append(
-	[]string{"init", "help", "version", "config", "progress", "check", "dry-run", "clean"},
+	[]string{
+		"init", "help", "version", "config", "progress", "check", "dry-run",
+		"clean", "install", "completion",
+	},
 	scboltModules...,
 )
 
@@ -41,7 +44,7 @@ var (
 		` - WARNING - (?:stale|untracked|missing module metadata)`,
 	)
 	inferenceRulePattern = regexp.MustCompile(
-		` - RULE - (max-nodes-soft|max-consts-soft|max-nodes-relaxed|max-nodes-seed|max-nodes-lock|bn-min|bn-submin|bn-diverse)(?: |$)`,
+		` - RULE - (max-nodes-soft|max-consts-soft|max-nodes-relaxed|max-nodes-seed|max-nodes-lock|bn-min|bn-submin|bn-diverse)(?:[ \r\n]|$)`,
 	)
 )
 
@@ -282,7 +285,7 @@ func (cli *localCLI) translate(command string, args []string) (translatedArgumen
 		translated.params = translated.paramsFromMake
 	}
 	if translated.params == "" {
-		translated.params = resolveLocalProjectParams()
+		translated.params = resolveProjectParams()
 	}
 	if projectFile := findProjectFileFromCwd(); projectFile != "" {
 		translated.projectRoot = filepath.Dir(projectFile)
@@ -307,27 +310,6 @@ func assignmentName(argument string) string {
 func assignmentValue(argument string) string {
 	_, value, _ := strings.Cut(argument, "=")
 	return value
-}
-
-func resolveLocalProjectParams() string {
-	if projectFile := findProjectFileFromCwd(); projectFile != "" {
-		value := readProjectParams(projectFile)
-		if value == "" {
-			return ""
-		}
-		if filepath.IsAbs(value) {
-			return filepath.Clean(value)
-		}
-		absolute, err := filepath.Abs(filepath.Join(filepath.Dir(projectFile), value))
-		if err == nil {
-			return absolute
-		}
-		return filepath.Join(filepath.Dir(projectFile), value)
-	}
-	if exists("params.mk") {
-		return "params.mk"
-	}
-	return ""
 }
 
 func readProjectParams(projectFile string) string {
@@ -379,7 +361,7 @@ func (cli *localCLI) runTopLevelHelp() (int, error) {
 }
 
 func optionalParamsAssignment() string {
-	params := resolveLocalProjectParams()
+	params := resolveProjectParams()
 	if params == "" {
 		return ""
 	}
@@ -695,14 +677,12 @@ func (cli *localCLI) runMakeBuild(
 	if runErr != nil {
 		return 1, runErr
 	}
-	stdoutBytes := stdout.bytes()
-	stderrBytes := stderr.bytes()
-	stdoutText := string(stdoutBytes)
-	stderrText := string(stderrBytes)
-	finalStatus := classifyBuildStatus(result, stderrText)
+	stdoutSummary := stdout.summary()
+	stderrSummary := stderr.summary()
+	finalStatus := classifyBuildStatus(result, stderrSummary)
 	if (finalStatus == 130 || finalStatus == 143) && interactive {
 		clearTerminalLine(terminal)
-	} else if needsOutputNewline(stdoutBytes, stderrBytes) {
+	} else if needsOutputNewline(stdoutSummary, stderrSummary) {
 		fmt.Println()
 	}
 
@@ -712,9 +692,9 @@ func (cli *localCLI) runMakeBuild(
 	}
 	switch finalStatus {
 	case 0:
-		if rulePattern.MatchString(stdoutText) {
+		if stdoutSummary.rule {
 			printSuccessStatus(label)
-		} else if stalePattern.MatchString(stdoutText) {
+		} else if stdoutSummary.stale {
 			printWarningStatus("already built", label)
 		} else {
 			printWarningStatus(
@@ -730,7 +710,7 @@ func (cli *localCLI) runMakeBuild(
 		printWarningStatus("reached time limit", label)
 	case 130, 143:
 		printWarning("interrupted by user (" + label + ")")
-		interruptedModule := lastInferenceModule(stdoutText)
+		interruptedModule := stdoutSummary.inferenceModule
 		if interruptedModule == "" {
 			interruptedModule = label
 		}
@@ -742,7 +722,7 @@ func (cli *localCLI) runMakeBuild(
 		)
 		cli.printKeptIntermediateResults(
 			translated,
-			stdoutText,
+			stdoutSummary.inferenceModule,
 			label,
 			workflowArguments,
 		)
@@ -752,25 +732,25 @@ func (cli *localCLI) runMakeBuild(
 	return result.status, nil
 }
 
-func classifyBuildStatus(result processResult, stderr string) int {
+func classifyBuildStatus(result processResult, stderr makeOutputSummary) int {
 	if result.interrupted {
 		return 130
 	}
-	if interruptPattern.MatchString(stderr) {
+	if stderr.interrupted {
 		return 130
 	}
-	if terminationPattern.MatchString(stderr) {
+	if stderr.terminated {
 		return 143
 	}
-	if timeoutPattern.MatchString(stderr) {
+	if stderr.timedOut {
 		return 124
 	}
 	return result.status
 }
 
-func needsOutputNewline(outputs ...[]byte) bool {
+func needsOutputNewline(outputs ...makeOutputSummary) bool {
 	for _, output := range outputs {
-		if len(output) > 0 && output[len(output)-1] != '\n' {
+		if output.hasOutput && output.lastByte != '\n' {
 			return true
 		}
 	}
@@ -887,11 +867,10 @@ func (cli *localCLI) finalizeInterruptedResults(
 
 func (cli *localCLI) printKeptIntermediateResults(
 	translated translatedArguments,
-	stdout string,
+	module string,
 	label string,
 	arguments []string,
 ) {
-	module := lastInferenceModule(stdout)
 	if module == "" {
 		return
 	}

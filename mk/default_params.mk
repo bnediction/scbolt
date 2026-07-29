@@ -302,7 +302,7 @@ $(eval TIMEOUT_CONSTS ?= 24h)               # timeout
 
 ## MAX-NODES-RELAXED ##
 $(eval CLAUSE_CONTINUATION_RELAXED ?= true) # progressively increase clause bounds
-$(eval DOMAIN_CONTINUATION_RELAXED ?= false) # search and expand candidate subdomains
+$(eval DOMAIN_CONTINUATION_RELAXED ?= true)  # search and expand candidate subdomains
 $(eval CLINGO_CONFIG_RELAXED ?=)            # Clingo default configuration
 CLINGO_MODE_RELAXED ?= $(call clause_continuation_clingo_mode,CLAUSE_CONTINUATION_RELAXED,optN)
 CLINGO_STRATEGY_RELAXED ?= $(call clause_continuation_clingo_strategy,CLAUSE_CONTINUATION_RELAXED,usc)

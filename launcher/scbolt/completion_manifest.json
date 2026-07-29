@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "help": "usage: scbolt \u003ccommand...\u003e [--params=\u003cfile\u003e] [--references=\u003ccondition...\u003e]\n       [--reset-target=\u003cmodule...\u003e] [--trust-target=\u003cmodule...\u003e]\n       [--trust-existing] [--old-file=\u003cfile\u003e...] [--logging=\u003cbool\u003e]\n       [--\u003cparameter\u003e=\u003cvalue\u003e...]\n\nscBOLT is a software framework for Boolean network inference from\nmulti-condition single-cell transcriptomes. Built upon the BoNesis engine, it\nprovides a reproducible workflow for transforming transcriptomic observations\ninto executable Boolean models through state abstractions, dynamical\nconstraint engineering, and exact logical model inference.\n\nSpecial parameters\n  --params=\u003cfile\u003e                 select parameter file\n  --project-dir=\u003cdir\u003e             select project output directory\n  --resources-dir=\u003cdir\u003e           select resource directory\n  --references=\u003ccondition...\u003e     select references\n                                  default: unnamed\n  --reset-target=\u003cmodule...\u003e      rebuild from modules\n  --trust-target=\u003cmodule...\u003e      skip rebuilding modules\n  --trust-existing                skip rebuilding existing outputs\n  --old-file=\u003cfile\u003e               trust existing DAG file\n  --logging=\u003cbool\u003e                enable logging\n  --help                          display command help\n  --\u003cparameter\u003e=\u003cvalue\u003e           override Make parameter\n\nUtilities\n  init                    initialize a project\n  version                 display version information\n  help                    display help\n  config                  display the effective configuration\n  progress                display module progress\n  check                   validate module requirements\n  dry-run                 preview build dependencies\n  clean                   clean cache, logs and selected outputs\n\nDownload\n  load-genome             download the reference genome\n  load-fastq              download FASTQ files\n  load-matrix             download public count matrices\n  load-signatures         download phenotype-related signatures\n  load-cc                 download cell-cycle markers\n  load-go                 download Gene Ontology resources\n\nAlignment/Counting\n  alignment               run the selected alignment/counting workflow\n  cellranger              perform alignment and counting with Cell Ranger\n  star                    perform alignment and counting with STAR\n  qc                      perform alignment quality control\n  velocyto                generate spliced and unspliced counts\n\nPreprocessing\n  filtering               filter low-quality cells and genes\n  normalization           normalize transcript counts\n\nClustering\n  clustering              identify cell populations\n  dea                     identify cluster-specific upregulated genes\n  scoring                 score phenotype-related signatures\n  goea                    identify enriched Gene Ontology terms\n  annotation              assign names to cell clusters\n\nTrajectory inference\n  velocity                estimate RNA velocity\n  potency                 estimate cell differentiation potential\n\nMacrostate characterization\n  cotan                   estimate macrostates with COTAN\n  cellrank                estimate macrostates with CellRank\n  stream                  estimate macrostates with STREAM\n  knnsc                   estimate macrostates with KNNSC\n  macrostates             estimate macrostates with MACROSTATE_METHOD\n\nBinarization\n  bin-cells               binarize cells with scBoolSeq\n  bin-macrostates         binarize macrostates by voting rules\n  bin-dea                 binarize macrostates by differential expression\n  bin-consensus           combine scBoolSeq and DEA binarizations\n  binarization            convert macrostates into Boolean abstractions with BIN_METHOD\n\nBoolean network inference\n  spec                    build the BoNesis model specification\n  max-nodes-soft          maximize nodes (soft constraints)\n  max-consts-soft         maximize strong constants (soft constraints)\n  max-nodes-relaxed       maximize nodes (relaxed constraints)\n  max-nodes-seed          maximize nodes (hard constraints, stage 1)\n  max-nodes-lock          maximize nodes (hard constraints, stage 2)\n  bn-min                  infer one minimum-edge BN\n  bn-submin               enumerate subset-minimal BNs\n  bn-diverse              sample diverse sparsest BNs\n\nUse 'scbolt \u003ccommand\u003e help' for help on the commands above.\n",
   "commands": [
     {
       "name": "init",
@@ -3125,6 +3126,9 @@
           "name": "--help"
         },
         {
+          "name": "--jobs="
+        },
+        {
           "name": "--logging=",
           "values": [
             "true",
@@ -3136,6 +3140,9 @@
         },
         {
           "name": "--max-domain-refreshes="
+        },
+        {
+          "name": "--memory="
         },
         {
           "name": "--min-domain-yield="
@@ -3710,9 +3717,12 @@
     },
     {
       "name": "install",
-      "description": "install the launcher or runtime backend",
+      "description": "install a runtime backend",
       "kind": "utility",
       "options": [
+        {
+          "name": "--all"
+        },
         {
           "name": "--backend=",
           "values": [
@@ -3720,6 +3730,23 @@
             "mamba",
             "micromamba",
             "docker"
+          ]
+        },
+        {
+          "name": "--env=",
+          "values": [
+            "system",
+            "align",
+            "bonesis",
+            "cellrank",
+            "core",
+            "cotan",
+            "fastq",
+            "potency",
+            "scboolseq",
+            "stream",
+            "velocity",
+            "velocyto"
           ]
         },
         {

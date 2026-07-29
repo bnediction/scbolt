@@ -9,6 +9,7 @@ from math import ceil
 from typing import Collection, Iterable, Literal, Sequence
 
 DomainOutcome = Literal["sat", "unsat", "unknown", "cancelled"]
+DomainUnknownReason = Literal["capacity"]
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,7 @@ class DomainCandidateResult:
     outcome: DomainOutcome
     solution: tuple[str, ...] = ()
     witness: tuple[str, ...] = ()
+    unknown_reason: DomainUnknownReason | None = None
 
 
 @dataclass

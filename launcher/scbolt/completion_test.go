@@ -13,6 +13,9 @@ func TestEmbeddedCompletionManifest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !strings.Contains(manifest.Help, "usage: scbolt") {
+		t.Fatal("embedded launcher help is missing")
+	}
 	for _, name := range []string{
 		"completion",
 		"install",
@@ -22,6 +25,14 @@ func TestEmbeddedCompletionManifest(t *testing.T) {
 		if commandByName(manifest, name) == nil {
 			t.Fatalf("missing command in embedded manifest: %s", name)
 		}
+	}
+}
+
+func TestCleanScboltOutputRemovesMakeDirectoryMessages(t *testing.T) {
+	output := "make[1]: Entering directory '/tmp/scbolt'\nusage: scbolt\n" +
+		"make[1]: Leaving directory '/tmp/scbolt'\n"
+	if got := cleanScboltOutput(output); got != "usage: scbolt\n" {
+		t.Fatalf("cleaned help = %q", got)
 	}
 }
 
@@ -49,6 +60,16 @@ func TestCompleteCommandsAndModuleOptions(t *testing.T) {
 			words: []string{"scbolt", "bn-submin", "--backend=d"},
 			index: 2,
 			want:  []string{"--backend=docker"},
+		},
+		{
+			words: []string{"scbolt", "install", "m"},
+			index: 2,
+			want:  []string{"mamba", "micromamba"},
+		},
+		{
+			words: []string{"scbolt", "install", "conda", "--e"},
+			index: 3,
+			want:  []string{"--env="},
 		},
 		{
 			words: []string{"scbolt", "clustering", "--analysis-hvg-method=b"},

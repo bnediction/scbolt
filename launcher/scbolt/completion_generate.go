@@ -182,6 +182,7 @@ func generateManifest(root string, params string) (completionManifest, error) {
 
 	return completionManifest{
 		SchemaVersion: completionManifestSchemaVersion,
+		Help:          topHelp,
 		Commands:      commands,
 		Modules:       modules,
 		GlobalOptions: globalOptions,
@@ -192,10 +193,12 @@ func appendLauncherCommands(commands []completionCommand) []completionCommand {
 	commands = append(commands,
 		completionCommand{
 			Name:        "install",
-			Description: "install the launcher or runtime backend",
+			Description: "install a runtime backend",
 			Kind:        "utility",
 			Options: []completionOption{
-				{Name: "--backend=", Values: []string{"conda", "mamba", "micromamba", "docker"}},
+				{Name: "--all"},
+				{Name: "--backend=", Values: installBackendNames},
+				{Name: "--env=", Values: installEnvironmentSuffixes},
 				{Name: "--help"},
 				{Name: "--scbolt-container-engine=", Values: []string{"docker", "podman"}},
 				{Name: "--scbolt-image="},
@@ -226,7 +229,21 @@ func scboltOutput(root string, args ...string) (string, error) {
 			strings.TrimSpace(stderr.String()),
 		)
 	}
-	return output.String(), nil
+	return cleanScboltOutput(output.String()), nil
+}
+
+func cleanScboltOutput(output string) string {
+	lines := strings.Split(output, "\n")
+	cleaned := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if strings.HasPrefix(line, "make") &&
+			(strings.Contains(line, "Entering directory") ||
+				strings.Contains(line, "Leaving directory")) {
+			continue
+		}
+		cleaned = append(cleaned, line)
+	}
+	return strings.Join(cleaned, "\n")
 }
 
 func parseCommands(help string) []completionCommand {
