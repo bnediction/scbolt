@@ -139,11 +139,12 @@ jobs:
           load: true
           push: false
           build-args: |
-            SCBOLT_ENV_FILES=system
+            SCBOLT_ENV_FILES=
             SCBOLT_GIT_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - run: docker run --rm scbolt:test-system --version
+      - run: docker run --rm --entrypoint python3 scbolt:test-system -c "import yaml"
 
   regression:
     name: Regression tests
@@ -174,7 +175,7 @@ jobs:
           test "$status" -ne 0
           grep -q "required method parameter not defined: KNNSC_CENTRALITY_CTRL or KNNSC_PERIPHERY_CTRL" <<< "$output"
           grep -q "required method parameter not defined: KNNSC_CENTRALITY_TREATED or KNNSC_PERIPHERY_TREATED" <<< "$output"
-          grep -q "check failed for target 'knnsc'" <<< "$output"
+          grep -q "Check failed for target 'knnsc'" <<< "$output"
       - name: Check complete max-nodes-seed diagnostic output
         run: |
           set +e
@@ -185,4 +186,4 @@ jobs:
           test "$status" -ne 0
           grep -qE "required file not found: .*missing.yml" <<< "$output"
           grep -q "required method parameter not defined: TIMEOUT_SEED" <<< "$output"
-          grep -q "check failed for target 'max-nodes-seed'" <<< "$output"
+          grep -q "Check failed for target 'max-nodes-seed'" <<< "$output"

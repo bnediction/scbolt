@@ -83,18 +83,18 @@ parameter_help_description_MT = Maximum mitochondrial count fraction.
 parameter_help_hint_CC_CORRECTION = $(parameter_help_bool)
 parameter_help_description_CC_CORRECTION = Regress out cell-cycle scores.
 
-parameter_help_hint_ANALYSIS_HVG_METHOD = loess | binning
-parameter_help_description_ANALYSIS_HVG_METHOD = Shared HVG method for single-cell omics analysis.
-parameter_help_note_ANALYSIS_HVG_METHOD = The loess method reproduces the Seurat v3
-parameter_help_note2_ANALYSIS_HVG_METHOD = LOESS-regularized mean-variance strategy.
-parameter_help_note3_ANALYSIS_HVG_METHOD = The binning method reproduces the Cell Ranger
-parameter_help_note4_ANALYSIS_HVG_METHOD = mean-binned normalized dispersion strategy.
-parameter_help_hint_ANALYSIS_HVG_TOP = >= 1, optional
-parameter_help_description_ANALYSIS_HVG_TOP = Number of top analysis HVGs.
-parameter_help_hint_ANALYSIS_HVG_SPAN = $(parameter_help_float)
-parameter_help_description_ANALYSIS_HVG_SPAN = Loess smoothing fraction.
-parameter_help_hint_ANALYSIS_HVG_BINS = $(parameter_help_positive_integer)
-parameter_help_description_ANALYSIS_HVG_BINS = Mean-expression bins for analysis HVGs.
+parameter_help_hint_OMICS_HVG_METHOD = loess | binning
+parameter_help_description_OMICS_HVG_METHOD = Shared HVG method for single-cell omics analysis.
+parameter_help_note_OMICS_HVG_METHOD = The loess method reproduces the Seurat v3
+parameter_help_note2_OMICS_HVG_METHOD = LOESS-regularized mean-variance strategy.
+parameter_help_note3_OMICS_HVG_METHOD = The binning method reproduces the Cell Ranger
+parameter_help_note4_OMICS_HVG_METHOD = mean-binned normalized dispersion strategy.
+parameter_help_hint_OMICS_HVG_TOP = >= 1, optional
+parameter_help_description_OMICS_HVG_TOP = Number of top HVGs for omics analysis.
+parameter_help_hint_OMICS_HVG_SPAN = $(parameter_help_float)
+parameter_help_description_OMICS_HVG_SPAN = Loess smoothing fraction.
+parameter_help_hint_OMICS_HVG_BINS = $(parameter_help_positive_integer)
+parameter_help_description_OMICS_HVG_BINS = Mean-expression bins for omics HVG selection.
 parameter_help_hint_INTEGRATION = bbknn | scanorama | ingest
 parameter_help_description_INTEGRATION = Multi-condition integration method.
 parameter_help_hint_DIM_PCA = $(parameter_help_positive_integer)
@@ -148,6 +148,15 @@ parameter_help_hint_COUNT_FILES = h5ad files
 parameter_help_description_COUNT_FILES = External AnnData files containing layer 'counts', ordered like conditions.
 parameter_help_hint_MACROSTATE_FILES = h5ad file(s)
 parameter_help_description_MACROSTATE_FILES = External macrostate AnnData files using named expression layers.
+parameter_help_hint_COUNT_FILE = h5ad file
+parameter_help_description_COUNT_FILE = External AnnData file containing layer 'counts'.
+parameter_help_hint_MACROSTATE_FILE = h5ad file
+parameter_help_description_MACROSTATE_FILE = External macrostate AnnData file using named expression layers.
+$(foreach condition,$(conditions),\
+	$(eval parameter_help_hint_$(call count_file_var,$(condition)) = h5ad file)\
+	$(eval parameter_help_description_$(call count_file_var,$(condition)) = External AnnData file containing layer 'counts'.)\
+	$(eval parameter_help_hint_$(call macrostate_file_var,$(condition)) = h5ad file)\
+	$(eval parameter_help_description_$(call macrostate_file_var,$(condition)) = External macrostate AnnData file using named expression layers.))
 parameter_help_hint_COTAN_METHOD = classic | soft-merging | strong-merging
 parameter_help_description_COTAN_METHOD = COTAN macrostate method.
 parameter_help_hint_COTAN_ONLY_HVG = $(parameter_help_bool)

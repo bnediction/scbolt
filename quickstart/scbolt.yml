@@ -1,31 +1,31 @@
 organism: mouse
 conditions: []
-project_dir: project
-old_files: [project/omics/annot/annot.h5ad]
-spec_file: spec.yml
+project-dir: project
+old-files: [project/omics/annot/annot.h5ad]
+spec-file: spec.yml
 jobs: 16
 seed: 10
 
-geneinfo_version: bundled
-prior_knowledge: dorothea
-omnipath_version: 2025-08-13
-hcop_version: bundled
-dorothea_api: legacy
-dorothea_compatibility: true
-dorothea_levels: [A]
+geneinfo-version: bundled
+prior-knowledge: dorothea
+omnipath-version: 2025-08-13
+hcop-version: bundled
+dorothea-api: legacy
+dorothea-compatibility: true
+dorothea-levels: [A]
 
 representation: X_se
 
-macrostate_method: stream
-macrostate_size: 25
-stream_cluster_number: 20
-stream_alpha: 0.01
-stream_mu: 0.02
-stream_lambda: 0.01
-stream_extend: true
-stream_extend_parameter: 0.8
-stream_prune: false
+macrostate-method: stream
+macrostate-size: 25
+stream-cluster-number: 20
+stream-alpha: 0.01
+stream-mu: 0.02
+stream-lambda: 0.01
+stream-extend: true
+stream-extend-parameter: 0.8
+stream-prune: false
 
-binarization_hvg_top: 40
-max_clauses: 8
-inference_limit: 100
+bin-hvg-top: 40
+max-clauses: 8
+inference-limit: 100

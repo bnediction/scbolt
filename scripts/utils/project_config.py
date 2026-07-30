@@ -30,7 +30,12 @@ class Parameter:
     variable: str = ""
     kind: str = STRING
     conditional: bool = False
-    fanout: tuple[str, ...] = ()
+    shared: bool = False
+    effective_variable: str = ""
+
+
+def _condition_suffix(condition: str) -> str:
+    return condition.upper().replace("-", "_")
 
 
 def _parameters() -> dict[str, Parameter]:
@@ -39,180 +44,193 @@ def _parameters() -> dict[str, Parameter]:
     def add(key: str, variable: str, kind: str = STRING) -> None:
         parameters[key] = Parameter(variable=variable, kind=kind)
 
-    def conditional(key: str, variable: str, kind: str) -> None:
+    def conditional(
+        key: str,
+        variable: str,
+        kind: str,
+        *,
+        shared: bool = False,
+        effective_variable: str = "",
+    ) -> None:
         parameters[key] = Parameter(
             variable=variable,
             kind=kind,
             conditional=True,
+            shared=shared,
+            effective_variable=effective_variable,
         )
 
-    def fanout(key: str, kind: str, *variables: str) -> None:
-        parameters[key] = Parameter(kind=kind, fanout=variables)
-
     add("backend", "BACKEND")
-    add("container_image", "SCBOLT_IMAGE")
-    add("container_engine", "SCBOLT_CONTAINER_ENGINE")
-    add("container_args", "SCBOLT_CONTAINER_ARGS", STRING_OR_LIST)
-    add("container_mounts", "SCBOLT_CONTAINER_MOUNTS", STRING_LIST)
-    add("project_dir", "PROJECT_DIR")
-    add("inference_dir", "INFERENCE_DIR")
-    add("resources_dir", "RESOURCES_DIR")
+    add("container-image", "SCBOLT_IMAGE")
+    add("container-engine", "SCBOLT_CONTAINER_ENGINE")
+    add("container-args", "SCBOLT_CONTAINER_ARGS", STRING_OR_LIST)
+    add("container-mounts", "SCBOLT_CONTAINER_MOUNTS", STRING_LIST)
+    add("project-dir", "PROJECT_DIR")
+    add("inference-dir", "INFERENCE_DIR")
+    add("resources-dir", "RESOURCES_DIR")
     add("memory", "MEMORY", SCALAR)
     add("jobs", "JOBS", INTEGER)
     add("seed", "SEED", INTEGER)
     add("logging", "LOGGING", BOOLEAN)
-    add("openblas_core_type", "OPENBLAS_CORETYPE")
+    add("openblas-core-type", "OPENBLAS_CORETYPE")
     add("organism", "ORGANISM")
     add("conditions", "CONDITIONS", STRING_LIST)
     add("references", "REFERENCES", STRING_LIST)
     conditional("gsm", "GSM", STRING)
     conditional("sra", "SRA", STRING_OR_LIST)
-    add("count_files", "COUNT_FILES", STRING_LIST)
-    add("macrostate_files", "MACROSTATE_FILES", STRING_LIST)
-    add("binarization_file", "BINARIZATION_FILE")
+    conditional(
+        "count-file",
+        "COUNT_FILE",
+        STRING,
+        effective_variable="COUNT_FILES",
+    )
+    conditional(
+        "macrostate-file",
+        "MACROSTATE_FILE",
+        STRING,
+        shared=True,
+        effective_variable="MACROSTATE_FILES",
+    )
+    add("binarization-file", "BINARIZATION_FILE")
     add("representation", "REPRESENTATION")
-    add("label_column", "LABEL_COL")
-    add("old_files", "OLD_FILES", STRING_LIST)
+    add("label-column", "LABEL_COL")
+    add("old-files", "OLD_FILES", STRING_LIST)
     add("labels", "LABEL", STRING_LIST)
-    add("spec_file", "SPEC_FILE")
-    add("genome_url", "genome_url")
-    add("repeat_masker_url", "repeat_msk_url")
-    add("gene_ontology_url", "go_organism_url")
+    add("spec-file", "SPEC_FILE")
+    add("genome-url", "genome_url")
+    add("repeat-masker-url", "repeat_msk_url")
+    add("gene-ontology-url", "go_organism_url")
 
-    add("alignment_tool", "ALIGNMENT_TOOL")
-    add("star_barcode_length", "STAR_CB_LEN", INTEGER)
-    add("star_umi_length", "STAR_UMI_LEN", INTEGER)
-    add("star_whitelist", "STAR_WHITELIST")
-    add("star_barcode_filter", "STAR_BARCODE_FILTER")
-    add("star_min_umi", "STAR_MIN_UMI", INTEGER)
-    add("star_top_barcodes", "STAR_TOP_BARCODES", INTEGER)
+    add("alignment-tool", "ALIGNMENT_TOOL")
+    add("star-barcode-length", "STAR_CB_LEN", INTEGER)
+    add("star-umi-length", "STAR_UMI_LEN", INTEGER)
+    add("star-whitelist", "STAR_WHITELIST")
+    add("star-barcode-filter", "STAR_BARCODE_FILTER")
+    add("star-min-umi", "STAR_MIN_UMI", INTEGER)
+    add("star-top-barcodes", "STAR_TOP_BARCODES", INTEGER)
 
-    add("gene_dropout", "GENE_DROPOUT", NUMBER)
-    add("gene_expression", "GENE_EXPRESSION", SCALAR_LIST)
-    add("gene_counts", "GENE_COUNTS", SCALAR_LIST)
-    add("cell_dropout", "CELL_DROPOUT", NUMBER)
-    add("cell_expression", "CELL_EXPRESSION", SCALAR_LIST)
-    add("cell_reads", "CELL_READS", SCALAR_LIST)
-    add("mad_deviation", "MAD_DEVIATION", SCALAR_LIST)
-    add("consistent_mad", "CONSISTENT_MAD", BOOLEAN)
-    add("mitochondrial_fraction", "MT", NUMBER)
-    add("cell_cycle_correction", "CC_CORRECTION", BOOLEAN)
+    add("gene-dropout", "GENE_DROPOUT", NUMBER)
+    add("gene-expression", "GENE_EXPRESSION", SCALAR_LIST)
+    add("gene-counts", "GENE_COUNTS", SCALAR_LIST)
+    add("cell-dropout", "CELL_DROPOUT", NUMBER)
+    add("cell-expression", "CELL_EXPRESSION", SCALAR_LIST)
+    add("cell-reads", "CELL_READS", SCALAR_LIST)
+    add("mad-deviation", "MAD_DEVIATION", SCALAR_LIST)
+    add("consistent-mad", "CONSISTENT_MAD", BOOLEAN)
+    add("mitochondrial-fraction", "MT", NUMBER)
+    add("cell-cycle-correction", "CC_CORRECTION", BOOLEAN)
 
-    fanout("hvg_method", STRING, "ANALYSIS_HVG_METHOD", "BIN_HVG_METHOD")
-    fanout("hvg_top", INTEGER, "ANALYSIS_HVG_TOP", "BIN_HVG_TOP")
-    fanout("hvg_span", NUMBER, "ANALYSIS_HVG_SPAN", "BIN_HVG_SPAN")
-    fanout("hvg_bins", INTEGER, "ANALYSIS_HVG_BINS", "BIN_HVG_BINS")
-    add("analysis_hvg_method", "ANALYSIS_HVG_METHOD")
-    add("analysis_hvg_top", "ANALYSIS_HVG_TOP", INTEGER)
-    add("analysis_hvg_span", "ANALYSIS_HVG_SPAN", NUMBER)
-    add("analysis_hvg_bins", "ANALYSIS_HVG_BINS", INTEGER)
-    add("binarization_hvg_method", "BIN_HVG_METHOD")
-    add("binarization_hvg_top", "BIN_HVG_TOP", INTEGER)
-    add("binarization_hvg_span", "BIN_HVG_SPAN", NUMBER)
-    add("binarization_hvg_bins", "BIN_HVG_BINS", INTEGER)
-    add("binarization_include_nodes", "BIN_INCLUDE_NODES", STRING_LIST)
+    add("omics-hvg-method", "OMICS_HVG_METHOD")
+    add("omics-hvg-top", "OMICS_HVG_TOP", INTEGER)
+    add("omics-hvg-span", "OMICS_HVG_SPAN", NUMBER)
+    add("omics-hvg-bins", "OMICS_HVG_BINS", INTEGER)
+    add("bin-hvg-method", "BIN_HVG_METHOD")
+    add("bin-hvg-top", "BIN_HVG_TOP", INTEGER)
+    add("bin-hvg-span", "BIN_HVG_SPAN", NUMBER)
+    add("bin-hvg-bins", "BIN_HVG_BINS", INTEGER)
+    add("binarization-include-nodes", "BIN_INCLUDE_NODES", STRING_LIST)
 
     add("integration", "INTEGRATION")
-    add("pca_dimensions", "DIM_PCA", INTEGER)
-    add("embedding_dimensions", "DIM_EMBEDDING", INTEGER)
-    add("centered_pca", "CENTERED_PCA", BOOLEAN)
-    add("pca_only_hvg", "PCA_ONLY_HVG", BOOLEAN)
+    add("pca-dimensions", "DIM_PCA", INTEGER)
+    add("embedding-dimensions", "DIM_EMBEDDING", INTEGER)
+    add("centered-pca", "CENTERED_PCA", BOOLEAN)
+    add("pca-only-hvg", "PCA_ONLY_HVG", BOOLEAN)
     add("neighbors", "NEIGHBORS", INTEGER)
     add("metric", "METRIC")
     add("resolution", "RESOLUTION", NUMBER)
-    add("umap_min_dist", "MIN_DIST", NUMBER)
-    add("umap_spread", "SPREAD", NUMBER)
-    add("embedding_iterations", "EMBEDDING_N_ITER", INTEGER)
+    add("umap-min-dist", "MIN_DIST", NUMBER)
+    add("umap-spread", "SPREAD", NUMBER)
+    add("embedding-iterations", "EMBEDDING_N_ITER", INTEGER)
 
-    add("dea_method", "DEA_METHOD")
+    add("dea-method", "DEA_METHOD")
     add("logfc", "LOGFC", NUMBER)
     add("correction", "CORRECTION")
     add("alpha", "ALPHA", NUMBER)
-    add("moment_dimensions", "DIM_MOMENT", INTEGER)
-    add("velocity_only_hvg", "VELOCITY_ONLY_HVG", BOOLEAN)
-    add("velocity_mode", "SMM_MODE")
-    add("potency_batch_size", "BATCH_SIZE", INTEGER)
-    add("potency_smoothing_batch_size", "SMOOTH_BATCH_SIZE", INTEGER)
+    add("moment-dimensions", "DIM_MOMENT", INTEGER)
+    add("velocity-only-hvg", "VELOCITY_ONLY_HVG", BOOLEAN)
+    add("velocity-mode", "SMM_MODE")
+    add("potency-batch-size", "BATCH_SIZE", INTEGER)
+    add("potency-smoothing-batch-size", "SMOOTH_BATCH_SIZE", INTEGER)
 
-    add("macrostate_size", "MACROSTATE_SIZE", INTEGER)
-    add("macrostate_method", "MACROSTATE_METHOD")
-    add("cotan_method", "COTAN_METHOD")
-    add("cotan_only_hvg", "COTAN_ONLY_HVG", BOOLEAN)
-    add("cotan_max_iterations", "MAX_ITER", INTEGER)
-    add("cellrank_method", "CELLRANK_METHOD")
-    add("cellrank_states", "STATES", INTEGER)
-    add("cellrank_initial_states", "INITIAL_STATES", INTEGER)
-    add("cellrank_terminal_states", "TERMINAL_STATES", INTEGER)
-    add("cellrank_stability", "CELLRANK_STABILITY", NUMBER)
-    add("cellrank_alpha", "CELLRANK_ALPHA", NUMBER)
+    add("macrostate-size", "MACROSTATE_SIZE", INTEGER)
+    add("macrostate-method", "MACROSTATE_METHOD")
+    add("cotan-method", "COTAN_METHOD")
+    add("cotan-only-hvg", "COTAN_ONLY_HVG", BOOLEAN)
+    add("cotan-max-iterations", "MAX_ITER", INTEGER)
+    add("cellrank-method", "CELLRANK_METHOD")
+    add("cellrank-states", "STATES", INTEGER)
+    add("cellrank-initial-states", "INITIAL_STATES", INTEGER)
+    add("cellrank-terminal-states", "TERMINAL_STATES", INTEGER)
+    add("cellrank-stability", "CELLRANK_STABILITY", NUMBER)
+    add("cellrank-alpha", "CELLRANK_ALPHA", NUMBER)
 
-    add("stream_clustering_method", "CLUSTERING_METHOD")
-    add("stream_cluster_number", "CLUSTER_NUMBER", INTEGER)
-    add("stream_alpha", "ALPHA_EPG", NUMBER)
-    add("stream_mu", "MU_EPG", NUMBER)
-    add("stream_lambda", "LAMBDA_EPG", NUMBER)
-    add("stream_extend", "EXTEND_EPG", BOOLEAN)
-    add("stream_extend_mode", "EXTEND_MODE")
-    add("stream_extend_parameter", "EXTEND_PARAMETER", NUMBER)
-    add("stream_prune", "PRUNE_EPG", BOOLEAN)
-    add("stream_collapse_parameter", "COLLAPSE_PARAMETER", BOOLEAN_OR_NUMBER)
+    add("stream-clustering-method", "CLUSTERING_METHOD")
+    add("stream-cluster-number", "CLUSTER_NUMBER", INTEGER)
+    add("stream-alpha", "ALPHA_EPG", NUMBER)
+    add("stream-mu", "MU_EPG", NUMBER)
+    add("stream-lambda", "LAMBDA_EPG", NUMBER)
+    add("stream-extend", "EXTEND_EPG", BOOLEAN)
+    add("stream-extend-mode", "EXTEND_MODE")
+    add("stream-extend-parameter", "EXTEND_PARAMETER", NUMBER)
+    add("stream-prune", "PRUNE_EPG", BOOLEAN)
+    add("stream-collapse-parameter", "COLLAPSE_PARAMETER", BOOLEAN_OR_NUMBER)
 
-    add("knnsc_embedding", "KNNSC_EMBEDDING")
-    add("knnsc_dimensions", "KNNSC_DIMENSION", SCALAR_LIST)
-    add("knnsc_neighbors", "KNNSC_NEIGHBORS", INTEGER)
-    add("knnsc_min_cluster_size", "KNNSC_MIN_CLUSTER_SIZE", INTEGER)
-    conditional("knnsc_centrality", "KNNSC_CENTRALITY", STRING_LIST)
-    conditional("knnsc_periphery", "KNNSC_PERIPHERY", STRING_LIST)
+    add("knnsc-embedding", "KNNSC_EMBEDDING")
+    add("knnsc-dimensions", "KNNSC_DIMENSION", SCALAR_LIST)
+    add("knnsc-neighbors", "KNNSC_NEIGHBORS", INTEGER)
+    add("knnsc-min-cluster-size", "KNNSC_MIN_CLUSTER_SIZE", INTEGER)
+    conditional("knnsc-centrality", "KNNSC_CENTRALITY", STRING_LIST)
+    conditional("knnsc-periphery", "KNNSC_PERIPHERY", STRING_LIST)
 
-    add("binarization_method", "BIN_METHOD")
-    add("scboolseq_only_hvg", "BIN_SCBOOLSEQ_ONLY_HVG", BOOLEAN)
-    add("scboolseq_openblas_threads", "SCBOOLSEQ_OPENBLAS_THREADS", SCALAR)
-    add("scboolseq_omp_threads", "SCBOOLSEQ_OMP_THREADS", SCALAR)
-    add("unimodal_quantile", "UNIMODAL_QUANTILE", NUMBER)
-    add("zeroes_are_zeroes", "ZEROES_ARE_ZEROES", BOOLEAN)
-    add("undefined_threshold", "NANS_THRESHOLD", NUMBER)
-    add("bimodal_threshold", "BIMODAL_THRESHOLD", NUMBER)
-    add("zero_inflated_threshold", "ZEROINF_THRESHOLD", NUMBER)
-    add("unimodal_threshold", "UNIMODAL_THRESHOLD", NUMBER)
-    add("binarization_dea_only_hvg", "BIN_DEA_ONLY_HVG", BOOLEAN)
-    add("binarization_logfc", "BIN_LOGFC", NUMBER)
-    add("binarization_correction", "BIN_CORRECTION")
-    add("binarization_alpha", "BIN_ALPHA", NUMBER)
+    add("binarization-method", "BIN_METHOD")
+    add("scboolseq-only-hvg", "BIN_SCBOOLSEQ_ONLY_HVG", BOOLEAN)
+    add("scboolseq-openblas-threads", "SCBOOLSEQ_OPENBLAS_THREADS", SCALAR)
+    add("scboolseq-omp-threads", "SCBOOLSEQ_OMP_THREADS", SCALAR)
+    add("unimodal-quantile", "UNIMODAL_QUANTILE", NUMBER)
+    add("zeroes-are-zeroes", "ZEROES_ARE_ZEROES", BOOLEAN)
+    add("undefined-threshold", "NANS_THRESHOLD", NUMBER)
+    add("bimodal-threshold", "BIMODAL_THRESHOLD", NUMBER)
+    add("zero-inflated-threshold", "ZEROINF_THRESHOLD", NUMBER)
+    add("unimodal-threshold", "UNIMODAL_THRESHOLD", NUMBER)
+    add("binarization-dea-only-hvg", "BIN_DEA_ONLY_HVG", BOOLEAN)
+    add("binarization-logfc", "BIN_LOGFC", NUMBER)
+    add("binarization-correction", "BIN_CORRECTION")
+    add("binarization-alpha", "BIN_ALPHA", NUMBER)
 
-    add("prior_knowledge", "PRIOR_KNOWLEDGE")
-    add("geneinfo_version", "GENEINFO_VERSION")
-    add("omnipath_version", "OMNIPATH_VERSION")
-    add("hcop_version", "HCOP_VERSION")
-    add("dorothea_api", "DOROTHEA_API")
-    add("dorothea_compatibility", "DOROTHEA_COMPATIBILITY", BOOLEAN)
-    add("dorothea_levels", "DOROTHEA_LEVELS", STRING_LIST)
-    add("max_clauses", "MAX_CLAUSES", INTEGER)
-    add("clause_continuation_soft", "CLAUSE_CONTINUATION_SOFT", BOOLEAN)
-    add("clause_continuation_relaxed", "CLAUSE_CONTINUATION_RELAXED", BOOLEAN)
-    add("clause_continuation_seed", "CLAUSE_CONTINUATION_SEED", BOOLEAN)
-    add("clause_continuation_lock", "CLAUSE_CONTINUATION_LOCK", BOOLEAN)
-    add("clause_bound_patience", "PATIENCE_CLAUSE_BOUND", SCALAR)
-    add("domain_continuation_soft", "DOMAIN_CONTINUATION_SOFT", BOOLEAN)
-    add("domain_continuation_relaxed", "DOMAIN_CONTINUATION_RELAXED", BOOLEAN)
-    add("domain_continuation_seed", "DOMAIN_CONTINUATION_SEED", BOOLEAN)
-    add("domain_continuation_lock", "DOMAIN_CONTINUATION_LOCK", BOOLEAN)
-    add("domain_wave_patience", "PATIENCE_DOMAIN_WAVE", SCALAR)
-    add("minimum_domain_yield", "MIN_DOMAIN_YIELD", NUMBER)
-    add("maximum_domain_refreshes", "MAX_DOMAIN_REFRESHES", INTEGER)
-    add("clingo_threads", "CLINGO_THREADS", INTEGER)
+    add("prior-knowledge", "PRIOR_KNOWLEDGE")
+    add("geneinfo-version", "GENEINFO_VERSION")
+    add("omnipath-version", "OMNIPATH_VERSION")
+    add("hcop-version", "HCOP_VERSION")
+    add("dorothea-api", "DOROTHEA_API")
+    add("dorothea-compatibility", "DOROTHEA_COMPATIBILITY", BOOLEAN)
+    add("dorothea-levels", "DOROTHEA_LEVELS", STRING_LIST)
+    add("max-clauses", "MAX_CLAUSES", INTEGER)
+    add("clause-continuation-soft", "CLAUSE_CONTINUATION_SOFT", BOOLEAN)
+    add("clause-continuation-relaxed", "CLAUSE_CONTINUATION_RELAXED", BOOLEAN)
+    add("clause-continuation-seed", "CLAUSE_CONTINUATION_SEED", BOOLEAN)
+    add("clause-continuation-lock", "CLAUSE_CONTINUATION_LOCK", BOOLEAN)
+    add("clause-bound-patience", "PATIENCE_CLAUSE_BOUND", SCALAR)
+    add("domain-continuation-soft", "DOMAIN_CONTINUATION_SOFT", BOOLEAN)
+    add("domain-continuation-relaxed", "DOMAIN_CONTINUATION_RELAXED", BOOLEAN)
+    add("domain-continuation-seed", "DOMAIN_CONTINUATION_SEED", BOOLEAN)
+    add("domain-continuation-lock", "DOMAIN_CONTINUATION_LOCK", BOOLEAN)
+    add("domain-wave-patience", "PATIENCE_DOMAIN_WAVE", SCALAR)
+    add("minimum-domain-yield", "MIN_DOMAIN_YIELD", NUMBER)
+    add("maximum-domain-refreshes", "MAX_DOMAIN_REFRESHES", INTEGER)
+    add("clingo-threads", "CLINGO_THREADS", INTEGER)
 
     for stage in ("soft", "consts", "relaxed", "seed", "lock"):
         suffix = stage.upper()
-        add(f"clingo_config_{stage}", f"CLINGO_CONFIG_{suffix}")
-        add(f"clingo_mode_{stage}", f"CLINGO_MODE_{suffix}")
-        add(f"clingo_strategy_{stage}", f"CLINGO_STRATEGY_{suffix}")
-        add(f"timeout_{stage}", f"TIMEOUT_{suffix}", SCALAR)
-    add("clingo_mode_min", "CLINGO_MODE_MIN")
-    add("minimize_self_loops_constants", "MIN_SELF_LOOP_CONSTS", BOOLEAN)
-    add("minimize_self_loops_inference", "MIN_SELF_LOOP_INFER", BOOLEAN)
-    add("configuration_formats", "CONFIG_FORMATS", STRING_LIST)
-    add("graph_formats", "GRAPH_FORMATS", STRING_LIST)
-    add("inference_limit", "INFER_LIMIT", INTEGER)
+        add(f"clingo-config-{stage}", f"CLINGO_CONFIG_{suffix}")
+        add(f"clingo-mode-{stage}", f"CLINGO_MODE_{suffix}")
+        add(f"clingo-strategy-{stage}", f"CLINGO_STRATEGY_{suffix}")
+        add(f"timeout-{stage}", f"TIMEOUT_{suffix}", SCALAR)
+    add("clingo-mode-min", "CLINGO_MODE_MIN")
+    add("minimize-self-loops-constants", "MIN_SELF_LOOP_CONSTS", BOOLEAN)
+    add("minimize-self-loops-inference", "MIN_SELF_LOOP_INFER", BOOLEAN)
+    add("configuration-formats", "CONFIG_FORMATS", STRING_LIST)
+    add("graph-formats", "GRAPH_FORMATS", STRING_LIST)
+    add("inference-limit", "INFER_LIMIT", INTEGER)
     return parameters
 
 
@@ -288,7 +306,7 @@ def _value(path: Path, key: str, node: Node, kind: str) -> str:
 def _conditional_parameter(key: str) -> tuple[str, str, Parameter] | None:
     matches: list[tuple[str, str, Parameter]] = []
     for candidate, parameter in PARAMETERS.items():
-        prefix = candidate + "_"
+        prefix = candidate + "-"
         if parameter.conditional and key.startswith(prefix) and len(key) > len(prefix):
             matches.append((candidate, key[len(prefix) :], parameter))
     return max(matches, key=lambda item: len(item[0]), default=None)
@@ -337,13 +355,21 @@ def load(path: Path) -> tuple[dict[str, str], list[str]]:
             condition_node = ScalarNode("tag:yaml.org,2002:str", condition)
             condition_node.start_mark = key_node.start_mark
             condition_node.end_mark = key_node.end_mark
-            conditionals.append((base, parameter, MappingNode("tag:yaml.org,2002:map", [(condition_node, value_node)])))
+            mapping = MappingNode(
+                "tag:yaml.org,2002:map",
+                [(condition_node, value_node)],
+            )
+            conditionals.append((base, parameter, mapping))
             continue
         assert parameter is not None
         if parameter.conditional and isinstance(value_node, MappingNode):
             conditionals.append((key, parameter, value_node))
             continue
-        if parameter.conditional and value_node.tag != "tag:yaml.org,2002:null":
+        if (
+            parameter.conditional
+            and not parameter.shared
+            and value_node.tag != "tag:yaml.org,2002:null"
+        ):
             unnamed.append((key, value_node))
         if key == "conditions":
             conditions_explicit = True
@@ -351,13 +377,38 @@ def load(path: Path) -> tuple[dict[str, str], list[str]]:
             conditions = raw.split() if raw else []
         direct.append((key, parameter, value_node))
 
+    shared_conditionals = {
+        key: node
+        for key, parameter, node in direct
+        if parameter.conditional
+        and parameter.shared
+        and node.tag != "tag:yaml.org,2002:null"
+    }
+    for key, _, mapping in conditionals:
+        if key in shared_conditionals:
+            node = mapping.value[0][0] if mapping.value else shared_conditionals[key]
+            raise _error(
+                path,
+                node,
+                f"configuration key {key!r} cannot combine a shared file "
+                "with condition-specific files",
+            )
+
     known: dict[str, str] = {}
+    internal_conditions: dict[str, str] = {}
     for condition in conditions:
         _validate_condition(path, None, condition)
         folded = condition.lower()
         if folded in known:
             raise ConfigurationError(f"{path}: duplicate conditions {known[folded]!r} and {condition!r}")
         known[folded] = condition
+        suffix = _condition_suffix(condition)
+        if suffix in internal_conditions:
+            raise ConfigurationError(
+                f"{path}: condition names {internal_conditions[suffix]!r} and "
+                f"{condition!r} resolve to the same internal name"
+            )
+        internal_conditions[suffix] = condition
     for key, _, mapping in conditionals:
         for condition_node, _ in mapping.value:
             if not isinstance(condition_node, ScalarNode) or condition_node.tag != "tag:yaml.org,2002:str":
@@ -368,24 +419,29 @@ def load(path: Path) -> tuple[dict[str, str], list[str]]:
                 if conditions_explicit:
                     raise _error(path, condition_node, f"condition {condition!r} in {key} is not listed in conditions")
                 known[condition.lower()] = condition
+                suffix = _condition_suffix(condition)
+                if suffix in internal_conditions:
+                    raise _error(
+                        path,
+                        condition_node,
+                        f"condition names {internal_conditions[suffix]!r} and "
+                        f"{condition!r} resolve to the same internal name",
+                    )
+                internal_conditions[suffix] = condition
                 conditions.append(condition)
     if conditions and unnamed:
         key, node = unnamed[0]
-        raise _error(path, node, f"configuration key {key!r} must be indexed by condition when named conditions are used")
+        raise _error(
+            path,
+            node,
+            f"configuration key {key!r} must be indexed by condition "
+            "when named conditions are used",
+        )
 
     settings: dict[str, str] = {}
-    shared: list[tuple[str, str]] = []
-    specific: set[str] = set()
     for key, parameter, node in direct:
         value = _value(path, key, node, parameter.kind)
-        if parameter.fanout:
-            shared.extend((variable, value) for variable in parameter.fanout)
-        else:
-            settings[parameter.variable] = value
-            specific.add(parameter.variable)
-    for variable, value in shared:
-        if variable not in specific:
-            settings[variable] = value
+        settings[parameter.variable] = value
     if not conditions_explicit and conditions:
         settings["CONDITIONS"] = " ".join(conditions)
 
@@ -397,15 +453,25 @@ def load(path: Path) -> tuple[dict[str, str], list[str]]:
             folded = condition.lower()
             if folded in local_seen:
                 first = local_seen[folded].start_mark.line + 1
-                raise _error(path, condition_node, f"duplicate condition {condition!r} in {key} (first defined at line {first})")
+                raise _error(
+                    path,
+                    condition_node,
+                    f"duplicate condition {condition!r} in {key} "
+                    f"(first defined at line {first})",
+                )
             local_seen[folded] = condition_node
             value = _value(path, f"{key}.{condition}", value_node, parameter.kind)
-            variable = f"{parameter.variable}_{condition.upper()}"
+            variable = f"{parameter.variable}_{_condition_suffix(condition)}"
             if variable in definitions:
                 previous, previous_node = definitions[variable]
                 if previous != value:
                     first = previous_node.start_mark.line + 1
-                    raise _error(path, condition_node, f"conflicting values for condition {condition!r} in {key} (first defined at line {first})")
+                    raise _error(
+                        path,
+                        condition_node,
+                        f"conflicting values for condition {condition!r} "
+                        f"in {key} (first defined at line {first})",
+                    )
                 continue
             definitions[variable] = (value, condition_node)
             settings[variable] = value
@@ -413,49 +479,27 @@ def load(path: Path) -> tuple[dict[str, str], list[str]]:
 
 
 def public_key(variable: str) -> str:
-    direct = sorted(
-        (
-            (key, parameter)
-            for key, parameter in PARAMETERS.items()
-            if parameter.variable == variable
-        ),
-        key=lambda item: ("_hvg_" not in item[0], item[0]),
-    )
-    if direct:
-        return direct[0][0]
+    for key, parameter in PARAMETERS.items():
+        if parameter.variable == variable:
+            return key
+    for key, parameter in PARAMETERS.items():
+        if parameter.effective_variable == variable:
+            return key
     for key, parameter in PARAMETERS.items():
         prefix = parameter.variable + "_"
         if parameter.conditional and variable.startswith(prefix):
             return f"{key}.{variable[len(prefix):].lower()}"
-    for key, parameter in PARAMETERS.items():
-        if variable in parameter.fanout:
-            return key
     return variable.lower()
 
 
-def internal_variable(key: str) -> str:
-    normalized = key.lower().replace("-", "_")
-    parameter = PARAMETERS.get(normalized)
-    if parameter is not None:
-        if parameter.variable:
-            return parameter.variable
-        if len(parameter.fanout) == 1:
-            return parameter.fanout[0]
-    for candidate, conditional in PARAMETERS.items():
-        if not conditional.conditional:
-            continue
-        for separator in (".", "_"):
-            prefix = candidate + separator
-            if normalized.startswith(prefix) and len(normalized) > len(prefix):
-                return conditional.variable + "_" + normalized[len(prefix) :].upper()
-    return normalized.replace(".", "_").upper()
-
-
 def _initializer_parameter(name: str) -> tuple[str, str, Parameter]:
-    normalized = name.lstrip("-").replace("-", "_")
+    normalized = name.lstrip("-")
+    public = normalized.lower()
     for key, parameter in PARAMETERS.items():
-        if normalized.lower() == key or (
-            parameter.variable and normalized.upper() == parameter.variable
+        if public == key or (
+            parameter.variable
+            and normalized == normalized.upper()
+            and normalized == parameter.variable
         ):
             return key, "", parameter
     upper = normalized.upper()
@@ -463,7 +507,7 @@ def _initializer_parameter(name: str) -> tuple[str, str, Parameter]:
         prefix = parameter.variable + "_"
         if parameter.conditional and upper.startswith(prefix) and len(upper) > len(prefix):
             return key, normalized[len(prefix) :].lower(), parameter
-    conditional = _conditional_parameter(normalized.lower())
+    conditional = _conditional_parameter(public)
     if conditional is not None:
         key, condition, parameter = conditional
         return key, condition.lower(), parameter
@@ -509,19 +553,17 @@ def _yaml_inline(value) -> str:
 
 
 def scaffold(overrides: list[str]) -> None:
-    values: dict[str, object] = dict(
-        (
-            ("organism", None),
-            ("conditions", None),
-            ("sra", None),
-            ("gsm", None),
-            ("count_files", None),
-            ("macrostate_files", None),
-            ("binarization_file", None),
-            ("labels", []),
-            ("spec_file", "spec.yml"),
-        )
-    )
+    values: dict[str, object] = {
+        "organism": None,
+        "conditions": None,
+        "sra": None,
+        "gsm": None,
+        "count-file": None,
+        "macrostate-file": None,
+        "binarization-file": None,
+        "labels": [],
+        "spec-file": "spec.yml",
+    }
     for assignment in overrides:
         if "=" not in assignment:
             raise ConfigurationError(f"invalid configuration initializer {assignment!r}")
@@ -543,19 +585,27 @@ def scaffold(overrides: list[str]) -> None:
     comments = {
         "organism": ["Organism used for gene resources (for example, mouse or human)."],
         "conditions": [
-            "Experimental conditions (for example, [ctrl, treated]).",
+            "Experimental conditions (for example, [control, perturbation]).",
             "Leave null for an unlabeled single-condition project.",
         ],
         "sra": [
             "Input sources are mutually exclusive. Define one route below.",
             "Named conditions use mappings, for example:",
-            "sra: {ctrl: [SRR1], treated: [SRR2]}",
+            "sra: {control: [SRR_control_1, SRR_control_2],",
+            "      perturbation: [SRR_perturbation_1, SRR_perturbation_2]}",
+        ],
+        "count-file": [
+            "One count AnnData file per condition.",
+            "count-file: {control: control.h5ad, perturbation: perturbation.h5ad}",
+        ],
+        "macrostate-file": [
+            "One multi-condition macrostate AnnData file, or one per condition.",
         ],
         "labels": [
             "Biological labels assigned to clusters in numerical order.",
             "Required by the annotation module.",
         ],
-        "spec_file": ["Boolean inference constraints and node contracts."],
+        "spec-file": ["Boolean inference constraints and node contracts."],
     }
     print("# scBOLT project configuration")
     for index, (key, value) in enumerate(values.items()):
@@ -572,13 +622,13 @@ def specification() -> None:
     print("constraints: []")
     print()
     print("# Nodes prioritized during gene selection.")
-    print("important_nodes: []")
+    print("important-nodes: []")
     print()
     print("# Nodes retained in every selected domain.")
-    print("mandatory_nodes: []")
+    print("mandatory-nodes: []")
     print()
     print("# Nodes removed before gene selection.")
-    print("forbidden_nodes: []")
+    print("forbidden-nodes: []")
 
 
 def _mapping_lines(conditions: Iterable[str]) -> Iterable[tuple[str, str]]:
@@ -586,9 +636,13 @@ def _mapping_lines(conditions: Iterable[str]) -> Iterable[tuple[str, str]]:
     for parameter in PARAMETERS.values():
         if parameter.variable:
             variables.add(parameter.variable)
-        variables.update(parameter.fanout)
+        if parameter.effective_variable:
+            variables.add(parameter.effective_variable)
         if parameter.conditional:
-            variables.update(f"{parameter.variable}_{condition.upper()}" for condition in conditions)
+            variables.update(
+                f"{parameter.variable}_{_condition_suffix(condition)}"
+                for condition in conditions
+            )
     for variable in sorted(variables):
         yield f"SCBOLT_PUBLIC_PARAMETER_{variable}", public_key(variable)
 
@@ -626,8 +680,6 @@ def parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command", required=True)
     export_parser = subparsers.add_parser("export")
     export_parser.add_argument("path", type=Path)
-    internal_parser = subparsers.add_parser("internal")
-    internal_parser.add_argument("key")
     value_parser = subparsers.add_parser("value")
     value_parser.add_argument("path", type=Path)
     value_parser.add_argument("variable")
@@ -650,8 +702,6 @@ def main() -> int:
             print_value(args.path, args.variable)
         elif args.command == "lookup":
             return lookup_value(args.path, args.variable)
-        elif args.command == "internal":
-            print(internal_variable(args.key))
         elif args.command == "scaffold":
             scaffold(args.overrides)
         elif args.command == "specification":

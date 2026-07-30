@@ -447,14 +447,14 @@ else ifeq ($(HELP),false)
 	fi; \
 	if grep -qE 'scripts/clust/(clustering|integration).py' "$${dry_run}"; then \
 		$(call check_choice_diagnostic,\
-			$(ANALYSIS_HVG_METHOD),loess binning,\
-			$(call needed_by,ANALYSIS_HVG_METHOD,clustering),method); \
+			$(OMICS_HVG_METHOD),loess binning,\
+			$(call needed_by,OMICS_HVG_METHOD,clustering),method); \
 		$(call check_optional_positive_integer_diagnostic,\
-			$(ANALYSIS_HVG_TOP),$(call needed_by,ANALYSIS_HVG_TOP,clustering),method); \
+			$(OMICS_HVG_TOP),$(call needed_by,OMICS_HVG_TOP,clustering),method); \
 		$(call check_float_diagnostic,\
-			$(ANALYSIS_HVG_SPAN),$(call needed_by,ANALYSIS_HVG_SPAN,clustering),method); \
+			$(OMICS_HVG_SPAN),$(call needed_by,OMICS_HVG_SPAN,clustering),method); \
 		$(call check_positive_integer_diagnostic,\
-			$(ANALYSIS_HVG_BINS),$(call needed_by,ANALYSIS_HVG_BINS,clustering),method); \
+			$(OMICS_HVG_BINS),$(call needed_by,OMICS_HVG_BINS,clustering),method); \
 		$(call check_positive_integer_diagnostic,$(DIM_PCA),$(call needed_by,DIM_PCA,clustering),method); \
 		$(call check_positive_integer_diagnostic,$(DIM_EMBEDDING),$(call needed_by,DIM_EMBEDDING,clustering),method); \
 		$(call check_bool_diagnostic,$(CENTERED_PCA),$(call needed_by,CENTERED_PCA,clustering),method); \

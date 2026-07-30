@@ -23,9 +23,9 @@ chmod +x "${tmpdir}/bin/conda"
 
 cat > "${tmpdir}/scbolt.yml" <<EOF
 backend: conda
-project_dir: ${tmpdir}/project
-resources_dir: ${tmpdir}/resources
-openblas_core_type: Haswell
+project-dir: ${tmpdir}/project
+resources-dir: ${tmpdir}/resources
+openblas-core-type: Haswell
 seed: 7
 EOF
 
@@ -44,9 +44,9 @@ grep -q '^  ✓ OpenBLAS core type: Haswell$' "${tmpdir}/ok.out"
 
 cat > "${tmpdir}/warning.yml" <<EOF
 backend: conda
-project_dir: ${tmpdir}/project
-resources_dir: ${tmpdir}/resources
-openblas_core_type: Skylake
+project-dir: ${tmpdir}/project
+resources-dir: ${tmpdir}/resources
+openblas-core-type: Skylake
 EOF
 PATH="${tmpdir}/bin:${PATH}" \
     "${scbolt}" diagnostics --config="${tmpdir}/warning.yml" \
@@ -76,10 +76,10 @@ test "$(grep -c 'configuration file:' "${tmpdir}/missing.out")" -eq 1
 
 cat > "${tmpdir}/docker.yml" <<EOF
 backend: docker
-container_engine: unavailable-docker
-project_dir: ${tmpdir}/project
-resources_dir: ${tmpdir}/resources
-openblas_core_type: Haswell
+container-engine: unavailable-docker
+project-dir: ${tmpdir}/project
+resources-dir: ${tmpdir}/resources
+openblas-core-type: Haswell
 EOF
 if PATH="${tmpdir}/bin:${PATH}" \
     "${scbolt}" diagnostics --config="${tmpdir}/docker.yml" \

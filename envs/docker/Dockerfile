@@ -2,7 +2,7 @@ FROM mambaorg/micromamba:debian12-slim
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-ARG SCBOLT_ENV_FILES="system align bonesis cellrank core cotan fastq potency scboolseq stream velocity velocyto"
+ARG SCBOLT_ENV_FILES="align bonesis cellrank core cotan fastq potency scboolseq stream velocity velocyto"
 ARG SCBOLT_GIT_COMMIT=unknown
 
 USER root
@@ -21,6 +21,7 @@ RUN apt-get update \
         grep \
         gzip \
         make \
+        python3-yaml \
         sed \
         tar \
         texlive \

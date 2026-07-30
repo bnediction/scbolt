@@ -1562,7 +1562,6 @@ option_to_make_variable() {
     local variable
 
     key="${option#--}"
-    key="${key//-/_}"
     key="${key,,}"
     if load_parameter_mappings 2>/dev/null; then
         if [ -n "${public_parameter_variables[${key}]:-}" ]; then
@@ -1570,9 +1569,10 @@ option_to_make_variable() {
             return 0
         fi
         for candidate in "${!conditional_parameter_variables[@]}"; do
-            if [[ "${key}" == "${candidate}_"* ]]; then
-                condition="${key#"${candidate}"_}"
+            if [[ "${key}" == "${candidate}-"* ]]; then
+                condition="${key#"${candidate}"-}"
                 if [ -n "${condition}" ]; then
+                    condition="${condition//-/_}"
                     variable="${conditional_parameter_variables[${candidate}]}_${condition^^}"
                     printf '%s\n' "${variable}"
                     return 0
@@ -1580,6 +1580,7 @@ option_to_make_variable() {
             fi
         done
     fi
+    key="${key//-/_}"
     printf '%s\n' "${key^^}"
 }
 

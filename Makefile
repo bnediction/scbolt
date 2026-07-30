@@ -386,8 +386,8 @@ $(clustering_$(1)): $(normalization_$(1))
 		--pca-dimension $(DIM_PCA) \
 		--clustering-dimension $(DIM_PCA) \
 		--embedding-dimension $(DIM_EMBEDDING) \
-		--method $(ANALYSIS_HVG_METHOD) $(if $(ANALYSIS_HVG_TOP),--top-hvg $(ANALYSIS_HVG_TOP),) \
-		--span $(ANALYSIS_HVG_SPAN) --bins $(ANALYSIS_HVG_BINS) $(centered_pca) $(pca_only_hvg) \
+		--method $(OMICS_HVG_METHOD) $(if $(OMICS_HVG_TOP),--top-hvg $(OMICS_HVG_TOP),) \
+		--span $(OMICS_HVG_SPAN) --bins $(OMICS_HVG_BINS) $(centered_pca) $(pca_only_hvg) \
 		--neighbors $(NEIGHBORS) --metric $(METRIC) \
 		--resolution $(RESOLUTION) --min-dist $(MIN_DIST) --spread $(SPREAD) \
 		--embedding-n-iter $(EMBEDDING_N_ITER) \
@@ -570,8 +570,8 @@ $(clustering_integrated): $(foreach condition,$(conditions),$(normalization_$(co
 		$^ --outfile $@ --labels $(conditions) \
 		--expression correct --adjacency knn --integration $(INTEGRATION) \
 		--pca-dimension $(DIM_PCA) --clustering-dimension $(DIM_PCA) --embedding-dimension $(DIM_EMBEDDING) \
-		--method $(ANALYSIS_HVG_METHOD) $(if $(ANALYSIS_HVG_TOP),--top-hvg $(ANALYSIS_HVG_TOP),) \
-		--span $(ANALYSIS_HVG_SPAN) --bins $(ANALYSIS_HVG_BINS) $(centered_pca) $(pca_only_hvg) \
+		--method $(OMICS_HVG_METHOD) $(if $(OMICS_HVG_TOP),--top-hvg $(OMICS_HVG_TOP),) \
+		--span $(OMICS_HVG_SPAN) --bins $(OMICS_HVG_BINS) $(centered_pca) $(pca_only_hvg) \
 		--neighbors $(NEIGHBORS) --metric $(METRIC) --resolution $(RESOLUTION) \
 		--min-dist $(MIN_DIST) --spread $(SPREAD) \
 		--embedding-n-iter $(EMBEDDING_N_ITER) \

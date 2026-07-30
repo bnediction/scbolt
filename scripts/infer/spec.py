@@ -35,12 +35,9 @@ convert model specifications (format: yml) and binarized macrostates
 The model specification file (format: yml) recognizes four sections:
     - constraints (required list of dynamical Boolean properties in BoNesis
       syntax)
-    - important_nodes (list of nodes prioritized to appear in Boolean network solutions)
-    - mandatory_nodes (list of nodes forced to appear in Boolean network solutions)
-    - forbidden_nodes (list of nodes excluded from Boolean network solutions)
-
-The legacy dynamical_constraints section remains accepted as an alias for
-constraints.
+    - important-nodes (list of nodes prioritized to appear in Boolean network solutions)
+    - mandatory-nodes (list of nodes forced to appear in Boolean network solutions)
+    - forbidden-nodes (list of nodes excluded from Boolean network solutions)
 """,
     usage=(
         f"python {script_name} <FILE> <FILE> --model <FILE> --metastates <FILE> "
@@ -234,10 +231,9 @@ if not isinstance(specification, dict):
 
 specification_sections = {
     "constraints",
-    "dynamical_constraints",
-    "important_nodes",
-    "mandatory_nodes",
-    "forbidden_nodes",
+    "important-nodes",
+    "mandatory-nodes",
+    "forbidden-nodes",
 }
 unknown_sections = sorted(set(specification) - specification_sections)
 if unknown_sections:
@@ -262,19 +258,10 @@ def read_specification_list(key: str, *, required: bool = False) -> list[str]:
     return values
 
 
-if "constraints" in specification and "dynamical_constraints" in specification:
-    parser.error(
-        "model specification defines both 'constraints' and the deprecated "
-        "'dynamical_constraints' section"
-    )
-
-constraint_section = (
-    "constraints" if "constraints" in specification else "dynamical_constraints"
-)
-dynamical_constraints = read_specification_list(constraint_section, required=True)
-important_nodes = set(read_specification_list("important_nodes"))
-mandatory_nodes = set(read_specification_list("mandatory_nodes"))
-forbidden_nodes = set(read_specification_list("forbidden_nodes"))
+dynamical_constraints = read_specification_list("constraints", required=True)
+important_nodes = set(read_specification_list("important-nodes"))
+mandatory_nodes = set(read_specification_list("mandatory-nodes"))
+forbidden_nodes = set(read_specification_list("forbidden-nodes"))
 
 console.print_task(f"loading CSV table (file={console.format_path(args.macrostates)})")
 
@@ -289,13 +276,13 @@ mandatory_nodes = set(identifiers(mandatory_nodes))
 forbidden_nodes = set(identifiers(forbidden_nodes))
 
 for section, nodes in (
-    ("important_nodes", important_nodes),
-    ("mandatory_nodes", mandatory_nodes),
+    ("important-nodes", important_nodes),
+    ("mandatory-nodes", mandatory_nodes),
 ):
     conflicts = forbidden_nodes & nodes
     if conflicts:
         parser.error(
-            "model specification sections 'forbidden_nodes' and "
+            "model specification sections 'forbidden-nodes' and "
             f"'{section}' overlap: {', '.join(sorted(conflicts))}"
         )
 

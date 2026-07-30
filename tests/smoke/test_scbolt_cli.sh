@@ -337,8 +337,8 @@ diff -u "${tmpdir}/clingo-strategy-completion.expected" \
     "${tmpdir}/clingo-strategy-completion.out"
 
 complete_scbolt "${project}" 2 scbolt clustering \
-    "--analysis-hvg-method=b" > "${tmpdir}/hvg-method-completion.out"
-grep -qx -- '--analysis-hvg-method=binning' \
+    "--omics-hvg-method=b" > "${tmpdir}/hvg-method-completion.out"
+grep -qx -- '--omics-hvg-method=binning' \
     "${tmpdir}/hvg-method-completion.out"
 
 complete_scbolt "${project}" 2 scbolt spec \
@@ -371,7 +371,7 @@ complete_scbolt "${project}" 2 scbolt max-nodes-soft \
 
 cat > "${project}/completion.yml" <<'EOF'
 conditions: [ctrl, treated]
-knnsc_centrality:
+knnsc-centrality:
   ctrl: [Prom1]
   treated: [Prom2]
 EOF
@@ -379,6 +379,20 @@ complete_scbolt "${project}" 3 scbolt knnsc --config=completion.yml \
     "--knnsc-centrality-" > "${tmpdir}/condition-completion.out"
 grep -qx -- '--knnsc-centrality-ctrl=' "${tmpdir}/condition-completion.out"
 grep -qx -- '--knnsc-centrality-treated=' "${tmpdir}/condition-completion.out"
+
+complete_scbolt "${project}" 3 scbolt filtering --config=completion.yml \
+    "--count-file-" > "${tmpdir}/count-file-condition-completion.out"
+grep -qx -- '--count-file-ctrl=' \
+    "${tmpdir}/count-file-condition-completion.out"
+grep -qx -- '--count-file-treated=' \
+    "${tmpdir}/count-file-condition-completion.out"
+
+complete_scbolt "${project}" 3 scbolt macrostates --config=completion.yml \
+    "--macrostate-file-" > "${tmpdir}/macrostate-file-condition-completion.out"
+grep -qx -- '--macrostate-file-ctrl=' \
+    "${tmpdir}/macrostate-file-condition-completion.out"
+grep -qx -- '--macrostate-file-treated=' \
+    "${tmpdir}/macrostate-file-condition-completion.out"
 
 (
     cd "${project}"
@@ -820,11 +834,13 @@ mkdir -p "${empty_project}"
 grep -qx 'CONFIG=scbolt.yml' "${empty_project}/.scbolt"
 test -f "${empty_project}/scbolt.yml"
 test -f "${empty_project}/spec.yml"
+grep -qx 'count-file: null' "${empty_project}/scbolt.yml"
+grep -qx 'macrostate-file: null' "${empty_project}/scbolt.yml"
 grep -qx 'labels: \[\]' "${empty_project}/scbolt.yml"
 grep -qx 'constraints: \[\]' "${empty_project}/spec.yml"
-grep -qx 'important_nodes: \[\]' "${empty_project}/spec.yml"
-grep -qx 'mandatory_nodes: \[\]' "${empty_project}/spec.yml"
-grep -qx 'forbidden_nodes: \[\]' "${empty_project}/spec.yml"
+grep -qx 'important-nodes: \[\]' "${empty_project}/spec.yml"
+grep -qx 'mandatory-nodes: \[\]' "${empty_project}/spec.yml"
+grep -qx 'forbidden-nodes: \[\]' "${empty_project}/spec.yml"
 grep -qx 'Configuration file: scbolt.yml (created)' "${tmpdir}/empty-init.out"
 grep -qx 'Specification file: spec.yml (created)' "${tmpdir}/empty-init.out"
 grep -qx '✓ scBOLT project initialized.' "${tmpdir}/empty-init.out"

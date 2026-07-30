@@ -14,7 +14,7 @@ constraints:
   - mep != gmp
 
 # Nodes prioritized during gene selection.
-important_nodes:
+important-nodes:
   - Mpo
   - Elane
   - Ctsg
@@ -27,7 +27,7 @@ important_nodes:
   - Pf4
 
 # Nodes retained in every selected domain.
-mandatory_nodes: []
+mandatory-nodes: []
 
 # Nodes removed before gene selection.
-forbidden_nodes: []
+forbidden-nodes: []

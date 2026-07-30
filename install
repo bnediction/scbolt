@@ -476,10 +476,11 @@ run_quiet() {
 }
 
 develop_scbolt_lib() {
-    if [ "$1" == "scbolt-align" ] || [ "$1" == "scbolt-system" ];
-    then
-        return 0
-    fi
+    case "$1" in
+        scbolt-align|scbolt-cotan|scbolt-fastq|scbolt-system)
+            return 0
+            ;;
+    esac
 
     run_quiet env_run "$1" python -c '
 import sysconfig

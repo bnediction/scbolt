@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import re
 import subprocess
@@ -128,6 +129,18 @@ def lookup_package(
     return packages.get(spec.name)
 
 
+def matches_version_constraint(actual: str | None, expected: str) -> bool:
+    if actual is None:
+        return False
+    if any(character in expected for character in "*?["):
+        return fnmatch.fnmatchcase(actual, expected)
+    return actual == expected or actual.startswith(f"{expected}.")
+
+
+def matches_build_constraint(actual: str | None, expected: str) -> bool:
+    return actual is not None and fnmatch.fnmatchcase(actual, expected)
+
+
 def compare_specs(
     expected: list[PackageSpec], installed: dict[str, PackageSpec]
 ) -> list[str]:
@@ -137,10 +150,16 @@ def compare_specs(
         if package is None:
             warnings.append(f"{spec.name}: missing")
             continue
-        if spec.version and package.version != spec.version:
+        if spec.version and not matches_version_constraint(
+            package.version, spec.version
+        ):
             warnings.append(f"{spec.name}: {package.version}->{spec.version}")
             continue
-        if spec.build and package.source == "conda" and package.build != spec.build:
+        if (
+            spec.build
+            and package.source == "conda"
+            and not matches_build_constraint(package.build, spec.build)
+        ):
             warnings.append(f"{spec.name} build: {package.build}->{spec.build}")
     return warnings
 

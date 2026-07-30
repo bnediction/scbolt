@@ -1,26 +1,26 @@
 organism: mouse
 conditions: [ctrl, treated]
-project_dir: ../../project
+project-dir: ../../project
 
 sra:
   ctrl: [SRR000001, SRR000002]
   treated: [SRR000003, SRR000004]
 
 labels: [Prom, Rep]
-spec_file: spec.yml
-prior_knowledge: dorothea
-dorothea_api: legacy
-dorothea_levels: [A]
+spec-file: spec.yml
+prior-knowledge: dorothea
+dorothea-api: legacy
+dorothea-levels: [A]
 
-macrostate_method: knnsc
-binarization_method: consensus
+macrostate-method: knnsc
+binarization-method: consensus
 
-knnsc_centrality:
+knnsc-centrality:
   ctrl: [Prom]
   treated: [Prom]
 
-knnsc_periphery:
+knnsc-periphery:
   ctrl: [Rep]
   treated: [Rep]
 
-timeout_seed: 0
+timeout-seed: 0

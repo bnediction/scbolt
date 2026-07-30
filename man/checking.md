@@ -115,15 +115,15 @@ Examples:
 
 - project configuration
 - `references`
-- `project_dir`
-- `resources_dir`
+- `project-dir`
+- `resources-dir`
 - `memory`
 - `jobs`
 - `seed`
 - `logging`
 - `representation`
-- `label_column`
-- `old_files`
+- `label-column`
+- `old-files`
 
 Core parameters usually have defaults and are not tied to a specific analytical
 method. They are validated during pipeline initialization, except in diagnostic
@@ -146,22 +146,22 @@ analytical behavior of the pipeline.
 
 Examples:
 
-- `alignment_tool`
-- `star_barcode_filter`
-- `consistent_mad`
-- `cell_cycle_correction`
-- `pca_dimensions`
-- `centered_pca`
-- `velocity_only_hvg`
-- `macrostate_method`
-- `knnsc_embedding`
-- `knnsc_min_cluster_size`
-- `binarization_method`
-- `binarization_hvg_method`
-- `max_clauses`
-- `clause_continuation_<stage>`
-- `clingo_<setting>_<stage>`
-- `timeout_<stage>`
+- `alignment-tool`
+- `star-barcode-filter`
+- `consistent-mad`
+- `cell-cycle-correction`
+- `pca-dimensions`
+- `centered-pca`
+- `velocity-only-hvg`
+- `macrostate-method`
+- `knnsc-embedding`
+- `knnsc-min-cluster-size`
+- `binarization-method`
+- `bin-hvg-method`
+- `max-clauses`
+- `clause-continuation-<stage>`
+- `clingo-<setting>-<stage>`
+- `timeout-<stage>`
 
 Method parameters should only be validated by targets using the associated
 method or module.
@@ -170,8 +170,8 @@ Example output:
 
 ```text
 Method parameters
-  ✓ knnsc_embedding=X_umap (needed by target 'knnsc')
-  ✗ unsupported value for method parameter binarization_method (supported values: scboolseq, dea, consensus)
+  ✓ knnsc-embedding=X_umap (needed by target 'knnsc')
+  ✗ unsupported value for method parameter binarization-method (supported values: scboolseq, dea, consensus)
 ```
 
 ### External Resource Parameters
@@ -181,21 +181,21 @@ artifacts used by the pipeline.
 
 Examples:
 
-- `star_whitelist`
-- `count_files`
-- `binarization_file`
-- `macrostate_files`
-- `prior_knowledge`
-- `geneinfo_version`
-- `omnipath_version`
-- `hcop_version`
-- `clingo_config_<stage>`
+- `star-whitelist`
+- `count-file`
+- `binarization-file`
+- `macrostate-file`
+- `prior-knowledge`
+- `geneinfo-version`
+- `omnipath-version`
+- `hcop-version`
+- `clingo-config-<stage>`
 
-`prior_knowledge` may refer to symbolic built-in resources (`collectri`,
-`dorothea`) or to a user-provided file. `geneinfo_version` and
-`omnipath_version` select the database versions used for gene identifiers and
-OmniPath-derived priors. `hcop_version` selects the orthology resource used for
-non-human CollecTRI/DoRothEA priors. `clingo_config_<stage>` may refer to named Clingo
+`prior-knowledge` may refer to symbolic built-in resources (`collectri`,
+`dorothea`) or to a user-provided file. `geneinfo-version` and
+`omnipath-version` select the database versions used for gene identifiers and
+OmniPath-derived priors. `hcop-version` selects the orthology resource used for
+non-human CollecTRI/DoRothEA priors. `clingo-config-<stage>` may refer to named Clingo
 configurations (`auto`, `frumpy`, `jumpy`, `tweety`, `handy`, `crafty`,
 `trendy`, `many`) or to custom configuration files.
 
@@ -206,7 +206,7 @@ Example output:
 
 ```text
 External resources
-  ✓ macrostate_files=case/macrostate.h5ad (needed by target 'bin-dea')
+  ✓ macrostate-file=case/macrostate.h5ad (needed by target 'bin-dea')
   ✗ required file not found: case/macrostate.h5ad
 ```
 
@@ -219,7 +219,7 @@ File checks include resources such as:
 - the active project configuration;
 - reference genome archive sources;
 - RepeatMasker annotation source for Velocyto;
-- user-provided `count_files` or `macrostate_files`;
+- user-provided `count-file` or `macrostate-file`;
 - custom prior networks;
 - custom Clingo configuration files.
 
@@ -320,29 +320,29 @@ by existing file or target dependency checks. For example, CellRank uses
 column and inserts it into a temporary H5AD as `cytotrace_score` before running
 the CellRank script.
 
-### `count_files`
+### `count-file`
 
-`count_files` is a count-level AnnData entry point. It must contain one H5AD
-file per condition, ordered like `conditions`. When defined, filtering consumes
-these files directly instead of depending on Velocyto or public GEO matrix
-loading. Gene-name standardization is applied by `filter.py`, so count files,
-GEO matrices, and Velocyto outputs share the same downstream contract.
+`count-file` is a count-level AnnData entry point. It maps each named condition
+to one H5AD file. When defined, filtering consumes these files directly instead
+of depending on Velocyto or public GEO matrix loading. Gene-name
+standardization is applied by `filter.py`, so count files, GEO matrices, and
+Velocyto outputs share the same downstream contract.
 Each file must contain `counts` in `layers`; `adata.X` is not used as a
 fallback expression matrix.
 
 Input routes are mutually exclusive:
 
 ```text
-sra | gsm | count_files | macrostate_files | binarization_file
+sra | gsm | count-file | macrostate-file | binarization-file
 ```
 
 Only one input-route family should be defined at a time.
 
-### `macrostate_files`
+### `macrostate-file`
 
-`macrostate_files` is a special external AnnData boundary for users restarting
+`macrostate-file` is a special external AnnData boundary for users restarting
 the pipeline at binarization. It accepts either one multi-condition AnnData file
-or one AnnData file per condition, ordered like `conditions`. When defined,
+or one AnnData file indexed by each condition. When defined,
 `bin-cells`, `bin-macrostates`, and `bin-dea` depend on a prepared temporary
 copy of these files instead of depending on internally generated macrostate
 H5AD/CSV pairs.
@@ -358,7 +358,7 @@ The user-provided file must contain:
 Expression is always read from these named layers. `adata.X` is not used as a
 fallback expression matrix.
 
-If downstream HVG selection uses `binarization_hvg_method: loess`, the file must also
+If downstream HVG selection uses `bin-hvg-method: loess`, the file must also
 contain:
 
 - `counts` in `layers`.
@@ -461,7 +461,7 @@ Requires:
 
 Provides:
 
-- the configured `label_column` in `obs`
+- the configured `label-column` in `obs`
 
 ### Per-Condition Annotation
 
@@ -474,7 +474,7 @@ Requires:
 
 Provides:
 
-- the configured `label_column` in `obs`
+- the configured `label-column` in `obs`
 
 ### Velocity
 
@@ -485,9 +485,9 @@ Requires:
 - `unspliced` in `layers`
 - `X_pca` in `obsm`
 - `X_umap` in `obsm`
-- the configured `label_column` in `obs`
+- the configured `label-column` in `obs`
 - `connectivities` in `obsp`
-- `highly_variable` in `var`, only when `velocity_only_hvg: true`
+- `highly_variable` in `var`, only when `velocity-only-hvg: true`
 
 Provides:
 
@@ -501,7 +501,7 @@ Provides:
 Requires:
 
 - `counts` in `layers`
-- the configured `label_column` in `obs`
+- the configured `label-column` in `obs`
 - the configured `representation` in `obsm`
 
 Provides:
@@ -518,7 +518,7 @@ workflow. The downstream CellRank recipe requires the `score` column from
 Requires:
 
 - `counts` in `layers`
-- `highly_variable` in `var`, only when `cotan_only_hvg: true`
+- `highly_variable` in `var`, only when `cotan-only-hvg: true`
 - the configured `representation` in `obsm`
 
 Provides:
@@ -532,7 +532,7 @@ Requires:
 - `Ms` in `layers`
 - `velocity` in `layers`
 - `connectivities` in `obsp`
-- the configured `label_column` in `obs`
+- the configured `label-column` in `obs`
 - `X_umap` in `obsm`
 
 Provides:
@@ -548,7 +548,7 @@ velocity H5AD.
 Requires:
 
 - the configured `representation` in `obsm`
-- the configured `label_column` in `obs`
+- the configured `label-column` in `obs`
 
 Provides:
 
@@ -558,9 +558,9 @@ Provides:
 
 Requires:
 
-- the configured `knnsc_embedding` in `obsm`
+- the configured `knnsc-embedding` in `obsm`
 - the configured `representation` in `obsm`
-- the configured `label_column` in `obs`
+- the configured `label-column` in `obs`
 
 Provides:
 
@@ -572,7 +572,7 @@ Requires:
 
 - `log-norm` in `layers`
 - the configured `representation` in `obsm`
-- `macrostate` in `obs`, only when starting from `macrostate_files` and needed
+- `macrostate` in `obs`, only when starting from `macrostate-file` and needed
   downstream
 
 Provides:

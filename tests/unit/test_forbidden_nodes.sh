@@ -27,10 +27,10 @@ spec_help="$(
 )"
 
 grep -Fq 'infer/spec/forbidden.txt' <<< "${spec_help}"
-grep -Fq '  forbidden_nodes:' <<< "${spec_help}"
+grep -Fq '  forbidden-nodes:' <<< "${spec_help}"
 
 grep -Fq \
-    'forbidden_nodes = set(read_specification_list("forbidden_nodes"))' \
+    'forbidden_nodes = set(read_specification_list("forbidden-nodes"))' \
     "${repo_root}/scripts/infer/spec.py"
 grep -Fq \
     'with open(args.forbidden_nodes, "w") as file:' \

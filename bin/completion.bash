@@ -12,7 +12,7 @@ bn-min bn-submin bn-diverse"
 _scbolt_utilities="init version help config progress check diagnostics dry-run clean install"
 _scbolt_commands="${_scbolt_utilities} ${_scbolt_modules}"
 _scbolt_file_options="--config= --params= --old-file= --project-dir= --resources-dir= --star-whitelist=
---binarization-file= --macrostate-files= --prior-knowledge= --spec-file="
+--binarization-file= --count-file= --macrostate-file= --prior-knowledge= --spec-file="
 
 _scbolt_complete_words() {
     local choices="$1"
@@ -198,7 +198,7 @@ _scbolt_help_parameters() {
 
         line="${line#"${line%%[![:space:]]*}"}"
         parameter="${line%%[[:space:]]*}"
-        if [[ "${parameter}" =~ ^([A-Z][A-Z0-9_]*|[a-z][a-z0-9_.]*)$ ]]; then
+        if [[ "${parameter}" =~ ^([A-Z][A-Z0-9_]*|[a-z][a-z0-9_.-]*)$ ]]; then
             _scbolt_parameter_to_option "${parameter}"
         fi
     done < <(command scbolt "${target}" help "${config_args[@]}" 2> /dev/null)
@@ -208,14 +208,14 @@ _scbolt_module_options() {
     local target="$1"
 
     printf '%s\n' --config= --references= --reset-target= --trust-target= --trust-existing --old-file= \
-        --project-dir= --resources-dir= --memory= --jobs= --seed= --representation= --label-col= \
+        --project-dir= --resources-dir= --memory= --jobs= --seed= --representation= --label-column= \
         --backend= --logging= --help help
     _scbolt_help_parameters "${target}"
 }
 
 _scbolt_run_options() {
     printf '%s\n' --config= --references= --reset-target= --trust-target= --trust-existing --old-file= \
-        --project-dir= --resources-dir= --memory= --jobs= --seed= --representation= --label-col= \
+        --project-dir= --resources-dir= --memory= --jobs= --seed= --representation= --label-column= \
         --backend= --logging= --help
 }
 
@@ -250,9 +250,9 @@ _scbolt_init_selection_options() {
 }
 
 _scbolt_init_parameter_options() {
-    printf '%s\n' --conditions= --organism= --label= --spec-file= --count-files= \
-        --macrostate-files= --binarization-file= --project-dir= --resources-dir= \
-        --references= --backend= --logging= --jobs= --memory= --seed= --representation= --label-col=
+    printf '%s\n' --conditions= --organism= --labels= --spec-file= --count-file= \
+        --macrostate-file= --binarization-file= --project-dir= --resources-dir= \
+        --references= --backend= --logging= --jobs= --memory= --seed= --representation= --label-column=
 }
 
 _scbolt_complete_init_selection() {
@@ -387,7 +387,7 @@ _scbolt_option_values() {
         --alignment-tool=)
             printf '%s\n' "cellranger star"
             ;;
-        --analysis-hvg-method=|--binarization-hvg-method=)
+        --omics-hvg-method=|--bin-hvg-method=)
             printf '%s\n' "loess binning"
             ;;
         --binarization-correction=|--correction=)
@@ -508,6 +508,12 @@ _scbolt_complete_option_value() {
     fi
     case " ${_scbolt_file_options} " in
         *" ${option} "*)
+            _scbolt_complete_files "${prefix}" "${current}"
+            return 0
+            ;;
+    esac
+    case "${option}" in
+        --count-file-*=|--macrostate-file-*=)
             _scbolt_complete_files "${prefix}" "${current}"
             return 0
             ;;

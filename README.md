@@ -246,7 +246,7 @@ of the normal user interface.
 ### Starting from custom macrostates
 
 ```bash
-scbolt bn-submin --macrostate-files=my_macrostates.h5ad
+scbolt bn-submin --macrostate-file=my_macrostates.h5ad
 ```
 
 Required AnnData fields:

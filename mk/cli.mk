@@ -144,13 +144,13 @@ show_config_has_inference = $(filter $(show_config_inference_modules),$(show_con
 show_config_inference_params = \
 	PRIOR_KNOWLEDGE OMNIPATH_VERSION HCOP_VERSION \
 	DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS MAX_CLAUSES
-show_config_has_analysis_hvg = $(filter clustering,$(show_config_modules))
-show_config_binarization_hvg_modules = bin-cells bin-dea bin-consensus spec
-show_config_has_binarization_hvg = \
-	$(filter $(show_config_binarization_hvg_modules),$(show_config_param_modules))
-show_config_has_hvg = $(strip $(show_config_has_analysis_hvg) $(show_config_has_binarization_hvg))
+show_config_has_omics_hvg = $(filter clustering,$(show_config_modules))
+show_config_bin_hvg_modules = bin-cells bin-dea bin-consensus spec
+show_config_has_bin_hvg = \
+	$(filter $(show_config_bin_hvg_modules),$(show_config_param_modules))
+show_config_has_hvg = $(strip $(show_config_has_omics_hvg) $(show_config_has_bin_hvg))
 show_config_hvg_params = \
-	ANALYSIS_HVG_METHOD ANALYSIS_HVG_TOP ANALYSIS_HVG_SPAN ANALYSIS_HVG_BINS \
+	OMICS_HVG_METHOD OMICS_HVG_TOP OMICS_HVG_SPAN OMICS_HVG_BINS \
 	BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS
 show_config_relative_path = $(if $(strip $(1)),$(call relative_to_launch,$(1)))
 show_config_raw_var_value = $(if $(filter MEMORY,$(1)),$(if $(strip $(MEMORY)),$(memory_normalized),),$(if $(filter SPEC_FILE,$(1)),$(call show_config_relative_path,$(SPEC_FILE)),$(if $(filter REFERENCES,$(1)),$(display_references_label),$($(1)))))
@@ -325,14 +325,14 @@ define show_config_print_hvg
 $(if $(strip $(show_config_has_hvg)),\
 @printf '\nhighly variable genes\n'
 @printf '%s\n' 'highly variable genes' | sed 's/./-/g')
-$(if $(strip $(show_config_has_analysis_hvg)),\
-	@printf 'analysis:\n'
-	@printf '  - %-6s : %s\n' 'method' "$(call show_config_display_value,$(ANALYSIS_HVG_METHOD))"
-@printf '  - %-6s : %s\n' 'top' "$(call show_config_display_value,$(ANALYSIS_HVG_TOP))"
-@printf '  - %-6s : %s\n' 'span' "$(call show_config_display_value,$(ANALYSIS_HVG_SPAN))"
-@printf '  - %-6s : %s\n' 'bins' "$(call show_config_display_value,$(ANALYSIS_HVG_BINS))")
-$(if $(strip $(show_config_has_binarization_hvg)),\
-$(if $(strip $(show_config_has_analysis_hvg)),@printf '\n')
+$(if $(strip $(show_config_has_omics_hvg)),\
+	@printf 'omics:\n'
+	@printf '  - %-6s : %s\n' 'method' "$(call show_config_display_value,$(OMICS_HVG_METHOD))"
+@printf '  - %-6s : %s\n' 'top' "$(call show_config_display_value,$(OMICS_HVG_TOP))"
+@printf '  - %-6s : %s\n' 'span' "$(call show_config_display_value,$(OMICS_HVG_SPAN))"
+@printf '  - %-6s : %s\n' 'bins' "$(call show_config_display_value,$(OMICS_HVG_BINS))")
+$(if $(strip $(show_config_has_bin_hvg)),\
+$(if $(strip $(show_config_has_omics_hvg)),@printf '\n')
 	@printf 'binarization:\n'
 	@printf '  - %-6s : %s\n' 'method' "$(call show_config_display_value,$(BIN_HVG_METHOD))"
 @printf '  - %-6s : %s\n' 'top' "$(call show_config_display_value,$(BIN_HVG_TOP))"
@@ -631,18 +631,14 @@ else
 						[ -n "$(module_help_has_prior_note)" ]; then \
 					printf '\n'; \
 				fi; \
-				if [ "$(SCBOLT_CLI)" = "true" ]; then \
-					printf '%s\n' 'The active scbolt.yml must contain entries such as:'; \
-				else \
-					printf '%s\n' 'SPEC_FILE must be a YAML file with entries such as:'; \
-				fi; \
+					printf '%s\n' 'The selected specification file must contain entries such as:'; \
 				printf '%s\n' '  constraints:'; \
 				printf '%s\n' '    - ...'; \
-				printf '%s\n' '  important_nodes:'; \
+					printf '%s\n' '  important-nodes:'; \
 				printf '%s\n' '    - ...'; \
-				printf '%s\n' '  mandatory_nodes:'; \
+					printf '%s\n' '  mandatory-nodes:'; \
 				printf '%s\n' '    - ...'; \
-				printf '%s\n' '  forbidden_nodes:'; \
+					printf '%s\n' '  forbidden-nodes:'; \
 				printf '%s\n' '    - ...'; \
 			fi; \
 		fi

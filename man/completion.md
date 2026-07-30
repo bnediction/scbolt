@@ -37,9 +37,9 @@ completion share the same parameter registry. Public YAML keys are exposed as
 dash-separated command-line options:
 
 ```text
-analysis_hvg_method       -> --analysis-hvg-method=
-knnsc_min_cluster_size    -> --knnsc-min-cluster-size=
-max_clauses               -> --max-clauses=
+omics-hvg-method          -> --omics-hvg-method=
+knnsc-min-cluster-size    -> --knnsc-min-cluster-size=
+max-clauses               -> --max-clauses=
 ```
 
 Execution commands may receive several modules. After a complete module and a
@@ -53,7 +53,7 @@ configuration. For example:
 
 ```yaml
 conditions: [ctrl, treated]
-knnsc_centrality:
+knnsc-centrality:
   ctrl: [Prom1, Prom2]
   treated: [Prom1]
 ```
@@ -75,14 +75,14 @@ Closed-value parameters complete to their supported choices. Examples include:
 ```text
 --backend=                  conda mamba micromamba docker
 --organism=                 mouse human
---analysis-hvg-method=      loess binning
+--omics-hvg-method=         loess binning
 --dorothea-api=             modern legacy
 --clingo-mode-seed=         opt optN ignore
 --clingo-strategy-seed=     bb bb,lin bb,hier bb,inc bb,dec
                             usc usc,oll usc,one usc,k usc,pmres
 ```
 
-Boolean options complete to `true` and `false`. `prior_knowledge` proposes
+Boolean options complete to `true` and `false`. `prior-knowledge` proposes
 `dorothea`, `collectri`, and filesystem paths. File-valued options use regular
 filesystem completion, while reset and trust options complete to known scBOLT
 modules.

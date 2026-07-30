@@ -175,8 +175,6 @@ resolve_clingo_config = $(if $(strip $($(1))),\
 $(call resolve_user_path_var,PROJECT_DIR)
 $(call resolve_user_path_var,SPEC_FILE)
 $(call resolve_user_path_var,BINARIZATION_FILE)
-$(call resolve_user_path_list_var,COUNT_FILES)
-$(call resolve_user_path_list_var,MACROSTATE_FILES)
 $(if $(filter $(strip $(PRIOR_KNOWLEDGE)),collectri dorothea),,$(call resolve_user_path_var,PRIOR_KNOWLEDGE))
 $(if $(filter $(strip $(GENEINFO_VERSION)),bundled latest),,$(call resolve_user_path_var,GENEINFO_VERSION))
 $(call resolve_user_path_var,STAR_WHITELIST)
@@ -192,6 +190,7 @@ translate_case = $(eval _=$1)$(strip $(foreach pair,$(_lower2upper),\
 	$(eval _=$(subst $(call $(2),$(pair)),$(call $(3),$(pair)),$_))))$_
 toupper = $(call translate_case,$1,_lower,_upper)
 tolower = $(call translate_case,$1,_upper,_lower)
+condition_suffix = $(subst -,_,$(call toupper,$(1)))
 
 ## BEGIN NUMERICAL PROFILE ##
 
@@ -373,11 +372,48 @@ display_references_default := $(call display_list,$(references_default))
 display_references_default_label := $(if $(display_references_default),$(display_references_default),unnamed)
 display_supported_references := $(call display_list,$(supported_references))
 display_supported_references_label := $(if $(display_supported_references),$(display_supported_references),unnamed)
-gsm_var = $(if $(filter true,$(unnamed_condition)),GSM,GSM_$(call toupper,$(1)))
-sra_var = $(if $(filter true,$(unnamed_condition)),SRA,SRA_$(call toupper,$(1)))
+gsm_var = $(if $(filter true,$(unnamed_condition)),GSM,GSM_$(call condition_suffix,$(1)))
+sra_var = $(if $(filter true,$(unnamed_condition)),SRA,SRA_$(call condition_suffix,$(1)))
 gsm_value = $(strip $($(call gsm_var,$(1))))
 sra_value = $(strip $($(call sra_var,$(1))))
-condition_param_var = $(if $(filter true,$(unnamed_condition)),$(1),$(1)_$(call toupper,$(2)))
+condition_param_var = $(if $(filter true,$(unnamed_condition)),$(1),$(1)_$(call condition_suffix,$(2)))
+count_file_var = $(call condition_param_var,COUNT_FILE,$(1))
+macrostate_file_var = $(call condition_param_var,MACROSTATE_FILE,$(1))
+count_file_params := $(foreach condition,$(conditions),$(call count_file_var,$(condition)))
+macrostate_file_condition_params := $(foreach condition,$(conditions),\
+	$(call macrostate_file_var,$(condition)))
+macrostate_file_params := $(if $(filter true,$(unnamed_condition)),MACROSTATE_FILE,\
+	MACROSTATE_FILE $(macrostate_file_condition_params))
+$(foreach var,$(call uniq,$(count_file_params) $(macrostate_file_params)),\
+	$(if $(strip $($(var))),$(call resolve_user_path_var,$(var))))
+$(call resolve_user_path_list_var,COUNT_FILES)
+$(call resolve_user_path_list_var,MACROSTATE_FILES)
+count_files_from_conditions := $(strip $(foreach condition,$(conditions),\
+	$($(call count_file_var,$(condition)))))
+macrostate_files_from_conditions := $(strip $(if $(filter true,$(unnamed_condition)),,\
+	$(foreach condition,$(conditions),$($(call macrostate_file_var,$(condition))))))
+macrostate_file_shared := $(strip $(MACROSTATE_FILE))
+ifneq ($(strip $(COUNT_FILES)),)
+ifneq ($(count_files_from_conditions),)
+$(error COUNT_FILES cannot be combined with condition-specific COUNT_FILE parameters)
+endif
+else ifneq ($(count_files_from_conditions),)
+override COUNT_FILES := $(count_files_from_conditions)
+endif
+ifneq ($(macrostate_file_shared),)
+ifneq ($(macrostate_files_from_conditions),)
+$(error MACROSTATE_FILE cannot be combined with condition-specific MACROSTATE_FILE parameters)
+endif
+endif
+ifneq ($(strip $(MACROSTATE_FILES)),)
+ifneq ($(strip $(macrostate_file_shared) $(macrostate_files_from_conditions)),)
+$(error MACROSTATE_FILES cannot be combined with MACROSTATE_FILE parameters)
+endif
+else ifneq ($(macrostate_file_shared),)
+override MACROSTATE_FILES := $(macrostate_file_shared)
+else ifneq ($(macrostate_files_from_conditions),)
+override MACROSTATE_FILES := $(macrostate_files_from_conditions)
+endif
 gsm_conditions := $(strip $(foreach condition,$(conditions),\
 	$(if $(call gsm_value,$(condition)),$(condition))))
 sra_conditions := $(strip $(foreach condition,$(conditions),\
@@ -619,10 +655,10 @@ $(call require_bool,CONSISTENT_MAD,filtering)
 endef
 
 define require_clustering_parameters
-$(call require_choice,ANALYSIS_HVG_METHOD,loess binning,clustering); \
-$(call require_optional_positive_integer,ANALYSIS_HVG_TOP); \
-$(call require_float,ANALYSIS_HVG_SPAN); \
-$(call require_positive_integer,ANALYSIS_HVG_BINS); \
+$(call require_choice,OMICS_HVG_METHOD,loess binning,clustering); \
+$(call require_optional_positive_integer,OMICS_HVG_TOP); \
+$(call require_float,OMICS_HVG_SPAN); \
+$(call require_positive_integer,OMICS_HVG_BINS); \
 $(call require_positive_integer,DIM_PCA); \
 $(call require_positive_integer,DIM_EMBEDDING); \
 $(call require_bool,CENTERED_PCA,clustering); \

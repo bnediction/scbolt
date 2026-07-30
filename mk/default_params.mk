@@ -113,11 +113,11 @@ $(eval MT ?= 0.05)                          # maximum mitochondrial count fracti
 $(eval CC_CORRECTION ?= true)               # regress out cell-cycle effects
 
 ## CLUSTERING ##
-# If ANALYSIS_HVG_TOP is empty, the number of HVGs is estimated automatically.
-$(eval ANALYSIS_HVG_METHOD ?= loess)        # HVG method for analysis modules
-$(eval ANALYSIS_HVG_TOP ?=)                 # top HVGs for analysis modules
-$(eval ANALYSIS_HVG_SPAN ?= 0.3)            # cell fraction used by loess
-$(eval ANALYSIS_HVG_BINS ?= 20)             # mean-expression bins for HVG selection
+# If OMICS_HVG_TOP is empty, the number of HVGs is estimated automatically.
+$(eval OMICS_HVG_METHOD ?= loess)        # HVG method for omics modules
+$(eval OMICS_HVG_TOP ?=)                 # top HVGs for omics modules
+$(eval OMICS_HVG_SPAN ?= 0.3)            # cell fraction used by loess
+$(eval OMICS_HVG_BINS ?= 20)             # mean-expression bins for HVG selection
 # INTEGRATION values: bbknn, scanorama, ingest.
 $(eval INTEGRATION ?= bbknn)                # integration method
 $(eval DIM_PCA ?= 50)                       # number of PCA components
