@@ -23,10 +23,10 @@ matching default GHCR image.
 
 ## Install the launcher
 
-Run the downloaded launcher once to install it for the current user:
+From a repository checkout, run the platform installer once:
 
 ```sh
-./scbolt-linux-amd64
+./install
 ```
 
 This copies the executable to `~/.local/bin/scbolt` and installs the
@@ -39,7 +39,7 @@ the scBOLT source, Make workflow, system tools, and Conda environments.
 On Windows, run the equivalent executable from PowerShell:
 
 ```powershell
-.\scbolt-windows-amd64.exe
+.\install.exe
 ```
 
 Once the launcher is installed, backend management is independent:
@@ -62,10 +62,10 @@ then invokes the scBOLT Makefile directly; it does not pass through the Bash
 CLI wrapper. The scripts under `bin/` remain available for development.
 
 The native installer creates or replaces the managed environments by invoking
-Conda, Mamba, or Micromamba directly. It records the local checkout, installs
-the launcher and completion adapters, and never invokes the repository
-`./install` script. Bash is therefore needed only inside `scbolt-system`, not on
-the host during installation or execution.
+Conda, Mamba, or Micromamba directly. It records the local checkout and installs
+the launcher and completion adapters. The repository `./install` file only
+selects the native launcher. Bash is therefore needed only inside
+`scbolt-system`, not on the host during installation or execution.
 
 For a source build, use Go directly:
 
@@ -74,8 +74,8 @@ go build -o build/launcher/scbolt-native ./launcher/scbolt
 ./build/launcher/scbolt-native
 ```
 
-Users of a prebuilt release launcher do not need Go. The legacy `./install`
-script remains available for development workflows.
+Users of the tracked release launchers do not need Go. `make -C launcher release`
+also copies the Windows launcher to the repository root as `install.exe`.
 
 ## Completion
 
@@ -87,16 +87,15 @@ make -C launcher manifest
 make -C launcher manifest-check
 ```
 
-At runtime no checkout, Make process, Python process, or container is needed:
+Completion adapters are installed with the launcher. They can be repaired or
+reinstalled without changing the selected backend or its environments:
 
 ```sh
-scbolt completion bash
-scbolt completion zsh
-scbolt completion fish
-scbolt completion powershell
+scbolt install --completions
 ```
 
-The generated shell adapters call the internal `scbolt __complete` protocol.
+No checkout, Make process, Python process, or container is needed. The generated
+shell adapters call the internal `scbolt __complete` protocol.
 Project-dependent values are read locally from `.scbolt` and the selected
 parameter file.
 

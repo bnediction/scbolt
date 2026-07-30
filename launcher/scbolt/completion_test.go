@@ -17,7 +17,6 @@ func TestEmbeddedCompletionManifest(t *testing.T) {
 		t.Fatal("embedded launcher help is missing")
 	}
 	for _, name := range []string{
-		"completion",
 		"diagnostics",
 		"install",
 		"bn-submin",
@@ -26,6 +25,9 @@ func TestEmbeddedCompletionManifest(t *testing.T) {
 		if commandByName(manifest, name) == nil {
 			t.Fatalf("missing command in embedded manifest: %s", name)
 		}
+	}
+	if commandByName(manifest, "completion") != nil {
+		t.Fatal("removed public completion command remains in embedded manifest")
 	}
 }
 
@@ -139,15 +141,132 @@ func TestCompleteCommandsAndModuleOptions(t *testing.T) {
 			want:  []string{"--clingo-strategy-soft=bb,inc"},
 		},
 		{
-			words: []string{"scbolt", "completion", "p"},
+			words: []string{"scbolt", "install", "--com"},
 			index: 2,
-			want:  []string{"powershell"},
+			want:  []string{"--completions"},
 		},
 	}
 	for _, test := range tests {
 		got := completeWords(manifest, test.words, test.index)
 		if !reflect.DeepEqual(got, test.want) {
 			t.Fatalf("completion for %v: got %v, want %v", test.words, got, test.want)
+		}
+	}
+}
+
+func TestCompleteConditionDependentOptions(t *testing.T) {
+	manifest, err := loadCompletionManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	configuration := writeProjectConfiguration(t, `
+knnsc_centrality_ctrl: [Prom1, Prom2]
+knnsc_centrality_treated: [Prom1]
+`)
+	tests := []struct {
+		prefix string
+		want   []string
+	}{
+		{
+			prefix: "--knnsc-c",
+			want: []string{
+				"--knnsc-centrality-ctrl=",
+				"--knnsc-centrality-treated=",
+			},
+		},
+		{
+			prefix: "--knnsc-p",
+			want: []string{
+				"--knnsc-periphery-ctrl=",
+				"--knnsc-periphery-treated=",
+			},
+		},
+	}
+	for _, test := range tests {
+		words := []string{
+			"scbolt",
+			"knnsc",
+			"--config=" + configuration,
+			test.prefix,
+		}
+		got := completeWords(manifest, words, 3)
+		if !reflect.DeepEqual(got, test.want) {
+			t.Fatalf("completion for %q: got %v, want %v", test.prefix, got, test.want)
+		}
+	}
+}
+
+func TestParsePublicParameterOptions(t *testing.T) {
+	help := `Parameters
+----------
+  configuration              scbolt.yml (existing yaml file)
+  max_clauses                8 (>= 1)
+  binarization_include_nodes Rara Spi1 (node list, optional)
+
+Notes
+-----
+`
+	want := []completionOption{
+		{Name: "--binarization-include-nodes="},
+		{Name: "--max-clauses="},
+	}
+	if got := parseParameterOptions(help); !reflect.DeepEqual(got, want) {
+		t.Fatalf("parameter options = %#v, want %#v", got, want)
+	}
+}
+
+func TestCompleteInitParameterSelection(t *testing.T) {
+	manifest, err := loadCompletionManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	for name, contents := range map[string]string{
+		"params.mk": "ORGANISM = mouse\n",
+		"notes.txt": "not a parameter file\n",
+	} {
+		if err := os.WriteFile(
+			filepath.Join(directory, name),
+			[]byte(contents),
+			0o644,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(directory); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(workingDirectory); err != nil {
+			t.Errorf("restore working directory: %v", err)
+		}
+	})
+
+	before := completeWords(
+		manifest,
+		[]string{"scbolt", "init", ""},
+		2,
+	)
+	wantBefore := []string{"--help", "--remove", "--show", "params.mk", "scbolt.yml"}
+	if !reflect.DeepEqual(before, wantBefore) {
+		t.Fatalf("init selection completion: got %v, want %v", before, wantBefore)
+	}
+
+	after := completeWords(
+		manifest,
+		[]string{"scbolt", "init", "params.mk", ""},
+		3,
+	)
+	if !containsString(after, "--organism=") {
+		t.Fatalf("init parameter completion lacks --organism=: %v", after)
+	}
+	for _, unexpected := range []string{"--remove", "--show"} {
+		if containsString(after, unexpected) {
+			t.Fatalf("init parameter completion contains %s: %v", unexpected, after)
 		}
 	}
 }

@@ -53,7 +53,7 @@ Prebuilt executables are available for:
 | Linux x86-64 | [`scbolt-linux-amd64`](dist/scbolt-linux-amd64) |
 | macOS Intel | [`scbolt-darwin-amd64`](dist/scbolt-darwin-amd64) |
 | macOS Apple silicon | [`scbolt-darwin-arm64`](dist/scbolt-darwin-arm64) |
-| Windows x86-64 | [`scbolt-windows-amd64.exe`](dist/scbolt-windows-amd64.exe) |
+| Windows x86-64 | [`install.exe`](install.exe) |
 
 For a local backend, clone scBOLT and run the matching launcher from the
 checkout:
@@ -61,7 +61,7 @@ checkout:
 ```sh
 git clone https://github.com/bnediction/scbolt.git scbolt
 cd scbolt
-./dist/scbolt-linux-amd64
+./install
 ```
 
 The executable installs itself and shell completion, then proposes Conda,
@@ -83,10 +83,10 @@ keeps normal commands such as `scbolt bn-submin` unchanged. The checkout is not
 needed after a Docker installation. Docker can later be selected explicitly
 with `scbolt install docker`.
 
-On Windows, use the corresponding command from PowerShell:
+On Windows, clone the repository and run the native installer from PowerShell:
 
 ```powershell
-.\scbolt-windows-amd64.exe
+.\install.exe
 ```
 
 ## Source installation
@@ -100,15 +100,16 @@ go build -o build/launcher/scbolt-native ./launcher/scbolt
 ./build/launcher/scbolt-native
 ```
 
-The legacy `./install` script remains available for POSIX development workflows,
-but the native installer does not invoke it and does not require host Bash.
+The root `./install` file is a small POSIX dispatcher. It only selects the
+matching Linux or macOS launcher; all installation logic remains in Go. It does
+not require host Bash.
 
 Initialize a project in any working directory:
 
 ```sh
 mkdir my_project
 cd my_project
-scbolt init params.mk
+scbolt init scbolt.yml
 ```
 
 Verify the installation:
@@ -134,7 +135,7 @@ The following resources are only required when starting from raw sequencing data
 * Reference genomes and RepeatMasker annotations are downloaded automatically
   for supported organisms when needed.
 
-For long-term reproducibility in raw FASTQ mode, back up `RESOURCES_DIR`
+For long-term reproducibility in raw FASTQ mode, back up `resources_dir`
 together with the project. scBOLT does not redistribute large third-party
 reference archives.
 
@@ -150,11 +151,12 @@ See `quickstart/README.md` for the commands.
 
 # Output Layout
 
-Generated files are written under `PROJECT_DIR` with separate namespaces:
+Generated files are written under `project_dir` with separate namespaces:
 
 * `omics/`: reference-level single-cell objects, plots, trajectories, and macrostates;
 * `bin/`: Boolean abstractions of cells and macrostates;
-* `infer/`: BoNesis specifications, selected genes, and inferred Boolean networks;
+* the configured `inference_dir`: BoNesis specifications, selected genes, and
+  inferred Boolean networks (default: `infer/`);
 * `logs/`: command logs.
 
 This avoids collisions with condition names such as `bin`, `infer`, or `logs`.
@@ -183,12 +185,14 @@ scbolt clean help
 Create, update, or remove the project configuration:
 
 ```bash
-scbolt init <params.mk>
+scbolt init [scbolt.yml]
 scbolt init --show
 scbolt init --remove
 ```
 
-If `<params.mk>` does not exist, `scbolt init` creates a minimal parameter file.
+With no path, `scbolt init` creates a commented `scbolt.yml` and its Boolean
+inference `spec.yml`. The `.scbolt` project locator remains the stable way for
+the launcher to find the project configuration.
 
 Run a module:
 
@@ -244,7 +248,7 @@ With `--all`, it asks before removing cache, logs, and all generated module outp
 
 | Option                         | Description                                           |
 | ------------------------------ | ----------------------------------------------------- |
-| `--params=<file>`              | Select the parameter file.                            |
+| `--config=<file>`              | Select the project configuration file.                |
 | `--references=<condition...>`  | Restrict execution to selected references.            |
 | `--reset-target=<module...>`   | Rebuild from these modules.                           |
 | `--trust-target=<module...>`   | Trust all outputs from selected modules.              |
@@ -253,16 +257,21 @@ With `--all`, it asks before removing cache, logs, and all generated module outp
 | `--logging=false`              | Disable persistent logging.                           |
 | `--help`                       | Display command-specific help when supported.         |
 | `--raw`                        | Display raw `config` listing.                         |
-| `--<parameter>=<value>`        | Override any Make parameter using dash-separated option names. |
+| `--<parameter>=<value>`        | Override a configuration value for one command.       |
 | `--prior-knowledge=<resource>` | Use `collectri`, `dorothea`, or a custom regulatory network. |
 
 `--trust-existing` only trusts known DAG outputs present when the command
 starts; missing outputs are built normally. `--reset-target` always takes
 priority and excludes the requested rebuild path from trust.
 
-Make-style assignments such as `PRIOR_KNOWLEDGE=dorothea` remain supported.
+Configuration precedence is: command-line overrides, project `scbolt.yml`,
+global configuration, then scBOLT defaults. Boolean constraints and node lists
+live in the separate file selected by `spec_file`, normally `spec.yml`. Legacy
+`params.mk` projects remain readable during the transition and emit a
+deprecation warning.
 
-Advanced documentation is available in: `man/`, including rebuild controls in
+See `man/configuration.md` for the YAML schema and migration table. Advanced
+documentation is available in `man/`, including rebuild controls in
 `man/rebuilds.md`.
 
 Examples:

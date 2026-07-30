@@ -61,22 +61,6 @@ func handleLauncherCommand(args []string) (bool, error) {
 			}
 		}
 		return false, nil
-	case "completion":
-		if len(args) == 2 && (args[1] == "--help" || args[1] == "help") {
-			fmt.Print("usage: scbolt completion bash|zsh|fish|powershell\n")
-			return true, nil
-		}
-		if len(args) != 2 {
-			return true, errors.New(
-				"usage: scbolt completion bash|zsh|fish|powershell",
-			)
-		}
-		script, err := completionScript(args[1])
-		if err != nil {
-			return true, err
-		}
-		fmt.Print(script)
-		return true, nil
 	case "install":
 		for _, argument := range args[1:] {
 			if argument == "--help" || argument == "-h" || argument == "help" {
@@ -104,9 +88,9 @@ func handleLauncherCommand(args []string) (bool, error) {
 	}
 }
 
-const launcherInstallHelp = `usage: scbolt install [BACKEND] [--all] [--env=NAME]
+const launcherInstallHelp = `usage: scbolt install [BACKEND] [--all] [--env=NAME] [--completions]
 
-Install a scBOLT runtime backend.
+Install a scBOLT runtime backend or repair shell completions.
 
 Arguments
   BACKEND                conda, mamba, micromamba, or docker
@@ -114,6 +98,7 @@ Arguments
 Options
   --all                  install all runtime environments without prompts
   --env=NAME             install one environment; can be repeated
+  --completions          reinstall shell completion adapters only
   --backend=BACKEND      alternate syntax for selecting BACKEND
   --scbolt-image=IMAGE   override the Docker image
   --help                 display this help
@@ -130,8 +115,7 @@ func printLauncherHelp() {
 	help := strings.Replace(
 		manifest.Help,
 		"\n\nDownload\n",
-		"\n  install                 install a runtime backend\n"+
-			"  completion              generate shell completion\n\nDownload\n",
+		"\n  install                 install a runtime backend\n\nDownload\n",
 		1,
 	)
 	fmt.Print(styleLauncherHelp(help, manifest.Commands, isTerminal(os.Stdout)))
@@ -281,18 +265,12 @@ func completeWords(
 		return matchingCandidates(candidates, current)
 	}
 
-	if command.Name == "completion" && index > commandIndex {
-		return matchingCandidates(
-			[]string{"bash", "zsh", "fish", "powershell"},
-			current,
-		)
-	}
 	if command.Name == "help" && index > commandIndex {
 		return matchingCandidates(commandNames(manifest), current)
 	}
 
 	target := completionTarget(manifest, *command, words, commandIndex, index)
-	options := completionOptions(manifest, *command, target)
+	options := completionOptions(manifest, *command, target, words)
 	if option, value, attached := attachedCompletionOption(options, current); attached {
 		return completeOptionValue(
 			manifest,
@@ -313,6 +291,16 @@ func completeWords(
 			)
 		}
 	}
+	if command.Name == "init" {
+		return completeInit(
+			*command,
+			options,
+			words,
+			commandIndex,
+			index,
+			current,
+		)
+	}
 	if strings.HasPrefix(current, "-") {
 		return matchingCandidates(optionNames(options), current)
 	}
@@ -328,6 +316,58 @@ func completeWords(
 		return matchingCandidates(candidates, current)
 	}
 	return matchingCandidates(optionNames(options), current)
+}
+
+func completeInit(
+	command completionCommand,
+	options []completionOption,
+	words []string,
+	commandIndex int,
+	cursorIndex int,
+	current string,
+) []string {
+	if !initHasConfigurationFile(options, words, commandIndex, cursorIndex) {
+		candidates := optionNames(command.Options)
+		if !strings.HasPrefix(current, "-") {
+			candidates = append(candidates, completeConfigurationFiles(current)...)
+		}
+		return matchingCandidates(candidates, current)
+	}
+
+	filtered := make([]completionOption, 0, len(options))
+	for _, option := range options {
+		if option.Name != "--remove" && option.Name != "--show" {
+			filtered = append(filtered, option)
+		}
+	}
+	return matchingCandidates(optionNames(filtered), current)
+}
+
+func initHasConfigurationFile(
+	options []completionOption,
+	words []string,
+	commandIndex int,
+	cursorIndex int,
+) bool {
+	mapped := optionMap(options)
+	for position := commandIndex + 1; position < cursorIndex; position++ {
+		word := words[position]
+		switch {
+		case word == "--config" || word == "--params":
+			return position+1 < cursorIndex
+		case strings.HasPrefix(word, "--config=") || strings.HasPrefix(word, "--params="):
+			return true
+		case strings.HasPrefix(word, "--"):
+			if _, found := mapped[word+"="]; found {
+				position++
+			}
+		case isHelpToken(word), strings.Contains(word, "="):
+			continue
+		default:
+			return true
+		}
+	}
+	return false
 }
 
 func installBackendBeforeCursor(
@@ -403,6 +443,7 @@ func completionOptions(
 	manifest completionManifest,
 	command completionCommand,
 	target string,
+	words []string,
 ) []completionOption {
 	options := append([]completionOption{}, manifest.GlobalOptions...)
 	options = append(options, command.Options...)
@@ -411,7 +452,48 @@ func completionOptions(
 			options = append(options, targetCommand.Options...)
 		}
 	}
-	return uniqueCompletionOptions(options)
+	options = uniqueCompletionOptions(options)
+	return expandConditionalCompletionOptions(options, completionConditionNames(words))
+}
+
+func expandConditionalCompletionOptions(
+	options []completionOption,
+	conditions []string,
+) []completionOption {
+	if len(conditions) == 0 {
+		return options
+	}
+	expanded := make([]completionOption, 0, len(options))
+	for _, option := range options {
+		key, conditional := conditionalCompletionKey(option.Name)
+		if !conditional {
+			expanded = append(expanded, option)
+			continue
+		}
+		prefix := "--" + strings.ReplaceAll(key, "_", "-") + "-"
+		for _, condition := range conditions {
+			conditionOption := option
+			conditionOption.Name = prefix + strings.NewReplacer(
+				"_", "-",
+				" ", "-",
+			).Replace(strings.ToLower(condition)) + "="
+			expanded = append(expanded, conditionOption)
+		}
+	}
+	return uniqueCompletionOptions(expanded)
+}
+
+func conditionalCompletionKey(option string) (string, bool) {
+	for key, parameter := range yamlParameters {
+		if !parameter.condition {
+			continue
+		}
+		name := "--" + strings.ReplaceAll(key, "_", "-") + "="
+		if option == name {
+			return key, true
+		}
+	}
+	return "", false
 }
 
 func attachedCompletionOption(
@@ -460,7 +542,11 @@ func completeOptionValue(
 		values = manifest.Modules
 	}
 	if option.File {
-		values = append(values, completeFiles(prefix)...)
+		if option.Name == "--config=" || option.Name == "--params=" {
+			values = append(values, completeConfigurationFiles(prefix)...)
+		} else {
+			values = append(values, completeFiles(prefix)...)
+		}
 	}
 	values = matchingCandidatesInOrder(values, prefix)
 	if attachedPrefix != "" {
@@ -485,19 +571,38 @@ func matchingCandidatesInOrder(candidates []string, prefix string) []string {
 }
 
 func completionReferences(words []string) []string {
-	args := words
-	if len(args) > 0 {
-		args = args[1:]
-	}
-	params := paramsPathFromArgs(args)
-	if params == "" {
-		return nil
-	}
-	conditions := strings.Fields(readConfigVariable(params, "CONDITIONS"))
+	conditions := completionConditionNames(words)
 	if len(conditions) > 1 {
 		conditions = append(conditions, "integrated")
 	}
 	return conditions
+}
+
+func completionConditionNames(words []string) []string {
+	args := words
+	if len(args) > 0 {
+		args = args[1:]
+	}
+	if value, found := argumentSetting(args, "CONDITIONS"); found {
+		return uniqueStrings(strings.Fields(value))
+	}
+	configurationPath, _, format, err := selectedConfigurationPath(args)
+	if err != nil || configurationPath == "" {
+		return nil
+	}
+	var configuration *projectConfiguration
+	if format == configurationYAML {
+		loaded, loadErr := loadProjectConfiguration(configurationPath)
+		if loadErr != nil {
+			return nil
+		}
+		configuration = loaded
+	}
+	return uniqueStrings(configurationConditionNames(
+		configurationPath,
+		format,
+		configuration,
+	))
 }
 
 func completeFiles(prefix string) []string {
@@ -527,6 +632,48 @@ func completeFiles(prefix string) []string {
 			candidate += string(filepath.Separator)
 		}
 		candidates = append(candidates, candidate)
+	}
+	sort.Strings(candidates)
+	return candidates
+}
+
+func completeConfigurationFiles(prefix string) []string {
+	directory := filepath.Dir(prefix)
+	base := filepath.Base(prefix)
+	if prefix == "" {
+		directory = "."
+		base = ""
+	} else if strings.HasSuffix(prefix, "/") || strings.HasSuffix(prefix, "\\") {
+		directory = filepath.Clean(prefix)
+		base = ""
+	}
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return nil
+	}
+	candidates := make([]string, 0)
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), base) {
+			continue
+		}
+		candidate := entry.Name()
+		if directory != "." {
+			candidate = filepath.Join(directory, candidate)
+		}
+		if entry.IsDir() {
+			candidate += string(filepath.Separator)
+		} else {
+			switch strings.ToLower(filepath.Ext(entry.Name())) {
+			case ".yml", ".yaml", ".mk":
+			default:
+				continue
+			}
+		}
+		candidates = append(candidates, candidate)
+	}
+	if directory == "." && strings.HasPrefix(defaultProjectConfigurationFile, base) &&
+		!exists(defaultProjectConfigurationFile) {
+		candidates = append(candidates, defaultProjectConfigurationFile)
 	}
 	sort.Strings(candidates)
 	return candidates

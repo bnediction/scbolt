@@ -28,7 +28,7 @@ EOF
 chmod +x "${system_prefix}/bin/make"
 
 cat > "${project}/.scbolt" <<EOF
-PARAMS = ${repo_root}/tests/fixtures/params.mk
+CONFIG = ${repo_root}/tests/fixtures/scbolt.yml
 EOF
 
 for backend in conda mamba micromamba; do
@@ -53,6 +53,38 @@ done
 
 grep -q -- "-f ${repo_root}/Makefile config DEFAULT_CONFIG=true" "${trace}"
 grep -q -- "-f ${repo_root}/Makefile check TARGET=max-nodes-seed" "${trace}"
+
+(
+    cd "${project}"
+    SCBOLT_ROOT="${repo_root}" \
+    SCBOLT_ENV_MANAGER="$(command -v true)" \
+    SCBOLT_SYSTEM_PREFIX="${system_prefix}" \
+        "${launcher}" --backend=conda dry-run max-nodes-seed \
+        > "${tmpdir}/yaml-dry-run.out"
+)
+
+cat > "${project}/.scbolt" <<EOF
+PARAMS = ${repo_root}/tests/fixtures/params.mk
+EOF
+(
+    cd "${project}"
+    SCBOLT_ROOT="${repo_root}" \
+    SCBOLT_ENV_MANAGER="$(command -v true)" \
+    SCBOLT_SYSTEM_PREFIX="${system_prefix}" \
+        "${launcher}" --backend=conda dry-run max-nodes-seed \
+        > "${tmpdir}/legacy-dry-run.out"
+)
+
+sed -n 's/.*"RULE" "\([^"]*\)".*/\1/p' \
+    "${tmpdir}/yaml-dry-run.out" > "${tmpdir}/yaml-rules"
+sed -n 's/.*"RULE" "\([^"]*\)".*/\1/p' \
+    "${tmpdir}/legacy-dry-run.out" > "${tmpdir}/legacy-rules"
+test -s "${tmpdir}/yaml-rules"
+cmp "${tmpdir}/yaml-rules" "${tmpdir}/legacy-rules"
+
+cat > "${project}/.scbolt" <<EOF
+CONFIG = ${repo_root}/tests/fixtures/scbolt.yml
+EOF
 
 child_pid_file="${tmpdir}/child.pid"
 cat > "${system_prefix}/bin/make" <<EOF

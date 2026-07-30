@@ -42,6 +42,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: "1.22"
+      - run: make -C launcher test
       - run: bash tests/compatibility/test_install_backend_config.sh
       - run: bash tests/compatibility/test_backend_precedence.sh
       - run: bash tests/compatibility/test_system_tools_fallback.sh

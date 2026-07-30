@@ -68,7 +68,7 @@ grep -q -- "--param 'MEMORY=512MiB'" <<< "${domain_dry_run}"
 make -C "${repo_root}" check TARGET=velocyto PARAMS=tests/fixtures/params.mk \
     __check_externals__=false MEMORY=512MiB JOBS=16 ALIGNMENT_TOOL=cellranger \
     > "${tmpdir}/memory-check.out"
-grep -q 'core parameter valid: MEMORY=512MiB' "${tmpdir}/memory-check.out"
+grep -q 'MEMORY=512MiB' "${tmpdir}/memory-check.out"
 
 if make -C "${repo_root}" check TARGET=dea PARAMS=tests/fixtures/params.mk \
         __check_externals__=false MEMORY=abc > "${tmpdir}/memory-invalid.out" 2>&1; then

@@ -179,7 +179,7 @@ func validateDiagnosticsArguments(args []string) error {
 			continue
 		}
 		switch argument {
-		case "--params", "--backend", "--logging":
+		case "--config", "--params", "--backend", "--logging":
 			if index+1 >= len(args) || args[index+1] == "diagnostics" {
 				return fmt.Errorf("missing value for %s", argument)
 			}
@@ -233,15 +233,18 @@ func buildDiagnosticConfiguration(
 	if projectFile != "" {
 		projectRoot = filepath.Dir(projectFile)
 	}
-	params := effectiveSetting{value: cfg.paramsPath, source: cfg.paramsSource}
+	params := effectiveSetting{
+		value:  cfg.configurationPath,
+		source: cfg.configurationSource,
+	}
 	project := cfg.setting("PROJECT_DIR")
 	resources := cfg.setting("RESOURCES_DIR")
-	projectSelected := cfg.paramsPath != "" || projectFile != "" || project.source == "cli"
+	projectSelected := cfg.configurationPath != "" || projectFile != "" || project.source == "cli"
 
 	project.value = resolveDiagnosticPath(
 		project.value,
 		project.source,
-		cfg.paramsPath,
+		cfg.configurationPath,
 		projectRoot,
 		workingDirectory,
 		false,
@@ -249,7 +252,7 @@ func buildDiagnosticConfiguration(
 	resources.value = resolveDiagnosticPath(
 		resources.value,
 		resources.source,
-		cfg.paramsPath,
+		cfg.configurationPath,
 		projectRoot,
 		workingDirectory,
 		true,
@@ -346,24 +349,31 @@ func collectScboltDiagnostics(
 	if collection.config.params.value == "" {
 		collection.report.Add(Diagnostic{
 			Section: "scBOLT",
-			Name:    "parameter file",
+			Name:    "configuration file",
 			Value:   "not selected",
 			Status:  DiagnosticOK,
 		})
 	} else if info, statErr := os.Stat(collection.config.params.value); statErr != nil || info.IsDir() {
 		collection.report.Add(Diagnostic{
 			Section: "scBOLT",
-			Name:    "parameter file",
+			Name:    "configuration file",
 			Value:   collection.config.params.value,
 			Status:  DiagnosticError,
-			Detail:  "Select an existing readable .mk parameter file.",
+			Detail:  "Select an existing readable .yml, .yaml, or legacy .mk configuration file.",
 		})
 	} else {
+		status := DiagnosticOK
+		detail := ""
+		if configurationFormatForPath(collection.config.params.value) == configurationLegacy {
+			status = DiagnosticWarning
+			detail = "Legacy Make parameter files are deprecated; migrate this project to scbolt.yml."
+		}
 		collection.report.Add(Diagnostic{
 			Section: "scBOLT",
-			Name:    "parameter file",
+			Name:    "configuration file",
 			Value:   collection.config.params.value,
-			Status:  DiagnosticOK,
+			Status:  status,
+			Detail:  detail,
 		})
 	}
 
@@ -412,7 +422,7 @@ func collectConfigurationDiagnostics(collection *diagnosticCollection) {
 	)
 	addConfigurationDiagnostic(
 		&collection.report,
-		"parameter file",
+		"configuration file",
 		collection.config.params,
 	)
 	if collection.config.projectSelected {
@@ -475,7 +485,7 @@ func displayConfigurationSource(source string) string {
 	switch source {
 	case "cli":
 		return "CLI override"
-	case "params":
+	case "params", "project-config":
 		return "project configuration"
 	case "user-config":
 		return "global configuration"

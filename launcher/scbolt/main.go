@@ -24,15 +24,17 @@ var (
 )
 
 type config struct {
-	backend         string
-	backendSource   string
-	image           string
-	engine          string
-	containerArgs   string
-	containerMounts string
-	paramsPath      string
-	paramsSource    string
-	settings        map[string]effectiveSetting
+	backend             string
+	backendSource       string
+	image               string
+	engine              string
+	containerArgs       string
+	containerMounts     string
+	configurationPath   string
+	configurationSource string
+	configurationFormat configurationFormat
+	projectConfig       *projectConfiguration
+	settings            map[string]effectiveSetting
 }
 
 type effectiveSetting struct {
@@ -64,7 +66,8 @@ func main() {
 		printLauncherHelp()
 		return
 	}
-	if isHelpToken(args[0]) || firstCommand(args) == "help" {
+	if (isHelpToken(args[0]) || firstCommand(args) == "help") &&
+		os.Getenv("SCBOLT_GENERATING_COMPLETION_MANIFEST") != "true" {
 		printLauncherHelp()
 		return
 	}
@@ -79,10 +82,24 @@ func main() {
 		printLauncherVersion()
 		return
 	}
+	if isCompletionInstallCommand(args) {
+		if installErr := runInstall(config{}, installArgs(args)); installErr != nil {
+			fatal(installErr)
+		}
+		return
+	}
 
 	cfg, err := effectiveConfig(args)
 	if err != nil {
 		fatal(err)
+	}
+	if cfg.configurationFormat == configurationLegacy &&
+		firstCommand(args) != "diagnostics" &&
+		os.Getenv("SCBOLT_IN_DOCKER") != "true" {
+		printWarningTo(
+			os.Stderr,
+			"legacy Make parameter files are deprecated; use scbolt.yml",
+		)
 	}
 	if firstCommand(args) == "diagnostics" {
 		status, diagnosticsErr := runDiagnosticsCommand(
@@ -224,9 +241,9 @@ func execDocker(cfg config, args []string) {
 	if projectFile := findProjectFile(cwd); projectFile != "" {
 		mounts.add(filepath.Dir(projectFile))
 	}
-	params := paramsPathFromArgs(args)
-	if params != "" {
-		mounts.add(filepath.Dir(params))
+	configurationPath := cfg.configurationPath
+	if configurationPath != "" {
+		mounts.add(filepath.Dir(configurationPath))
 	}
 	for _, mount := range strings.Fields(cfg.containerMounts) {
 		mounts.add(mount)
@@ -276,7 +293,12 @@ func execDocker(cfg config, args []string) {
 	dockerArgs = append(dockerArgs, "--entrypoint", "scbolt", cfg.image)
 	dockerArgs = append(
 		dockerArgs,
-		rewriteDockerPaths(dockerForwardedArgs(args), params, mounts)...,
+		rewriteDockerPaths(
+			dockerForwardedArgs(args),
+			configurationPath,
+			cfg.configurationFormat,
+			mounts,
+		)...,
 	)
 
 	if dryRun {
@@ -320,21 +342,54 @@ func effectiveConfig(args []string) (config, error) {
 		cfg.containerMounts = value
 	}
 
-	if params := paramsPathFromArgs(args); params != "" && exists(params) {
-		if value := readConfigVariable(params, "BACKEND"); value != "" {
-			cfg.backend = value
-			cfg.backendSource = "params"
+	configurationPath, configurationSource, format, err := selectedConfigurationPath(args)
+	if err != nil {
+		return cfg, err
+	}
+	cfg.configurationPath = configurationPath
+	cfg.configurationSource = configurationSource
+	cfg.configurationFormat = format
+	if configurationPath != "" && exists(configurationPath) {
+		if format == configurationYAML {
+			cfg.projectConfig, err = loadProjectConfiguration(configurationPath)
+			if err != nil {
+				return cfg, err
+			}
 		}
-		if value := readConfigVariable(params, "SCBOLT_IMAGE"); value != "" {
+		if value, found := projectConfigurationSetting(
+			cfg.projectConfig,
+			configurationPath,
+			"BACKEND",
+		); found {
+			cfg.backend = value
+			cfg.backendSource = configurationValueSource(configurationPath)
+		}
+		if value, found := projectConfigurationSetting(
+			cfg.projectConfig,
+			configurationPath,
+			"SCBOLT_IMAGE",
+		); found {
 			cfg.image = value
 		}
-		if value := readConfigVariable(params, "SCBOLT_CONTAINER_ENGINE"); value != "" {
+		if value, found := projectConfigurationSetting(
+			cfg.projectConfig,
+			configurationPath,
+			"SCBOLT_CONTAINER_ENGINE",
+		); found {
 			cfg.engine = value
 		}
-		if value := readConfigVariable(params, "SCBOLT_CONTAINER_ARGS"); value != "" {
+		if value, found := projectConfigurationSetting(
+			cfg.projectConfig,
+			configurationPath,
+			"SCBOLT_CONTAINER_ARGS",
+		); found {
 			cfg.containerArgs = value
 		}
-		if value := readConfigVariable(params, "SCBOLT_CONTAINER_MOUNTS"); value != "" {
+		if value, found := projectConfigurationSetting(
+			cfg.projectConfig,
+			configurationPath,
+			"SCBOLT_CONTAINER_MOUNTS",
+		); found {
 			cfg.containerMounts = value
 		}
 	}
@@ -356,7 +411,6 @@ func effectiveConfig(args []string) (config, error) {
 		cfg.containerMounts = value
 	}
 
-	cfg.paramsPath, cfg.paramsSource = selectedParamsPath(args)
 	cfg.settings = map[string]effectiveSetting{
 		"BACKEND": {
 			value:  cfg.backend,
@@ -364,31 +418,36 @@ func effectiveConfig(args []string) (config, error) {
 		},
 		"LOGGING": resolveEffectiveSetting(
 			args,
-			cfg.paramsPath,
+			cfg.projectConfig,
+			cfg.configurationPath,
 			"LOGGING",
 			effectiveSetting{value: "true", source: "default"},
 		),
 		"PROJECT_DIR": resolveEffectiveSetting(
 			args,
-			cfg.paramsPath,
+			cfg.projectConfig,
+			cfg.configurationPath,
 			"PROJECT_DIR",
 			effectiveSetting{value: "project", source: "default"},
 		),
 		"RESOURCES_DIR": resolveEffectiveSetting(
 			args,
-			cfg.paramsPath,
+			cfg.projectConfig,
+			cfg.configurationPath,
 			"RESOURCES_DIR",
 			effectiveSetting{value: "resources", source: "default"},
 		),
 		"SEED": resolveEffectiveSetting(
 			args,
-			cfg.paramsPath,
+			cfg.projectConfig,
+			cfg.configurationPath,
 			"SEED",
 			effectiveSetting{value: "10", source: "default"},
 		),
 		"OPENBLAS_CORETYPE": resolveEffectiveSetting(
 			args,
-			cfg.paramsPath,
+			cfg.projectConfig,
+			cfg.configurationPath,
 			"OPENBLAS_CORETYPE",
 			environmentSetting("OPENBLAS_CORETYPE"),
 		),
@@ -408,7 +467,15 @@ func argumentValue(args []string, variable string) string {
 }
 
 func argumentSetting(args []string, variable string) (string, bool) {
-	option := "--" + strings.ToLower(strings.ReplaceAll(variable, "_", "-"))
+	options := []string{
+		"--" + strings.ToLower(strings.ReplaceAll(variable, "_", "-")),
+	}
+	publicOption := "--" + strings.NewReplacer("_", "-", ".", "-").Replace(
+		publicConfigurationKey(variable),
+	)
+	if !containsString(options, publicOption) {
+		options = append(options, publicOption)
+	}
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if strings.EqualFold(arg, variable+"=") {
@@ -417,60 +484,85 @@ func argumentSetting(args []string, variable string) (string, bool) {
 		if strings.HasPrefix(strings.ToUpper(arg), variable+"=") {
 			return strings.TrimSpace(arg[strings.Index(arg, "=")+1:]), true
 		}
-		if arg == option && i+1 < len(args) {
-			return args[i+1], true
-		}
-		if strings.HasPrefix(arg, option+"=") {
-			return strings.TrimSpace(strings.TrimPrefix(arg, option+"=")), true
+		for _, option := range options {
+			if arg == option && i+1 < len(args) {
+				return args[i+1], true
+			}
+			if strings.HasPrefix(arg, option+"=") {
+				return strings.TrimSpace(strings.TrimPrefix(arg, option+"=")), true
+			}
 		}
 	}
 	return "", false
 }
 
-func paramsPathFromArgs(args []string) string {
-	path, _ := selectedParamsPath(args)
-	return path
-}
-
-func selectedParamsPath(args []string) (string, string) {
-	var params string
+func selectedConfigurationPath(
+	args []string,
+) (string, string, configurationFormat, error) {
+	var selected string
 	source := ""
+	legacyOption := false
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		switch {
-		case arg == "--params" && i+1 < len(args):
-			params = args[i+1]
+		case (arg == "--config" || arg == "--params") && i+1 < len(args):
+			selected = args[i+1]
 			source = "cli"
+			legacyOption = arg == "--params"
+			i++
+		case strings.HasPrefix(arg, "--config="):
+			selected = strings.TrimPrefix(arg, "--config=")
+			source = "cli"
+			legacyOption = false
 		case strings.HasPrefix(arg, "--params="):
-			params = strings.TrimPrefix(arg, "--params=")
+			selected = strings.TrimPrefix(arg, "--params=")
 			source = "cli"
+			legacyOption = true
+		case strings.HasPrefix(strings.ToUpper(arg), "CONFIG="):
+			selected = arg[strings.Index(arg, "=")+1:]
+			source = "cli"
+			legacyOption = false
 		case strings.HasPrefix(strings.ToUpper(arg), "PARAMS="):
-			params = arg[strings.Index(arg, "=")+1:]
+			selected = arg[strings.Index(arg, "=")+1:]
 			source = "cli"
+			legacyOption = true
 		}
 	}
-	if params == "" {
-		params = resolveProjectParams()
-		if params != "" {
-			source = "params"
+	if selected == "" {
+		selection := resolveProjectConfiguration()
+		selected = selection.path
+		legacyOption = selection.legacy
+		if selected != "" {
+			source = "project-config"
 		}
 	}
-	if params == "" {
-		return "", ""
+	if selected == "" {
+		return "", "", configurationNone, nil
 	}
-	if filepath.IsAbs(params) {
-		return filepath.Clean(params), source
+	format := configurationFormatForPath(selected)
+	if legacyOption && format == configurationNone {
+		format = configurationLegacy
+	}
+	if format == configurationNone {
+		return "", "", format, fmt.Errorf(
+			"configuration file must have a .yml, .yaml, or .mk extension: %s",
+			selected,
+		)
+	}
+	if filepath.IsAbs(selected) {
+		return filepath.Clean(selected), source, format, nil
 	}
 	wd, err := os.Getwd()
 	if err != nil {
-		return "", ""
+		return "", "", format, err
 	}
-	return filepath.Join(wd, params), source
+	return filepath.Join(wd, selected), source, format, nil
 }
 
 func resolveEffectiveSetting(
 	args []string,
-	paramsPath string,
+	projectConfig *projectConfiguration,
+	configurationPath string,
 	variable string,
 	initial effectiveSetting,
 ) effectiveSetting {
@@ -481,8 +573,15 @@ func resolveEffectiveSetting(
 	if value := readConfigVariable(userConfigPath(), variable); value != "" {
 		setting = effectiveSetting{value: value, source: "user-config"}
 	}
-	if value := readConfigVariable(paramsPath, variable); value != "" {
-		setting = effectiveSetting{value: value, source: "params"}
+	if value, found := projectConfigurationSetting(
+		projectConfig,
+		configurationPath,
+		variable,
+	); found {
+		setting = effectiveSetting{
+			value:  value,
+			source: configurationValueSource(configurationPath),
+		}
 	}
 	if value, found := argumentSetting(args, variable); found {
 		setting = effectiveSetting{value: value, source: "cli"}
@@ -497,22 +596,66 @@ func environmentSetting(variable string) effectiveSetting {
 	return effectiveSetting{source: "default"}
 }
 
-func resolveProjectParams() string {
+type projectConfigurationSelection struct {
+	path   string
+	legacy bool
+}
+
+func resolveProjectConfiguration() projectConfigurationSelection {
 	projectFile := findProjectFileFromCwd()
 	if projectFile != "" {
-		value := readProjectParams(projectFile)
-		if value == "" {
-			return ""
+		selection := readProjectConfiguration(projectFile)
+		if selection.path == "" {
+			return selection
 		}
-		if filepath.IsAbs(value) {
-			return filepath.Clean(value)
+		if filepath.IsAbs(selection.path) {
+			selection.path = filepath.Clean(selection.path)
+			return selection
 		}
-		return filepath.Clean(filepath.Join(filepath.Dir(projectFile), value))
+		selection.path = filepath.Clean(filepath.Join(filepath.Dir(projectFile), selection.path))
+		return selection
+	}
+	if exists(defaultProjectConfigurationFile) {
+		return projectConfigurationSelection{path: defaultProjectConfigurationFile}
 	}
 	if exists("params.mk") {
-		return "params.mk"
+		return projectConfigurationSelection{path: "params.mk", legacy: true}
 	}
-	return ""
+	return projectConfigurationSelection{}
+}
+
+func resolveProjectParams() string {
+	return resolveProjectConfiguration().path
+}
+
+func projectConfigurationValue(
+	configuration *projectConfiguration,
+	path string,
+	variable string,
+) string {
+	if configuration != nil {
+		return configuration.Value(variable)
+	}
+	return readConfigVariable(path, variable)
+}
+
+func projectConfigurationSetting(
+	configuration *projectConfiguration,
+	path string,
+	variable string,
+) (string, bool) {
+	if configuration != nil {
+		return configuration.Lookup(variable)
+	}
+	value := readConfigVariable(path, variable)
+	return value, value != ""
+}
+
+func configurationValueSource(path string) string {
+	if configurationFormatForPath(path) == configurationLegacy {
+		return "params"
+	}
+	return "project-config"
 }
 
 func readConfigVariable(path string, variable string) string {
@@ -599,7 +742,7 @@ func firstCommand(args []string) string {
 
 func optionTakesValue(arg string) bool {
 	switch arg {
-	case "--params", "--references", "--reset-target", "--trust-target", "--old-file", "--logging", "--target", "--backend":
+	case "--config", "--params", "--references", "--reset-target", "--trust-target", "--old-file", "--logging", "--target", "--backend":
 		return true
 	default:
 		return false
@@ -608,6 +751,18 @@ func optionTakesValue(arg string) bool {
 
 func isInstallCommand(args []string) bool {
 	return firstCommand(args) == "install"
+}
+
+func isCompletionInstallCommand(args []string) bool {
+	if !isInstallCommand(args) {
+		return false
+	}
+	for _, argument := range installArgs(args) {
+		if argument == "--completions" {
+			return true
+		}
+	}
+	return false
 }
 
 func installArgs(args []string) []string {
@@ -795,26 +950,45 @@ func (set *mountSet) values() []bindMount {
 	return append([]bindMount{}, set.list...)
 }
 
-func rewriteDockerPaths(args []string, params string, mounts *mountSet) []string {
+func rewriteDockerPaths(
+	args []string,
+	configurationPath string,
+	format configurationFormat,
+	mounts *mountSet,
+) []string {
 	rewritten := append([]string{}, args...)
-	explicitParams := false
+	explicitConfiguration := false
 	for index := 0; index < len(rewritten); index++ {
 		argument := rewritten[index]
 		switch {
+		case argument == "--config" && index+1 < len(rewritten):
+			explicitConfiguration = true
+			rewritten[index+1] = mounts.containerPath(configurationPath)
+			index++
+		case strings.HasPrefix(argument, "--config="):
+			explicitConfiguration = true
+			rewritten[index] = "--config=" + mounts.containerPath(configurationPath)
+		case strings.HasPrefix(strings.ToUpper(argument), "CONFIG="):
+			explicitConfiguration = true
+			rewritten[index] = "CONFIG=" + mounts.containerPath(configurationPath)
 		case argument == "--params" && index+1 < len(rewritten):
-			explicitParams = true
-			rewritten[index+1] = mounts.containerPath(params)
+			explicitConfiguration = true
+			rewritten[index+1] = mounts.containerPath(configurationPath)
 			index++
 		case strings.HasPrefix(argument, "--params="):
-			explicitParams = true
-			rewritten[index] = "--params=" + mounts.containerPath(params)
+			explicitConfiguration = true
+			rewritten[index] = "--params=" + mounts.containerPath(configurationPath)
 		case strings.HasPrefix(strings.ToUpper(argument), "PARAMS="):
-			explicitParams = true
-			rewritten[index] = "PARAMS=" + mounts.containerPath(params)
+			explicitConfiguration = true
+			rewritten[index] = "PARAMS=" + mounts.containerPath(configurationPath)
 		}
 	}
-	if params != "" && !explicitParams && dockerNeedsPathTranslation() {
-		rewritten = append(rewritten, "--params="+mounts.containerPath(params))
+	if configurationPath != "" && !explicitConfiguration && dockerNeedsPathTranslation() {
+		option := "--config="
+		if format == configurationLegacy {
+			option = "--params="
+		}
+		rewritten = append(rewritten, option+mounts.containerPath(configurationPath))
 	}
 	return rewritten
 }

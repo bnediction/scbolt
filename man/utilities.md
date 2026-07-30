@@ -5,13 +5,17 @@ without running the full workflow.
 
 | Command | Main use |
 | ------- | -------- |
+| `init` | Project initialization |
 | `help` | Documentation |
 | `version` | Version and source revision |
 | `config` | Configuration inspection |
 | `progress` | Workflow state |
 | `check` | Requirement validation |
+| `diagnostics` | Installation and reproducibility diagnostics |
 | `dry-run` | Build preview |
 | `clean` | Cache, log, and output cleanup |
+| `install` | Runtime backend installation |
+| `completion` | Shell completion generation |
 
 ## `help`
 
@@ -36,26 +40,26 @@ scbolt --version
 
 ## `config`
 
-The configuration is resolved from the active parameter file. The default view
+The configuration is resolved from the active `scbolt.yml`. The default view
 is designed for users and groups settings by project, workflow, methods,
-execution, and target-specific parameters. The raw view prints the underlying
-Make variables.
+execution, and target-specific values. The raw view prints internal parameter
+names for debugging and migration.
 
 ```bash
 scbolt config
 scbolt config <module>
 ```
 
-Use `--raw` to print the raw Make parameter listing.
+Use `--raw` to print the internal parameter listing.
 
 ## `progress`
 
-A module is completed only when Make considers its outputs up to date. Modules
+A module is completed only when the workflow engine considers its outputs up to date. Modules
 outside the selected workflow are hidden by default, even if their outputs
 exist. This makes the reported progress reflect the current workflow rather
 than every file present on disk.
 
-See [`output_states.md`](output_states.md) for the exact `DONE`, `STALE`,
+See [`states.md`](states.md) for the exact `DONE`, `STALE`,
 `UNTRACKED`, and `PENDING` state semantics.
 
 ```bash
@@ -81,7 +85,7 @@ scbolt check <module>
 
 ## `dry-run`
 
-This shows what Make would rebuild for the selected module without executing
+This shows what the workflow engine would rebuild for the selected module without executing
 recipes. It is useful before using `--reset-target` or `--trust-target`.
 
 ```bash
@@ -116,11 +120,11 @@ Modes:
 
 | Option | Effect |
 | ------ | ------ |
-| `--params=<file>` | Select the parameter file. |
+| `--config=<file>` | Select the project configuration file. |
 | `--references=<condition...>` | Restrict the command to selected references. |
 | `--reset-target=<module...>` | Rebuild from selected modules. |
 | `--trust-target=<module...>` | Trust selected outputs and skip rebuilding them. |
 | `--old-file=<file>` | Trust one existing scBOLT DAG file. |
 
-See [`rebuild_controls.md`](rebuild_controls.md) for the difference between
-`RESET_TARGET`, `TRUST_TARGET`, and `OLD_FILES`.
+See [`rebuilds.md`](rebuilds.md) for the difference between
+`--reset-target`, `--trust-target`, `--trust-existing`, and `--old-file`.

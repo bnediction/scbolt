@@ -1,18 +1,18 @@
-# Bash Completion
+# Shell completion
 
-scBOLT provides a Bash completion script for the `scbolt` command.
+The native launcher installs completion for Bash, Zsh, Fish, and PowerShell.
 
-The completion is installed by `./install` in the standard user completion
-directory:
+To repair or reinstall all completion adapters without changing the runtime
+backend or its environments, run:
+
+```bash
+scbolt install --completions
+```
+
+For Bash, completion is installed in the standard user completion directory:
 
 ```bash
 ~/.local/share/bash-completion/completions/scbolt
-```
-
-The installed file is a symbolic link to:
-
-```bash
-bin/completion.bash
 ```
 
 After installing or updating scBOLT, restart the shell or reload the completion
@@ -67,15 +67,14 @@ scbolt spec --<TAB>
 Example output:
 
 ```text
---params=
+--config=
 --references=
 --reset-target=
 --trust-target=
 --old-file=
 --logging=
 --help
---spec-file=
---bin-hvg-method=
+--binarization-hvg-method=
 --prior-knowledge=
 --dorothea-api=
 ```
@@ -86,12 +85,9 @@ The module-specific options are generated dynamically from:
 scbolt <module> help
 ```
 
-This means the completion uses the same parameter registry as the module help
-page. If a module help page lists `SPEC_FILE`, the completion exposes:
-
-```bash
---spec-file=
-```
+This means completion uses the same public YAML-key registry as module help.
+Inference contracts remain in the separate file selected by `spec_file`, so
+inference modules expose `--spec-file=` when it is relevant.
 
 Execution commands may receive several modules:
 
@@ -111,13 +107,23 @@ If the next word has already started, completion can propose another module:
 scbolt potency v<TAB>
 ```
 
-Dash-separated CLI options are translated to Make parameters by replacing
-dashes with underscores and uppercasing the name:
+Dash-separated CLI options use the public YAML names:
 
 ```text
---knnsc-embedding=...  ->  KNNSC_EMBEDDING=...
---knnsc-min-cluster-size=...  ->  KNNSC_MIN_CLUSTER_SIZE=...
---bin-hvg-method=...   ->  BIN_HVG_METHOD=...
+--knnsc-embedding=...
+--knnsc-min-cluster-size=...
+--binarization-hvg-method=...
+```
+
+Condition-dependent options are expanded from the active project
+configuration. For example, a project with `ctrl` and `treated` conditions
+offers:
+
+```text
+--knnsc-centrality-ctrl=
+--knnsc-centrality-treated=
+--knnsc-periphery-ctrl=
+--knnsc-periphery-treated=
 ```
 
 ## Target-Aware Completion
@@ -166,11 +172,10 @@ File-like options use regular filesystem completion.
 Examples:
 
 ```bash
-scbolt spec --spec-file=<TAB>
 scbolt binarization --binarization-file=<TAB>
 scbolt macrostates --macrostate-files=<TAB>
 scbolt bn-submin --old-file=<TAB>
-scbolt --params=<TAB>
+scbolt --config=<TAB>
 ```
 
 Module-list options complete to known scBOLT modules:
@@ -183,29 +188,30 @@ scbolt spec --trust-target=<TAB>
 ## Project Context
 
 Dynamic module-parameter completion needs scBOLT to be able to resolve a
-parameter file, because it calls:
+configuration file, because it calls:
 
 ```bash
 scbolt <module> help
 ```
 
-The parameter file is resolved in the usual scBOLT order:
+The configuration file is resolved in the usual scBOLT order:
 
-1. `--params=<file>` if provided in the current command line;
-2. the active `.scbolt` project configuration;
-3. `params.mk` in the launch directory.
+1. `--config=<file>` if provided in the current command line;
+2. `CONFIG=...` in the active `.scbolt` project locator;
+3. `scbolt.yml` in the launch directory;
+4. legacy `.scbolt`/`params.mk` discovery during the transition period.
 
-If no parameter file can be resolved, completion still proposes generic command
+If no configuration file can be resolved, completion still proposes generic command
 options, but module-specific parameters may be unavailable.
 
 ## Maintenance Notes
 
-The completion script should avoid duplicating module parameter lists. Module
-parameters should remain defined in the Make registry used by:
+Completion should avoid duplicating module parameter lists. Module parameters
+remain defined by the workflow registry and are rendered with public YAML names by:
 
 ```bash
 scbolt <module> help
 ```
 
-When a new module parameter is added to the Make help registry, Bash completion
-should pick it up automatically.
+When a new module parameter is added to the schema and workflow registry, the
+generated completion manifest should pick it up automatically.

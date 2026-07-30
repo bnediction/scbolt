@@ -24,16 +24,18 @@ type initOverride struct {
 }
 
 type initRequest struct {
-	remove       bool
-	show         bool
-	params       string
-	positionals  []string
-	overrides    []initOverride
-	backend      string
-	backendGiven bool
+	remove        bool
+	show          bool
+	configuration string
+	positionals   []string
+	overrides     []initOverride
+	backend       string
+	backendGiven  bool
 }
 
 var initVariablePattern = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
+
+const defaultProjectConfigurationFile = "scbolt.yml"
 
 func runInit(cfg config, arguments []string) error {
 	request, err := parseInitRequest(cfg, arguments)
@@ -93,14 +95,22 @@ func parseInitRequest(cfg config, arguments []string) (initRequest, error) {
 			return request, errors.New(
 				"Unsupported scbolt option with value: --show; use '--show' without a value",
 			)
+		case argument == "--config" || strings.HasPrefix(argument, "--config="):
+			value, valueErr := valueFor("--config")
+			if valueErr != nil {
+				return request, valueErr
+			}
+			request.configuration = value
 		case argument == "--params" || strings.HasPrefix(argument, "--params="):
 			value, valueErr := valueFor("--params")
 			if valueErr != nil {
 				return request, valueErr
 			}
-			request.params = value
+			request.configuration = value
+		case strings.HasPrefix(argument, "CONFIG="):
+			request.configuration = strings.TrimPrefix(argument, "CONFIG=")
 		case strings.HasPrefix(argument, "PARAMS="):
-			request.params = strings.TrimPrefix(argument, "PARAMS=")
+			request.configuration = strings.TrimPrefix(argument, "PARAMS=")
 		case argument == "--references" || strings.HasPrefix(argument, "--references="):
 			value, valueErr := valueFor("--references")
 			if valueErr != nil {
@@ -145,30 +155,30 @@ func parseInitRequest(cfg config, arguments []string) (initRequest, error) {
 		}
 	}
 
-	if request.params != "" {
+	if request.configuration != "" {
 		if len(request.positionals) > 0 {
 			return request, errors.New(
-				"Use either '--params=<file>' or a positional parameter file, not both",
+				"Use either '--config=<file>' or a positional configuration file, not both",
 			)
 		}
-		request.positionals = []string{request.params}
+		request.positionals = []string{request.configuration}
 	}
 	if request.remove && request.show {
 		return request, errors.New("Use either '--remove' or '--show', not both")
 	}
 	if request.remove && len(request.positionals) > 0 {
-		return request, errors.New("Use either '--remove' or a parameter file, not both")
+		return request, errors.New("Use either '--remove' or a configuration file, not both")
 	}
 	if request.show && len(request.positionals) > 0 {
-		return request, errors.New("Use either '--show' or a parameter file, not both")
+		return request, errors.New("Use either '--show' or a configuration file, not both")
 	}
 	if (request.remove || request.show) && len(request.overrides) > 0 {
 		return request, errors.New(
-			"Use parameter initializers only when creating a parameter file",
+			"Use configuration initializers only when creating a configuration file",
 		)
 	}
 	if len(request.positionals) > 1 {
-		return request, errors.New("Usage: scbolt init <params.mk>")
+		return request, errors.New("Usage: scbolt init <scbolt.yml>")
 	}
 	return request, nil
 }
@@ -183,16 +193,17 @@ func normalizeInitVariable(value string) (string, error) {
 }
 
 func printInitHelp() {
-	fmt.Println("usage: scbolt init [<params.mk>] [options]")
+	fmt.Println("usage: scbolt init [<scbolt.yml>] [options]")
 	fmt.Println()
-	fmt.Println("Create, update, or remove the project configuration used by scBOLT.")
+	fmt.Println("Create, update, or remove a scBOLT project configuration.")
+	fmt.Println("New YAML projects also receive a Boolean inference spec.yml.")
 	fmt.Println()
 	fmt.Println("Parameters")
-	fmt.Printf("  %-31s %s\n", "<params.mk>", "parameter file to use")
+	fmt.Printf("  %-31s %s\n", "<scbolt.yml>", "configuration file to use")
 	fmt.Printf("  %-31s %s\n", "--remove", "remove active project configuration")
-	fmt.Printf("  %-31s %s\n", "--show", "display active parameter file")
-	fmt.Printf("  %-31s %s\n", "--<parameter>=<value>", "initialize a new parameter file")
-	fmt.Printf("  %-31s %s\n", "<parameter>=<value>", "initialize a new parameter file")
+	fmt.Printf("  %-31s %s\n", "--show", "display active configuration file")
+	fmt.Printf("  %-31s %s\n", "--<key>=<value>", "initialize a new configuration file")
+	fmt.Printf("  %-31s %s\n", "<key>=<value>", "initialize a new configuration file")
 	fmt.Printf("  %-31s %s\n", "--help", "display this help")
 }
 
@@ -203,10 +214,10 @@ func removeProjectConfiguration() error {
 		printWarning("scBOLT project unchanged.")
 		return nil
 	}
-	params := readProjectParams(projectFile)
+	configuration := readProjectConfiguration(projectFile)
 	fmt.Printf("Project file: %s\n", projectFile)
-	if params != "" {
-		fmt.Printf("Parameter file: %s\n", params)
+	if configuration.path != "" {
+		fmt.Printf("Configuration file: %s\n", configuration.path)
 	}
 	if err := os.Remove(projectFile); err != nil {
 		return errors.New("scBOLT project removal failed")
@@ -216,11 +227,11 @@ func removeProjectConfiguration() error {
 }
 
 func showProjectConfiguration() error {
-	params := resolveProjectParams()
-	if params == "" {
-		return errors.New("No parameter file found")
+	configuration := resolveProjectConfiguration()
+	if configuration.path == "" {
+		return errors.New("No configuration file found")
 	}
-	fmt.Printf("Parameter file: %s\n", params)
+	fmt.Printf("Configuration file: %s\n", configuration.path)
 	return nil
 }
 
@@ -230,105 +241,182 @@ func initializeProject(request initRequest) error {
 		return err
 	}
 	projectFile := filepath.Join(workingDirectory, ".scbolt")
-	previousParams := ""
+	previous := projectConfigurationSelection{}
 	if exists(projectFile) {
-		previousParams = readProjectParams(projectFile)
+		previous = readProjectConfiguration(projectFile)
 	}
 	failure := "scBOLT project initialization failed."
-	if previousParams != "" {
+	if previous.path != "" {
 		failure = "scBOLT project update failed."
 	}
 
-	params := ""
+	configuration := ""
 	if len(request.positionals) == 1 {
-		params = request.positionals[0]
+		configuration = request.positionals[0]
 	}
-	if params == "" {
-		defaultParams := previousParams
-		if defaultParams == "" && exists(filepath.Join(workingDirectory, "params.mk")) {
-			defaultParams = "params.mk"
+	if configuration == "" {
+		defaultConfiguration := previous.path
+		if defaultConfiguration == "" {
+			switch {
+			case exists(filepath.Join(workingDirectory, defaultProjectConfigurationFile)):
+				defaultConfiguration = defaultProjectConfigurationFile
+			case exists(filepath.Join(workingDirectory, "params.mk")):
+				defaultConfiguration = "params.mk"
+			default:
+				defaultConfiguration = defaultProjectConfigurationFile
+			}
 		}
-		prompt := "Select parameter file: "
-		if defaultParams != "" {
-			prompt = "Select parameter file [" + defaultParams + "]: "
-		}
-		params = promptValue(prompt)
-		if params == "" {
-			params = defaultParams
+		configuration = promptValue(
+			"Select configuration file [" + defaultConfiguration + "]: ",
+		)
+		if configuration == "" {
+			configuration = defaultConfiguration
 		}
 	}
-	if params == "" {
-		return reportInitFailure("No parameter file specified.", failure)
+	if configuration == "" {
+		return reportInitFailure("No configuration file specified.", failure)
 	}
 
-	paramsPath := params
-	if !filepath.IsAbs(paramsPath) {
-		paramsPath = filepath.Join(workingDirectory, paramsPath)
+	configurationPath := configuration
+	if !filepath.IsAbs(configurationPath) {
+		configurationPath = filepath.Join(workingDirectory, configurationPath)
 	}
-	paramsPath, _ = filepath.Abs(paramsPath)
-	created := !exists(paramsPath)
-	if filepath.Ext(params) != ".mk" {
-		message := "Parameter file must have a .mk extension: " + params
-		if created {
-			message = "Parameter file not found: " + params
-		}
+	configurationPath, _ = filepath.Abs(configurationPath)
+	created := !exists(configurationPath)
+	format := configurationFormatForPath(configuration)
+	if format == configurationNone {
+		message := "Configuration file must have a .yml, .yaml, or .mk extension: " + configuration
 		return reportInitFailure(message, failure)
 	}
 	if created {
-		parent := filepath.Dir(paramsPath)
+		parent := filepath.Dir(configurationPath)
 		if info, statErr := os.Stat(parent); statErr != nil || !info.IsDir() {
 			return reportInitFailure(
-				"Parameter file directory not found: "+filepath.Dir(params),
+				"Configuration file directory not found: "+filepath.Dir(configuration),
 				failure,
 			)
 		}
 		content := minimalParamsContent(request.overrides)
-		if writeErr := os.WriteFile(paramsPath, []byte(content), 0o644); writeErr != nil {
+		if format == configurationYAML {
+			content, err = minimalYAMLContent(request.overrides)
+			if err != nil {
+				return reportInitFailure(err.Error(), failure)
+			}
+		}
+		if writeErr := os.WriteFile(configurationPath, []byte(content), 0o644); writeErr != nil {
 			return reportInitFailure(writeErr.Error(), failure)
 		}
 	} else if len(request.overrides) > 0 {
-		printWarning("Parameter initializers ignored: parameter file already exists.")
+		printWarning("Configuration initializers ignored: configuration file already exists.")
 	}
-
-	stored := params
-	if filepath.IsAbs(params) {
-		if relative, relativeErr := filepath.Rel(workingDirectory, paramsPath); relativeErr == nil {
-			stored = relative
-		} else {
-			stored = paramsPath
+	var specificationPath string
+	specificationCreated := false
+	if format == configurationYAML {
+		projectConfiguration, loadErr := loadProjectConfiguration(configurationPath)
+		if loadErr != nil {
+			return reportInitFailure(loadErr.Error(), failure)
+		}
+		specificationPath, specificationCreated, err = ensureProjectSpecification(
+			configurationPath,
+			projectConfiguration,
+		)
+		if err != nil {
+			return reportInitFailure(err.Error(), failure)
 		}
 	}
-	if writeErr := os.WriteFile(projectFile, []byte("PARAMS="+stored+"\n"), 0o644); writeErr != nil {
+
+	stored := configuration
+	if filepath.IsAbs(configuration) {
+		if relative, relativeErr := filepath.Rel(workingDirectory, configurationPath); relativeErr == nil {
+			stored = relative
+		} else {
+			stored = configurationPath
+		}
+	}
+	locatorKey := "CONFIG"
+	if format == configurationLegacy {
+		locatorKey = "PARAMS"
+	}
+	if writeErr := os.WriteFile(
+		projectFile,
+		[]byte(locatorKey+"="+stored+"\n"),
+		0o644,
+	); writeErr != nil {
 		return reportInitFailure(writeErr.Error(), failure)
 	}
 	if !request.backendGiven {
 		fmt.Printf("Backend: %s\n", request.backend)
 	}
-
-	if previousParams != "" {
+	if previous.path != "" {
 		switch {
-		case previousParams == stored && created:
-			fmt.Printf("Parameter file: %s (created)\n", stored)
-			printSuccess("scBOLT project updated.")
-		case previousParams == stored:
-			fmt.Printf("Parameter file: %s\n", stored)
-			printWarning("scBOLT project unchanged.")
+		case previous.path == stored && created:
+			fmt.Printf("Configuration file: %s (created)\n", stored)
+		case previous.path == stored:
+			fmt.Printf("Configuration file: %s\n", stored)
 		case created:
-			fmt.Printf("Parameter file: %s -> %s (created)\n", previousParams, stored)
-			printSuccess("scBOLT project updated.")
+			fmt.Printf("Configuration file: %s -> %s (created)\n", previous.path, stored)
 		default:
-			fmt.Printf("Parameter file: %s -> %s\n", previousParams, stored)
-			printSuccess("scBOLT project updated.")
+			fmt.Printf("Configuration file: %s -> %s\n", previous.path, stored)
 		}
 	} else {
 		if created {
-			fmt.Printf("Parameter file: %s (created)\n", stored)
+			fmt.Printf("Configuration file: %s (created)\n", stored)
 		} else {
-			fmt.Printf("Parameter file: %s\n", stored)
+			fmt.Printf("Configuration file: %s\n", stored)
 		}
+	}
+	if specificationPath != "" {
+		displayPath := specificationPath
+		if relative, relativeErr := filepath.Rel(workingDirectory, specificationPath); relativeErr == nil {
+			displayPath = relative
+		}
+		if specificationCreated {
+			fmt.Printf("Specification file: %s (created)\n", displayPath)
+		} else {
+			fmt.Printf("Specification file: %s\n", displayPath)
+		}
+	}
+	if previous.path == "" {
 		printSuccess("scBOLT project initialized.")
+	} else if previous.path != stored || created || specificationCreated {
+		printSuccess("scBOLT project updated.")
+	} else {
+		printWarning("scBOLT project unchanged.")
 	}
 	return nil
+}
+
+func ensureProjectSpecification(
+	configurationPath string,
+	configuration *projectConfiguration,
+) (string, bool, error) {
+	specification, defined := configuration.Lookup("SPEC_FILE")
+	if !defined {
+		specification = "spec.yml"
+	}
+	if specification == "" {
+		return "", false, nil
+	}
+	path := specification
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(filepath.Dir(configurationPath), path)
+	}
+	path = filepath.Clean(path)
+	if exists(path) {
+		return path, false, nil
+	}
+	parent := filepath.Dir(path)
+	if info, err := os.Stat(parent); err != nil || !info.IsDir() {
+		return "", false, fmt.Errorf("Specification file directory not found: %s", parent)
+	}
+	content, err := minimalSpecificationContent()
+	if err != nil {
+		return "", false, err
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		return "", false, err
+	}
+	return path, true, nil
 }
 
 func promptValue(prompt string) string {

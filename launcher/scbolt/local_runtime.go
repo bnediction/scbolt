@@ -214,23 +214,81 @@ func (local *localRuntime) makeCommand(arguments ...string) *exec.Cmd {
 		commandArguments = append(commandArguments, "BACKEND=docker")
 	}
 	command := exec.Command(local.makePath, commandArguments...)
-	command.Env = local.environment()
+	includeProjectConfiguration := true
+	for _, argument := range arguments {
+		if argument == "DEFAULT_CONFIG=true" {
+			includeProjectConfiguration = false
+			break
+		}
+	}
+	command.Env = local.runtimeEnvironment(includeProjectConfiguration)
 	return command
 }
 
 func (local *localRuntime) environment() []string {
+	return local.runtimeEnvironment(true)
+}
+
+func (local *localRuntime) runtimeEnvironment(
+	includeProjectConfiguration bool,
+) []string {
 	environment := append([]string{}, os.Environ()...)
 	workflowBackend := local.config.backend
 	if os.Getenv("SCBOLT_IN_DOCKER") == "true" {
 		workflowBackend = "docker"
 	}
 	values := map[string]string{
-		"PATH":                          local.systemBinPath + string(os.PathListSeparator) + os.Getenv("PATH"),
-		"SCBOLT_DEFAULT_BACKEND":        workflowBackend,
-		"SCBOLT_DEFAULT_BACKEND_SOURCE": local.config.backendSource,
-		"SCBOLT_ENV_MANAGER":            local.manager,
-		"SCBOLT_SHELL":                  local.bashPath,
-		"SCBOLT_SYSTEM_BIN":             local.systemBinPath,
+		"PATH":                               local.systemBinPath + string(os.PathListSeparator) + os.Getenv("PATH"),
+		"SCBOLT_CLI":                         "true",
+		"SCBOLT_DEFAULT_BACKEND":             workflowBackend,
+		"SCBOLT_DEFAULT_BACKEND_SOURCE":      local.config.backendSource,
+		"SCBOLT_ENV_MANAGER":                 local.manager,
+		"SCBOLT_PUBLIC_PARAMETER_PARAMS":     "configuration",
+		"SCBOLT_PUBLIC_PARAMETER_REFERENCES": "references",
+		"SCBOLT_PUBLIC_PARAMETER_SPEC_FILE":  "spec_file",
+		"SCBOLT_SHELL":                       local.bashPath,
+		"SCBOLT_SYSTEM_BIN":                  local.systemBinPath,
+	}
+	if local.config.configurationPath != "" {
+		values["PARAMS"] = local.config.configurationPath
+	}
+	if includeProjectConfiguration && local.config.configurationFormat == configurationYAML {
+		values["SCBOLT_CONFIG_MODE"] = "true"
+		values["SCBOLT_CONFIG"] = local.config.configurationPath
+		for _, setting := range local.config.projectConfig.Environment() {
+			values[setting.name] = setting.value
+		}
+	}
+	for _, parameter := range yamlParameters {
+		if parameter.makeVariable == "" {
+			continue
+		}
+		name := parameter.makeVariable
+		values["SCBOLT_PUBLIC_PARAMETER_"+name] = publicConfigurationKey(name)
+	}
+	if includeProjectConfiguration {
+		conditions := configurationConditionNames(
+			local.config.configurationPath,
+			local.config.configurationFormat,
+			local.config.projectConfig,
+		)
+		for key, parameter := range yamlParameters {
+			if !parameter.condition {
+				continue
+			}
+			for _, condition := range conditions {
+				name := parameter.makeVariable + "_" + strings.ToUpper(condition)
+				values["SCBOLT_PUBLIC_PARAMETER_"+name] = key + "." + strings.ToLower(condition)
+			}
+		}
+	}
+	if includeProjectConfiguration && local.config.projectConfig != nil {
+		for _, setting := range local.config.projectConfig.Environment() {
+			name := "SCBOLT_PUBLIC_PARAMETER_" + setting.name
+			if _, found := values[name]; !found {
+				values[name] = publicConfigurationKey(setting.name)
+			}
+		}
 	}
 	if local.projectRoot != "" {
 		values["SCBOLT_PROJECT_ROOT"] = local.projectRoot

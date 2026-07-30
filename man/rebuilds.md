@@ -3,12 +3,12 @@
 scBOLT exposes four controls for changing how existing outputs are treated by
 the build engine.
 
-They are intentionally separate from biological entry-point parameters such as
-`COUNT_FILES`, `MACROSTATE_FILES`, `BINARIZATION_FILE`, or `SPEC_FILE`.
+They are intentionally separate from biological entry-point configuration such
+as `count_files`, `macrostate_files`, or `binarization_file`.
 
-## `RESET_TARGET`
+## `--reset-target`
 
-`RESET_TARGET` forces Make to rebuild from one or more modules.
+`--reset-target` forces the workflow to rebuild from one or more modules.
 
 ```bash
 scbolt bn-submin --reset-target=clustering
@@ -23,22 +23,20 @@ repeating the option:
 ```bash
 scbolt bn-submin --reset-target="clustering annotation"
 scbolt bn-submin --reset-target=clustering --reset-target=annotation
-scbolt bn-submin RESET_TARGET="clustering annotation"
 ```
 
-Repeated `--reset-target=<module>` options are appended to Make-style
-`RESET_TARGET=<module...>` assignments.
+Repeated `--reset-target=<module>` options are combined by the launcher.
 
-## `TRUST_TARGET`
+## `--trust-target`
 
-`TRUST_TARGET` trusts all outputs produced by one or more modules.
+`--trust-target` trusts all outputs produced by one or more modules.
 
 ```bash
 scbolt bn-submin --trust-target=clustering
 ```
 
-This is the module-level equivalent of `OLD_FILES`: every output registered for
-the selected module is passed to Make as an old file.
+This is the module-level equivalent of `old_files`: every output registered for
+the selected module is treated as an existing trusted file.
 
 Multiple modules can be provided by quoting a space-separated list, or by
 repeating the option:
@@ -46,46 +44,38 @@ repeating the option:
 ```bash
 scbolt bn-submin --trust-target="clustering annotation"
 scbolt bn-submin --trust-target=clustering --trust-target=annotation
-scbolt bn-submin TRUST_TARGET="clustering annotation"
 ```
 
-Repeated `--trust-target=<module>` options are appended to Make-style
-`TRUST_TARGET=<module...>` assignments.
+Repeated `--trust-target=<module>` options are combined by the launcher.
 
-## `TRUST_EXISTING`
+## `--trust-existing`
 
-`TRUST_EXISTING` trusts every known scBOLT DAG output that is already present
+`--trust-existing` trusts every known scBOLT DAG output that is already present
 when the command starts.
 
 ```bash
 scbolt bn-submin --trust-existing
 ```
 
-The equivalent direct Make invocation is:
-
-```bash
-make bn-submin TRUST_EXISTING=true
-```
-
-Missing outputs are not fabricated or trusted: Make builds them normally.
+Missing outputs are not fabricated or trusted: the workflow builds them normally.
 This makes `--trust-existing` useful when resuming a project whose existing
 outputs should be accepted without listing each module or file individually.
 
-Trust only affects Make's timestamp-based rebuild decisions. Metadata drift
+Trust only affects timestamp-based rebuild decisions. Metadata drift
 is still reported so that changes in parameters, dependencies, or runtime
 environments remain visible.
 
-`RESET_TARGET` has absolute priority. Outputs from the reset module and every
+`--reset-target` has absolute priority. Outputs from the reset module and every
 downstream module scheduled for reconstruction are excluded from trust,
-including trust requested through `TRUST_TARGET`, `TRUST_EXISTING`, or
-`OLD_FILES`. Existing outputs on unrelated DAG branches remain trusted.
+including trust requested through `--trust-target`, `--trust-existing`, or
+`old_files`. Existing outputs on unrelated DAG branches remain trusted.
 
-## `OLD_FILES`
+## `old_files` and `--old-file`
 
-`OLD_FILES` trusts individual files already belonging to the scBOLT DAG.
-Reference-level single-cell files live under `PROJECT_DIR/omics/`; Boolean
-abstractions and inference outputs stay under `PROJECT_DIR/bin/` and
-`PROJECT_DIR/infer/`.
+`old_files` trusts individual files already belonging to the scBOLT DAG.
+Reference-level single-cell files live under `project_dir/omics/`; Boolean
+abstractions and inference outputs stay under `project_dir/bin/` and the
+configured `project_dir/inference_dir/`.
 
 ```bash
 scbolt bn-submin \
@@ -98,39 +88,36 @@ Several files can also be provided as a quoted space-separated list:
 ```bash
 scbolt bn-submin \
   --old-file="apl/omics/annot/integrated/annot.h5ad apl/bin/consensus/knnsc/mstates_bin.csv"
-scbolt bn-submin OLD_FILES="apl/omics/annot/integrated/annot.h5ad apl/bin/consensus/knnsc/mstates_bin.csv"
 ```
 
-The singular Make-style alias `old_file=<file>` appends one trusted file, like
-`--old-file=<file>`.
+Permanent project-level declarations can be added to `scbolt.yml`:
 
-Permanent project-level declarations can be added to `params.mk`:
-
-```make
-OLD_FILES += apl/omics/annot/integrated/annot.h5ad
-OLD_FILES += apl/bin/consensus/knnsc/mstates_bin.csv
+```yaml
+old_files:
+  - apl/omics/annot/integrated/annot.h5ad
+  - apl/bin/consensus/knnsc/mstates_bin.csv
 ```
 
-Relative paths in `params.mk` are resolved relative to the parameter-file
+Relative paths in `scbolt.yml` are resolved relative to the configuration-file
 directory. Relative `--old-file=<file>` paths are resolved relative to the
 launch directory.
 
-`OLD_FILES` is more granular than `TRUST_TARGET`: it trusts only the listed
+`old_files` is more granular than `--trust-target`: it trusts only the listed
 files, not every output produced by the corresponding module.
 
 ## Comparison
 
 | Control | Level | Effect |
 | ------- | ----- | ------ |
-| `RESET_TARGET` | module | Rebuild from selected modules. |
-| `TRUST_TARGET` | module | Trust all outputs from selected modules. |
-| `TRUST_EXISTING` | project | Trust known outputs that already exist. |
-| `OLD_FILES` | file | Trust selected files only. |
+| `--reset-target` | module | Rebuild from selected modules. |
+| `--trust-target` | module | Trust all outputs from selected modules. |
+| `--trust-existing` | project | Trust known outputs that already exist. |
+| `old_files` / `--old-file` | file | Trust selected files only. |
 
 ## Validation
 
-Active trusted old files must exist. An `OLD_FILES` entry excluded by
-`RESET_TARGET` is not validated as trusted because that output will be rebuilt.
+Active trusted old files must exist. An `old_files` entry excluded by
+`--reset-target` is not validated as trusted because that output will be rebuilt.
 
 `scbolt check <module>` reports:
 

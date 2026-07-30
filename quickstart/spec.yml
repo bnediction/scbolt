@@ -1,4 +1,5 @@
-dynamical_constraints:
+# BoNesis observations and dynamical constraints.
+constraints:
   - hsc = ~obs('HSC')
   - mpp = obs('MPP')
   - lmpp = fixed(obs('LMPP'))
@@ -12,6 +13,7 @@ dynamical_constraints:
   - cmp >= gmp
   - mep != gmp
 
+# Nodes prioritized during gene selection.
 important_nodes:
   - Mpo
   - Elane
@@ -24,6 +26,8 @@ important_nodes:
   - Car2
   - Pf4
 
-mandatory_nodes:
+# Nodes retained in every selected domain.
+mandatory_nodes: []
 
-forbidden_nodes:
+# Nodes removed before gene selection.
+forbidden_nodes: []

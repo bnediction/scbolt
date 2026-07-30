@@ -635,6 +635,7 @@ if [ ! -f "$(bin_hvg)" ]; then
 		$(bin_hvg_layer) \
 		$(if $(BIN_HVG_TOP),--hvg $(BIN_HVG_TOP),) \
 		--span $(BIN_HVG_SPAN) --bins $(BIN_HVG_BINS) \
+		$(foreach node,$(BIN_INCLUDE_NODES),--include-feature "$(node)") \
 		$(batch)
 fi
 endef
@@ -755,7 +756,7 @@ $(bin_consensus): $(bin_mstates) $(lastword $(bin_cells)) $(bin_dea)
 		--outfile $@ --pct-bin $(@D)/pct_bin.csv
 	$(call write_scbolt_metadata,bin-consensus,$@)
 
-$(bonesis_model)&: $(bin) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
+$(bonesis_model)&: $(bin) $(wildcard $(SPEC_FILE)) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,spec)
 	$(call require_prior_parameters,spec)
 	$(call check_file,$(SPEC_FILE),SPEC_FILE)

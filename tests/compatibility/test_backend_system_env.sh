@@ -2,9 +2,12 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+launcher="${repo_root}/dist/scbolt-linux-amd64"
 backend="${SCBOLT_TEST_BACKEND:-conda}"
 skip_install="${SCBOLT_SKIP_ENV_INSTALL:-false}"
 output=""
+
+cd "${repo_root}"
 
 case "${backend}" in
     conda|mamba|micromamba)
@@ -16,7 +19,7 @@ case "${backend}" in
 esac
 
 if [ "${skip_install}" != "true" ]; then
-    "${repo_root}/install" --env=system --backend="${backend}"
+    "${launcher}" install "${backend}" --env=system
 fi
 
 output="$("${backend}" run -n scbolt-system awk 'BEGIN { print "scbolt-system ok" }')"
@@ -27,7 +30,12 @@ xdg_config="$(mktemp -d)"
 trap 'rm -rf "${home}" "${xdg_config}"' EXIT
 
 HOME="${home}" XDG_CONFIG_HOME="${xdg_config}" \
-    "${repo_root}/install" --cli --backend="${backend}" >/dev/null
+SCBOLT_INSTALL_BIN_DIR="${home}/.local/bin" \
+    "${repo_root}/install" </dev/null >/dev/null
+
+HOME="${home}" XDG_CONFIG_HOME="${xdg_config}" \
+    "${home}/.local/bin/scbolt" install "${backend}" \
+    --env=__configuration_only__ >/dev/null 2>&1
 
 PATH="${home}/.local/bin:${PATH}" \
 HOME="${home}" \

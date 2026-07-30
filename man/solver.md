@@ -170,7 +170,7 @@ solver policy.
 
 The number of clauses allowed in each Boolean update function strongly affects
 the size of the ASP search space. Clause continuation replaces one direct solve
-at `MAX_CLAUSES` with a sequence of increasingly expressive problems:
+at `max_clauses` with a sequence of increasingly expressive problems:
 
 DNF canonicalization is an internal solver policy, not a user parameter.
 Gene-selection stages disable it to avoid additional normalization constraints
@@ -180,7 +180,7 @@ representations. This policy changes the search representation, not the
 biological constraints.
 
 ```text
-q=1 -> q=2 -> ... -> q=MAX_CLAUSES
+q=1 -> q=2 -> ... -> q=max_clauses
 ```
 
 Each satisfiable stage writes a structural witness. The witness is passed to the
@@ -193,7 +193,7 @@ continuation starts at the smallest compatible bound instead of returning to
 
 Intermediate clause bounds use a patience limit measuring time since the most
 recent objective improvement. Every improved solution resets this patience.
-The target bound `MAX_CLAUSES` disables clause patience: it terminates only after
+The target bound `max_clauses` disables clause patience: it terminates only after
 certified optimality, the stage-wide timeout, or user interruption.
 
 The transition policy at an intermediate clause bound is:
@@ -214,8 +214,8 @@ nodes.
 When clause continuation is enabled and optimization settings are not
 explicitly overridden, scBOLT uses an anytime-oriented Clingo mode and
 branch-and-bound strategy suitable for producing intermediate witnesses.
-Explicit `CLINGO_MODE_<STAGE>` and
-`CLINGO_STRATEGY_<STAGE>` values always take precedence over these derived
+Explicit `clingo_mode_<stage>` and
+`clingo_strategy_<stage>` values always take precedence over these derived
 defaults.
 
 Clause continuation is available for `SOFT`, `RELAXED`, `SEED`, and `LOCK` node
@@ -332,7 +332,7 @@ After a witness is selected:
    have been exhausted;
 10. when the next expansion would be the complete domain, the portfolio stops
     and one final Clingo instance resumes optimization using
-    `CLINGO_THREADS`.
+    `clingo_threads`.
 
 A grounding-capacity failure is local to the candidate that encountered it and
 is therefore classified as `UNKNOWN`; the other portfolio candidates continue.
@@ -359,7 +359,7 @@ next witness = retained structural witness
 ```
 
 The retained nodes are present in every candidate subdomain; they do not
-become mandatory solver constraints. Because `MAX_CLAUSES` is an upper bound, a
+become mandatory solver constraints. Because `max_clauses` is an upper bound, a
 witness found at `q` remains admissible at `q+1` and provides a valid heuristic
 for the new expansion. For a retained solution of 500 nodes in a complete
 550-node domain, midpoint expansion therefore visits domains of sizes 525,
@@ -397,7 +397,7 @@ The baseline domain and solution remain fixed while `D1` is refreshed, so the
 gain is cumulative across refresh waves and the denominator is never increased
 by resampling. An improvement of the primary important-node objective is always
 considered productive. Otherwise, expansion continues when the cumulative gain
-reaches `MIN_DOMAIN_YIELD`.
+reaches `minimum_domain_yield`.
 
 When the yield is insufficient, scBOLT protects `D0` together with every node
 used by the best current witness outside `D0`. It then fills the remaining
@@ -407,47 +407,47 @@ a new witness may add several nodes while dropping older selected nodes. The
 protected set is therefore derived from the actual witness rather than from the
 numeric gain alone.
 
-At most `MAX_DOMAIN_REFRESHES` constant-size refresh waves are attempted for
+At most `maximum_domain_refreshes` constant-size refresh waves are attempted for
 one expansion size. This limit is reset only after the domain size increases;
 objective improvements do not reset it. Reaching the limit or exhausting every
 distinct candidate composition advances to the next midpoint with the best
 retained witness even when the requested yield was not reached. The policy is
 therefore strict but cannot block domain growth. Setting either
-`MIN_DOMAIN_YIELD=0` or `MAX_DOMAIN_REFRESHES=0` disables yield-based refreshes
+`minimum_domain_yield: 0` or `maximum_domain_refreshes: 0` disables yield-based refreshes
 and preserves direct midpoint expansion.
 
 Domain yield and solver optimality are independent. A candidate may have a
 certified optimum with low yield, while an uncertified intermediate witness may
-already exceed the yield threshold. `MIN_DOMAIN_YIELD` controls domain
+already exceed the yield threshold. `minimum_domain_yield` controls domain
 scheduling; Clingo completion and optimization mode control certification.
 
 The two parallelism controls are not nested:
 
-```make
-JOBS = 8
-CLINGO_THREADS = 1
+```yaml
+jobs: 8
+clingo_threads: 1
 ```
 
-`JOBS` is the maximum number of candidate domains evaluated simultaneously in
+`jobs` is the maximum number of candidate domains evaluated simultaneously in
 every acquisition or expansion wave, with one Clingo thread per candidate. Once
 the complete domain is reached, the candidate portfolio stops and one final
-optimization instance uses `CLINGO_THREADS`. The maximum concurrent thread
+optimization instance uses `clingo_threads`. The maximum concurrent thread
 count is therefore the maximum of the two values, not their product.
 
 Candidate launches are staggered internally by two seconds. The coordinator
 monitors the resident memory of the complete selection process and uses
-`MEMORY` as a soft portfolio limit. Within each wave, it subtracts the RSS
+`memory` as a soft portfolio limit. Within each wave, it subtracts the RSS
 measured before the first candidate and divides the remaining RSS by the number
 of active candidates. The maximum per-candidate cost observed during that wave
 is retained. A queued candidate is launched only when:
 
 ```text
-current RSS + 1.10 * maximum observed candidate cost <= MEMORY
+current RSS + 1.10 * maximum observed candidate cost <= memory
 ```
 
 The 10% candidate-cost margin accounts for continued Clingo growth after a
 measurement without reserving a second fixed fraction of the complete memory
-budget. If resident memory nevertheless exceeds `MEMORY`, the least advanced
+budget. If resident memory nevertheless exceeds `memory`, the least advanced
 active candidate is interrupted before another candidate is considered, while
 at least one solver instance is always retained. A candidate that already
 emitted a witness remains eligible for selection; otherwise a
@@ -498,7 +498,7 @@ The combined domain and clause transition policy is:
 - **Successful expansion with insufficient yield:** retain the best witness,
   protect its useful additions, and refresh only the remaining expansion shell
   at constant size. Continue expansion after the yield threshold,
-  `MAX_DOMAIN_REFRESHES` refreshes, or candidate-space exhaustion.
+  `maximum_domain_refreshes` refreshes, or candidate-space exhaustion.
 - **Certified candidate optimum without sufficient yield:** treat the candidate
   as `SAT` and fully solved for its exact subdomain, but continue refreshing
   other compositions at the same size. Certification does not imply that a
@@ -506,12 +506,12 @@ The combined domain and clause transition policy is:
 - **Minimal domain `UNKNOWN`:** try another deterministic candidate
   composition when alternatives exist. If the minimal domain is fixed by the
   required nodes, repeat attempts remain bounded by clause patience. At
-  `MAX_CLAUSES`, only the stage timeout or user interruption can end the
+  `max_clauses`, only the stage timeout or user interruption can end the
   unresolved search.
 - **Witness found:** make the first witness the wave leader, continue until the
   shared wave patience expires without a strict portfolio improvement, then
   use the selected leader for expansion toward the complete domain.
-- **Complete domain `UNSAT` at `MAX_CLAUSES`:** no solution exists for the
+- **Complete domain `UNSAT` at `max_clauses`:** no solution exists for the
   complete problem represented by the current constraint set and regulatory
   domain.
 
@@ -531,7 +531,7 @@ It is enabled by default for `SEED` and `LOCK`, and disabled by default for
 `SOFT` and `RELAXED` while the strategy remains under experimental validation.
 
 Domain and clause continuation are independent. With clause continuation
-disabled, domain continuation operates directly at `MAX_CLAUSES`. With domain
+disabled, domain continuation operates directly at `max_clauses`. With domain
 continuation disabled, each enabled clause bound is solved on the complete
 domain. When both are enabled, witness acquisition and expansion operate within
 each clause bound as needed.
@@ -542,7 +542,7 @@ For one node-selection stage without an initial witness, the intended control
 flow is:
 
 ```text
-for q in 1..MAX_CLAUSES:
+for q in 1..max_clauses:
     while no witness exists:
         evaluate candidate domains in parallel
 
@@ -588,7 +588,7 @@ for q in 1..MAX_CLAUSES:
             insufficient yield:
                 preserve the previous domain and useful witness additions
                 resample the remaining slots at constant size
-                stop after MAX_DOMAIN_REFRESHES refreshes
+                stop after maximum_domain_refreshes refreshes
                 or candidate-space exhaustion
 
             sufficient yield or refresh limit:
@@ -599,12 +599,12 @@ for q in 1..MAX_CLAUSES:
             reduce the expansion step or diversify added nodes
 
     optimize the complete domain at q using the best witness and
-    CLINGO_THREADS
+    clingo_threads
 
     if the theoretical maximum objective is reached:
         stop
 
-    if q < MAX_CLAUSES:
+    if q < max_clauses:
         rebase the next domain on the retained solution and required nodes
         preserve the retained structural witness
         continue with q+1
@@ -624,8 +624,8 @@ SEED witness + mandatory witnessed nodes -> initial lock domain
                                            -> final lock optimization
 ```
 
-Consequently, disabling `DOMAIN_CONTINUATION_LOCK` restores direct
-complete-domain lock optimization, while `TIMEOUT_LOCK=0` still bypasses lock
+Consequently, disabling `domain_continuation_lock` restores direct
+complete-domain lock optimization, while `timeout_lock: 0` still bypasses lock
 solving entirely and retains the seed solution.
 
 ## Subset-Minimal Warm Start
@@ -643,9 +643,9 @@ changing the admissible solution set. Subsequent enumeration remains governed
 by projected domain-record enumeration. With parallel inference, the warm
 start is combined with the BoNesis subset-minimal solver portfolio.
 
-## Make Parameter Reference
+## Configuration Reference
 
-`<STAGE>` denotes `SOFT`, `RELAXED`, `SEED`, or `LOCK`, except where a smaller
+`<stage>` denotes `soft`, `relaxed`, `seed`, or `lock`, except where a smaller
 set is stated explicitly. The explicit parameter names below form the current
 solver interface.
 
@@ -653,27 +653,27 @@ solver interface.
 
 | Parameter | Meaning |
 | --- | --- |
-| `PRIOR_KNOWLEDGE` | Regulatory resource or custom influence graph defining the complete structural domain. |
-| `MAX_CLAUSES` | Maximum number of conjunctive terms joined by OR in each Boolean update function. |
-| `SEED` | Seed used to construct deterministic domain portfolios and resolve reproducible ordering choices. |
+| `prior_knowledge` | Regulatory resource or custom influence graph defining the complete structural domain. |
+| `max_clauses` | Maximum number of conjunctive terms joined by OR in each Boolean update function. |
+| `seed` | Seed used to construct deterministic domain portfolios and resolve reproducible ordering choices. |
 
-Resource-version parameters such as `GENEINFO_VERSION`, `OMNIPATH_VERSION`,
-`HCOP_VERSION`, `DOROTHEA_API`, `DOROTHEA_COMPATIBILITY`, and
-`DOROTHEA_LEVELS` also affect the complete domain when a built-in prior is
+Resource-version parameters such as `geneinfo_version`, `omnipath_version`,
+`hcop_version`, `dorothea_api`, `dorothea_compatibility`, and
+`dorothea_levels` also affect the complete domain when a built-in prior is
 used. They define the problem itself rather than the solver strategy.
 
 ### Constraint Relaxation
 
 | Parameter | Meaning |
 | --- | --- |
-| `MIN_SELF_LOOP_CONSTS` | Whether `max-consts-soft` additionally minimizes one-node feedbacks while optimizing strong constants. |
-| `TIMEOUT_SOFT` | Total solver-runtime limit for the soft node-selection stage. |
-| `TIMEOUT_CONSTS` | Total solver-runtime limit for strong-constant optimization. |
-| `TIMEOUT_RELAXED` | Total solver-runtime limit after intermediate constraints are introduced. |
-| `TIMEOUT_SEED` | Required bounded runtime for complete-constraint seed optimization. |
-| `TIMEOUT_LOCK` | Total runtime for lock optimization; `0` skips solving and retains the seed solution directly. |
+| `minimize_self_loops_constants` | Whether `max-consts-soft` additionally minimizes one-node feedbacks while optimizing strong constants. |
+| `timeout_soft` | Total solver-runtime limit for the soft node-selection stage. |
+| `timeout_consts` | Total solver-runtime limit for strong-constant optimization. |
+| `timeout_relaxed` | Total solver-runtime limit after intermediate constraints are introduced. |
+| `timeout_seed` | Required bounded runtime for complete-constraint seed optimization. |
+| `timeout_lock` | Total runtime for lock optimization; `0` skips solving and retains the seed solution directly. |
 
-Each `TIMEOUT_*` value covers all solver attempts inside its stage. Its clock
+Each `timeout_<stage>` value covers all solver attempts inside its stage. Its clock
 starts when optimization begins and is not reset when the clause bound, domain,
 branch, or Clingo instance changes.
 
@@ -681,67 +681,67 @@ branch, or Clingo instance changes.
 
 | Parameter | Meaning |
 | --- | --- |
-| `CLAUSE_CONTINUATION_<STAGE>` | Enable progressive clause bounds for the selected node-selection stage. |
-| `PATIENCE_CLAUSE_BOUND` | Shared maximum time without an objective improvement at an intermediate clause bound. Disabled at `MAX_CLAUSES`. |
+| `clause_continuation_<stage>` | Enable progressive clause bounds for the selected node-selection stage. |
+| `clause_bound_patience` | Shared maximum time without an objective improvement at an intermediate clause bound. Disabled at `max_clauses`. |
 
 Clause continuation supports `SOFT`, `RELAXED`, `SEED`, and `LOCK`. An empty or
 zero patience disables early advancement based on missing improvements. Each
-stage remains independently enabled through its `CLAUSE_CONTINUATION_<STAGE>`
+stage remains independently enabled through its `clause_continuation_<stage>`
 parameter, while the patience is uniform across enabled stages.
 
 ### Domain Continuation
 
 | Parameter | Meaning |
 | --- | --- |
-| `DOMAIN_CONTINUATION_<STAGE>` | Enable adaptive first-witness search and progressive witness-guided expansion; `LOCK` expands only a witness computed by `SEED`. |
-| `PATIENCE_DOMAIN_WAVE` | Shared maximum time without a strict improvement of the best portfolio objective within one acquisition or expansion wave. |
-| `MIN_DOMAIN_YIELD` | Minimum cumulative retained-node gain per node added during one domain expansion. Values must be at least 0 and below 1; zero disables constant-size refreshes. |
-| `MAX_DOMAIN_REFRESHES` | Maximum number of constant-size domain refreshes before expansion resumes. Zero disables refreshes. |
-| `MEMORY` | Soft resident-memory budget used to queue and reduce the candidate portfolio while retaining at least one solver instance. |
+| `domain_continuation_<stage>` | Enable adaptive first-witness search and progressive witness-guided expansion; `LOCK` expands only a witness computed by `SEED`. |
+| `domain_wave_patience` | Shared maximum time without a strict improvement of the best portfolio objective within one acquisition or expansion wave. |
+| `minimum_domain_yield` | Minimum cumulative retained-node gain per node added during one domain expansion. Values must be at least 0 and below 1; zero disables constant-size refreshes. |
+| `maximum_domain_refreshes` | Maximum number of constant-size domain refreshes before expansion resumes. Zero disables refreshes. |
+| `memory` | Soft resident-memory budget used to queue and reduce the candidate portfolio while retaining at least one solver instance. |
 
 Domain continuation supports `SOFT`, `RELAXED`, `SEED`, and `LOCK`. The global
-`JOBS` parameter controls the maximum number of candidate domains evaluated
+`jobs` parameter controls the maximum number of candidate domains evaluated
 simultaneously, and every candidate uses one Clingo thread. For `LOCK`, candidate
 domains are supersets of the retained `SEED` core and no acquisition portfolio
 is run. A forwarded or absent witness makes `LOCK` forward the `SEED` output
 instead. Each stage remains independently enabled through its
-`DOMAIN_CONTINUATION_<STAGE>` parameter, while the wave patience is uniform
-across enabled stages. `MAX_DOMAIN_REFRESHES` is shared by all enabled stages
+`domain_continuation_<stage>` parameter, while the wave patience is uniform
+across enabled stages. `maximum_domain_refreshes` is shared by all enabled stages
 and defaults to two retries per expansion size.
 
 ### Clingo Optimization
 
 | Parameter | Meaning |
 | --- | --- |
-| `CLINGO_CONFIG_<STAGE>` | Named Clingo configuration or custom configuration file used by the stage. |
-| `CLINGO_MODE_<STAGE>` | Optimization handling mode: `opt` for anytime optimization, `optN` for optimum enumeration and certification, or `ignore` to disable optimization objectives and accept a satisfiable model. |
-| `CLINGO_STRATEGY_<STAGE>` | Clingo optimization algorithm, such as branch-and-bound (`bb,*`) or unsatisfiable-core optimization (`usc,*`). |
-| `CLINGO_THREADS` | Number of threads used by the stage-level Clingo solver. |
+| `clingo_config_<stage>` | Named Clingo configuration or custom configuration file used by the stage. |
+| `clingo_mode_<stage>` | Optimization handling mode: `opt` for anytime optimization, `optN` for optimum enumeration and certification, or `ignore` to disable optimization objectives and accept a satisfiable model. |
+| `clingo_strategy_<stage>` | Clingo optimization algorithm, such as branch-and-bound (`bb,*`) or unsatisfiable-core optimization (`usc,*`). |
+| `clingo_threads` | Number of threads used by the stage-level Clingo solver. |
 
 The same value applies to every gene-selection stage, including
 `max-consts-soft`. Domain-continuation workers always use one Clingo thread and
-do not multiply `CLINGO_THREADS` by `JOBS`.
+do not multiply `clingo_threads` by `jobs`.
 
 ### Illustrative Seed Configuration
 
 The following configuration shows the default seed strategy.
 
-```make
-DOMAIN_CONTINUATION_SEED = true
-CLAUSE_CONTINUATION_SEED = true
-MIN_DOMAIN_YIELD = 0.10
-MAX_DOMAIN_REFRESHES = 2
+```yaml
+domain_continuation_seed: true
+clause_continuation_seed: true
+minimum_domain_yield: 0.10
+maximum_domain_refreshes: 2
 
-PATIENCE_DOMAIN_WAVE = 5m
-PATIENCE_CLAUSE_BOUND = 30m
-TIMEOUT_SEED = 24h
+domain_wave_patience: 5m
+clause_bound_patience: 30m
+timeout_seed: 24h
 
-JOBS = 8
-CLINGO_THREADS = 1
+jobs: 8
+clingo_threads: 1
 
-CLINGO_CONFIG_SEED =
-CLINGO_MODE_SEED = opt
-CLINGO_STRATEGY_SEED = bb,lin
+clingo_config_seed: null
+clingo_mode_seed: opt
+clingo_strategy_seed: bb,lin
 ```
 
 At a clause bound without a witness, this configuration evaluates up to eight
@@ -762,31 +762,31 @@ seed stage.
 The default lock strategy reuses a witness computed by `SEED` and expands it
 without a new acquisition phase:
 
-```make
-DOMAIN_CONTINUATION_LOCK = true
-CLAUSE_CONTINUATION_LOCK = true
-MIN_DOMAIN_YIELD = 0.10
-MAX_DOMAIN_REFRESHES = 2
+```yaml
+domain_continuation_lock: true
+clause_continuation_lock: true
+minimum_domain_yield: 0.10
+maximum_domain_refreshes: 2
 
-PATIENCE_DOMAIN_WAVE = 5m
-PATIENCE_CLAUSE_BOUND = 30m
-TIMEOUT_LOCK = 72h
+domain_wave_patience: 5m
+clause_bound_patience: 30m
+timeout_lock: 72h
 
-JOBS = 8
-CLINGO_THREADS = 1
+jobs: 8
+clingo_threads: 1
 ```
 
 Each candidate contains every witnessed node, because these nodes are mandatory
 during `LOCK`. The remaining slots sample nodes from the larger `RELAXED`
 domain. If `SEED` only forwarded `RELAXED`, if its solution is already global,
 or if it has no structural witness, scBOLT skips this solve. If
-`TIMEOUT_LOCK=0`, it retains the `SEED` solution without launching a solver.
+`timeout_lock: 0`, it retains the `SEED` solution without launching a solver.
 
 ## Time Budgets and Partial Results
 
 Three time controls have distinct meanings:
 
-1. `PATIENCE_DOMAIN_WAVE` bounds stagnation of the best
+1. `domain_wave_patience` bounds stagnation of the best
    portfolio objective within one acquisition or expansion wave. Its clock is
    reset by the first wave witness and every strict leader improvement, but not
    by equal or globally inferior results. Expiration interrupts all unresolved
@@ -794,10 +794,10 @@ Three time controls have distinct meanings:
    candidates remain eligible for deterministic selection. Every constant-size
    refresh receives a new wave patience clock, while the configured refresh
    limit remains attached to the current expansion size.
-2. `PATIENCE_CLAUSE_BOUND` bounds the time without objective
+2. `clause_bound_patience` bounds the time without objective
    improvement across all attempts at one intermediate clause bound. Every
    improvement resets this clause-level patience.
-3. `TIMEOUT_<STAGE>` bounds the complete solver execution of the stage and is
+3. `timeout_<stage>` bounds the complete solver execution of the stage and is
    never reset.
 
 Whenever a witness exists, scBOLT writes the best retained node set and its

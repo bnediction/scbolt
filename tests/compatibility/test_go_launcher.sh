@@ -18,9 +18,6 @@ make -C "${repo_root}/launcher" \
 test -x "${launcher}"
 test -f "${build_dir}/scbolt-windows-amd64.exe"
 
-"${launcher}" completion bash > "${tmpdir}/completion.bash"
-bash -n "${tmpdir}/completion.bash"
-
 "${launcher}" __complete --index 1 -- scbolt bn > "${tmpdir}/commands"
 grep -qx 'bn-min' "${tmpdir}/commands"
 grep -qx 'bn-submin' "${tmpdir}/commands"
@@ -57,6 +54,20 @@ env \
 grep -q '^usage: scbolt ' "${tmpdir}/help.out"
 grep -q '^  diagnostics .*report runtime and reproducibility diagnostics$' \
     "${tmpdir}/help.out"
+! grep -q '^  completion ' "${tmpdir}/help.out"
+
+rm "${home_dir}/data/bash-completion/completions/scbolt"
+env \
+    HOME="${home_dir}" \
+    XDG_CONFIG_HOME="${home_dir}/config" \
+    XDG_DATA_HOME="${home_dir}/data" \
+    SCBOLT_INSTALL_BIN_DIR="${home_dir}/bin" \
+    "${installed_launcher}" install --completions \
+    > "${tmpdir}/completions.out"
+test -f "${home_dir}/data/bash-completion/completions/scbolt"
+bash -n "${home_dir}/data/bash-completion/completions/scbolt"
+grep -q 'shell completions successfully installed' \
+    "${tmpdir}/completions.out"
 
 env \
     HOME="${home_dir}" \

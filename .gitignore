@@ -102,6 +102,7 @@ todo.*
 *.yml
 !envs/
 !envs/*.yml
+!quickstart/scbolt.yml
 !tests/
 !tests/**
 tests/**/__pycache__/

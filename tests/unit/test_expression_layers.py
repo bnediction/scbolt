@@ -80,4 +80,13 @@ module.drop_expression_matrices(adata, layers=("correct", "missing"))
 assert adata.X is None
 assert set(adata.layers) == {"counts"}
 
+selection, added, unavailable = module.include_available_features(
+    ["Hvg1", "Hvg2"],
+    ["Hvg2", "Rara", "Missing", "Rara", "Spi1"],
+    ["Hvg1", "Hvg2", "Rara", "Spi1"],
+)
+assert selection == ["Hvg1", "Hvg2", "Rara", "Spi1"]
+assert added == ["Rara", "Spi1"]
+assert unavailable == ["Missing"]
+
 print("expression layer tests passed")

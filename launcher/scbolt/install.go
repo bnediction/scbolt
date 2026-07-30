@@ -22,6 +22,7 @@ type installedCompletion struct {
 
 type installRequest struct {
 	installAll           bool
+	completionsOnly      bool
 	targetRequested      bool
 	assumeYes            bool
 	backendRequested     bool
@@ -104,6 +105,9 @@ func runInstall(cfg config, arguments []string) error {
 	request, err := parseInstallRequest(arguments)
 	if err != nil {
 		return err
+	}
+	if request.completionsOnly {
+		return reinstallCompletions()
 	}
 	if request.backendRequested {
 		cfg.backend = request.backend
@@ -199,6 +203,8 @@ func parseInstallRequest(arguments []string) (installRequest, error) {
 		}
 
 		switch {
+		case argument == "--completions":
+			request.completionsOnly = true
 		case argument == "--all":
 			if request.targetRequested {
 				return request, errors.New(
@@ -264,6 +270,15 @@ func parseInstallRequest(arguments []string) (installRequest, error) {
 			}
 			return request, fmt.Errorf("unsupported install option: %s", argument)
 		}
+	}
+
+	if request.completionsOnly {
+		if len(arguments) != 1 {
+			return request, errors.New(
+				"use --completions without a backend, --all, or --env",
+			)
+		}
+		return request, nil
 	}
 
 	request.selectedEnvironments = uniqueStrings(request.selectedEnvironments)
@@ -393,6 +408,17 @@ func installLauncher() error {
 	return nil
 }
 
+func reinstallCompletions() error {
+	completions, err := installCompletions()
+	if err != nil {
+		return err
+	}
+	printInstalledCompletions(completions)
+	printCompletionHint(completions)
+	printSuccess("scBOLT shell completions successfully installed.")
+	return nil
+}
+
 func installConfiguration(configuration map[string]string) error {
 	if err := updateUserConfig(configuration); err != nil {
 		return err
@@ -404,6 +430,12 @@ func installConfiguration(configuration map[string]string) error {
 func printInstalledLauncher(completions []installedCompletion) {
 	installedExecutable, _ := launcherInstallPath()
 	fmt.Printf("Installed launcher: %s\n", installedExecutable)
+	printInstalledCompletions(completions)
+	printPathHint(filepath.Dir(installedExecutable))
+	printCompletionHint(completions)
+}
+
+func printInstalledCompletions(completions []installedCompletion) {
 	for _, completion := range completions {
 		fmt.Printf(
 			"Installed %s completion: %s\n",
@@ -411,8 +443,6 @@ func printInstalledLauncher(completions []installedCompletion) {
 			completion.path,
 		)
 	}
-	printPathHint(filepath.Dir(installedExecutable))
-	printCompletionHint(completions)
 }
 
 func installDockerBackend(cfg config) error {

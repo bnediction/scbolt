@@ -5,6 +5,34 @@ import tempfile
 from typing import Any, Iterable
 
 
+def include_available_features(
+    selected: Iterable[str],
+    requested: Iterable[str],
+    available: Iterable[str],
+) -> tuple[list[str], list[str], list[str]]:
+    """Append available requested features while preserving selection order."""
+
+    result = list(selected)
+    selected_set = set(result)
+    available_set = set(available)
+    added = []
+    unavailable = []
+    considered = set()
+
+    for feature in requested:
+        if feature in considered:
+            continue
+        considered.add(feature)
+        if feature not in available_set:
+            unavailable.append(feature)
+        elif feature not in selected_set:
+            result.append(feature)
+            selected_set.add(feature)
+            added.append(feature)
+
+    return result, added, unavailable
+
+
 def _canonicalize_sparse_matrix(matrix: Any) -> None:
     if hasattr(matrix, "sum_duplicates"):
         matrix.sum_duplicates()

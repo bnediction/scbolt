@@ -83,6 +83,97 @@ func TestContainerRuntimeForcesInternalDockerBackend(t *testing.T) {
 	}
 }
 
+func TestLocalRuntimeExportsTypedProjectConfiguration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "scbolt.yml")
+	if err := os.WriteFile(
+		path,
+		[]byte("organism: mouse\nconditions: [ctrl, treated]\nneighbors: 14\n"+
+			"logging: false\nspec_file: spec.yml\n"+
+			"knnsc_centrality_ctrl: [Prom1]\n"),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+	projectConfig, err := loadProjectConfiguration(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	local := &localRuntime{
+		config: config{
+			backend:             "conda",
+			backendSource:       "default",
+			configurationPath:   path,
+			configurationFormat: configurationYAML,
+			projectConfig:       projectConfig,
+		},
+		manager:       "/conda",
+		bashPath:      "/bash",
+		systemBinPath: "/system/bin",
+	}
+	environment := strings.Join(local.environment(), "\n")
+	for _, expected := range []string{
+		"SCBOLT_CLI=true",
+		"SCBOLT_CONFIG_MODE=true",
+		"SCBOLT_CONFIG=" + path,
+		"SCBOLT_PUBLIC_PARAMETER_ORGANISM=organism",
+		"SCBOLT_PUBLIC_PARAMETER_LABEL=labels",
+		"SCBOLT_PUBLIC_PARAMETER_SPEC_FILE=spec_file",
+		"SCBOLT_PUBLIC_PARAMETER_KNNSC_CENTRALITY_CTRL=knnsc_centrality.ctrl",
+		"SCBOLT_PUBLIC_PARAMETER_KNNSC_PERIPHERY_TREATED=knnsc_periphery.treated",
+		"PARAMS=" + path,
+		"ORGANISM=mouse",
+		"NEIGHBORS=14",
+		"LOGGING=false",
+		"SPEC_FILE=spec.yml",
+	} {
+		if !strings.Contains(environment, expected) {
+			t.Errorf("runtime environment is missing %q", expected)
+		}
+	}
+}
+
+func TestDefaultConfigDoesNotExportProjectYAMLValues(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "scbolt.yml")
+	if err := os.WriteFile(
+		path,
+		[]byte("organism: mouse\nneighbors: 14\nspec_file: spec.yml\n"),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+	projectConfig, err := loadProjectConfiguration(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	local := &localRuntime{
+		root: t.TempDir(),
+		config: config{
+			backend:             "conda",
+			backendSource:       "default",
+			configurationPath:   path,
+			configurationFormat: configurationYAML,
+			projectConfig:       projectConfig,
+		},
+		manager:       "/conda",
+		makePath:      "/make",
+		bashPath:      "/bash",
+		systemBinPath: "/system/bin",
+	}
+	environment := strings.Join(
+		local.makeCommand("config", "DEFAULT_CONFIG=true").Env,
+		"\n",
+	)
+	for _, unexpected := range []string{
+		"SCBOLT_CONFIG_MODE=true",
+		"ORGANISM=mouse",
+		"NEIGHBORS=14",
+	} {
+		if strings.Contains(environment, unexpected) {
+			t.Errorf("default configuration environment contains %q", unexpected)
+		}
+	}
+}
+
 func TestTranslateLocalArgumentsPreservesMakeOverrides(t *testing.T) {
 	workingDirectory, err := os.Getwd()
 	if err != nil {
@@ -115,6 +206,7 @@ func TestTranslateLocalArgumentsPreservesMakeOverrides(t *testing.T) {
 		"--trust-target", "max-nodes-lock",
 		"--trust-existing",
 		"--max-clauses=8",
+		"--pca-dimensions=15",
 		"REFERENCES=ctrl+treated",
 	})
 	if err != nil {
@@ -125,13 +217,18 @@ func TestTranslateLocalArgumentsPreservesMakeOverrides(t *testing.T) {
 		"CLI_TRUST_TARGETS+=max-nodes-lock",
 		"TRUST_EXISTING=true",
 		"MAX_CLAUSES=8",
+		"DIM_PCA=15",
 		"REFERENCES=ctrl+treated",
 	}
 	if !reflect.DeepEqual(translated.makeArgs, want) {
 		t.Fatalf("translated Make arguments = %#v, want %#v", translated.makeArgs, want)
 	}
-	if translated.params != params {
-		t.Fatalf("resolved parameters = %q, want %q", translated.params, params)
+	if translated.configurationPath != params {
+		t.Fatalf(
+			"resolved configuration = %q, want %q",
+			translated.configurationPath,
+			params,
+		)
 	}
 	if translated.projectRoot != project {
 		t.Fatalf("project root = %q, want %q", translated.projectRoot, project)

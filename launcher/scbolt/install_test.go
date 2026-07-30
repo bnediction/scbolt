@@ -106,6 +106,23 @@ func TestInstallCompletionsDoesNotNeedCheckout(t *testing.T) {
 	}
 }
 
+func TestCompletionInstallDoesNotNeedBackend(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", root)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+
+	if err := runInstall(config{}, []string{"--completions"}); err != nil {
+		t.Fatal(err)
+	}
+	if !exists(filepath.Join(root, "data", "bash-completion", "completions", "scbolt")) {
+		t.Fatal("completion repair did not install the Bash adapter")
+	}
+	if exists(userConfigPath()) {
+		t.Fatal("completion repair unexpectedly wrote backend configuration")
+	}
+}
+
 func TestNativeLauncherBootstrapDoesNotNeedRepositoryInstallScript(t *testing.T) {
 	home := t.TempDir()
 	source := filepath.Join(t.TempDir(), "scbolt-source")
@@ -192,6 +209,28 @@ func TestParseInstallRequestDefaultsAndExplicitTargets(t *testing.T) {
 	want := []string{"system", "core"}
 	if strings.Join(request.selectedEnvironments, ",") != strings.Join(want, ",") {
 		t.Fatalf("selected environments = %v, want %v", request.selectedEnvironments, want)
+	}
+}
+
+func TestParseInstallRequestCompletionsOnly(t *testing.T) {
+	request, err := parseInstallRequest([]string{"--completions"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !request.completionsOnly || request.backendRequested ||
+		len(request.selectedEnvironments) != 0 {
+		t.Fatalf("unexpected completion install request: %#v", request)
+	}
+
+	conflicts := [][]string{
+		{"--completions", "conda"},
+		{"--completions", "--env=core"},
+		{"--all", "--completions"},
+	}
+	for _, arguments := range conflicts {
+		if _, err := parseInstallRequest(arguments); err == nil {
+			t.Fatalf("completion install conflict was accepted: %v", arguments)
+		}
 	}
 }
 

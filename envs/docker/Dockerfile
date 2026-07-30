@@ -2,7 +2,7 @@ FROM golang:1.22-bookworm AS launcher
 
 WORKDIR /src
 
-COPY go.mod VERSION ./
+COPY go.mod go.sum VERSION ./
 COPY launcher/ ./launcher/
 
 ARG SCBOLT_GIT_COMMIT=unknown

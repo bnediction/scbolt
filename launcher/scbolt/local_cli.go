@@ -26,7 +26,7 @@ var scboltModules = []string{
 var scboltCommands = append(
 	[]string{
 		"init", "help", "version", "config", "progress", "check", "diagnostics",
-		"dry-run", "clean", "install", "completion",
+		"dry-run", "clean", "install",
 	},
 	scboltModules...,
 )
@@ -55,12 +55,11 @@ type localCLI struct {
 }
 
 type translatedArguments struct {
-	makeArgs       []string
-	positionals    []string
-	params         string
-	projectRoot    string
-	paramsFromCLI  string
-	paramsFromMake string
+	makeArgs            []string
+	positionals         []string
+	configurationPath   string
+	configurationFormat configurationFormat
+	projectRoot         string
 }
 
 func runLocal(root string, cfg config, args []string) (int, error) {
@@ -162,7 +161,7 @@ func splitLeadingArguments(args []string) ([]string, []string, error) {
 
 func takesSeparatedGlobalValue(argument string) bool {
 	switch argument {
-	case "--params", "--references", "--reset-target", "--trust-target",
+	case "--config", "--params", "--references", "--reset-target", "--trust-target",
 		"--old-file", "--logging", "--target", "--backend":
 		return true
 	default:
@@ -186,12 +185,14 @@ func (cli *localCLI) translate(command string, args []string) (translatedArgumen
 		}
 
 		switch {
-		case argument == "--params" || strings.HasPrefix(argument, "--params="):
-			value, err := valueFor("--params")
-			if err != nil {
+		case argument == "--config" || strings.HasPrefix(argument, "--config="):
+			if _, err := valueFor("--config"); err != nil {
 				return translated, err
 			}
-			translated.paramsFromCLI = value
+		case argument == "--params" || strings.HasPrefix(argument, "--params="):
+			if _, err := valueFor("--params"); err != nil {
+				return translated, err
+			}
 		case argument == "--references" || strings.HasPrefix(argument, "--references="):
 			value, err := valueFor("--references")
 			if err != nil {
@@ -267,12 +268,22 @@ func (cli *localCLI) translate(command string, args []string) (translatedArgumen
 			name, value, _ := strings.Cut(argument, "=")
 			translated.makeArgs = append(
 				translated.makeArgs,
-				optionMakeVariable(name)+"="+value,
+				optionMakeAssignments(name, value)...,
 			)
-		case strings.HasPrefix(argument, "PARAMS="):
-			translated.paramsFromMake = strings.TrimPrefix(argument, "PARAMS=")
+		case strings.HasPrefix(strings.ToUpper(argument), "CONFIG="):
+			continue
+		case strings.HasPrefix(strings.ToUpper(argument), "PARAMS="):
+			continue
 		case strings.Contains(argument, "="):
-			translated.makeArgs = append(translated.makeArgs, argument)
+			name, value, _ := strings.Cut(argument, "=")
+			if _, found := yamlParameters[strings.ToLower(name)]; found {
+				translated.makeArgs = append(
+					translated.makeArgs,
+					optionMakeAssignments(name, value)...,
+				)
+			} else {
+				translated.makeArgs = append(translated.makeArgs, argument)
+			}
 		case strings.HasPrefix(argument, "--"):
 			return translated, unsupportedOptionError(command, argument)
 		default:
@@ -280,13 +291,12 @@ func (cli *localCLI) translate(command string, args []string) (translatedArgumen
 		}
 	}
 
-	translated.params = translated.paramsFromCLI
-	if translated.params == "" {
-		translated.params = translated.paramsFromMake
+	selected, _, format, err := selectedConfigurationPath(args)
+	if err != nil {
+		return translated, err
 	}
-	if translated.params == "" {
-		translated.params = resolveProjectParams()
-	}
+	translated.configurationPath = selected
+	translated.configurationFormat = format
 	if projectFile := findProjectFileFromCwd(); projectFile != "" {
 		translated.projectRoot = filepath.Dir(projectFile)
 	}
@@ -297,6 +307,23 @@ func optionMakeVariable(option string) string {
 	name := strings.TrimPrefix(option, "--")
 	name = strings.ReplaceAll(name, "-", "_")
 	return strings.ToUpper(name)
+}
+
+func optionMakeAssignments(option string, value string) []string {
+	key := strings.TrimPrefix(option, "--")
+	key = strings.ToLower(strings.ReplaceAll(key, "-", "_"))
+	parameter, found := yamlParameters[key]
+	if !found || parameter.condition {
+		return []string{optionMakeVariable(option) + "=" + value}
+	}
+	if len(parameter.fanout) > 0 {
+		assignments := make([]string, 0, len(parameter.fanout))
+		for _, variable := range parameter.fanout {
+			assignments = append(assignments, variable+"="+value)
+		}
+		return assignments
+	}
+	return []string{parameter.makeVariable + "=" + value}
 }
 
 func assignmentName(argument string) string {
@@ -312,76 +339,74 @@ func assignmentValue(argument string) string {
 	return value
 }
 
-func readProjectParams(projectFile string) string {
+func readProjectConfiguration(projectFile string) projectConfigurationSelection {
 	data, err := os.ReadFile(projectFile)
 	if err != nil {
-		return ""
+		return projectConfigurationSelection{}
 	}
+	legacyFallback := projectConfigurationSelection{}
 	for _, raw := range strings.Split(string(data), "\n") {
 		line := strings.TrimSpace(raw)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		if strings.HasPrefix(line, "PARAMS") {
-			if name, value, found := strings.Cut(line, "="); found && strings.TrimSpace(name) == "PARAMS" {
-				return strings.TrimSpace(value)
+		if name, value, found := strings.Cut(line, "="); found {
+			switch strings.TrimSpace(name) {
+			case "CONFIG":
+				return projectConfigurationSelection{path: strings.TrimSpace(value)}
+			case "PARAMS":
+				legacyFallback = projectConfigurationSelection{
+					path:   strings.TrimSpace(value),
+					legacy: true,
+				}
 			}
+			continue
 		}
-		return line
+		return projectConfigurationSelection{
+			path:   line,
+			legacy: configurationFormatForPath(line) == configurationLegacy,
+		}
 	}
-	return ""
+	return legacyFallback
 }
 
-func requireParamsFile(params string) error {
-	if params == "" {
+func readProjectParams(projectFile string) string {
+	return readProjectConfiguration(projectFile).path
+}
+
+func requireConfigurationFile(configurationPath string) error {
+	if configurationPath == "" {
 		return errors.New(
-			"No parameter file found.\n\nRun:\n  scbolt init <params.mk>\nor:\n  scbolt <target> --params=<file>",
+			"No configuration file found.\n\nRun:\n  scbolt init scbolt.yml\nor:\n  scbolt <target> --config=<file>",
 		)
 	}
-	path := params
+	path := configurationPath
 	if !filepath.IsAbs(path) {
 		workingDirectory, _ := os.Getwd()
 		path = filepath.Join(workingDirectory, path)
 	}
 	if !exists(path) {
-		return fmt.Errorf("Parameter file not found: %s", params)
+		return fmt.Errorf("Configuration file not found: %s", configurationPath)
 	}
-	if filepath.Ext(params) != ".mk" {
-		return fmt.Errorf("Parameter file must have a .mk extension: %s", params)
+	if configurationFormatForPath(configurationPath) == configurationNone {
+		return fmt.Errorf(
+			"Configuration file must have a .yml, .yaml, or .mk extension: %s",
+			configurationPath,
+		)
 	}
 	return nil
 }
 
 func (cli *localCLI) runTopLevelHelp() (int, error) {
-	arguments := []string{"help", "SCBOLT_CLI=true"}
-	if params := optionalParamsAssignment(); params != "" {
-		arguments = append(arguments, params)
-	}
-	return cli.runMakeAttached("", arguments, false)
-}
-
-func optionalParamsAssignment() string {
-	params := resolveProjectParams()
-	if params == "" {
-		return ""
-	}
-	path := params
-	if !filepath.IsAbs(path) {
-		workingDirectory, _ := os.Getwd()
-		path = filepath.Join(workingDirectory, path)
-	}
-	if exists(path) {
-		return "PARAMS=" + params
-	}
-	return ""
+	return cli.runMakeAttached("", []string{"help", "SCBOLT_CLI=true"}, false)
 }
 
 func (cli *localCLI) runMakeHelp(command string) (int, error) {
-	arguments := []string{command, "HELP=true", "SCBOLT_CLI=true"}
-	if params := optionalParamsAssignment(); params != "" {
-		arguments = append(arguments, params)
-	}
-	return cli.runMakeAttached("", arguments, false)
+	return cli.runMakeAttached(
+		"",
+		[]string{command, "HELP=true", "SCBOLT_CLI=true"},
+		false,
+	)
 }
 
 func (cli *localCLI) runClean(leading []string, args []string) (int, error) {
@@ -560,7 +585,7 @@ func (cli *localCLI) runModule(
 	if err != nil {
 		return 2, err
 	}
-	if err := requireParamsFile(translated.params); err != nil {
+	if err := requireConfigurationFile(translated.configurationPath); err != nil {
 		return 1, err
 	}
 	label := module
@@ -578,10 +603,9 @@ func (cli *localCLI) runMakeWithParams(
 	arguments []string,
 	filterErrors bool,
 ) (int, error) {
-	if err := requireParamsFile(translated.params); err != nil {
+	if err := requireConfigurationFile(translated.configurationPath); err != nil {
 		return 1, err
 	}
-	arguments = append(arguments, "PARAMS="+translated.params)
 	return cli.runMakeAttached(translated.projectRoot, arguments, filterErrors)
 }
 
@@ -648,7 +672,6 @@ func (cli *localCLI) runMakeBuild(
 	}
 	workflowArguments := append([]string{}, arguments...)
 	makeArguments := append([]string{}, workflowArguments...)
-	makeArguments = append(makeArguments, "PARAMS="+translated.params)
 	terminal, terminalErr := openTerminalInput()
 	interactive := terminalErr == nil
 	if interactive {
@@ -798,7 +821,6 @@ func (cli *localCLI) targetLabelWithReferences(
 ) string {
 	arguments := []string{"__reference-context"}
 	arguments = append(arguments, translated.makeArgs...)
-	arguments = append(arguments, "PARAMS="+translated.params)
 	context, err := cli.runMakeCapture(translated.projectRoot, arguments...)
 	if err != nil {
 		return label
@@ -836,7 +858,6 @@ func (cli *localCLI) targetLabelWithIntermediateStatus(
 	}
 	makeArguments := []string{
 		"-s", "__intermediate-gene-selection-status",
-		"PARAMS=" + translated.params,
 		"INTERMEDIATE_GENE_SELECTION_MODULE=" + module[0],
 	}
 	makeArguments = append(makeArguments, makeAssignments(arguments)...)
@@ -857,7 +878,6 @@ func (cli *localCLI) finalizeInterruptedResults(
 ) {
 	makeArguments := []string{
 		"-s", "__finalize-interrupted-gene-selection-results",
-		"PARAMS=" + translated.params,
 		"INTERRUPTED_TARGET=" + module,
 		"INTERRUPTED_ELAPSED=" + elapsed,
 	}
@@ -876,7 +896,6 @@ func (cli *localCLI) printKeptIntermediateResults(
 	}
 	makeArguments := []string{
 		"-s", "__kept-gene-selection-results",
-		"PARAMS=" + translated.params,
 		"INTERRUPTED_INFERENCE_MODULE=" + module,
 	}
 	makeArguments = append(makeArguments, makeAssignments(arguments)...)
@@ -989,7 +1008,7 @@ func hasAssignment(arguments []string, name string) bool {
 
 func unsupportedOptionError(command string, option string) error {
 	choices := []string{
-		"--params", "--references", "--reset-target", "--trust-target",
+		"--config", "--params", "--references", "--reset-target", "--trust-target",
 		"--trust-existing", "--old-file", "--logging", "--target", "--backend",
 	}
 	switch command {

@@ -3,6 +3,8 @@
 !Makefile
 !README.md
 !VERSION
+!go.mod
+!go.sum
 !install
 
 !bin/
@@ -14,6 +16,8 @@
 !envs/docker/Dockerfile
 !lib/
 !lib/**
+!launcher/
+!launcher/**
 !man/
 !man/**
 !mk/
@@ -26,5 +30,6 @@
 !quickstart/
 !quickstart/README.md
 !quickstart/params.mk
+!quickstart/scbolt.yml
 !quickstart/spec.yml
 !quickstart/tiny_nestorowa.py

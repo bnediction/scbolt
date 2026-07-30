@@ -16,12 +16,15 @@ GO_LDFLAGS := -s -w \
 	-X main.sourceRevision=$(REVISION) \
 	-X main.defaultImage=$(IMAGE)
 
-.PHONY: all release manifest manifest-check test native linux-amd64 windows-amd64 darwin-amd64 darwin-arm64
+.PHONY: all release manifest manifest-check test native linux-amd64 windows-amd64 darwin-amd64 darwin-arm64 windows-installer
 
 all: linux-amd64 windows-amd64 darwin-amd64 darwin-arm64
 
 release: BUILD_DIR := $(DIST_DIR)
-release: all
+release: all windows-installer
+
+windows-installer: windows-amd64
+	cp $(BUILD_DIR)/scbolt-windows-amd64.exe $(ROOT)/install.exe
 
 manifest:
 	cd $(ROOT)
