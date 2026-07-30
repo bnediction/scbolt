@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -29,6 +30,14 @@ type config struct {
 	engine          string
 	containerArgs   string
 	containerMounts string
+	paramsPath      string
+	paramsSource    string
+	settings        map[string]effectiveSetting
+}
+
+type effectiveSetting struct {
+	value  string
+	source string
 }
 
 func main() {
@@ -75,6 +84,20 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
+	if firstCommand(args) == "diagnostics" {
+		status, diagnosticsErr := runDiagnosticsCommand(
+			context.Background(),
+			cfg,
+			args,
+			os.Stdout,
+			isTerminal(os.Stdout),
+			defaultDiagnosticDependencies(),
+		)
+		if diagnosticsErr != nil {
+			fmt.Fprintln(os.Stderr, diagnosticsErr)
+		}
+		os.Exit(status)
+	}
 	if firstCommand(args) == "init" {
 		if initErr := runInit(cfg, args); initErr != nil {
 			fatal(initErr)
@@ -114,7 +137,7 @@ func fatal(err error) {
 	if errors.As(err, &reported) {
 		os.Exit(reported.status)
 	}
-	fmt.Fprintf(os.Stderr, "✗ %s\n", err)
+	printFailure(err.Error())
 	os.Exit(1)
 }
 
@@ -183,7 +206,7 @@ func execDocker(cfg config, args []string) {
 		}
 
 		if !dockerImageExists(cfg.engine, cfg.image) {
-			fmt.Fprintf(os.Stderr, "⚠ pulling Docker image: %s\n", cfg.image)
+			printWarningTo(os.Stderr, "pulling Docker image: "+cfg.image)
 			runCommand(cfg.engine, "pull", cfg.image)
 		}
 
@@ -333,6 +356,44 @@ func effectiveConfig(args []string) (config, error) {
 		cfg.containerMounts = value
 	}
 
+	cfg.paramsPath, cfg.paramsSource = selectedParamsPath(args)
+	cfg.settings = map[string]effectiveSetting{
+		"BACKEND": {
+			value:  cfg.backend,
+			source: cfg.backendSource,
+		},
+		"LOGGING": resolveEffectiveSetting(
+			args,
+			cfg.paramsPath,
+			"LOGGING",
+			effectiveSetting{value: "true", source: "default"},
+		),
+		"PROJECT_DIR": resolveEffectiveSetting(
+			args,
+			cfg.paramsPath,
+			"PROJECT_DIR",
+			effectiveSetting{value: "project", source: "default"},
+		),
+		"RESOURCES_DIR": resolveEffectiveSetting(
+			args,
+			cfg.paramsPath,
+			"RESOURCES_DIR",
+			effectiveSetting{value: "resources", source: "default"},
+		),
+		"SEED": resolveEffectiveSetting(
+			args,
+			cfg.paramsPath,
+			"SEED",
+			effectiveSetting{value: "10", source: "default"},
+		),
+		"OPENBLAS_CORETYPE": resolveEffectiveSetting(
+			args,
+			cfg.paramsPath,
+			"OPENBLAS_CORETYPE",
+			environmentSetting("OPENBLAS_CORETYPE"),
+		),
+	}
+
 	switch cfg.backend {
 	case "conda", "mamba", "micromamba", "docker":
 		return cfg, nil
@@ -342,52 +403,98 @@ func effectiveConfig(args []string) (config, error) {
 }
 
 func argumentValue(args []string, variable string) string {
+	value, _ := argumentSetting(args, variable)
+	return value
+}
+
+func argumentSetting(args []string, variable string) (string, bool) {
 	option := "--" + strings.ToLower(strings.ReplaceAll(variable, "_", "-"))
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if strings.EqualFold(arg, variable+"=") {
-			return ""
+			return "", true
 		}
 		if strings.HasPrefix(strings.ToUpper(arg), variable+"=") {
-			return strings.TrimSpace(arg[strings.Index(arg, "=")+1:])
+			return strings.TrimSpace(arg[strings.Index(arg, "=")+1:]), true
 		}
 		if arg == option && i+1 < len(args) {
-			return args[i+1]
+			return args[i+1], true
 		}
 		if strings.HasPrefix(arg, option+"=") {
-			return strings.TrimSpace(strings.TrimPrefix(arg, option+"="))
+			return strings.TrimSpace(strings.TrimPrefix(arg, option+"=")), true
 		}
 	}
-	return ""
+	return "", false
 }
 
 func paramsPathFromArgs(args []string) string {
+	path, _ := selectedParamsPath(args)
+	return path
+}
+
+func selectedParamsPath(args []string) (string, string) {
 	var params string
+	source := ""
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		switch {
 		case arg == "--params" && i+1 < len(args):
 			params = args[i+1]
+			source = "cli"
 		case strings.HasPrefix(arg, "--params="):
 			params = strings.TrimPrefix(arg, "--params=")
+			source = "cli"
 		case strings.HasPrefix(strings.ToUpper(arg), "PARAMS="):
 			params = arg[strings.Index(arg, "=")+1:]
+			source = "cli"
 		}
 	}
 	if params == "" {
 		params = resolveProjectParams()
+		if params != "" {
+			source = "params"
+		}
 	}
 	if params == "" {
-		return ""
+		return "", ""
 	}
 	if filepath.IsAbs(params) {
-		return filepath.Clean(params)
+		return filepath.Clean(params), source
 	}
 	wd, err := os.Getwd()
 	if err != nil {
-		return ""
+		return "", ""
 	}
-	return filepath.Join(wd, params)
+	return filepath.Join(wd, params), source
+}
+
+func resolveEffectiveSetting(
+	args []string,
+	paramsPath string,
+	variable string,
+	initial effectiveSetting,
+) effectiveSetting {
+	setting := initial
+	if setting.source == "" {
+		setting.source = "default"
+	}
+	if value := readConfigVariable(userConfigPath(), variable); value != "" {
+		setting = effectiveSetting{value: value, source: "user-config"}
+	}
+	if value := readConfigVariable(paramsPath, variable); value != "" {
+		setting = effectiveSetting{value: value, source: "params"}
+	}
+	if value, found := argumentSetting(args, variable); found {
+		setting = effectiveSetting{value: value, source: "cli"}
+	}
+	return setting
+}
+
+func environmentSetting(variable string) effectiveSetting {
+	if value := os.Getenv(variable); value != "" {
+		return effectiveSetting{value: value, source: "environment"}
+	}
+	return effectiveSetting{source: "default"}
 }
 
 func resolveProjectParams() string {

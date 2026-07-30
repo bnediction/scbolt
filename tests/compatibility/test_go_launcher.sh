@@ -26,6 +26,12 @@ grep -qx 'bn-min' "${tmpdir}/commands"
 grep -qx 'bn-submin' "${tmpdir}/commands"
 grep -qx 'bn-diverse' "${tmpdir}/commands"
 
+"${launcher}" __complete --index 1 -- scbolt diag > "${tmpdir}/diagnostic-command"
+grep -qx 'diagnostics' "${tmpdir}/diagnostic-command"
+
+"${launcher}" diagnostics --help > "${tmpdir}/diagnostics-help.out"
+grep -qx 'usage: scbolt diagnostics' "${tmpdir}/diagnostics-help.out"
+
 env \
     HOME="${home_dir}" \
     XDG_CONFIG_HOME="${home_dir}/config" \
@@ -49,6 +55,8 @@ env \
     SCBOLT_INSTALL_BIN_DIR="${home_dir}/bin" \
     "${installed_launcher}" > "${tmpdir}/help.out"
 grep -q '^usage: scbolt ' "${tmpdir}/help.out"
+grep -q '^  diagnostics .*report runtime and reproducibility diagnostics$' \
+    "${tmpdir}/help.out"
 
 env \
     HOME="${home_dir}" \

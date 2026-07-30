@@ -18,6 +18,7 @@ var (
 	commandPattern   = regexp.MustCompile(`^  ([a-z][a-z0-9-]*)[[:space:]]{2,}(.+)$`)
 	parameterPattern = regexp.MustCompile(`^  ([A-Z][A-Z0-9_]*)[[:space:]]+(.+)$`)
 	optionPattern    = regexp.MustCompile(`^  (--[a-z][a-z0-9-]*(?:=<[^>]+>)?)[[:space:]]+(.+)$`)
+	ansiPattern      = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 )
 
 var moduleAcceptingCommands = map[string]bool{
@@ -161,7 +162,7 @@ func generateManifest(root string, params string) (completionManifest, error) {
 		}
 
 		switch command.Name {
-		case "completion", "help", "version":
+		case "completion", "diagnostics", "help", "version":
 			command.Options = nil
 		case "install":
 			continue
@@ -216,7 +217,11 @@ func appendLauncherCommands(commands []completionCommand) []completionCommand {
 func scboltOutput(root string, args ...string) (string, error) {
 	command := exec.Command(filepath.Join(root, "bin", "scbolt"), args...)
 	command.Dir = root
-	command.Env = append(os.Environ(), "SCBOLT_ROOT="+root)
+	command.Env = append(
+		os.Environ(),
+		"MAKE_TERMOUT=",
+		"SCBOLT_ROOT="+root,
+	)
 	var output bytes.Buffer
 	var stderr bytes.Buffer
 	command.Stdout = &output
@@ -233,6 +238,7 @@ func scboltOutput(root string, args ...string) (string, error) {
 }
 
 func cleanScboltOutput(output string) string {
+	output = ansiPattern.ReplaceAllString(output, "")
 	lines := strings.Split(output, "\n")
 	cleaned := make([]string, 0, len(lines))
 	for _, line := range lines {

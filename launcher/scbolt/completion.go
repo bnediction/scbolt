@@ -53,6 +53,14 @@ func handleLauncherCommand(args []string) (bool, error) {
 		return false, nil
 	}
 	switch args[0] {
+	case "diagnostics":
+		for _, argument := range args[1:] {
+			if isHelpToken(argument) {
+				fmt.Print(launcherDiagnosticsHelp)
+				return true, nil
+			}
+		}
+		return false, nil
 	case "completion":
 		if len(args) == 2 && (args[1] == "--help" || args[1] == "help") {
 			fmt.Print("usage: scbolt completion bash|zsh|fish|powershell\n")
@@ -126,7 +134,81 @@ func printLauncherHelp() {
 			"  completion              generate shell completion\n\nDownload\n",
 		1,
 	)
-	fmt.Print(help)
+	fmt.Print(styleLauncherHelp(help, manifest.Commands, isTerminal(os.Stdout)))
+}
+
+func styleLauncherHelp(
+	help string,
+	commands []completionCommand,
+	interactive bool,
+) string {
+	if !interactive {
+		return help
+	}
+
+	const (
+		bold  = "\x1b[1m"
+		green = "\x1b[0;32m"
+		reset = "\x1b[0m"
+	)
+	commandNames := make(map[string]struct{}, len(commands))
+	for _, command := range commands {
+		commandNames[command.Name] = struct{}{}
+	}
+
+	lines := strings.Split(help, "\n")
+	for index, line := range lines {
+		if launcherHelpHeading(lines, index, commandNames) {
+			lines[index] = bold + line + reset
+			continue
+		}
+		if len(line) == 0 || (line[0] != ' ' && line[0] != '\t') {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		name := fields[0]
+		if _, found := commandNames[name]; !found {
+			continue
+		}
+		start := strings.Index(line, name)
+		lines[index] = line[:start] + green + name + reset + line[start+len(name):]
+	}
+
+	styled := strings.Join(lines, "\n")
+	return strings.Replace(
+		styled,
+		"<command...>",
+		green+"<command...>"+reset,
+		1,
+	)
+}
+
+func launcherHelpHeading(
+	lines []string,
+	index int,
+	commandNames map[string]struct{},
+) bool {
+	line := lines[index]
+	if line == "" || line[0] == ' ' || line[0] == '\t' ||
+		strings.HasPrefix(line, "usage:") || index+1 >= len(lines) {
+		return false
+	}
+	next := lines[index+1]
+	if next == "" || (next[0] != ' ' && next[0] != '\t') {
+		return false
+	}
+	fields := strings.Fields(next)
+	if len(fields) == 0 {
+		return false
+	}
+	if strings.HasPrefix(fields[0], "--") {
+		return true
+	}
+	_, found := commandNames[fields[0]]
+	return found
 }
 
 func loadCompletionManifest() (completionManifest, error) {

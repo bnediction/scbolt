@@ -13,6 +13,10 @@ fakebin="${tmpdir}/bin"
 mkdir -p "${fakebin}"
 ln -s "${scbolt}" "${fakebin}/scbolt"
 
+completion_bin="${tmpdir}/completion-bin"
+mkdir -p "${completion_bin}"
+ln -s "${repo_root}/dist/scbolt-linux-amd64" "${completion_bin}/scbolt"
+
 cat > "${fakebin}/make" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -112,7 +116,7 @@ complete_scbolt() {
 
     (
         cd "${project_dir}"
-        PATH="${repo_root}/bin:${PATH}"
+        PATH="${completion_bin}:${PATH}"
         source "${repo_root}/bin/completion.bash"
         COMP_WORDS=("$@")
         COMP_CWORD="${cword}"
@@ -121,7 +125,7 @@ complete_scbolt() {
             COMP_LINE="${COMP_LINE} "
         fi
         COMP_POINT="${#COMP_LINE}"
-        _scbolt
+        _scbolt_go_complete
         printf '%s\n' "${COMPREPLY[@]}"
     )
 }

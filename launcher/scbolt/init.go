@@ -343,13 +343,7 @@ func promptValue(prompt string) string {
 
 func reportInitFailure(message string, failure string) error {
 	fmt.Fprintln(os.Stderr, message)
-	fmt.Fprintf(
-		os.Stderr,
-		"%s✗%s %s\n",
-		terminalColor(os.Stderr, "\x1b[0;31m"),
-		terminalReset(os.Stderr),
-		failure,
-	)
+	printFailure(failure)
 	return &reportedError{status: 1}
 }
 

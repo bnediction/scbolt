@@ -25,8 +25,8 @@ var scboltModules = []string{
 
 var scboltCommands = append(
 	[]string{
-		"init", "help", "version", "config", "progress", "check", "dry-run",
-		"clean", "install", "completion",
+		"init", "help", "version", "config", "progress", "check", "diagnostics",
+		"dry-run", "clean", "install", "completion",
 	},
 	scboltModules...,
 )
@@ -1093,23 +1093,35 @@ func firstNonemptyLine(value string) string {
 }
 
 func printSuccess(message string) {
-	fmt.Printf("%s%s%s %s\n", terminalColor(os.Stdout, "\x1b[0;32m"), "✓", terminalReset(os.Stdout), message)
+	fmt.Printf("%s %s\n", statusIcon(os.Stdout, "✓", "\x1b[0;32m"), message)
 }
 
 func printWarning(message string) {
-	fmt.Printf("%s%s%s %s\n", terminalColor(os.Stdout, "\x1b[0;33m"), "⚠", terminalReset(os.Stdout), message)
+	printWarningTo(os.Stdout, message)
+}
+
+func printWarningTo(file *os.File, message string) {
+	fmt.Fprintf(file, "%s %s\n", statusIcon(file, "⚠", "\x1b[0;33m"), message)
+}
+
+func printFailure(message string) {
+	fmt.Fprintf(os.Stderr, "%s %s\n", statusIcon(os.Stderr, "✗", "\x1b[0;31m"), message)
 }
 
 func printSuccessStatus(label string) {
-	fmt.Printf("%s✓ completed:%s %s\n", terminalColor(os.Stdout, "\x1b[0;32m"), terminalReset(os.Stdout), label)
+	fmt.Printf("%s completed: %s\n", statusIcon(os.Stdout, "✓", "\x1b[0;32m"), label)
 }
 
 func printWarningStatus(status string, label string) {
-	fmt.Printf("%s⚠ %s:%s %s\n", terminalColor(os.Stdout, "\x1b[0;33m"), status, terminalReset(os.Stdout), label)
+	fmt.Printf("%s %s: %s\n", statusIcon(os.Stdout, "⚠", "\x1b[0;33m"), status, label)
 }
 
 func printFailureStatus(label string) {
-	fmt.Fprintf(os.Stderr, "%s✗ failed:%s %s\n", terminalColor(os.Stderr, "\x1b[0;31m"), terminalReset(os.Stderr), label)
+	fmt.Fprintf(os.Stderr, "%s failed: %s\n", statusIcon(os.Stderr, "✗", "\x1b[0;31m"), label)
+}
+
+func statusIcon(file *os.File, icon string, color string) string {
+	return terminalColor(file, color) + icon + terminalReset(file)
 }
 
 func terminalColor(file *os.File, color string) string {

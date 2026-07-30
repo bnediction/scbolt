@@ -238,9 +238,9 @@ green     = \033[0;32m
 red       = \033[0;31m
 yellow    = \033[0;33m
 bold      = \033[1m
-success_label = $(green)✓ SUCCESS$(nc)
-warning_label = $(yellow)⚠ WARNING$(nc)
-failure_label = $(red)✗ FAIL$(nc)
+success_label = $(green)✓$(nc) SUCCESS
+warning_label = $(yellow)⚠$(nc) WARNING
+failure_label = $(red)✗$(nc) FAIL
 else
 nc        =
 green     =

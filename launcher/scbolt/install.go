@@ -650,7 +650,7 @@ func runQuietInstallCommand(command *exec.Cmd) error {
 	}
 	if result.interrupted {
 		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "✗ installation canceled by user.")
+		printFailure("installation canceled by user.")
 		return &reportedError{status: 130}
 	}
 	if err != nil {

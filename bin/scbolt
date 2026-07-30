@@ -141,15 +141,15 @@ print_error() {
 }
 
 print_success_status() {
-    printf '%s%s completed:%s %s\n' "${stdout_green}" "✓" "${stdout_nc}" "$1"
+    printf '%s%s%s completed: %s\n' "${stdout_green}" "✓" "${stdout_nc}" "$1"
 }
 
 print_warning_status() {
-    printf '%s%s %s:%s %s\n' "${stdout_yellow}" "⚠" "$1" "${stdout_nc}" "$2"
+    printf '%s%s%s %s: %s\n' "${stdout_yellow}" "⚠" "${stdout_nc}" "$1" "$2"
 }
 
 print_failure_status() {
-    printf '%s%s failed:%s %s\n' "${stderr_red}" "✗" "${stderr_nc}" "$1" >&2
+    printf '%s%s%s failed: %s\n' "${stderr_red}" "✗" "${stderr_nc}" "$1" >&2
 }
 
 print_version() {

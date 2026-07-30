@@ -175,6 +175,7 @@ Display command-specific help:
 scbolt init --help
 scbolt config help
 scbolt check --help
+scbolt diagnostics --help
 scbolt progress --help
 scbolt clean help
 ```
@@ -211,6 +212,13 @@ Validate dependencies and configuration:
 
 ```bash
 scbolt check <module>
+```
+
+Diagnose the installation, selected runtime backend, host platform, and
+numerical reproducibility profile without validating pipeline inputs:
+
+```bash
+scbolt diagnostics
 ```
 
 Display workflow progress:

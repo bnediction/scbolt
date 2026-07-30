@@ -100,6 +100,20 @@ The generated shell adapters call the internal `scbolt __complete` protocol.
 Project-dependent values are read locally from `.scbolt` and the selected
 parameter file.
 
+## Diagnostics
+
+The launcher can inspect its installation, effective backend, host platform,
+runtime dependencies, and numerical reproducibility profile without running a
+pipeline module:
+
+```sh
+scbolt diagnostics
+```
+
+Diagnostics are read-only. They do not install environments, pull container
+images, modify configuration, or rebuild outputs. A warning keeps exit status
+`0`; a blocking runtime error returns `1`.
+
 ## Development
 
 Tests use build artifacts and temporary user directories. The installed

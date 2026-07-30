@@ -475,6 +475,7 @@ help: ## display help
 					printf "  $(green)%-22s$(nc)  %s\n", "config", "display the effective configuration"; \
 					printf "  $(green)%-22s$(nc)  %s\n", "progress", "display module progress"; \
 					printf "  $(green)%-22s$(nc)  %s\n", "check", "validate module requirements"; \
+					printf "  $(green)%-22s$(nc)  %s\n", "diagnostics", "report runtime and reproducibility diagnostics"; \
 					printf "  $(green)%-22s$(nc)  %s\n", "dry-run", "preview build dependencies"; \
 					printf "  $(green)%-22s$(nc)  %s\n", "clean", "clean cache, logs and selected outputs"; \
 				} \

@@ -18,6 +18,7 @@ func TestEmbeddedCompletionManifest(t *testing.T) {
 	}
 	for _, name := range []string{
 		"completion",
+		"diagnostics",
 		"install",
 		"bn-submin",
 		"max-nodes-soft",
@@ -29,10 +30,41 @@ func TestEmbeddedCompletionManifest(t *testing.T) {
 }
 
 func TestCleanScboltOutputRemovesMakeDirectoryMessages(t *testing.T) {
-	output := "make[1]: Entering directory '/tmp/scbolt'\nusage: scbolt\n" +
+	output := "make[1]: Entering directory '/tmp/scbolt'\n" +
+		"\x1b[1mUtilities\x1b[0m\n" +
+		"  \x1b[0;32mbn-submin\x1b[0m  enumerate networks\n" +
 		"make[1]: Leaving directory '/tmp/scbolt'\n"
-	if got := cleanScboltOutput(output); got != "usage: scbolt\n" {
+	want := "Utilities\n  bn-submin  enumerate networks\n"
+	if got := cleanScboltOutput(output); got != want {
 		t.Fatalf("cleaned help = %q", got)
+	}
+}
+
+func TestStyleLauncherHelp(t *testing.T) {
+	help := "usage: scbolt <command...>\n\n" +
+		"Special parameters\n" +
+		"  --help                          display command help\n\n" +
+		"Utilities\n" +
+		"  help                    display help\n"
+	commands := []completionCommand{{Name: "help"}}
+
+	if got := styleLauncherHelp(help, commands, false); got != help {
+		t.Fatalf("non-interactive help changed:\n%q", got)
+	}
+
+	styled := styleLauncherHelp(help, commands, true)
+	for _, expected := range []string{
+		"usage: scbolt \x1b[0;32m<command...>\x1b[0m",
+		"\x1b[1mSpecial parameters\x1b[0m",
+		"\x1b[1mUtilities\x1b[0m",
+		"  \x1b[0;32mhelp\x1b[0m",
+	} {
+		if !strings.Contains(styled, expected) {
+			t.Errorf("styled help does not contain %q:\n%s", expected, styled)
+		}
+	}
+	if strings.Contains(styled, "\x1b[0;32m--help") {
+		t.Errorf("special parameter was colored as a command:\n%s", styled)
 	}
 }
 
@@ -82,7 +114,7 @@ func TestCompleteCommandsAndModuleOptions(t *testing.T) {
 			want:  []string{"--dorothea-api=modern"},
 		},
 		{
-			words: []string{"scbolt", "spec", "--prior-knowledge=d"},
+			words: []string{"scbolt", "spec", "--prior-knowledge=do"},
 			index: 2,
 			want:  []string{"--prior-knowledge=dorothea"},
 		},
