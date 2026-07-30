@@ -253,20 +253,13 @@ diagnostic_collect_host() {
 }
 
 diagnostic_collect_configuration() {
-    local configuration="$1"
-    local backend="$2"
-    local backend_source="$3"
-    local logging="$4"
-    local logging_source="$5"
+    local backend="$1"
+    local backend_source="$2"
+    local logging="$3"
+    local logging_source="$4"
 
     diagnostic_add Configuration ok backend "${backend}" "source: ${backend_source}"
     diagnostic_add Configuration ok logging "${logging}" "source: ${logging_source}"
-    if [ -n "${configuration}" ]; then
-        diagnostic_add Configuration ok format \
-            "$(configuration_format "${configuration}")"
-    else
-        diagnostic_add Configuration warning format "not selected"
-    fi
 }
 
 diagnostic_collect_docker() {
@@ -399,8 +392,6 @@ diagnostic_collect_numerical() {
     fi
     diagnostic_add "Numerical reproducibility" ok "numerical threads" 1
     diagnostic_add "Numerical reproducibility" ok "random seed" "${seed}"
-    diagnostic_add "Numerical reproducibility" ok "UMAP a/b canonicalisation" \
-        "8 decimal places"
     case "${microarchitecture}" in
         "Meteor Lake")
             diagnostic_add "Numerical reproducibility" ok "numerical contract" \
@@ -563,8 +554,8 @@ run_diagnostics() {
         "${configuration_base}" "${project_dir}" "${resources_dir}" \
         "${configuration_issue}"
     diagnostic_collect_host
-    diagnostic_collect_configuration "${configuration}" "${backend}" \
-        "${backend_source}" "${logging}" "${logging_source}"
+    diagnostic_collect_configuration "${backend}" "${backend_source}" \
+        "${logging}" "${logging_source}"
     if [ "${backend}" = docker ]; then
         image="$(diagnostic_project_value "${configuration_path}" SCBOLT_IMAGE \
             ghcr.io/bnediction/scbolt:latest)"

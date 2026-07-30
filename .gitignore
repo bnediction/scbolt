@@ -123,5 +123,6 @@ llc/
 !quickstart/scbolt.yml
 !quickstart/spec.yml
 !man/*.md
+!docs/*.md
 plot_clustering_grid.py
 plot_integrated_cluster_projection_grid.py

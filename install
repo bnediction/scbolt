@@ -3,15 +3,23 @@
 set -e
 
 scbolt_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-env_dir="${scbolt_root}/envs/conda"
-lib_dir="${scbolt_root}/lib"
-scbolt_command="${scbolt_root}/bin/scbolt"
-scbolt_completion="${scbolt_root}/bin/completion.bash"
 local_bin="${HOME}/.local/bin"
+local_lib="${HOME}/.local/lib"
+installed_scbolt_root="${SCBOLT_INSTALL_ROOT:-${local_lib}/scbolt}"
 local_completion_dir="${HOME}/.local/share/bash-completion/completions"
 local_config_dir="${XDG_CONFIG_HOME:-${HOME}/.config}/scbolt"
 backend_config="${local_config_dir}/config.mk"
 default_image="ghcr.io/bnediction/scbolt:latest"
+scbolt_runtime_entries=(
+    Makefile
+    VERSION
+    install
+    bin
+    envs
+    lib
+    mk
+    scripts
+)
 scbolt_envs=(
     system
     align
@@ -34,8 +42,19 @@ install_all=false
 target_requested=false
 backend="conda"
 backend_requested=false
+development_mode=false
 selected_envs=()
 ignored_envs=()
+
+use_scbolt_root() {
+    runtime_root="$1"
+    env_dir="${runtime_root}/envs/conda"
+    lib_dir="${runtime_root}/lib"
+    scbolt_command="${runtime_root}/bin/scbolt"
+    scbolt_completion="${runtime_root}/bin/completion.bash"
+}
+
+use_scbolt_root "${scbolt_root}"
 
 usage() {
     local install_command="${SCBOLT_INSTALL_COMMAND:-./install}"
@@ -62,13 +81,14 @@ EOF
     fi
 
     cat <<EOF
-usage: ${install_command} [--all] [--completions] [--env=NAME] [--backend=conda|mamba|micromamba|docker]
+usage: ${install_command} [--dev] [--all] [--completions] [--env=NAME] [--backend=conda|mamba|micromamba|docker]
 
 Install the scBOLT command, Bash completion, and selected runtime environments.
 
-Without options, install the scBOLT command and Bash completion.
+Without options, install an autonomous copy of scBOLT and Bash completion.
 
 Options
+  --dev                  use this source tree as an editable runtime
   --all                  install CLI and all runtime environments without prompts
   --completions          reinstall Bash completion only
   --env=NAME             install one conda environment; can be repeated
@@ -166,6 +186,14 @@ do
                 exit 2
             fi
             install_all=true
+            ;;
+        --dev)
+            if [ -n "${SCBOLT_INSTALL_COMMAND:-}" ]; then
+                printf '%s\n' "--dev is only supported by ./install from a source tree" >&2
+                usage >&2
+                exit 2
+            fi
+            development_mode=true
             ;;
         --cli)
             if [ "${install_all}" = true ];
@@ -561,6 +589,83 @@ install_env() {
     fi
 }
 
+scbolt_source_revision() {
+    local revision="${SCBOLT_GIT_COMMIT:-}"
+
+    if [ -z "${revision}" ] && command -v git >/dev/null 2>&1; then
+        revision="$(git -C "${scbolt_root}" rev-parse HEAD 2>/dev/null || true)"
+    fi
+    if [ -z "${revision}" ] && [ -f "${scbolt_root}/REVISION" ]; then
+        IFS= read -r revision < "${scbolt_root}/REVISION" || true
+    fi
+    printf '%s\n' "${revision:-unknown}"
+}
+
+install_scbolt_payload() {
+    local backup
+    local entry
+    local install_parent
+    local staging
+
+    if [ "${scbolt_root}" = "${installed_scbolt_root}" ]; then
+        use_scbolt_root "${installed_scbolt_root}"
+        return 0
+    fi
+
+    for entry in "${scbolt_runtime_entries[@]}"; do
+        if [ ! -e "${scbolt_root}/${entry}" ]; then
+            printf 'scBOLT runtime entry not found: %s\n' \
+                "${scbolt_root}/${entry}" >&2
+            return 1
+        fi
+    done
+
+    install_parent="$(dirname "${installed_scbolt_root}")"
+    mkdir -p "${install_parent}"
+    staging="$(mktemp -d "${install_parent}/.scbolt.XXXXXX")"
+    backup="${installed_scbolt_root}.previous.$$"
+
+    for entry in "${scbolt_runtime_entries[@]}"; do
+        if ! cp -R "${scbolt_root}/${entry}" "${staging}/"; then
+            rm -rf "${staging}"
+            return 1
+        fi
+    done
+    find "${staging}" -type d -name __pycache__ -prune \
+        -exec rm -rf {} +
+    find "${staging}" -type f \( -name '*.pyc' -o -name '*.pyo' \) \
+        -delete
+    scbolt_source_revision > "${staging}/REVISION"
+
+    rm -rf "${backup}"
+    if [ -e "${installed_scbolt_root}" ] || [ -L "${installed_scbolt_root}" ]; then
+        if ! mv "${installed_scbolt_root}" "${backup}"; then
+            rm -rf "${staging}"
+            return 1
+        fi
+    fi
+    if ! mv "${staging}" "${installed_scbolt_root}"; then
+        if [ -e "${backup}" ] || [ -L "${backup}" ]; then
+            mv "${backup}" "${installed_scbolt_root}" || true
+        fi
+        rm -rf "${staging}"
+        return 1
+    fi
+    rm -rf "${backup}"
+
+    use_scbolt_root "${installed_scbolt_root}"
+    echo "Installed scBOLT runtime:"
+    echo "  ${installed_scbolt_root}"
+}
+
+prepare_scbolt_runtime() {
+    if [ "${development_mode}" = true ]; then
+        use_scbolt_root "${scbolt_root}"
+        return 0
+    fi
+    install_scbolt_payload
+}
+
 install_scbolt_command() {
     local choice
     local installed_command="${local_bin}/scbolt"
@@ -592,7 +697,11 @@ install_scbolt_command() {
     mkdir -p "${local_bin}"
     ln -sfn "${scbolt_command}" "${installed_command}"
 
-    echo "Installed:"
+    if [ "${development_mode}" = true ]; then
+        echo "Installed development command:"
+    else
+        echo "Installed command:"
+    fi
     echo "  ${installed_command} -> ${scbolt_command}"
 
     case ":${PATH}:" in
@@ -617,10 +726,19 @@ install_scbolt_completion() {
     fi
 
     mkdir -p "${local_completion_dir}"
-    ln -sfn "${scbolt_completion}" "${local_completion_dir}/scbolt"
+    if [ "${development_mode}" = true ]; then
+        ln -sfn "${scbolt_completion}" "${local_completion_dir}/scbolt"
+    else
+        rm -f "${local_completion_dir}/scbolt"
+        cp "${scbolt_completion}" "${local_completion_dir}/scbolt"
+    fi
 
     echo "Installed Bash completion:"
-    echo "  ${local_completion_dir}/scbolt -> ${scbolt_completion}"
+    if [ "${development_mode}" = true ]; then
+        echo "  ${local_completion_dir}/scbolt -> ${scbolt_completion}"
+    else
+        echo "  ${local_completion_dir}/scbolt"
+    fi
     echo
     echo "Restart your shell, or run:"
     echo
@@ -679,6 +797,11 @@ env_exists() {
 
 if [ "${install_cli}" = true ];
 then
+    if ! prepare_scbolt_runtime;
+    then
+        print_install_failure "scBOLT runtime"
+        exit 1
+    fi
     if install_scbolt_command;
     then
         install_scbolt_completion

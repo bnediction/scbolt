@@ -1027,7 +1027,8 @@ metadata_backend_args = \
 	--container-engine "$(SCBOLT_CONTAINER_ENGINE)" \
 	--container-image "$(SCBOLT_IMAGE)"
 metadata_old_file_args = $(foreach path,$(strip $(OLD_FILES)),--old-file "$(path)")
-metadata_git_hash = $$(git -C "$(scbolt_root)" rev-parse HEAD 2>/dev/null || echo unknown)
+metadata_git_hash = $$(git -C "$(scbolt_root)" rev-parse HEAD 2>/dev/null || \
+	cat "$(scbolt_root)/REVISION" 2>/dev/null || echo unknown)
 metadata_state = $(python) $(scripts_dir)/utils/scbolt_metadata.py state \
 	--module "$(1)" \
 	$(call metadata_target_args,$(1)) \
@@ -1301,7 +1302,7 @@ run_logged = \
 		printf 'PROJECT DIRECTORY=%s\n' "$(PROJECT_DIR)"; \
 		printf 'CONFIGURATION FILE=%s\n' "$(PARAMS)"; \
 		printf 'FILE=%s\n' "$(LOGFILE)"; \
-		printf 'SOURCE REVISION=%s\n' "`git rev-parse HEAD 2>/dev/null || echo unknown`"; \
+		printf 'SOURCE REVISION=%s\n' "$(metadata_git_hash)"; \
 		printf 'BACKEND=%s\n' "$(backend_label)"; \
 		printf 'BACKEND_SOURCE=%s\n' "$(backend_source)"; \
 		printf 'MAKE_VERSION=%s\n' "$(make_label)"; \

@@ -518,6 +518,19 @@ else
 			*) printf '%s\n' "$$1" ;; \
 		esac; \
 	}; \
+	format_parameter_value() { \
+		local parameter="$$1"; \
+		local value="$$2"; \
+		local values=(); \
+		if [ "$${parameter}" = BIN_INCLUDE_NODES ]; then \
+			read -r -a values <<< "$${value}"; \
+			if [ "$${#values[@]}" -ge 3 ]; then \
+				printf '%s nodes\n' "$${#values[@]}"; \
+				return; \
+			fi; \
+		fi; \
+		format_value "$${value}"; \
+	}; \
 	print_parameter_help() { \
 		name="$$1"; \
 		value="$$2"; \
@@ -603,7 +616,8 @@ else
 		:; \
 		$(foreach param,$(module_help_params),\
 				print_parameter_help \
-					'$(call module_help_parameter_name,$(param))' "$$(format_value "$($(param))")" \
+					'$(call module_help_parameter_name,$(param))' \
+					"$$(format_parameter_value '$(param)' "$($(param))")" \
 					'$(parameter_help_hint_$(param))' \
 					'$(parameter_help_description_$(param))' \
 					'$(parameter_help_note_$(param))' \

@@ -128,7 +128,7 @@ def _parameters() -> dict[str, Parameter]:
     add("bin-hvg-top", "BIN_HVG_TOP", INTEGER)
     add("bin-hvg-span", "BIN_HVG_SPAN", NUMBER)
     add("bin-hvg-bins", "BIN_HVG_BINS", INTEGER)
-    add("binarization-include-nodes", "BIN_INCLUDE_NODES", STRING_LIST)
+    add("bin-includes-nodes", "BIN_INCLUDE_NODES", STRING_LIST)
 
     add("integration", "INTEGRATION")
     add("pca-dimensions", "DIM_PCA", INTEGER)

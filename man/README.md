@@ -9,6 +9,7 @@ GNU Make remains scBOLT's internal workflow engine, while the Bash launcher and
 the public `scbolt.yml` and `spec.yml` files provide the user interface. See
 [configuration.md](configuration.md) for the project schema and migration
 guide. A command summary is available with `scbolt help`.
+Implementation and contributor documentation lives in [`docs/`](../docs/README.md).
 
 Reconstructing *in-silico* BNs requires many computational steps (see figure below).
 To summary the pipeline's tasks, UMI counts are computed from sequencing data,

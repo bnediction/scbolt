@@ -48,8 +48,10 @@ cd scbolt
 ./install
 ```
 
-The installer links the `scbolt` command and Bash completion into the user
-directories. Install or replace the selected runtime backend explicitly:
+The installer copies an autonomous runtime to `~/.local/lib/scbolt`, installs
+the `scbolt` command in `~/.local/bin`, and installs Bash completion. The source
+checkout can then be removed. Install or replace the selected runtime backend
+explicitly:
 
 ```sh
 scbolt install conda
@@ -60,6 +62,9 @@ scbolt install docker
 
 `scbolt install --completions` repairs the Bash completion without changing a
 runtime backend.
+
+Contributors can instead link the command to a working tree with
+`./install --dev`; see the [developer documentation](docs/README.md).
 
 Initialize a project in any working directory:
 

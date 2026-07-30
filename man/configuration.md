@@ -129,11 +129,11 @@ Command-line overrides use the equivalent dash-separated suffix, for example
 Compact and vertical YAML lists are equivalent:
 
 ```yaml
-binarization-include-nodes: [Rara, Cebpa, Spi1]
+bin-includes-nodes: [Rara, Cebpa, Spi1]
 ```
 
 ```yaml
-binarization-include-nodes:
+bin-includes-nodes:
   - Rara
   - Cebpa
   - Spi1
@@ -331,7 +331,7 @@ needed in new projects.
 | YAML key | Legacy name | Default / use |
 | --- | --- | --- |
 | `binarization-method` | `BIN_METHOD` | `consensus`. |
-| `binarization-include-nodes` | `BIN_INCLUDE_NODES` | Additional nodes retained when HVG filtering is enabled; empty by default. |
+| `bin-includes-nodes` | `BIN_INCLUDE_NODES` | Additional nodes retained when HVG filtering is enabled; empty by default. |
 | `scboolseq-only-hvg` | `BIN_SCBOOLSEQ_ONLY_HVG` | `true`. |
 | `scboolseq-openblas-threads` | `SCBOOLSEQ_OPENBLAS_THREADS` | `auto`. |
 | `scboolseq-omp-threads` | `SCBOOLSEQ_OMP_THREADS` | `auto`. |

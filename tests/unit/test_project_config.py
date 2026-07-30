@@ -191,6 +191,22 @@ class ProjectConfigurationTests(unittest.TestCase):
         self.assertEqual(settings["OMICS_HVG_TOP"], "")
         self.assertEqual(settings["BIN_HVG_TOP"], "500")
 
+    def test_bin_include_nodes_uses_short_public_name(self) -> None:
+        settings = exported(
+            "bin-includes-nodes: [Rara, Cebpa, Spi1]\n",
+        )
+        self.assertEqual(settings["BIN_INCLUDE_NODES"], "Rara Cebpa Spi1")
+
+        result = run_helper(
+            "export",
+            "binarization-include-nodes: [Rara, Cebpa, Spi1]\n",
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(
+            "unknown configuration key 'binarization-include-nodes'",
+            result.stderr,
+        )
+
     def test_shared_and_deprecated_hvg_keys_are_rejected(self) -> None:
         for key in (
             "hvg-method",

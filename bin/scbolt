@@ -26,6 +26,7 @@ SCBOLT_TOOL="${SCBOLT_BIN_DIR}/scbolt-tool"
 SCBOLT_PROJECT_CONFIG_HELPER="${SCBOLT_ROOT}/scripts/utils/project_config.py"
 SCBOLT_DIAGNOSTICS="${SCBOLT_BIN_DIR}/diagnostics.bash"
 SCBOLT_VERSION_FILE="${SCBOLT_ROOT}/VERSION"
+SCBOLT_REVISION_FILE="${SCBOLT_ROOT}/REVISION"
 SCBOLT_USER_CONFIG="${XDG_CONFIG_HOME:-${HOME}/.config}/scbolt/config.mk"
 SCBOLT_LEGACY_USER_BACKEND="${HOME}/.local/share/scbolt/backend"
 SCBOLT_MODULES="load-genome load-fastq load-matrix load-signatures load-cc load-go
@@ -166,6 +167,9 @@ print_version() {
     git_hash="${SCBOLT_GIT_COMMIT:-}"
     if [ -z "${git_hash}" ]; then
         git_hash="$(git -C "${SCBOLT_ROOT}" rev-parse HEAD 2>/dev/null || true)"
+    fi
+    if [ -z "${git_hash}" ] && [ -f "${SCBOLT_REVISION_FILE}" ]; then
+        IFS= read -r git_hash < "${SCBOLT_REVISION_FILE}" || true
     fi
     printf 'scBOLT %s\n' "${version:-unknown}"
     printf 'Source revision: %s\n' "${git_hash:-unknown}"
