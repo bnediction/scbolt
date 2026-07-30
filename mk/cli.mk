@@ -6,7 +6,7 @@ PROGRESS_ALL ?= false
 config_print_var = $(if $(filter undefined,$(origin $(1))),,$(info $(1)=$($(1))))
 help_command = $(if $(filter true,$(SCBOLT_CLI)),scbolt,make)
 help_module_usage = $(if $(filter true,$(SCBOLT_CLI)),<command...>,$(green)<module...>$(nc))
-help_params_option = $(if $(filter true,$(SCBOLT_CLI)), [--params=<file>])
+help_params_option = $(if $(filter true,$(SCBOLT_CLI)), [--config=<file>])
 help_references_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--references=<condition...>], [REFERENCES=<condition...>])
 help_reset_option = $(if $(filter true,$(SCBOLT_CLI)),\
@@ -65,7 +65,8 @@ module_help_prior_note_targets = \
 	max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock \
 	bn-min bn-submin bn-diverse
 module_help_has_prior_note = $(filter $(module_help_prior_note_targets),$(module_help_target))
-module_help_hidden_params = $(if $(module_help_has_prior_note),$(prior_knowledge_params))
+module_help_hidden_params = \
+	$(if $(module_help_has_prior_note),$(prior_knowledge_params))
 module_help_params = $(call uniq,$(filter-out $(module_help_hidden_params),\
 	$(target_params_$(module_help_target))))
 module_help_deps = $(call uniq,$(progress_deps_$(module_help_target)))
@@ -97,11 +98,14 @@ module_help_outputs = $(strip $(if $(module_help_outputs_$(module_help_target)),
 	$(module_help_outputs_$(module_help_target)),\
 	$(module_help_targets)))
 module_help_output_note = $(strip $(module_help_output_note_$(module_help_target)))
+module_help_parameter_name = $(strip $(if $(filter true,$(SCBOLT_CLI)),\
+	$(if $(SCBOLT_PUBLIC_PARAMETER_$(1)),$(SCBOLT_PUBLIC_PARAMETER_$(1)),$(1)),\
+	$(1)))
 relative_to_launch = $(shell $(call system_tool,realpath) --relative-to="$(launch_dir)" "$(1)" 2>/dev/null || printf '%s' "$(1)")
 
 show_config_target = $(if $(TARGET),$(TARGET),all)
 show_config_modules = $(if $(TARGET),$(call target_dry_run_modules,$(TARGET)),$(config_default_modules))
-show_config_params_file = $(call relative_to_launch,$(PARAMS))
+show_config_file = $(call relative_to_launch,$(PARAMS))
 show_config_none = (none)
 show_config_display_value = $(if $(strip $(1)),$(1),$(show_config_none))
 show_config_conditions = $(if $(filter true,$(unnamed_condition)),(none),$(display_conditions_label))
@@ -151,7 +155,7 @@ show_config_hvg_params = \
 show_config_relative_path = $(if $(strip $(1)),$(call relative_to_launch,$(1)))
 show_config_raw_var_value = $(if $(filter MEMORY,$(1)),$(if $(strip $(MEMORY)),$(memory_normalized),),$(if $(filter SPEC_FILE,$(1)),$(call show_config_relative_path,$(SPEC_FILE)),$(if $(filter REFERENCES,$(1)),$(display_references_label),$($(1)))))
 show_config_var_value = $(call show_config_display_value,$(call show_config_raw_var_value,$(1)))
-show_config_var_label = $(call tolower,$(subst _, ,$(1)))
+show_config_var_label = $(call tolower,$(subst _, ,$(call module_help_parameter_name,$(1))))
 show_config_label_width = $(shell printf '%s\n' \
 	$(foreach var,$(strip $(1)),'$(call show_config_var_label,$(var))') \
 	| awk '{ if (length > max) max = length } \
@@ -176,12 +180,12 @@ define show_config_help
 			make config [TARGET=<module>] [CONFIG_RAW=true] [HELP=true]),\
 		Display the effective scBOLT configuration without running the pipeline.)
 	@printf '%s\n' 'By default, config prints a readable summary.'
-	@printf '%s\n\n' 'Use the raw view to print the underlying Make parameter listing.'
+	@printf '%s\n\n' 'Use the raw view to print the internal parameter listing.'
 	@printf '$(bold)Parameters$(nc)\n'
 	@if [ "$(SCBOLT_CLI)" = "true" ]; then \
 		printf '  %-31s %s\n' '<module>' 'select module to summarize'; \
 		printf '  %-31s %s\n' '--help' 'display this help'; \
-		printf '  %-31s %s\n' '--params=<file>' 'select the parameter file'; \
+		printf '  %-31s %s\n' '--config=<file>' 'select the configuration file'; \
 		printf '  %-31s %s\n' '--default' 'display default values'; \
 		printf '  %-31s %s\n' '--raw' 'display raw config listing'; \
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict the run to selected references'; \
@@ -189,7 +193,7 @@ define show_config_help
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'preview configuration while trusting selected outputs'; \
 		printf '  %-31s %s\n' '--trust-existing' 'preview configuration while trusting existing outputs'; \
 		printf '  %-31s %s\n' '--old-file=<file>' 'trust one existing DAG file'; \
-		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
+		printf '  %-31s %s\n' '--<parameter>=<value>' 'override a configuration value'; \
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module>' 'select module to summarize'; \
 		printf '  %-31s %s\n' 'HELP=true' 'display this help'; \
@@ -214,13 +218,13 @@ define dry_run_help
 	@if [ "$(SCBOLT_CLI)" = "true" ]; then \
 		printf '  %-31s %s\n' '<module>' 'select module to preview'; \
 		printf '  %-31s %s\n' '--help' 'display this help'; \
-		printf '  %-31s %s\n' '--params=<file>' 'select the parameter file'; \
+		printf '  %-31s %s\n' '--config=<file>' 'select the configuration file'; \
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict the preview to selected references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'preview rebuild from these modules'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'preview while trusting selected module outputs'; \
 		printf '  %-31s %s\n' '--trust-existing' 'preview while trusting existing outputs'; \
 		printf '  %-31s %s\n' '--old-file=<file>' 'preview while trusting one existing DAG file'; \
-		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
+		printf '  %-31s %s\n' '--<parameter>=<value>' 'override a configuration value'; \
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module>' 'select module to preview'; \
 		printf '  %-31s %s\n' 'HELP=true' 'display this help'; \
@@ -261,13 +265,13 @@ define progress_help
 		printf '  %-31s %s\n' '<module...>' 'final modules to inspect'; \
 		printf '  %-31s %s\n' '--all' 'include extra completed and skipped modules'; \
 		printf '  %-31s %s\n' '--help' 'display this help'; \
-		printf '  %-31s %s\n' '--params=<file>' 'select the parameter file'; \
+		printf '  %-31s %s\n' '--config=<file>' 'select the configuration file'; \
 		printf '  %-31s %s\n' '--references=<condition...>' 'select references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'inspect progress with forced rebuild context'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'inspect progress while trusting selected outputs'; \
 		printf '  %-31s %s\n' '--trust-existing' 'inspect progress while trusting existing outputs'; \
 		printf '  %-31s %s\n' '--old-file=<file>' 'inspect progress while trusting one existing DAG file'; \
-		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
+		printf '  %-31s %s\n' '--<parameter>=<value>' 'override a configuration value'; \
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module...>' 'final modules to inspect'; \
 		printf '  %-31s %s\n' 'PROGRESS_ALL=true' 'include extra completed and skipped modules'; \
@@ -340,7 +344,7 @@ define show_config_print
 @printf 'Target: %s\n\n' "$(show_config_target)"
 @printf 'Project\n'
 @printf '%s\n' '-------'
-@printf '%-13s : %s\n' 'Params file' "$(show_config_params_file)"
+@printf '%-18s : %s\n' 'Configuration file' "$(show_config_file)"
 @printf '%-13s : %s\n' 'Organism' "$(call show_config_display_value,$(ORGANISM))"
 @printf '%-13s : %s\n' 'Conditions' "$(show_config_conditions)"
 @printf '%-13s : %s\n' 'Resources dir' "$(show_config_resources_dir)"
@@ -429,7 +433,7 @@ help: ## display help
 				$(help_text_width)); \
 			printf "$(bold)Special parameters$(nc)\n"; \
 				if ("$(SCBOLT_CLI)" == "true") { \
-					printf "  %-31s %s\n", "--params=<file>", "select parameter file"; \
+					printf "  %-31s %s\n", "--config=<file>", "select configuration file"; \
 					printf "  %-31s %s\n", "--project-dir=<dir>", "select project output directory"; \
 					printf "  %-31s %s\n", "--resources-dir=<dir>", "select resource directory"; \
 					printf "  %-31s %s\n", "--references=<condition...>", "select references"; \
@@ -440,7 +444,7 @@ help: ## display help
 					printf "  %-31s %s\n", "--old-file=<file>", "trust existing DAG file"; \
 					printf "  %-31s %s\n", "--logging=<bool>", "enable logging"; \
 					printf "  %-31s %s\n", "--help", "display command help"; \
-					printf "  %-31s %s\n", "--<parameter>=<value>", "override Make parameter"; \
+					printf "  %-31s %s\n", "--<parameter>=<value>", "override configuration value"; \
 			} else { \
 					printf "  %-31s %s\n", "REFERENCES=<condition...>", "select references"; \
 					printf "  %-31s %s\n", "", "default: $(display_references_label)"; \
@@ -478,6 +482,7 @@ help: ## display help
 					printf "  $(green)%-22s$(nc)  %s\n", "diagnostics", "report runtime and reproducibility diagnostics"; \
 					printf "  $(green)%-22s$(nc)  %s\n", "dry-run", "preview build dependencies"; \
 					printf "  $(green)%-22s$(nc)  %s\n", "clean", "clean cache, logs and selected outputs"; \
+					printf "  $(green)%-22s$(nc)  %s\n", "install", "install a runtime backend"; \
 				} \
 			} \
 			END { \
@@ -598,7 +603,7 @@ else
 		:; \
 		$(foreach param,$(module_help_params),\
 				print_parameter_help \
-					'$(param)' "$$(format_value "$($(param))")" \
+					'$(call module_help_parameter_name,$(param))' "$$(format_value "$($(param))")" \
 					'$(parameter_help_hint_$(param))' \
 					'$(parameter_help_description_$(param))' \
 					'$(parameter_help_note_$(param))' \
@@ -626,8 +631,12 @@ else
 						[ -n "$(module_help_has_prior_note)" ]; then \
 					printf '\n'; \
 				fi; \
-				printf '%s\n' 'SPEC_FILE must be a YAML file with entries such as:'; \
-				printf '%s\n' '  dynamical_constraints:'; \
+				if [ "$(SCBOLT_CLI)" = "true" ]; then \
+					printf '%s\n' 'The active scbolt.yml must contain entries such as:'; \
+				else \
+					printf '%s\n' 'SPEC_FILE must be a YAML file with entries such as:'; \
+				fi; \
+				printf '%s\n' '  constraints:'; \
 				printf '%s\n' '    - ...'; \
 				printf '%s\n' '  important_nodes:'; \
 				printf '%s\n' '    - ...'; \
@@ -1022,7 +1031,7 @@ knnsc: ## estimate macrostates with KNNSC
 __knnsc: $(knnsc_target)
 
 .PHONY: macrostates __macrostates
-macrostates: ## estimate macrostates with MACROSTATE_METHOD
+macrostates: ## estimate macrostates with the selected method
 	$(call run_logged,macrostates)
 __macrostates: $(macrostates_target)
 
@@ -1049,7 +1058,7 @@ bin-consensus: ## combine scBoolSeq and DEA binarizations
 __bin-consensus: $(bin_consensus)
 
 .PHONY: binarization __binarization
-binarization: ## convert macrostates into Boolean abstractions with BIN_METHOD
+binarization: ## convert macrostates into Boolean abstractions with the selected method
 	$(call run_logged,binarization)
 __binarization: $(bin)
 

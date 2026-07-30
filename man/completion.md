@@ -1,211 +1,107 @@
-# Bash Completion
+# Bash completion
 
-scBOLT provides a Bash completion script for the `scbolt` command.
+scBOLT installs its Bash completion in the standard user directory:
 
-The completion is installed by `./install` in the standard user completion
-directory:
-
-```bash
+```text
 ~/.local/share/bash-completion/completions/scbolt
 ```
 
-The installed file is a symbolic link to:
+The installed file is a symbolic link to `bin/completion.bash`. Restart the
+shell after installation, source the file directly, or repair the link with:
 
 ```bash
-bin/completion.bash
+scbolt install --completions
 ```
 
-After installing or updating scBOLT, restart the shell or reload the completion
-manually:
+## Commands and modules
 
-```bash
-source ~/.local/share/bash-completion/completions/scbolt
-```
-
-## Top-Level Completion
-
-At the top level, completion only proposes scBOLT commands and pipeline modules:
+An empty top-level completion intentionally proposes pipeline modules only:
 
 ```bash
 scbolt <TAB>
 ```
 
-Examples:
+This keeps the common execution path compact. Once a prefix is typed,
+completion also finds matching utility commands such as `diagnostics`,
+`progress`, and `install`.
 
-```text
-init
-config
-check
-dry-run
-clean
-progress
-filtering
-clustering
-spec
-bn-submin
-```
-
-Options are intentionally not proposed before a command or module has been
-selected. This keeps the first completion level focused on what scBOLT can run.
-
-For example:
-
-```bash
-scbolt --<TAB>
-```
-
-does not suggest global options.
-
-## Command and Module Options
-
-Once a command or module is selected, completion proposes supported options:
+After selecting a command or module, completion proposes its supported options:
 
 ```bash
 scbolt spec --<TAB>
+scbolt diagnostics --<TAB>
 ```
 
-Example output:
+Module options are read dynamically from `scbolt <module> help`, so help and
+completion share the same parameter registry. Public YAML keys are exposed as
+dash-separated command-line options:
 
 ```text
---params=
---references=
---reset-target=
---trust-target=
---old-file=
---logging=
---help
---spec-file=
---bin-hvg-method=
---prior-knowledge=
---dorothea-api=
+analysis_hvg_method       -> --analysis-hvg-method=
+knnsc_min_cluster_size    -> --knnsc-min-cluster-size=
+max_clauses               -> --max-clauses=
 ```
 
-The module-specific options are generated dynamically from:
+Execution commands may receive several modules. After a complete module and a
+space, completion proposes options; after a partial word, it can propose the
+next matching module.
 
-```bash
-scbolt <module> help
+## Conditional values
+
+Condition-dependent YAML mappings generate options from the active project
+configuration. For example:
+
+```yaml
+conditions: [ctrl, treated]
+knnsc_centrality:
+  ctrl: [Prom1, Prom2]
+  treated: [Prom1]
 ```
 
-This means the completion uses the same parameter registry as the module help
-page. If a module help page lists `SPEC_FILE`, the completion exposes:
-
-```bash
---spec-file=
-```
-
-Execution commands may receive several modules:
-
-```bash
-scbolt velocity potency
-```
-
-After a completed module followed by a space, completion proposes options:
-
-```bash
-scbolt potency <TAB>
-```
-
-If the next word has already started, completion can propose another module:
-
-```bash
-scbolt potency v<TAB>
-```
-
-Dash-separated CLI options are translated to Make parameters by replacing
-dashes with underscores and uppercasing the name:
+adds:
 
 ```text
---knnsc-embedding=...  ->  KNNSC_EMBEDDING=...
---knnsc-min-cluster-size=...  ->  KNNSC_MIN_CLUSTER_SIZE=...
---bin-hvg-method=...   ->  BIN_HVG_METHOD=...
+--knnsc-centrality-ctrl=
+--knnsc-centrality-treated=
 ```
 
-## Target-Aware Completion
+The same rule applies when conditions are inferred from suffixed keys. No
+condition name is hard-coded in the completion script.
 
-Diagnostic commands also use target-aware completion.
+## Value completion
 
-For example:
-
-```bash
-scbolt check spec --<TAB>
-```
-
-proposes options relevant to the `spec` module, while:
-
-```bash
-scbolt check --<TAB>
-```
-
-only proposes generic `check` options.
-
-The same behavior applies to:
-
-- `scbolt check <module>`
-- `scbolt dry-run <module>`
-- `scbolt config <module>`
-
-## Value Completion
-
-Some option values are completed when scBOLT can infer a useful domain.
-
-Boolean options complete to:
+Closed-value parameters complete to their supported choices. Examples include:
 
 ```text
-true
-false
+--backend=                  conda mamba micromamba docker
+--organism=                 mouse human
+--analysis-hvg-method=      loess binning
+--dorothea-api=             modern legacy
+--clingo-mode-seed=         opt optN ignore
+--clingo-strategy-seed=     bb bb,lin bb,hier bb,inc bb,dec
+                            usc usc,oll usc,one usc,k usc,pmres
 ```
 
-Examples:
+Boolean options complete to `true` and `false`. `prior_knowledge` proposes
+`dorothea`, `collectri`, and filesystem paths. File-valued options use regular
+filesystem completion, while reset and trust options complete to known scBOLT
+modules.
 
-```bash
-scbolt velocity --velocity-only-hvg=<TAB>
-```
+## Project context
 
-File-like options use regular filesystem completion.
+Dynamic completion resolves project configuration in the normal order:
 
-Examples:
+1. `--config=<file>` on the current command line;
+2. the `.scbolt` project locator;
+3. `scbolt.yml` in the launch directory;
+4. the legacy `params.mk` fallback.
 
-```bash
-scbolt spec --spec-file=<TAB>
-scbolt binarization --binarization-file=<TAB>
-scbolt macrostates --macrostate-files=<TAB>
-scbolt bn-submin --old-file=<TAB>
-scbolt --params=<TAB>
-```
+Without a resolvable project, generic command options remain available, but
+condition-specific and module-specific suggestions may be incomplete.
 
-Module-list options complete to known scBOLT modules:
+## Maintenance
 
-```bash
-scbolt spec --reset-target=<TAB>
-scbolt spec --trust-target=<TAB>
-```
-
-## Project Context
-
-Dynamic module-parameter completion needs scBOLT to be able to resolve a
-parameter file, because it calls:
-
-```bash
-scbolt <module> help
-```
-
-The parameter file is resolved in the usual scBOLT order:
-
-1. `--params=<file>` if provided in the current command line;
-2. the active `.scbolt` project configuration;
-3. `params.mk` in the launch directory.
-
-If no parameter file can be resolved, completion still proposes generic command
-options, but module-specific parameters may be unavailable.
-
-## Maintenance Notes
-
-The completion script should avoid duplicating module parameter lists. Module
-parameters should remain defined in the Make registry used by:
-
-```bash
-scbolt <module> help
-```
-
-When a new module parameter is added to the Make help registry, Bash completion
-should pick it up automatically.
+Do not duplicate module parameter lists in the completion script. New module
+parameters belong in the Make help registry and are discovered dynamically.
+Only finite value domains and command-specific completion behavior should be
+maintained directly in `bin/completion.bash`.

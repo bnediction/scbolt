@@ -95,8 +95,8 @@ if ! make -C "${repo_root}" check TARGET=load-matrix PARAMS="${unnamed_params}" 
     cat "${tmpdir}/unnamed-check.out" >&2
     exit 1
 fi
-grep -q 'project parameter valid: CONDITIONS=unnamed' "${tmpdir}/unnamed-check.out"
-grep -q 'project parameter valid: GSM=GSM5492245' "${tmpdir}/unnamed-check.out"
+grep -q 'CONDITIONS=unnamed' "${tmpdir}/unnamed-check.out"
+grep -q 'GSM=GSM5492245' "${tmpdir}/unnamed-check.out"
 
 cat > "${unnamed_params}" <<'MK'
 PROJECT_DIR = tests/output-unnamed
@@ -202,12 +202,30 @@ grep -q 'tests/output-collision/bin/consensus/knnsc/mstates_bin.csv' \
 grep -q 'tests/output-collision/infer/spec/model.bo' \
     <<< "${collision_spec_help}"
 
+custom_inference_help="$(
+    make -C "${repo_root}" module-help TARGET=spec \
+        PARAMS="${collision_params}" INFERENCE_DIR=infer-alternative \
+        SCBOLT_CLI=true
+)"
+grep -q 'tests/output-collision/infer-alternative/spec/model.bo' \
+    <<< "${custom_inference_help}"
+! grep -q 'tests/output-collision/infer/spec/model.bo' \
+    <<< "${custom_inference_help}"
+
+if make -C "${repo_root}" --dry-run spec PARAMS="${collision_params}" \
+        INFERENCE_DIR=../outside > "${tmpdir}/invalid-inference-dir.out" 2>&1; then
+    printf '%s\n' "expected parent inference directory to fail" >&2
+    exit 1
+fi
+grep -q 'INFERENCE_DIR must be a relative subdirectory of PROJECT_DIR' \
+    "${tmpdir}/invalid-inference-dir.out"
+
 if ! make -C "${repo_root}" check TARGET=load-fastq PARAMS="${unnamed_sra_params}" \
         __check_externals__=false > "${tmpdir}/unnamed-sra-check.out" 2>&1; then
     cat "${tmpdir}/unnamed-sra-check.out" >&2
     exit 1
 fi
-grep -q 'project parameter valid: SRA=SRR000001 SRR000002' \
+grep -q 'SRA=SRR000001 SRR000002' \
     "${tmpdir}/unnamed-sra-check.out"
 
 no_entry_params="${tmpdir}/no-entry.mk"

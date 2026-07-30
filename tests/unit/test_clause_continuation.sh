@@ -205,10 +205,10 @@ grep -Fq 'DOMAIN_CONTINUATION_LOCK' <<< "${lock_help}"
 grep -Fq 'MIN_DOMAIN_YIELD' <<< "${lock_help}"
 grep -Fq 'MAX_DOMAIN_REFRESHES' <<< "${lock_help}"
 grep -Fq \
-    'Expand a SEED-computed witness through candidate subdomains' \
+    'Expand a seed-computed witness through candidate subdomains' \
     <<< "${lock_help}"
 grep -Fq \
-    'LOCK keeps the SEED solution when its witness was forwarded' \
+    'Lock keeps the seed solution when its witness was forwarded' \
     <<< "${lock_help}"
 grep -Fq \
     '0.0 if is_target else args.clause_bound_patience' \

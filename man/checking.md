@@ -1,6 +1,6 @@
-# Checking with `make check`
+# Checking with `scbolt check`
 
-`make check TARGET=<module>` validates the parameters, files, AnnData metadata,
+`scbolt check <module>` validates the parameters, files, AnnData metadata,
 conda environments, and external commands needed to build a selected scBOLT
 module.
 
@@ -10,45 +10,39 @@ target will actually use, not every parameter in the project.
 ## Usage
 
 ```bash
-make check TARGET=<module>
+scbolt check <module>
 ```
 
 Examples:
 
 ```bash
-make check TARGET=velocity
-make check TARGET=bin-dea RESET_TARGET=bin-dea
-make check TARGET=bin-cells MACROSTATE_FILES=case/macrostate.h5ad
-make check TARGET=max-nodes-seed __check_externals__=false
+scbolt check velocity
+scbolt check bin-dea --reset-target=bin-dea
+scbolt check bin-cells --macrostate-files=case/macrostate.h5ad
+scbolt check max-nodes-seed
 ```
 
-`TARGET` selects the module to inspect. `RESET_TARGET`, `TRUST_TARGET`, and
-`OLD_FILES` are applied before checking, because they affect the rebuilt
-pipeline segment.
-
-`__check_externals__=false` disables expensive or machine-dependent external
-checks such as existing files, H5AD metadata, conda environments, and executable
-commands. It is useful for CI tests that only need to validate target selection
-and parameter rules.
+The module argument selects what to inspect. `--reset-target`,
+`--trust-target`, `--trust-existing`, and `--old-file` are applied before
+checking because they affect the rebuilt pipeline segment.
 
 ## Execution Model
 
-`make check` works in two phases.
+`scbolt check` works in two phases.
 
-First, it asks Make what would run:
-
-```bash
-make --dry-run __check_mode=true __<TARGET>
-```
-
-This dry-run defines what will be checked. If the dry-run is empty, the target is
-already up to date and `make check` prints:
+First, it asks the internal workflow engine what would run. This dry-run defines
+what will be checked. If it is empty, the target is already up to date and
+`scbolt check` prints:
 
 ```text
-SUCCESS target '<module>' already up to date
+Files and metadata
+  ✓ target '<module>' already up to date
+
+Status
+  Check passed for target '<module>'.
 ```
 
-Otherwise, `make check` inspects the dry-run output and validates only the
+Otherwise, `scbolt check` inspects the dry-run output and validates only the
 parameters, resources, and tools that appear in the rebuilt segment.
 
 Second, it prints grouped diagnostics. The output order is:
@@ -57,32 +51,34 @@ Second, it prints grouped diagnostics. The output order is:
 2. core parameters
 3. method parameters
 4. external resource parameters
-5. AnnData/file metadata
-6. conda environments
-7. external commands
-8. other checks
+5. files and AnnData metadata
+6. runtime environments and commands
+7. other checks
+8. final status
 
 Diagnostic statuses are:
 
 ```text
-SUCCESS <check passed>
-WARNING <non-blocking mismatch>
-FAIL    <blocking issue>
+✓ successful check
+⚠ non-blocking warning
+✗ blocking error
 ```
 
-A single `FAIL` makes `make check` exit with a non-zero status.
+A single blocking error makes `scbolt check` exit with a non-zero status. The
+final `Status` section reports the numbers of blocking errors and warnings.
 
 ## Parameter Taxonomy
 
-scBOLT parameters are organized into four conceptual categories. This taxonomy
-is used by `make check`, `make config`, and target-specific validation.
+scBOLT configuration values are organized into four conceptual categories.
+This taxonomy is used by `scbolt check`, `scbolt config`, and target-specific
+validation.
 
 When validating a target, only parameter categories required by the selected
 target should be checked. The pipeline should avoid failing early for unrelated
 missing parameters.
 
 Core parameters are intentionally strict: outside diagnostic commands such as
-`make check` and `make config`, invalid core parameters fail during global
+`scbolt check` and `scbolt config`, invalid core parameters fail during global
 pipeline initialization.
 
 ### Project Parameters
@@ -93,11 +89,11 @@ case study and are expected to be customized by users.
 
 Examples:
 
-- `ORGANISM`
-- `CONDITIONS`
-- `SRA_<CONDITION>`
-- `LABEL`
-- `SPEC_FILE`
+- `organism`
+- `conditions`
+- `sra`
+- `labels`
+- `constraints`
 
 These parameters should only be validated by targets requiring user-defined
 biological information.
@@ -105,8 +101,9 @@ biological information.
 Example output:
 
 ```text
-SUCCESS project parameter valid: LABEL=Prom1 Prom2 Rep (needed by target 'annotation')
-FAIL required project parameter not defined: LABEL (needed by target 'annotation')
+Project parameters
+  ✓ labels=Prom1 Prom2 Rep (needed by target 'annotation')
+  ✗ required project parameter not defined: labels (needed by target 'annotation')
 ```
 
 ### Core Parameters
@@ -116,17 +113,17 @@ runtime behavior, output organization, and shared cross-module conventions.
 
 Examples:
 
-- `PARAMS`
-- `REFERENCES`
-- `PROJECT_DIR`
-- `RESOURCES_DIR`
-- `MEMORY`
-- `JOBS`
-- `SEED`
-- `LOGGING`
-- `REPRESENTATION`
-- `LABEL_COL`
-- `OLD_FILES`
+- project configuration
+- `references`
+- `project_dir`
+- `resources_dir`
+- `memory`
+- `jobs`
+- `seed`
+- `logging`
+- `representation`
+- `label_column`
+- `old_files`
 
 Core parameters usually have defaults and are not tied to a specific analytical
 method. They are validated during pipeline initialization, except in diagnostic
@@ -136,8 +133,9 @@ unrelated targets.
 Example output:
 
 ```text
-SUCCESS core parameter valid: JOBS=16
-SUCCESS core parameter valid: REPRESENTATION=X_umap
+Core parameters
+  ✓ jobs=16
+  ✓ representation=X_umap
 ```
 
 ### Method Parameters
@@ -148,22 +146,22 @@ analytical behavior of the pipeline.
 
 Examples:
 
-- `ALIGNMENT_TOOL`
-- `STAR_BARCODE_FILTER`
-- `CONSISTENT_MAD`
-- `CC_CORRECTION`
-- `DIM_PCA`
-- `CENTERED_PCA`
-- `VELOCITY_ONLY_HVG`
-- `MACROSTATE_METHOD`
-- `KNNSC_EMBEDDING`
-- `KNNSC_MIN_CLUSTER_SIZE`
-- `BIN_METHOD`
-- `BIN_HVG_METHOD`
-- `MAX_CLAUSES`
-- `CLAUSE_CONTINUATION_*`
-- `CLINGO_*`
-- `TIMEOUT_*`
+- `alignment_tool`
+- `star_barcode_filter`
+- `consistent_mad`
+- `cell_cycle_correction`
+- `pca_dimensions`
+- `centered_pca`
+- `velocity_only_hvg`
+- `macrostate_method`
+- `knnsc_embedding`
+- `knnsc_min_cluster_size`
+- `binarization_method`
+- `binarization_hvg_method`
+- `max_clauses`
+- `clause_continuation_<stage>`
+- `clingo_<setting>_<stage>`
+- `timeout_<stage>`
 
 Method parameters should only be validated by targets using the associated
 method or module.
@@ -171,8 +169,9 @@ method or module.
 Example output:
 
 ```text
-SUCCESS method parameter valid: KNNSC_EMBEDDING=X_umap (needed by target 'knnsc')
-FAIL unsupported value for method parameter BIN_METHOD (supported values: scboolseq, dea, consensus)
+Method parameters
+  ✓ knnsc_embedding=X_umap (needed by target 'knnsc')
+  ✗ unsupported value for method parameter binarization_method (supported values: scboolseq, dea, consensus)
 ```
 
 ### External Resource Parameters
@@ -182,21 +181,21 @@ artifacts used by the pipeline.
 
 Examples:
 
-- `STAR_WHITELIST`
-- `COUNT_FILES`
-- `BINARIZATION_FILE`
-- `MACROSTATE_FILES`
-- `PRIOR_KNOWLEDGE`
-- `GENEINFO_VERSION`
-- `OMNIPATH_VERSION`
-- `HCOP_VERSION`
-- `CLINGO_CONFIG_*`
+- `star_whitelist`
+- `count_files`
+- `binarization_file`
+- `macrostate_files`
+- `prior_knowledge`
+- `geneinfo_version`
+- `omnipath_version`
+- `hcop_version`
+- `clingo_config_<stage>`
 
-`PRIOR_KNOWLEDGE` may refer to symbolic built-in resources (`collectri`,
-`dorothea`) or to a user-provided file. `GENEINFO_VERSION` and
-`OMNIPATH_VERSION` select the database versions used for gene identifiers and
-OmniPath-derived priors. `HCOP_VERSION` selects the orthology resource used for
-non-human CollecTRI/DoRothEA priors. `CLINGO_CONFIG_*` may refer to named Clingo
+`prior_knowledge` may refer to symbolic built-in resources (`collectri`,
+`dorothea`) or to a user-provided file. `geneinfo_version` and
+`omnipath_version` select the database versions used for gene identifiers and
+OmniPath-derived priors. `hcop_version` selects the orthology resource used for
+non-human CollecTRI/DoRothEA priors. `clingo_config_<stage>` may refer to named Clingo
 configurations (`auto`, `frumpy`, `jumpy`, `tweety`, `handy`, `crafty`,
 `trendy`, `many`) or to custom configuration files.
 
@@ -206,21 +205,21 @@ resource or file is effectively required by the selected target.
 Example output:
 
 ```text
-SUCCESS external resource parameter valid: MACROSTATE_FILES=case/macrostate.h5ad (needed by target 'bin-dea')
-FAIL required file not found: case/macrostate.h5ad
+External resources
+  ✓ macrostate_files=case/macrostate.h5ad (needed by target 'bin-dea')
+  ✗ required file not found: case/macrostate.h5ad
 ```
 
 ## File, Command, and Environment Checks
 
-When `__check_externals__=true`, `make check` validates external resources used
-by the rebuilt segment.
+`scbolt check` validates external resources used by the rebuilt segment.
 
 File checks include resources such as:
 
-- model specification files;
+- the active project configuration;
 - reference genome archive sources;
 - RepeatMasker annotation source for Velocyto;
-- user-provided `COUNT_FILES` or `MACROSTATE_FILES`;
+- user-provided `count_files` or `macrostate_files`;
 - custom prior networks;
 - custom Clingo configuration files.
 
@@ -239,8 +238,9 @@ newer or patched environment.
 Example:
 
 ```text
-SUCCESS conda environment found: scbolt-core
-WARNING conda environment mismatch: scbolt-core (bonesistools: 1.1.6->1.2.3; mpbn: 4.4->4.2)
+Runtime
+  ✓ conda environment found: scbolt-core
+  ⚠ conda environment mismatch: scbolt-core (bonesistools: 1.1.6->1.2.3; mpbn: 4.4->4.2)
 ```
 
 For git-installed packages, the checker can validate the installed commit when
@@ -249,7 +249,7 @@ the package exposes PEP 610 metadata. This is used for packages such as
 
 ## AnnData Dependency Validation
 
-`make check TARGET=<target>` validates AnnData metadata dependencies before
+`scbolt check <target>` validates AnnData metadata dependencies before
 executing a target.
 
 The validation inspects the first existing AnnData boundary files that would be
@@ -279,21 +279,23 @@ unless a target explicitly rewrites or drops fields.
 Successful validation example:
 
 ```text
-SUCCESS h5ad metadata: obsm 'X_umap' found (reference: ctrl)
+Files and metadata
+  ✓ h5ad metadata: obsm 'X_umap' found (reference: ctrl)
 ```
 
 Failure example:
 
 ```text
-FAIL h5ad metadata: obsm 'X_umap' missing (/path/to/file.h5ad, reference: ctrl)
+Files and metadata
+  ✗ h5ad metadata: obsm 'X_umap' missing (/path/to/file.h5ad, reference: ctrl)
 ```
 
 ### Validation Strategy
 
 The AnnData checker reasons over the rebuilt pipeline segment:
 
-1. Run the dry-run for `TARGET=<target>` with `RESET_TARGET`, `TRUST_TARGET`,
-   and `OLD_FILES` options applied.
+1. Run the target dry-run with `--reset-target`, `--trust-target`,
+   `--trust-existing`, and `--old-file` options applied.
 2. Extract the ordered list of AnnData-producing and AnnData-consuming commands
    that will actually run.
 3. Parse each known script command into an operation:
@@ -306,7 +308,7 @@ The AnnData checker reasons over the rebuilt pipeline segment:
    metadata requirements to the boundary files that already exist.
 5. Validate only those unresolved requirements against existing H5AD files.
 
-Example: if `make check TARGET=potency RESET_TARGET=normalization` rebuilds
+Example: if `scbolt check potency --reset-target=normalization` rebuilds
 normalization, clustering, annotation, and potency, then `potency` may require
 `counts` as a layer. This should not necessarily be checked only one step before
 `potency`; the checker should know that `counts` is required at the rebuilt
@@ -314,14 +316,14 @@ segment boundary and then preserved through the rebuilt AnnData steps.
 
 Non-AnnData artifacts stay outside this H5AD metadata table and are checked
 by existing file or target dependency checks. For example, CellRank uses
-`potency.csv` and requires its `score` column; the Makefile extracts this
+`potency.csv` and requires its `score` column; the workflow extracts this
 column and inserts it into a temporary H5AD as `cytotrace_score` before running
 the CellRank script.
 
-### `COUNT_FILES`
+### `count_files`
 
-`COUNT_FILES` is a count-level AnnData entry point. It must contain one H5AD
-file per condition, ordered like `CONDITIONS`. When defined, filtering consumes
+`count_files` is a count-level AnnData entry point. It must contain one H5AD
+file per condition, ordered like `conditions`. When defined, filtering consumes
 these files directly instead of depending on Velocyto or public GEO matrix
 loading. Gene-name standardization is applied by `filter.py`, so count files,
 GEO matrices, and Velocyto outputs share the same downstream contract.
@@ -331,16 +333,16 @@ fallback expression matrix.
 Input routes are mutually exclusive:
 
 ```text
-SRA_<CONDITION> | GSM_<CONDITION> | COUNT_FILES | MACROSTATE_FILES | BINARIZATION_FILE
+sra | gsm | count_files | macrostate_files | binarization_file
 ```
 
 Only one input-route family should be defined at a time.
 
-### `MACROSTATE_FILES`
+### `macrostate_files`
 
-`MACROSTATE_FILES` is a special external AnnData boundary for users restarting
+`macrostate_files` is a special external AnnData boundary for users restarting
 the pipeline at binarization. It accepts either one multi-condition AnnData file
-or one AnnData file per condition, ordered like `CONDITIONS`. When defined,
+or one AnnData file per condition, ordered like `conditions`. When defined,
 `bin-cells`, `bin-macrostates`, and `bin-dea` depend on a prepared temporary
 copy of these files instead of depending on internally generated macrostate
 H5AD/CSV pairs.
@@ -351,12 +353,12 @@ The user-provided file must contain:
 - `macrostate` in `obs`;
 - `condition` in `obs`, required when a single file is used for a
   multi-condition project;
-- `$(REPRESENTATION)` in `obsm`.
+- the configured `representation` in `obsm`.
 
 Expression is always read from these named layers. `adata.X` is not used as a
 fallback expression matrix.
 
-If downstream HVG selection uses `BIN_HVG_METHOD=loess`, the file must also
+If downstream HVG selection uses `binarization_hvg_method: loess`, the file must also
 contain:
 
 - `counts` in `layers`.
@@ -389,9 +391,9 @@ Requires:
 
 Provides:
 
-- `G1_score` in `obs`, only when `ORGANISM=mouse`
-- `S_score` in `obs`, only when `ORGANISM=mouse`
-- `G2M_score` in `obs`, only when `ORGANISM=mouse`
+- `G1_score` in `obs`, only when `organism: mouse`
+- `S_score` in `obs`, only when `organism: mouse`
+- `G2M_score` in `obs`, only when `organism: mouse`
 - `n_features` in `obs`
 - `total` in `obs`
 
@@ -424,7 +426,7 @@ Provides:
 - `X_pca` in `obsm`
 - `connectivities` in `obsp`
 - `cluster` in `obs`
-- `$(REPRESENTATION)` in `obsm`
+- the configured `representation` in `obsm`
 
 ### Per-Condition Clustering
 
@@ -441,7 +443,7 @@ Provides:
 - `X_pca` in `obsm`
 - `connectivities` in `obsp`
 - `cluster` in `obs`
-- `$(REPRESENTATION)` in `obsm`
+- the configured `representation` in `obsm`
 
 ### Differential Expression Analysis
 
@@ -455,11 +457,11 @@ Requires:
 Requires:
 
 - `cluster` in `obs`
-- `$(REPRESENTATION)` in `obsm`
+- the configured `representation` in `obsm`
 
 Provides:
 
-- `$(LABEL_COL)` in `obs`
+- the configured `label_column` in `obs`
 
 ### Per-Condition Annotation
 
@@ -468,11 +470,11 @@ Requires:
 - `condition` in `obs` from the integrated AnnData when using multiple
   conditions;
 - `cluster` in `obs` when using a single condition;
-- `$(REPRESENTATION)` in `obsm`.
+- the configured `representation` in `obsm`.
 
 Provides:
 
-- `$(LABEL_COL)` in `obs`
+- the configured `label_column` in `obs`
 
 ### Velocity
 
@@ -483,9 +485,9 @@ Requires:
 - `unspliced` in `layers`
 - `X_pca` in `obsm`
 - `X_umap` in `obsm`
-- `$(LABEL_COL)` in `obs`
+- the configured `label_column` in `obs`
 - `connectivities` in `obsp`
-- `highly_variable` in `var`, only when `VELOCITY_ONLY_HVG=true`
+- `highly_variable` in `var`, only when `velocity_only_hvg: true`
 
 Provides:
 
@@ -499,8 +501,8 @@ Provides:
 Requires:
 
 - `counts` in `layers`
-- `$(LABEL_COL)` in `obs`
-- `$(REPRESENTATION)` in `obsm`
+- the configured `label_column` in `obs`
+- the configured `representation` in `obsm`
 
 Provides:
 
@@ -508,7 +510,7 @@ Provides:
 
 The pipeline consumes `potency.csv` downstream. The optional potency H5AD
 contains `cytotrace_*` fields, but it is not the CellRank input used by the
-Makefile. The downstream CellRank recipe requires the `score` column from
+workflow. The downstream CellRank recipe requires the `score` column from
 `potency.csv`.
 
 ### COTAN
@@ -516,8 +518,8 @@ Makefile. The downstream CellRank recipe requires the `score` column from
 Requires:
 
 - `counts` in `layers`
-- `highly_variable` in `var`, only when `COTAN_ONLY_HVG=true`
-- `$(REPRESENTATION)` in `obsm`
+- `highly_variable` in `var`, only when `cotan_only_hvg: true`
+- the configured `representation` in `obsm`
 
 Provides:
 
@@ -530,7 +532,7 @@ Requires:
 - `Ms` in `layers`
 - `velocity` in `layers`
 - `connectivities` in `obsp`
-- `$(LABEL_COL)` in `obs`
+- the configured `label_column` in `obs`
 - `X_umap` in `obsm`
 
 Provides:
@@ -545,8 +547,8 @@ velocity H5AD.
 
 Requires:
 
-- `$(REPRESENTATION)` in `obsm`
-- `$(LABEL_COL)` in `obs`
+- the configured `representation` in `obsm`
+- the configured `label_column` in `obs`
 
 Provides:
 
@@ -556,9 +558,9 @@ Provides:
 
 Requires:
 
-- `$(KNNSC_EMBEDDING)` in `obsm`
-- `$(REPRESENTATION)` in `obsm`
-- `$(LABEL_COL)` in `obs`
+- the configured `knnsc_embedding` in `obsm`
+- the configured `representation` in `obsm`
+- the configured `label_column` in `obs`
 
 Provides:
 
@@ -569,8 +571,8 @@ Provides:
 Requires:
 
 - `log-norm` in `layers`
-- `$(REPRESENTATION)` in `obsm`
-- `macrostate` in `obs`, only when starting from `MACROSTATE_FILES` and needed
+- the configured `representation` in `obsm`
+- `macrostate` in `obs`, only when starting from `macrostate_files` and needed
   downstream
 
 Provides:
@@ -584,7 +586,7 @@ Requires:
 
 - `macrostate` in `obs`
 - `bin` in `layers`
-- `$(REPRESENTATION)` in `obsm`
+- the configured `representation` in `obsm`
 - `distribution` in `var`
 
 ### Bin-DEA
@@ -593,11 +595,11 @@ Requires:
 
 - `macrostate` in `obs`
 - `log-norm` in `layers`
-- `$(REPRESENTATION)` in `obsm`
+- the configured `representation` in `obsm`
 
 ## Reading the Output
 
-The most useful way to read `make check` output is from top to bottom.
+The most useful way to read `scbolt check` output is from top to bottom.
 
 Parameter failures usually mean the selected module cannot even be configured.
 File and H5AD failures mean the module could start, but one of its inputs is
@@ -612,10 +614,15 @@ from a local checkout.
 For example:
 
 ```text
-SUCCESS method parameter valid: BIN_METHOD=consensus (needed by target 'binarization')
-SUCCESS h5ad metadata: layer 'log-norm' found (reference: input)
-WARNING conda environment mismatch: scbolt-core (bonesistools: 1.1.6->1.2.3)
-FAIL h5ad metadata: obs 'macrostate' missing (/path/to/macrostate.h5ad, reference: input)
+Method parameters
+  ✓ binarization_method=consensus (needed by target 'binarization')
+
+Files and metadata
+  ✓ h5ad metadata: layer 'log-norm' found (reference: input)
+  ✗ h5ad metadata: obs 'macrostate' missing (/path/to/macrostate.h5ad, reference: input)
+
+Runtime
+  ⚠ conda environment mismatch: scbolt-core (bonesistools: 1.1.6->1.2.3)
 ```
 
 In this example, the target is configured correctly, but the provided AnnData
@@ -623,7 +630,7 @@ file cannot be used for binarization because it lacks `obs["macrostate"]`.
 
 ## Limitations
 
-`make check` is a preflight check. It does not execute analytical recipes and
+`scbolt check` is a preflight check. It does not execute analytical recipes and
 cannot prove that a target will complete successfully.
 
 In particular, it does not validate:

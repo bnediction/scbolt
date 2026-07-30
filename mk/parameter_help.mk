@@ -28,17 +28,17 @@ parameter_help_note3_REPRESENTATION = X_se: spectral embedding.
 parameter_help_hint_MEMORY = memory size
 parameter_help_description_MEMORY = Memory budget. Integers are interpreted as GB.
 parameter_help_note_MEMORY = Cell Ranger receives an integer GB value.
-parameter_help_note2_MEMORY = Velocyto receives MB per Samtools thread, computed from MEMORY/JOBS.
-parameter_help_note3_MEMORY = Domain continuation uses MEMORY as a soft candidate-portfolio limit.
+parameter_help_note2_MEMORY = Velocyto receives MB per Samtools thread, computed from memory/jobs.
+parameter_help_note3_MEMORY = Domain continuation uses memory as a soft candidate-portfolio limit.
 parameter_help_hint_JOBS = $(parameter_help_positive_integer)
 parameter_help_description_JOBS = Maximum number of parallel workflow jobs.
-parameter_help_note_JOBS = Domain continuation evaluates up to JOBS candidate domains simultaneously.
+parameter_help_note_JOBS = Domain continuation evaluates up to jobs candidate domains simultaneously.
 parameter_help_hint_BACKEND = conda | mamba | micromamba | docker
 parameter_help_description_BACKEND = Backend used to execute module commands.
 parameter_help_hint_SCBOLT_IMAGE = container image
 parameter_help_description_SCBOLT_IMAGE = Docker image containing scBOLT micromamba environments.
 parameter_help_hint_SCBOLT_CONTAINER_ENGINE = docker-compatible command
-parameter_help_description_SCBOLT_CONTAINER_ENGINE = Container engine used when BACKEND=docker.
+parameter_help_description_SCBOLT_CONTAINER_ENGINE = Container engine used when backend=docker.
 parameter_help_hint_SCBOLT_CONTAINER_ARGS = arguments, optional
 parameter_help_description_SCBOLT_CONTAINER_ARGS = Extra arguments passed to docker run.
 parameter_help_hint_SCBOLT_CONTAINER_MOUNTS = paths, optional
@@ -145,7 +145,7 @@ parameter_help_description_MACROSTATE_METHOD = Macrostate estimation method.
 parameter_help_hint_MACROSTATE_SIZE = $(parameter_help_positive_integer)
 parameter_help_description_MACROSTATE_SIZE = Target cells per macrostate.
 parameter_help_hint_COUNT_FILES = h5ad files
-parameter_help_description_COUNT_FILES = External AnnData files containing layer 'counts', ordered like CONDITIONS.
+parameter_help_description_COUNT_FILES = External AnnData files containing layer 'counts', ordered like conditions.
 parameter_help_hint_MACROSTATE_FILES = h5ad file(s)
 parameter_help_description_MACROSTATE_FILES = External macrostate AnnData files using named expression layers.
 parameter_help_hint_COTAN_METHOD = classic | soft-merging | strong-merging
@@ -194,6 +194,11 @@ parameter_help_hint_KNNSC_NEIGHBORS = $(parameter_help_positive_integer)
 parameter_help_description_KNNSC_NEIGHBORS = KNN graph neighbor number.
 parameter_help_hint_KNNSC_MIN_CLUSTER_SIZE = >= 0
 parameter_help_description_KNNSC_MIN_CLUSTER_SIZE = Minimum label size for KNNSC candidates.
+$(foreach condition,$(conditions),\
+	$(eval parameter_help_hint_$(call knnsc_centrality_var,$(condition)) = label list, optional)\
+	$(eval parameter_help_description_$(call knnsc_centrality_var,$(condition)) = Labels selected near their own barycenter.)\
+	$(eval parameter_help_hint_$(call knnsc_periphery_var,$(condition)) = label list, optional)\
+	$(eval parameter_help_description_$(call knnsc_periphery_var,$(condition)) = Labels selected far from other barycenters.))
 
 parameter_help_hint_BIN_HVG_METHOD = loess | binning
 parameter_help_description_BIN_HVG_METHOD = Shared HVG method for binarization.
@@ -207,6 +212,8 @@ parameter_help_hint_BIN_HVG_SPAN = $(parameter_help_float)
 parameter_help_description_BIN_HVG_SPAN = Loess smoothing fraction.
 parameter_help_hint_BIN_HVG_BINS = $(parameter_help_positive_integer)
 parameter_help_description_BIN_HVG_BINS = Mean-expression bins for binarization HVG selection.
+parameter_help_hint_BIN_INCLUDE_NODES = node list, optional
+parameter_help_description_BIN_INCLUDE_NODES = Additional nodes retained when binarization uses only HVGs.
 parameter_help_hint_BIN_SCBOOLSEQ_ONLY_HVG = $(parameter_help_bool)
 parameter_help_description_BIN_SCBOOLSEQ_ONLY_HVG = Restrict scBoolSeq to HVGs.
 parameter_help_hint_SCBOOLSEQ_OPENBLAS_THREADS = auto | >= 1
@@ -239,7 +246,9 @@ parameter_help_hint_BINARIZATION_FILE = existing binarization csv
 parameter_help_description_BINARIZATION_FILE = External binarization file.
 
 parameter_help_hint_SPEC_FILE = existing yaml file
-parameter_help_description_SPEC_FILE = BoNesis model specification file.
+parameter_help_description_SPEC_FILE = Boolean inference specification file.
+parameter_help_hint_INFERENCE_DIR = relative directory
+parameter_help_description_INFERENCE_DIR = Inference output directory within project_dir.
 parameter_help_hint_PRIOR_KNOWLEDGE = collectri | dorothea | file
 parameter_help_description_PRIOR_KNOWLEDGE = Prior regulatory resource.
 parameter_help_hint_GENEINFO_VERSION = bundled | latest | file
@@ -285,8 +294,8 @@ parameter_help_domain_continuation = Search candidate subdomains and expand a re
 parameter_help_description_DOMAIN_CONTINUATION_SOFT = $(parameter_help_domain_continuation)
 parameter_help_description_DOMAIN_CONTINUATION_RELAXED = $(parameter_help_domain_continuation)
 parameter_help_description_DOMAIN_CONTINUATION_SEED = $(parameter_help_domain_continuation)
-parameter_help_description_DOMAIN_CONTINUATION_LOCK = Expand a SEED-computed witness through candidate subdomains within the complete RELAXED domain.
-parameter_help_note_DOMAIN_CONTINUATION_LOCK = LOCK keeps the SEED solution when its witness was forwarded or is absent.
+parameter_help_description_DOMAIN_CONTINUATION_LOCK = Expand a seed-computed witness through candidate subdomains within the complete relaxed domain.
+parameter_help_note_DOMAIN_CONTINUATION_LOCK = Lock keeps the seed solution when its witness was forwarded or is absent.
 parameter_help_hint_PATIENCE_DOMAIN_WAVE = duration
 parameter_help_domain_wave_patience = Maximum time without an improvement of the best portfolio objective within one wave.
 parameter_help_description_PATIENCE_DOMAIN_WAVE = $(parameter_help_domain_wave_patience)

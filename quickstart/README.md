@@ -8,7 +8,7 @@ case study.
 The example starts from local AnnData files generated from:
 
 ```python
-bt.sct.datasets.load("nestorowa")
+bt.omics.io.load("nestorowa")
 ```
 
 No manual data download is required. The preparation script creates a compact
@@ -25,7 +25,7 @@ conda activate scbolt-core
 python tiny_nestorowa.py
 conda deactivate
 
-scbolt init params.mk
+scbolt init scbolt.yml
 scbolt check bn-submin
 scbolt bn-submin
 ```

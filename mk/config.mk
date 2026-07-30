@@ -80,6 +80,15 @@ include $(scbolt_root)/mk/default_params.mk
 ifeq ($(DEFAULT_CONFIG),true)
 override PARAMS := (defaults)
 params_dir := $(launch_dir)
+else ifeq ($(SCBOLT_CONFIG_MODE),true)
+ifeq ($(strip $(SCBOLT_CONFIG)),)
+$(error SCBOLT_CONFIG is required when SCBOLT_CONFIG_MODE=true)
+endif
+override PARAMS := $(call resolve_path_from,$(SCBOLT_CONFIG),$(launch_dir))
+params_dir := $(call strip_trailing_slash,$(dir $(PARAMS)))
+ifeq ($(wildcard $(PARAMS)),)
+$(error configuration file not found: $(PARAMS))
+endif
 else
 params_base := $(if $(filter command line,$(origin PARAMS)),$(launch_dir),$(scbolt_root))
 override PARAMS := $(call resolve_path_from,$(PARAMS),$(params_base))
@@ -95,6 +104,13 @@ include $(PARAMS)
 endif
 endif
 
+inference_subdir := $(patsubst %/,%,$(strip $(INFERENCE_DIR)))
+inference_dir_valid := $(if $(and \
+	$(inference_subdir),\
+	$(filter-out .,$(inference_subdir)),\
+	$(if $(call is_absolute_path,$(inference_subdir)),,true),\
+	$(if $(findstring /../,/$(inference_subdir)/),,true)),true)
+
 ifneq ($(origin RUNTIME_BACKEND),undefined)
 $(error unsupported RUNTIME_BACKEND; use BACKEND instead)
 endif
@@ -104,14 +120,18 @@ ifneq ($(filter $(backend),conda mamba micromamba docker),$(backend))
 $(error unsupported BACKEND=$(BACKEND) \(supported values: conda, mamba, micromamba, docker\))
 endif
 
-backend_defined_in_params = $(and $(filter-out true,$(DEFAULT_CONFIG)),$(shell \
+backend_defined_in_project_config = $(and $(filter true,$(SCBOLT_CONFIG_MODE)),\
+	$(filter environment,$(origin BACKEND)))
+backend_defined_in_params = $(and $(filter-out true,$(DEFAULT_CONFIG)),\
+	$(if $(filter true,$(SCBOLT_CONFIG_MODE)),,true),$(shell \
 	if [ -f "$(PARAMS)" ] && grep -Eq '^[[:space:]]*(override[[:space:]]+)?BACKEND[[:space:]]*[:?+!]?=' "$(PARAMS)"; then \
 		printf true; \
 	fi))
 backend_source = $(strip \
 	$(if $(filter command line,$(origin BACKEND)),cli,\
+	$(if $(backend_defined_in_project_config),project configuration,\
 	$(if $(backend_defined_in_params),params,\
-	$(if $(strip $(SCBOLT_DEFAULT_BACKEND)),$(if $(strip $(SCBOLT_DEFAULT_BACKEND_SOURCE)),$(SCBOLT_DEFAULT_BACKEND_SOURCE),install),default_params.mk))))
+	$(if $(strip $(SCBOLT_DEFAULT_BACKEND)),$(if $(strip $(SCBOLT_DEFAULT_BACKEND_SOURCE)),$(SCBOLT_DEFAULT_BACKEND_SOURCE),install),default_params.mk)))))
 backend_version = $(strip $(shell $(backend) --version 2>/dev/null \
 	| $(call system_tool,head) -n 1 \
 	| $(call system_tool,sed) 's/^[^0-9]*//; s/[[:space:]].*//' || true))
@@ -745,16 +765,19 @@ endif
 check_success = check_success "$(1)"
 check_failure = check_failure "$(1)"
 report_check_error = missing=1; $(call check_failure,$(1))
-print_check_reports = cat "$${project_checks}" "$${core_checks}" "$${method_checks}" \
-	"$${external_resource_checks}" "$${file_checks}" "$${conda_checks}" \
-	"$${command_checks}" "$${other_checks}"
 parameter_label = $(strip $(if $(3),$(3) )parameter)
-parameter_name = $(firstword $(strip $(1)))
-parameter_context = $(strip $(patsubst $(call parameter_name,$(1))%,%,$(strip $(1))))
+internal_parameter_name = $(firstword $(strip $(1)))
+public_parameter_variable = SCBOLT_PUBLIC_PARAMETER_$(call internal_parameter_name,$(1))
+parameter_name = $(strip $(if $(filter true,$(SCBOLT_CLI)),\
+	$(if $($(call public_parameter_variable,$(1))),\
+		$($(call public_parameter_variable,$(1))),\
+		$(call internal_parameter_name,$(1))),\
+	$(call internal_parameter_name,$(1))))
+parameter_context = $(wordlist 2,$(words $(strip $(1))),$(strip $(1)))
 parameter_description = $(strip $(call parameter_label,$(1),$(2),$(3)) \
 	$(call parameter_name,$(2)) $(call parameter_context,$(2)))
 parameter_assignment = $(strip $(call parameter_name,$(2))=$(strip $(1)) \
-	$(strip $(patsubst $(call parameter_name,$(2))%,%,$(strip $(2)))))
+	$(call parameter_context,$(2)))
 needed_by = $(1) (needed by target '$(2)')
 
 define check_file_diagnostic
@@ -783,7 +806,8 @@ if [ -n "$(strip $(1))" ]; then \
 		$(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: $(call parameter_assignment,$(1),$(2))),\
 		$(call check_success,parameter defined: $(strip $(2)))); \
 else \
-	$(call report_check_error,required $(call parameter_label,$(1),$(2),$(3)) not defined: $(strip $(2))); \
+	$(call report_check_error,required $(call parameter_label,$(1),$(2),$(3)) not defined: \
+		$(strip $(call parameter_name,$(2)) $(call parameter_context,$(2)))); \
 fi
 endef
 
@@ -791,16 +815,19 @@ define check_knnsc_seed_diagnostic
 if [ -n "$(strip $(1))" ] || [ -n "$(strip $(2))" ]; then \
 	if [ -n "$(strip $(1))" ]; then \
 		$(call check_success,method parameter valid: \
-			$(call knnsc_centrality_var,$(3))=$(strip $(1)) (needed by target 'knnsc')); \
+			$(call parameter_name,$(call knnsc_centrality_var,$(3)))=$(strip $(1)) \
+			(needed by target 'knnsc')); \
 	fi; \
 	if [ -n "$(strip $(2))" ]; then \
 		$(call check_success,method parameter valid: \
-			$(call knnsc_periphery_var,$(3))=$(strip $(2)) (needed by target 'knnsc')); \
+			$(call parameter_name,$(call knnsc_periphery_var,$(3)))=$(strip $(2)) \
+			(needed by target 'knnsc')); \
 	fi; \
 else \
 	$(call report_check_error,required method parameter not defined: \
-		$(call knnsc_centrality_var,$(3)) or \
-		$(call knnsc_periphery_var,$(3)) (needed by target 'knnsc')); \
+		$(call parameter_name,$(call knnsc_centrality_var,$(3))) or \
+		$(call parameter_name,$(call knnsc_periphery_var,$(3))) \
+		(needed by target 'knnsc')); \
 fi
 endef
 
@@ -820,6 +847,16 @@ if [ "$(memory_valid)" = "true" ]; then \
 else \
 	$(call report_check_error,required positive memory size for \
 		$(call parameter_description,$(1),$(2),$(3)) (current: $(strip $(1)))); \
+fi
+endef
+
+define check_inference_dir_diagnostic
+if [ "$(inference_dir_valid)" = "true" ]; then \
+	$(call check_success,core parameter valid: \
+		$(call parameter_name,INFERENCE_DIR)=$(strip $(INFERENCE_DIR))); \
+else \
+	$(call report_check_error,core parameter INFERENCE_DIR must be a relative \
+		subdirectory of PROJECT_DIR (current: $(strip $(INFERENCE_DIR)))); \
 fi
 endef
 
@@ -866,29 +903,33 @@ define check_path_diagnostic
 if [ -z "$(strip $(1))" ]; then \
 	$(call report_check_error,required path $(call parameter_label,$(1),$(2),$(3)) not defined: $(2)); \
 elif mkdir -p "$(strip $(1))" >/dev/null 2>&1; then \
-	$(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: $(2)=$(strip $(1))); \
+	$(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: $(call parameter_name,$(2))=$(strip $(1))); \
 else \
-	$(call report_check_error,invalid path for $(call parameter_label,$(1),$(2),$(3)) $(2): $(strip $(1))); \
+	$(call report_check_error,invalid path for $(call parameter_label,$(1),$(2),$(3)) $(call parameter_name,$(2)): $(strip $(1))); \
 fi
 endef
 
 define check_references_diagnostic
 if [ -z "$(strip $(REFERENCES))" ]; then \
-	$(call report_check_error,required core parameter not defined: REFERENCES); \
+	$(call report_check_error,required core parameter not defined: \
+		$(call parameter_name,REFERENCES)); \
 else \
 	references_ok=1; \
 	if [ -n "$(invalid_references)" ]; then \
-		$(call report_check_error,unsupported value for core parameter REFERENCES: $(invalid_references) \
+		$(call report_check_error,unsupported value for core parameter \
+			$(call parameter_name,REFERENCES): $(invalid_references) \
 			(supported values: $(subst $(space),$(comma) ,$(display_supported_references_label)))); \
 		references_ok=0; \
 	fi; \
 	if [ "$(words $(conditions))" -eq 1 ] && [ -n "$(filter integrated,$(running_references))" ]; then \
-		$(call report_check_error,unsupported value for core parameter REFERENCES: integrated is not supported \
+		$(call report_check_error,unsupported value for core parameter \
+			$(call parameter_name,REFERENCES): integrated is not supported \
 			for mono-condition projects); \
 		references_ok=0; \
 	fi; \
 	if [ "$${references_ok}" -eq 1 ]; then \
-		$(call check_success,core parameter valid: REFERENCES=$(display_references_label)); \
+		$(call check_success,core parameter valid: \
+			$(call parameter_name,REFERENCES)=$(display_references_label)); \
 	fi; \
 fi
 endef
@@ -936,6 +977,9 @@ knnsc_centrality_var = $(call condition_param_var,KNNSC_CENTRALITY,$(1))
 knnsc_periphery_var = $(call condition_param_var,KNNSC_PERIPHERY,$(1))
 knnsc_centrality = $($(call knnsc_centrality_var,$(1)))
 knnsc_periphery = $($(call knnsc_periphery_var,$(1)))
+knnsc_condition_params = $(strip $(foreach condition,$(conditions),\
+	$(call knnsc_centrality_var,$(condition)) \
+	$(call knnsc_periphery_var,$(condition))))
 log_parameters = $(foreach var,$(strip $(1)),printf '%s=%s\n' '$(var)' "$($(var))"; )
 metadata_target_args = $(foreach target,$(strip $(RESET_TARGET_$(1))),--target "$(target)")
 metadata_custom_target_args = $(foreach target,$(strip $(2)),--target "$(target)")
@@ -1219,7 +1263,7 @@ run_logged = \
 		printf 'DATE=%s\n' "`date '+%Y-%m-%d %H:%M:%S'`"; \
 		printf 'TARGET=%s\n' "$(1)"; \
 		printf 'PROJECT DIRECTORY=%s\n' "$(PROJECT_DIR)"; \
-		printf 'PARAMETER FILE=%s\n' "$(PARAMS)"; \
+		printf 'CONFIGURATION FILE=%s\n' "$(PARAMS)"; \
 		printf 'FILE=%s\n' "$(LOGFILE)"; \
 		printf 'SOURCE REVISION=%s\n' "`git rev-parse HEAD 2>/dev/null || echo unknown`"; \
 		printf 'BACKEND=%s\n' "$(backend_label)"; \

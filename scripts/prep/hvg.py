@@ -8,6 +8,7 @@ import anndata as ad
 import bonesistools as bt
 
 from scbolt import cli, console
+from scbolt.omics import include_available_features
 
 script_name = Path(__file__).name
 
@@ -100,12 +101,22 @@ parser.add_argument(
     help="column name in adata.obs distinguishing batches (default: None)",
 )
 
+parser.add_argument(
+    "--include-feature",
+    dest="include_features",
+    action="append",
+    default=[],
+    metavar="NAME",
+    help="additional available feature to retain (repeatable)",
+)
+
 args = parser.parse_args()
 
 if not Path(os.path.dirname(args.outfile)).exists():
     os.makedirs(Path(os.path.dirname(args.outfile)))
 
 adata = ad.read_h5ad(f"{args.infile}")
+available_features = list(adata.var.index)
 
 if args.hvg is not None:
     if args.hvg > len(adata.var):
@@ -141,6 +152,19 @@ adata._inplace_subset_var(adata.var.highly_variable)
 
 console.print_result(f"identified {adata.n_vars} highly variable genes")
 
+selected_features, added_features, unavailable_features = include_available_features(
+    adata.var.index,
+    args.include_features,
+    available_features,
+)
+if args.include_features:
+    requested_features = len(set(args.include_features))
+    console.print_info(
+        "including requested binarization features "
+        f"(available={requested_features - len(unavailable_features)}/"
+        f"{requested_features}, added={len(added_features)})"
+    )
+
 with open(args.outfile, "w") as file:
-    for gene in adata.var.index:
+    for gene in selected_features:
         file.write(f"{gene}\n")

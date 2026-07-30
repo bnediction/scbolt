@@ -1,22 +1,9 @@
-FROM golang:1.22-bookworm AS launcher
-
-WORKDIR /src
-
-COPY go.mod VERSION ./
-COPY launcher/ ./launcher/
-
-ARG SCBOLT_GIT_COMMIT=unknown
-ARG SCBOLT_IMAGE=ghcr.io/bnediction/scbolt:latest
-
-RUN version="$(tr -d '[:space:]' < VERSION)" \
-    && CGO_ENABLED=0 go build \
-        -ldflags "-s -w -X main.launcherVersion=${version} -X main.sourceRevision=${SCBOLT_GIT_COMMIT} -X main.defaultImage=${SCBOLT_IMAGE}" \
-        -o /usr/local/bin/scbolt \
-        ./launcher/scbolt
-
 FROM mambaorg/micromamba:debian12-slim
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+ARG SCBOLT_ENV_FILES="system align bonesis cellrank core cotan fastq potency scboolseq stream velocity velocyto"
+ARG SCBOLT_GIT_COMMIT=unknown
 
 USER root
 
@@ -46,8 +33,6 @@ RUN apt-get update \
 
 USER $MAMBA_USER
 
-ARG SCBOLT_ENV_FILES="system align bonesis cellrank core cotan fastq potency scboolseq stream velocity velocyto"
-
 COPY --chown=$MAMBA_USER:$MAMBA_USER envs/conda/ /tmp/scbolt-conda-envs/
 
 RUN for env_file in ${SCBOLT_ENV_FILES}; do \
@@ -57,18 +42,18 @@ RUN for env_file in ${SCBOLT_ENV_FILES}; do \
     && rm -rf /tmp/scbolt-conda-envs
 
 COPY --chown=$MAMBA_USER:$MAMBA_USER . /opt/scbolt
-COPY --from=launcher /usr/local/bin/scbolt /usr/local/bin/scbolt
-
-ARG SCBOLT_GIT_COMMIT=unknown
 
 ENV SCBOLT_HOME=/opt/scbolt \
-    SCBOLT_ROOT=/opt/scbolt \
     SCBOLT_GIT_COMMIT=${SCBOLT_GIT_COMMIT} \
     SCBOLT_IN_DOCKER=true \
     SCBOLT_DEFAULT_BACKEND=docker \
-    PATH=/usr/local/bin:/opt/scbolt/bin:${PATH} \
-    PYTHONUNBUFFERED=1
+    PATH=/opt/scbolt/bin:${PATH} \
+    PYTHONUNBUFFERED=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    NUMEXPR_NUM_THREADS=1
 
 WORKDIR /work
 
-ENTRYPOINT ["/usr/local/bin/scbolt"]
+ENTRYPOINT ["scbolt"]

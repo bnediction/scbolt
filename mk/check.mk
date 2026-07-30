@@ -21,13 +21,13 @@ define check_help
 	@if [ "$(SCBOLT_CLI)" = "true" ]; then \
 		printf '  %-31s %s\n' '<module>' 'final module to validate'; \
 		printf '  %-31s %s\n' '--help' 'display this help'; \
-		printf '  %-31s %s\n' '--params=<file>' 'select the parameter file'; \
+		printf '  %-31s %s\n' '--config=<file>' 'select the configuration file'; \
 		printf '  %-31s %s\n' '--references=<condition...>' 'restrict checks to selected references'; \
 		printf '  %-31s %s\n' '--reset-target=<module...>' 'check what would be required after rebuilding from these modules'; \
 		printf '  %-31s %s\n' '--trust-target=<module...>' 'check while trusting selected module outputs'; \
 		printf '  %-31s %s\n' '--trust-existing' 'check while trusting existing outputs'; \
 		printf '  %-31s %s\n' '--old-file=<file>' 'check while trusting one existing DAG file'; \
-		printf '  %-31s %s\n' '--<parameter>=<value>' 'override any Make parameter'; \
+		printf '  %-31s %s\n' '--<parameter>=<value>' 'override a configuration value'; \
 	else \
 		printf '  %-31s %s\n' 'TARGET=<module>' 'final module to validate'; \
 		printf '  %-31s %s\n' 'HELP=true' 'display this help'; \
@@ -104,26 +104,96 @@ else ifeq ($(HELP),false)
 			*) printf '%s\n' "$${other_checks}";; \
 		esac; \
 	}; \
-	check_success() { printf '$(success_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
-	check_warning() { printf '$(warning_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
+	check_success() { printf 'success\t%s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
+	check_warning() { printf 'warning\t%s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
 	check_warning_block() { \
 		message="$$1"; \
 		details="$$2"; \
 		report="$$(route_check_report "$${message}")"; \
-		printf '$(warning_label) %s\n' "$${message}" >> "$${report}"; \
-		if [ -n "$${details}" ]; then \
-			printf '%s\n' "$${details}" \
-				| sed 's/, /;/g' \
-				| tr ';' '\n' \
-				| sed 's/^[[:space:]]*/    - /' >> "$${report}"; \
-		fi; \
+		printf 'warning\t%s\t%s\n' "$${message}" "$${details}" >> "$${report}"; \
 	}; \
-	check_failure() { printf '$(failure_label) %s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
-	flush_check_reports() { \
+	check_failure() { printf 'failure\t%s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
+	format_check_message() { \
+		message="$$1"; \
+		case "$${message}" in \
+			project\ parameter\ valid:*|core\ parameter\ valid:*|method\ parameter\ valid:*|\
+				external\ resource\ parameter\ valid:*) \
+				message="$${message#*: }";; \
+		esac; \
+		printf '%s\n' "$${message}"; \
+	}; \
+	check_status_icon() { \
+		case "$$1" in \
+			success) printf '$(green)✓$(nc)' ;; \
+			warning) printf '$(yellow)⚠$(nc)' ;; \
+			failure) printf '$(red)✗$(nc)' ;; \
+		esac; \
+	}; \
+	check_section_printed=0; \
+	render_check_section() { \
+		title="$$1"; \
+		shift; \
+		has_checks=0; \
 		for report in "$$@"; do \
-			cat "$${report}"; \
-			: > "$${report}"; \
+			if [ -s "$${report}" ]; then has_checks=1; break; fi; \
 		done; \
+		if [ "$${has_checks}" -eq 0 ]; then return; fi; \
+		if [ "$${check_section_printed}" -eq 1 ]; then printf '\n'; fi; \
+		printf '$(bold)%s$(nc)\n' "$${title}"; \
+		for report in "$$@"; do \
+			while IFS=$$'\t' read -r status message details; do \
+				if [ -z "$${status}" ]; then continue; fi; \
+				printf '  %s %s\n' "$$(check_status_icon "$${status}")" \
+					"$$(format_check_message "$${message}")"; \
+				if [ -n "$${details}" ]; then \
+					printf '%s\n' "$${details}" \
+						| sed 's/, /;/g' \
+						| tr ';' '\n' \
+						| sed 's/^[[:space:]]*/    - /'; \
+				fi; \
+			done < "$${report}"; \
+		done; \
+		check_section_printed=1; \
+	}; \
+	check_status_count() { \
+		awk -F '\t' -v status="$$1" '$$1 == status { count++ } END { print count + 0 }' \
+			"$${project_checks}" "$${core_checks}" "$${method_checks}" \
+			"$${external_resource_checks}" "$${file_checks}" "$${conda_checks}" \
+			"$${command_checks}" "$${other_checks}"; \
+	}; \
+	render_check_reports() { \
+		result="$$1"; \
+		render_check_section 'Project parameters' "$${project_checks}"; \
+		render_check_section 'Core parameters' "$${core_checks}"; \
+		render_check_section 'Method parameters' "$${method_checks}"; \
+		render_check_section 'External resources' "$${external_resource_checks}"; \
+		render_check_section 'Files and metadata' "$${file_checks}"; \
+		render_check_section 'Runtime' "$${conda_checks}" "$${command_checks}"; \
+		render_check_section 'Other' "$${other_checks}"; \
+		failures="$$(check_status_count failure)"; \
+		warnings="$$(check_status_count warning)"; \
+		if [ "$${check_section_printed}" -eq 1 ]; then printf '\n'; fi; \
+		printf '$(bold)Status$(nc)\n'; \
+		if [ "$${result}" = 'failure' ]; then \
+			if [ "$${failures}" -gt 0 ]; then \
+				printf '  Check failed for %s: %s blocking error%s' \
+					"$(check_target_label)" "$${failures}" \
+					"$$([ "$${failures}" -eq 1 ] || printf 's')"; \
+			else \
+				printf '  Check failed for %s' "$(check_target_label)"; \
+			fi; \
+			if [ "$${warnings}" -gt 0 ]; then \
+				printf ' and %s warning%s' "$${warnings}" \
+					"$$([ "$${warnings}" -eq 1 ] || printf 's')"; \
+			fi; \
+			printf '.\n'; \
+		elif [ "$${warnings}" -gt 0 ]; then \
+			printf '  Check passed for %s with %s warning%s.\n' \
+				"$(check_target_label)" "$${warnings}" \
+				"$$([ "$${warnings}" -eq 1 ] || printf 's')"; \
+		else \
+			printf '  Check passed for %s.\n' "$(check_target_label)"; \
+		fi; \
 	}; \
 	missing=0; \
 	$(foreach path,$(OLD_FILES),\
@@ -262,13 +332,11 @@ else ifeq ($(HELP),false)
 	fi; \
 	if [ ! -s "$${target_dry_run}" ]; then \
 		if [ "$${missing}" -ne 0 ]; then \
-			$(call check_failure,check failed for $(check_target_label)); \
-			$(print_check_reports); \
+			render_check_reports failure; \
 			exit 1; \
 		fi; \
 		$(call check_success,$(check_target_label) already up to date); \
-		$(call check_success,check passed for $(check_target_label)); \
-		$(print_check_reports); \
+		render_check_reports success; \
 		exit 0; \
 	fi; \
 	cp "$${target_dry_run}" "$${dry_run}"; \
@@ -304,6 +372,9 @@ else ifeq ($(HELP),false)
 		fi; \
 	fi; \
 	$(call check_path_diagnostic,$(RESOURCES_DIR),RESOURCES_DIR,core); \
+	if grep -q 'scripts/infer/' "$${dry_run}"; then \
+		$(call check_inference_dir_diagnostic); \
+	fi; \
 	if grep -qE -- '--samtools-memory|--localmem|--memory' "$${dry_run}"; then \
 		$(call check_memory_diagnostic,$(MEMORY),MEMORY,core); \
 	fi; \
@@ -563,8 +634,6 @@ else ifeq ($(HELP),false)
 				$(call knnsc_centrality,$(condition)),\
 				$(call knnsc_periphery,$(condition)),$(condition));) \
 	fi; \
-	flush_check_reports "$${project_checks}" "$${core_checks}" \
-		"$${method_checks}" "$${external_resource_checks}"; \
 	if [ "$(__check_externals__)" = "true" ]; then \
 		h5ad_report="$$(mktemp)"; \
 		if ! $(call conda_run,scbolt-core) python $(scripts_dir)/utils/check_h5ad_pipeline.py \
@@ -593,7 +662,6 @@ else ifeq ($(HELP),false)
 			$(call check_parameter_diagnostic,$(repeat_msk_url),repeat_msk_url,external resource); \
 		fi; \
 	fi; \
-	flush_check_reports "$${file_checks}"; \
 	if [ "$(__check_externals__)" = "true" ]; then \
 		if [ "$(BACKEND)" = "docker" ]; then \
 			if [ "$(SCBOLT_IN_DOCKER)" = "true" ]; then \
@@ -678,22 +746,18 @@ else ifeq ($(HELP),false)
 		else \
 			$(call report_check_error,required command not found: conda); \
 		fi; \
-		flush_check_reports "$${conda_checks}"; \
 		if grep -qE '(^|[[:space:]])cellranger count([[:space:]]|$$)' "$${dry_run}"; then \
 			$(call check_command_diagnostic,cellranger); \
 		fi; \
 		if grep -q -- '--graph-formats' "$${dry_run}"; then \
 			$(call check_command_diagnostic,dot); \
 		fi; \
-		flush_check_reports "$${command_checks}"; \
 	fi; \
 	if [ "$${missing}" -ne 0 ]; then \
-		$(call check_failure,check failed for $(check_target_label)); \
-		$(print_check_reports); \
+		render_check_reports failure; \
 		exit 1; \
 	fi; \
-	$(call check_success,check passed for $(check_target_label)); \
-	$(print_check_reports)
+	render_check_reports success
 else
 	$(call print_error,unsupported HELP=$(HELP) \(supported values: true, false\))
 endif

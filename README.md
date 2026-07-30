@@ -32,89 +32,49 @@ scBOLT relies on the BoNesis framework for exact Boolean network synthesis.
 
 # Installation
 
-The `scbolt` command is distributed as a native executable. Choose either:
+scBOLT uses a Bash command-line launcher. Native execution is supported on
+Linux and requires Bash, GNU Make 4.3 or newer, and one environment manager:
+[Conda](https://docs.conda.io/),
+[Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html),
+or [Micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html).
+Docker is the supported execution backend on macOS and Windows and is also
+available on Linux.
 
-* a local backend using
-  [Conda](https://docs.conda.io/),
-  [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html),
-  or [Micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html);
-* the Docker backend, which only requires Docker after launcher installation.
-
-GNU Make and Bash are provided by the managed `scbolt-system` environment for
-local backends; they are not required as host installation or runtime
-dependencies.
-
-## Prebuilt launcher
-
-Prebuilt executables are available for:
-
-| Platform | Launcher |
-| --- | --- |
-| Linux x86-64 | [`scbolt-linux-amd64`](dist/scbolt-linux-amd64) |
-| macOS Intel | [`scbolt-darwin-amd64`](dist/scbolt-darwin-amd64) |
-| macOS Apple silicon | [`scbolt-darwin-arm64`](dist/scbolt-darwin-arm64) |
-| Windows x86-64 | [`scbolt-windows-amd64.exe`](dist/scbolt-windows-amd64.exe) |
-
-For a local backend, clone scBOLT and run the matching launcher from the
-checkout:
+Clone scBOLT and run the installer:
 
 ```sh
 git clone https://github.com/bnediction/scbolt.git scbolt
 cd scbolt
-./dist/scbolt-linux-amd64
+./install
 ```
 
-The executable installs itself and shell completion, then proposes Conda,
-Mamba, Micromamba, and Docker. Select the local backend to create the scBOLT
-environments. An already installed launcher can install or replace a backend
-explicitly with `scbolt install conda`, `scbolt install mamba`, or
-`scbolt install micromamba`.
-
-For Docker, run the downloaded launcher with:
+The installer links the `scbolt` command and Bash completion into the user
+directories. Install or replace the selected runtime backend explicitly:
 
 ```sh
-chmod +x scbolt-linux-amd64
-./scbolt-linux-amd64
+scbolt install conda
+scbolt install mamba
+scbolt install micromamba
+scbolt install docker
 ```
 
-Select Docker in the proposed backend menu. This writes
-`~/.config/scbolt/config.mk`, pulls the configured scBOLT image if needed, and
-keeps normal commands such as `scbolt bn-submin` unchanged. The checkout is not
-needed after a Docker installation. Docker can later be selected explicitly
-with `scbolt install docker`.
-
-On Windows, use the corresponding command from PowerShell:
-
-```powershell
-.\scbolt-windows-amd64.exe
-```
-
-## Source installation
-
-Building the launcher from source requires Go 1.22 or newer:
-
-```sh
-git clone https://github.com/bnediction/scbolt.git scbolt
-cd scbolt
-go build -o build/launcher/scbolt-native ./launcher/scbolt
-./build/launcher/scbolt-native
-```
-
-The legacy `./install` script remains available for POSIX development workflows,
-but the native installer does not invoke it and does not require host Bash.
+`scbolt install --completions` repairs the Bash completion without changing a
+runtime backend.
 
 Initialize a project in any working directory:
 
 ```sh
 mkdir my_project
 cd my_project
-scbolt init params.mk
+scbolt init
 ```
 
-Verify the installation:
+This creates `scbolt.yml`, `spec.yml`, and the `.scbolt` project locator.
+Verify the installation and project configuration with:
 
 ```sh
-scbolt check
+scbolt diagnostics
+scbolt check bn-submin
 ```
 
 ---
@@ -180,15 +140,19 @@ scbolt progress --help
 scbolt clean help
 ```
 
-Create, update, or remove the project configuration:
+Create, update, inspect, or remove the project configuration:
 
 ```bash
-scbolt init <params.mk>
+scbolt init
+scbolt init <scbolt.yml>
 scbolt init --show
 scbolt init --remove
 ```
 
-If `<params.mk>` does not exist, `scbolt init` creates a minimal parameter file.
+For a new YAML project, `scbolt init` creates both the scientific configuration
+and its Boolean inference specification. See
+[`man/configuration.md`](man/configuration.md) for the schema and legacy-project
+migration.
 
 Run a module:
 
@@ -214,8 +178,8 @@ Validate dependencies and configuration:
 scbolt check <module>
 ```
 
-Diagnose the installation, selected runtime backend, host platform, and
-numerical reproducibility profile without validating pipeline inputs:
+Diagnose the installation, selected backend, host, and numerical profile
+without validating pipeline inputs:
 
 ```bash
 scbolt diagnostics
@@ -244,7 +208,7 @@ With `--all`, it asks before removing cache, logs, and all generated module outp
 
 | Option                         | Description                                           |
 | ------------------------------ | ----------------------------------------------------- |
-| `--params=<file>`              | Select the parameter file.                            |
+| `--config=<file>`              | Select the public YAML configuration.                 |
 | `--references=<condition...>`  | Restrict execution to selected references.            |
 | `--reset-target=<module...>`   | Rebuild from these modules.                           |
 | `--trust-target=<module...>`   | Trust all outputs from selected modules.              |
@@ -253,14 +217,15 @@ With `--all`, it asks before removing cache, logs, and all generated module outp
 | `--logging=false`              | Disable persistent logging.                           |
 | `--help`                       | Display command-specific help when supported.         |
 | `--raw`                        | Display raw `config` listing.                         |
-| `--<parameter>=<value>`        | Override any Make parameter using dash-separated option names. |
+| `--<key>=<value>`              | Override a public configuration key for one command.  |
 | `--prior-knowledge=<resource>` | Use `collectri`, `dorothea`, or a custom regulatory network. |
 
 `--trust-existing` only trusts known DAG outputs present when the command
 starts; missing outputs are built normally. `--reset-target` always takes
 priority and excludes the requested rebuild path from trust.
 
-Make-style assignments such as `PRIOR_KNOWLEDGE=dorothea` remain supported.
+Legacy `params.mk` projects and `--params=<file>` remain supported during the
+transition, but new projects should use `scbolt.yml`.
 
 Advanced documentation is available in: `man/`, including rebuild controls in
 `man/rebuilds.md`.
@@ -275,8 +240,8 @@ scbolt bn-submin --logging=false
 scbolt bn-submin --max-clauses=12
 ```
 
-Internally, scBOLT uses GNU Make as its workflow engine. Advanced users can
-still call `make` directly when needed.
+Internally, scBOLT uses GNU Make as its workflow engine; Make syntax is not part
+of the normal user interface.
 
 ### Starting from custom macrostates
 

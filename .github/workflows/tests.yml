@@ -10,6 +10,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: python -m pip install pyyaml
       - run: bash tests/unit/test_clause_continuation.sh
       - run: bash tests/unit/test_trust_existing.sh
       - run: python3 tests/unit/test_domain_continuation.py
@@ -20,6 +24,8 @@ jobs:
       - run: python3 tests/unit/test_subset_minimal_parallel.py
       - run: python3 tests/unit/test_inference_graph_export.py
       - run: bash tests/unit/test_memory.sh
+      - run: python3 tests/unit/test_project_config.py
+      - run: bash tests/unit/test_diagnostics.sh
 
   smoke:
     name: Smoke tests
@@ -29,6 +35,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
+      - run: python -m pip install pyyaml
       - run: make help >/dev/null
       - run: make config PARAMS=tests/fixtures/params.mk >/dev/null
       - run: python -m compileall lib scripts
@@ -39,14 +46,14 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-python@v6
         with:
-          go-version: "1.22"
+          python-version: "3.11"
+      - run: python -m pip install pyyaml
       - run: bash tests/compatibility/test_install_backend_config.sh
       - run: bash tests/compatibility/test_backend_precedence.sh
       - run: bash tests/compatibility/test_system_tools_fallback.sh
-      - run: bash tests/compatibility/test_go_launcher.sh
-      - run: bash tests/compatibility/test_go_launcher_local.sh
+      - run: bash tests/compatibility/test_yaml_config.sh
 
   compatibility-env:
     name: Compatibility env (${{ matrix.backend }})
@@ -63,9 +70,6 @@ jobs:
       MAMBA_ROOT_PREFIX: ${{ github.workspace }}/.micromamba
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
-        with:
-          go-version: "1.22"
       - uses: conda-incubator/setup-miniconda@v4
         with:
           miniforge-version: latest
@@ -126,9 +130,6 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
-        with:
-          go-version: "1.22"
       - uses: docker/setup-buildx-action@v4
       - uses: docker/build-push-action@v7
         with:
@@ -143,14 +144,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - run: docker run --rm scbolt:test-system --version
-      - run: make -C launcher linux-amd64
-      - name: Run the standalone Docker launcher without a checkout
-        working-directory: /tmp
-        run: >-
-          "${GITHUB_WORKSPACE}/build/launcher/scbolt-linux-amd64"
-          --backend=docker
-          --scbolt-image=scbolt:test-system
-          --version
 
   regression:
     name: Regression tests
@@ -160,7 +153,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-      - run: python -m pip install pandas
+      - run: python -m pip install pandas pyyaml
       - run: python tests/regression/test_annotation_composition.py
       - run: bash tests/regression/test_clean_sidecars.sh
       - run: bash tests/regression/test_gene_selection_partial_outputs.sh

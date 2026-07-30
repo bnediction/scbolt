@@ -11,6 +11,8 @@ dependencies:
   - grep>=3
   - gzip>=1
   - make>=4.3
+  - python>=3.10
+  - pyyaml>=6
   - sed>=4
   - tar>=1
   - util-linux>=2

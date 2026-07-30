@@ -39,6 +39,7 @@ $(eval SCBOLT_CONTAINER_MOUNTS ?=)          # extra host paths mounted at the sa
 $(eval ORGANISM ?=)                         # organism used for gene resources
 $(eval CONDITIONS ?=)                       # experimental conditions
 $(eval PROJECT_DIR ?= project)              # project directory
+$(eval INFERENCE_DIR ?= infer)               # inference outputs within PROJECT_DIR
 # Resource directory. In params.mk, relative paths are resolved relative to
 # params.mk; on the command line, they are resolved relative to launch_dir.
 # When omitted, RESOURCES_DIR defaults to resources relative to the active
@@ -215,6 +216,7 @@ $(eval BIN_HVG_METHOD ?= binning)           # HVG method for binarization
 $(eval BIN_HVG_TOP ?=)                      # top HVGs for binarization
 $(eval BIN_HVG_SPAN ?= 0.3)                 # cell fraction used by loess
 $(eval BIN_HVG_BINS ?= 20)                  # mean-expression bins for HVG selection
+$(eval BIN_INCLUDE_NODES ?=)                # nodes retained when binarization uses only HVGs
 $(eval BIN_METHOD ?= consensus)             # binarization method
 
 ## BIN-CELLS ##
@@ -328,8 +330,8 @@ $(eval TIMEOUT_LOCK ?= 72h)                 # timeout
 ## OUTPUTS ##
 # CONFIG_FORMATS values: csv, cfg, json.
 # GRAPH_FORMATS values: dot, neato, circo, fdp, sfdp.
-$(eval CONFIG_FORMATS = csv)                # configuration output formats
-$(eval GRAPH_FORMATS = dot)                 # Graphviz layouts to export
+$(eval CONFIG_FORMATS ?= csv)               # configuration output formats
+$(eval GRAPH_FORMATS ?= dot)                 # Graphviz layouts to export
 
 ## BONESIS-MIN ##
 $(eval MIN_SELF_LOOP_INFER ?= true)         # minimize one-node feedbacks at inference stage

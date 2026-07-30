@@ -2,7 +2,7 @@
 
 omics_dir := $(results)/omics
 bin_dir := $(results)/bin
-infer_dir := $(results)/infer
+infer_dir := $(results)/$(inference_subdir)
 
 fastq_dir = $(omics_dir)/fastq/$(call condition_path,$(1))
 count_dir = $(omics_dir)/count/$(call condition_path,$(1))
@@ -242,6 +242,9 @@ $(error unsupported value for parameter TRUST_EXISTING (supported values: true, 
 endif
 ifneq ($(call is_creatable_path,$(PROJECT_DIR)),true)
 $(error parameter PROJECT_DIR must be a valid output path (current: $(PROJECT_DIR)))
+endif
+ifneq ($(inference_dir_valid),true)
+$(error parameter INFERENCE_DIR must be a relative subdirectory of PROJECT_DIR (current: $(INFERENCE_DIR)))
 endif
 ifneq ($(call is_creatable_path,$(RESOURCES_DIR)),true)
 $(error parameter RESOURCES_DIR must be a valid output path (current: $(RESOURCES_DIR)))
@@ -567,11 +570,12 @@ target_params_stream = \
 	EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER
 target_params_knnsc = \
 	MACROSTATE_SIZE KNNSC_EMBEDDING KNNSC_DIMENSION KNNSC_NEIGHBORS \
-	KNNSC_MIN_CLUSTER_SIZE
+	KNNSC_MIN_CLUSTER_SIZE $(knnsc_condition_params)
 target_params_macrostates = MACROSTATE_METHOD MACROSTATE_SIZE MACROSTATE_FILES
 target_params_bin-cells = \
 	MACROSTATE_FILES \
 	BIN_SCBOOLSEQ_ONLY_HVG BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	BIN_INCLUDE_NODES \
 	SCBOOLSEQ_OPENBLAS_THREADS SCBOOLSEQ_OMP_THREADS \
 	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES SEED
 target_params_bin-macrostates = \
@@ -579,15 +583,17 @@ target_params_bin-macrostates = \
 target_params_bin-dea = \
 	MACROSTATE_FILES \
 	BIN_DEA_ONLY_HVG BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	BIN_INCLUDE_NODES \
 	MEMORY BIN_LOGFC BIN_CORRECTION BIN_ALPHA
 target_params_bin-consensus = \
 	MACROSTATE_FILES \
 	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD \
 	BIN_DEA_ONLY_HVG BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	BIN_INCLUDE_NODES \
 	MEMORY BIN_LOGFC BIN_CORRECTION BIN_ALPHA
 target_params_binarization = \
 	BIN_METHOD BINARIZATION_FILE MACROSTATE_FILES \
-	BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS
+	BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS BIN_INCLUDE_NODES
 target_params_spec = \
 	SPEC_FILE $(prior_knowledge_params)
 target_params_max-nodes-soft = \
@@ -669,11 +675,12 @@ sensitive_params_stream = \
 	EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER REPRESENTATION LABEL_COL
 sensitive_params_knnsc = \
 	MACROSTATE_SIZE KNNSC_EMBEDDING KNNSC_DIMENSION KNNSC_NEIGHBORS \
-	KNNSC_MIN_CLUSTER_SIZE METRIC LABEL_COL REPRESENTATION
+	KNNSC_MIN_CLUSTER_SIZE $(knnsc_condition_params) METRIC LABEL_COL REPRESENTATION
 sensitive_params_macrostates =
 sensitive_params_bin-cells = \
 	MACROSTATE_FILES REPRESENTATION \
 	BIN_SCBOOLSEQ_ONLY_HVG BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	BIN_INCLUDE_NODES \
 	SCBOOLSEQ_OPENBLAS_THREADS SCBOOLSEQ_OMP_THREADS \
 	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES SEED
 sensitive_params_bin-macrostates = \
@@ -682,11 +689,13 @@ sensitive_params_bin-macrostates = \
 sensitive_params_bin-dea = \
 	MACROSTATE_FILES REPRESENTATION \
 	BIN_DEA_ONLY_HVG BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	BIN_INCLUDE_NODES \
 	MEMORY BIN_LOGFC BIN_CORRECTION BIN_ALPHA
 sensitive_params_bin-consensus = \
 	MACROSTATE_FILES REPRESENTATION \
 	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD \
 	BIN_DEA_ONLY_HVG BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	BIN_INCLUDE_NODES \
 	MEMORY BIN_LOGFC BIN_CORRECTION BIN_ALPHA
 sensitive_params_binarization =
 sensitive_params_spec = \
@@ -784,7 +793,7 @@ project_config_param_set = \
 	$(foreach condition,$(conditions),$(call gsm_var,$(condition))) \
 	LABEL SPEC_FILE
 core_config_param_set = \
-	PARAMS REFERENCES PROJECT_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING \
+	PARAMS REFERENCES PROJECT_DIR INFERENCE_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING \
 	BACKEND SCBOLT_IMAGE SCBOLT_CONTAINER_ENGINE SCBOLT_CONTAINER_ARGS \
 	SCBOLT_CONTAINER_MOUNTS REPRESENTATION LABEL_COL OLD_FILES
 method_config_param_set = \
@@ -807,7 +816,9 @@ method_config_param_set = \
 	CLUSTERING_METHOD CLUSTER_NUMBER ALPHA_EPG MU_EPG LAMBDA_EPG \
 	EXTEND_EPG EXTEND_MODE EXTEND_PARAMETER PRUNE_EPG COLLAPSE_PARAMETER \
 	KNNSC_EMBEDDING KNNSC_DIMENSION KNNSC_NEIGHBORS KNNSC_MIN_CLUSTER_SIZE \
+	$(knnsc_condition_params) \
 	BIN_SCBOOLSEQ_ONLY_HVG BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
+	BIN_INCLUDE_NODES \
 	UNIMODAL_QUANTILE ZEROES_ARE_ZEROES \
 	NANS_THRESHOLD BIMODAL_THRESHOLD ZEROINF_THRESHOLD UNIMODAL_THRESHOLD \
 	BIN_DEA_ONLY_HVG BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
@@ -851,7 +862,7 @@ config_base_params = \
 	ORGANISM CONDITIONS \
 	$(foreach condition,$(conditions),$(call sra_var,$(condition))) \
 	$(foreach condition,$(conditions),$(call gsm_var,$(condition))) \
-	PARAMS REFERENCES PROJECT_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING \
+	PARAMS REFERENCES PROJECT_DIR INFERENCE_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING \
 	BACKEND SCBOLT_IMAGE SCBOLT_CONTAINER_ENGINE SCBOLT_CONTAINER_ARGS \
 	SCBOLT_CONTAINER_MOUNTS REPRESENTATION LABEL_COL OLD_FILES
 config_params_from_modules = $(strip $(foreach module,$(1),$(target_params_$(module))))

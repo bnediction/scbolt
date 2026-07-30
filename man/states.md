@@ -93,9 +93,9 @@ The module does not belong to the current workflow and has no output.
 
 Examples include:
 
-- macrostate methods not selected by `MACROSTATE_METHOD`;
+- macrostate methods not selected by `macrostate_method`;
 - upstream modules bypassed by entry-point parameters such as
-  `COUNT_FILES`, `MACROSTATE_FILES`, or `BINARIZATION_FILE`.
+  `count_files`, `macrostate_files`, or `binarization_file`.
 
 ## Progress Counter
 

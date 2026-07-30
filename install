@@ -5,7 +5,8 @@ set -e
 scbolt_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 env_dir="${scbolt_root}/envs/conda"
 lib_dir="${scbolt_root}/lib"
-scbolt_launcher="${scbolt_root}/build/launcher/scbolt-native"
+scbolt_command="${scbolt_root}/bin/scbolt"
+scbolt_completion="${scbolt_root}/bin/completion.bash"
 local_bin="${HOME}/.local/bin"
 local_completion_dir="${HOME}/.local/share/bash-completion/completions"
 local_config_dir="${XDG_CONFIG_HOME:-${HOME}/.config}/scbolt"
@@ -28,6 +29,7 @@ scbolt_envs=(
 
 assume_yes=false
 install_cli=false
+install_completions=false
 install_all=false
 target_requested=false
 backend="conda"
@@ -36,16 +38,39 @@ selected_envs=()
 ignored_envs=()
 
 usage() {
+    local install_command="${SCBOLT_INSTALL_COMMAND:-./install}"
+
+    if [ -n "${SCBOLT_INSTALL_COMMAND:-}" ]; then
+        cat <<EOF
+usage: ${install_command} [BACKEND] [--all] [--completions] [--env=NAME]
+
+Install a scBOLT runtime backend or repair Bash completion.
+
+Without options, install all runtime environments interactively.
+
+Options
+  --all                  install all runtime environments without prompts
+  --completions          reinstall Bash completion only
+  --env=NAME             install one environment; can be repeated
+  --backend=BACKEND      runtime backend: conda, mamba, micromamba, or docker
+  --help, -h             display this help
+
+Environment names
+  ${scbolt_envs[*]}
+EOF
+        return
+    fi
+
     cat <<EOF
-usage: ./install [--all] [--cli] [--env=NAME] [--backend=conda|mamba|micromamba|docker]
+usage: ${install_command} [--all] [--completions] [--env=NAME] [--backend=conda|mamba|micromamba|docker]
 
 Install the scBOLT command, Bash completion, and selected runtime environments.
 
-Without options, install everything interactively.
+Without options, install the scBOLT command and Bash completion.
 
 Options
   --all                  install CLI and all runtime environments without prompts
-  --cli                  install the scBOLT command and Bash completion
+  --completions          reinstall Bash completion only
   --env=NAME             install one conda environment; can be repeated
   --backend=BACKEND      runtime backend: conda, mamba, micromamba, or docker
   --help, -h             display this help
@@ -152,6 +177,16 @@ do
             install_cli=true
             target_requested=true
             ;;
+        --completions)
+            if [ "${install_all}" = true ];
+            then
+                printf '%s\n' "use either --all or explicit targets, not both" >&2
+                usage >&2
+                exit 2
+            fi
+            install_completions=true
+            target_requested=true
+            ;;
         --env=*)
             if [ "${install_all}" = true ];
             then
@@ -207,15 +242,25 @@ done
 
 if [ "${install_all}" = true ];
 then
-    install_cli=true
+    if [ -z "${SCBOLT_INSTALL_COMMAND:-}" ]; then
+        install_cli=true
+    fi
     select_all_envs
     assume_yes=true
 elif [ "${target_requested}" = true ];
 then
     assume_yes=true
 else
-    install_cli=true
-    select_all_envs
+    if [ -z "${SCBOLT_INSTALL_COMMAND:-}" ]; then
+        install_cli=true
+        assume_yes=true
+        if [ "${backend_requested}" = true ]; then
+            select_all_envs
+            assume_yes=false
+        fi
+    else
+        select_all_envs
+    fi
 fi
 
 deduplicate_selected_envs "${selected_envs[@]}"
@@ -518,7 +563,12 @@ install_env() {
 install_scbolt_command() {
     local choice
     local installed_command="${local_bin}/scbolt"
-    local launcher_source
+
+    if [ ! -x "${scbolt_command}" ];
+    then
+        echo "scBOLT command not found: ${scbolt_command}"
+        return 1
+    fi
 
     if is_yes_enabled;
     then
@@ -538,28 +588,11 @@ install_scbolt_command() {
         return 1
     fi
 
-    launcher_source="$(build_scbolt_launcher)" || return 1
-    if [ ! -x "${launcher_source}" ]; then
-        echo "scBOLT launcher not found: ${launcher_source}"
-        return 1
-    fi
-
     mkdir -p "${local_bin}"
-    if [ "${backend}" = "docker" ]; then
-        local temporary_command="${installed_command}.tmp.$$"
-        cp "${launcher_source}" "${temporary_command}"
-        chmod 755 "${temporary_command}"
-        mv -f "${temporary_command}" "${installed_command}"
-    else
-        ln -sfn "${launcher_source}" "${installed_command}"
-    fi
+    ln -sfn "${scbolt_command}" "${installed_command}"
 
     echo "Installed:"
-    if [ "${backend}" = "docker" ]; then
-        echo "  ${installed_command}"
-    else
-        echo "  ${installed_command} -> ${launcher_source}"
-    fi
+    echo "  ${installed_command} -> ${scbolt_command}"
 
     case ":${PATH}:" in
         *":${local_bin}:"*) ;;
@@ -575,62 +608,18 @@ install_scbolt_command() {
     return 0
 }
 
-build_scbolt_launcher() {
-    local source="${SCBOLT_LAUNCHER_INSTALL_SOURCE:-}"
-    local version
-    local revision
-
-    if [ -n "${source}" ]; then
-        if [ ! -x "${source}" ]; then
-            printf 'scBOLT launcher not found: %s\n' "${source}" >&2
-            return 1
-        fi
-        mkdir -p "$(dirname "${scbolt_launcher}")"
-        if [ "${source}" != "${scbolt_launcher}" ]; then
-            local temporary_launcher="${scbolt_launcher}.tmp.$$"
-            cp "${source}" "${temporary_launcher}"
-            chmod 755 "${temporary_launcher}"
-            mv -f "${temporary_launcher}" "${scbolt_launcher}"
-        fi
-        printf '%s\n' "${scbolt_launcher}"
-        return 0
-    fi
-
-    if ! command -v go >/dev/null 2>&1; then
-        printf '%s\n' \
-            "Go is required to build the scBOLT launcher from this checkout." >&2
-        printf '%s\n' \
-            "Install Go, or set SCBOLT_LAUNCHER_INSTALL_SOURCE to a prebuilt launcher." >&2
-        return 1
-    fi
-
-    version="$(tr -d '[:space:]' < "${scbolt_root}/VERSION")"
-    revision="$(git -C "${scbolt_root}" rev-parse HEAD 2>/dev/null || printf unknown)"
-    mkdir -p "$(dirname "${scbolt_launcher}")"
-    (
-        cd "${scbolt_root}"
-        CGO_ENABLED=0 go build \
-            -ldflags "-s -w -X main.launcherVersion=${version} -X main.sourceRevision=${revision} -X main.defaultImage=${default_image}" \
-            -o "${scbolt_launcher}" \
-            ./launcher/scbolt
-    ) >&2
-    printf '%s\n' "${scbolt_launcher}"
-}
-
 install_scbolt_completion() {
-    local installed_command="${local_bin}/scbolt"
-    local installed_completion="${local_completion_dir}/scbolt"
-
-    if [ ! -x "${installed_command}" ]; then
-        echo "scBOLT command not found: ${installed_command}"
+    if [ ! -f "${scbolt_completion}" ];
+    then
+        echo "scBOLT Bash completion not found: ${scbolt_completion}"
         return
     fi
 
     mkdir -p "${local_completion_dir}"
-    "${installed_command}" completion bash > "${installed_completion}"
+    ln -sfn "${scbolt_completion}" "${local_completion_dir}/scbolt"
 
     echo "Installed Bash completion:"
-    echo "  ${installed_completion}"
+    echo "  ${local_completion_dir}/scbolt -> ${scbolt_completion}"
     echo
     echo "Restart your shell, or run:"
     echo
@@ -693,6 +682,12 @@ then
     then
         install_scbolt_completion
     fi
+    echo
+fi
+
+if [ "${install_completions}" = true ];
+then
+    install_scbolt_completion
     echo
 fi
 

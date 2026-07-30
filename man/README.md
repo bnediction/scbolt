@@ -5,11 +5,10 @@
 The semi-automatic workflow scBOLT proposes a general methodology for inferring
 executable Boolean models reproducing the observed cellular dynamics from
 multiple biological experiments, using scRNA-seq data.
-Its implementation in `make`, in addition to make its use easy and intuitive,
-offers a wide range of advanced features for guiding and helping users in
-modeling the desired biological processes.
-Here we propose an advanced documentation for a proper use of the pipeline,
-but user can find a summary documentation using `make help`.
+GNU Make remains scBOLT's internal workflow engine, while the Bash launcher and
+the public `scbolt.yml` and `spec.yml` files provide the user interface. See
+[configuration.md](configuration.md) for the project schema and migration
+guide. A command summary is available with `scbolt help`.
 
 Reconstructing *in-silico* BNs requires many computational steps (see figure below).
 To summary the pipeline's tasks, UMI counts are computed from sequencing data,

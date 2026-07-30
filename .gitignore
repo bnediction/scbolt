@@ -120,6 +120,7 @@ public/
 llc/
 *.md
 !README.md
+!quickstart/scbolt.yml
 !quickstart/spec.yml
 !man/*.md
 plot_clustering_grid.py

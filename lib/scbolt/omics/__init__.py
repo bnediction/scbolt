@@ -1,6 +1,6 @@
 """AnnData, composition, and plotting helpers for scBOLT omics scripts."""
 
-from ._anndata import drop_expression_matrices, write_h5ad
+from ._anndata import drop_expression_matrices, include_available_features, write_h5ad
 from ._composition import (
     check_exported_composition,
     check_proportion_sums,
@@ -25,6 +25,7 @@ __all__ = [
     "compute_condition_composition",
     "crop_pdf",
     "drop_expression_matrices",
+    "include_available_features",
     "plain_text_label",
     "plot_categorical_embedding",
     "plot_continuous_embedding",

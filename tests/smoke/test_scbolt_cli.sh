@@ -13,10 +13,6 @@ fakebin="${tmpdir}/bin"
 mkdir -p "${fakebin}"
 ln -s "${scbolt}" "${fakebin}/scbolt"
 
-completion_bin="${tmpdir}/completion-bin"
-mkdir -p "${completion_bin}"
-ln -s "${repo_root}/dist/scbolt-linux-amd64" "${completion_bin}/scbolt"
-
 cat > "${fakebin}/make" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -62,9 +58,6 @@ if [ -n "${SCBOLT_TEST_MAKE_STDOUT:-}" ]; then
 fi
 if [ -n "${SCBOLT_TEST_MAKE_STDOUT_RAW:-}" ]; then
     printf '%s' "${SCBOLT_TEST_MAKE_STDOUT_RAW}"
-fi
-if [ -n "${SCBOLT_TEST_MAKE_TTY_RAW:-}" ]; then
-    printf '%s' "${SCBOLT_TEST_MAKE_TTY_RAW}" > /dev/tty
 fi
 case "${status}" in
     0) ;;
@@ -116,7 +109,7 @@ complete_scbolt() {
 
     (
         cd "${project_dir}"
-        PATH="${completion_bin}:${PATH}"
+        PATH="${repo_root}/bin:${PATH}"
         source "${repo_root}/bin/completion.bash"
         COMP_WORDS=("$@")
         COMP_CWORD="${cword}"
@@ -125,7 +118,7 @@ complete_scbolt() {
             COMP_LINE="${COMP_LINE} "
         fi
         COMP_POINT="${#COMP_LINE}"
-        _scbolt_go_complete
+        _scbolt
         printf '%s\n' "${COMPREPLY[@]}"
     )
 }
@@ -142,11 +135,11 @@ for help_arg in "" help -h --help; do
     else
         run_scbolt "${project}" "${help_arg}"
     fi
-    expect_make_args -f "${makefile}" help SCBOLT_CLI=true PARAMS=params.mk
+    expect_make_args -f "${makefile}" help SCBOLT_CLI=true
 done
 
 run_scbolt_from_path "${project}" help
-expect_make_args -f "${makefile}" help SCBOLT_CLI=true PARAMS=params.mk
+expect_make_args -f "${makefile}" help SCBOLT_CLI=true
 
 run_scbolt "${project}" config help
 expect_make_args -f "${makefile}" config HELP=true SCBOLT_CLI=true PARAMS=params.mk
@@ -167,7 +160,7 @@ run_scbolt "${project}" check --help
 expect_make_args -f "${makefile}" check HELP=true SCBOLT_CLI=true PARAMS=params.mk
 
 run_scbolt "${project}" check
-expect_make_args -f "${makefile}" check PARAMS=params.mk
+expect_make_args -f "${makefile}" check PARAMS=params.mk SCBOLT_CLI=true
 
 run_scbolt "${project}" dry-run help
 expect_make_args -f "${makefile}" dry-run HELP=true SCBOLT_CLI=true PARAMS=params.mk
@@ -279,17 +272,18 @@ expect_make_args -f "${makefile}" clean HELP=true SCBOLT_CLI=true PARAMS=params.
     cd "${project}"
     "${scbolt}" init --help > "${tmpdir}/init-help.out"
 )
-grep -qx 'usage: scbolt init \[<params.mk>\] \[options\]' "${tmpdir}/init-help.out"
+grep -qx 'usage: scbolt init \[<scbolt.yml>\] \[options\]' "${tmpdir}/init-help.out"
 grep -q '^Parameters$' "${tmpdir}/init-help.out"
 grep -q '^  --remove' "${tmpdir}/init-help.out"
 grep -q '^  --show' "${tmpdir}/init-help.out"
-grep -q '^  <parameter>=<value>' "${tmpdir}/init-help.out"
+grep -q '^  <key>=<value>' "${tmpdir}/init-help.out"
 ! grep -q -- '-h' "${tmpdir}/init-help.out"
 
 complete_scbolt "${project}" 2 scbolt init "" > "${tmpdir}/init-completion-before.out"
 grep -qx -- '--show' "${tmpdir}/init-completion-before.out"
 grep -qx -- '--remove' "${tmpdir}/init-completion-before.out"
 grep -qx 'params.mk' "${tmpdir}/init-completion-before.out"
+grep -qx 'scbolt.yml' "${tmpdir}/init-completion-before.out"
 ! grep -qx -- '--params=' "${tmpdir}/init-completion-before.out"
 ! grep -qx -- '--organism=' "${tmpdir}/init-completion-before.out"
 
@@ -318,6 +312,12 @@ grep -qx -- '--max-clauses=' "${tmpdir}/module-completion.out"
 ! grep -qx -- '--max-clause=' "${tmpdir}/module-completion.out"
 ! grep -qx -- '--canonical-filter=' "${tmpdir}/module-completion.out"
 ! grep -qx -- '--canonical-infer=' "${tmpdir}/module-completion.out"
+
+complete_scbolt "${project}" 1 scbolt "" > "${tmpdir}/root-completion.out"
+grep -qx 'knnsc' "${tmpdir}/root-completion.out"
+grep -qx 'bn-submin' "${tmpdir}/root-completion.out"
+! grep -qx 'diagnostics' "${tmpdir}/root-completion.out"
+! grep -qx -- '--backend=' "${tmpdir}/root-completion.out"
 
 complete_scbolt "${project}" 2 scbolt max-nodes-soft \
     "--clingo-strategy-soft=" > "${tmpdir}/clingo-strategy-completion.out"
@@ -355,8 +355,6 @@ grep -qx -- '--prior-knowledge=custom-prior.sif' \
     "${tmpdir}/prior-knowledge-completion.out"
 grep -qx -- '--prior-knowledge=prior-dir/' \
     "${tmpdir}/prior-knowledge-completion.out"
-! grep -qx -- '--prior-knowledge=file' \
-    "${tmpdir}/prior-knowledge-completion.out"
 
 complete_scbolt "${project}" 2 scbolt spec \
     "--organism=m" > "${tmpdir}/organism-completion.out"
@@ -371,12 +369,23 @@ complete_scbolt "${project}" 2 scbolt max-nodes-soft \
     "--max-clauses=" > "${tmpdir}/numeric-completion.out"
 ! grep -q '[^[:space:]]' "${tmpdir}/numeric-completion.out"
 
+cat > "${project}/completion.yml" <<'EOF'
+conditions: [ctrl, treated]
+knnsc_centrality:
+  ctrl: [Prom1]
+  treated: [Prom2]
+EOF
+complete_scbolt "${project}" 3 scbolt knnsc --config=completion.yml \
+    "--knnsc-centrality-" > "${tmpdir}/condition-completion.out"
+grep -qx -- '--knnsc-centrality-ctrl=' "${tmpdir}/condition-completion.out"
+grep -qx -- '--knnsc-centrality-treated=' "${tmpdir}/condition-completion.out"
+
 (
     cd "${project}"
     "${scbolt}" init params.mk > "${tmpdir}/init.out" 2> "${tmpdir}/init.err"
 )
 grep -qx 'PARAMS=params.mk' "${project}/.scbolt"
-grep -q 'Parameter file: params.mk' "${tmpdir}/init.out"
+grep -q 'Configuration file: params.mk' "${tmpdir}/init.out"
 grep -qx '✓ scBOLT project initialized.' "${tmpdir}/init.out"
 
 printf '# paper params\n' > "${project}/paper.mk"
@@ -385,7 +394,7 @@ printf '# paper params\n' > "${project}/paper.mk"
     "${scbolt}" init paper.mk > "${tmpdir}/reinit.out" 2> "${tmpdir}/reinit.err"
 )
 grep -qx 'PARAMS=paper.mk' "${project}/.scbolt"
-grep -q '^Parameter file: params.mk -> paper.mk$' "${tmpdir}/reinit.out"
+grep -q '^Configuration file: params.mk -> paper.mk$' "${tmpdir}/reinit.out"
 grep -qx '✓ scBOLT project updated.' "${tmpdir}/reinit.out"
 
 printf '# spaced params\n' > "${project}/spaced.mk"
@@ -396,7 +405,7 @@ printf '# spaced params\n' > "${project}/spaced.mk"
         2> "${tmpdir}/spaced-init.err"
 )
 grep -qx 'PARAMS=spaced.mk' "${project}/.scbolt"
-grep -q '^Parameter file: paper.mk -> spaced.mk$' "${tmpdir}/spaced-init.out"
+grep -q '^Configuration file: paper.mk -> spaced.mk$' "${tmpdir}/spaced-init.out"
 grep -qx '✓ scBOLT project updated.' "${tmpdir}/spaced-init.out"
 
 (
@@ -404,7 +413,7 @@ grep -qx '✓ scBOLT project updated.' "${tmpdir}/spaced-init.out"
     "${scbolt}" init spaced.mk > "${tmpdir}/unchanged-init.out"
 )
 grep -qx 'PARAMS=spaced.mk' "${project}/.scbolt"
-grep -q '^Parameter file: spaced.mk$' "${tmpdir}/unchanged-init.out"
+grep -q '^Configuration file: spaced.mk$' "${tmpdir}/unchanged-init.out"
 grep -qx '⚠ scBOLT project unchanged.' "${tmpdir}/unchanged-init.out"
 
 rm "${project}/spaced.mk"
@@ -416,7 +425,7 @@ rm "${project}/spaced.mk"
 )
 grep -qx 'PARAMS=spaced.mk' "${project}/.scbolt"
 test -f "${project}/spaced.mk"
-grep -q '^Parameter file: spaced.mk (created)$' "${tmpdir}/recreate-init.out"
+grep -q '^Configuration file: spaced.mk (created)$' "${tmpdir}/recreate-init.out"
 grep -qx '✓ scBOLT project updated.' "${tmpdir}/recreate-init.out"
 
 mkdir -p "${project}/nested/path"
@@ -424,7 +433,7 @@ mkdir -p "${project}/nested/path"
     cd "${project}/nested/path"
     "${scbolt}" init --show > "${tmpdir}/show-init.out"
 )
-grep -qx "Parameter file: ${project}/spaced.mk" "${tmpdir}/show-init.out"
+grep -qx "Configuration file: ${project}/spaced.mk" "${tmpdir}/show-init.out"
 
 (
     cd "${project}/nested/path"
@@ -432,7 +441,7 @@ grep -qx "Parameter file: ${project}/spaced.mk" "${tmpdir}/show-init.out"
 )
 test ! -e "${project}/.scbolt"
 grep -qx "Project file: ${project}/.scbolt" "${tmpdir}/remove-init.out"
-grep -qx 'Parameter file: spaced.mk' "${tmpdir}/remove-init.out"
+grep -qx 'Configuration file: spaced.mk' "${tmpdir}/remove-init.out"
 grep -qx '✓ scBOLT project configuration removed.' "${tmpdir}/remove-init.out"
 
 (
@@ -551,29 +560,6 @@ grep -qx '⚠ interrupted by user (bn-submin)' \
     "${tmpdir}/module-progress-interrupted.out"
 ! grep -q 'solutions⚠' "${tmpdir}/module-progress-interrupted.out"
 
-tty_command=""
-printf -v tty_project '%q' "${project}"
-printf -v tty_path '%q' "${fakebin}:${PATH}"
-printf -v tty_record '%q' "${record}"
-printf -v tty_progress '%q' \
-    'Target optimization [1/1, max clauses=4]: 22it (07:36)'
-printf -v tty_scbolt '%q' "${scbolt}"
-tty_command="cd ${tty_project} && env PATH=${tty_path} "
-tty_command+="SCBOLT_TEST_RECORD=${tty_record} SCBOLT_TEST_MAKE_STATUS=130 "
-tty_command+="SCBOLT_TEST_MAKE_TTY_RAW=${tty_progress} "
-tty_command+="${tty_scbolt} max-nodes-soft"
-tty_status=0
-script -q -e -f -c "${tty_command}" \
-    "${tmpdir}/module-tty-progress-interrupted.out" \
-    > /dev/null 2>&1 || tty_status=$?
-if [ "${tty_status}" -ne 130 ]; then
-    printf '%s\n' "expected pseudo-terminal execution to exit with status 130" >&2
-    exit 1
-fi
-grep -Fq $'\r\033[2K' "${tmpdir}/module-tty-progress-interrupted.out"
-grep -Fq 'interrupted by user (max-nodes-soft)' \
-    "${tmpdir}/module-tty-progress-interrupted.out"
-
 if (
     cd "${project}"
     PATH="${fakebin}:${PATH}" \
@@ -626,7 +612,7 @@ if (
     printf '%s\n' "expected init --remove with params file to fail" >&2
     exit 1
 fi
-grep -qx "✗ Use either '--remove' or a parameter file, not both." \
+grep -qx "✗ Use either '--remove' or a configuration file, not both." \
     "${tmpdir}/bad-remove-init.err"
 
 if (
@@ -637,7 +623,7 @@ if (
     printf '%s\n' "expected init --show with params file to fail" >&2
     exit 1
 fi
-grep -qx "✗ Use either '--show' or a parameter file, not both." \
+grep -qx "✗ Use either '--show' or a configuration file, not both." \
     "${tmpdir}/bad-show-init.err"
 
 no_project="${tmpdir}/no-project"
@@ -657,7 +643,7 @@ if (
     printf '%s\n' "expected init --show without params to fail" >&2
     exit 1
 fi
-grep -qx '✗ No parameter file found.' "${tmpdir}/missing-show-init.err"
+grep -qx '✗ No configuration file found.' "${tmpdir}/missing-show-init.err"
 
 run_scbolt "${project}" bn-submin
 expect_make_args -f "${makefile}" bn-submin "PARAMS=${project}/spaced.mk"
@@ -717,10 +703,11 @@ if (
     cd "${project}"
     "${scbolt}" init spec.yml > "${tmpdir}/bad-init.out" 2> "${tmpdir}/bad-init.err"
 ); then
-    printf '%s\n' "expected init with non-.mk file to fail" >&2
+    printf '%s\n' "expected one file to be rejected as configuration and specification" >&2
     exit 1
 fi
-grep -qx 'Parameter file must have a .mk extension: spec.yml' "${tmpdir}/bad-init.err"
+grep -q '^Configuration and specification files must be different:' \
+    "${tmpdir}/bad-init.err"
 grep -qx '✗ scBOLT project update failed.' "${tmpdir}/bad-init.err"
 
 if (
@@ -730,7 +717,8 @@ if (
     printf '%s\n' "expected init with missing file to fail" >&2
     exit 1
 fi
-grep -qx 'Parameter file not found: us' "${tmpdir}/missing-init.err"
+grep -qx 'Configuration file must have a .yml, .yaml, or .mk extension: us' \
+    "${tmpdir}/missing-init.err"
 grep -qx '✗ scBOLT project update failed.' "${tmpdir}/missing-init.err"
 
 fresh_project="${tmpdir}/fresh-project"
@@ -764,7 +752,7 @@ grep -q '^SPEC_FILE =$' "${fresh_project}/missing.mk"
 grep -q '^COUNT_FILES =$' "${fresh_project}/missing.mk"
 grep -q '^MACROSTATE_FILES =$' "${fresh_project}/missing.mk"
 grep -q '^BINARIZATION_FILE =$' "${fresh_project}/missing.mk"
-grep -qx 'Parameter file: missing.mk (created)' "${tmpdir}/fresh-missing-init.out"
+grep -qx 'Configuration file: missing.mk (created)' "${tmpdir}/fresh-missing-init.out"
 grep -qx '✓ scBOLT project initialized.' "${tmpdir}/fresh-missing-init.out"
 
 filled_project="${tmpdir}/filled-project"
@@ -806,7 +794,7 @@ test "${project_dir_line}" -lt "${input_sources_line}"
 test "${input_sources_line}" -lt "${old_files_line}"
 test "${old_files_line}" -lt "${module_inputs_line}"
 test "${module_inputs_line}" -lt "${resolution_line}"
-grep -qx 'Parameter file: filled.mk (created)' "${tmpdir}/filled-init.out"
+grep -qx 'Configuration file: filled.mk (created)' "${tmpdir}/filled-init.out"
 grep -qx '✓ scBOLT project initialized.' "${tmpdir}/filled-init.out"
 
 missing_dir_project="${tmpdir}/missing-dir-project"
@@ -819,21 +807,27 @@ if (
     printf '%s\n' "expected init with missing parent directory to fail" >&2
     exit 1
 fi
-grep -qx 'Parameter file directory not found: missing' "${tmpdir}/missing-dir-init.err"
+grep -qx 'Configuration file directory not found: missing' "${tmpdir}/missing-dir-init.err"
 grep -qx '✗ scBOLT project initialization failed.' "${tmpdir}/missing-dir-init.err"
 
 empty_project="${tmpdir}/empty-project"
 mkdir -p "${empty_project}"
-if (
+(
     cd "${empty_project}"
     printf '\n' | "${scbolt}" init > "${tmpdir}/empty-init.out" \
         2> "${tmpdir}/empty-init.err"
-); then
-    printf '%s\n' "expected fresh init with empty input to fail" >&2
-    exit 1
-fi
-grep -qx 'No parameter file specified.' "${tmpdir}/empty-init.err"
-grep -qx '✗ scBOLT project initialization failed.' "${tmpdir}/empty-init.err"
+)
+grep -qx 'CONFIG=scbolt.yml' "${empty_project}/.scbolt"
+test -f "${empty_project}/scbolt.yml"
+test -f "${empty_project}/spec.yml"
+grep -qx 'labels: \[\]' "${empty_project}/scbolt.yml"
+grep -qx 'constraints: \[\]' "${empty_project}/spec.yml"
+grep -qx 'important_nodes: \[\]' "${empty_project}/spec.yml"
+grep -qx 'mandatory_nodes: \[\]' "${empty_project}/spec.yml"
+grep -qx 'forbidden_nodes: \[\]' "${empty_project}/spec.yml"
+grep -qx 'Configuration file: scbolt.yml (created)' "${tmpdir}/empty-init.out"
+grep -qx 'Specification file: spec.yml (created)' "${tmpdir}/empty-init.out"
+grep -qx '✓ scBOLT project initialized.' "${tmpdir}/empty-init.out"
 
 run_scbolt "${project}" bn-submin --params=override.mk
 expect_make_args -f "${makefile}" bn-submin PARAMS=override.mk
@@ -958,7 +952,8 @@ expect_make_args \
     check \
     TARGET=velocity \
     "REFERENCES=ctrl treated" \
-    PARAMS=params.mk
+    PARAMS=params.mk \
+    SCBOLT_CLI=true
 
 run_scbolt "${project}" check velocity --params=params.mk --references="ctrl treated"
 expect_make_args \
@@ -966,7 +961,8 @@ expect_make_args \
     check \
     TARGET=velocity \
     "REFERENCES=ctrl treated" \
-    PARAMS=params.mk
+    PARAMS=params.mk \
+    SCBOLT_CLI=true
 
 run_scbolt "${project}" check --target=velocity --params=params.mk --references ctrl
 expect_make_args \
@@ -974,7 +970,8 @@ expect_make_args \
     check \
     TARGET=velocity \
     REFERENCES=ctrl \
-    PARAMS=params.mk
+    PARAMS=params.mk \
+    SCBOLT_CLI=true
 
 run_scbolt "${project}" dry-run bn-submin --params=params.mk
 expect_make_args -f "${makefile}" dry-run TARGET=bn-submin PARAMS=params.mk

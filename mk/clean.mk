@@ -22,7 +22,7 @@ define clean_help
 		printf '  %-31s %s\n' '--stale' 'ask before removing stale module outputs'; \
 		printf '  %-31s %s\n' '--force' 'skip confirmation for --stale'; \
 		printf '  %-31s %s\n' '--help' 'display this help'; \
-		printf '  %-31s %s\n' '--params=<file>' 'select parameter file'; \
+		printf '  %-31s %s\n' '--config=<file>' 'select configuration file'; \
 		printf '  %-31s %s\n' '--references=<condition...>' 'select references'; \
 		printf '  %-31s %s\n' '--old-file=<file>' 'keep one trusted file during --stale'; \
 	else \

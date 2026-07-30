@@ -25,6 +25,6 @@
 
 !quickstart/
 !quickstart/README.md
-!quickstart/params.mk
+!quickstart/scbolt.yml
 !quickstart/spec.yml
 !quickstart/tiny_nestorowa.py

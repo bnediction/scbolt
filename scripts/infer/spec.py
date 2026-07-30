@@ -33,11 +33,14 @@ convert model specifications (format: yml) and binarized macrostates
     - forbidden-nodes (txt): nodes excluded from Boolean network solutions
 
 The model specification file (format: yml) recognizes four sections:
-    - dynamical_constraints (required list of dynamical Boolean properties in
-      BoNesis syntax)
+    - constraints (required list of dynamical Boolean properties in BoNesis
+      syntax)
     - important_nodes (list of nodes prioritized to appear in Boolean network solutions)
     - mandatory_nodes (list of nodes forced to appear in Boolean network solutions)
     - forbidden_nodes (list of nodes excluded from Boolean network solutions)
+
+The legacy dynamical_constraints section remains accepted as an alias for
+constraints.
 """,
     usage=(
         f"python {script_name} <FILE> <FILE> --model <FILE> --metastates <FILE> "
@@ -229,6 +232,19 @@ with open(args.model_specification, "r") as file:
 if not isinstance(specification, dict):
     parser.error("model specification must be a YAML mapping")
 
+specification_sections = {
+    "constraints",
+    "dynamical_constraints",
+    "important_nodes",
+    "mandatory_nodes",
+    "forbidden_nodes",
+}
+unknown_sections = sorted(set(specification) - specification_sections)
+if unknown_sections:
+    parser.error(
+        "unknown model specification section(s): " + ", ".join(unknown_sections)
+    )
+
 
 def read_specification_list(key: str, *, required: bool = False) -> list[str]:
     if key not in specification:
@@ -246,7 +262,16 @@ def read_specification_list(key: str, *, required: bool = False) -> list[str]:
     return values
 
 
-dynamical_constraints = read_specification_list("dynamical_constraints", required=True)
+if "constraints" in specification and "dynamical_constraints" in specification:
+    parser.error(
+        "model specification defines both 'constraints' and the deprecated "
+        "'dynamical_constraints' section"
+    )
+
+constraint_section = (
+    "constraints" if "constraints" in specification else "dynamical_constraints"
+)
+dynamical_constraints = read_specification_list(constraint_section, required=True)
 important_nodes = set(read_specification_list("important_nodes"))
 mandatory_nodes = set(read_specification_list("mandatory_nodes"))
 forbidden_nodes = set(read_specification_list("forbidden_nodes"))
