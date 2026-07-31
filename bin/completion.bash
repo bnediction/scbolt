@@ -9,7 +9,7 @@ bin-cells bin-macrostates bin-dea bin-consensus binarization
 spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock
 bn-min bn-submin bn-diverse"
 
-_scbolt_utilities="init version help config progress check diagnostics dry-run clean install"
+_scbolt_utilities="init version help config progress check dry-run clean install"
 _scbolt_commands="${_scbolt_utilities} ${_scbolt_modules}"
 _scbolt_file_options="--config= --params= --old-file= --project-dir= --resources-dir= --star-whitelist=
 --binarization-file= --count-file= --macrostate-file= --prior-knowledge= --spec-file="
@@ -235,10 +235,6 @@ _scbolt_clean_options() {
 
 _scbolt_config_options() {
     printf '%s\n' --default --raw "$(_scbolt_diagnostic_options)"
-}
-
-_scbolt_diagnostics_options() {
-    printf '%s\n' --config= --backend= --help
 }
 
 _scbolt_install_options() {
@@ -733,9 +729,6 @@ _scbolt() {
                     _scbolt_complete_words "${_scbolt_modules} $(_scbolt_config_options)" "${cur}"
                 fi
             fi
-            ;;
-        diagnostics)
-            _scbolt_complete_words "$(_scbolt_diagnostics_options)" "${cur}"
             ;;
         install)
             if [[ "${cur}" == --* ]]; then

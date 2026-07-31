@@ -20,6 +20,21 @@ PROJECT_DIR = tests/output-matrix
 RESOURCES_DIR = tests/resources
 CONDITIONS = ctrl
 ORGANISM = human
+MK
+
+if make -C "${repo_root}" check TARGET=load-matrix PARAMS="${conflict_params}" \
+        __check_externals__=false > "${tmpdir}/missing-route.out" 2>&1; then
+    printf '%s\n' "expected missing input route check to fail" >&2
+    exit 1
+fi
+grep -q "required input route not defined: define one of SRA, GSM, COUNT_FILES, MACROSTATE_FILES, or BINARIZATION_FILE" \
+    "${tmpdir}/missing-route.out"
+
+cat > "${conflict_params}" <<'MK'
+PROJECT_DIR = tests/output-matrix
+RESOURCES_DIR = tests/resources
+CONDITIONS = ctrl
+ORGANISM = human
 SRA_CTRL = SRR000001
 GSM_CTRL = GSM5492245
 MK
@@ -95,8 +110,8 @@ if ! make -C "${repo_root}" check TARGET=load-matrix PARAMS="${unnamed_params}" 
     cat "${tmpdir}/unnamed-check.out" >&2
     exit 1
 fi
-grep -q 'CONDITIONS=unnamed' "${tmpdir}/unnamed-check.out"
-grep -q 'GSM=GSM5492245' "${tmpdir}/unnamed-check.out"
+grep -q 'CONDITIONS: unnamed' "${tmpdir}/unnamed-check.out"
+grep -q 'GSM: GSM5492245' "${tmpdir}/unnamed-check.out"
 
 cat > "${unnamed_params}" <<'MK'
 PROJECT_DIR = tests/output-unnamed
@@ -225,7 +240,7 @@ if ! make -C "${repo_root}" check TARGET=load-fastq PARAMS="${unnamed_sra_params
     cat "${tmpdir}/unnamed-sra-check.out" >&2
     exit 1
 fi
-grep -q 'SRA=SRR000001 SRR000002' \
+grep -q 'SRA: SRR000001 SRR000002' \
     "${tmpdir}/unnamed-sra-check.out"
 
 no_entry_params="${tmpdir}/no-entry.mk"

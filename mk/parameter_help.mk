@@ -306,10 +306,12 @@ parameter_help_description_DOMAIN_CONTINUATION_SEED = $(parameter_help_domain_co
 parameter_help_description_DOMAIN_CONTINUATION_LOCK = Expand a seed-computed witness through candidate subdomains within the complete relaxed domain.
 parameter_help_note_DOMAIN_CONTINUATION_LOCK = Lock keeps the seed solution when its witness was forwarded or is absent.
 parameter_help_hint_PATIENCE_DOMAIN_WAVE = duration
-parameter_help_domain_wave_patience = Maximum time without an improvement of the best portfolio objective within one wave.
+parameter_help_domain_wave_patience = Full stagnation time after improving the best objective within one wave.
 parameter_help_description_PATIENCE_DOMAIN_WAVE = $(parameter_help_domain_wave_patience)
 parameter_help_domain_wave_patience_note = Use NUMBER[s|m|h|d]; 0 or an empty value disables wave patience.
+parameter_help_domain_wave_patience_note2 = A new candidate reaching the same best objective guarantees up to 2m remain.
 parameter_help_note_PATIENCE_DOMAIN_WAVE = $(parameter_help_domain_wave_patience_note)
+parameter_help_note2_PATIENCE_DOMAIN_WAVE = $(parameter_help_domain_wave_patience_note2)
 parameter_help_hint_MIN_DOMAIN_YIELD = >= 0, < 1
 parameter_help_description_MIN_DOMAIN_YIELD = Minimum cumulative retained-node gain per node added during domain expansion.
 parameter_help_note_MIN_DOMAIN_YIELD = Low-yield expansions are refreshed at constant size. Zero disables yield-based domain refreshes.

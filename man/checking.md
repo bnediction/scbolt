@@ -1,8 +1,9 @@
 # Checking with `scbolt check`
 
 `scbolt check <module>` validates the parameters, files, AnnData metadata,
-conda environments, and external commands needed to build a selected scBOLT
-module.
+runtime environments, and external commands needed to build a selected scBOLT
+module. It also reports the numerical reproducibility profile of the selected
+runtime.
 
 The check is intentionally target-aware: it should validate what the selected
 target will actually use, not every parameter in the project.
@@ -31,11 +32,23 @@ checking because they affect the rebuilt pipeline segment.
 `scbolt check` works in two phases.
 
 First, it asks the internal workflow engine what would run. This dry-run defines
-what will be checked. If it is empty, the target is already up to date and
-`scbolt check` prints:
+what will be checked. If it is empty, the target is already up to date; runtime
+and numerical checks are still reported alongside:
 
 ```text
-Files and metadata
+Runtime
+  ✓ backend: conda
+  ✓ environment manager: conda 24.7.1
+  ✓ GNU Make: 4.3
+  ✓ Bash: 5.1.16
+  ✓ scbolt-system environment: available
+
+Numerical reproducibility
+  ✓ profile: openblas-haswell
+  ✓ CPU microarchitecture: Meteor Lake
+  ✓ numerical threads: 1
+
+Other
   ✓ target '<module>' already up to date
 
 Status
@@ -53,8 +66,9 @@ Second, it prints grouped diagnostics. The output order is:
 4. external resource parameters
 5. files and AnnData metadata
 6. runtime environments and commands
-7. other checks
-8. final status
+7. numerical reproducibility
+8. other checks
+9. final status
 
 Diagnostic statuses are:
 

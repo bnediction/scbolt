@@ -6,9 +6,9 @@ import argparse
 import fnmatch
 import json
 import re
-import subprocess
 import sys
 from dataclasses import dataclass
+from importlib import metadata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
@@ -26,12 +26,18 @@ class PackageSpec:
     source: str = "conda"
 
 
+@dataclass(frozen=True)
+class InstalledEnvironment:
+    packages: dict[str, PackageSpec]
+    distributions: dict[str, metadata.Distribution]
+
+
 def normalize_name(name: str) -> str:
     return name.strip().lower()
 
 
 def normalize_pip_name(name: str) -> str:
-    return normalize_name(name).replace("_", "-")
+    return re.sub(r"[-_.]+", "-", normalize_name(name))
 
 
 def parse_conda_spec(spec: str) -> PackageSpec | None:
@@ -93,32 +99,46 @@ def read_environment_yaml(path: Path) -> tuple[str | None, list[PackageSpec]]:
     return name, specs
 
 
-def run_json(command: list[str]) -> object:
-    output = subprocess.check_output(command, text=True)
-    return json.loads(output)
+def site_package_paths(prefix: Path) -> list[Path]:
+    candidates = [
+        *sorted(prefix.glob("lib/python*/site-packages")),
+        prefix / "lib" / "site-packages",
+        prefix / "Lib" / "site-packages",
+    ]
+    return [path for path in candidates if path.is_dir()]
 
 
-def installed_packages(env: str) -> dict[str, PackageSpec]:
-    data = run_json(["conda", "list", "-n", env, "--json"])
+def installed_environment(prefix: Path) -> InstalledEnvironment:
+    conda_meta = prefix / "conda-meta"
+    if not conda_meta.is_dir():
+        raise FileNotFoundError(f"conda metadata not found: {conda_meta}")
+
     packages = {}
-    for item in data:
-        source = (
-            "pip"
-            if item.get("channel") == "pypi" or item.get("platform") == "pypi"
-            else "conda"
-        )
-        name = (
-            normalize_pip_name(item["name"])
-            if source == "pip"
-            else normalize_name(item["name"])
-        )
+    for record_path in sorted(conda_meta.glob("*.json")):
+        item = json.loads(record_path.read_text())
+        name = normalize_name(item["name"])
         packages[name] = PackageSpec(
             name=name,
             version=item.get("version"),
-            build=item.get("build_string"),
-            source=source,
+            build=item.get("build") or item.get("build_string"),
+            source="conda",
         )
-    return packages
+
+    distributions = {}
+    paths = site_package_paths(prefix)
+    for distribution in metadata.distributions(path=[str(path) for path in paths]):
+        distribution_name = distribution.metadata.get("Name")
+        if not distribution_name:
+            continue
+        name = normalize_pip_name(distribution_name)
+        distributions[name] = distribution
+        if name not in packages:
+            packages[name] = PackageSpec(
+                name=name,
+                version=distribution.version,
+                source="pip",
+            )
+    return InstalledEnvironment(packages, distributions)
 
 
 def lookup_package(
@@ -164,37 +184,30 @@ def compare_specs(
     return warnings
 
 
-def direct_url_commit(env: str, package: str) -> str | None:
-    code = (
-        "from importlib import metadata; import json, sys; "
-        "dist = metadata.distribution(sys.argv[1]); "
-        "text = dist.read_text('direct_url.json'); "
-        "print(json.loads(text).get('vcs_info', {}).get('commit_id', '') if text else '')"
-    )
-    output = subprocess.check_output(
-        [
-            "conda",
-            "run",
-            "--no-capture-output",
-            "-n",
-            env,
-            "python",
-            "-c",
-            code,
-            package,
-        ],
-        text=True,
-    )
-    return output.strip() or None
+def direct_url_commit(
+    distributions: dict[str, metadata.Distribution], package: str
+) -> str | None:
+    distribution = distributions.get(normalize_pip_name(package))
+    if distribution is None:
+        return None
+    text = distribution.read_text("direct_url.json")
+    if not text:
+        return None
+    direct_url = json.loads(text)
+    return direct_url.get("vcs_info", {}).get("commit_id")
 
 
-def check_git_packages(env: str, specs: list[str]) -> tuple[list[str], list[str]]:
+def check_git_packages(
+    env: str,
+    specs: list[str],
+    distributions: dict[str, metadata.Distribution],
+) -> tuple[list[str], list[str]]:
     successes, warnings = [], []
     for spec in specs:
         package, expected = spec.split("=", 1)
         try:
-            commit = direct_url_commit(env, package)
-        except (subprocess.CalledProcessError, json.JSONDecodeError):
+            commit = direct_url_commit(distributions, package)
+        except (OSError, json.JSONDecodeError):
             warnings.append(f"git package commit not verifiable: {package} (env={env})")
             continue
         if commit == expected:
@@ -224,6 +237,7 @@ def main() -> int:
         formatter_class=cli.HelpFormatter,
     )
     parser.add_argument("--env", required=True)
+    parser.add_argument("--prefix", type=Path, required=True)
     parser.add_argument("--yaml", type=Path, required=True)
     parser.add_argument("--git-package", action="append", default=[])
     args = parser.parse_args()
@@ -243,14 +257,14 @@ def main() -> int:
         )
 
     try:
-        installed = installed_packages(args.env)
-    except subprocess.CalledProcessError as error:
+        installed = installed_environment(args.prefix)
+    except (OSError, json.JSONDecodeError, KeyError) as error:
         emit(
             "failure", [f"conda environment cannot be inspected: {args.env} ({error})"]
         )
         return 1
 
-    warnings = compare_specs(expected, installed)
+    warnings = compare_specs(expected, installed.packages)
     if warnings:
         details = "; ".join(warnings[:5])
         extra = f"; +{len(warnings) - 5} more" if len(warnings) > 5 else ""
@@ -258,7 +272,11 @@ def main() -> int:
     else:
         emit("success", [f"conda environment matches yaml: {args.env}"])
 
-    successes, git_warnings = check_git_packages(args.env, args.git_package)
+    successes, git_warnings = check_git_packages(
+        args.env,
+        args.git_package,
+        installed.distributions,
+    )
     emit("success", successes)
     emit("warning", git_warnings)
     return 0

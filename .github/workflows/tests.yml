@@ -24,9 +24,10 @@ jobs:
       - run: python3 tests/unit/test_subset_minimal_parallel.py
       - run: python3 tests/unit/test_inference_graph_export.py
       - run: bash tests/unit/test_memory.sh
+      - run: bash tests/unit/test_check_runtime.sh
+      - run: python3 tests/unit/test_conda_env_check.py
       - run: python3 tests/unit/test_project_config.py
       - run: python3 tests/unit/test_metadata_reporting.py
-      - run: bash tests/unit/test_diagnostics.sh
 
   smoke:
     name: Smoke tests
@@ -131,21 +132,35 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
+      - id: version
+        run: echo "value=$(tr -d '[:space:]' < VERSION)" >> "${GITHUB_OUTPUT}"
       - uses: docker/setup-buildx-action@v4
       - uses: docker/build-push-action@v7
         with:
           context: .
           file: envs/docker/Dockerfile
-          tags: scbolt:test-system
+          tags: scbolt:${{ steps.version.outputs.value }}
           load: true
           push: false
           build-args: |
             SCBOLT_ENV_FILES=
+            SCBOLT_VERSION=${{ steps.version.outputs.value }}
             SCBOLT_GIT_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - run: docker run --rm scbolt:test-system --version
-      - run: docker run --rm --entrypoint python3 scbolt:test-system -c "import yaml"
+      - name: Check image version
+        env:
+          SCBOLT_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          image="scbolt:${SCBOLT_VERSION}"
+          docker run --rm "${image}" --version \
+            | grep -Fx "scBOLT ${SCBOLT_VERSION}"
+          test "$(docker image inspect --format \
+            '{{ index .Config.Labels "org.opencontainers.image.version" }}' \
+            "${image}")" = "${SCBOLT_VERSION}"
+      - run: >-
+          docker run --rm --entrypoint python3
+          scbolt:${{ steps.version.outputs.value }} -c "import yaml"
 
   regression:
     name: Regression tests

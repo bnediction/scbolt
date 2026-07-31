@@ -73,6 +73,22 @@ class SolverPatience:
                 return
             self._expires_at = time.monotonic() + self._duration
 
+    def ensure_remaining(self, duration: float) -> None:
+        """Guarantee a minimum remaining delay without shortening patience."""
+
+        if duration < 0:
+            raise ValueError("remaining patience must be non-negative")
+        if self._duration is None:
+            return
+
+        duration = min(duration, self._duration)
+        with self._lock:
+            if self._claimed:
+                return
+            minimum_expiry = time.monotonic() + duration
+            if self._expires_at is None or self._expires_at < minimum_expiry:
+                self._expires_at = minimum_expiry
+
     def remaining(self) -> Optional[float]:
         """Return remaining seconds, or None when patience is disabled."""
 

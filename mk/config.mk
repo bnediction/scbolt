@@ -948,10 +948,19 @@ case "$(strip $(1))" in \
 esac
 endef
 
+define check_clingo_threads_diagnostic
+case "$(strip $(1))" in \
+	''|*[!0-9]*|0) $(call report_check_error,required positive integer for \
+		$(call parameter_description,$(1),$(2),method) (current: $(strip $(1))));; \
+	*) $(call check_success,method parameter valid: \
+		$(call parameter_name,$(2)): $(strip $(1)));; \
+esac
+endef
+
 define check_inference_dir_diagnostic
 if [ "$(inference_dir_valid)" = "true" ]; then \
 	$(call check_success,core parameter valid: \
-		$(call parameter_name,INFERENCE_DIR)=$(strip $(INFERENCE_DIR))); \
+		$(call parameter_name,INFERENCE_DIR)=$(abspath $(PROJECT_DIR)/$(strip $(INFERENCE_DIR)))); \
 else \
 	$(call report_check_error,core parameter $(call parameter_name,INFERENCE_DIR) \
 		must be a relative subdirectory of $(call parameter_name,PROJECT_DIR) \

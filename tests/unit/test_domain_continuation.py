@@ -14,8 +14,10 @@ from _domain_continuation import (  # noqa: E402
     build_candidate_wave,
     continuation_base_domain,
     domain_expansion_gains,
+    domain_wave_solver_settings,
     expansion_domain_size,
     initial_domain_size,
+    memory_limited_portfolio_size,
     minimum_domain_gain,
     outcome_counts,
     select_best_candidate,
@@ -32,11 +34,51 @@ assert minimum_domain_gain(120, 0.10) == 12
 assert minimum_domain_gain(5, 0.99) == 5
 assert minimum_domain_gain(5, 0) == 0
 assert minimum_domain_gain(120, 0.099) == 12
+assert memory_limited_portfolio_size(
+    50,
+    10,
+    5,
+    jobs=16,
+    cost_factor=1.10,
+) == 7
+assert memory_limited_portfolio_size(
+    50,
+    49,
+    5,
+    jobs=16,
+    cost_factor=1.10,
+) == 1
+assert memory_limited_portfolio_size(
+    None,
+    None,
+    None,
+    jobs=16,
+    cost_factor=1.10,
+) == 16
+assert memory_limited_portfolio_size(
+    50,
+    10,
+    0,
+    jobs=16,
+    cost_factor=1.10,
+) == 16
 assert domain_expansion_gains(
     ("g0", "g1"),
     ("g0", "g1", "g2"),
     {"g1", "g2"},
 ) == (1, 1)
+assert domain_wave_solver_settings("acquisition", "optN", "usc") == (
+    "optN",
+    "usc",
+)
+assert domain_wave_solver_settings("expansion", "opt", "bb,inc") == (
+    "opt",
+    "bb,inc",
+)
+assert domain_wave_solver_settings("refresh", "optN", "usc") == (
+    "opt",
+    "bb,lin",
+)
 
 complete_550 = {f"n{i}" for i in range(550)}
 selected_500 = {f"n{i}" for i in range(500)}
@@ -227,18 +269,58 @@ capacity_result = DomainCandidateResult(
 assert capacity_result.unknown_reason == "capacity"
 
 leader = DomainWaveLeader()
-assert leader.update(1, ("g0",), {"g0", "g1"})
+assert leader.update(1, ("g0",), {"g0", "g1"}) == "improved"
 assert leader.candidate_index == 1
 assert leader.objective == (1, 1)
-assert not leader.update(2, ("g0",), {"g0", "g1"})
-assert not leader.update(2, ("g2", "g3"), {"g0", "g1"})
+assert leader.frontier_candidates == {1}
+assert leader.update(1, ("g0",), {"g0", "g1"}) == "unchanged"
+assert leader.update(2, ("g0",), {"g0", "g1"}) == "joined"
+assert leader.frontier_candidates == {1, 2}
+assert leader.update(2, ("g0",), {"g0", "g1"}) == "unchanged"
+assert leader.update(2, ("g2", "g3"), {"g0", "g1"}) == "unchanged"
 assert leader.candidate_index == 1
-assert leader.update(2, ("g0", "g2"), {"g0", "g1"})
+assert leader.update(2, ("g0", "g2"), {"g0", "g1"}) == "improved"
 assert leader.candidate_index == 2
 assert leader.objective == (1, 2)
-assert leader.update(3, ("g0", "g1"), {"g0", "g1"})
+assert leader.frontier_candidates == {2}
+assert leader.update(3, ("g0", "g3"), {"g0", "g1"}) == "joined"
+assert leader.frontier_candidates == {2, 3}
+assert leader.update(3, ("g0", "g1"), {"g0", "g1"}) == "improved"
 assert leader.candidate_index == 3
 assert leader.objective == (2, 2)
+assert leader.frontier_candidates == {3}
+
+inherited_leader = DomainWaveLeader(objective=(1, 4))
+assert (
+    inherited_leader.update(1, ("g0", "g2"), {"g0", "g1"})
+    == "unchanged"
+)
+assert (
+    inherited_leader.update(
+        1,
+        ("g0", "g2", "g3", "g4"),
+        {"g0", "g1"},
+    )
+    == "joined"
+)
+assert inherited_leader.frontier_candidates == {1}
+assert (
+    inherited_leader.update(
+        1,
+        ("g0", "g2", "g3", "g4"),
+        {"g0", "g1"},
+    )
+    == "unchanged"
+)
+assert (
+    inherited_leader.update(
+        2,
+        ("g0", "g2", "g3", "g4"),
+        {"g0", "g1"},
+    )
+    == "joined"
+)
+assert inherited_leader.frontier_candidates == {1, 2}
 
 try:
     build_candidate_wave(

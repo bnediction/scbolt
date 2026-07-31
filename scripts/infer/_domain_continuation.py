@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import combinations
 from math import ceil
 from typing import Collection, Iterable, Literal, Sequence
 
 DomainOutcome = Literal["sat", "unsat", "unknown", "cancelled"]
 DomainUnknownReason = Literal["capacity"]
+DomainPhase = Literal["acquisition", "expansion", "refresh"]
+DomainLeaderUpdate = Literal["improved", "joined", "unchanged"]
 
 
 @dataclass(frozen=True)
@@ -33,26 +35,33 @@ class DomainCandidateResult:
 
 @dataclass
 class DomainWaveLeader:
-    """Track the candidate holding the best objective within one wave."""
+    """Track the best objective and candidates that reached its frontier."""
 
     candidate_index: int | None = None
     objective: tuple[int, int] | None = None
+    frontier_candidates: set[int] = field(default_factory=set)
 
     def update(
         self,
         candidate_index: int,
         solution: Iterable[str],
         important_nodes: Collection[str],
-    ) -> bool:
-        """Adopt a first or strictly better wave objective."""
+    ) -> DomainLeaderUpdate:
+        """Classify how a candidate changes the shared objective frontier."""
 
         objective = solution_objective(solution, important_nodes)
-        if self.objective is not None and objective <= self.objective:
-            return False
+        if self.objective is None or objective > self.objective:
+            self.candidate_index = candidate_index
+            self.objective = objective
+            self.frontier_candidates = {candidate_index}
+            return "improved"
+        if objective < self.objective:
+            return "unchanged"
+        if candidate_index in self.frontier_candidates:
+            return "unchanged"
 
-        self.candidate_index = candidate_index
-        self.objective = objective
-        return True
+        self.frontier_candidates.add(candidate_index)
+        return "joined"
 
 
 def solution_objective(
@@ -95,6 +104,18 @@ def domain_expansion_gains(
     )
 
 
+def domain_wave_solver_settings(
+    phase: DomainPhase,
+    mode: str,
+    strategy: str,
+) -> tuple[str, str]:
+    """Use linear branch-and-bound only while refreshing a domain."""
+
+    if phase == "refresh":
+        return "opt", "bb,lin"
+    return mode, strategy
+
+
 def minimum_domain_gain(expansion_size: int, minimum_yield: float) -> int:
     """Return the retained-node gain required to accept an expansion."""
 
@@ -105,6 +126,33 @@ def minimum_domain_gain(expansion_size: int, minimum_yield: float) -> int:
     if expansion_size == 0 or minimum_yield == 0:
         return 0
     return max(1, ceil(expansion_size * minimum_yield))
+
+
+def memory_limited_portfolio_size(
+    memory_limit: int | None,
+    memory_baseline: int | None,
+    candidate_cost: float | None,
+    *,
+    jobs: int,
+    cost_factor: float,
+) -> int:
+    """Estimate how many equal-cost candidates fit in the memory budget."""
+
+    if jobs < 1:
+        raise ValueError("domain continuation jobs must be positive")
+    if cost_factor < 1:
+        raise ValueError("candidate memory cost factor must be at least one")
+    if (
+        memory_limit is None
+        or memory_baseline is None
+        or candidate_cost is None
+        or candidate_cost <= 0
+    ):
+        return jobs
+
+    candidate_budget = max(0, memory_limit - memory_baseline)
+    capacity = int(candidate_budget / (cost_factor * candidate_cost))
+    return max(1, min(jobs, capacity))
 
 
 def initial_domain_size(required_size: int, complete_size: int) -> int:

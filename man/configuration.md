@@ -205,7 +205,7 @@ needed in new projects.
 | YAML key | Legacy name | Default / use |
 | --- | --- | --- |
 | `backend` | `BACKEND` | `conda`; local or Docker execution backend. |
-| `container-image` | `SCBOLT_IMAGE` | Published scBOLT image. |
+| `container-image` | `SCBOLT_IMAGE` | Published image matching the installed scBOLT version. |
 | `container-engine` | `SCBOLT_CONTAINER_ENGINE` | `docker`. |
 | `container-args` | `SCBOLT_CONTAINER_ARGS` | Extra container arguments. |
 | `container-mounts` | `SCBOLT_CONTAINER_MOUNTS` | Extra mount paths. |

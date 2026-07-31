@@ -271,7 +271,7 @@ solver outcome rather than following a fixed increasing schedule:
 
 | Outcome | Domain-continuation action |
 | --- | --- |
-| `SAT` | Make the first successful candidate the wave leader, continue the portfolio while its best objective improves, then retain the best candidate for witness-guided expansion. |
+| `SAT` | Make the first successful candidate the wave leader, let newly competitive candidates join its objective frontier, and retain the best candidate for witness-guided expansion. |
 | `UNSAT` | Increase the domain because the tested subdomain lacks a satisfiable structure. |
 | `UNKNOWN` | Reduce or change the domain because the current search encountered a computational bottleneck. |
 
@@ -296,14 +296,17 @@ wave leader, and the remaining workers continue searching for a better
 objective until the shared wave patience expires or every worker finishes.
 
 Every acquisition and expansion wave owns one shared patience clock. The clock
-starts with the wave. The first valid witness in the new candidate domains
-becomes the leader and resets the clock. A later witness resets it only when
-its lexicographic objective
-`(important nodes, total nodes)` is strictly better than the current leader's
-objective. A worker improving its own solution without overtaking the leader
-does not reset the clock, and an objective equal to the leader does not reset
-it either. This prevents staggered but equivalent results from extending a
-wave without improving its retained solution.
+starts with the wave, and the inherited solution establishes its initial best
+objective. A witness whose lexicographic objective `(important nodes, total
+nodes)` is strictly better than the current leader resets the full configured
+patience. A different candidate reaching the current leader objective for the
+first time joins the objective frontier and guarantees that at least two
+minutes remain, capped by the configured patience. This operation never
+shortens a longer remaining delay. Repeated equal objectives from a candidate
+already on the frontier, and local improvements that remain globally inferior,
+do not change the clock. Newly competitive search branches therefore receive a
+short opportunity to progress without extending a wave by one complete
+patience period per candidate.
 
 When the shared patience expires, all unresolved workers are interrupted and
 queued candidates are not started. Candidates that already produced a witness
@@ -416,6 +419,12 @@ therefore strict but cannot block domain growth. Setting either
 `minimum-domain-yield: 0` or `maximum-domain-refreshes: 0` disables yield-based refreshes
 and preserves direct midpoint expansion.
 
+Acquisition and expansion waves use the Clingo mode and strategy selected by
+the user. Constant-size refresh waves instead use `opt` with `bb,lin`, which is
+better suited to the marginal search for the last retained nodes. This override
+is local to the refresh wave; the next expansion or complete-domain solve
+immediately restores the user-selected mode and strategy.
+
 Domain yield and solver optimality are independent. A candidate may have a
 certified optimum with low yield, while an uncertified intermediate witness may
 already exceed the yield threshold. `minimum-domain-yield` controls domain
@@ -434,12 +443,21 @@ the complete domain is reached, the candidate portfolio stops and one final
 optimization instance uses `clingo-threads`. The maximum concurrent thread
 count is therefore the maximum of the two values, not their product.
 
-Candidate launches are staggered internally by two seconds. The coordinator
-monitors the resident memory of the complete selection process and uses
-`memory` as a soft portfolio limit. Within each wave, it subtracts the RSS
-measured before the first candidate and divides the remaining RSS by the number
-of active candidates. The maximum per-candidate cost observed during that wave
-is retained. A queued candidate is launched only when:
+Each wave starts with one probe candidate. For two seconds, the coordinator
+monitors the resident memory of the complete selection process, subtracts the
+RSS measured before that candidate, and retains the maximum observed candidate
+cost. It then estimates the portfolio width as:
+
+```text
+floor((memory - baseline RSS) / (1.10 * candidate cost))
+```
+
+The result is bounded between one and `jobs`, and the remaining candidates are
+launched immediately up to that width. If no positive incremental cost can be
+measured, `jobs` is used and the live memory guard remains authoritative. As
+the wave runs, the maximum per-candidate cost is updated conservatively and the
+estimated width may decrease. A queued candidate is admitted only below that
+width and when:
 
 ```text
 current RSS + 1.10 * maximum observed candidate cost <= memory
@@ -508,9 +526,9 @@ The combined domain and clause transition policy is:
   required nodes, repeat attempts remain bounded by clause patience. At
   `max-clauses`, only the stage timeout or user interruption can end the
   unresolved search.
-- **Witness found:** make the first witness the wave leader, continue until the
-  shared wave patience expires without a strict portfolio improvement, then
-  use the selected leader for expansion toward the complete domain.
+- **Witness found:** make the first witness the wave leader, allow newly
+  competitive candidates to join its objective frontier, then use the selected
+  leader for expansion when shared wave patience expires.
 - **Complete domain `UNSAT` at `max-clauses`:** no solution exists for the
   complete problem represented by the current constraint set and regulatory
   domain.
@@ -552,9 +570,14 @@ for q in 1..max_clauses:
 
         strictly better (important nodes, total nodes):
             replace the wave leader
+            reset the objective frontier to the new leader
             reset shared wave patience
 
-        equal or locally improved but globally inferior objective:
+        different candidate first reaches the leader objective:
+            add it to the objective frontier
+            ensure min(2m, configured wave patience) remains
+
+        repeated equal or globally inferior objective:
             do not reset shared wave patience
 
         shared wave patience expires:
@@ -578,6 +601,9 @@ for q in 1..max_clauses:
         first SAT or strict portfolio improvement:
             update the wave leader
             reset shared wave patience
+
+        new frontier candidate with an equal objective:
+            ensure min(2m, configured wave patience) remains
 
         one or more successful candidates:
             after wave completion, select the best candidate deterministically
@@ -694,7 +720,7 @@ parameter, while the patience is uniform across enabled stages.
 | Parameter | Meaning |
 | --- | --- |
 | `domain-continuation-<stage>` | Enable adaptive first-witness search and progressive witness-guided expansion; `LOCK` expands only a witness computed by `SEED`. |
-| `domain-wave-patience` | Shared maximum time without a strict improvement of the best portfolio objective within one acquisition or expansion wave. |
+| `domain-wave-patience` | Full shared stagnation time after an improvement of the best objective within one acquisition or expansion wave. A new candidate reaching the same frontier guarantees up to two minutes remain. |
 | `minimum-domain-yield` | Minimum cumulative retained-node gain per node added during one domain expansion. Values must be at least 0 and below 1; zero disables constant-size refreshes. |
 | `maximum-domain-refreshes` | Maximum number of constant-size domain refreshes before expansion resumes. Zero disables refreshes. |
 | `memory` | Soft resident-memory budget used to queue and reduce the candidate portfolio while retaining at least one solver instance. |
@@ -746,11 +772,13 @@ clingo-strategy-seed: bb,lin
 
 At a clause bound without a witness, this configuration evaluates up to eight
 candidate domains in parallel with one Clingo thread each. The first witness
-becomes the wave leader, and each strict improvement of the best portfolio
-objective restarts the shared five-minute patience. Once that patience expires,
-unresolved candidates become `UNKNOWN` and the best successful candidate
-becomes the common base of the following expansion wave. Expansion waves apply
-the same rule to larger candidate domains. An expansion retaining less than 10%
+becomes the wave leader. Each strict improvement restarts the shared
+five-minute patience. The first time another candidate reaches the current
+leader objective, the remaining delay becomes the greater of its current value
+and two minutes. Once that patience expires, unresolved candidates become
+`UNKNOWN` and the best successful candidate becomes the common base of the
+following expansion wave. Expansion waves apply the same rule to larger
+candidate domains. An expansion retaining less than 10%
 of its added capacity triggers up to two constant-size refresh waves before
 domain growth resumes. On the complete domain, one final instance uses one
 Clingo thread. Thirty minutes without an objective improvement advances an
@@ -788,12 +816,16 @@ Three time controls have distinct meanings:
 
 1. `domain-wave-patience` bounds stagnation of the best
    portfolio objective within one acquisition or expansion wave. Its clock is
-   reset by the first wave witness and every strict leader improvement, but not
-   by equal or globally inferior results. Expiration interrupts all unresolved
-   workers; workers without a witness become `UNKNOWN`, while successful
-   candidates remain eligible for deterministic selection. Every constant-size
-   refresh receives a new wave patience clock, while the configured refresh
-   limit remains attached to the current expansion size.
+   fully reset by the first wave witness and every strict leader improvement.
+   The first time a different candidate reaches the current leader objective,
+   scBOLT guarantees that at least two minutes remain, capped by the configured
+   patience, without shortening a longer delay. Repeated equal results from an
+   existing frontier candidate and globally inferior results do not change it.
+   Expiration interrupts all unresolved workers; workers without a witness
+   become `UNKNOWN`, while successful candidates remain eligible for
+   deterministic selection. Every constant-size refresh receives a new wave
+   patience clock, while the configured refresh limit remains attached to the
+   current expansion size.
 2. `clause-bound-patience` bounds the time without objective
    improvement across all attempts at one intermediate clause bound. Every
    improvement resets this clause-level patience.

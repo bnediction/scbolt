@@ -3,6 +3,7 @@ FROM mambaorg/micromamba:debian12-slim
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG SCBOLT_ENV_FILES="align bonesis cellrank core cotan fastq potency scboolseq stream velocity velocyto"
+ARG SCBOLT_VERSION=unknown
 ARG SCBOLT_GIT_COMMIT=unknown
 
 USER root
@@ -55,6 +56,11 @@ ENV SCBOLT_HOME=/opt/scbolt \
     MKL_NUM_THREADS=1 \
     NUMEXPR_NUM_THREADS=1
 
+LABEL org.opencontainers.image.title="scBOLT" \
+    org.opencontainers.image.version="${SCBOLT_VERSION}" \
+    org.opencontainers.image.revision="${SCBOLT_GIT_COMMIT}" \
+    org.opencontainers.image.source="https://github.com/bnediction/scbolt"
+
 WORKDIR /work
 
-ENTRYPOINT ["scbolt"]
+ENTRYPOINT ["/opt/scbolt/bin/scbolt"]

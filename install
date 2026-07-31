@@ -9,7 +9,11 @@ installed_scbolt_root="${SCBOLT_INSTALL_ROOT:-${local_lib}/scbolt}"
 local_completion_dir="${HOME}/.local/share/bash-completion/completions"
 local_config_dir="${XDG_CONFIG_HOME:-${HOME}/.config}/scbolt"
 backend_config="${local_config_dir}/config.mk"
-default_image="ghcr.io/bnediction/scbolt:latest"
+scbolt_version=""
+if [ -r "${scbolt_root}/VERSION" ]; then
+    IFS= read -r scbolt_version < "${scbolt_root}/VERSION" || true
+fi
+default_image="ghcr.io/bnediction/scbolt:${scbolt_version:-unknown}"
 scbolt_runtime_entries=(
     Makefile
     VERSION

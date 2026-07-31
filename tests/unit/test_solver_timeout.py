@@ -6,6 +6,7 @@ import tempfile
 import time
 from pathlib import Path
 from threading import Event, Timer
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "lib"))
@@ -108,6 +109,26 @@ assert format_duration(172800) == "2d"
 
 disabled_patience = SolverPatience(0.0)
 assert disabled_patience.remaining() is None
+
+with patch("scbolt.runtime._timeout.time.monotonic", return_value=100.0) as clock:
+    patience = SolverPatience(300.0)
+    clock.return_value = 200.0
+    patience.ensure_remaining(120.0)
+    assert patience.remaining() == 200.0
+
+    clock.return_value = 350.0
+    patience.ensure_remaining(120.0)
+    assert patience.remaining() == 120.0
+
+    patience.ensure_remaining(600.0)
+    assert patience.remaining() == 300.0
+
+try:
+    SolverPatience(1.0).ensure_remaining(-1.0)
+except ValueError:
+    pass
+else:
+    raise AssertionError("negative minimum patience was accepted")
 
 try:
     parse_solver_timeout("1h30m")

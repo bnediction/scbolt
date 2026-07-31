@@ -23,7 +23,7 @@ Use the installed command for routine development tests:
 
 ```sh
 scbolt version
-scbolt diagnostics
+scbolt check
 ```
 
 The regular installer intentionally has different semantics:

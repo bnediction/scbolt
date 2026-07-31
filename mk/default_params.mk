@@ -28,7 +28,7 @@ LOGGING ?= true
 ifeq ($(origin BACKEND),undefined)
 $(eval BACKEND := $(if $(strip $(SCBOLT_DEFAULT_BACKEND)),$(SCBOLT_DEFAULT_BACKEND),conda)) # backend used by Make rules
 endif
-$(eval SCBOLT_IMAGE ?= ghcr.io/bnediction/scbolt:latest) # Docker image for BACKEND=docker
+$(eval SCBOLT_IMAGE ?= ghcr.io/bnediction/scbolt:$(if $(scbolt_version),$(scbolt_version),unknown)) # Docker image matching this scBOLT version
 $(eval SCBOLT_CONTAINER_ENGINE ?= docker)   # container engine used for Docker backend
 $(eval SCBOLT_CONTAINER_ARGS ?= --user $(shell id -u):$(shell id -g)) # extra arguments passed to docker run
 $(eval SCBOLT_CONTAINER_MOUNTS ?=)          # extra host paths mounted at the same path

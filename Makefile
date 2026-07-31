@@ -9,6 +9,7 @@ MAKEFLAGS += --silent --no-builtin-rules
 
 makefile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 scbolt_root := $(patsubst %/,%,$(dir $(makefile_path)))
+scbolt_version := $(strip $(file <$(scbolt_root)/VERSION))
 
 include $(scbolt_root)/mk/config.mk
 include $(scbolt_root)/mk/modules.mk

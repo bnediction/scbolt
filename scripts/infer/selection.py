@@ -18,13 +18,16 @@ from bonesis.asp_encoding import clingo_encode
 from _domain_continuation import (
     DomainCandidate,
     DomainCandidateResult,
+    DomainPhase,
     DomainWaveLeader,
     bounded_midpoint,
     build_candidate_wave,
     continuation_base_domain,
     domain_expansion_gains,
+    domain_wave_solver_settings,
     expansion_domain_size,
     initial_domain_size,
+    memory_limited_portfolio_size,
     minimum_domain_gain,
     outcome_counts,
     select_best_candidate,
@@ -68,8 +71,9 @@ from scbolt.runtime import (
 
 bonesis.settings["quiet"] = True
 script_name = Path(__file__).name
-DOMAIN_LAUNCH_INTERVAL_SECONDS = 2.0
+DOMAIN_MEMORY_PROBE_SECONDS = 2.0
 DOMAIN_MEMORY_COST_FACTOR = 1.10
+DOMAIN_FRONTIER_GRACE_SECONDS = 2 * 60.0
 
 
 def parse_memory_limit(value: str) -> int | None:
@@ -718,7 +722,7 @@ def run_domain_wave(
     bo: bonesis.BoNesis,
     candidates: Sequence[DomainCandidate],
     *,
-    phase: str,
+    phase: DomainPhase,
     wave: int,
     max_clause: int,
     witness: Iterable[str],
@@ -737,6 +741,12 @@ def run_domain_wave(
 
     if not candidates:
         return ()
+
+    wave_clingo_mode, wave_clingo_strategy = domain_wave_solver_settings(
+        phase,
+        clingo_mode,
+        clingo_strategy,
+    )
 
     progress_stream = sys.stdout
     close_progress_stream = False
@@ -848,7 +858,7 @@ def run_domain_wave(
     }
     observed_models = {}
     wave_patience = SolverPatience(patience_seconds)
-    wave_leader = DomainWaveLeader()
+    wave_leader = DomainWaveLeader(objective=incumbent_objective)
     stop_reason = None
     memory_interrupted = set()
     executor = ThreadPoolExecutor(
@@ -858,11 +868,13 @@ def run_domain_wave(
     candidate_queue = list(candidates)
     futures = {}
     pending = set()
-    last_launch_at = 0.0
     memory_baseline = (
         current_rss_bytes() if memory_limit is not None else None
     )
     maximum_candidate_cost = 0.0
+    memory_probe_started_at = 0.0
+    memory_probe_complete = memory_limit is None
+    portfolio_size = len(candidates) if memory_probe_complete else 1
 
     def submit_candidate(candidate: DomainCandidate) -> None:
         future = executor.submit(
@@ -871,8 +883,8 @@ def run_domain_wave(
             candidate,
             max_clause=max_clause,
             witness=witness,
-            clingo_mode=clingo_mode,
-            clingo_strategy=clingo_strategy,
+            clingo_mode=wave_clingo_mode,
+            clingo_strategy=wave_clingo_strategy,
             clingo_configuration=clingo_configuration,
             events=events,
             active_views=active_views,
@@ -895,29 +907,38 @@ def run_domain_wave(
             )
         return rss, maximum_candidate_cost
 
-    def can_launch_candidate(*, force: bool = False) -> bool:
+    def update_portfolio_size() -> tuple[int | None, float | None]:
+        nonlocal portfolio_size
+
+        rss, candidate_cost = observe_memory()
+        portfolio_size = memory_limited_portfolio_size(
+            memory_limit,
+            memory_baseline,
+            candidate_cost,
+            jobs=len(candidates),
+            cost_factor=DOMAIN_MEMORY_COST_FACTOR,
+        )
+        return rss, candidate_cost
+
+    def can_launch_candidate() -> bool:
         if not candidate_queue:
             return False
-        if len(pending) >= len(candidates):
+        if not memory_probe_complete:
             return False
-        if pending and not force:
-            elapsed = time.monotonic() - last_launch_at
-            if elapsed < DOMAIN_LAUNCH_INTERVAL_SECONDS:
-                return False
         if not pending:
             return True
-        rss, candidate_cost = observe_memory()
+        rss, candidate_cost = update_portfolio_size()
+        if len(pending) >= portfolio_size:
+            return False
         if rss is None or candidate_cost is None:
             return True
         projected_rss = rss + DOMAIN_MEMORY_COST_FACTOR * candidate_cost
         return projected_rss <= memory_limit
 
-    def launch_candidate(*, force: bool = False) -> bool:
-        nonlocal last_launch_at
-        if not can_launch_candidate(force=force):
+    def launch_candidate() -> bool:
+        if not can_launch_candidate():
             return False
         submit_candidate(candidate_queue.pop(0))
-        last_launch_at = time.monotonic()
         return True
 
     def least_advanced_active_candidate() -> int | None:
@@ -1002,12 +1023,17 @@ def run_domain_wave(
                 solution=solution,
                 witness=structural_model,
             )
-            if wave_leader.update(
+            leader_update = wave_leader.update(
                 candidate_index,
                 solution,
                 important_nodes,
-            ):
+            )
+            if leader_update == "improved":
                 wave_patience.reset()
+            elif leader_update == "joined":
+                wave_patience.ensure_remaining(
+                    DOMAIN_FRONTIER_GRACE_SECONDS,
+                )
             if on_model(
                 candidate_by_index[candidate_index].nodes,
                 solution,
@@ -1018,11 +1044,20 @@ def run_domain_wave(
     progress_input_guard = console.guard_progress_input(progress_stream)
     try:
         progress_input_guard.__enter__()
-        launch_candidate(force=True)
+        submit_candidate(candidate_queue.pop(0))
+        memory_probe_started_at = time.monotonic()
         while pending or candidate_queue:
             if stop_reason is None:
-                while launch_candidate():
-                    pass
+                if not memory_probe_complete:
+                    observe_memory()
+                    memory_probe_complete = (
+                        time.monotonic() - memory_probe_started_at
+                        >= DOMAIN_MEMORY_PROBE_SECONDS
+                    )
+                if memory_probe_complete:
+                    update_portfolio_size()
+                    while launch_candidate():
+                        pass
             try:
                 event = events.get(timeout=0.05)
             except Empty:
@@ -1627,8 +1662,9 @@ parser.add_argument(
     default=0.0,
     metavar="DURATION",
     help=(
-        "maximum time without an improvement of the best portfolio "
-        "objective within one domain-continuation wave; suffixes s, m, h "
+        "full stagnation time after improving the best objective within one "
+        "domain-continuation wave; a new candidate first reaching the same "
+        "objective guarantees up to two minutes remain; suffixes s, m, h "
         "and d are supported, and 0 disables the patience (default: 0)"
     ),
 )
@@ -1874,7 +1910,7 @@ if args.action == "filter-nodes":
             console.print_options(
                 "domain memory: "
                 f"limit={format_memory_size(args.memory_limit)}, "
-                f"launch interval={DOMAIN_LAUNCH_INTERVAL_SECONDS:g}s, "
+                f"probe={DOMAIN_MEMORY_PROBE_SECONDS:g}s, "
                 "candidate margin="
                 f"{DOMAIN_MEMORY_COST_FACTOR - 1:.0%}",
                 flush=True,

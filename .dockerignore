@@ -20,9 +20,6 @@
 !mk/**
 !scripts/
 !scripts/**
-!spec/
-!spec/**
-
 !quickstart/
 !quickstart/README.md
 !quickstart/scbolt.yml

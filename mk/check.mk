@@ -4,13 +4,20 @@ check_default_targets = $(progress_default_targets)
 check_targets = $(strip $(if $(TARGET),$(TARGET),$(check_default_targets)))
 check_unknown_targets = $(filter-out $(reset_stages),$(check_targets))
 check_target_label = $(if $(filter 1,$(words $(check_targets))),target '$(check_targets)',targets '$(check_targets)')
+check_scbolt_version := $(scbolt_version)
+check_scbolt_executable := $(strip $(if $(strip $(SCBOLT_EXECUTABLE)),\
+	$(strip $(SCBOLT_EXECUTABLE)),$(scbolt_root)/bin/scbolt))
+check_configuration_file := $(if $(filter (defaults),$(PARAMS)),defaults,$(PARAMS))
+check_input_route_choices = $(call parameter_name,SRA), $(call parameter_name,GSM), \
+	$(call parameter_name,COUNT_FILES), $(call parameter_name,MACROSTATE_FILES), \
+	or $(call parameter_name,BINARIZATION_FILE)
 
 define check_help
 	$(call command_help_header,\
 		$(if $(filter true,$(SCBOLT_CLI)),\
 			scbolt check [<module>] [options],\
 			make check [TARGET=<module>] [HELP=true]),\
-		Check the inputs required before running a workflow.)
+		Check module inputs plus runtime requirements and numerical reproducibility.)
 	@if [ "$(SCBOLT_CLI)" = "true" ]; then \
 		printf '%s\n' 'Without a module, check validates the workflows ending at bn-min, bn-submin, and bn-diverse.'; \
 	else \
@@ -68,6 +75,7 @@ else ifeq ($(HELP),false)
 	target_dry_run="$$(mktemp)"; \
 	dry_run="$$(mktemp)"; \
 	check_report_dir="$$(mktemp -d)"; \
+	scbolt_checks="$${check_report_dir}/00_scbolt"; \
 	project_checks="$${check_report_dir}/01_project"; \
 	core_checks="$${check_report_dir}/02_core"; \
 	method_checks="$${check_report_dir}/03_method"; \
@@ -75,17 +83,18 @@ else ifeq ($(HELP),false)
 	file_checks="$${check_report_dir}/05_files"; \
 	conda_checks="$${check_report_dir}/06_conda"; \
 	command_checks="$${check_report_dir}/07_commands"; \
-	other_checks="$${check_report_dir}/08_other"; \
+	numerical_checks="$${check_report_dir}/08_numerical"; \
+	other_checks="$${check_report_dir}/09_other"; \
 	metadata_manifest="$$(mktemp)"; \
-	metadata_report_dir="$$(mktemp -d)"; \
+	metadata_report="$$(mktemp)"; \
 	conda_report_dir="$$(mktemp -d)"; \
 	$(system_shell_functions) \
-	touch "$${project_checks}" "$${core_checks}" "$${method_checks}" \
+	touch "$${scbolt_checks}" "$${project_checks}" "$${core_checks}" "$${method_checks}" \
 		"$${external_resource_checks}" "$${file_checks}" "$${conda_checks}" \
-		"$${command_checks}" "$${other_checks}"; \
+		"$${command_checks}" "$${numerical_checks}" "$${other_checks}"; \
 	trap 'rm -f "$${workflow_dry_run}" "$${target_dry_run}" "$${dry_run}" \
-		"$${metadata_manifest}"; \
-		rm -rf "$${check_report_dir}" "$${metadata_report_dir}" "$${conda_report_dir}"' EXIT; \
+		"$${metadata_manifest}" "$${metadata_report}"; \
+		rm -rf "$${check_report_dir}" "$${conda_report_dir}"' EXIT; \
 	route_check_report() { \
 		case "$$1" in \
 			project\ parameter*|*project\ parameter*) printf '%s\n' "$${project_checks}";; \
@@ -99,7 +108,8 @@ else ifeq ($(HELP),false)
 			old\ file*) printf '%s\n' "$${file_checks}";; \
 			h5ad\ metadata*|*h5ad\ metadata*) printf '%s\n' "$${file_checks}";; \
 			file\ found*|*file*) printf '%s\n' "$${file_checks}";; \
-			backend:*|*environment\ manager*|container\ engine:*|container\ runtime:*|\
+			backend:*|*environment\ manager*|GNU\ Make:*|Bash:*|\
+				scbolt-system\ environment:*|container\ engine:*|container\ runtime:*|\
 				conda\ environment*|*conda*) printf '%s\n' "$${conda_checks}";; \
 			command\ found*|*command*) printf '%s\n' "$${command_checks}";; \
 			*) printf '%s\n' "$${other_checks}";; \
@@ -114,12 +124,30 @@ else ifeq ($(HELP),false)
 		printf 'warning\t%s\t%s\n' "$${message}" "$${details}" >> "$${report}"; \
 	}; \
 	check_failure() { printf 'failure\t%s\n' "$$1" >> "$$(route_check_report "$$1")"; }; \
+	check_failure_block() { \
+		message="$$1"; \
+		details="$$2"; \
+		report="$$(route_check_report "$${message}")"; \
+		printf 'failure\t%s\t%s\n' "$${message}" "$${details}" >> "$${report}"; \
+	}; \
+	scbolt_success() { printf 'success\t%s\n' "$$1" >> "$${scbolt_checks}"; }; \
+	numerical_success() { printf 'success\t%s\t%s\n' "$$1" "$$2" >> "$${numerical_checks}"; }; \
+	numerical_warning() { printf 'warning\t%s\t%s\n' "$$1" "$$2" >> "$${numerical_checks}"; }; \
 	format_check_message() { \
 		message="$$1"; \
 		case "$${message}" in \
 			project\ parameter\ valid:*|core\ parameter\ valid:*|method\ parameter\ valid:*|\
 				external\ resource\ parameter\ valid:*) \
-				message="$${message#*: }";; \
+				message="$${message#*: }"; \
+				case "$${message}" in \
+					*=*) message="$${message%%=*}: $${message#*=}";; \
+				esac; \
+				case "$${message}" in \
+					resources-dir:*) \
+						message="resources directory: $${message#*: }";; \
+					inference-dir:*) \
+						message="inference directory: $${message#*: }";; \
+				esac;; \
 		esac; \
 		printf '%s\n' "$${message}"; \
 	}; \
@@ -158,18 +186,20 @@ else ifeq ($(HELP),false)
 	}; \
 	check_status_count() { \
 		awk -F '\t' -v status="$$1" '$$1 == status { count++ } END { print count + 0 }' \
-			"$${project_checks}" "$${core_checks}" "$${method_checks}" \
+			"$${scbolt_checks}" "$${project_checks}" "$${core_checks}" "$${method_checks}" \
 			"$${external_resource_checks}" "$${file_checks}" "$${conda_checks}" \
-			"$${command_checks}" "$${other_checks}"; \
+			"$${command_checks}" "$${numerical_checks}" "$${other_checks}"; \
 	}; \
 	render_check_reports() { \
 		result="$$1"; \
+		render_check_section 'scBOLT' "$${scbolt_checks}"; \
 		render_check_section 'Project parameters' "$${project_checks}"; \
 		render_check_section 'Core parameters' "$${core_checks}"; \
 		render_check_section 'Method parameters' "$${method_checks}"; \
 		render_check_section 'External resources' "$${external_resource_checks}"; \
 		render_check_section 'Files and metadata' "$${file_checks}"; \
 		render_check_section 'Runtime' "$${conda_checks}" "$${command_checks}"; \
+		render_check_section 'Numerical reproducibility' "$${numerical_checks}"; \
 		render_check_section 'Other' "$${other_checks}"; \
 		failures="$$(check_status_count failure)"; \
 		warnings="$$(check_status_count warning)"; \
@@ -196,7 +226,176 @@ else ifeq ($(HELP),false)
 			printf '  Check passed for %s.\n' "$(check_target_label)"; \
 		fi; \
 	}; \
+	version_at_least() { \
+		actual="$$1"; \
+		required="$$2"; \
+		case "$${actual}" in ''|*[!0-9.]*) return 1;; esac; \
+		first_version="$$(printf '%s\n%s\n' "$${required}" "$${actual}" \
+			| sort -V | $(call system_tool,head) -n 1)"; \
+		[ "$${first_version}" = "$${required}" ]; \
+	}; \
+	cpu_field() { \
+		name="$$1"; \
+		if [ -r /proc/cpuinfo ]; then \
+			awk -F: -v name="$${name}" \
+				'$$1 ~ "^[[:space:]]*" name "[[:space:]]*$$" { \
+					sub(/^[[:space:]]*/, "", $$2); print $$2; exit \
+				}' /proc/cpuinfo; \
+		fi; \
+	}; \
+	detect_cpu_microarchitecture() { \
+		processor="$$(cpu_field 'model name')"; \
+		if [ -z "$${processor}" ] && command -v sysctl >/dev/null 2>&1; then \
+			processor="$$(sysctl -n machdep.cpu.brand_string 2>/dev/null || true)"; \
+		fi; \
+		if [ -z "$${processor}" ]; then processor="$${PROCESSOR_IDENTIFIER:-}"; fi; \
+		processor_lower="$$(printf '%s\n' "$${processor}" | tr '[:upper:]' '[:lower:]')"; \
+		vendor="$$(cpu_field vendor_id)"; \
+		family="$$(cpu_field 'cpu family')"; \
+		model="$$(cpu_field model)"; \
+		case "$${processor_lower}" in \
+			*"meteor lake"*|*ultra*125*|*ultra*135*|*ultra*155*|*ultra*165*|*ultra*185*) \
+				printf '%s\n' 'Meteor Lake'; return;; \
+			*"zen 3"*|*zen3*|*znver3*) printf '%s\n' 'AMD Zen 3'; return;; \
+			*"emerald rapids"*) printf '%s\n' 'Emerald Rapids'; return;; \
+			*"sapphire rapids"*) printf '%s\n' 'Sapphire Rapids'; return;; \
+			*haswell*) printf '%s\n' 'Haswell'; return;; \
+			*"apple m"*) printf '%s\n' 'Apple Silicon'; return;; \
+		esac; \
+		if [ "$${vendor}" = 'GenuineIntel' ] && [ "$${family}" = '6' ]; then \
+			case "$${model}" in \
+				170|172) printf '%s\n' 'Meteor Lake'; return;; \
+				207) printf '%s\n' 'Emerald Rapids'; return;; \
+				143) printf '%s\n' 'Sapphire Rapids'; return;; \
+				60|63|69|70) printf '%s\n' 'Haswell'; return;; \
+			esac; \
+		fi; \
+		if [ "$${vendor}" = 'AuthenticAMD' ] && [ "$${family}" = '25' ]; then \
+			case "$${model}" in \
+				[0-9]|1[0-5]|3[2-9]|4[0-9]|5[0-9]|6[4-9]|7[0-9]|8[0-9]|9[0-5]) \
+					printf '%s\n' 'AMD Zen 3'; return;; \
+			esac; \
+		fi; \
+		if [ "$$(uname -m 2>/dev/null || true)" = 'arm64' ] \
+				|| [ "$$(uname -m 2>/dev/null || true)" = 'aarch64' ]; then \
+			printf '%s\n' 'ARM64'; \
+		fi; \
+	}; \
+	collect_runtime_checks() { \
+		runtime_manager_available=false; \
+		runtime_conda_env_list=''; \
+		runtime_conda_envs=''; \
+		runtime_os="$$(uname -s 2>/dev/null || printf unknown)"; \
+		if [ "$(BACKEND)" != 'docker' ] && [ "$${runtime_os}" != 'Linux' ]; then \
+			check_failure_block "backend: $(BACKEND)" \
+				"native execution is unsupported on $${runtime_os}; use docker"; \
+			missing=1; \
+		else \
+			check_success "backend: $(BACKEND)"; \
+		fi; \
+		if [ "$(BACKEND)" != 'docker' ]; then \
+			if manager_version="$$( $(conda_command) --version 2>/dev/null \
+					| $(call system_tool,head) -n 1)"; then \
+				check_success "environment manager: $${manager_version:-$(BACKEND)}"; \
+				runtime_manager_available=true; \
+				runtime_conda_env_list="$$( $(conda_command) env list )"; \
+				runtime_conda_envs="$$(printf '%s\n' "$${runtime_conda_env_list}" \
+					| awk '$$1 !~ /^#/ && NF {print $$1}')"; \
+			else \
+				check_failure_block "environment manager: $(BACKEND) unavailable" \
+					"install $(BACKEND) or select another backend"; \
+				missing=1; \
+			fi; \
+		fi; \
+		if [ "$(BACKEND)" != 'docker' ] || [ "$(SCBOLT_IN_DOCKER)" = 'true' ]; then \
+			runtime_make_version='$(MAKE_VERSION)'; \
+			if version_at_least "$${runtime_make_version}" '4.3'; then \
+				check_success "GNU Make: $${runtime_make_version}"; \
+			else \
+				check_failure_block "GNU Make: $${runtime_make_version:-unknown}" \
+					'GNU Make 4.3 or newer is required'; \
+				missing=1; \
+			fi; \
+			runtime_bash_version='$(strip $(__check_bash_version__))'; \
+			if [ -z "$${runtime_bash_version}" ]; then \
+				runtime_bash_version="$${BASH_VERSION%%(*}"; \
+				runtime_bash_version="$${runtime_bash_version%%-*}"; \
+			fi; \
+			if version_at_least "$${runtime_bash_version}" '4.0'; then \
+				check_success "Bash: $${runtime_bash_version}"; \
+			else \
+				check_failure_block "Bash: $${runtime_bash_version:-unknown}" \
+					'Bash 4.0 or newer is required'; \
+				missing=1; \
+			fi; \
+		fi; \
+		if [ "$(BACKEND)" != 'docker' ] && [ "$${runtime_manager_available}" = 'true' ]; then \
+			if printf '%s\n' "$${runtime_conda_envs}" | grep -qx '$(SCBOLT_SYSTEM_ENV)'; then \
+				check_success "scbolt-system environment: available"; \
+			else \
+				check_failure_block "scbolt-system environment: missing" \
+					"reinstall the $(BACKEND) backend"; \
+				missing=1; \
+			fi; \
+		fi; \
+	}; \
+	conda_env_prefix() { \
+		printf '%s\n' "$${runtime_conda_env_list}" \
+			| awk -v env="$$1" '$$1 == env {print $$NF; exit}'; \
+	}; \
+	run_core_python() { \
+		if [ "$(BACKEND)" != "docker" ]; then \
+			core_prefix="$$(conda_env_prefix scbolt-core)"; \
+			if [ -x "$${core_prefix}/bin/python" ]; then \
+				"$${core_prefix}/bin/python" "$$@"; \
+				return; \
+			fi; \
+		fi; \
+		$(call conda_run,scbolt-core) python "$$@"; \
+	}; \
+	collect_numerical_checks() { \
+		if [ -n "$(strip $(numerical_profile_warning))" ]; then \
+			numerical_warning "profile: $(numerical_profile)" \
+				"$(numerical_profile_warning)"; \
+		else \
+			numerical_success "profile: $(numerical_profile)" ''; \
+		fi; \
+		cpu_microarchitecture="$$(detect_cpu_microarchitecture)"; \
+		case "$${cpu_microarchitecture}" in \
+			'Meteor Lake') \
+				numerical_success 'CPU microarchitecture: Meteor Lake' \
+					'canonical strict reference architecture';; \
+			'AMD Zen 3') \
+				numerical_success 'CPU microarchitecture: AMD Zen 3' \
+					'strict numerical profile validated';; \
+			'Emerald Rapids') \
+				numerical_warning 'CPU microarchitecture: Emerald Rapids' \
+					'strict numerical divergences observed; portable comparison recommended';; \
+			'Sapphire Rapids') \
+				numerical_warning 'CPU microarchitecture: Sapphire Rapids' \
+					'not yet qualified for strict numerical identity';; \
+			'Apple Silicon'|'ARM64') \
+				numerical_warning "CPU microarchitecture: $${cpu_microarchitecture}" \
+					'portable numerical comparisons recommended on macOS and Windows';; \
+			'Haswell') \
+				numerical_warning 'CPU microarchitecture: Haswell' \
+					'not yet qualified for strict numerical identity';; \
+			'') \
+				numerical_warning 'CPU microarchitecture: unknown' \
+					'exact numerical identity cannot be qualified for this processor';; \
+			*) \
+				numerical_warning "CPU microarchitecture: $${cpu_microarchitecture}" \
+					'not yet qualified for strict numerical identity';; \
+		esac; \
+		numerical_success 'numerical threads: 1' ''; \
+	}; \
 	missing=0; \
+	scbolt_success 'version: $(check_scbolt_version)'; \
+	scbolt_success 'executable: $(check_scbolt_executable)'; \
+	scbolt_success 'configuration file: $(check_configuration_file)'; \
+	scbolt_success 'project directory: $(PROJECT_DIR)'; \
+	if [ "$(__check_externals__)" = 'true' ]; then collect_runtime_checks; fi; \
+	collect_numerical_checks; \
 	$(foreach path,$(OLD_FILES),\
 		if [ -e "$(path)" ] || [ -L "$(path)" ]; then \
 			check_success "old file found: $(path)"; \
@@ -216,12 +415,12 @@ else ifeq ($(HELP),false)
 	fi; \
 	: > "$${workflow_dry_run}"; \
 	: > "$${target_dry_run}"; \
-	$(foreach target,$(check_targets),\
-		$(nested_make) --always-make --dry-run LOGGING=false \
-			__check_mode=true __$(target) LOGFILE="$(LOGFILE)" >> "$${workflow_dry_run}";) \
-	$(foreach target,$(check_targets),\
-		$(nested_make) --dry-run LOGGING=false \
-			__check_mode=true __$(target) LOGFILE="$(LOGFILE)" >> "$${target_dry_run}";) \
+	$(nested_make) --always-make --dry-run LOGGING=false \
+		__check_mode=true $(addprefix __,$(check_targets)) \
+		LOGFILE="$(LOGFILE)" >> "$${workflow_dry_run}"; \
+	$(nested_make) --dry-run LOGGING=false \
+		__check_mode=true $(addprefix __,$(check_targets)) \
+		LOGFILE="$(LOGFILE)" >> "$${target_dry_run}"; \
 	selected_modules=" $$(sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' "$${workflow_dry_run}" \
 		| awk '$$0 != "bin-hvg" && !seen[$$0]++') "; \
 	running_modules=" $$(sed -n '/"RULE"/{s/.*"RULE" "//;s/ .*//;s/"//g;p;}' "$${target_dry_run}" \
@@ -252,18 +451,27 @@ else ifeq ($(HELP),false)
 		--manifest "$${metadata_manifest}" \
 		$(metadata_backend_args) \
 		$(metadata_old_file_args) \
-		| while IFS="	" read -r report_module report_field report_value; do \
-			printf '%s\t%s\n' "$${report_field}" "$${report_value}" \
-				>> "$${metadata_report_dir}/$${report_module}"; \
-		done; \
+		> "$${metadata_report}"; \
+	declare -A metadata_status metadata_message metadata_deps \
+		metadata_stale_group_id metadata_stale_group_modules; \
+	while IFS=$$'\t' read -r report_module report_field report_value; do \
+		case "$${report_field}" in \
+			status) metadata_status["$${report_module}"]="$${report_value}";; \
+			message) metadata_message["$${report_module}"]="$${report_value}";; \
+			deps) metadata_deps["$${report_module}"]="$${report_value}";; \
+			stale-group-id) \
+				metadata_stale_group_id["$${report_module}"]="$${report_value}";; \
+			stale-group-modules) \
+				metadata_stale_group_modules["$${report_module}"]="$${report_value}";; \
+		esac; \
+	done < "$${metadata_report}"; \
 	for module in $${selected_modules}; do \
-		module_report="$${metadata_report_dir}/$${module}"; \
-		module_status="$$(awk -F '\t' '$$1 == "status" { print $$2; exit }' "$${module_report}")"; \
-		module_message="$$(awk -F '\t' '$$1 == "message" { print $$2; exit }' "$${module_report}")"; \
+		module_status="$${metadata_status[$${module}]:-}"; \
+		module_message="$${metadata_message[$${module}]:-}"; \
 		module_details=""; \
-		module_deps="$$(awk -F '\t' '$$1 == "deps" { print $$2; exit }' "$${module_report}")"; \
-		module_stale_group_id="$$(awk -F '\t' '$$1 == "stale-group-id" { print $$2; exit }' "$${module_report}")"; \
-		module_stale_group_modules="$$(awk -F '\t' '$$1 == "stale-group-modules" { print $$2; exit }' "$${module_report}")"; \
+		module_deps="$${metadata_deps[$${module}]:-}"; \
+		module_stale_group_id="$${metadata_stale_group_id[$${module}]:-}"; \
+		module_stale_group_modules="$${metadata_stale_group_modules[$${module}]:-}"; \
 		module_pending=0; \
 		module_stale=0; \
 		module_untracked=0; \
@@ -340,21 +548,37 @@ else ifeq ($(HELP),false)
 		fi; \
 	done; \
 	if [ "$(matrix_mode)" = "true" ]; then \
-		:; \
+		matrix_h5ad_files=(); \
+		matrix_h5ad_conditions=(); \
 		$(foreach condition,$(running_conditions),\
 			if [ -f "$(load_matrix_$(condition))" ] && ! is_running "load-matrix"; then \
-				matrix_h5ad_report="$$(mktemp)"; \
-				if $(call conda_run,scbolt-core) python $(scripts_dir)/utils/check_h5ad.py \
-						$(load_matrix_$(condition)) --layers counts --non-empty \
-						> /dev/null 2> "$${matrix_h5ad_report}"; then \
-					check_success "h5ad metadata: matrix input valid (reference: $(condition))"; \
-				else \
-					check_failure "h5ad metadata: matrix input invalid \
-						(reference: $(condition), file=$(load_matrix_$(condition)))"; \
-					missing=1; \
-				fi; \
-				rm -f "$${matrix_h5ad_report}"; \
+				matrix_h5ad_files+=("$(load_matrix_$(condition))"); \
+				matrix_h5ad_conditions+=("$(condition)"); \
 			fi;) \
+		if [ "$${#matrix_h5ad_files[@]}" -gt 0 ]; then \
+			matrix_h5ad_report="$$(mktemp)"; \
+			if run_core_python $(scripts_dir)/utils/check_h5ad.py \
+					"$${matrix_h5ad_files[@]}" --layers counts --non-empty \
+					> /dev/null 2> "$${matrix_h5ad_report}"; then \
+				for matrix_condition in "$${matrix_h5ad_conditions[@]}"; do \
+					check_success "h5ad metadata: matrix input valid (reference: $${matrix_condition})"; \
+				done; \
+			else \
+				for matrix_index in "$${!matrix_h5ad_files[@]}"; do \
+					matrix_file="$${matrix_h5ad_files[$${matrix_index}]}"; \
+					matrix_condition="$${matrix_h5ad_conditions[$${matrix_index}]}"; \
+					if run_core_python $(scripts_dir)/utils/check_h5ad.py \
+							"$${matrix_file}" --layers counts --non-empty \
+							> /dev/null 2>> "$${matrix_h5ad_report}"; then \
+						check_success "h5ad metadata: matrix input valid (reference: $${matrix_condition})"; \
+					else \
+						check_failure "h5ad metadata: matrix input invalid (reference: $${matrix_condition}, file=$${matrix_file})"; \
+						missing=1; \
+					fi; \
+				done; \
+			fi; \
+			rm -f "$${matrix_h5ad_report}"; \
+		fi; \
 	fi; \
 	if [ ! -s "$${target_dry_run}" ]; then \
 		if [ "$${missing}" -ne 0 ]; then \
@@ -373,10 +597,8 @@ else ifeq ($(HELP),false)
 	fi; \
 	$(call check_parameter_diagnostic,$(ORGANISM),ORGANISM,project); \
 	if [ -z "$(input_route_parameters)" ]; then \
-		$(call report_check_error,required input route not defined: define \
-			$(call parameter_name,SRA), $(call parameter_name,GSM), \
-			$(call parameter_name,COUNT_FILES), $(call parameter_name,MACROSTATE_FILES), \
-			or $(call parameter_name,BINARIZATION_FILE)); \
+		$(call report_check_error,required input route not defined: define one of \
+			$(check_input_route_choices)); \
 	fi; \
 	if [ "$(words $(input_routes))" -gt 1 ]; then \
 		$(call report_check_error,$(input_route_conflict)); \
@@ -624,10 +846,9 @@ else ifeq ($(HELP),false)
 		$(call check_nonnegative_integer_diagnostic,\
 			$(MAX_DOMAIN_REFRESHES),MAX_DOMAIN_REFRESHES,method); \
 	fi; \
-	$(foreach parameter,$(clingo_threads_params),\
-		if grep -q '$(parameter)' "$${dry_run}"; then \
-			$(call check_positive_integer_diagnostic,$($(parameter)),$(parameter),method); \
-		fi;) \
+	if grep -q 'CLINGO_THREADS' "$${dry_run}"; then \
+		$(call check_clingo_threads_diagnostic,$(CLINGO_THREADS),CLINGO_THREADS); \
+	fi; \
 	if grep -q 'MIN_SELF_LOOP_CONSTS' "$${dry_run}"; then \
 		$(call check_bool_diagnostic,$(MIN_SELF_LOOP_CONSTS),MIN_SELF_LOOP_CONSTS,method); \
 	fi; \
@@ -673,8 +894,9 @@ else ifeq ($(HELP),false)
 	fi; \
 	if [ "$(__check_externals__)" = "true" ]; then \
 		h5ad_report="$$(mktemp)"; \
-		if ! $(call conda_run,scbolt-core) python $(scripts_dir)/utils/check_h5ad_pipeline.py \
-				--dry-run "$${dry_run}" --conditions $(display_conditions) > "$${h5ad_report}"; then \
+		if ! run_core_python $(scripts_dir)/utils/check_h5ad_pipeline.py \
+				--dry-run "$${dry_run}" --conditions $(display_conditions) \
+				> "$${h5ad_report}"; then \
 			missing=1; \
 		fi; \
 		while IFS=$$'\t' read -r status message; do \
@@ -700,12 +922,6 @@ else ifeq ($(HELP),false)
 		fi; \
 	fi; \
 	if [ "$(__check_externals__)" = "true" ]; then \
-		runtime_os="$$(uname -s 2>/dev/null || printf unknown)"; \
-		if [ "$(BACKEND)" != "docker" ] && [ "$${runtime_os}" != "Linux" ]; then \
-			$(call report_check_error,backend: $(BACKEND) is not supported on $${runtime_os}; use docker); \
-		else \
-			check_success "backend: $(BACKEND)"; \
-		fi; \
 		if [ "$(BACKEND)" = "docker" ]; then \
 			if [ "$(SCBOLT_IN_DOCKER)" = "true" ]; then \
 				check_success "container runtime: $(SCBOLT_IMAGE)"; \
@@ -741,17 +957,15 @@ else ifeq ($(HELP),false)
 			else \
 				$(call report_check_error,required command not found: $(SCBOLT_CONTAINER_ENGINE)); \
 			fi; \
-		elif $(conda_command) --version >/dev/null 2>&1; then \
-			manager_version="$$( $(conda_command) --version 2>/dev/null \
-				| $(call system_tool,head) -n 1)"; \
-			check_success "environment manager: $${manager_version:-$(BACKEND)}"; \
-			conda_envs="$$( $(conda_command) env list | awk '{print $$1}')"; \
+		elif [ "$${runtime_manager_available}" = "true" ]; then \
+			conda_envs="$${runtime_conda_envs}"; \
 			conda_jobs=""; \
 			conda_index=0; \
 			for env in $$({ \
 				grep -oE '(conda|mamba|micromamba) run[^;|&]* -n [^ ]+' "$${dry_run}" || true; \
 			} | awk '{print $$NF}' | awk '!seen[$$0]++'); do \
 				if printf '%s\n' "$${conda_envs}" | grep -qx "$${env}"; then \
+					env_prefix="$$(conda_env_prefix "$${env}")"; \
 					conda_index=$$((conda_index + 1)); \
 					conda_report="$${conda_report_dir}/$${conda_index}.report"; \
 					conda_status="$${conda_report_dir}/$${conda_index}.status"; \
@@ -759,7 +973,8 @@ else ifeq ($(HELP),false)
 					env_yaml="$(scbolt_root)/envs/conda/$${env#scbolt-}.yml"; \
 					( \
 						$(python) $(scripts_dir)/utils/check_conda_env.py \
-							--env "$${env}" --yaml "$${env_yaml}" \
+							--env "$${env}" --prefix "$${env_prefix}" \
+							--yaml "$${env_yaml}" \
 							>> "$${conda_report}"; \
 						printf '%s\n' "$$?" > "$${conda_status}"; \
 					) & \
@@ -790,8 +1005,6 @@ else ifeq ($(HELP),false)
 					fi; \
 				done < "$${conda_report}"; \
 			done; \
-		else \
-			$(call report_check_error,required environment manager not found: $(BACKEND)); \
 		fi; \
 		if grep -qE '(^|[[:space:]])cellranger count([[:space:]]|$$)' "$${dry_run}"; then \
 			$(call check_command_diagnostic,cellranger); \

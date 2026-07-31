@@ -22,14 +22,14 @@ scbolt <TAB>
 ```
 
 This keeps the common execution path compact. Once a prefix is typed,
-completion also finds matching utility commands such as `diagnostics`,
-`progress`, and `install`.
+completion also finds matching utility commands such as `check`, `progress`,
+and `install`.
 
 After selecting a command or module, completion proposes its supported options:
 
 ```bash
 scbolt spec --<TAB>
-scbolt diagnostics --<TAB>
+scbolt check --<TAB>
 ```
 
 Module options are read dynamically from `scbolt <module> help`, so help and

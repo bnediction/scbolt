@@ -10,8 +10,7 @@ without running the full workflow.
 | `version` | Version and source revision |
 | `config` | Configuration inspection |
 | `progress` | Workflow state |
-| `check` | Requirement validation |
-| `diagnostics` | Installation and reproducibility diagnostics |
+| `check` | Workflow, runtime, and reproducibility validation |
 | `dry-run` | Build preview |
 | `clean` | Cache, log, and output cleanup |
 | `install` | Runtime backend installation |
@@ -74,27 +73,13 @@ Modes:
 
 ## `check`
 
-The check is target-aware: it only validates parameters, files, AnnData
-metadata, conda environments, and commands required by the selected workflow
-segment. It is useful before running long or machine-dependent steps.
+The check is target-aware: it validates parameters, files, AnnData metadata,
+environments, and commands required by the selected workflow segment. It also
+reports the selected runtime and numerical reproducibility profile.
 
 ```bash
 scbolt check <module>
 ```
-
-## `diagnostics`
-
-Diagnostics inspect the scBOLT installation, host platform, effective backend,
-runtime, and numerical reproducibility profile. They are read-only and do not
-validate module inputs or install missing software.
-
-```bash
-scbolt diagnostics
-```
-
-Warnings are non-blocking. Missing requirements for the selected backend are
-reported as blocking errors. Use `scbolt check <module>` for scientific inputs
-and target-specific requirements.
 
 ## `install`
 

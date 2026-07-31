@@ -33,7 +33,7 @@ scBOLT relies on the BoNesis framework for exact Boolean network synthesis.
 # Installation
 
 scBOLT uses a Bash command-line launcher. Native execution is supported on
-Linux and requires Bash, GNU Make 4.3 or newer, and one environment manager:
+Linux and requires Bash 4.0 or newer, GNU Make 4.3 or newer, and one environment manager:
 [Conda](https://docs.conda.io/),
 [Mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html),
 or [Micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html).
@@ -60,6 +60,9 @@ scbolt install micromamba
 scbolt install docker
 ```
 
+The Docker backend uses the image tag matching the installed scBOLT version;
+for example, scBOLT `1.0` selects `ghcr.io/bnediction/scbolt:1.0`.
+
 `scbolt install --completions` repairs the Bash completion without changing a
 runtime backend.
 
@@ -75,10 +78,9 @@ scbolt init
 ```
 
 This creates `scbolt.yml`, `spec.yml`, and the `.scbolt` project locator.
-Verify the installation and project configuration with:
+Verify the installation, runtime, and project configuration with:
 
 ```sh
-scbolt diagnostics
 scbolt check bn-submin
 ```
 
@@ -140,7 +142,6 @@ Display command-specific help:
 scbolt init --help
 scbolt config help
 scbolt check --help
-scbolt diagnostics --help
 scbolt progress --help
 scbolt clean help
 ```
@@ -177,17 +178,11 @@ Preview execution without running:
 scbolt dry-run <module>
 ```
 
-Validate dependencies and configuration:
+Validate inputs, dependencies, runtime requirements, and numerical
+reproducibility:
 
 ```bash
 scbolt check <module>
-```
-
-Diagnose the installation, selected backend, host, and numerical profile
-without validating pipeline inputs:
-
-```bash
-scbolt diagnostics
 ```
 
 Display workflow progress:

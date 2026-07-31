@@ -17,6 +17,16 @@ resolve_script_path() {
     printf '%s/%s\n' "${dir}" "$(basename "${source}")"
 }
 
+SCBOLT_EXECUTABLE="${BASH_SOURCE[0]}"
+if [[ "${SCBOLT_EXECUTABLE}" != */* ]]; then
+    SCBOLT_EXECUTABLE="$(command -v "${SCBOLT_EXECUTABLE}")"
+fi
+SCBOLT_EXECUTABLE="$(
+    cd -P "$(dirname "${SCBOLT_EXECUTABLE}")"
+    printf '%s/%s\n' "${PWD}" "$(basename "${SCBOLT_EXECUTABLE}")"
+)"
+export SCBOLT_EXECUTABLE
+
 SCBOLT_SCRIPT="$(resolve_script_path)"
 SCBOLT_BIN_DIR="$(dirname "${SCBOLT_SCRIPT}")"
 SCBOLT_ROOT="$(cd "${SCBOLT_BIN_DIR}/.." && pwd)"
@@ -24,9 +34,13 @@ SCBOLT_MAKEFILE="${SCBOLT_ROOT}/Makefile"
 SCBOLT_DEFAULT_PARAMS="${SCBOLT_ROOT}/mk/default_params.mk"
 SCBOLT_TOOL="${SCBOLT_BIN_DIR}/scbolt-tool"
 SCBOLT_PROJECT_CONFIG_HELPER="${SCBOLT_ROOT}/scripts/utils/project_config.py"
-SCBOLT_DIAGNOSTICS="${SCBOLT_BIN_DIR}/diagnostics.bash"
 SCBOLT_VERSION_FILE="${SCBOLT_ROOT}/VERSION"
 SCBOLT_REVISION_FILE="${SCBOLT_ROOT}/REVISION"
+SCBOLT_RELEASE_VERSION=""
+if [ -r "${SCBOLT_VERSION_FILE}" ]; then
+    IFS= read -r SCBOLT_RELEASE_VERSION < "${SCBOLT_VERSION_FILE}" || true
+fi
+SCBOLT_DEFAULT_IMAGE="ghcr.io/bnediction/scbolt:${SCBOLT_RELEASE_VERSION:-unknown}"
 SCBOLT_USER_CONFIG="${XDG_CONFIG_HOME:-${HOME}/.config}/scbolt/config.mk"
 SCBOLT_LEGACY_USER_BACKEND="${HOME}/.local/share/scbolt/backend"
 SCBOLT_MODULES="load-genome load-fastq load-matrix load-signatures load-cc load-go
@@ -36,7 +50,7 @@ velocity potency cotan cellrank stream knnsc macrostates
 bin-cells bin-macrostates bin-dea bin-consensus binarization
 spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock
 bn-min bn-submin bn-diverse"
-SCBOLT_COMMANDS="init help version config progress check diagnostics dry-run clean install ${SCBOLT_MODULES}"
+SCBOLT_COMMANDS="init help version config progress check dry-run clean install ${SCBOLT_MODULES}"
 SCBOLT_COMMON_OPTIONS="--config --params --references --reset-target --trust-target --trust-existing --old-file --logging --target --backend"
 SCBOLT_GLOBAL_OPTIONS="${SCBOLT_COMMON_OPTIONS} --raw"
 SCBOLT_OPTIONS_init="--remove --show --config --params --references --old-file --backend --help"
@@ -44,7 +58,6 @@ SCBOLT_OPTIONS_clean="${SCBOLT_COMMON_OPTIONS} --all --stale --force --help"
 SCBOLT_OPTIONS_progress="${SCBOLT_COMMON_OPTIONS} --all --help"
 SCBOLT_OPTIONS_config="${SCBOLT_COMMON_OPTIONS} --default --raw --help"
 SCBOLT_OPTIONS_check="${SCBOLT_COMMON_OPTIONS} --help"
-SCBOLT_OPTIONS_diagnostics="--config --params --backend --help"
 SCBOLT_OPTIONS_dry_run="${SCBOLT_COMMON_OPTIONS} --help"
 SCBOLT_OPTIONS_install="--all --completions --env --backend --help"
 SCBOLT_OPTIONS_module="${SCBOLT_COMMON_OPTIONS} --help"
@@ -158,12 +171,8 @@ print_failure_status() {
 }
 
 print_version() {
-    local version
     local git_hash
 
-    if [ -f "${SCBOLT_VERSION_FILE}" ]; then
-        IFS= read -r version < "${SCBOLT_VERSION_FILE}" || true
-    fi
     git_hash="${SCBOLT_GIT_COMMIT:-}"
     if [ -z "${git_hash}" ]; then
         git_hash="$(git -C "${SCBOLT_ROOT}" rev-parse HEAD 2>/dev/null || true)"
@@ -171,7 +180,7 @@ print_version() {
     if [ -z "${git_hash}" ] && [ -f "${SCBOLT_REVISION_FILE}" ]; then
         IFS= read -r git_hash < "${SCBOLT_REVISION_FILE}" || true
     fi
-    printf 'scBOLT %s\n' "${version:-unknown}"
+    printf 'scBOLT %s\n' "${SCBOLT_RELEASE_VERSION:-unknown}"
     printf 'Source revision: %s\n' "${git_hash:-unknown}"
 }
 
@@ -296,9 +305,6 @@ scbolt_option_choices() {
         check)
             printf '%s\n' "${SCBOLT_OPTIONS_check}"
             ;;
-        diagnostics)
-            printf '%s\n' "${SCBOLT_OPTIONS_diagnostics}"
-            ;;
         dry-run)
             printf '%s\n' "${SCBOLT_OPTIONS_dry_run}"
             ;;
@@ -390,14 +396,6 @@ if [ ! -f "${SCBOLT_PROJECT_CONFIG_HELPER}" ]; then
     print_installation_error "scripts/utils/project_config.py"
     exit 1
 fi
-
-if [ ! -f "${SCBOLT_DIAGNOSTICS}" ]; then
-    print_installation_error "bin/diagnostics.bash"
-    exit 1
-fi
-
-# shellcheck source=diagnostics.bash
-source "${SCBOLT_DIAGNOSTICS}"
 
 usage() {
     make -f "${SCBOLT_MAKEFILE}" help SCBOLT_CLI=true
@@ -528,6 +526,7 @@ load_yaml_configuration() {
 }
 
 declare -A public_parameter_variables=()
+declare -A public_parameter_keys=()
 declare -A conditional_parameter_variables=()
 parameter_mappings_loaded=false
 
@@ -548,6 +547,7 @@ load_parameter_mappings() {
     fi
     while IFS=$'\t' read -r key variable kind; do
         public_parameter_variables["${key}"]="${variable}"
+        public_parameter_keys["${variable}"]="${key}"
         if [ "${kind}" = "condition" ]; then
             conditional_parameter_variables["${key}"]="${variable}"
         fi
@@ -753,16 +753,37 @@ require_params_file() {
 argument_value() {
     local variable="$1"
     local option
+    local public_option=""
     local arg
     local value
     shift
 
     option="--${variable,,}"
     option="${option//_/-}"
+    if load_parameter_mappings 2>/dev/null; then
+        value="${public_parameter_keys[${variable}]:-}"
+        if [ -n "${value}" ]; then
+            public_option="--${value}"
+        fi
+    fi
 
     while [ "$#" -gt 0 ]; do
         arg="$1"
         shift
+        if [ -n "${public_option}" ]; then
+            case "${arg}" in
+                "${public_option}="*)
+                    printf '%s\n' "${arg#*=}"
+                    return 0
+                    ;;
+                "${public_option}")
+                    if [ "$#" -gt 0 ]; then
+                        printf '%s\n' "$1"
+                        return 0
+                    fi
+                    ;;
+            esac
+        fi
         case "${arg}" in
             "${variable}="*)
                 value="${arg#*=}"
@@ -954,7 +975,6 @@ run_in_docker() {
         -e SCBOLT_IMAGE_REPO_DIGESTS="${image_digests}" \
         -e HOME=/tmp/scbolt-home \
         -e MPLCONFIGDIR=/tmp/scbolt-matplotlib \
-        --entrypoint scbolt \
         "${image}" \
         "$@"
 }
@@ -972,7 +992,7 @@ dispatch_to_docker_if_requested() {
     [ "${SCBOLT_IN_DOCKER:-false}" != "true" ] || return 0
 
     case "${command}" in
-        ""|-h|--help|help|init|diagnostics|install)
+        ""|-h|--help|help|init|install)
             return 0
             ;;
     esac
@@ -997,7 +1017,7 @@ dispatch_to_docker_if_requested() {
         fi
     fi
 
-    image="$(config_value_from_invocation SCBOLT_IMAGE "ghcr.io/bnediction/scbolt:latest" "$@")"
+    image="$(config_value_from_invocation SCBOLT_IMAGE "${SCBOLT_DEFAULT_IMAGE}" "$@")"
     engine="$(config_value_from_invocation SCBOLT_CONTAINER_ENGINE "docker" "$@")"
     args="$(config_value_from_invocation SCBOLT_CONTAINER_ARGS "" "$@")"
     mounts="$(config_value_from_invocation SCBOLT_CONTAINER_MOUNTS "" "$@")"
@@ -2355,10 +2375,6 @@ dispatch_to_docker_if_requested "${cmd}" "${leading_args[@]}" "${cmd}" "$@"
 case "${cmd}" in
     ""|-h|--help|help)
         usage
-        ;;
-    diagnostics)
-        run_diagnostics "${leading_args[@]}" "$@"
-        exit "$?"
         ;;
     install)
         install_args=("$@")
