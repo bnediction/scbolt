@@ -14,7 +14,6 @@ from threading import Event, Lock
 from typing import Any, Callable, Collection, Iterable, Mapping, Sequence
 
 import bonesis
-import clingo
 from bonesis.asp_encoding import clingo_encode
 from _domain_continuation import (
     DomainCandidate,
@@ -656,7 +655,9 @@ def solve_domain_candidate(
         domain_nodes=candidate.nodes,
         witness=witness,
     )
-    extra_clingo_options = ["--heuristic=Domain"] if witness else []
+    extra_clingo_options = list(candidate.solver_options)
+    if witness:
+        extra_clingo_options.insert(0, "--heuristic=Domain")
     view_settings = get_filter_clingo_settings(
         clingo_mode,
         clingo_strategy,
@@ -808,11 +809,10 @@ def run_domain_wave(
         return score_formatters[candidate_index](score)
 
     candidate_width = len(str(len(candidates)))
+    progress_label = f"Domain {phase}"
     progress_header = ptqdm(
         total=0,
-        desc=(
-            f"Domain {phase} [max clauses={max_clause}, wave={wave}]"
-        ),
+        desc=f"{progress_label} [max clauses={max_clause}, wave={wave}]",
         position=0,
         file=progress_stream,
         bar_format="{desc}",
@@ -822,7 +822,7 @@ def run_domain_wave(
         candidate.index: ptqdm(
             total=float("inf"),
             desc=(
-                f"Domain {phase} "
+                f"{progress_label} "
                 f"[candidate={candidate.index:>{candidate_width}}/"
                 f"{len(candidates)}]"
             ),
@@ -1517,6 +1517,45 @@ def continue_domain_at_clause_bound(
             len(complete_domain),
         )
 
+    wave += 1
+    candidates = build_candidate_wave(
+        complete_domain,
+        current_domain,
+        target_size=len(complete_domain),
+        jobs=jobs,
+        seed=seed,
+        clause_bound=max_clause,
+        wave=wave,
+    )
+    results = run_domain_wave(
+        bo,
+        candidates,
+        phase="completion",
+        wave=wave,
+        max_clause=max_clause,
+        witness=current_witness,
+        incumbent_solution=current_solution,
+        clingo_mode=clingo_mode,
+        clingo_strategy=clingo_strategy,
+        clingo_configuration=clingo_configuration,
+        patience_seconds=domain_patience_seconds,
+        clause_patience=clause_patience,
+        deadline=deadline,
+        important_nodes=important_nodes,
+        memory_limit=memory_limit,
+        on_model=on_model,
+    )
+    selected = select_best_candidate(results, important_nodes)
+    print_domain_wave_summary(
+        phase="completion",
+        max_clause=max_clause,
+        wave=wave,
+        results=results,
+        selected=selected,
+    )
+    if selected is not None:
+        adopt_candidate(selected)
+
     return DomainContinuationState(
         current_domain,
         current_solution,
@@ -1785,7 +1824,10 @@ def main() -> None:
         required=False,
         default=1,
         metavar="INT",
-        help="maximum candidate domains evaluated simultaneously (default: 1)",
+        help=(
+            "maximum independent domain-continuation workers "
+            "(default: 1)"
+        ),
     )
     parser.add_argument(
         "--memory-limit",

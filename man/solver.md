@@ -227,15 +227,18 @@ Domain continuation addresses a different bottleneck: a complete regulatory
 domain may be too large for Clingo to find or improve a witness directly, even
 when a satisfiable subdomain would provide an effective warm start.
 
-Domain continuation has up to two phases:
+Domain continuation has up to three phases:
 
 1. **First-witness portfolio:** while no witness is available, scBOLT launches
    single-job Clingo instances over different candidate subdomains.
 2. **Witness-guided expansion:** after selecting a witness, scBOLT evaluates
    parallel waves of larger candidate domains and reuses the best structural
    witness as a warm start until the complete domain is reached.
+3. **Complete-domain exploration:** independent Clingo instances receive the
+   same retained witness and explore complementary deterministic search paths
+   before one final instance resumes certification.
 
-Stages that must solve without an initial witness use both phases. When `LOCK`
+Stages that must solve without an initial witness use all three phases. When `LOCK`
 receives a structural witness computed by `SEED`, it skips the first-witness
 portfolio and enters directly into witness-guided expansion. A witness merely
 forwarded by `SEED`, or an absent witness, makes `LOCK` forward the node
@@ -244,13 +247,23 @@ solution without starting a solver.
 ```text
 no witness -> acquisition portfolio -> witness on D0
            -> expansion wave -> selected D1
-           -> expansion wave -> selected D2 -> ... -> G
+           -> expansion wave -> selected D2 -> ...
+           -> complete-domain portfolio -> final certification on G
 ```
 
 Every candidate contains all important and mandatory nodes. The remaining
-nodes follow deterministic, seed-dependent priority orders so that both the
-acquisition portfolio and expansion waves explore domain compositions
-reproducibly.
+nodes follow deterministic, seed-dependent priority orders. scBOLT fills the
+available worker slots with distinct candidate domains whenever enough domain
+compositions exist.
+
+If the number of distinct candidate domains is smaller than `jobs`, scBOLT
+reuses those domains only for the remaining worker slots. The first worker on a
+domain follows the ordinary search profile. Workers forced to share a domain
+retain the same mode, optimization strategy, constraints, objective and
+structural-witness heuristic, but use distinct deterministic Clingo seeds,
+random signs and a small random-decision frequency. At the complete-domain
+boundary only one node composition exists, so this solver-profile diversity
+fills the complete portfolio without changing the admissible solutions.
 
 Within one acquisition wave, all candidates have the same size and contain the
 required nodes:
@@ -259,9 +272,12 @@ required nodes:
 required nodes <= Di <= G
 ```
 
-Different candidates use different deterministic node orders and therefore
-test alternative compositions at that size. An `UNSAT` result applies only to
-the exact candidate that was solved. When every candidate in a wave is
+Whenever enough compositions exist, candidates use different deterministic
+node orders and therefore test alternative domains at that size. If fewer
+compositions exist than worker slots, repeated domains instead use the
+deterministic solver profiles described above. An `UNSAT` result applies only
+to the exact candidate domain that was solved. When every distinct candidate
+domain in a wave is
 `UNSAT`, scBOLT increases the target size and generates another deterministic
 wave; this is a scheduling decision, not a proof that every domain of the
 smaller size is unsatisfiable.
@@ -333,8 +349,10 @@ After a witness is selected:
 9. expansion resumes after the configured yield is reached, the configured
    number of refreshes has been attempted, or all distinct refresh domains
    have been exhausted;
-10. when the next expansion would be the complete domain, the portfolio stops
-    and one final Clingo instance resumes optimization using
+10. when the next expansion would be the complete domain, scBOLT starts a
+    complete-domain solver portfolio from the retained witness;
+11. after its shared wave patience, the best deterministic worker witness is
+    retained and one final Clingo instance resumes certification using
     `clingo-threads`.
 
 A grounding-capacity failure is local to the candidate that encountered it and
@@ -366,9 +384,11 @@ become mandatory solver constraints. Because `max-clauses` is an upper bound, a
 witness found at `q` remains admissible at `q+1` and provides a valid heuristic
 for the new expansion. For a retained solution of 500 nodes in a complete
 550-node domain, midpoint expansion therefore visits domains of sizes 525,
-538, 544, 547, and 549 before the final complete-domain optimization. This
-rebasing also applies when a clause bound ends through patience or without a
-new complete-domain witness.
+538, and 544 before the final complete-domain optimization. When the next
+midpoint would add three nodes or fewer, scBOLT folds the remaining nodes into
+that final optimization instead of scheduling several tiny terminal waves.
+This rebasing also applies when a clause bound ends through patience or without
+a new complete-domain witness.
 
 For example, a witness retaining 230 nodes in a 250-node domain can warm-start
 several alternative 380-node domains. Every 380-node candidate contains the
@@ -386,7 +406,9 @@ and committing permanently to the node order that produced the first witness.
 Expansion sizes also use midpoints. After retaining a domain `D`, the next
 target lies halfway between `D` and `G`. If a complete expansion wave produces
 no successful candidate, scBOLT halves the expansion step and generates new
-candidate compositions while preserving `D` and its witness.
+candidate compositions while preserving `D` and its witness. A midpoint step
+of three nodes or fewer is coalesced with all remaining nodes, avoiding
+successive terminal expansions such as `+3`, `+2`, and `+1`.
 
 For a successful expansion from `D0` to `D1`, scBOLT measures:
 
@@ -437,11 +459,13 @@ jobs: 8
 clingo-threads: 1
 ```
 
-`jobs` is the maximum number of candidate domains evaluated simultaneously in
-every acquisition or expansion wave, with one Clingo thread per candidate. Once
-the complete domain is reached, the candidate portfolio stops and one final
-optimization instance uses `clingo-threads`. The maximum concurrent thread
-count is therefore the maximum of the two values, not their product.
+`jobs` is the maximum number of independent workers evaluated simultaneously in
+every acquisition, expansion, or complete-domain exploration wave, with one
+Clingo thread per worker. After complete-domain exploration, one final
+stage-level instance uses `clingo-threads`. Clause continuation changes its
+clause bound sequentially and never turns it into a `jobs`-wide portfolio. The
+maximum concurrent thread count is therefore the maximum of the two values,
+not their product.
 
 Each wave starts with one probe candidate. For two seconds, the coordinator
 monitors the resident memory of the complete selection process, subtracts the
@@ -484,6 +508,13 @@ on Linux and macOS; the Clingo solves themselves execute outside the Python
 GIL. Only the coordinator writes outputs and renders progress. An interactive
 terminal displays one reusable progress line per active candidate, whereas log
 files retain only completed wave summaries and solver outcomes.
+
+Worker profiles and their candidate-index tie-breaking are deterministic for a
+fixed `seed`, clause bound, wave and `jobs` value. Wall-clock patience and timeout
+boundaries can nevertheless observe different subsets of those deterministic
+paths on machines with different scheduling or performance. Reproducible
+search construction therefore does not imply bitwise-identical partial output
+from a time-limited parallel run.
 
 Expansion progress starts from the objective of the inherited witness for
 every candidate. Although each Clingo control must reconstruct a model on its
@@ -624,8 +655,12 @@ for q in 1..max_clauses:
             preserve the previous witness
             reduce the expansion step or diversify added nodes
 
-    optimize the complete domain at q using the best witness and
-    clingo_threads
+    if domain continuation is enabled:
+        evaluate deterministic complete-domain solver profiles in parallel
+        retain the best witness after domain-wave patience
+
+    optimize the complete domain at q with one stage-level instance,
+    using the best witness and clingo_threads
 
     if the theoretical maximum objective is reached:
         stop
@@ -681,7 +716,7 @@ solver interface.
 | --- | --- |
 | `prior-knowledge` | Regulatory resource or custom influence graph defining the complete structural domain. |
 | `max-clauses` | Maximum number of conjunctive terms joined by OR in each Boolean update function. |
-| `seed` | Seed used to construct deterministic domain portfolios and resolve reproducible ordering choices. |
+| `seed` | Master seed used to construct deterministic domain portfolios, derive complete-domain worker seeds, and resolve reproducible ordering choices. |
 
 Resource-version parameters such as `geneinfo-version`, `omnipath-version`,
 `hcop-version`, `dorothea-api`, `dorothea-compatibility`, and
@@ -726,8 +761,10 @@ parameter, while the patience is uniform across enabled stages.
 | `memory` | Soft resident-memory budget used to queue and reduce the candidate portfolio while retaining at least one solver instance. |
 
 Domain continuation supports `SOFT`, `RELAXED`, `SEED`, and `LOCK`. The global
-`jobs` parameter controls the maximum number of candidate domains evaluated
-simultaneously, and every candidate uses one Clingo thread. For `LOCK`, candidate
+`jobs` parameter controls the maximum number of domain-continuation workers
+evaluated simultaneously, and every worker uses one Clingo thread. Distinct
+candidate domains are preferred; deterministic solver profiles fill only the
+slots for which no additional domain composition exists. For `LOCK`, candidate
 domains are supersets of the retained `SEED` core and no acquisition portfolio
 is run. A forwarded or absent witness makes `LOCK` forward the `SEED` output
 instead. Each stage remains independently enabled through its
@@ -780,7 +817,9 @@ and two minutes. Once that patience expires, unresolved candidates become
 following expansion wave. Expansion waves apply the same rule to larger
 candidate domains. An expansion retaining less than 10%
 of its added capacity triggers up to two constant-size refresh waves before
-domain growth resumes. On the complete domain, one final instance uses one
+domain growth resumes. At the terminal boundary, up to eight deterministic
+solver profiles explore the same complete domain for one final domain wave;
+its best witness then warm-starts the single stage-level instance using one
 Clingo thread. Thirty minutes without an objective improvement advances an
 intermediate clause bound, while the 24-hour timeout is shared by the complete
 seed stage.

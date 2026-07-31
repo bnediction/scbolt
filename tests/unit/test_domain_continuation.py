@@ -7,7 +7,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "infer"))
 
 from _domain_continuation import (  # noqa: E402
-    DomainCandidate,
     DomainCandidateResult,
     DomainWaveLeader,
     bounded_midpoint,
@@ -29,6 +28,9 @@ current = {"g0", "g1", "g2"}
 
 assert initial_domain_size(3, 20) == 12
 assert expansion_domain_size(12, 20) == 16
+assert expansion_domain_size(13, 20) == 17
+assert expansion_domain_size(14, 20) == 20
+assert expansion_domain_size(17, 20) == 20
 assert bounded_midpoint(3, 20) == 12
 assert minimum_domain_gain(120, 0.10) == 12
 assert minimum_domain_gain(5, 0.99) == 5
@@ -95,7 +97,7 @@ while clause_sizes[-1] < len(complete_550):
     clause_sizes.append(
         expansion_domain_size(clause_sizes[-1], len(complete_550))
     )
-assert clause_sizes == [500, 525, 538, 544, 547, 549, 550]
+assert clause_sizes == [500, 525, 538, 544, 550]
 
 clause_wave = build_candidate_wave(
     complete_550,
@@ -158,6 +160,7 @@ repeated = build_candidate_wave(
 assert wave == repeated
 assert len(wave) == 4
 assert len({candidate.nodes for candidate in wave}) == 4
+assert all(not candidate.solver_options for candidate in wave)
 assert all(current <= candidate.nodes <= complete for candidate in wave)
 assert all(len(candidate.nodes) == 10 for candidate in wave)
 
@@ -205,7 +208,9 @@ small_wave = build_candidate_wave(
     clause_bound=1,
     wave=1,
 )
-assert len(small_wave) == 2
+assert len(small_wave) == 8
+assert len({candidate.nodes for candidate in small_wave}) == 2
+assert all(candidate.solver_options for candidate in small_wave[2:])
 assert build_candidate_wave(
     small_complete,
     small_current,
@@ -238,7 +243,45 @@ full_wave = build_candidate_wave(
     clause_bound=1,
     wave=3,
 )
-assert full_wave == (DomainCandidate(1, frozenset(complete)),)
+assert len(full_wave) == 8
+assert all(candidate.nodes == frozenset(complete) for candidate in full_wave)
+assert full_wave[0].solver_options == ()
+assert all(
+    candidate.solver_options[1:] == ("--sign-def=rnd", "--rand-freq=0.01")
+    for candidate in full_wave[1:]
+)
+assert len({candidate.solver_options[0] for candidate in full_wave[1:]}) == 7
+assert full_wave == build_candidate_wave(
+    complete,
+    current,
+    target_size=len(complete),
+    jobs=8,
+    seed=10,
+    clause_bound=1,
+    wave=3,
+)
+assert full_wave != build_candidate_wave(
+    complete,
+    current,
+    target_size=len(complete),
+    jobs=8,
+    seed=11,
+    clause_bound=1,
+    wave=3,
+)
+assert full_wave != build_candidate_wave(
+    complete,
+    current,
+    target_size=len(complete),
+    jobs=8,
+    seed=10,
+    clause_bound=2,
+    wave=3,
+)
+assert domain_wave_solver_settings("completion", "opt", "bb,inc") == (
+    "opt",
+    "bb,inc",
+)
 
 results = (
     DomainCandidateResult(wave[0], "sat", ("g0", "g3"), ("node(g0)",)),

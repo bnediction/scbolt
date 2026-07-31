@@ -10,16 +10,20 @@ from typing import Collection, Iterable, Literal, Sequence
 
 DomainOutcome = Literal["sat", "unsat", "unknown", "cancelled"]
 DomainUnknownReason = Literal["capacity"]
-DomainPhase = Literal["acquisition", "expansion", "refresh"]
+DomainPhase = Literal["acquisition", "expansion", "refresh", "completion"]
 DomainLeaderUpdate = Literal["improved", "joined", "unchanged"]
+
+_DOMAIN_EXPANSION_COALESCE_THRESHOLD = 3
+_SOLVER_RANDOM_FREQUENCY = "0.01"
 
 
 @dataclass(frozen=True)
 class DomainCandidate:
-    """One reproducible candidate domain within a continuation wave."""
+    """One reproducible domain and solver profile within a continuation wave."""
 
     index: int
     nodes: frozenset[str]
+    solver_options: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -163,10 +167,14 @@ def initial_domain_size(required_size: int, complete_size: int) -> int:
 
 
 def expansion_domain_size(current_size: int, complete_size: int) -> int:
-    """Return the next midpoint between a retained domain and the full one."""
+    """Return the next midpoint, coalescing small terminal expansions."""
 
     _validate_domain_sizes(current_size, complete_size)
-    return current_size + ceil((complete_size - current_size) / 2)
+    remaining = complete_size - current_size
+    expansion = ceil(remaining / 2)
+    if expansion <= _DOMAIN_EXPANSION_COALESCE_THRESHOLD:
+        return complete_size
+    return current_size + expansion
 
 
 def bounded_midpoint(lower: int, upper: int) -> int:
@@ -190,7 +198,7 @@ def build_candidate_wave(
     wave: int,
     excluded_domains: Collection[Collection[str]] = (),
 ) -> tuple[DomainCandidate, ...]:
-    """Build distinct, equally sized supersets of the current domain."""
+    """Build equally sized workers, preferring distinct candidate domains."""
 
     complete = frozenset(complete_nodes)
     current = frozenset(current_nodes)
@@ -210,7 +218,13 @@ def build_candidate_wave(
         nodes = frozenset(complete if addition_count else current)
         if nodes in excluded:
             return ()
-        return (DomainCandidate(1, nodes),)
+        return _fill_candidate_workers(
+            (DomainCandidate(1, nodes),),
+            jobs=jobs,
+            seed=seed,
+            clause_bound=clause_bound,
+            wave=wave,
+        )
 
     candidates = []
     seen = set()
@@ -240,7 +254,13 @@ def build_candidate_wave(
             if len(candidates) == jobs:
                 break
 
-    return tuple(candidates)
+    return _fill_candidate_workers(
+        candidates,
+        jobs=jobs,
+        seed=seed,
+        clause_bound=clause_bound,
+        wave=wave,
+    )
 
 
 def select_best_candidate(
@@ -279,3 +299,43 @@ def _validate_domain_sizes(current_size: int, complete_size: int) -> None:
         raise ValueError("domain size cannot be negative")
     if current_size > complete_size:
         raise ValueError("current domain cannot exceed the complete domain")
+
+
+def _fill_candidate_workers(
+    candidates: Sequence[DomainCandidate],
+    *,
+    jobs: int,
+    seed: int,
+    clause_bound: int,
+    wave: int,
+) -> tuple[DomainCandidate, ...]:
+    """Fill unavailable domain slots with deterministic solver profiles."""
+
+    workers = list(candidates)
+    if not workers or len(workers) >= jobs:
+        return tuple(workers)
+
+    distinct_candidates = tuple(workers)
+    generator = random.Random(f"{seed}:{clause_bound}:{wave}:solver")
+    solver_seeds = set()
+    duplicate_index = 0
+    while len(workers) < jobs:
+        source = distinct_candidates[duplicate_index % len(distinct_candidates)]
+        solver_seed = generator.getrandbits(31)
+        while solver_seed in solver_seeds:
+            solver_seed = generator.getrandbits(31)
+        solver_seeds.add(solver_seed)
+        workers.append(
+            DomainCandidate(
+                index=len(workers) + 1,
+                nodes=source.nodes,
+                solver_options=(
+                    f"--seed={solver_seed}",
+                    "--sign-def=rnd",
+                    f"--rand-freq={_SOLVER_RANDOM_FREQUENCY}",
+                ),
+            )
+        )
+        duplicate_index += 1
+
+    return tuple(workers)
