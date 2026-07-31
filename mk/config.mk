@@ -521,39 +521,48 @@ endef
 check_command = command -v $(1) >/dev/null 2>&1 || { $(call print_error,required command not found: $(1)); }
 check_conda_env = $(conda_command) env list | $(call system_tool,awk) '{print $$1}' | $(call system_tool,grep) -qx "$(1)" \
 	|| { $(call print_error,required conda environment not found: $(1)); }
-check_parameter = [ -n "$(strip $(1))" ] || { $(call print_error,required parameter not defined: $(2)); }
+check_parameter = [ -n "$(strip $(1))" ] || { \
+	$(call print_error,required parameter not defined: \
+		$(call parameter_name,$(2)) $(call parameter_context,$(2))); \
+}
 
 define require_parameter
 [ -n "$(strip $($(1)))" ] || { \
-	$(call print_error,required parameter not defined: $(1)$(if $(2), \(needed by target '$(2)'\))); \
+	$(call print_error,required parameter not defined: \
+		$(call parameter_name,$(1))$(if $(2), \(needed by target '$(2)'\))); \
 }
 endef
 
 define require_gsm_condition
 [ -n "$(call gsm_value,$(1))" ] || { \
-	$(call print_error,required parameter not defined: $(call gsm_var,$(1)) \(needed by target 'load-matrix'\)); \
+	$(call print_error,required parameter not defined: \
+		$(call parameter_name,$(call gsm_var,$(1))) \(needed by target 'load-matrix'\)); \
 }; \
 if [ -n "$(call sra_value,$(1))" ]; then \
 	$(call print_error,incompatible input sources$(if $(call display_reference,$(1)), for condition '$(1)'): \
-		both $(call sra_var,$(1)) and $(call gsm_var,$(1)) are defined); \
+		both $(call parameter_name,$(call sra_var,$(1))) and \
+		$(call parameter_name,$(call gsm_var,$(1))) are defined); \
 fi
 endef
 
 define require_sra_condition
 [ -n "$(call sra_value,$(1))" ] || { \
-	$(call print_error,required parameter not defined: $(call sra_var,$(1)) \(needed by target 'load-fastq'\)); \
+	$(call print_error,required parameter not defined: \
+		$(call parameter_name,$(call sra_var,$(1))) \(needed by target 'load-fastq'\)); \
 }; \
 if [ -n "$(call gsm_value,$(1))" ]; then \
 	$(call print_error,incompatible input sources$(if $(call display_reference,$(1)), for condition '$(1)'): \
-		both $(call sra_var,$(1)) and $(call gsm_var,$(1)) are defined); \
+		both $(call parameter_name,$(call sra_var,$(1))) and \
+		$(call parameter_name,$(call gsm_var,$(1))) are defined); \
 fi
 endef
 
 define require_choice
 case "$(strip $($(1)))" in \
 	$(subst $(space),|,$(strip $(2)))) ;; \
-	"") $(call print_error,required parameter not defined: $(1)$(if $(3), \(needed by target '$(3)'\)));; \
-	*) $(call print_error,unsupported value for parameter $(1) \
+	"") $(call print_error,required parameter not defined: \
+		$(call parameter_name,$(1))$(if $(3), \(needed by target '$(3)'\)));; \
+	*) $(call print_error,unsupported value for parameter $(call parameter_name,$(1)) \
 		(supported values: $(subst $(space),$(comma) ,$(strip $(2)))));; \
 esac
 endef
@@ -562,13 +571,15 @@ require_bool = $(call require_choice,$(1),true false,$(2))
 
 define require_positive_integer
 case "$(strip $($(1)))" in \
-	''|*[!0-9]*|0) $(call print_error,required positive integer for parameter $(1) (current: $(strip $($(1)))));; \
+	''|*[!0-9]*|0) $(call print_error,required positive integer for parameter \
+		$(call parameter_name,$(1)) (current: $(strip $($(1)))));; \
 esac
 endef
 
 define require_nonnegative_integer
 case "$(strip $($(1)))" in \
-	''|*[!0-9]*) $(call print_error,required non-negative integer for parameter $(1) (current: $(strip $($(1)))));; \
+	''|*[!0-9]*) $(call print_error,required non-negative integer for parameter \
+		$(call parameter_name,$(1)) (current: $(strip $($(1)))));; \
 esac
 endef
 
@@ -581,7 +592,8 @@ endef
 define require_float
 if ! printf '%s\n' "$(strip $($(1)))" \
 		| grep -Eq '^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$$$$'; then \
-	$(call print_error,required numeric value for parameter $(1) (current: $(strip $($(1))))); \
+	$(call print_error,required numeric value for parameter \
+		$(call parameter_name,$(1)) (current: $(strip $($(1))))); \
 fi
 endef
 
@@ -589,14 +601,16 @@ define require_half_open_unit_interval
 $(call require_float,$(1)); \
 if ! $(call system_tool,awk) -v value="$(strip $($(1)))" \
 		'BEGIN { exit !(value >= 0 && value < 1) }'; then \
-	$(call print_error,required value >= 0 and < 1 for parameter $(1) (current: $(strip $($(1))))); \
+	$(call print_error,required value >= 0 and < 1 for parameter \
+		$(call parameter_name,$(1)) (current: $(strip $($(1))))); \
 fi
 endef
 
 define require_optional_hvg_method
 case "$(strip $($(1)))" in \
 	""|loess|binning) ;; \
-	*) $(call print_error,unsupported value for parameter $(1) (supported values: loess, binning));; \
+	*) $(call print_error,unsupported value for parameter $(call parameter_name,$(1)) \
+		(supported values: loess, binning));; \
 esac
 endef
 
@@ -607,7 +621,7 @@ endef
 define require_prior_knowledge
 $(call require_parameter,PRIOR_KNOWLEDGE,$(1)); \
 [ -n "$(strip $(prior_knowledge))" ] || { \
-	$(call print_error,unsupported value for parameter PRIOR_KNOWLEDGE \
+	$(call print_error,unsupported value for parameter $(call parameter_name,PRIOR_KNOWLEDGE) \
 		(supported values: $(subst $(space),$(comma) ,$(strip $(known_prior_knowledge))) \
 		or an existing file path)); \
 }
@@ -636,7 +650,8 @@ if [ "$(strip $(PRIOR_KNOWLEDGE))" = "dorothea" ]; then \
 for level in $(DOROTHEA_LEVELS); do \
 	case "$${level}" in \
 		$(subst $(space),|,$(dorothea_levels))) ;; \
-		*) $(call print_error,unsupported value for parameter DOROTHEA_LEVELS \
+		*) $(call print_error,unsupported value for parameter \
+			$(call parameter_name,DOROTHEA_LEVELS) \
 			(supported values: $(subst $(space),$(comma) ,$(dorothea_levels))));; \
 	esac; \
 done; \
@@ -646,7 +661,8 @@ endef
 define require_cc_correction
 $(call require_bool,CC_CORRECTION,$(1)); \
 if [ "$(CC_CORRECTION)" = "true" ] && [ "$(ORGANISM)" != "mouse" ]; then \
-	$(call print_error,CC_CORRECTION=true is only supported for mouse \(current: $(ORGANISM)\)); \
+	$(call print_error,$(call parameter_name,CC_CORRECTION)=true is only supported \
+		for mouse \(current: $(call parameter_name,ORGANISM)=$(ORGANISM)\)); \
 fi
 endef
 
@@ -710,13 +726,17 @@ $(call require_choice,STAR_BARCODE_FILTER,auto threshold top,$(1)); \
 $(call require_optional_positive_integer,STAR_MIN_UMI); \
 $(call require_optional_positive_integer,STAR_TOP_BARCODES); \
 if [ "$(STAR_BARCODE_FILTER)" = "threshold" ] && [ -z "$(strip $(STAR_MIN_UMI))" ]; then \
-	$(call print_error,required parameter not defined: STAR_MIN_UMI \(needed by target '$(1)'\)); \
+	$(call print_error,required parameter not defined: \
+		$(call parameter_name,STAR_MIN_UMI) \(needed by target '$(1)'\)); \
 fi; \
 if [ "$(STAR_BARCODE_FILTER)" = "top" ] && [ -z "$(strip $(STAR_TOP_BARCODES))" ]; then \
-	$(call print_error,required parameter not defined: STAR_TOP_BARCODES \(needed by target '$(1)'\)); \
+	$(call print_error,required parameter not defined: \
+		$(call parameter_name,STAR_TOP_BARCODES) \(needed by target '$(1)'\)); \
 fi; \
 if [ "$(STAR_BARCODE_FILTER)" = "auto" ] && [ -n "$(strip $(STAR_MIN_UMI)$(STAR_TOP_BARCODES))" ]; then \
-	$(call print_error,STAR_MIN_UMI and STAR_TOP_BARCODES require STAR_BARCODE_FILTER=threshold or top); \
+	$(call print_error,$(call parameter_name,STAR_MIN_UMI) and \
+		$(call parameter_name,STAR_TOP_BARCODES) require \
+		$(call parameter_name,STAR_BARCODE_FILTER)=threshold or top); \
 fi
 endef
 
@@ -799,15 +819,14 @@ require_bonesis_parameters =
 endif
 
 check_success = check_success "$(1)"
+check_warning_block = check_warning_block "$(1)" "$(2)"
 check_failure = check_failure "$(1)"
 report_check_error = missing=1; $(call check_failure,$(1))
 parameter_label = $(strip $(if $(3),$(3) )parameter)
 internal_parameter_name = $(firstword $(strip $(1)))
 public_parameter_variable = SCBOLT_PUBLIC_PARAMETER_$(call internal_parameter_name,$(1))
-parameter_name = $(strip $(if $(filter true,$(SCBOLT_CLI)),\
-	$(if $($(call public_parameter_variable,$(1))),\
-		$($(call public_parameter_variable,$(1))),\
-		$(call internal_parameter_name,$(1))),\
+parameter_name = $(strip $(if $($(call public_parameter_variable,$(1))),\
+	$($(call public_parameter_variable,$(1))),\
 	$(call internal_parameter_name,$(1))))
 parameter_context = $(wordlist 2,$(words $(strip $(1))),$(strip $(1)))
 parameter_description = $(strip $(call parameter_label,$(1),$(2),$(3)) \
@@ -818,13 +837,14 @@ needed_by = $(1) (needed by target '$(2)')
 
 define check_file_diagnostic
 if [ -z "$(1)" ]; then \
-	$(call report_check_error,required file parameter not defined: $(2)); \
+	$(call report_check_error,required file parameter not defined: \
+		$(call parameter_name,$(2)) $(call parameter_context,$(2))); \
 elif [ ! -f "$(1)" ]; then \
 	$(call report_check_error,required file not found: $(1)); \
 elif [ -n "$(strip $(3))" ]; then \
 	$(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: $(call parameter_assignment,$(1),$(2))); \
 else \
-	$(call check_success,file found: $(2) ($(1))); \
+	$(call check_success,file found: $(call parameter_name,$(2)) ($(1))); \
 fi
 endef
 
@@ -878,12 +898,54 @@ endef
 
 define check_memory_diagnostic
 if [ "$(memory_valid)" = "true" ]; then \
-	$(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: \
-		$(call parameter_assignment,$(1),$(2))); \
+	configured_memory="$$( $(call system_tool,awk) -v memory_mb="$(memory_mb)" \
+		'BEGIN { printf "%.1fGB", memory_mb / 1000 }')"; \
+	total_memory_kb="$$( $(call system_tool,awk) \
+		'/^MemTotal:/ { print $$2; exit }' /proc/meminfo 2>/dev/null || true)"; \
+	case "$${total_memory_kb}" in \
+		''|*[!0-9]*) \
+			$(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: \
+				$(call parameter_name,$(2)): $${configured_memory});; \
+		*) \
+			total_memory="$$( $(call system_tool,awk) -v memory_kb="$${total_memory_kb}" \
+				'BEGIN { printf "%.1fGB", memory_kb * 1024 / 1000000000 }')"; \
+			memory_message="$(call parameter_label,$(1),$(2),$(3)) valid: \
+				$(call parameter_name,$(2)): $${configured_memory}/$${total_memory}"; \
+			if $(call system_tool,awk) -v configured_mb="$(memory_mb)" \
+					-v total_kb="$${total_memory_kb}" \
+					'BEGIN { exit !(configured_mb * 1000000 > total_kb * 1024) }'; then \
+				$(call check_warning_block,$${memory_message},configured memory exceeds total system memory); \
+			else \
+				$(call check_success,$${memory_message}); \
+			fi;; \
+	esac; \
 else \
 	$(call report_check_error,required positive memory size for \
 		$(call parameter_description,$(1),$(2),$(3)) (current: $(strip $(1)))); \
 fi
+endef
+
+define check_jobs_diagnostic
+case "$(strip $(1))" in \
+	''|*[!0-9]*|0) $(call report_check_error,required positive integer for \
+		$(call parameter_description,$(1),$(2),$(3)) (current: $(strip $(1))));; \
+	*) \
+		available_cpus="$$( $(call system_tool,nproc) 2>/dev/null \
+			|| getconf _NPROCESSORS_ONLN 2>/dev/null || true)"; \
+		case "$${available_cpus}" in \
+			''|*[!0-9]*) \
+				$(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: \
+					$(call parameter_name,$(2)): $(strip $(1)));; \
+			*) \
+				jobs_message="$(call parameter_label,$(1),$(2),$(3)) valid: \
+					$(call parameter_name,$(2)): $(strip $(1))/$${available_cpus} CPUs"; \
+				if [ "$(strip $(1))" -gt "$${available_cpus}" ]; then \
+					$(call check_warning_block,$${jobs_message},configured jobs exceed available CPUs); \
+				else \
+					$(call check_success,$${jobs_message}); \
+				fi;; \
+		esac;; \
+esac
 endef
 
 define check_inference_dir_diagnostic
@@ -891,8 +953,9 @@ if [ "$(inference_dir_valid)" = "true" ]; then \
 	$(call check_success,core parameter valid: \
 		$(call parameter_name,INFERENCE_DIR)=$(strip $(INFERENCE_DIR))); \
 else \
-	$(call report_check_error,core parameter INFERENCE_DIR must be a relative \
-		subdirectory of PROJECT_DIR (current: $(strip $(INFERENCE_DIR)))); \
+	$(call report_check_error,core parameter $(call parameter_name,INFERENCE_DIR) \
+		must be a relative subdirectory of $(call parameter_name,PROJECT_DIR) \
+		(current: $(strip $(INFERENCE_DIR)))); \
 fi
 endef
 
@@ -937,7 +1000,8 @@ endef
 
 define check_path_diagnostic
 if [ -z "$(strip $(1))" ]; then \
-	$(call report_check_error,required path $(call parameter_label,$(1),$(2),$(3)) not defined: $(2)); \
+	$(call report_check_error,required path $(call parameter_label,$(1),$(2),$(3)) \
+		not defined: $(call parameter_name,$(2))); \
 elif mkdir -p "$(strip $(1))" >/dev/null 2>&1; then \
 	$(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: $(call parameter_name,$(2))=$(strip $(1))); \
 else \
@@ -1055,6 +1119,7 @@ rebuilding_modules=" "; \
 pending_modules=" "; \
 stale_modules=" "; \
 untracked_modules=" "; \
+printed_stale_groups=" "; \
 is_running() { \
 	case "$${running_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 }; \
@@ -1069,6 +1134,9 @@ is_stale() { \
 }; \
 is_untracked() { \
 	case "$${untracked_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
+}; \
+is_stale_group_printed() { \
+	case "$${printed_stale_groups}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 }; \
 metadata_manifest="$$(mktemp)"; \
 metadata_report_dir="$$(mktemp -d)"; \
@@ -1085,10 +1153,11 @@ if [ -s "$${metadata_manifest}" ]; then \
 				>> "$${metadata_report_dir}/$${report_module}"; \
 		done; \
 fi; \
-$(foreach module,$(reset_stages),\
-	module_deps="$(strip $(progress_deps_$(module)))"; \
+for module in $${selected_modules}; do \
+	module_report="$${metadata_report_dir}/$${module}"; \
+	module_deps="$$(awk -F '\t' '$$1 == "deps" { print $$2; exit }' "$${module_report}")"; \
 	module_rebuilding=0; \
-	if is_running "$(module)"; then \
+	if is_running "$${module}"; then \
 		module_rebuilding=1; \
 	else \
 		for dependency in $${module_deps}; do \
@@ -1099,79 +1168,107 @@ $(foreach module,$(reset_stages),\
 		done; \
 	fi; \
 	if [ "$${module_rebuilding}" -eq 1 ]; then \
-		rebuilding_modules="$${rebuilding_modules}$(module) "; \
+		rebuilding_modules="$${rebuilding_modules}$${module} "; \
 	fi; \
-	if [[ "$${selected_modules}" == *" $(module) "* ]]; then \
-		module_report="$${metadata_report_dir}/$(module)"; \
-		module_status="$$(awk -F '\t' '$$1 == "status" { print $$2; exit }' "$${module_report}")"; \
-		module_message="$$(awk -F '\t' '$$1 == "message" { print $$2; exit }' "$${module_report}")"; \
-		module_deps="$$(awk -F '\t' '$$1 == "deps" { print $$2; exit }' "$${module_report}")"; \
-		module_details=""; \
-		module_pending=0; \
-		module_stale=0; \
-		module_untracked=0; \
-		if [ "$${module_status}" = "pending" ]; then \
-			module_pending=1; \
-		elif [ "$${module_status}" = "stale" ]; then \
-			module_stale=1; \
-		elif [ "$${module_status}" = "untracked" ]; then \
-			module_untracked=1; \
-		elif [ "$${module_status}" = "done" ]; then \
-			for dependency in $${module_deps}; do \
-				if is_stale "$${dependency}"; then \
-					module_message="$(module) (depends on module '$${dependency}')"; \
-					module_stale=1; \
-					break; \
-				elif is_untracked "$${dependency}"; then \
-					module_message="$(module) (depends on module '$${dependency}')"; \
-					module_untracked=1; \
-					break; \
-				elif is_pending "$${dependency}"; then \
-					module_message="$(module) (depends on module '$${dependency}')"; \
-					module_stale=1; \
-					break; \
-				fi; \
-			done; \
-		fi; \
-		if [ "$${module_rebuilding}" -eq 1 ]; then \
-			:; \
-		elif [ "$${module_pending}" -eq 1 ]; then \
-			:; \
-		elif [ "$${module_stale}" -eq 1 ]; then \
-			if [[ "$${module_status}" = "stale" && "$${module_message}" == "$(module) ("*")" ]]; then \
-				module_details="$${module_message#$(module) (}"; \
-				module_details="$${module_details%)}"; \
-				module_message="$(module)"; \
+done; \
+for module in $${selected_modules}; do \
+	module_report="$${metadata_report_dir}/$${module}"; \
+	module_status="$$(awk -F '\t' '$$1 == "status" { print $$2; exit }' "$${module_report}")"; \
+	module_message="$$(awk -F '\t' '$$1 == "message" { print $$2; exit }' "$${module_report}")"; \
+	module_deps="$$(awk -F '\t' '$$1 == "deps" { print $$2; exit }' "$${module_report}")"; \
+	module_stale_group_id="$$(awk -F '\t' '$$1 == "stale-group-id" { print $$2; exit }' "$${module_report}")"; \
+	module_stale_group_modules="$$(awk -F '\t' '$$1 == "stale-group-modules" { print $$2; exit }' "$${module_report}")"; \
+	module_prefix="$${module} ("; \
+	module_details=""; \
+	module_pending=0; \
+	module_stale=0; \
+	module_untracked=0; \
+	if [ "$${module_status}" = "pending" ]; then \
+		module_pending=1; \
+	elif [ "$${module_status}" = "stale" ]; then \
+		module_stale=1; \
+	elif [ "$${module_status}" = "untracked" ]; then \
+		module_untracked=1; \
+	elif [ "$${module_status}" = "done" ]; then \
+		for dependency in $${module_deps}; do \
+			if is_stale "$${dependency}"; then \
+				module_message="$${module} (depends on module '$${dependency}')"; \
+				module_stale=1; \
+				break; \
+			elif is_untracked "$${dependency}"; then \
+				module_message="$${module} (depends on module '$${dependency}')"; \
+				module_untracked=1; \
+				break; \
+			elif is_pending "$${dependency}"; then \
+				module_message="$${module} (depends on module '$${dependency}')"; \
+				module_stale=1; \
+				break; \
 			fi; \
+		done; \
+	fi; \
+	if is_rebuilding "$${module}"; then \
+		:; \
+	elif [ "$${module_pending}" -eq 1 ]; then \
+		:; \
+	elif [ "$${module_stale}" -eq 1 ]; then \
+		if [[ "$${module_status}" = "stale" && "$${module_message}" == "$${module_prefix}"*")" ]]; then \
+			module_details="$${module_message#"$${module_prefix}"}"; \
+			module_details="$${module_details%)}"; \
+			module_message="$${module}"; \
+		fi; \
+		if [ -n "$${module_stale_group_id}" ]; then \
+			if ! is_stale_group_printed "$${module_stale_group_id}"; then \
+				visible_group_modules=""; \
+				for grouped_module in $${module_stale_group_modules}; do \
+					if ! is_rebuilding "$${grouped_module}"; then \
+						visible_group_modules="$${visible_group_modules}$${grouped_module} "; \
+					fi; \
+				done; \
+				visible_group_modules="$${visible_group_modules% }"; \
+				if [[ "$${visible_group_modules}" == *" "* ]]; then \
+					visible_group_label="$${visible_group_modules// /, }"; \
+					$(call print_warning,stale module outputs: $${visible_group_label}); \
+				elif [ -n "$${visible_group_modules}" ]; then \
+					$(call print_warning,stale module output: $${visible_group_modules}); \
+				fi; \
+				if [ -n "$${visible_group_modules}" ] && [ -n "$${module_details}" ]; then \
+					printf '%s\n' "$${module_details}" \
+						| tr ';' '\n' \
+						| sed 's/^[[:space:]]*/    - /'; \
+				fi; \
+				printed_stale_groups="$${printed_stale_groups}$${module_stale_group_id} "; \
+			fi; \
+		else \
 			$(call print_warning,stale module output: $${module_message}); \
 			if [ -n "$${module_details}" ]; then \
 				printf '%s\n' "$${module_details}" \
 					| tr ';' '\n' \
 					| sed 's/^[[:space:]]*/    - /'; \
 			fi; \
-			stale_modules="$${stale_modules}$(module) "; \
-		elif [ "$${module_untracked}" -eq 1 ]; then \
-			if ! is_running "$(module)"; then \
-				if [[ "$${module_message}" == "$(module) ("*")" ]]; then \
-					module_details="$${module_message#$(module) (}"; \
-					module_details="$${module_details%)}"; \
-					module_message="$(module)"; \
-				fi; \
-				if [ "$${module_status}" = "untracked" ]; then \
-					$(call print_warning,missing module metadata: $${module_message} (untracked output)); \
-				else \
-					$(call print_warning,untracked module output: $${module_message}); \
-				fi; \
-				if [ -n "$${module_details}" ]; then \
-					printf '%s\n' "$${module_details}" \
-						| sed 's/, /;/g' \
-						| tr ';' '\n' \
-						| sed 's/^[[:space:]]*/    - /'; \
-				fi; \
-				untracked_modules="$${untracked_modules}$(module) "; \
-			fi; \
 		fi; \
-	fi;)
+		stale_modules="$${stale_modules}$${module} "; \
+	elif [ "$${module_untracked}" -eq 1 ]; then \
+		if ! is_running "$${module}"; then \
+			if [[ "$${module_message}" == "$${module_prefix}"*")" ]]; then \
+				module_details="$${module_message#"$${module_prefix}"}"; \
+				module_details="$${module_details%)}"; \
+				module_message="$${module}"; \
+			fi; \
+			if [ "$${module_status}" = "untracked" ]; then \
+				$(call print_warning,missing module metadata: $${module_message} (untracked output)); \
+			else \
+				$(call print_warning,untracked module output: $${module_message}); \
+			fi; \
+			if [ -n "$${module_details}" ]; then \
+				printf '%s\n' "$${module_details}" \
+					| sed 's/, /;/g' \
+					| tr ';' '\n' \
+					| sed 's/^[[:space:]]*/    - /'; \
+			fi; \
+			untracked_modules="$${untracked_modules}$${module} "; \
+		fi; \
+	fi; \
+done;
 rm -f "$${metadata_manifest}"; \
 rm -rf "$${metadata_report_dir}";
 endef

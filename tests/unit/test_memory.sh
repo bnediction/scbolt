@@ -68,7 +68,18 @@ grep -q -- "--param 'MEMORY=512MiB'" <<< "${domain_dry_run}"
 make -C "${repo_root}" check TARGET=velocyto PARAMS=tests/fixtures/params.mk \
     __check_externals__=false MEMORY=512MiB JOBS=16 ALIGNMENT_TOOL=cellranger \
     > "${tmpdir}/memory-check.out"
-grep -q 'MEMORY=512MiB' "${tmpdir}/memory-check.out"
+grep -Eq 'MEMORY: 0\.5GB/[0-9]+([.][0-9]+)?GB' "${tmpdir}/memory-check.out"
+grep -Eq 'JOBS: 16/[0-9]+ CPUs' "${tmpdir}/memory-check.out"
+
+make -C "${repo_root}" check TARGET=velocyto PARAMS=tests/fixtures/params.mk \
+    __check_externals__=false MEMORY=999999GB JOBS=999999 ALIGNMENT_TOOL=cellranger \
+    > "${tmpdir}/capacity-warning.out"
+grep -Eq '⚠ MEMORY: 999999\.0GB/[0-9]+([.][0-9]+)?GB' \
+    "${tmpdir}/capacity-warning.out"
+grep -q 'configured memory exceeds total system memory' \
+    "${tmpdir}/capacity-warning.out"
+grep -Eq '⚠ JOBS: 999999/[0-9]+ CPUs' "${tmpdir}/capacity-warning.out"
+grep -q 'configured jobs exceed available CPUs' "${tmpdir}/capacity-warning.out"
 
 if make -C "${repo_root}" check TARGET=dea PARAMS=tests/fixtures/params.mk \
         __check_externals__=false MEMORY=abc > "${tmpdir}/memory-invalid.out" 2>&1; then

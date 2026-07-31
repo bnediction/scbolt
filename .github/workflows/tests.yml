@@ -25,6 +25,7 @@ jobs:
       - run: python3 tests/unit/test_inference_graph_export.py
       - run: bash tests/unit/test_memory.sh
       - run: python3 tests/unit/test_project_config.py
+      - run: python3 tests/unit/test_metadata_reporting.py
       - run: bash tests/unit/test_diagnostics.sh
 
   smoke:

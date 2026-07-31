@@ -135,6 +135,11 @@ interrupt_solver_view(view)
 assert view.interrupted
 assert view._solve_handler.cancelled
 
+view = AsyncView()
+interrupt_solver_view(view, cancel_handler=False)
+assert view.interrupted
+assert not view._solve_handler.cancelled
+
 try:
     next(iter_solutions(CapacityView()))
 except SolverCapacityError as error:

@@ -128,7 +128,7 @@ def _parameters() -> dict[str, Parameter]:
     add("bin-hvg-top", "BIN_HVG_TOP", INTEGER)
     add("bin-hvg-span", "BIN_HVG_SPAN", NUMBER)
     add("bin-hvg-bins", "BIN_HVG_BINS", INTEGER)
-    add("bin-includes-nodes", "BIN_INCLUDE_NODES", STRING_LIST)
+    add("bin-include-nodes", "BIN_INCLUDE_NODES", STRING_LIST)
 
     add("integration", "INTEGRATION")
     add("pca-dimensions", "DIM_PCA", INTEGER)
@@ -488,8 +488,9 @@ def public_key(variable: str) -> str:
     for key, parameter in PARAMETERS.items():
         prefix = parameter.variable + "_"
         if parameter.conditional and variable.startswith(prefix):
-            return f"{key}.{variable[len(prefix):].lower()}"
-    return variable.lower()
+            suffix = variable[len(prefix) :].lower().replace("_", "-")
+            return f"{key}-{suffix}"
+    return variable.lower().replace("_", "-")
 
 
 def _initializer_parameter(name: str) -> tuple[str, str, Parameter]:

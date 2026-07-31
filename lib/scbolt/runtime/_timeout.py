@@ -207,13 +207,20 @@ def _raise_solver_stop(
     raise SolverPatienceExpired from error
 
 
-def interrupt_solver_view(view: Any) -> None:
-    """Interrupt a solver view and cancel its asynchronous solve handle."""
+def interrupt_solver_view(
+    view: Any,
+    *,
+    cancel_handler: bool = True,
+) -> None:
+    """Interrupt a solver view and optionally cancel its solve handle."""
 
     try:
         view.interrupt()
     except (AttributeError, RuntimeError):
         pass
+
+    if not cancel_handler:
+        return
 
     solve_handler = getattr(view, "_solve_handler", None)
     if solve_handler is not None:

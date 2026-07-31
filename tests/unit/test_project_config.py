@@ -81,6 +81,10 @@ class ProjectConfigurationTests(unittest.TestCase):
         self.assertEqual(internal, other)
         self.assertEqual(internal["GSM_CTRL"], "GSM1")
         self.assertEqual(internal["KNNSC_CENTRALITY_CTRL"], "Prom1 Prom2")
+        self.assertEqual(
+            mapped["SCBOLT_PUBLIC_PARAMETER_KNNSC_CENTRALITY_CTRL"],
+            "knnsc-centrality-ctrl",
+        )
 
     def test_condition_file_mapping_and_flat_keys_are_equivalent(self) -> None:
         mapped = exported(
@@ -193,7 +197,7 @@ class ProjectConfigurationTests(unittest.TestCase):
 
     def test_bin_include_nodes_uses_short_public_name(self) -> None:
         settings = exported(
-            "bin-includes-nodes: [Rara, Cebpa, Spi1]\n",
+            "bin-include-nodes: [Rara, Cebpa, Spi1]\n",
         )
         self.assertEqual(settings["BIN_INCLUDE_NODES"], "Rara Cebpa Spi1")
 

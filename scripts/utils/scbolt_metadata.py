@@ -692,6 +692,37 @@ def format_parameter_value(name: str, value: str) -> str:
     return f"{value} ({format_duration(seconds)})"
 
 
+def public_parameter_name(name: str) -> str:
+    environment_name = f"SCBOLT_PUBLIC_PARAMETER_{name}"
+    return os.environ.get(environment_name) or name.lower().replace("_", "-")
+
+
+def format_node_list_change(stored_value: str, current_value: str) -> str:
+    stored_nodes = set(stored_value.split())
+    current_nodes = set(current_value.split())
+    missing = len(current_nodes - stored_nodes)
+    extra = len(stored_nodes - current_nodes)
+    changes = []
+
+    if missing:
+        noun = "node" if missing == 1 else "nodes"
+        changes.append(f"{missing} {noun} missing")
+    if extra:
+        noun = "node" if extra == 1 else "nodes"
+        changes.append(f"{extra} extra {noun}")
+
+    return ", ".join(changes) or "nodes reordered"
+
+
+def format_parameter_change(name: str, stored_value: str, current_value: str) -> str:
+    if name == "BIN_INCLUDE_NODES":
+        return format_node_list_change(stored_value, current_value)
+
+    formatted_stored_value = format_parameter_value(name, stored_value)
+    formatted_current_value = format_parameter_value(name, current_value)
+    return f"{formatted_stored_value} -> {formatted_current_value}"
+
+
 def format_change_messages(
     grouped_changes: dict[str, dict[str, dict[str, list[str]]]],
     all_labels: list[str],
@@ -699,26 +730,26 @@ def format_change_messages(
     messages = []
 
     for name, current_groups in grouped_changes.items():
+        public_name = public_parameter_name(name)
         for current_value, stored_groups in current_groups.items():
-            formatted_current_value = format_parameter_value(name, current_value)
             if len(stored_groups) == 1:
                 stored_value, labels = next(iter(stored_groups.items()))
                 label = format_labels(labels, all_labels)
-                formatted_stored_value = format_parameter_value(name, stored_value)
                 messages.append(
-                    f"{name}: {formatted_stored_value} -> "
-                    f"{formatted_current_value}{label}"
+                    f"{public_name}: "
+                    f"{format_parameter_change(name, stored_value, current_value)}"
+                    f"{label}"
                 )
                 continue
 
             stored_values = []
             for stored_value, labels in stored_groups.items():
                 label = format_labels(labels, all_labels)
-                formatted_stored_value = format_parameter_value(name, stored_value)
                 stored_values.append(
-                    f"{formatted_stored_value} -> {formatted_current_value}{label}"
+                    f"{format_parameter_change(name, stored_value, current_value)}"
+                    f"{label}"
                 )
-            messages.append(f"{name}: {', '.join(stored_values)}")
+            messages.append(f"{public_name}: {', '.join(stored_values)}")
 
     return messages
 
@@ -1274,9 +1305,39 @@ def read_progress_manifest(path: Path) -> list[ProgressRecord]:
     return records
 
 
+def add_stale_report_groups(
+    reports: list[tuple[str, dict[str, str]]],
+) -> None:
+    grouped_reports: dict[str, list[tuple[str, dict[str, str]]]] = {}
+
+    for module, fields in reports:
+        message = fields["message"]
+        prefix = f"{module} ("
+        if (
+            fields["status"] != "stale"
+            or not message.startswith(prefix)
+            or not message.endswith(")")
+        ):
+            continue
+        details = message[len(prefix) : -1]
+        if details:
+            grouped_reports.setdefault(details, []).append((module, fields))
+
+    group_index = 0
+    for members in grouped_reports.values():
+        if len(members) < 2:
+            continue
+        group_index += 1
+        group_modules = " ".join(module for module, _fields in members)
+        for _module, fields in members:
+            fields["stale-group-id"] = str(group_index)
+            fields["stale-group-modules"] = group_modules
+
+
 def print_batch_progress(args: argparse.Namespace) -> None:
     old_files = {normalize_path(Path(path)) for path in args.old_file}
     records = read_progress_manifest(Path(args.manifest))
+    reports = []
 
     for record in records:
         module = str(record["module"])
@@ -1295,6 +1356,11 @@ def print_batch_progress(args: argparse.Namespace) -> None:
             check_runtime=not args.skip_runtime,
         )
         fields["deps"] = str(record["deps"])
+        reports.append((module, fields))
+
+    add_stale_report_groups(reports)
+
+    for module, fields in reports:
         for name, value in fields.items():
             print(f"{module}\t{name}\t{value}")
 

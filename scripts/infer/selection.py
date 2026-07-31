@@ -589,7 +589,10 @@ class ActiveCandidateViews:
             if view is None:
                 return False
             self._interrupted_candidates.add(candidate_index)
-        interrupt_solver_view(view)
+        # Control.interrupt() is asynchronous-safe. Cancelling the solve
+        # handle as well from this coordinator thread races with Clingo's
+        # worker and can corrupt its native state.
+        interrupt_solver_view(view, cancel_handler=False)
         return True
 
     def interrupt_all(self) -> None:
@@ -598,7 +601,7 @@ class ActiveCandidateViews:
             self._interrupted_candidates.update(self._views)
             views = tuple(self._views.values())
         for view in views:
-            interrupt_solver_view(view)
+            interrupt_solver_view(view, cancel_handler=False)
 
     def candidate_interrupted(self, candidate_index: int) -> bool:
         with self._lock:
@@ -675,7 +678,7 @@ def solve_domain_candidate(
             unknown_reason="capacity",
         )
     if not active_views.register(candidate.index, view):
-        interrupt_solver_view(view)
+        interrupt_solver_view(view, cancel_handler=False)
         close_progress(view)
         return DomainCandidateResult(candidate, "cancelled")
 

@@ -99,7 +99,8 @@ else ifeq ($(HELP),false)
 			old\ file*) printf '%s\n' "$${file_checks}";; \
 			h5ad\ metadata*|*h5ad\ metadata*) printf '%s\n' "$${file_checks}";; \
 			file\ found*|*file*) printf '%s\n' "$${file_checks}";; \
-			conda\ environment*|command\ found:\ conda|*conda*) printf '%s\n' "$${conda_checks}";; \
+			backend:*|*environment\ manager*|container\ engine:*|container\ runtime:*|\
+				conda\ environment*|*conda*) printf '%s\n' "$${conda_checks}";; \
 			command\ found*|*command*) printf '%s\n' "$${command_checks}";; \
 			*) printf '%s\n' "$${other_checks}";; \
 		esac; \
@@ -228,6 +229,7 @@ else ifeq ($(HELP),false)
 	pending_modules=" "; \
 	stale_modules=" "; \
 	untracked_modules=" "; \
+	printed_stale_groups=" "; \
 	is_running() { \
 		case "$${running_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 	}; \
@@ -239,6 +241,9 @@ else ifeq ($(HELP),false)
 	}; \
 	is_untracked() { \
 		case "$${untracked_modules}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
+	}; \
+	is_stale_group_printed() { \
+		case "$${printed_stale_groups}" in *" $$1 "*) return 0 ;; *) return 1 ;; esac; \
 	}; \
 	$(nested_make) LOGGING=false __reset_disabled=metadata \
 		__check-metadata-manifest CHECK_METADATA_MODULES="$${selected_modules}" \
@@ -257,6 +262,8 @@ else ifeq ($(HELP),false)
 		module_message="$$(awk -F '\t' '$$1 == "message" { print $$2; exit }' "$${module_report}")"; \
 		module_details=""; \
 		module_deps="$$(awk -F '\t' '$$1 == "deps" { print $$2; exit }' "$${module_report}")"; \
+		module_stale_group_id="$$(awk -F '\t' '$$1 == "stale-group-id" { print $$2; exit }' "$${module_report}")"; \
+		module_stale_group_modules="$$(awk -F '\t' '$$1 == "stale-group-modules" { print $$2; exit }' "$${module_report}")"; \
 		module_pending=0; \
 		module_stale=0; \
 		module_untracked=0; \
@@ -294,7 +301,26 @@ else ifeq ($(HELP),false)
 					module_details="$${module_details%)}"; \
 					module_message="$${module}"; \
 				fi; \
-				check_warning_block "stale module output: $${module_message}" "$${module_details}"; \
+				if [ -n "$${module_stale_group_id}" ]; then \
+					if ! is_stale_group_printed "$${module_stale_group_id}"; then \
+						visible_group_modules=""; \
+						for grouped_module in $${module_stale_group_modules}; do \
+							if ! is_running "$${grouped_module}"; then \
+								visible_group_modules="$${visible_group_modules}$${grouped_module} "; \
+							fi; \
+						done; \
+						visible_group_modules="$${visible_group_modules% }"; \
+						if [[ "$${visible_group_modules}" == *" "* ]]; then \
+							visible_group_label="$${visible_group_modules// /, }"; \
+							check_warning_block "stale module outputs: $${visible_group_label}" "$${module_details}"; \
+						elif [ -n "$${visible_group_modules}" ]; then \
+							check_warning_block "stale module output: $${visible_group_modules}" "$${module_details}"; \
+						fi; \
+						printed_stale_groups="$${printed_stale_groups}$${module_stale_group_id} "; \
+					fi; \
+				else \
+					check_warning_block "stale module output: $${module_message}" "$${module_details}"; \
+				fi; \
 				stale_modules="$${stale_modules}$${module} "; \
 			fi; \
 		elif [ "$${module_untracked}" -eq 1 ]; then \
@@ -341,20 +367,24 @@ else ifeq ($(HELP),false)
 	fi; \
 	cp "$${target_dry_run}" "$${dry_run}"; \
 	if [ "$(unnamed_condition)" = "true" ]; then \
-		check_success "project parameter valid: CONDITIONS=unnamed"; \
+		check_success "project parameter valid: $(call parameter_name,CONDITIONS)=unnamed"; \
 	else \
 		$(call check_parameter_diagnostic,$(CONDITIONS),CONDITIONS,project); \
 	fi; \
 	$(call check_parameter_diagnostic,$(ORGANISM),ORGANISM,project); \
 	if [ -z "$(input_route_parameters)" ]; then \
-		$(call report_check_error,required input route not defined: define SRA/GSM or SRA_<CONDITION>/GSM_<CONDITION> or COUNT_FILES or MACROSTATE_FILES or BINARIZATION_FILE); \
+		$(call report_check_error,required input route not defined: define \
+			$(call parameter_name,SRA), $(call parameter_name,GSM), \
+			$(call parameter_name,COUNT_FILES), $(call parameter_name,MACROSTATE_FILES), \
+			or $(call parameter_name,BINARIZATION_FILE)); \
 	fi; \
 	if [ "$(words $(input_routes))" -gt 1 ]; then \
 		$(call report_check_error,$(input_route_conflict)); \
 	fi; \
 	if [ -n "$(COUNT_FILES)" ]; then \
 		if [ "$(words $(COUNT_FILES))" -ne "$(words $(conditions))" ]; then \
-			$(call report_check_error,COUNT_FILES must contain one file per condition \(conditions: $(display_conditions_label)\)); \
+			$(call report_check_error,$(call parameter_name,COUNT_FILES) must contain \
+				one file per condition \(conditions: $(display_conditions_label)\)); \
 		else \
 			:; \
 			$(foreach condition,$(conditions),\
@@ -364,7 +394,9 @@ else ifeq ($(HELP),false)
 	if [ -n "$(MACROSTATE_FILES)" ]; then \
 		if [ "$(words $(MACROSTATE_FILES))" -ne 1 ] \
 				&& [ "$(words $(MACROSTATE_FILES))" -ne "$(words $(conditions))" ]; then \
-			$(call report_check_error,MACROSTATE_FILES must contain either one multi-condition file or one file per condition \(conditions: $(display_conditions_label)\)); \
+			$(call report_check_error,$(call parameter_name,MACROSTATE_FILES) must contain \
+				either one multi-condition file or one file per condition \
+				\(conditions: $(display_conditions_label)\)); \
 		else \
 			:; \
 			$(foreach path,$(MACROSTATE_FILES),\
@@ -379,7 +411,7 @@ else ifeq ($(HELP),false)
 		$(call check_memory_diagnostic,$(MEMORY),MEMORY,core); \
 	fi; \
 	if grep -qE -- '--threads|--jobs|--runThreadN|--samtools-threads|--localcores' "$${dry_run}"; then \
-		$(call check_positive_integer_diagnostic,$(JOBS),JOBS,core); \
+		$(call check_jobs_diagnostic,$(JOBS),JOBS,core); \
 	fi; \
 	if grep -qE -- '--seed|PYTHONHASHSEED' "$${dry_run}"; then \
 		$(call check_positive_integer_diagnostic,$(SEED),SEED,core); \
@@ -408,16 +440,17 @@ else ifeq ($(HELP),false)
 			$(STAR_TOP_BARCODES),$(call needed_by,STAR_TOP_BARCODES,qc),method); \
 		if [ "$(STAR_BARCODE_FILTER)" = "threshold" ] && [ -z "$(STAR_MIN_UMI)" ]; then \
 			$(call report_check_error,required method parameter not defined: \
-				STAR_MIN_UMI (needed by target '$(TARGET)')); \
+				$(call parameter_name,STAR_MIN_UMI) (needed by target '$(TARGET)')); \
 		fi; \
 		if [ "$(STAR_BARCODE_FILTER)" = "top" ] && [ -z "$(STAR_TOP_BARCODES)" ]; then \
 			$(call report_check_error,required method parameter not defined: \
-				STAR_TOP_BARCODES (needed by target '$(TARGET)')); \
+				$(call parameter_name,STAR_TOP_BARCODES) (needed by target '$(TARGET)')); \
 		fi; \
 		if [ "$(STAR_BARCODE_FILTER)" = "auto" ] \
 				&& { [ -n "$(STAR_MIN_UMI)" ] || [ -n "$(STAR_TOP_BARCODES)" ]; }; then \
-			$(call report_check_error,method parameters STAR_MIN_UMI and STAR_TOP_BARCODES \
-				require STAR_BARCODE_FILTER=threshold or top); \
+			$(call report_check_error,method parameters \
+				$(call parameter_name,STAR_MIN_UMI) and $(call parameter_name,STAR_TOP_BARCODES) \
+				require $(call parameter_name,STAR_BARCODE_FILTER)=threshold or top); \
 		fi; \
 	fi; \
 	if grep -q 'ALIGNMENT_TOOL' "$${dry_run}"; then \
@@ -441,8 +474,9 @@ else ifeq ($(HELP),false)
 	if grep -q 'scripts/prep/norm.py' "$${dry_run}"; then \
 		$(call check_bool_diagnostic,$(CC_CORRECTION),$(call needed_by,CC_CORRECTION,normalization),method); \
 		if [ "$(CC_CORRECTION)" = "true" ] && [ "$(ORGANISM)" != "mouse" ]; then \
-			$(call report_check_error,method parameter CC_CORRECTION=true is only supported \
-				for ORGANISM=mouse (current: $(ORGANISM))); \
+			$(call report_check_error,method parameter \
+				$(call parameter_name,CC_CORRECTION)=true is only supported for \
+				$(call parameter_name,ORGANISM)=mouse (current: $(ORGANISM))); \
 		fi; \
 	fi; \
 	if grep -qE 'scripts/clust/(clustering|integration).py' "$${dry_run}"; then \
@@ -541,7 +575,8 @@ else ifeq ($(HELP),false)
 	if grep -q 'PRIOR_KNOWLEDGE' "$${dry_run}"; then \
 		$(call check_parameter_diagnostic,$(PRIOR_KNOWLEDGE),PRIOR_KNOWLEDGE,external resource); \
 		if [ -n "$(PRIOR_KNOWLEDGE)" ] && [ -z "$(prior_knowledge)" ]; then \
-			$(call report_check_error,unsupported value for external resource parameter PRIOR_KNOWLEDGE \
+			$(call report_check_error,unsupported value for external resource parameter \
+				$(call parameter_name,PRIOR_KNOWLEDGE) \
 				(supported values: collectri, dorothea or an existing file path)); \
 		fi; \
 	fi; \
@@ -559,13 +594,15 @@ else ifeq ($(HELP),false)
 		for level in $(DOROTHEA_LEVELS); do \
 			case "$${level}" in \
 				$(subst $(space),|,$(dorothea_levels))) ;; \
-				*) $(call report_check_error,unsupported value for method parameter DOROTHEA_LEVELS \
+				*) $(call report_check_error,unsupported value for method parameter \
+					$(call parameter_name,DOROTHEA_LEVELS) \
 					(supported values: $(subst $(space),$(comma) ,$(dorothea_levels)))); \
 					invalid_dorothea_levels=1;; \
 			esac; \
 		done; \
 		if [ -n "$(DOROTHEA_LEVELS)" ] && [ "$${invalid_dorothea_levels}" -eq 0 ]; then \
-			$(call check_success,method parameter valid: DOROTHEA_LEVELS=$(DOROTHEA_LEVELS)); \
+			$(call check_success,method parameter valid: \
+				$(call parameter_name,DOROTHEA_LEVELS)=$(DOROTHEA_LEVELS)); \
 		fi; \
 	fi; \
 	if grep -q -- '--max-clauses' "$${dry_run}"; then \
@@ -663,6 +700,12 @@ else ifeq ($(HELP),false)
 		fi; \
 	fi; \
 	if [ "$(__check_externals__)" = "true" ]; then \
+		runtime_os="$$(uname -s 2>/dev/null || printf unknown)"; \
+		if [ "$(BACKEND)" != "docker" ] && [ "$${runtime_os}" != "Linux" ]; then \
+			$(call report_check_error,backend: $(BACKEND) is not supported on $${runtime_os}; use docker); \
+		else \
+			check_success "backend: $(BACKEND)"; \
+		fi; \
 		if [ "$(BACKEND)" = "docker" ]; then \
 			if [ "$(SCBOLT_IN_DOCKER)" = "true" ]; then \
 				check_success "container runtime: $(SCBOLT_IMAGE)"; \
@@ -677,7 +720,9 @@ else ifeq ($(HELP),false)
 					fi; \
 				done; \
 			elif command -v "$(SCBOLT_CONTAINER_ENGINE)" >/dev/null 2>&1; then \
-				check_success "command found: $(SCBOLT_CONTAINER_ENGINE)"; \
+				container_version="$$( "$(SCBOLT_CONTAINER_ENGINE)" --version 2>/dev/null \
+					| $(call system_tool,head) -n 1)"; \
+				check_success "container engine: $${container_version:-$(SCBOLT_CONTAINER_ENGINE)}"; \
 				if "$(SCBOLT_CONTAINER_ENGINE)" image inspect "$(SCBOLT_IMAGE)" >/dev/null 2>&1; then \
 					check_success "container image found: $(SCBOLT_IMAGE)"; \
 					conda_envs="$$( "$(SCBOLT_CONTAINER_ENGINE)" run --rm --entrypoint micromamba "$(SCBOLT_IMAGE)" env list | awk '{print $$1}' )"; \
@@ -697,7 +742,9 @@ else ifeq ($(HELP),false)
 				$(call report_check_error,required command not found: $(SCBOLT_CONTAINER_ENGINE)); \
 			fi; \
 		elif $(conda_command) --version >/dev/null 2>&1; then \
-			check_success "command found: $(BACKEND)"; \
+			manager_version="$$( $(conda_command) --version 2>/dev/null \
+				| $(call system_tool,head) -n 1)"; \
+			check_success "environment manager: $${manager_version:-$(BACKEND)}"; \
 			conda_envs="$$( $(conda_command) env list | awk '{print $$1}')"; \
 			conda_jobs=""; \
 			conda_index=0; \
@@ -744,7 +791,7 @@ else ifeq ($(HELP),false)
 				done < "$${conda_report}"; \
 			done; \
 		else \
-			$(call report_check_error,required command not found: conda); \
+			$(call report_check_error,required environment manager not found: $(BACKEND)); \
 		fi; \
 		if grep -qE '(^|[[:space:]])cellranger count([[:space:]]|$$)' "$${dry_run}"; then \
 			$(call check_command_diagnostic,cellranger); \
