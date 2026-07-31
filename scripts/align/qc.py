@@ -122,98 +122,103 @@ UMI threshold or a fixed number of top barcodes can be used instead.
 
 script_name = Path(__file__).name
 
-parser = argparse.ArgumentParser(
-    prog="qc",
-    description=parser_description,
-    usage=(
-        f"python {script_name} [-h] <FILE> <FILE> <FILE> "
-        "[--method {auto,threshold,top}] [--min-umi INT] [--top-barcodes INT]"
-    ),
-    formatter_class=cli.HelpFormatter,
-)
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="qc",
+        description=parser_description,
+        usage=(
+            f"python {script_name} [-h] <FILE> <FILE> <FILE> "
+            "[--method {auto,threshold,top}] [--min-umi INT] [--top-barcodes INT]"
+        ),
+        formatter_class=cli.HelpFormatter,
+    )
 
-parser.add_argument(
-    "matrix",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="MatrixMarket count matrix",
-)
+    parser.add_argument(
+        "matrix",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="MatrixMarket count matrix",
+    )
 
-parser.add_argument(
-    "barcodes",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="barcode file matching matrix columns",
-)
+    parser.add_argument(
+        "barcodes",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="barcode file matching matrix columns",
+    )
 
-parser.add_argument(
-    "outfile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="filtered barcode output file",
-)
+    parser.add_argument(
+        "outfile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="filtered barcode output file",
+    )
 
-parser.add_argument(
-    "--method",
-    choices=["auto", "threshold", "top"],
-    default="auto",
-    help="barcode filtering method (default: auto)",
-)
+    parser.add_argument(
+        "--method",
+        choices=["auto", "threshold", "top"],
+        default="auto",
+        help="barcode filtering method (default: auto)",
+    )
 
-parser.add_argument(
-    "--min-umi",
-    type=int,
-    default=None,
-    metavar="INT",
-    help="minimum UMI count per barcode",
-)
+    parser.add_argument(
+        "--min-umi",
+        type=int,
+        default=None,
+        metavar="INT",
+        help="minimum UMI count per barcode",
+    )
 
-parser.add_argument(
-    "--top-barcodes",
-    type=int,
-    default=None,
-    metavar="INT",
-    help="number of top barcodes to keep",
-)
+    parser.add_argument(
+        "--top-barcodes",
+        type=int,
+        default=None,
+        metavar="INT",
+        help="number of top barcodes to keep",
+    )
 
-args = parser.parse_args()
+    args = parser.parse_args()
 
-if args.min_umi is not None and args.min_umi <= 0:
-    parser.error("--min-umi must be a positive integer")
+    if args.min_umi is not None and args.min_umi <= 0:
+        parser.error("--min-umi must be a positive integer")
 
-if args.top_barcodes is not None and args.top_barcodes <= 0:
-    parser.error("--top-barcodes must be a positive integer")
+    if args.top_barcodes is not None and args.top_barcodes <= 0:
+        parser.error("--top-barcodes must be a positive integer")
 
-if args.method == "auto" and args.min_umi is not None:
-    parser.error("--min-umi requires --method threshold")
+    if args.method == "auto" and args.min_umi is not None:
+        parser.error("--min-umi requires --method threshold")
 
-if args.method == "auto" and args.top_barcodes is not None:
-    parser.error("--top-barcodes requires --method top")
+    if args.method == "auto" and args.top_barcodes is not None:
+        parser.error("--top-barcodes requires --method top")
 
-if args.outfile.parent:
-    os.makedirs(args.outfile.parent, exist_ok=True)
+    if args.outfile.parent:
+        os.makedirs(args.outfile.parent, exist_ok=True)
 
-console.print_task(f"loading count matrix (file={console.format_path(args.matrix)})")
-counts = barcode_umi_counts(args.matrix)
+    console.print_task(f"loading count matrix (file={console.format_path(args.matrix)})")
+    counts = barcode_umi_counts(args.matrix)
 
-console.print_task("selecting cell barcodes")
-console.print_info(selection_summary(args.method, args.min_umi, args.top_barcodes))
-indices = selected_indices(
-    counts=counts,
-    method=args.method,
-    min_umi=args.min_umi,
-    top_barcodes=args.top_barcodes,
-)
+    console.print_task("selecting cell barcodes")
+    console.print_info(selection_summary(args.method, args.min_umi, args.top_barcodes))
+    indices = selected_indices(
+        counts=counts,
+        method=args.method,
+        min_umi=args.min_umi,
+        top_barcodes=args.top_barcodes,
+    )
 
-if len(indices) == 0:
-    raise ValueError("barcode filtering selected no cells")
+    if len(indices) == 0:
+        raise ValueError("barcode filtering selected no cells")
 
-threshold = int(counts[indices].min())
-total_positive = int(np.count_nonzero(counts))
-console.print_result(
-    f"selected {len(indices)}/{total_positive} expressed barcodes "
-    f"(minimum UMI count: {threshold})"
-)
+    threshold = int(counts[indices].min())
+    total_positive = int(np.count_nonzero(counts))
+    console.print_result(
+        f"selected {len(indices)}/{total_positive} expressed barcodes "
+        f"(minimum UMI count: {threshold})"
+    )
 
-console.print_task(f"saving barcodes (file={console.format_path(args.outfile)})")
-write_barcodes(args.barcodes, args.outfile, indices)
+    console.print_task(f"saving barcodes (file={console.format_path(args.outfile)})")
+    write_barcodes(args.barcodes, args.outfile, indices)
+
+
+if __name__ == "__main__":
+    main()

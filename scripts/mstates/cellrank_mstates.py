@@ -16,323 +16,328 @@ from scbolt import cli, console, omics
 omics.set_default_plot_params(bt.omics.pl)
 script_name = Path(__file__).name
 
-parser = argparse.ArgumentParser(
-    prog="cellrank",
-    description=(
-        "Estimate macrostates using Generalized Perron Cluster Cluster Analysis "
-        "(GPCCA) w.r.t. velocity, potency and similarity-based kernels.\n"
-        "See Lange et al. (2022) <https://www.nature.com/articles/s41592-021-01346-6>."
-    ),
-    usage=f"python {script_name} <FILE> <FILE> [--csv <FILE>] [<args>]",
-    formatter_class=cli.HelpFormatter,
-)
-
-parser.add_argument(
-    "infile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="input file storing counts and RNA velocities (format: h5ad)",
-)
-
-parser.add_argument(
-    "outfile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="output file storing CellRank macrostates (format: h5ad)",
-)
-
-parser.add_argument(
-    "--csv",
-    dest="csv",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    default=None,
-    metavar="FILE",
-    help="output file storing macrostates (format: csv)",
-)
-
-parser.add_argument(
-    "--obs",
-    dest="obs",
-    type=str,
-    required=False,
-    default=None,
-    metavar="LITERAL",
-    help="column name in adata.obs distinguishing clusters",
-)
-
-parser.add_argument(
-    "--cytotrace-score",
-    dest="cytotrace_score",
-    type=str,
-    required=False,
-    default=None,
-    metavar="LITERAL",
-    help=(
-        "column name in adata.obs storing CytoTRACE cell potency scores (default: "
-        "None)"
-    ),
-)
-
-parser.add_argument(
-    "--scvelo-first-moment",
-    dest="scvelo_first_moment",
-    type=str,
-    required=False,
-    default="Ms",
-    metavar="LITERAL",
-    help=(
-        "layer in adata.layers storing first order moments of spliced counts "
-        "(default: 'Ms')"
-    ),
-)
-
-parser.add_argument(
-    "--scvelo-velocity",
-    dest="scvelo_velocity",
-    type=str,
-    required=False,
-    default="velocity",
-    metavar="LITERAL",
-    help="layer in adata.layers storing scVelo velocities (default: 'velocity')",
-)
-
-parser.add_argument(
-    "--method",
-    dest="method",
-    type=str,
-    required=False,
-    default="stability",
-    choices=["stability", "top_n", "eigengap", "eigengap_coarse"],
-    metavar="[stability | top_n | eigengap | eigengap_coarse]",
-    help="method used to select terminal states (default: stability)",
-)
-
-parser.add_argument(
-    "--states",
-    dest="states",
-    type=int,
-    required=False,
-    default=10,
-    metavar="INT",
-    help="number of states (default: 10)",
-)
-
-parser.add_argument(
-    "--initial-states",
-    dest="initial_states",
-    type=int,
-    required=False,
-    default=1,
-    metavar="INT",
-    help="number of initial states (default: 1)",
-)
-
-parser.add_argument(
-    "--terminal-states",
-    dest="terminal_states",
-    type=int,
-    required=False,
-    default=None,
-    metavar="INT",
-    help=(
-        "number of terminal states (used when --method value is 'top_n', default: "
-        "None)"
-    ),
-)
-
-parser.add_argument(
-    "--stability",
-    dest="stability",
-    type=float,
-    required=False,
-    default=0.96,
-    metavar="FLOAT",
-    help=(
-        "minimum stability for a state to be selected as a final macrostate (used "
-        "when --method value is 'stability', default: 0.96)"
-    ),
-)
-
-parser.add_argument(
-    "--alpha",
-    dest="alpha",
-    type=float,
-    required=False,
-    default=1,
-    metavar="FLOAT",
-    help=(
-        "weight given to the deviation of an eigenvalue from one (only used when "
-        "--method value is 'eigengap' or 'eigengap_coarse', default: 1)"
-    ),
-)
-
-parser.add_argument(
-    "--size",
-    dest="size",
-    type=int,
-    required=False,
-    default=50,
-    metavar="INT",
-    help="number of cells in each macrostate (default: 50)",
-)
-
-parser.add_argument(
-    "--seed",
-    dest="seed",
-    type=float,
-    required=False,
-    default=random.random(),
-    metavar="FLOAT",
-    help="random seed (default: random)",
-)
-
-parser.add_argument(
-    "--jobs",
-    dest="jobs",
-    type=int,
-    required=False,
-    default=1,
-    metavar="INT",
-    help="number of allocated processors (default: 1)",
-)
-
-args = parser.parse_args()
-
-if not Path(os.path.dirname(args.outfile)).exists():
-    os.makedirs(Path(os.path.dirname(args.outfile)))
-
-console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
-adata = ad.read_h5ad(args.infile)
-
-console.print_task("computing kernels")
-
-console.print_info("computing RNA velocity-based kernel")
-velocity_kernel = cr.kernels.VelocityKernel(
-    adata, xkey=args.scvelo_first_moment, vkey=args.scvelo_velocity
-)
-velocity_kernel.compute_transition_matrix(seed=args.seed)
-
-if args.cytotrace_score:
-    console.print_info("computing cell development potential-based kernel")
-    potency_kernel = cr.kernels.CytoTRACEKernel(adata)
-    scores = adata.obs[args.cytotrace_score].copy()
-    scores -= scores.min()
-    scores /= scores.max()
-    potency_kernel._pseudotime = 1 - scores
-    potency_kernel.compute_transition_matrix(n_jobs=args.jobs)
-else:
-    console.print_warning(
-        "cell development potential-based kernel is not computed: please specify argument --cytotrace-score"
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="cellrank",
+        description=(
+            "Estimate macrostates using Generalized Perron Cluster Cluster Analysis "
+            "(GPCCA) w.r.t. velocity, potency and similarity-based kernels.\n"
+            "See Lange et al. (2022) <https://www.nature.com/articles/s41592-021-01346-6>."
+        ),
+        usage=f"python {script_name} <FILE> <FILE> [--csv <FILE>] [<args>]",
+        formatter_class=cli.HelpFormatter,
     )
 
-console.print_info("computing similarity-based kernel")
-connectivity_kernel = cr.kernels.ConnectivityKernel(adata)
-connectivity_kernel.compute_transition_matrix()
-
-console.print_info("combining kernels")
-if args.cytotrace_score:
-    combined_kernel = (
-        0.4 * velocity_kernel + 0.4 * potency_kernel + 0.2 * connectivity_kernel
+    parser.add_argument(
+        "infile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="input file storing counts and RNA velocities (format: h5ad)",
     )
-else:
-    combined_kernel = 0.8 * velocity_kernel + 0.2 * connectivity_kernel
 
-console.print_task(
-    "estimating macrostates (method=generalized perron cluster cluster analysis, abbreviation=GPCCA)"
-)
-gpcca = cr.estimators.GPCCA(combined_kernel)
+    parser.add_argument(
+        "outfile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="output file storing CellRank macrostates (format: h5ad)",
+    )
 
-with console.suppress_output():
-    gpcca.fit(cluster_key=args.obs, n_states=args.states, n_cells=args.size)
+    parser.add_argument(
+        "--csv",
+        dest="csv",
+        type=lambda x: Path(x).resolve(),
+        required=False,
+        default=None,
+        metavar="FILE",
+        help="output file storing macrostates (format: csv)",
+    )
 
-try:
-    gpcca.predict_initial_states(n_states=args.initial_states, n_cells=args.size)
-    found_initial_states = True
-except ValueError as e:
-    if str(e) == "No macrostates have been selected.":
-        found_initial_states = False
-        console.print_warning("no initial states have been predicted")
+    parser.add_argument(
+        "--obs",
+        dest="obs",
+        type=str,
+        required=False,
+        default=None,
+        metavar="LITERAL",
+        help="column name in adata.obs distinguishing clusters",
+    )
+
+    parser.add_argument(
+        "--cytotrace-score",
+        dest="cytotrace_score",
+        type=str,
+        required=False,
+        default=None,
+        metavar="LITERAL",
+        help=(
+            "column name in adata.obs storing CytoTRACE cell potency scores (default: "
+            "None)"
+        ),
+    )
+
+    parser.add_argument(
+        "--scvelo-first-moment",
+        dest="scvelo_first_moment",
+        type=str,
+        required=False,
+        default="Ms",
+        metavar="LITERAL",
+        help=(
+            "layer in adata.layers storing first order moments of spliced counts "
+            "(default: 'Ms')"
+        ),
+    )
+
+    parser.add_argument(
+        "--scvelo-velocity",
+        dest="scvelo_velocity",
+        type=str,
+        required=False,
+        default="velocity",
+        metavar="LITERAL",
+        help="layer in adata.layers storing scVelo velocities (default: 'velocity')",
+    )
+
+    parser.add_argument(
+        "--method",
+        dest="method",
+        type=str,
+        required=False,
+        default="stability",
+        choices=["stability", "top_n", "eigengap", "eigengap_coarse"],
+        metavar="[stability | top_n | eigengap | eigengap_coarse]",
+        help="method used to select terminal states (default: stability)",
+    )
+
+    parser.add_argument(
+        "--states",
+        dest="states",
+        type=int,
+        required=False,
+        default=10,
+        metavar="INT",
+        help="number of states (default: 10)",
+    )
+
+    parser.add_argument(
+        "--initial-states",
+        dest="initial_states",
+        type=int,
+        required=False,
+        default=1,
+        metavar="INT",
+        help="number of initial states (default: 1)",
+    )
+
+    parser.add_argument(
+        "--terminal-states",
+        dest="terminal_states",
+        type=int,
+        required=False,
+        default=None,
+        metavar="INT",
+        help=(
+            "number of terminal states (used when --method value is 'top_n', default: "
+            "None)"
+        ),
+    )
+
+    parser.add_argument(
+        "--stability",
+        dest="stability",
+        type=float,
+        required=False,
+        default=0.96,
+        metavar="FLOAT",
+        help=(
+            "minimum stability for a state to be selected as a final macrostate (used "
+            "when --method value is 'stability', default: 0.96)"
+        ),
+    )
+
+    parser.add_argument(
+        "--alpha",
+        dest="alpha",
+        type=float,
+        required=False,
+        default=1,
+        metavar="FLOAT",
+        help=(
+            "weight given to the deviation of an eigenvalue from one (only used when "
+            "--method value is 'eigengap' or 'eigengap_coarse', default: 1)"
+        ),
+    )
+
+    parser.add_argument(
+        "--size",
+        dest="size",
+        type=int,
+        required=False,
+        default=50,
+        metavar="INT",
+        help="number of cells in each macrostate (default: 50)",
+    )
+
+    parser.add_argument(
+        "--seed",
+        dest="seed",
+        type=float,
+        required=False,
+        default=random.random(),
+        metavar="FLOAT",
+        help="random seed (default: random)",
+    )
+
+    parser.add_argument(
+        "--jobs",
+        dest="jobs",
+        type=int,
+        required=False,
+        default=1,
+        metavar="INT",
+        help="number of allocated processors (default: 1)",
+    )
+
+    args = parser.parse_args()
+
+    if not Path(os.path.dirname(args.outfile)).exists():
+        os.makedirs(Path(os.path.dirname(args.outfile)))
+
+    console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
+    adata = ad.read_h5ad(args.infile)
+
+    console.print_task("computing kernels")
+
+    console.print_info("computing RNA velocity-based kernel")
+    velocity_kernel = cr.kernels.VelocityKernel(
+        adata, xkey=args.scvelo_first_moment, vkey=args.scvelo_velocity
+    )
+    velocity_kernel.compute_transition_matrix(seed=args.seed)
+
+    if args.cytotrace_score:
+        console.print_info("computing cell development potential-based kernel")
+        potency_kernel = cr.kernels.CytoTRACEKernel(adata)
+        scores = adata.obs[args.cytotrace_score].copy()
+        scores -= scores.min()
+        scores /= scores.max()
+        potency_kernel._pseudotime = 1 - scores
+        potency_kernel.compute_transition_matrix(n_jobs=args.jobs)
     else:
-        raise
+        console.print_warning(
+            "cell development potential-based kernel is not computed: please specify argument --cytotrace-score"
+        )
 
-try:
-    gpcca.predict_terminal_states(
-        method=args.method,
-        n_states=args.terminal_states,
-        stability_threshold=args.stability,
-        alpha=args.alpha,
-        n_cells=args.size,
-        allow_overlap=True,
-    )
-    found_final_states = True
-except ValueError as e:
-    if str(e) == "No macrostates have been selected.":
-        found_final_states = False
-        console.print_warning("no final states have been predicted")
-    else:
-        raise
+    console.print_info("computing similarity-based kernel")
+    connectivity_kernel = cr.kernels.ConnectivityKernel(adata)
+    connectivity_kernel.compute_transition_matrix()
 
-adata.obs["macrostate"] = adata.obs["macrostates_fwd"]
-del adata.obs["macrostates_fwd"]
-
-if found_initial_states is True:
-    adata.obs["init_states"] = adata.obs["init_states_fwd"]
-    del adata.obs["init_states_fwd"]
-else:
-    adata.obs["initial_states"] = np.nan
-    adata.obs["initial_states"] = adata.obs["initial_states"].astype("category")
-
-if found_final_states is True:
-    adata.obs["final_states"] = adata.obs["term_states_fwd"]
-    del adata.obs["term_states_fwd"]
-else:
-    adata.obs["final_states"] = np.nan
-    adata.obs["final_states"] = adata.obs["final_states"].astype("category")
-
-cellrank_plot_dir = Path(os.path.dirname(args.outfile))
-console.print_task(
-    f"plotting CellRank outputs (directory={os.path.relpath(cellrank_plot_dir)})"
-)
-macrostate_files = {
-    "macrostate": cellrank_plot_dir / "macrostates.pdf",
-    "init_states": cellrank_plot_dir / "initial_states.pdf",
-    "final_states": cellrank_plot_dir / "final_states.pdf",
-}
-
-for obs, file in macrostate_files.items():
-    if len(adata.obs[obs].cat.categories) > 0:
-        bt.omics.pl.embedding(
-            adata,
-            obs=obs,
-            representation="X_umap",
-            figheight=6,
-            figwidth=8,
-            xlabel=omics.axis_label("UMAP", 1),
-            ylabel=omics.axis_label("UMAP", 2),
-            zlabel=omics.axis_label("UMAP", 3),
-            s=4,
-            labels={"fontsize": 15, "fontweight": "extra bold"},
-            legend={
-                "title": obs,
-                "ncol": math.ceil(
-                    len(adata.obs[obs].astype("category").cat.categories) / 16
-                ),
-                "markerscale": 5,
-                "frameon": True,
-                "edgecolor": bt.omics.pl.get_color("black"),
-                "shadow": False,
-            },
-            n_components=3 if adata.obsm["X_umap"].shape[1] > 2 else 2,
-            background_visible=False,
-            outfile=file,
+    console.print_info("combining kernels")
+    if args.cytotrace_score:
+        combined_kernel = (
+            0.4 * velocity_kernel + 0.4 * potency_kernel + 0.2 * connectivity_kernel
         )
     else:
-        console.print_warning(f"no plotting for '{obs}': no state found")
+        combined_kernel = 0.8 * velocity_kernel + 0.2 * connectivity_kernel
 
-console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
-omics.write_h5ad(adata, filename=args.outfile, compression="gzip")
+    console.print_task(
+        "estimating macrostates (method=generalized perron cluster cluster analysis, abbreviation=GPCCA)"
+    )
+    gpcca = cr.estimators.GPCCA(combined_kernel)
 
-if args.csv:
-    console.print_task(f"saving CellRank macrostates (file={console.format_path(args.csv)})")
-    adata.obs["macrostate"].to_csv(args.csv, sep=",", index=True)
+    with console.suppress_output():
+        gpcca.fit(cluster_key=args.obs, n_states=args.states, n_cells=args.size)
+
+    try:
+        gpcca.predict_initial_states(n_states=args.initial_states, n_cells=args.size)
+        found_initial_states = True
+    except ValueError as e:
+        if str(e) == "No macrostates have been selected.":
+            found_initial_states = False
+            console.print_warning("no initial states have been predicted")
+        else:
+            raise
+
+    try:
+        gpcca.predict_terminal_states(
+            method=args.method,
+            n_states=args.terminal_states,
+            stability_threshold=args.stability,
+            alpha=args.alpha,
+            n_cells=args.size,
+            allow_overlap=True,
+        )
+        found_final_states = True
+    except ValueError as e:
+        if str(e) == "No macrostates have been selected.":
+            found_final_states = False
+            console.print_warning("no final states have been predicted")
+        else:
+            raise
+
+    adata.obs["macrostate"] = adata.obs["macrostates_fwd"]
+    del adata.obs["macrostates_fwd"]
+
+    if found_initial_states is True:
+        adata.obs["init_states"] = adata.obs["init_states_fwd"]
+        del adata.obs["init_states_fwd"]
+    else:
+        adata.obs["initial_states"] = np.nan
+        adata.obs["initial_states"] = adata.obs["initial_states"].astype("category")
+
+    if found_final_states is True:
+        adata.obs["final_states"] = adata.obs["term_states_fwd"]
+        del adata.obs["term_states_fwd"]
+    else:
+        adata.obs["final_states"] = np.nan
+        adata.obs["final_states"] = adata.obs["final_states"].astype("category")
+
+    cellrank_plot_dir = Path(os.path.dirname(args.outfile))
+    console.print_task(
+        f"plotting CellRank outputs (directory={os.path.relpath(cellrank_plot_dir)})"
+    )
+    macrostate_files = {
+        "macrostate": cellrank_plot_dir / "macrostates.pdf",
+        "init_states": cellrank_plot_dir / "initial_states.pdf",
+        "final_states": cellrank_plot_dir / "final_states.pdf",
+    }
+
+    for obs, file in macrostate_files.items():
+        if len(adata.obs[obs].cat.categories) > 0:
+            bt.omics.pl.embedding(
+                adata,
+                obs=obs,
+                representation="X_umap",
+                figheight=6,
+                figwidth=8,
+                xlabel=omics.axis_label("UMAP", 1),
+                ylabel=omics.axis_label("UMAP", 2),
+                zlabel=omics.axis_label("UMAP", 3),
+                s=4,
+                labels={"fontsize": 15, "fontweight": "extra bold"},
+                legend={
+                    "title": obs,
+                    "ncol": math.ceil(
+                        len(adata.obs[obs].astype("category").cat.categories) / 16
+                    ),
+                    "markerscale": 5,
+                    "frameon": True,
+                    "edgecolor": bt.omics.pl.get_color("black"),
+                    "shadow": False,
+                },
+                n_components=3 if adata.obsm["X_umap"].shape[1] > 2 else 2,
+                background_visible=False,
+                outfile=file,
+            )
+        else:
+            console.print_warning(f"no plotting for '{obs}': no state found")
+
+    console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
+    omics.write_h5ad(adata, filename=args.outfile, compression="gzip")
+
+    if args.csv:
+        console.print_task(f"saving CellRank macrostates (file={console.format_path(args.csv)})")
+        adata.obs["macrostate"].to_csv(args.csv, sep=",", index=True)
+
+
+if __name__ == "__main__":
+    main()

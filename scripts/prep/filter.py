@@ -116,408 +116,413 @@ def plot_qc_violins(adata, outfile):
     plt.close(fig)
 
 
-parser = argparse.ArgumentParser(
-    prog="filter",
-    description=(
-        "Calculate metrics (proportions of genes encoding mitochondrial and "
-        "ribosomal proteins, quality control metrics), assign cells to a cell "
-        "cycle phase and filter low-quality genes and cells."
-    ),
-    usage=f"python {script_name} <FILE> <FILE> [--marker <FILE>] [<args>]",
-    formatter_class=cli.HelpFormatter,
-)
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="filter",
+        description=(
+            "Calculate metrics (proportions of genes encoding mitochondrial and "
+            "ribosomal proteins, quality control metrics), assign cells to a cell "
+            "cycle phase and filter low-quality genes and cells."
+        ),
+        usage=f"python {script_name} <FILE> <FILE> [--marker <FILE>] [<args>]",
+        formatter_class=cli.HelpFormatter,
+    )
 
-parser.add_argument(
-    dest="infile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="input file storing counts (format: h5ad)",
-)
+    parser.add_argument(
+        dest="infile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="input file storing counts (format: h5ad)",
+    )
 
-parser.add_argument(
-    dest="outfile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="output file storing filtered counts (format: h5ad)",
-)
+    parser.add_argument(
+        dest="outfile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="output file storing filtered counts (format: h5ad)",
+    )
 
-parser.add_argument(
-    "--expression",
-    dest="expression",
-    type=str,
-    required=True,
-    metavar="LITERAL",
-    help="Expression layer containing raw counts. Required.",
-)
+    parser.add_argument(
+        "--expression",
+        dest="expression",
+        type=str,
+        required=True,
+        metavar="LITERAL",
+        help="Expression layer containing raw counts. Required.",
+    )
 
-parser.add_argument(
-    "--marker",
-    dest="marker_infile",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    default=None,
-    metavar="FILE",
-    help="input file storing cell cycle phase markers (rds format)",
-)
+    parser.add_argument(
+        "--marker",
+        dest="marker_infile",
+        type=lambda x: Path(x).resolve(),
+        required=False,
+        default=None,
+        metavar="FILE",
+        help="input file storing cell cycle phase markers (rds format)",
+    )
 
-parser.add_argument(
-    "--gene-dropout",
-    dest="gene_dropout",
-    action=cli.Range,
-    type=float,
-    min=0,
-    max=1,
-    required=False,
-    default=1,
-    help=(
-        "maximum percentage of cell dropout required for a gene to pass filtering "
-        "(default: 1)"
-    ),
-)
+    parser.add_argument(
+        "--gene-dropout",
+        dest="gene_dropout",
+        action=cli.Range,
+        type=float,
+        min=0,
+        max=1,
+        required=False,
+        default=1,
+        help=(
+            "maximum percentage of cell dropout required for a gene to pass filtering "
+            "(default: 1)"
+        ),
+    )
 
-parser.add_argument(
-    "--gene-expression",
-    dest="gene_expression",
-    action=cli.Min_and_max,
-    type=int,
-    min=0,
-    max=math.inf,
-    required=False,
-    default=[0, math.inf],
-    help=(
-        "minimum and maximum number of expressed cells required for a gene to pass "
-        "filtering (default: [0, inf])"
-    ),
-)
+    parser.add_argument(
+        "--gene-expression",
+        dest="gene_expression",
+        action=cli.Min_and_max,
+        type=int,
+        min=0,
+        max=math.inf,
+        required=False,
+        default=[0, math.inf],
+        help=(
+            "minimum and maximum number of expressed cells required for a gene to pass "
+            "filtering (default: [0, inf])"
+        ),
+    )
 
-parser.add_argument(
-    "--gene-counts",
-    dest="gene_counts",
-    action=cli.Min_and_max,
-    type=int,
-    min=0,
-    max=math.inf,
-    required=False,
-    default=[0, math.inf],
-    help=(
-        "minimum and maximum number of counts required for a gene to pass filtering "
-        "(default: [0, inf])"
-    ),
-)
+    parser.add_argument(
+        "--gene-counts",
+        dest="gene_counts",
+        action=cli.Min_and_max,
+        type=int,
+        min=0,
+        max=math.inf,
+        required=False,
+        default=[0, math.inf],
+        help=(
+            "minimum and maximum number of counts required for a gene to pass filtering "
+            "(default: [0, inf])"
+        ),
+    )
 
-parser.add_argument(
-    "--cell-dropout",
-    dest="cell_dropout",
-    action=cli.Range,
-    type=float,
-    min=0,
-    max=1,
-    required=False,
-    default=1,
-    help=(
-        "maximum percentage of gene dropout required for a cell to pass filtering "
-        "(default: 1)"
-    ),
-)
+    parser.add_argument(
+        "--cell-dropout",
+        dest="cell_dropout",
+        action=cli.Range,
+        type=float,
+        min=0,
+        max=1,
+        required=False,
+        default=1,
+        help=(
+            "maximum percentage of gene dropout required for a cell to pass filtering "
+            "(default: 1)"
+        ),
+    )
 
-parser.add_argument(
-    "--cell-expression",
-    dest="cell_expression",
-    action=cli.Min_and_max,
-    type=int,
-    min=0,
-    max=math.inf,
-    required=False,
-    default=[0, math.inf],
-    help=(
-        "minimum and maximum number of expressed genes required for a cell to pass "
-        "filtering (default: [0, inf])"
-    ),
-)
+    parser.add_argument(
+        "--cell-expression",
+        dest="cell_expression",
+        action=cli.Min_and_max,
+        type=int,
+        min=0,
+        max=math.inf,
+        required=False,
+        default=[0, math.inf],
+        help=(
+            "minimum and maximum number of expressed genes required for a cell to pass "
+            "filtering (default: [0, inf])"
+        ),
+    )
 
-parser.add_argument(
-    "--cell-reads",
-    dest="cell_reads",
-    action=cli.Min_and_max,
-    type=int,
-    min=0,
-    max=math.inf,
-    required=False,
-    default=[0, math.inf],
-    help=(
-        "minimum and maximum number of reads required for a cell to pass filtering "
-        "(default: [0, inf])"
-    ),
-)
+    parser.add_argument(
+        "--cell-reads",
+        dest="cell_reads",
+        action=cli.Min_and_max,
+        type=int,
+        min=0,
+        max=math.inf,
+        required=False,
+        default=[0, math.inf],
+        help=(
+            "minimum and maximum number of reads required for a cell to pass filtering "
+            "(default: [0, inf])"
+        ),
+    )
 
-parser.add_argument(
-    "--mad-deviation",
-    dest="mad_deviation",
-    type=float,
-    nargs=2,
-    required=False,
-    default=[math.inf, math.inf],
-    metavar="FLOAT",
-    help=(
-        "MAD factors used to drop cells with total reads below or above median +/- "
-        "factor*MAD (default: [inf, inf])"
-    ),
-)
+    parser.add_argument(
+        "--mad-deviation",
+        dest="mad_deviation",
+        type=float,
+        nargs=2,
+        required=False,
+        default=[math.inf, math.inf],
+        metavar="FLOAT",
+        help=(
+            "MAD factors used to drop cells with total reads below or above median +/- "
+            "factor*MAD (default: [inf, inf])"
+        ),
+    )
 
-parser.add_argument(
-    "--consistent-mad",
-    dest="consistent_mad",
-    action="store_true",
-    required=False,
-    help="use normalized median absolute deviation",
-)
+    parser.add_argument(
+        "--consistent-mad",
+        dest="consistent_mad",
+        action="store_true",
+        required=False,
+        help="use normalized median absolute deviation",
+    )
 
-parser.add_argument(
-    "--mt",
-    dest="mt",
-    action=cli.Range,
-    type=float,
-    min=0,
-    max=1,
-    required=False,
-    default=1,
-    help=(
-        "maximum proportion of mitochondrial gene expression required for a cell to "
-        "pass filtering (default: 1)"
-    ),
-)
+    parser.add_argument(
+        "--mt",
+        dest="mt",
+        action=cli.Range,
+        type=float,
+        min=0,
+        max=1,
+        required=False,
+        default=1,
+        help=(
+            "maximum proportion of mitochondrial gene expression required for a cell to "
+            "pass filtering (default: 1)"
+        ),
+    )
 
-parser.add_argument(
-    "--organism",
-    dest="organism",
-    action=cli.Store_organism,
-    default="mouse",
-    required=False,
-    help="gene-related organism (default: mouse)",
-)
+    parser.add_argument(
+        "--organism",
+        dest="organism",
+        action=cli.Store_organism,
+        default="mouse",
+        required=False,
+        help="gene-related organism (default: mouse)",
+    )
 
-parser.add_argument(
-    "--geneinfo-version",
-    dest="geneinfo_version",
-    action=cli.Store_version,
-    allow_current=False,
-    allow_bundled=True,
-    allow_date=False,
-    allow_path=True,
-    required=False,
-    default="bundled",
-    help="NCBI gene_info source used for gene name standardization (default: bundled)",
-)
+    parser.add_argument(
+        "--geneinfo-version",
+        dest="geneinfo_version",
+        action=cli.Store_version,
+        allow_current=False,
+        allow_bundled=True,
+        allow_date=False,
+        allow_path=True,
+        required=False,
+        default="bundled",
+        help="NCBI gene_info source used for gene name standardization (default: bundled)",
+    )
 
-args = parser.parse_args()
+    args = parser.parse_args()
 
-if any(v < 0 for v in args.mad_deviation):
-    raise ValueError(f"expected positive values, but received {args.mad_deviation}")
+    if any(v < 0 for v in args.mad_deviation):
+        raise ValueError(f"expected positive values, but received {args.mad_deviation}")
 
-outpath = Path(os.path.dirname(args.outfile))
-if not outpath.exists():
-    os.makedirs(outpath)
+    outpath = Path(os.path.dirname(args.outfile))
+    if not outpath.exists():
+        os.makedirs(outpath)
 
-console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
+    console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
 
-adata = ad.read_h5ad(Path(f"{args.infile}").resolve())
-adata.X = None
-identifiers = bt.resources.ncbi.identifiers(
-    organism=args.organism,
-    version=args.geneinfo_version,
-)
+    adata = ad.read_h5ad(Path(f"{args.infile}").resolve())
+    adata.X = None
+    identifiers = bt.resources.ncbi.identifiers(
+        organism=args.organism,
+        version=args.geneinfo_version,
+    )
 
-console.print_info("standardizing gene names")
-adata.var["symbol"] = list(adata.var.index)
-for input_type in ["name", "gene_id", "ensembl_id"]:
-    bt.omics.pp.convert_gene_identifiers(
+    console.print_info("standardizing gene names")
+    adata.var["symbol"] = list(adata.var.index)
+    for input_type in ["name", "gene_id", "ensembl_id"]:
+        bt.omics.pp.convert_gene_identifiers(
+            adata,
+            axis="var",
+            input_type=input_type,
+            identifiers=identifiers,
+            copy=False,
+        )
+    bt.omics.pp.merge_duplicate_vars(
         adata,
-        axis="var",
-        input_type=input_type,
-        identifiers=identifiers,
         copy=False,
     )
-bt.omics.pp.merge_duplicate_vars(
-    adata,
-    copy=False,
-)
 
-adata.var_names_make_unique()
-bt.omics.pp.sort(adata, on="both", copy=False)
+    adata.var_names_make_unique()
+    bt.omics.pp.sort(adata, on="both", copy=False)
 
-shape = {"init": adata.shape}
+    shape = {"init": adata.shape}
 
-console.print_task("detecting mitochondrial genes")
-bt.omics.pp.mitochondrial_genes(
-    adata,
-    index_type="name",
-    key="mt",
-    axis="var",
-    copy=False,
-    identifiers=identifiers,
-)
-
-console.print_task("detecting ribosomal genes")
-bt.omics.pp.ribosomal_genes(
-    adata,
-    index_type="name",
-    key="rps",
-    axis="var",
-    copy=False,
-    identifiers=identifiers,
-)
-
-if args.marker_infile is None:
-    console.print_warning("cannot classify cell cycle phases: marker file not specified")
-else:
-    console.print_task("classifying cells by cell-cycle phase")
-    console.print_info(
-        f"loading cell-cycle marker data (file={console.format_path(args.marker_infile)})"
+    console.print_task("detecting mitochondrial genes")
+    bt.omics.pp.mitochondrial_genes(
+        adata,
+        index_type="name",
+        key="mt",
+        axis="var",
+        copy=False,
+        identifiers=identifiers,
     )
-    parser = rdata.parser.parse_file(args.marker_infile)
-    console.print_debug("decoding marker data (format=RDS)")
-    marker_pairs = rdata.conversion.convert(parser)
-    console.print_info("scoring cell cycle phases")
-    marker_pairs = marker_pairs_converter(marker_pairs, identifiers)
-    adata.X = adata.layers[args.expression].copy()
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            category=FutureWarning,
-            module=r"pypairs(\.|$)",
+
+    console.print_task("detecting ribosomal genes")
+    bt.omics.pp.ribosomal_genes(
+        adata,
+        index_type="name",
+        key="rps",
+        axis="var",
+        copy=False,
+        identifiers=identifiers,
+    )
+
+    if args.marker_infile is None:
+        console.print_warning("cannot classify cell cycle phases: marker file not specified")
+    else:
+        console.print_task("classifying cells by cell-cycle phase")
+        console.print_info(
+            f"loading cell-cycle marker data (file={console.format_path(args.marker_infile)})"
         )
-        scores = pypairs.pairs.cyclone(adata, marker_pairs)
-    adata.X = None
-    adata.obs.rename(
-        columns={
-            "pypairs_G1": "G1_score",
-            "pypairs_S": "S_score",
-            "pypairs_G2M": "G2M_score",
-        },
-        inplace=True,
+        parser = rdata.parser.parse_file(args.marker_infile)
+        console.print_debug("decoding marker data (format=RDS)")
+        marker_pairs = rdata.conversion.convert(parser)
+        console.print_info("scoring cell cycle phases")
+        marker_pairs = marker_pairs_converter(marker_pairs, identifiers)
+        adata.X = adata.layers[args.expression].copy()
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=FutureWarning,
+                module=r"pypairs(\.|$)",
+            )
+            scores = pypairs.pairs.cyclone(adata, marker_pairs)
+        adata.X = None
+        adata.obs.rename(
+            columns={
+                "pypairs_G1": "G1_score",
+                "pypairs_S": "S_score",
+                "pypairs_G2M": "G2M_score",
+            },
+            inplace=True,
+        )
+
+    console.print_task("calculating quality control metrics")
+    bt.omics.pp.qc(
+        adata,
+        expression=args.expression,
+        qc_vars=["mt", "rps"],
+        percent_top=None,
+        log1p=False,
+        copy=False,
     )
 
-console.print_task("calculating quality control metrics")
-bt.omics.pp.qc(
-    adata,
-    expression=args.expression,
-    qc_vars=["mt", "rps"],
-    percent_top=None,
-    log1p=False,
-    copy=False,
-)
+    raw_plot = outpath / "raw-data.pdf"
+    console.print_info(f"plotting QC summaries (directory={os.path.relpath(outpath)})")
+    plot_qc_violins(adata, raw_plot)
 
-raw_plot = outpath / "raw-data.pdf"
-console.print_info(f"plotting QC summaries (directory={os.path.relpath(outpath)})")
-plot_qc_violins(adata, raw_plot)
+    cell_totals = adata.obs["total"].to_numpy()
+    mad = median_absolute_deviation(np.log(cell_totals), consistency=(args.consistent_mad))
+    reads = [
+        np.exp(np.median(np.log(cell_totals)) - args.mad_deviation[0] * mad),
+        np.exp(np.median(np.log(cell_totals)) + args.mad_deviation[1] * mad),
+    ]
+    cell_reads = [
+        max(args.cell_reads[0], reads[0]),
+        min(args.cell_reads[1], reads[1]),
+    ]
 
-cell_totals = adata.obs["total"].to_numpy()
-mad = median_absolute_deviation(np.log(cell_totals), consistency=(args.consistent_mad))
-reads = [
-    np.exp(np.median(np.log(cell_totals)) - args.mad_deviation[0] * mad),
-    np.exp(np.median(np.log(cell_totals)) + args.mad_deviation[1] * mad),
-]
-cell_reads = [
-    max(args.cell_reads[0], reads[0]),
-    min(args.cell_reads[1], reads[1]),
-]
+    ylim = [0, round(math.ceil(max(cell_totals) + 1000), -3)]
+    fig, ax = plt.subplots(nrows=1, ncols=2)
+    plot_violin(adata, "total", ax=ax[0], clip="data", median=False)
+    ax[0].axhline(reads[0], linewidth=1.5, linestyle="--", color=bt.omics.pl.get_color("red"))
+    ax[0].axhline(reads[1], linewidth=1.5, linestyle="--", color=bt.omics.pl.get_color("red"))
+    ax[0].set_ylim(ylim)
+    ax[0].set(title="raw")
 
-ylim = [0, round(math.ceil(max(cell_totals) + 1000), -3)]
-fig, ax = plt.subplots(nrows=1, ncols=2)
-plot_violin(adata, "total", ax=ax[0], clip="data", median=False)
-ax[0].axhline(reads[0], linewidth=1.5, linestyle="--", color=bt.omics.pl.get_color("red"))
-ax[0].axhline(reads[1], linewidth=1.5, linestyle="--", color=bt.omics.pl.get_color("red"))
-ax[0].set_ylim(ylim)
-ax[0].set(title="raw")
+    console.print_task(
+        "filtering genes "
+        f"(dropout<={1e2 * args.gene_dropout:g}%, "
+        f"expressed_cells={format_range(args.gene_expression)}, "
+        f"counts={format_range(args.gene_counts)})"
+    )
 
-console.print_task(
-    "filtering genes "
-    f"(dropout<={1e2 * args.gene_dropout:g}%, "
-    f"expressed_cells={format_range(args.gene_expression)}, "
-    f"counts={format_range(args.gene_counts)})"
-)
+    bt.omics.pp.filter_var(
+        adata,
+        "pct_dropout",
+        lambda x: (x <= 1e2 * args.gene_dropout),
+    )
 
-bt.omics.pp.filter_var(
-    adata,
-    "pct_dropout",
-    lambda x: (x <= 1e2 * args.gene_dropout),
-)
+    bt.omics.pp.filter_var(
+        adata,
+        "n_barcodes",
+        lambda x: (x >= args.gene_expression[0]) & (x < args.gene_expression[1]),
+    )
 
-bt.omics.pp.filter_var(
-    adata,
-    "n_barcodes",
-    lambda x: (x >= args.gene_expression[0]) & (x < args.gene_expression[1]),
-)
+    bt.omics.pp.filter_var(
+        adata,
+        "total",
+        lambda x: (x >= args.gene_counts[0]) & (x < args.gene_counts[1]),
+    )
 
-bt.omics.pp.filter_var(
-    adata,
-    "total",
-    lambda x: (x >= args.gene_counts[0]) & (x < args.gene_counts[1]),
-)
+    console.print_task(
+        "filtering cells "
+        f"(dropout<={1e2 * args.cell_dropout:g}%, "
+        f"expressed_genes={format_range(args.cell_expression)}, "
+        f"reads={format_count_range(cell_reads)}, "
+        f"mitochondria<{1e2 * args.mt:g}%)"
+    )
 
-console.print_task(
-    "filtering cells "
-    f"(dropout<={1e2 * args.cell_dropout:g}%, "
-    f"expressed_genes={format_range(args.cell_expression)}, "
-    f"reads={format_count_range(cell_reads)}, "
-    f"mitochondria<{1e2 * args.mt:g}%)"
-)
+    bt.omics.pp.filter_obs(
+        adata,
+        "n_features",
+        lambda x: (x >= (1 - args.cell_dropout) * adata.n_vars),
+    )
 
-bt.omics.pp.filter_obs(
-    adata,
-    "n_features",
-    lambda x: (x >= (1 - args.cell_dropout) * adata.n_vars),
-)
+    bt.omics.pp.filter_obs(
+        adata,
+        "n_features",
+        lambda x: (x >= args.cell_expression[0]) & (x < args.cell_expression[1]),
+    )
 
-bt.omics.pp.filter_obs(
-    adata,
-    "n_features",
-    lambda x: (x >= args.cell_expression[0]) & (x < args.cell_expression[1]),
-)
+    bt.omics.pp.filter_obs(
+        adata,
+        "total",
+        lambda x: (x >= args.cell_reads[0]) & (x < args.cell_reads[1]),
+    )
 
-bt.omics.pp.filter_obs(
-    adata,
-    "total",
-    lambda x: (x >= args.cell_reads[0]) & (x < args.cell_reads[1]),
-)
+    bt.omics.pp.filter_obs(
+        adata,
+        "total",
+        lambda x: (x >= reads[0]) & (x < reads[1]),
+    )
 
-bt.omics.pp.filter_obs(
-    adata,
-    "total",
-    lambda x: (x >= reads[0]) & (x < reads[1]),
-)
+    bt.omics.pp.filter_obs(
+        adata,
+        "pct_mt",
+        lambda x: x < 1e2 * args.mt,
+    )
 
-bt.omics.pp.filter_obs(
-    adata,
-    "pct_mt",
-    lambda x: x < 1e2 * args.mt,
-)
+    shape["final"] = adata.shape
 
-shape["final"] = adata.shape
+    console.print_result(
+        format_filtering_coverage("genes", shape["final"][1], shape["init"][1])
+    )
+    console.print_result(
+        format_filtering_coverage("cells", shape["final"][0], shape["init"][0])
+    )
 
-console.print_result(
-    format_filtering_coverage("genes", shape["final"][1], shape["init"][1])
-)
-console.print_result(
-    format_filtering_coverage("cells", shape["final"][0], shape["init"][0])
-)
+    plot_violin(adata, "total", ax=ax[1], clip="data", median=False)
+    ax[1].axhline(reads[0], linewidth=1.5, linestyle="--", color=bt.omics.pl.get_color("red"))
+    ax[1].axhline(reads[1], linewidth=1.5, linestyle="--", color=bt.omics.pl.get_color("red"))
+    ax[1].set_ylim(ylim)
+    ax[1].set(title="filtered")
+    fig.tight_layout()
+    plt.savefig(f"{outpath}/total-counts.pdf")
 
-plot_violin(adata, "total", ax=ax[1], clip="data", median=False)
-ax[1].axhline(reads[0], linewidth=1.5, linestyle="--", color=bt.omics.pl.get_color("red"))
-ax[1].axhline(reads[1], linewidth=1.5, linestyle="--", color=bt.omics.pl.get_color("red"))
-ax[1].set_ylim(ylim)
-ax[1].set(title="filtered")
-fig.tight_layout()
-plt.savefig(f"{outpath}/total-counts.pdf")
+    plot_qc_violins(adata, f"{outpath}/filtered-data.pdf")
 
-plot_qc_violins(adata, f"{outpath}/filtered-data.pdf")
+    if args.marker_infile:
+        fig, ax = plt.subplots(nrows=1, ncols=1)
+        ax = adata.obs.pypairs_cc_prediction.value_counts().plot.bar(rot=0)
+        ax.set(xlabel="cell cycle phases")
+        plt.savefig(f"{outpath}/cell-cycles-counting.pdf")
 
-if args.marker_infile:
-    fig, ax = plt.subplots(nrows=1, ncols=1)
-    ax = adata.obs.pypairs_cc_prediction.value_counts().plot.bar(rot=0)
-    ax.set(xlabel="cell cycle phases")
-    plt.savefig(f"{outpath}/cell-cycles-counting.pdf")
+    console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
+    omics.drop_expression_matrices(adata)
+    omics.write_h5ad(adata, filename=args.outfile, compression="gzip")
 
-console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
-omics.drop_expression_matrices(adata)
-omics.write_h5ad(adata, filename=args.outfile, compression="gzip")
+
+if __name__ == "__main__":
+    main()

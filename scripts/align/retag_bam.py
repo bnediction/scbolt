@@ -93,108 +93,113 @@ passed with --tag, using <source>:<destination> syntax.
 
 script_name = Path(__file__).name
 
-parser = argparse.ArgumentParser(
-    prog="retag-bam",
-    description=parser_description,
-    usage=(
-        f"python {script_name} [-h] <FILE> <FILE> "
-        "[--tag LITERAL:LITERAL ...] [--barcodes FILE] "
-        "[--barcode-tag TAG] [--jobs INT]"
-    ),
-    formatter_class=cli.HelpFormatter,
-)
-
-parser.add_argument(
-    "infile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="input BAM file",
-)
-
-parser.add_argument(
-    "outfile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="output BAM file with copied tags",
-)
-
-parser.add_argument(
-    "--tag",
-    dest="tags",
-    action=cli.Store_dict,
-    type_key=str,
-    type_value=str,
-    default={"CR": "CB", "UR": "UB"},
-    help="tag mapping from source to destination (default: CR:CB UR:UB)",
-)
-
-parser.add_argument(
-    "--barcodes",
-    type=lambda x: Path(x).resolve(),
-    default=None,
-    metavar="FILE",
-    help="keep only reads matching one of these barcodes",
-)
-
-parser.add_argument(
-    "--barcode-tag",
-    default="CR",
-    metavar="TAG",
-    help="read tag used to match barcodes (default: CR)",
-)
-
-parser.add_argument(
-    "--jobs",
-    type=int,
-    default=1,
-    metavar="INT",
-    help="BAM compression/decompression jobs (default: 1)",
-)
-
-args = parser.parse_args()
-
-if args.jobs <= 0:
-    parser.error("--jobs must be a positive integer")
-
-if args.outfile.parent:
-    os.makedirs(args.outfile.parent, exist_ok=True)
-
-console.print_task(f"loading BAM (file={console.format_path(args.infile)})")
-if args.barcodes is not None:
-    console.print_task(f"loading selected barcodes (file={console.format_path(args.barcodes)})")
-barcodes = load_barcodes(args.barcodes)
-if barcodes is not None:
-    console.print_info(f"identified {len(barcodes)} barcodes")
-
-console.print_task(f"saving retagged BAM (file={console.format_path(args.outfile)})")
-
-copied, kept_reads, skipped_reads = copy_bam_tags(
-    args.infile,
-    args.outfile,
-    args.tags,
-    barcodes=barcodes,
-    barcode_tag=args.barcode_tag,
-    jobs=args.jobs,
-)
-
-missing_tags = [
-    f"{source}->{destination}"
-    for (source, destination), count in copied.items()
-    if count == 0
-]
-if missing_tags:
-    raise ValueError(
-        "no source tags found for "
-        f"{', '.join(missing_tags)}; check the input BAM tags"
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="retag-bam",
+        description=parser_description,
+        usage=(
+            f"python {script_name} [-h] <FILE> <FILE> "
+            "[--tag LITERAL:LITERAL ...] [--barcodes FILE] "
+            "[--barcode-tag TAG] [--jobs INT]"
+        ),
+        formatter_class=cli.HelpFormatter,
     )
 
-copied_str = ", ".join(
-    f"{source}->{destination} for {count} reads"
-    for (source, destination), count in copied.items()
-)
-console.print_result(f"copied {copied_str}")
+    parser.add_argument(
+        "infile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="input BAM file",
+    )
 
-if barcodes is not None:
-    total_reads = kept_reads + skipped_reads
-    kept_fraction = kept_reads / total_reads if total_reads else 0
-    console.print_result(f"kept {kept_reads}/{total_reads} reads " f"({kept_fraction:.1%})")
+    parser.add_argument(
+        "outfile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="output BAM file with copied tags",
+    )
+
+    parser.add_argument(
+        "--tag",
+        dest="tags",
+        action=cli.Store_dict,
+        type_key=str,
+        type_value=str,
+        default={"CR": "CB", "UR": "UB"},
+        help="tag mapping from source to destination (default: CR:CB UR:UB)",
+    )
+
+    parser.add_argument(
+        "--barcodes",
+        type=lambda x: Path(x).resolve(),
+        default=None,
+        metavar="FILE",
+        help="keep only reads matching one of these barcodes",
+    )
+
+    parser.add_argument(
+        "--barcode-tag",
+        default="CR",
+        metavar="TAG",
+        help="read tag used to match barcodes (default: CR)",
+    )
+
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        metavar="INT",
+        help="BAM compression/decompression jobs (default: 1)",
+    )
+
+    args = parser.parse_args()
+
+    if args.jobs <= 0:
+        parser.error("--jobs must be a positive integer")
+
+    if args.outfile.parent:
+        os.makedirs(args.outfile.parent, exist_ok=True)
+
+    console.print_task(f"loading BAM (file={console.format_path(args.infile)})")
+    if args.barcodes is not None:
+        console.print_task(f"loading selected barcodes (file={console.format_path(args.barcodes)})")
+    barcodes = load_barcodes(args.barcodes)
+    if barcodes is not None:
+        console.print_info(f"identified {len(barcodes)} barcodes")
+
+    console.print_task(f"saving retagged BAM (file={console.format_path(args.outfile)})")
+
+    copied, kept_reads, skipped_reads = copy_bam_tags(
+        args.infile,
+        args.outfile,
+        args.tags,
+        barcodes=barcodes,
+        barcode_tag=args.barcode_tag,
+        jobs=args.jobs,
+    )
+
+    missing_tags = [
+        f"{source}->{destination}"
+        for (source, destination), count in copied.items()
+        if count == 0
+    ]
+    if missing_tags:
+        raise ValueError(
+            "no source tags found for "
+            f"{', '.join(missing_tags)}; check the input BAM tags"
+        )
+
+    copied_str = ", ".join(
+        f"{source}->{destination} for {count} reads"
+        for (source, destination), count in copied.items()
+    )
+    console.print_result(f"copied {copied_str}")
+
+    if barcodes is not None:
+        total_reads = kept_reads + skipped_reads
+        kept_fraction = kept_reads / total_reads if total_reads else 0
+        console.print_result(f"kept {kept_reads}/{total_reads} reads " f"({kept_fraction:.1%})")
+
+
+if __name__ == "__main__":
+    main()

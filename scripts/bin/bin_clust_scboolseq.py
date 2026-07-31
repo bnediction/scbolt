@@ -298,269 +298,274 @@ def count_binarized_values(
 
 script_name = Path(__file__).name
 
-parser = argparse.ArgumentParser(
-    prog=Path(__file__).name,
-    description=(
-        "Count binarized values for each cluster and binarize clusters from "
-        "binarized single-cell data using a voting rule."
-    ),
-    usage=f"python {script_name} [-h] <FILE> <FILE> [--counts <FILE>] --cluster <LITERAL> [<args>]",
-    formatter_class=cli.HelpFormatter,
-)
-
-parser.add_argument(
-    dest="infile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="input file storing binarized counts and gene distributions (format: h5ad)",
-)
-
-parser.add_argument(
-    "outfile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="output file storing predicted binarized values (format: csv)",
-)
-
-parser.add_argument(
-    "--counts",
-    dest="counts",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    default=None,
-    metavar="FILE",
-    help="output file storing counts of binarized values (format: csv)",
-)
-
-parser.add_argument(
-    "--expression",
-    dest="expression",
-    type=str,
-    required=False,
-    default="bin",
-    metavar="LITERAL",
-    help=(
-        "Expression layer to use. Expected data: binarized counts.\n" "Default: bin."
-    ),
-)
-
-parser.add_argument(
-    "--distribution",
-    dest="distribution",
-    type=str,
-    required=False,
-    default="distribution",
-    metavar="LITERAL",
-    help=(
-        "variable name in 'adata.var' storing gene distributions (default: "
-        "distribution)"
-    ),
-)
-
-parser.add_argument(
-    "--cluster",
-    dest="cluster",
-    type=str,
-    required=True,
-    metavar="LITERAL",
-    help="column name in 'adata.obs' distinguishing cell populations (required)",
-)
-
-parser.add_argument(
-    "--condition",
-    dest="condition",
-    type=str,
-    required=False,
-    default=None,
-    metavar="LITERAL",
-    help="column name in adata.obs distinguishing samples (default: None)",
-)
-
-parser.add_argument(
-    "--exclude",
-    dest="exclude",
-    type=str,
-    required=False,
-    nargs="+",
-    metavar="LITERAL",
-    help="cluster labels to remove before cluster-level binarization",
-)
-
-parser.add_argument(
-    "--nans-threshold",
-    dest="nans_threshold",
-    type=float,
-    action=cli.Range,
-    min=0.0,
-    max=1.0,
-    required=False,
-    default=0.3,
-    help=(
-        "maximum proportion of NaN values allowed in a cluster for a gene "
-        "to be binarized (not applied to zero-inflated genes, default: 0.3)"
-    ),
-)
-
-parser.add_argument(
-    "--bimodal-threshold",
-    dest="bimodal_threshold",
-    type=float,
-    action=cli.Range,
-    min=0.5,
-    max=1.0,
-    required=False,
-    default=2 / 3,
-    help=(
-        "minimum proportion of zero or one values w.r.t. binarized values "
-        "required for a bimodal gene to be binarized (default: 2/3)"
-    ),
-)
-
-parser.add_argument(
-    "--zeroinf-threshold",
-    dest="zeroinf_threshold",
-    type=float,
-    action=cli.Range,
-    min=0.5,
-    max=1.0,
-    required=False,
-    default=0.5,
-    help=(
-        "minimum proportion of zero or one values w.r.t. binarized and NaN "
-        "values required for a zero-inflated gene to be binarized (default: 0.5)"
-    ),
-)
-
-parser.add_argument(
-    "--unimodal-threshold",
-    dest="unimodal_threshold",
-    type=float,
-    action=cli.Range,
-    min=0.5,
-    max=1.0,
-    required=False,
-    default=2 / 3,
-    help=(
-        "minimum proportion of zero or one values w.r.t. binarized values "
-        "required for a unimodal gene to be binarized (default: 2/3)"
-    ),
-)
-
-parser.add_argument(
-    "--representation",
-    dest="representation",
-    type=str,
-    required=False,
-    default=None,
-    metavar="LITERAL",
-    help=(
-        "Embedding representation in adata.obsm used for plotting cluster-related "
-        "binarization percentages.\n"
-        "Default: None."
-    ),
-)
-
-args = parser.parse_args()
-
-predict = Predict(
-    args.nans_threshold,
-    args.bimodal_threshold,
-    args.zeroinf_threshold,
-    args.unimodal_threshold,
-)
-
-if not Path(os.path.dirname(args.outfile)).exists():
-    os.makedirs(Path(os.path.dirname(args.outfile)))
-
-console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
-
-adata = ad.read_h5ad(args.infile)
-
-metadata = [args.cluster, args.condition] if args.condition else [args.cluster]
-convert_metadata = (
-    {category: "category" for category in metadata}
-    if isinstance(metadata, list)
-    else "category"
-)
-
-console.print_info(f"converting layer '{args.expression}' into dataframe")
-cell_df = bt.omics.tl.to_dataframe(
-    adata=adata, obs=metadata, layer=args.expression
-)
-
-console.print_task("counting binarized values (scope=cell populations)")
-cluster_counts = count_binarized_values(
-    obs_df=cell_df,
-    columns=list(map(str, adata.var.index)),
-    group=args.cluster,
-    condition=args.condition if args.condition else None,
-    dropna=False,
-)
-
-if args.exclude:
-    clusters_to_remove = set(args.exclude).intersection(
-        set(cluster_counts.index.get_level_values(0).unique())
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog=Path(__file__).name,
+        description=(
+            "Count binarized values for each cluster and binarize clusters from "
+            "binarized single-cell data using a voting rule."
+        ),
+        usage=f"python {script_name} [-h] <FILE> <FILE> [--counts <FILE>] --cluster <LITERAL> [<args>]",
+        formatter_class=cli.HelpFormatter,
     )
-    if clusters_to_remove:
-        console.print_info(
-            "removing clusters (clusters={0})".format(
-                "+".join(map(str, clusters_to_remove))
-            )
+
+    parser.add_argument(
+        dest="infile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="input file storing binarized counts and gene distributions (format: h5ad)",
+    )
+
+    parser.add_argument(
+        "outfile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="output file storing predicted binarized values (format: csv)",
+    )
+
+    parser.add_argument(
+        "--counts",
+        dest="counts",
+        type=lambda x: Path(x).resolve(),
+        required=False,
+        default=None,
+        metavar="FILE",
+        help="output file storing counts of binarized values (format: csv)",
+    )
+
+    parser.add_argument(
+        "--expression",
+        dest="expression",
+        type=str,
+        required=False,
+        default="bin",
+        metavar="LITERAL",
+        help=(
+            "Expression layer to use. Expected data: binarized counts.\n" "Default: bin."
+        ),
+    )
+
+    parser.add_argument(
+        "--distribution",
+        dest="distribution",
+        type=str,
+        required=False,
+        default="distribution",
+        metavar="LITERAL",
+        help=(
+            "variable name in 'adata.var' storing gene distributions (default: "
+            "distribution)"
+        ),
+    )
+
+    parser.add_argument(
+        "--cluster",
+        dest="cluster",
+        type=str,
+        required=True,
+        metavar="LITERAL",
+        help="column name in 'adata.obs' distinguishing cell populations (required)",
+    )
+
+    parser.add_argument(
+        "--condition",
+        dest="condition",
+        type=str,
+        required=False,
+        default=None,
+        metavar="LITERAL",
+        help="column name in adata.obs distinguishing samples (default: None)",
+    )
+
+    parser.add_argument(
+        "--exclude",
+        dest="exclude",
+        type=str,
+        required=False,
+        nargs="+",
+        metavar="LITERAL",
+        help="cluster labels to remove before cluster-level binarization",
+    )
+
+    parser.add_argument(
+        "--nans-threshold",
+        dest="nans_threshold",
+        type=float,
+        action=cli.Range,
+        min=0.0,
+        max=1.0,
+        required=False,
+        default=0.3,
+        help=(
+            "maximum proportion of NaN values allowed in a cluster for a gene "
+            "to be binarized (not applied to zero-inflated genes, default: 0.3)"
+        ),
+    )
+
+    parser.add_argument(
+        "--bimodal-threshold",
+        dest="bimodal_threshold",
+        type=float,
+        action=cli.Range,
+        min=0.5,
+        max=1.0,
+        required=False,
+        default=2 / 3,
+        help=(
+            "minimum proportion of zero or one values w.r.t. binarized values "
+            "required for a bimodal gene to be binarized (default: 2/3)"
+        ),
+    )
+
+    parser.add_argument(
+        "--zeroinf-threshold",
+        dest="zeroinf_threshold",
+        type=float,
+        action=cli.Range,
+        min=0.5,
+        max=1.0,
+        required=False,
+        default=0.5,
+        help=(
+            "minimum proportion of zero or one values w.r.t. binarized and NaN "
+            "values required for a zero-inflated gene to be binarized (default: 0.5)"
+        ),
+    )
+
+    parser.add_argument(
+        "--unimodal-threshold",
+        dest="unimodal_threshold",
+        type=float,
+        action=cli.Range,
+        min=0.5,
+        max=1.0,
+        required=False,
+        default=2 / 3,
+        help=(
+            "minimum proportion of zero or one values w.r.t. binarized values "
+            "required for a unimodal gene to be binarized (default: 2/3)"
+        ),
+    )
+
+    parser.add_argument(
+        "--representation",
+        dest="representation",
+        type=str,
+        required=False,
+        default=None,
+        metavar="LITERAL",
+        help=(
+            "Embedding representation in adata.obsm used for plotting cluster-related "
+            "binarization percentages.\n"
+            "Default: None."
+        ),
+    )
+
+    args = parser.parse_args()
+
+    predict = Predict(
+        args.nans_threshold,
+        args.bimodal_threshold,
+        args.zeroinf_threshold,
+        args.unimodal_threshold,
+    )
+
+    if not Path(os.path.dirname(args.outfile)).exists():
+        os.makedirs(Path(os.path.dirname(args.outfile)))
+
+    console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
+
+    adata = ad.read_h5ad(args.infile)
+
+    metadata = [args.cluster, args.condition] if args.condition else [args.cluster]
+    convert_metadata = (
+        {category: "category" for category in metadata}
+        if isinstance(metadata, list)
+        else "category"
+    )
+
+    console.print_info(f"converting layer '{args.expression}' into dataframe")
+    cell_df = bt.omics.tl.to_dataframe(
+        adata=adata, obs=metadata, layer=args.expression
+    )
+
+    console.print_task("counting binarized values (scope=cell populations)")
+    cluster_counts = count_binarized_values(
+        obs_df=cell_df,
+        columns=list(map(str, adata.var.index)),
+        group=args.cluster,
+        condition=args.condition if args.condition else None,
+        dropna=False,
+    )
+
+    if args.exclude:
+        clusters_to_remove = set(args.exclude).intersection(
+            set(cluster_counts.index.get_level_values(0).unique())
         )
-        cluster_counts = cluster_counts.drop(list(clusters_to_remove))
-
-console.print_task("binarizing cell populations (rules=voting)")
-cluster_bin = cast(
-    DataFrame,
-    predict(cluster_counts, cast(Series, adata.var[args.distribution])),
-)
-if isinstance(cluster_bin.index, MultiIndex):
-    cluster_bin.index = Index(
-        ["_".join(metadata) for metadata in cluster_bin.index.to_flat_index()],
-        name=args.cluster,
-    )
-
-if args.representation:
-    macrostate_plot = Path(f"{os.path.dirname(args.outfile)}/{args.cluster}s.pdf")
-    console.print_task(
-        "plotting binarization summaries "
-        f"(directory={os.path.relpath(os.path.dirname(args.outfile))})"
-    )
-    omics.plot_categorical_embedding(
-        adata,
-        obs=args.cluster,
-        embedding=args.representation,
-        label=console.format_embedding(args.representation),
-        outfile=macrostate_plot,
-    )
-    pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
-    adata.obs[f"pct_bin_{args.cluster}"] = (
-        adata.obs[args.cluster].map(pct_bin).astype(float)
-    )
-    omics.plot_continuous_embedding(
-        adata,
-        obs=f"pct_bin_{args.cluster}",
-        embedding=args.representation,
-        label=console.format_embedding(args.representation),
-        outfile=Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf"),
-    )
-    if args.condition:
-        for condition in adata.obs[args.condition].cat.categories:
-            omics.plot_continuous_embedding(
-                adata[adata.obs[args.condition] == condition],
-                obs=f"pct_bin_{args.cluster}",
-                embedding=args.representation,
-                label=console.format_embedding(args.representation),
-                outfile=Path(
-                    f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}_{condition}.pdf"
-                ),
+        if clusters_to_remove:
+            console.print_info(
+                "removing clusters (clusters={0})".format(
+                    "+".join(map(str, clusters_to_remove))
+                )
             )
+            cluster_counts = cluster_counts.drop(list(clusters_to_remove))
 
-console.print_task(f"saving binarized matrix (file={console.format_path(args.outfile)})")
-cluster_bin.to_csv(args.outfile, sep=",", index=True)
-
-if args.counts:
-    console.print_task(
-        f"saving binarized value counts (file={console.format_path(args.counts)})"
+    console.print_task("binarizing cell populations (rules=voting)")
+    cluster_bin = cast(
+        DataFrame,
+        predict(cluster_counts, cast(Series, adata.var[args.distribution])),
     )
-    cluster_counts.to_csv(args.counts, sep=",", index=True)
+    if isinstance(cluster_bin.index, MultiIndex):
+        cluster_bin.index = Index(
+            ["_".join(metadata) for metadata in cluster_bin.index.to_flat_index()],
+            name=args.cluster,
+        )
+
+    if args.representation:
+        macrostate_plot = Path(f"{os.path.dirname(args.outfile)}/{args.cluster}s.pdf")
+        console.print_task(
+            "plotting binarization summaries "
+            f"(directory={os.path.relpath(os.path.dirname(args.outfile))})"
+        )
+        omics.plot_categorical_embedding(
+            adata,
+            obs=args.cluster,
+            embedding=args.representation,
+            label=console.format_embedding(args.representation),
+            outfile=macrostate_plot,
+        )
+        pct_bin = (cluster_bin.count(axis=1) / cluster_bin.shape[1]).to_dict()
+        adata.obs[f"pct_bin_{args.cluster}"] = (
+            adata.obs[args.cluster].map(pct_bin).astype(float)
+        )
+        omics.plot_continuous_embedding(
+            adata,
+            obs=f"pct_bin_{args.cluster}",
+            embedding=args.representation,
+            label=console.format_embedding(args.representation),
+            outfile=Path(f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}.pdf"),
+        )
+        if args.condition:
+            for condition in adata.obs[args.condition].cat.categories:
+                omics.plot_continuous_embedding(
+                    adata[adata.obs[args.condition] == condition],
+                    obs=f"pct_bin_{args.cluster}",
+                    embedding=args.representation,
+                    label=console.format_embedding(args.representation),
+                    outfile=Path(
+                        f"{os.path.dirname(args.outfile)}/pct_bin_{args.cluster}_{condition}.pdf"
+                    ),
+                )
+
+    console.print_task(f"saving binarized matrix (file={console.format_path(args.outfile)})")
+    cluster_bin.to_csv(args.outfile, sep=",", index=True)
+
+    if args.counts:
+        console.print_task(
+            f"saving binarized value counts (file={console.format_path(args.counts)})"
+        )
+        cluster_counts.to_csv(args.counts, sep=",", index=True)
+
+
+if __name__ == "__main__":
+    main()

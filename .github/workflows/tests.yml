@@ -19,6 +19,8 @@ jobs:
       - run: python3 tests/unit/test_domain_continuation.py
       - run: python3 tests/unit/test_witness_propagation.py
       - run: python3 tests/unit/test_expression_layers.py
+      - run: python3 tests/unit/test_script_entrypoints.py
+      - run: python3 tests/unit/test_model_specification.py
       - run: bash tests/unit/test_forbidden_nodes.sh
       - run: python3 tests/unit/test_solver_timeout.py
       - run: python3 tests/unit/test_subset_minimal_parallel.py

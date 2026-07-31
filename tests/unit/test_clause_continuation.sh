@@ -181,7 +181,7 @@ grep -Fq 'Low-yield expansions are refreshed at constant size' <<< "${seed_help}
 grep -Fq 'JOBS' <<< "${seed_help}"
 grep -Fq 'Maximum time without a Clingo objective improvement' <<< "${seed_help}"
 grep -Fq \
-    'Maximum time without an improvement of the best portfolio objective' \
+    'Full stagnation time after improving the best objective' \
     <<< "${seed_help}"
 
 soft_help="$(

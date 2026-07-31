@@ -152,155 +152,160 @@ def write_signature_outputs(
 
 script_name = Path(__file__).name
 
-parser = argparse.ArgumentParser(
-    prog="scoring",
-    description="Score signature-related phenotypes with respect to cell clusters.",
-    usage=f"python {script_name} [-h] <FILE> <FILE> <FILE> <FILE> --cluster <LITERAL> [<args>]",
-    formatter_class=cli.HelpFormatter,
-)
-
-parser.add_argument(
-    "infile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="input file storing counts (format: h5ad)",
-)
-
-parser.add_argument(
-    "signatures",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="input file storing phenotype-gene list associations (format: json)",
-)
-
-parser.add_argument(
-    "markers",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="input file storing gene sets for each spreadsheet (format: xlsx)",
-)
-
-parser.add_argument(
-    "outfile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="output file storing raw signature p-values (format: csv)",
-)
-
-parser.add_argument(
-    "--cluster",
-    dest="cluster",
-    type=str,
-    required=True,
-    metavar="LITERAL",
-    help="column name in 'adata.obs' distinguishing cell populations (required)",
-)
-
-parser.add_argument(
-    "--ignore-sheets",
-    dest="ignore_sheets",
-    type=str,
-    required=False,
-    nargs="+",
-    default=None,
-    metavar="LITERAL",
-    help="spreadsheet names to ignore (default: None)",
-)
-
-parser.add_argument(
-    "--correction",
-    dest="correction",
-    type=str,
-    required=False,
-    default="none",
-    choices=CORRECTION_METHODS,
-    metavar="LITERAL",
-    help=(
-        "p-value correction method: none, benjamini-hochberg or bonferroni "
-        "(default: none)"
-    ),
-)
-
-args = parser.parse_args()
-
-ora_correction = "benjamini-hochberg" if args.correction == "none" else args.correction
-
-if not Path(os.path.dirname(args.outfile)).exists():
-    os.makedirs(Path(os.path.dirname(args.outfile)))
-
-console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
-adata = ad.read_h5ad(args.infile)
-
-console.print_task(
-    f"loading signature definitions (file={console.format_path(args.signatures)})"
-)
-with open(args.signatures, "r") as file:
-    signatures = json.load(file)
-
-console.print_task(f"loading marker workbook (file={console.format_path(args.markers)})")
-ignored_sheets = set(args.ignore_sheets or [])
-with pd.ExcelFile(args.markers) as file:
-    markers = {}
-    for sheet_name in file.sheet_names:
-        if sheet_name not in ignored_sheets:
-            df = file.parse(sheet_name, header=None)
-            markers[sheet_name] = df[df.columns[0]].to_list()
-
-console.print_task("analyzing cell signatures")
-
-console.print_debug("deleting signature genes absent from AnnData")
-background = adata.var_names
-for phenotype, genes in signatures.items():
-    signatures[phenotype] = {gene for gene in genes if gene in background}
-signatures = {
-    phenotype: signature for phenotype, signature in signatures.items() if signature
-}
-
-console.print_info(
-    "estimating over-representation p-values " f"(correction={args.correction})"
-)
-
-info = dict()
-ora_results = {}
-pvals = {}
-pvals_adj = {}
-fold_enrichment = {}
-signature_names = list(signatures)
-for group in sorted(adata.obs[args.cluster].unique()):
-    group_adata = adata[adata.obs[args.cluster] == group]
-    group_info = dict()
-    group_info["cells"] = group_adata.n_obs
-    group_info["proportion"] = round(group_adata.n_obs / adata.n_obs, ndigits=6)
-    group_info["median_expression"] = group_adata.obs["n_features"].median()
-    group_info["median_reads"] = group_adata.obs["total"].median()
-    ora_result = bt.omics.tl.ora(
-        query_set=markers[group],
-        signatures=signatures,
-        background=group_adata.var_names,
-        correction=ora_correction,
-        include_overlap=True,
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="scoring",
+        description="Score signature-related phenotypes with respect to cell clusters.",
+        usage=f"python {script_name} [-h] <FILE> <FILE> <FILE> <FILE> --cluster <LITERAL> [<args>]",
+        formatter_class=cli.HelpFormatter,
     )
-    ora_results[group] = ora_result
-    pvals[group] = ora_result["pvals"].reindex(signature_names)
-    pvals_adj[group] = ora_result["pvals_adj"].reindex(signature_names)
-    fold_enrichment[group] = ora_result["fold_enrichment"].reindex(signature_names)
-    pvalue_column = "pvals" if args.correction == "none" else "pvals_adj"
-    pvalue_scores = ora_result[pvalue_column].to_dict()
-    pvalues = {
-        signature: pvalue_scores[signature]
-        for signature in signatures
-        if signature in pvalue_scores
+
+    parser.add_argument(
+        "infile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="input file storing counts (format: h5ad)",
+    )
+
+    parser.add_argument(
+        "signatures",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="input file storing phenotype-gene list associations (format: json)",
+    )
+
+    parser.add_argument(
+        "markers",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="input file storing gene sets for each spreadsheet (format: xlsx)",
+    )
+
+    parser.add_argument(
+        "outfile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="output file storing raw signature p-values (format: csv)",
+    )
+
+    parser.add_argument(
+        "--cluster",
+        dest="cluster",
+        type=str,
+        required=True,
+        metavar="LITERAL",
+        help="column name in 'adata.obs' distinguishing cell populations (required)",
+    )
+
+    parser.add_argument(
+        "--ignore-sheets",
+        dest="ignore_sheets",
+        type=str,
+        required=False,
+        nargs="+",
+        default=None,
+        metavar="LITERAL",
+        help="spreadsheet names to ignore (default: None)",
+    )
+
+    parser.add_argument(
+        "--correction",
+        dest="correction",
+        type=str,
+        required=False,
+        default="none",
+        choices=CORRECTION_METHODS,
+        metavar="LITERAL",
+        help=(
+            "p-value correction method: none, benjamini-hochberg or bonferroni "
+            "(default: none)"
+        ),
+    )
+
+    args = parser.parse_args()
+
+    ora_correction = "benjamini-hochberg" if args.correction == "none" else args.correction
+
+    if not Path(os.path.dirname(args.outfile)).exists():
+        os.makedirs(Path(os.path.dirname(args.outfile)))
+
+    console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
+    adata = ad.read_h5ad(args.infile)
+
+    console.print_task(
+        f"loading signature definitions (file={console.format_path(args.signatures)})"
+    )
+    with open(args.signatures, "r") as file:
+        signatures = json.load(file)
+
+    console.print_task(f"loading marker workbook (file={console.format_path(args.markers)})")
+    ignored_sheets = set(args.ignore_sheets or [])
+    with pd.ExcelFile(args.markers) as file:
+        markers = {}
+        for sheet_name in file.sheet_names:
+            if sheet_name not in ignored_sheets:
+                df = file.parse(sheet_name, header=None)
+                markers[sheet_name] = df[df.columns[0]].to_list()
+
+    console.print_task("analyzing cell signatures")
+
+    console.print_debug("deleting signature genes absent from AnnData")
+    background = adata.var_names
+    for phenotype, genes in signatures.items():
+        signatures[phenotype] = {gene for gene in genes if gene in background}
+    signatures = {
+        phenotype: signature for phenotype, signature in signatures.items() if signature
     }
-    group_info.update({k: round(v, ndigits=6) for k, v in pvalues.items()})
-    info[group] = group_info
-info = pd.DataFrame.from_dict(info)
 
-console.print_result("signature summary\n\n" f"{format_signature_summary(info)}\n")
+    console.print_info(
+        "estimating over-representation p-values " f"(correction={args.correction})"
+    )
 
-write_signature_outputs(
-    outfile=args.outfile,
-    pvals=pd.DataFrame(pvals).reindex(signature_names),
-    pvals_adj=pd.DataFrame(pvals_adj).reindex(signature_names),
-    fold_enrichment=pd.DataFrame(fold_enrichment).reindex(signature_names),
-    ora_results=ora_results,
-)
+    info = dict()
+    ora_results = {}
+    pvals = {}
+    pvals_adj = {}
+    fold_enrichment = {}
+    signature_names = list(signatures)
+    for group in sorted(adata.obs[args.cluster].unique()):
+        group_adata = adata[adata.obs[args.cluster] == group]
+        group_info = dict()
+        group_info["cells"] = group_adata.n_obs
+        group_info["proportion"] = round(group_adata.n_obs / adata.n_obs, ndigits=6)
+        group_info["median_expression"] = group_adata.obs["n_features"].median()
+        group_info["median_reads"] = group_adata.obs["total"].median()
+        ora_result = bt.omics.tl.ora(
+            query_set=markers[group],
+            signatures=signatures,
+            background=group_adata.var_names,
+            correction=ora_correction,
+            include_overlap=True,
+        )
+        ora_results[group] = ora_result
+        pvals[group] = ora_result["pvals"].reindex(signature_names)
+        pvals_adj[group] = ora_result["pvals_adj"].reindex(signature_names)
+        fold_enrichment[group] = ora_result["fold_enrichment"].reindex(signature_names)
+        pvalue_column = "pvals" if args.correction == "none" else "pvals_adj"
+        pvalue_scores = ora_result[pvalue_column].to_dict()
+        pvalues = {
+            signature: pvalue_scores[signature]
+            for signature in signatures
+            if signature in pvalue_scores
+        }
+        group_info.update({k: round(v, ndigits=6) for k, v in pvalues.items()})
+        info[group] = group_info
+    info = pd.DataFrame.from_dict(info)
+
+    console.print_result("signature summary\n\n" f"{format_signature_summary(info)}\n")
+
+    write_signature_outputs(
+        outfile=args.outfile,
+        pvals=pd.DataFrame(pvals).reindex(signature_names),
+        pvals_adj=pd.DataFrame(pvals_adj).reindex(signature_names),
+        fold_enrichment=pd.DataFrame(fold_enrichment).reindex(signature_names),
+        ora_results=ora_results,
+    )
+
+
+if __name__ == "__main__":
+    main()

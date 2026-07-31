@@ -164,140 +164,145 @@ def summarize_composition(
 
 script_name = Path(__file__).name
 
-parser = argparse.ArgumentParser(
-    prog="annotation",
-    description=(
-        "Rename labels using user-defined names.\n"
-        "Values passed to --labels must follow the syntax <old_name>:<new_name>."
-    ),
-    usage=f"python {script_name} [-h] <FILE> <FILE> --obs <LITERAL> --labels <LITERAL:LITERAL [LITERAL:LITERAL ...]>",
-    formatter_class=cli.HelpFormatter,
-)
-
-parser.add_argument(
-    "infile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="input file storing counts (format: h5ad)",
-)
-
-parser.add_argument(
-    "outfile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="output file storing counts with renamed labels (format: h5ad)",
-)
-
-parser.add_argument(
-    "--obs",
-    dest="obs",
-    type=str,
-    required=True,
-    metavar="LITERAL",
-    help="column name in adata.obs where category names are redefined",
-)
-
-parser.add_argument(
-    "--new-obs",
-    dest="new_obs",
-    type=str,
-    required=False,
-    default=None,
-    metavar="LITERAL",
-    help="if specified, create a new adata.obs column storing renamed labels",
-)
-
-parser.add_argument(
-    "--labels",
-    dest="labels",
-    action=cli.Store_dict,
-    nargs="+",
-    required=True,
-    help="mapping between old and new labels",
-)
-
-parser.add_argument(
-    "--condition-col",
-    dest="condition_col",
-    type=str,
-    required=False,
-    default=None,
-    metavar="LITERAL",
-    help="if specified, summarize and plot label composition by condition",
-)
-
-parser.add_argument(
-    "--embedding",
-    dest="embedding",
-    type=str,
-    required=False,
-    default="X_umap",
-    metavar="LITERAL",
-    help="embedding representation used for label plotting (default: X_umap)",
-)
-
-args = parser.parse_args()
-
-omics.set_default_plot_params(bt.omics.pl)
-
-if not Path(os.path.dirname(args.outfile)).exists():
-    os.makedirs(Path(os.path.dirname(args.outfile)))
-
-dict_to_str = ", ".join(f"{k} -> {v}" for k, v in args.labels.items())
-
-console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
-
-adata = ad.read_h5ad(args.infile)
-
-if args.obs not in adata.obs:
-    raise KeyError(f"column '{args.obs}' not found in adata.obs")
-elif not hasattr(adata.obs[args.obs], "cat"):
-    raise ValueError(
-        f"series 'adata.obs[{args.obs}]' does not refer to a categorical variable"
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="annotation",
+        description=(
+            "Rename labels using user-defined names.\n"
+            "Values passed to --labels must follow the syntax <old_name>:<new_name>."
+        ),
+        usage=f"python {script_name} [-h] <FILE> <FILE> --obs <LITERAL> --labels <LITERAL:LITERAL [LITERAL:LITERAL ...]>",
+        formatter_class=cli.HelpFormatter,
     )
 
-console.print_task(f"renaming labels (column={args.obs}, labels={dict_to_str})")
-
-categories = list(adata.obs[args.obs].cat.categories)
-category_by_name = {str(category): category for category in categories}
-missing_labels = sorted(set(args.labels) - set(category_by_name))
-if missing_labels:
-    raise KeyError(
-        "labels not found in categorical column "
-        f"'{args.obs}': {', '.join(missing_labels)}"
+    parser.add_argument(
+        "infile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="input file storing counts (format: h5ad)",
     )
 
-labels = {category_by_name[key]: value for key, value in args.labels.items()}
-renamed_values = adata.obs[args.obs].astype(object).replace(labels)
-renamed_categories = []
-for category in categories:
-    renamed_category = labels.get(category, category)
-    if renamed_category not in renamed_categories:
-        renamed_categories.append(renamed_category)
-renamed_labels = pd.Categorical(
-    renamed_values,
-    categories=renamed_categories,
-    ordered=adata.obs[args.obs].cat.ordered,
-)
-if args.new_obs is None:
-    adata.obs[args.obs] = renamed_labels
-    label_col = args.obs
-else:
-    adata.obs[args.new_obs] = renamed_labels
-    label_col = args.new_obs
-
-if args.condition_col is not None:
-    summarize_composition(
-        adata,
-        label_col=label_col,
-        condition_col=args.condition_col,
-        embedding=args.embedding,
-        outdir=Path(os.path.dirname(args.outfile)),
+    parser.add_argument(
+        "outfile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="output file storing counts with renamed labels (format: h5ad)",
     )
-else:
-    labels_plot = Path(os.path.dirname(args.outfile)) / "labels.pdf"
-    console.print_task(f"plotting embeddings (file={console.format_path(labels_plot)})")
-    plot_labels(adata, obs=label_col, embedding=args.embedding, outfile=labels_plot)
 
-console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
-omics.write_h5ad(adata, filename=args.outfile, compression="gzip")
+    parser.add_argument(
+        "--obs",
+        dest="obs",
+        type=str,
+        required=True,
+        metavar="LITERAL",
+        help="column name in adata.obs where category names are redefined",
+    )
+
+    parser.add_argument(
+        "--new-obs",
+        dest="new_obs",
+        type=str,
+        required=False,
+        default=None,
+        metavar="LITERAL",
+        help="if specified, create a new adata.obs column storing renamed labels",
+    )
+
+    parser.add_argument(
+        "--labels",
+        dest="labels",
+        action=cli.Store_dict,
+        nargs="+",
+        required=True,
+        help="mapping between old and new labels",
+    )
+
+    parser.add_argument(
+        "--condition-col",
+        dest="condition_col",
+        type=str,
+        required=False,
+        default=None,
+        metavar="LITERAL",
+        help="if specified, summarize and plot label composition by condition",
+    )
+
+    parser.add_argument(
+        "--embedding",
+        dest="embedding",
+        type=str,
+        required=False,
+        default="X_umap",
+        metavar="LITERAL",
+        help="embedding representation used for label plotting (default: X_umap)",
+    )
+
+    args = parser.parse_args()
+
+    omics.set_default_plot_params(bt.omics.pl)
+
+    if not Path(os.path.dirname(args.outfile)).exists():
+        os.makedirs(Path(os.path.dirname(args.outfile)))
+
+    dict_to_str = ", ".join(f"{k} -> {v}" for k, v in args.labels.items())
+
+    console.print_task(f"loading AnnData (file={console.format_path(args.infile)})")
+
+    adata = ad.read_h5ad(args.infile)
+
+    if args.obs not in adata.obs:
+        raise KeyError(f"column '{args.obs}' not found in adata.obs")
+    elif not hasattr(adata.obs[args.obs], "cat"):
+        raise ValueError(
+            f"series 'adata.obs[{args.obs}]' does not refer to a categorical variable"
+        )
+
+    console.print_task(f"renaming labels (column={args.obs}, labels={dict_to_str})")
+
+    categories = list(adata.obs[args.obs].cat.categories)
+    category_by_name = {str(category): category for category in categories}
+    missing_labels = sorted(set(args.labels) - set(category_by_name))
+    if missing_labels:
+        raise KeyError(
+            "labels not found in categorical column "
+            f"'{args.obs}': {', '.join(missing_labels)}"
+        )
+
+    labels = {category_by_name[key]: value for key, value in args.labels.items()}
+    renamed_values = adata.obs[args.obs].astype(object).replace(labels)
+    renamed_categories = []
+    for category in categories:
+        renamed_category = labels.get(category, category)
+        if renamed_category not in renamed_categories:
+            renamed_categories.append(renamed_category)
+    renamed_labels = pd.Categorical(
+        renamed_values,
+        categories=renamed_categories,
+        ordered=adata.obs[args.obs].cat.ordered,
+    )
+    if args.new_obs is None:
+        adata.obs[args.obs] = renamed_labels
+        label_col = args.obs
+    else:
+        adata.obs[args.new_obs] = renamed_labels
+        label_col = args.new_obs
+
+    if args.condition_col is not None:
+        summarize_composition(
+            adata,
+            label_col=label_col,
+            condition_col=args.condition_col,
+            embedding=args.embedding,
+            outdir=Path(os.path.dirname(args.outfile)),
+        )
+    else:
+        labels_plot = Path(os.path.dirname(args.outfile)) / "labels.pdf"
+        console.print_task(f"plotting embeddings (file={console.format_path(labels_plot)})")
+        plot_labels(adata, obs=label_col, embedding=args.embedding, outfile=labels_plot)
+
+    console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
+    omics.write_h5ad(adata, filename=args.outfile, compression="gzip")
+
+
+if __name__ == "__main__":
+    main()

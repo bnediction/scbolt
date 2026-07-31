@@ -7,10 +7,11 @@ import sys
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Event, Lock
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Collection, Iterable, Mapping, Sequence
 
 import bonesis
 import clingo
@@ -1523,6 +1524,89 @@ def continue_domain_at_clause_bound(
     )
 
 
+def print_clause_bound_patience_warning(
+    max_clause: int,
+    objective: tuple[int, int],
+    *,
+    node_total: int,
+    important_total: int,
+    patience: float,
+) -> None:
+    """Report the best objective retained at an exhausted clause bound."""
+
+    solution_summary = _format_solution_objective(
+        objective,
+        node_total=node_total,
+        important_total=important_total,
+    )
+    console.print_warning(
+        "no objective improvement within the clause-bound patience "
+        f"[max clauses={max_clause}, "
+        f"time={format_duration(patience)}]: "
+        f"{solution_summary}",
+        flush=True,
+    )
+
+
+def store_retained_model(
+    retained: dict[str, Any],
+    domain: Iterable[str],
+    nodes: Iterable[str],
+    witness: Iterable[str],
+    *,
+    important_nodes: Collection[str],
+    witness_file: Path,
+    solution_file: Path,
+    force: bool = False,
+) -> bool:
+    """Persist a first or improved node-selection model."""
+
+    domain = frozenset(domain)
+    nodes = tuple(sorted(nodes))
+    witness = tuple(witness)
+    objective = len(set(nodes) & set(important_nodes)), len(nodes)
+    improved = objective > retained["objective"]
+    if not force and not improved:
+        return False
+
+    retained["domain"] = domain
+    retained["solution"] = nodes
+    retained["witness"] = witness
+    retained["objective"] = objective
+    write_structural_witness(witness, witness_file)
+    write_node_solution(nodes, solution_file)
+    return improved
+
+
+def retain_intermediate_node_solution(
+    model,
+    *,
+    stage_best: list,
+    retain_model: Callable,
+    complete_domain: Collection[str],
+    stage_patience: SolverPatience,
+) -> None:
+    """Retain an intermediate node solution and reset patience if improved."""
+
+    stage_best[0] = model
+    nodes, witness = model
+    if retain_model(complete_domain, nodes, witness):
+        stage_patience.reset()
+
+
+def write_intermediate_solution(
+    model,
+    *,
+    witness_file: Path,
+    solution_file: Path,
+) -> None:
+    """Persist an intermediate strong-constant solution."""
+
+    nodes, witness = model
+    write_structural_witness(witness, witness_file)
+    write_node_solution(nodes, solution_file)
+
+
 parser_description = """Select Boolean network components using BoNesis.
 
 Two actions are proposed:
@@ -1537,767 +1621,746 @@ See Chevalier et al. (2024):
 https://hal.science/hal-04629083/document
 """
 
-parser = argparse.ArgumentParser(
-    prog="select",
-    description=parser_description,
-    usage=(
-        f"python {script_name} [filter-nodes | filter-consts] " "<FILE> <FILE> [<args>]"
-    ),
-    formatter_class=cli.HelpFormatter,
-)
-parser.add_argument(
-    "action",
-    choices=["filter-nodes", "filter-consts"],
-    metavar="[filter-nodes | filter-consts]",
-    help="BoNesis gene-selection action to run",
-)
-add_bonesis_arguments(parser)
-parser.add_argument(
-    "--important-nodes",
-    dest="important_nodes",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    metavar="FILE",
-    help=(
-        "input file storing important nodes prioritized to appear "
-        "(format: json or txt)"
-    ),
-)
-parser.add_argument(
-    "--mandatory-nodes",
-    dest="mandatory_nodes",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    metavar="FILE",
-    help=(
-        "input file storing mandatory nodes forced to appear " "(format: json or txt)"
-    ),
-)
-parser.add_argument(
-    "--forbidden-nodes",
-    dest="forbidden_nodes",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    default=None,
-    metavar="FILE",
-    help="input file storing nodes excluded from the regulatory domain",
-)
-parser.add_argument(
-    "--domain-size-file",
-    dest="domain_size_file",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    default=None,
-    metavar="FILE",
-    help="optional output storing the full domain size",
-)
-parser.add_argument(
-    "--clingo-configuration",
-    dest="clingo_configuration",
-    type=str,
-    required=False,
-    default=None,
-    metavar="[auto | frumpy | jumpy | tweety | handy | crafty | trendy | many | FILE]",
-    help=(
-        "Clingo default configuration passed as --configuration; if not "
-        "specified, BoNesis/Clingo defaults are used"
-    ),
-)
-parser.add_argument(
-    "--clingo-strategy",
-    dest="clingo_strategy",
-    action=cli.Clingo_strategy,
-    required=False,
-)
-parser.add_argument(
-    "--clause-continuation",
-    dest="clause_continuation",
-    action="store_true",
-    help=(
-        "solve increasing clause bounds and reuse each structural witness "
-        "as a soft heuristic"
-    ),
-)
-parser.add_argument(
-    "--clause-bound-patience",
-    dest="clause_bound_patience",
-    type=parse_solver_timeout,
-    required=False,
-    default=0.0,
-    metavar="DURATION",
-    help=(
-        "maximum time without a Clingo objective improvement before "
-        "continuing to the next intermediate clause bound; suffixes s, m, "
-        "h and d are supported, and 0 disables the patience (default: 0)"
-    ),
-)
-parser.add_argument(
-    "--clause-continuation-parameter",
-    dest="clause_continuation_parameter",
-    type=str,
-    required=False,
-    default=None,
-    help=argparse.SUPPRESS,
-)
-parser.add_argument(
-    "--domain-continuation",
-    dest="domain_continuation",
-    action="store_true",
-    help=(
-        "search candidate regulatory subdomains in parallel and expand "
-        "the selected witness toward the complete domain"
-    ),
-)
-parser.add_argument(
-    "--domain-continuation-expansion-only",
-    dest="domain_continuation_expansion_only",
-    action="store_true",
-    help=argparse.SUPPRESS,
-)
-parser.add_argument(
-    "--domain-wave-patience",
-    dest="domain_wave_patience",
-    type=parse_solver_timeout,
-    required=False,
-    default=0.0,
-    metavar="DURATION",
-    help=(
-        "full stagnation time after improving the best objective within one "
-        "domain-continuation wave; a new candidate first reaching the same "
-        "objective guarantees up to two minutes remain; suffixes s, m, h "
-        "and d are supported, and 0 disables the patience (default: 0)"
-    ),
-)
-parser.add_argument(
-    "--min-domain-yield",
-    dest="min_domain_yield",
-    type=parse_min_domain_yield,
-    required=False,
-    default=0.10,
-    metavar="FLOAT",
-    help=(
-        "minimum cumulative retained-node gain per node added during domain "
-        "expansion; low-yield expansions are refreshed at constant size, "
-        "and 0 disables refreshes (default: 0.10)"
-    ),
-)
-parser.add_argument(
-    "--max-domain-refreshes",
-    dest="max_domain_refreshes",
-    type=int,
-    required=False,
-    default=2,
-    metavar="INT",
-    help=(
-        "maximum number of constant-size domain refreshes before expansion "
-        "resumes; 0 disables domain refreshes (default: 2)"
-    ),
-)
-parser.add_argument(
-    "--domain-continuation-jobs",
-    dest="domain_continuation_jobs",
-    type=int,
-    required=False,
-    default=1,
-    metavar="INT",
-    help="maximum candidate domains evaluated simultaneously (default: 1)",
-)
-parser.add_argument(
-    "--memory-limit",
-    dest="memory_limit",
-    type=parse_memory_limit,
-    required=False,
-    default=None,
-    metavar="MEMORY",
-    help=(
-        "soft process-memory limit used to schedule domain candidates; "
-        "integers are interpreted as GB"
-    ),
-)
-parser.add_argument(
-    "--domain-continuation-seed",
-    dest="domain_continuation_seed",
-    type=int,
-    required=False,
-    default=int(os.getenv("PYTHONHASHSEED", "0")),
-    help=argparse.SUPPRESS,
-)
-parser.add_argument(
-    "--initial-witness",
-    dest="initial_witness",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    default=None,
-    metavar="FILE",
-    help=argparse.SUPPRESS,
-)
-parser.add_argument(
-    "--forward-witness",
-    dest="forward_witness",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    default=None,
-    metavar="FILE",
-    help=argparse.SUPPRESS,
-)
-parser.add_argument(
-    "--forwarded-status-file",
-    dest="forwarded_status_file",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    default=None,
-    metavar="FILE",
-    help=argparse.SUPPRESS,
-)
-parser.add_argument(
-    "--witness",
-    dest="witness",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    default=None,
-    metavar="FILE",
-    help=argparse.SUPPRESS,
-)
-
-args = parser.parse_args()
-if args.domain_continuation_jobs < 1:
-    parser.error("--domain-continuation-jobs must be greater than or equal to 1")
-if args.max_domain_refreshes < 0:
-    parser.error("--max-domain-refreshes must be greater than or equal to 0")
-if args.domain_continuation and args.action != "filter-nodes":
-    parser.error("--domain-continuation is only available with filter-nodes")
-if args.domain_continuation_expansion_only and not args.domain_continuation:
-    parser.error(
-        "--domain-continuation-expansion-only requires "
-        "--domain-continuation"
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="select",
+        description=parser_description,
+        usage=(
+            f"python {script_name} [filter-nodes | filter-consts] " "<FILE> <FILE> [<args>]"
+        ),
+        formatter_class=cli.HelpFormatter,
     )
-if args.domain_continuation_expansion_only and args.initial_witness is None:
-    parser.error(
-        "--domain-continuation-expansion-only requires --initial-witness"
+    parser.add_argument(
+        "action",
+        choices=["filter-nodes", "filter-consts"],
+        metavar="[filter-nodes | filter-consts]",
+        help="BoNesis gene-selection action to run",
     )
-if args.initial_witness is not None and args.forward_witness is not None:
-    parser.error("--initial-witness and --forward-witness are mutually exclusive")
-reset_solver_timeout_status(args.timeout_status_file)
-if args.forwarded_status_file is not None:
-    args.forwarded_status_file.unlink(missing_ok=True)
-if args.witness is None:
-    args.witness = args.solution.with_name("witness.lp")
-
-bo, canonical, clingo_parallel_option = initialize_bonesis(
-    args,
-    allow_skipping_nodes=args.action == "filter-nodes",
-    default_canonical=False,
-    forbidden_nodes_file=args.forbidden_nodes,
-)
-new_constraints = apply_bonesis_mode(bo, args.bonesis_mode)
-
-if args.domain_size_file is not None:
-    write_lines((str(len(bo.domain.nodes)),), args.domain_size_file)
-
-if args.action == "filter-nodes":
-    console.print_task("maximizing satisfiable nodes")
-
-    bo.maximize_nodes()
-
-    mandatory_nodes = read_gene_list(args.mandatory_nodes)
-    for node in mandatory_nodes:
-        bo.custom(f"node({clingo_encode(node)}).")
-
-    important_nodes = set(read_gene_list(args.important_nodes))
-    important_nodes_in_domain = important_nodes & set(bo.domain.nodes)
-    for node in important_nodes_in_domain:
-        bo.custom(f"important_node({clingo_encode(node)}).")
-
-    bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
-    filter_nodes_score_formatter = make_filter_nodes_score_formatter(
-        important_total=len(important_nodes_in_domain),
-        node_total=len(bo.domain.nodes),
+    add_bonesis_arguments(parser)
+    parser.add_argument(
+        "--important-nodes",
+        dest="important_nodes",
+        type=lambda x: Path(x).resolve(),
+        required=False,
+        metavar="FILE",
+        help=(
+            "input file storing important nodes prioritized to appear "
+            "(format: json or txt)"
+        ),
     )
-    ptqdm.score_formatter = filter_nodes_score_formatter
-    ptqdm.initial_postfix = filter_nodes_score_formatter(
-        [0, 0] if important_nodes_in_domain else [0]
+    parser.add_argument(
+        "--mandatory-nodes",
+        dest="mandatory_nodes",
+        type=lambda x: Path(x).resolve(),
+        required=False,
+        metavar="FILE",
+        help=(
+            "input file storing mandatory nodes forced to appear " "(format: json or txt)"
+        ),
     )
-    nodes_in_data, nodes_in_domain, domain_edges = get_node_sets(bo)
-    initial_witness = read_structural_witness(args.initial_witness)
+    parser.add_argument(
+        "--forbidden-nodes",
+        dest="forbidden_nodes",
+        type=lambda x: Path(x).resolve(),
+        required=False,
+        default=None,
+        metavar="FILE",
+        help="input file storing nodes excluded from the regulatory domain",
+    )
+    parser.add_argument(
+        "--domain-size-file",
+        dest="domain_size_file",
+        type=lambda x: Path(x).resolve(),
+        required=False,
+        default=None,
+        metavar="FILE",
+        help="optional output storing the full domain size",
+    )
+    parser.add_argument(
+        "--clingo-configuration",
+        dest="clingo_configuration",
+        type=str,
+        required=False,
+        default=None,
+        metavar="[auto | frumpy | jumpy | tweety | handy | crafty | trendy | many | FILE]",
+        help=(
+            "Clingo default configuration passed as --configuration; if not "
+            "specified, BoNesis/Clingo defaults are used"
+        ),
+    )
+    parser.add_argument(
+        "--clingo-strategy",
+        dest="clingo_strategy",
+        action=cli.Clingo_strategy,
+        required=False,
+    )
+    parser.add_argument(
+        "--clause-continuation",
+        dest="clause_continuation",
+        action="store_true",
+        help=(
+            "solve increasing clause bounds and reuse each structural witness "
+            "as a soft heuristic"
+        ),
+    )
+    parser.add_argument(
+        "--clause-bound-patience",
+        dest="clause_bound_patience",
+        type=parse_solver_timeout,
+        required=False,
+        default=0.0,
+        metavar="DURATION",
+        help=(
+            "maximum time without a Clingo objective improvement before "
+            "continuing to the next intermediate clause bound; suffixes s, m, "
+            "h and d are supported, and 0 disables the patience (default: 0)"
+        ),
+    )
+    parser.add_argument(
+        "--clause-continuation-parameter",
+        dest="clause_continuation_parameter",
+        type=str,
+        required=False,
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--domain-continuation",
+        dest="domain_continuation",
+        action="store_true",
+        help=(
+            "search candidate regulatory subdomains in parallel and expand "
+            "the selected witness toward the complete domain"
+        ),
+    )
+    parser.add_argument(
+        "--domain-continuation-expansion-only",
+        dest="domain_continuation_expansion_only",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--domain-wave-patience",
+        dest="domain_wave_patience",
+        type=parse_solver_timeout,
+        required=False,
+        default=0.0,
+        metavar="DURATION",
+        help=(
+            "full stagnation time after improving the best objective within one "
+            "domain-continuation wave; a new candidate first reaching the same "
+            "objective guarantees up to two minutes remain; suffixes s, m, h "
+            "and d are supported, and 0 disables the patience (default: 0)"
+        ),
+    )
+    parser.add_argument(
+        "--min-domain-yield",
+        dest="min_domain_yield",
+        type=parse_min_domain_yield,
+        required=False,
+        default=0.10,
+        metavar="FLOAT",
+        help=(
+            "minimum cumulative retained-node gain per node added during domain "
+            "expansion; low-yield expansions are refreshed at constant size, "
+            "and 0 disables refreshes (default: 0.10)"
+        ),
+    )
+    parser.add_argument(
+        "--max-domain-refreshes",
+        dest="max_domain_refreshes",
+        type=int,
+        required=False,
+        default=2,
+        metavar="INT",
+        help=(
+            "maximum number of constant-size domain refreshes before expansion "
+            "resumes; 0 disables domain refreshes (default: 2)"
+        ),
+    )
+    parser.add_argument(
+        "--domain-continuation-jobs",
+        dest="domain_continuation_jobs",
+        type=int,
+        required=False,
+        default=1,
+        metavar="INT",
+        help="maximum candidate domains evaluated simultaneously (default: 1)",
+    )
+    parser.add_argument(
+        "--memory-limit",
+        dest="memory_limit",
+        type=parse_memory_limit,
+        required=False,
+        default=None,
+        metavar="MEMORY",
+        help=(
+            "soft process-memory limit used to schedule domain candidates; "
+            "integers are interpreted as GB"
+        ),
+    )
+    parser.add_argument(
+        "--domain-continuation-seed",
+        dest="domain_continuation_seed",
+        type=int,
+        required=False,
+        default=int(os.getenv("PYTHONHASHSEED", "0")),
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--initial-witness",
+        dest="initial_witness",
+        type=lambda x: Path(x).resolve(),
+        required=False,
+        default=None,
+        metavar="FILE",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--forward-witness",
+        dest="forward_witness",
+        type=lambda x: Path(x).resolve(),
+        required=False,
+        default=None,
+        metavar="FILE",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--forwarded-status-file",
+        dest="forwarded_status_file",
+        type=lambda x: Path(x).resolve(),
+        required=False,
+        default=None,
+        metavar="FILE",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--witness",
+        dest="witness",
+        type=lambda x: Path(x).resolve(),
+        required=False,
+        default=None,
+        metavar="FILE",
+        help=argparse.SUPPRESS,
+    )
 
-    if should_forward_previous_solution(new_constraints, initial_witness):
-        forwarded_nodes = (
-            read_gene_list(args.filter_grn)
-            if args.filter_grn is not None
-            else sorted(bo.domain.nodes)
-        )
-        forwarded_witness = read_structural_witness(args.forward_witness)
-        console.print_info(
-            "no new constraints added; forwarding previous solution",
-            flush=True,
-        )
-        write_node_solution(forwarded_nodes, args.solution)
-        write_structural_witness(forwarded_witness, args.witness)
-        if args.forwarded_status_file is not None:
-            write_lines(("forwarded",), args.forwarded_status_file)
-        sys.exit(0)
-
-    if args.domain_continuation_expansion_only and not initial_witness:
+    args = parser.parse_args()
+    if args.domain_continuation_jobs < 1:
+        parser.error("--domain-continuation-jobs must be greater than or equal to 1")
+    if args.max_domain_refreshes < 0:
+        parser.error("--max-domain-refreshes must be greater than or equal to 0")
+    if args.domain_continuation and args.action != "filter-nodes":
+        parser.error("--domain-continuation is only available with filter-nodes")
+    if args.domain_continuation_expansion_only and not args.domain_continuation:
         parser.error(
-            "--domain-continuation-expansion-only requires a non-empty "
-            "structural witness"
+            "--domain-continuation-expansion-only requires "
+            "--domain-continuation"
         )
+    if args.domain_continuation_expansion_only and args.initial_witness is None:
+        parser.error(
+            "--domain-continuation-expansion-only requires --initial-witness"
+        )
+    if args.initial_witness is not None and args.forward_witness is not None:
+        parser.error("--initial-witness and --forward-witness are mutually exclusive")
+    reset_solver_timeout_status(args.timeout_status_file)
+    if args.forwarded_status_file is not None:
+        args.forwarded_status_file.unlink(missing_ok=True)
+    if args.witness is None:
+        args.witness = args.solution.with_name("witness.lp")
 
-    effective_clingo_strategy = args.clingo_strategy or "bb,dec"
-    print_node_reference(
-        nodes_in_data,
-        nodes_in_domain,
-        domain_edges,
-        flush=True,
+    bo, canonical, clingo_parallel_option = initialize_bonesis(
+        args,
+        allow_skipping_nodes=args.action == "filter-nodes",
+        default_canonical=False,
+        forbidden_nodes_file=args.forbidden_nodes,
     )
-    print_solver_options(
-        args.clingo_mode,
-        effective_clingo_strategy,
-        args.max_clauses,
-        canonical,
-        configuration=args.clingo_configuration or "auto",
-        jobs=args.jobs,
-        flush=True,
-    )
-    initial_witness_clause_bound = structural_witness_clause_bound(initial_witness)
-    if initial_witness_clause_bound > args.max_clauses:
-        raise ValueError(
-            "initial structural witness requires "
-            f"max_clauses >= {initial_witness_clause_bound} "
-            f"(got {args.max_clauses})"
-        )
+    new_constraints = apply_bonesis_mode(bo, args.bonesis_mode)
 
-    bounds = (
-        clause_continuation_bounds(
-            args.max_clauses,
-            lower_bound=initial_witness_clause_bound,
-        )
-        if args.clause_continuation
-        else (args.max_clauses,)
-    )
-    if args.clause_continuation:
-        bounds_text = (
-            str(bounds[0])
-            if len(bounds) == 1
-            else f"{bounds[0]}..{bounds[-1]}"
-        )
-        console.print_options(
-            "clause continuation: "
-            f"bounds={bounds_text}, "
-            "bound patience="
-            f"{format_duration(args.clause_bound_patience)}",
-            flush=True,
-        )
-    else:
-        console.print_options("clause continuation: none", flush=True)
+    if args.domain_size_file is not None:
+        write_lines((str(len(bo.domain.nodes)),), args.domain_size_file)
 
-    if args.domain_continuation:
-        continuation_mode = (
-            "expansion"
-            if args.domain_continuation_expansion_only
-            else "adaptive"
+    if args.action == "filter-nodes":
+        console.print_task("maximizing satisfiable nodes")
+
+        bo.maximize_nodes()
+
+        mandatory_nodes = read_gene_list(args.mandatory_nodes)
+        for node in mandatory_nodes:
+            bo.custom(f"node({clingo_encode(node)}).")
+
+        important_nodes = set(read_gene_list(args.important_nodes))
+        important_nodes_in_domain = important_nodes & set(bo.domain.nodes)
+        for node in important_nodes_in_domain:
+            bo.custom(f"important_node({clingo_encode(node)}).")
+
+        bo.custom("#maximize { 1@100,N: important_node(N),node(N) }.")
+        filter_nodes_score_formatter = make_filter_nodes_score_formatter(
+            important_total=len(important_nodes_in_domain),
+            node_total=len(bo.domain.nodes),
         )
-        console.print_options(
-            "domain continuation: "
-            f"mode={continuation_mode}, "
-            "patience="
-            f"{format_duration(args.domain_wave_patience)}, "
-            f"yield={args.min_domain_yield:.1%}, "
-            f"refreshes={args.max_domain_refreshes}",
-            flush=True,
+        ptqdm.score_formatter = filter_nodes_score_formatter
+        ptqdm.initial_postfix = filter_nodes_score_formatter(
+            [0, 0] if important_nodes_in_domain else [0]
         )
-        if args.memory_limit is not None:
-            console.print_options(
-                "domain memory: "
-                f"limit={format_memory_size(args.memory_limit)}, "
-                f"probe={DOMAIN_MEMORY_PROBE_SECONDS:g}s, "
-                "candidate margin="
-                f"{DOMAIN_MEMORY_COST_FACTOR - 1:.0%}",
+        nodes_in_data, nodes_in_domain, domain_edges = get_node_sets(bo)
+        initial_witness = read_structural_witness(args.initial_witness)
+
+        if should_forward_previous_solution(new_constraints, initial_witness):
+            forwarded_nodes = (
+                read_gene_list(args.filter_grn)
+                if args.filter_grn is not None
+                else sorted(bo.domain.nodes)
+            )
+            forwarded_witness = read_structural_witness(args.forward_witness)
+            console.print_info(
+                "no new constraints added; forwarding previous solution",
                 flush=True,
             )
-    else:
-        console.print_options("domain continuation: none", flush=True)
-    console.print_warning("this may take some time.", flush=True)
-    complete_domain = frozenset(bo.domain.nodes)
-    required_nodes = (
-        set(mandatory_nodes) | important_nodes_in_domain
-    ) & complete_domain
-    initial_solution = structural_witness_nodes(initial_witness)
-    current_witness = initial_witness
-    current_domain = (
-        continuation_base_domain(
-            initial_solution,
-            required_nodes,
-            complete_domain,
-        )
-        if args.domain_continuation
-        else complete_domain
-    )
-    solution = tuple(initial_solution)
-    retained = {
-        "domain": current_domain,
-        "solution": solution,
-        "witness": current_witness,
-        "objective": (
-            len(set(solution) & important_nodes_in_domain),
-            len(solution),
-        ),
-    }
-    if current_witness:
-        write_node_solution(solution, args.solution)
-        write_structural_witness(current_witness, args.witness)
+            write_node_solution(forwarded_nodes, args.solution)
+            write_structural_witness(forwarded_witness, args.witness)
+            if args.forwarded_status_file is not None:
+                write_lines(("forwarded",), args.forwarded_status_file)
+            sys.exit(0)
 
-    def print_clause_bound_patience_warning(max_clause: int) -> None:
-        """Report the best objective retained at an exhausted clause bound."""
+        if args.domain_continuation_expansion_only and not initial_witness:
+            parser.error(
+                "--domain-continuation-expansion-only requires a non-empty "
+                "structural witness"
+            )
 
-        solution_summary = _format_solution_objective(
-            retained["objective"],
-            node_total=len(complete_domain),
-            important_total=len(important_nodes_in_domain),
-        )
-        console.print_warning(
-            "no objective improvement within the clause-bound patience "
-            f"[max clauses={max_clause}, "
-            f"time={format_duration(args.clause_bound_patience)}]: "
-            f"{solution_summary}",
+        effective_clingo_strategy = args.clingo_strategy or "bb,dec"
+        print_node_reference(
+            nodes_in_data,
+            nodes_in_domain,
+            domain_edges,
             flush=True,
         )
+        print_solver_options(
+            args.clingo_mode,
+            effective_clingo_strategy,
+            args.max_clauses,
+            canonical,
+            configuration=args.clingo_configuration or "auto",
+            jobs=args.jobs,
+            flush=True,
+        )
+        initial_witness_clause_bound = structural_witness_clause_bound(initial_witness)
+        if initial_witness_clause_bound > args.max_clauses:
+            raise ValueError(
+                "initial structural witness requires "
+                f"max_clauses >= {initial_witness_clause_bound} "
+                f"(got {args.max_clauses})"
+            )
 
-    def rebase_for_next_clause_bound(nodes):
-        """Retain selected and required nodes for the next clause bound."""
+        bounds = (
+            clause_continuation_bounds(
+                args.max_clauses,
+                lower_bound=initial_witness_clause_bound,
+            )
+            if args.clause_continuation
+            else (args.max_clauses,)
+        )
+        if args.clause_continuation:
+            bounds_text = (
+                str(bounds[0])
+                if len(bounds) == 1
+                else f"{bounds[0]}..{bounds[-1]}"
+            )
+            console.print_options(
+                "clause continuation: "
+                f"bounds={bounds_text}, "
+                "bound patience="
+                f"{format_duration(args.clause_bound_patience)}",
+                flush=True,
+            )
+        else:
+            console.print_options("clause continuation: none", flush=True)
 
-        domain = (
+        if args.domain_continuation:
+            continuation_mode = (
+                "expansion"
+                if args.domain_continuation_expansion_only
+                else "adaptive"
+            )
+            console.print_options(
+                "domain continuation: "
+                f"mode={continuation_mode}, "
+                "patience="
+                f"{format_duration(args.domain_wave_patience)}, "
+                f"yield={args.min_domain_yield:.1%}, "
+                f"refreshes={args.max_domain_refreshes}",
+                flush=True,
+            )
+            if args.memory_limit is not None:
+                console.print_options(
+                    "domain memory: "
+                    f"limit={format_memory_size(args.memory_limit)}, "
+                    f"probe={DOMAIN_MEMORY_PROBE_SECONDS:g}s, "
+                    "candidate margin="
+                    f"{DOMAIN_MEMORY_COST_FACTOR - 1:.0%}",
+                    flush=True,
+                )
+        else:
+            console.print_options("domain continuation: none", flush=True)
+        console.print_warning("this may take some time.", flush=True)
+        complete_domain = frozenset(bo.domain.nodes)
+        required_nodes = (
+            set(mandatory_nodes) | important_nodes_in_domain
+        ) & complete_domain
+        initial_solution = structural_witness_nodes(initial_witness)
+        current_witness = initial_witness
+        current_domain = (
             continuation_base_domain(
-                nodes,
+                initial_solution,
                 required_nodes,
                 complete_domain,
             )
             if args.domain_continuation
             else complete_domain
         )
-        retained["domain"] = domain
-        return domain
+        solution = tuple(initial_solution)
+        retained = {
+            "domain": current_domain,
+            "solution": solution,
+            "witness": current_witness,
+            "objective": (
+                len(set(solution) & important_nodes_in_domain),
+                len(solution),
+            ),
+        }
+        if current_witness:
+            write_node_solution(solution, args.solution)
+            write_structural_witness(current_witness, args.witness)
 
-    deadline = SolverDeadline(args.timeout)
+        deadline = SolverDeadline(args.timeout)
 
-    for stage_index, max_clause in enumerate(bounds, start=1):
-        if stage_index > 1:
-            current_domain = rebase_for_next_clause_bound(solution)
+        for stage_index, max_clause in enumerate(bounds, start=1):
+            if stage_index > 1:
+                current_domain = (
+                    continuation_base_domain(
+                        solution,
+                        required_nodes,
+                        complete_domain,
+                    )
+                    if args.domain_continuation
+                    else complete_domain
+                )
+                retained["domain"] = current_domain
 
-        is_target = max_clause == args.max_clauses
-        stage_name = "Target optimization" if is_target else "Clause continuation"
-        clingo_mode = args.clingo_mode
-        clingo_strategy = effective_clingo_strategy
-        description = (
-            f"{stage_name} [{stage_index}/{len(bounds)}, "
-            f"max clauses={max_clause}]"
-        )
-
-        stage_patience_seconds = (
-            0.0 if is_target else args.clause_bound_patience
-        )
-        stage_patience = SolverPatience(stage_patience_seconds)
-        stage_best = [None]
-
-        def store_model(domain, nodes, witness, *, force=False):
-            domain = frozenset(domain)
-            nodes = tuple(sorted(nodes))
-            witness = tuple(witness)
-            objective = (
-                len(set(nodes) & important_nodes_in_domain),
-                len(nodes),
+            is_target = max_clause == args.max_clauses
+            stage_name = "Target optimization" if is_target else "Clause continuation"
+            clingo_mode = args.clingo_mode
+            clingo_strategy = effective_clingo_strategy
+            description = (
+                f"{stage_name} [{stage_index}/{len(bounds)}, "
+                f"max clauses={max_clause}]"
             )
-            improved = objective > retained["objective"]
-            if not force and not improved:
-                return False
 
-            retained["domain"] = domain
-            retained["solution"] = nodes
-            retained["witness"] = witness
-            retained["objective"] = objective
-            write_structural_witness(witness, args.witness)
-            write_node_solution(nodes, args.solution)
-            return improved
+            stage_patience_seconds = (
+                0.0 if is_target else args.clause_bound_patience
+            )
+            stage_patience = SolverPatience(stage_patience_seconds)
+            stage_best = [None]
+            retain_model = partial(
+                store_retained_model,
+                retained,
+                important_nodes=important_nodes_in_domain,
+                witness_file=args.witness,
+                solution_file=args.solution,
+            )
+            retain_selected = partial(retain_model, force=True)
 
-        def retain_model(domain, nodes, witness):
-            return store_model(domain, nodes, witness)
+            if args.domain_continuation:
+                try:
+                    continuation = continue_domain_at_clause_bound(
+                        bo,
+                        max_clause=max_clause,
+                        initial_domain=current_domain,
+                        initial_solution=solution,
+                        initial_witness=current_witness,
+                        expansion_only=args.domain_continuation_expansion_only,
+                        required_nodes=required_nodes,
+                        important_nodes=important_nodes_in_domain,
+                        jobs=args.domain_continuation_jobs,
+                        seed=args.domain_continuation_seed,
+                        clingo_mode=clingo_mode,
+                        clingo_strategy=clingo_strategy,
+                        clingo_configuration=args.clingo_configuration,
+                        domain_patience_seconds=args.domain_wave_patience,
+                        minimum_domain_yield=args.min_domain_yield,
+                        max_domain_refreshes=args.max_domain_refreshes,
+                        clause_patience=stage_patience,
+                        deadline=deadline,
+                        memory_limit=args.memory_limit,
+                        on_model=retain_model,
+                        on_selected=retain_selected,
+                    )
+                except SolverTimeout:
+                    exit_solver_timeout(args.timeout_status_file)
+                except SolverPatienceExpired:
+                    solution = tuple(retained["solution"])
+                    current_witness = tuple(retained["witness"])
+                    print_clause_bound_patience_warning(
+                        max_clause,
+                        retained["objective"],
+                        node_total=len(complete_domain),
+                        important_total=len(important_nodes_in_domain),
+                        patience=args.clause_bound_patience,
+                    )
+                    continue
 
-        def retain_selected(domain, nodes, witness):
-            store_model(domain, nodes, witness, force=True)
+                if continuation.complete_domain_unsat:
+                    if is_target:
+                        raise make_no_solution_error(
+                            args.clause_continuation,
+                            args.clause_continuation_parameter,
+                        )
+                    solution = tuple(retained["solution"])
+                    current_witness = tuple(retained["witness"])
+                    console.print_warning(
+                        "domain continuation proved the complete domain "
+                        f"unsatisfiable (max clauses={max_clause}); continuing",
+                        flush=True,
+                    )
+                    continue
 
-        if args.domain_continuation:
+                current_domain = continuation.domain
+                solution = continuation.solution
+                current_witness = continuation.witness
+            if solution and current_witness:
+                retain_model(current_domain, solution, current_witness)
+
+            stage_bo = fork_bonesis(
+                bo,
+                max_clause=max_clause,
+                witness=current_witness,
+            )
+            intermediate_solution = partial(
+                retain_intermediate_node_solution,
+                stage_best=stage_best,
+                retain_model=retain_model,
+                complete_domain=complete_domain,
+                stage_patience=stage_patience,
+            )
+
+            extra_clingo_options = [clingo_parallel_option]
+            if current_witness:
+                extra_clingo_options.insert(0, "--heuristic=Domain")
+            view_settings = get_filter_clingo_settings(
+                clingo_mode,
+                clingo_strategy,
+                args.clingo_configuration,
+                *extra_clingo_options,
+            )
+
+            view = bonesis.NodesView(
+                stage_bo,
+                mode=clingo_mode,
+                extra=structural_witness,
+                intermediate_model_cb=intermediate_solution,
+                clingo_opt_strategy=clingo_strategy,
+                progress=make_stage_progress(
+                    description,
+                    retained["objective"],
+                    filter_nodes_score_formatter,
+                    has_important_nodes=bool(important_nodes_in_domain),
+                ),
+                **view_settings,
+            )
+            if is_target:
+                view.standalone(output_filename=args.asp)
+
             try:
-                continuation = continue_domain_at_clause_bound(
-                    bo,
-                    max_clause=max_clause,
-                    initial_domain=current_domain,
-                    initial_solution=solution,
-                    initial_witness=current_witness,
-                    expansion_only=args.domain_continuation_expansion_only,
-                    required_nodes=required_nodes,
-                    important_nodes=important_nodes_in_domain,
-                    jobs=args.domain_continuation_jobs,
-                    seed=args.domain_continuation_seed,
-                    clingo_mode=clingo_mode,
-                    clingo_strategy=clingo_strategy,
-                    clingo_configuration=args.clingo_configuration,
-                    domain_patience_seconds=args.domain_wave_patience,
-                    minimum_domain_yield=args.min_domain_yield,
-                    max_domain_refreshes=args.max_domain_refreshes,
-                    clause_patience=stage_patience,
-                    deadline=deadline,
-                    memory_limit=args.memory_limit,
-                    on_model=retain_model,
-                    on_selected=retain_selected,
+                solution, current_witness = next_solution(
+                    view,
+                    deadline,
+                    stage_patience,
                 )
             except SolverTimeout:
                 exit_solver_timeout(args.timeout_status_file)
             except SolverPatienceExpired:
-                solution = tuple(retained["solution"])
-                current_witness = tuple(retained["witness"])
-                print_clause_bound_patience_warning(max_clause)
+                if stage_best[0] is not None:
+                    solution, current_witness = stage_best[0]
+                elif retained["solution"]:
+                    solution = tuple(retained["solution"])
+                    current_witness = tuple(retained["witness"])
+                print_clause_bound_patience_warning(
+                    max_clause,
+                    retained["objective"],
+                    node_total=len(complete_domain),
+                    important_total=len(important_nodes_in_domain),
+                    patience=args.clause_bound_patience,
+                )
                 continue
-
-            if continuation.complete_domain_unsat:
+            except SolverCapacityError as error:
+                capacity_error = make_solver_capacity_error(
+                    error,
+                    domain_continuation=args.domain_continuation,
+                    clause_continuation_parameter=args.clause_continuation_parameter,
+                )
+                console.print_warning(str(capacity_error), flush=True)
+                exit_solver_capacity(args.timeout_status_file)
+            except StopIteration:
                 if is_target:
                     raise make_no_solution_error(
                         args.clause_continuation,
                         args.clause_continuation_parameter,
-                    )
+                    ) from None
                 solution = tuple(retained["solution"])
                 current_witness = tuple(retained["witness"])
                 console.print_warning(
-                    "domain continuation proved the complete domain "
-                    f"unsatisfiable (max clauses={max_clause}); continuing",
+                    "clause continuation produced no witness "
+                    f"(max clauses={max_clause}); continuing",
                     flush=True,
                 )
                 continue
+            except RuntimeError:
+                if not is_target:
+                    raise
+                if not args.solution.exists() or args.solution.stat().st_size == 0:
+                    raise
+                with open(args.solution) as stream:
+                    solution = [line.rstrip() for line in stream if line.rstrip()]
+                current_witness = read_structural_witness(args.witness)
+                if not solution or not current_witness:
+                    raise
+                console.print_debug(
+                    "selecting intermediate solution "
+                    "(reason=final model parsing failed, "
+                    "certification=partial/non-certified)",
+                    flush=True,
+                )
 
-            current_domain = continuation.domain
-            solution = continuation.solution
-            current_witness = continuation.witness
-            if solution and current_witness:
-                retain_model(current_domain, solution, current_witness)
+            final_objective = (
+                len(set(solution) & important_nodes_in_domain),
+                len(solution),
+            )
+            if final_objective < retained["objective"]:
+                solution = tuple(retained["solution"])
+                current_witness = tuple(retained["witness"])
+                current_domain = frozenset(retained["domain"])
+            else:
+                retain_model(
+                    complete_domain,
+                    solution,
+                    current_witness,
+                    force=True,
+                )
+                current_domain = complete_domain
+            write_structural_witness(current_witness, args.witness)
+            write_node_solution(solution, args.solution)
 
-        stage_bo = fork_bonesis(
+        if not solution:
+            raise make_no_solution_error(
+                args.clause_continuation,
+                args.clause_continuation_parameter,
+            )
+
+        print_node_solution(
+            solution,
+            nodes_in_data,
+            nodes_in_domain,
+            flush=True,
+        )
+
+    elif args.action == "filter-consts":
+        console.print_task("maximizing strong constants")
+
+        bo.maximize_strong_constants()
+        if args.minimize_self_loops:
+            bo.custom(
+                "edge(A,A) :- clause(A,_,A,_). " "#minimize { 1@10000,A: edge(A,A) }."
+            )
+
+        important_nodes = set(read_gene_list(args.important_nodes))
+        important_nodes_in_domain = important_nodes & set(bo.domain.nodes)
+        for node in important_nodes_in_domain:
+            bo.custom(f"important_node({clingo_encode(node)}).")
+
+        if important_nodes_in_domain:
+            bo.custom(
+                "#maximize { 1@1,N: important_node(N), node(N), "
+                "not strong_constant(N) }."
+            )
+
+        intermediate_solution = partial(
+            write_intermediate_solution,
+            witness_file=args.witness,
+            solution_file=args.solution,
+        )
+
+        clingo_strategy = "usc"
+        ptqdm.score_formatter = make_filter_consts_score_formatter(
+            node_total=len(bo.domain.nodes),
+            important_total=len(important_nodes_in_domain),
+        )
+        ptqdm.initial_postfix = {
+            "total": _format_progress_ratio(0, len(bo.domain.nodes)),
+        }
+        if important_nodes_in_domain:
+            ptqdm.initial_postfix = {
+                "important": _format_progress_ratio(
+                    0,
+                    len(important_nodes_in_domain),
+                ),
+                **ptqdm.initial_postfix,
+            }
+        view = bonesis.NonStrongConstantNodesView(
             bo,
-            max_clause=max_clause,
-            witness=current_witness,
-        )
-
-        def intermediate_solution(model):
-            stage_best[0] = model
-            nodes, witness = model
-            if retain_model(complete_domain, nodes, witness):
-                stage_patience.reset()
-
-        extra_clingo_options = [clingo_parallel_option]
-        if current_witness:
-            extra_clingo_options.insert(0, "--heuristic=Domain")
-        view_settings = get_filter_clingo_settings(
-            clingo_mode,
-            clingo_strategy,
-            args.clingo_configuration,
-            *extra_clingo_options,
-        )
-
-        view = bonesis.NodesView(
-            stage_bo,
-            mode=clingo_mode,
+            mode=args.clingo_mode,
             extra=structural_witness,
             intermediate_model_cb=intermediate_solution,
             clingo_opt_strategy=clingo_strategy,
-            progress=make_stage_progress(
-                description,
-                retained["objective"],
-                filter_nodes_score_formatter,
-                has_important_nodes=bool(important_nodes_in_domain),
+            progress=ptqdm,
+            **get_filter_clingo_settings(
+                args.clingo_mode,
+                clingo_strategy,
+                args.clingo_configuration,
+                "--opt-usc-shrink=inv",
+                clingo_parallel_option,
             ),
-            **view_settings,
         )
-        if is_target:
-            view.standalone(output_filename=args.asp)
+        view.standalone(output_filename=args.asp)
 
+        nodes_in_data, nodes_in_domain, domain_edges = get_node_sets(bo)
+        print_node_reference(nodes_in_data, nodes_in_domain, domain_edges)
+        print_solver_options(
+            args.clingo_mode,
+            clingo_strategy,
+            args.max_clauses,
+            canonical,
+            configuration=args.clingo_configuration or "auto",
+            jobs=args.jobs,
+        )
+        console.print_options("clause continuation: none")
+        console.print_options("domain continuation: none")
+        console.print_warning("this may take some time.")
+        deadline = SolverDeadline(args.timeout)
         try:
-            solution, current_witness = next_solution(
-                view,
-                deadline,
-                stage_patience,
-            )
+            solution, witness = next_solution(view, deadline)
         except SolverTimeout:
             exit_solver_timeout(args.timeout_status_file)
-        except SolverPatienceExpired:
-            if stage_best[0] is not None:
-                solution, current_witness = stage_best[0]
-            elif retained["solution"]:
-                solution = tuple(retained["solution"])
-                current_witness = tuple(retained["witness"])
-            print_clause_bound_patience_warning(max_clause)
-            continue
         except SolverCapacityError as error:
             capacity_error = make_solver_capacity_error(
                 error,
-                domain_continuation=args.domain_continuation,
-                clause_continuation_parameter=args.clause_continuation_parameter,
+                domain_continuation=False,
+                clause_continuation_parameter=None,
+                domain_continuation_available=False,
             )
             console.print_warning(str(capacity_error), flush=True)
             exit_solver_capacity(args.timeout_status_file)
-        except StopIteration:
-            if is_target:
-                raise make_no_solution_error(
-                    args.clause_continuation,
-                    args.clause_continuation_parameter,
-                ) from None
-            solution = tuple(retained["solution"])
-            current_witness = tuple(retained["witness"])
-            console.print_warning(
-                "clause continuation produced no witness "
-                f"(max clauses={max_clause}); continuing",
-                flush=True,
-            )
-            continue
-        except RuntimeError:
-            if not is_target:
-                raise
-            if not args.solution.exists() or args.solution.stat().st_size == 0:
-                raise
-            with open(args.solution) as stream:
-                solution = [line.rstrip() for line in stream if line.rstrip()]
-            current_witness = read_structural_witness(args.witness)
-            if not solution or not current_witness:
-                raise
-            console.print_debug(
-                "selecting intermediate solution "
-                "(reason=final model parsing failed, "
-                "certification=partial/non-certified)",
-                flush=True,
-            )
 
-        final_objective = (
-            len(set(solution) & important_nodes_in_domain),
-            len(solution),
-        )
-        if final_objective < retained["objective"]:
-            solution = tuple(retained["solution"])
-            current_witness = tuple(retained["witness"])
-            current_domain = frozenset(retained["domain"])
-        else:
-            store_model(
-                complete_domain,
-                solution,
-                current_witness,
-                force=True,
-            )
-            current_domain = complete_domain
-        write_structural_witness(current_witness, args.witness)
+        write_structural_witness(witness, args.witness)
         write_node_solution(solution, args.solution)
 
-    if not solution:
-        raise make_no_solution_error(
-            args.clause_continuation,
-            args.clause_continuation_parameter,
-        )
+        if important_nodes_in_domain:
+            console.print_result(
+                "important nodes: "
+                f"kept={len(set(solution) & important_nodes_in_domain)}/"
+                f"{len(important_nodes_in_domain)}"
+            )
+        print_node_solution(solution, nodes_in_data, nodes_in_domain)
 
-    print_node_solution(
-        solution,
-        nodes_in_data,
-        nodes_in_domain,
-        flush=True,
-    )
 
-elif args.action == "filter-consts":
-    console.print_task("maximizing strong constants")
-
-    bo.maximize_strong_constants()
-    if args.minimize_self_loops:
-        bo.custom(
-            "edge(A,A) :- clause(A,_,A,_). " "#minimize { 1@10000,A: edge(A,A) }."
-        )
-
-    important_nodes = set(read_gene_list(args.important_nodes))
-    important_nodes_in_domain = important_nodes & set(bo.domain.nodes)
-    for node in important_nodes_in_domain:
-        bo.custom(f"important_node({clingo_encode(node)}).")
-
-    if important_nodes_in_domain:
-        bo.custom(
-            "#maximize { 1@1,N: important_node(N), node(N), "
-            "not strong_constant(N) }."
-        )
-
-    def intermediate_solution(model):
-        nodes, witness = model
-        write_structural_witness(witness, args.witness)
-        write_node_solution(nodes, args.solution)
-
-    clingo_strategy = "usc"
-    ptqdm.score_formatter = make_filter_consts_score_formatter(
-        node_total=len(bo.domain.nodes),
-        important_total=len(important_nodes_in_domain),
-    )
-    ptqdm.initial_postfix = {
-        "total": _format_progress_ratio(0, len(bo.domain.nodes)),
-    }
-    if important_nodes_in_domain:
-        ptqdm.initial_postfix = {
-            "important": _format_progress_ratio(
-                0,
-                len(important_nodes_in_domain),
-            ),
-            **ptqdm.initial_postfix,
-        }
-    view = bonesis.NonStrongConstantNodesView(
-        bo,
-        mode=args.clingo_mode,
-        extra=structural_witness,
-        intermediate_model_cb=intermediate_solution,
-        clingo_opt_strategy=clingo_strategy,
-        progress=ptqdm,
-        **get_filter_clingo_settings(
-            args.clingo_mode,
-            clingo_strategy,
-            args.clingo_configuration,
-            "--opt-usc-shrink=inv",
-            clingo_parallel_option,
-        ),
-    )
-    view.standalone(output_filename=args.asp)
-
-    nodes_in_data, nodes_in_domain, domain_edges = get_node_sets(bo)
-    print_node_reference(nodes_in_data, nodes_in_domain, domain_edges)
-    print_solver_options(
-        args.clingo_mode,
-        clingo_strategy,
-        args.max_clauses,
-        canonical,
-        configuration=args.clingo_configuration or "auto",
-        jobs=args.jobs,
-    )
-    console.print_options("clause continuation: none")
-    console.print_options("domain continuation: none")
-    console.print_warning("this may take some time.")
-    deadline = SolverDeadline(args.timeout)
-    try:
-        solution, witness = next_solution(view, deadline)
-    except SolverTimeout:
-        exit_solver_timeout(args.timeout_status_file)
-    except SolverCapacityError as error:
-        capacity_error = make_solver_capacity_error(
-            error,
-            domain_continuation=False,
-            clause_continuation_parameter=None,
-            domain_continuation_available=False,
-        )
-        console.print_warning(str(capacity_error), flush=True)
-        exit_solver_capacity(args.timeout_status_file)
-
-    write_structural_witness(witness, args.witness)
-    write_node_solution(solution, args.solution)
-
-    if important_nodes_in_domain:
-        console.print_result(
-            "important nodes: "
-            f"kept={len(set(solution) & important_nodes_in_domain)}/"
-            f"{len(important_nodes_in_domain)}"
-        )
-    print_node_solution(solution, nodes_in_data, nodes_in_domain)
+if __name__ == "__main__":
+    main()

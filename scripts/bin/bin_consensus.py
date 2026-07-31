@@ -53,116 +53,121 @@ def format_binarization_proportions(pct_bin: pd.DataFrame, indent: int = 5) -> s
 
 script_name = Path(__file__).name
 
-parser = argparse.ArgumentParser(
-    prog="bin_consensus",
-    description=(
-        "Binarize clusters by combining scBoolSeq and differential expression "
-        "analysis results."
-    ),
-    usage=f"python {script_name} [-h] --scboolseq <FILE> <FILE> --dea <FILE> --outfile <FILE> [<args>]",
-    formatter_class=cli.HelpFormatter,
-)
-
-parser.add_argument(
-    "--scboolseq",
-    dest="scboolseq",
-    type=lambda x: Path(x).resolve(),
-    nargs=2,
-    required=True,
-    metavar="FILE",
-    help=(
-        "input files storing scBoolSeq results: binarized clusters then gene-specific "
-        "distributions (required)"
-    ),
-)
-
-parser.add_argument(
-    "--dea",
-    dest="dea",
-    type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="FILE",
-    help="input file storing DEA results (required)",
-)
-
-parser.add_argument(
-    "--outfile",
-    dest="outfile",
-    type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="FILE",
-    help="output file storing predicted binarized values (format: csv)",
-)
-
-parser.add_argument(
-    "--pct-bin",
-    dest="pct_bin",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    default=None,
-    metavar="FILE",
-    help="output file storing proportion of binarized values (format: csv)",
-)
-
-args = parser.parse_args()
-
-if not Path(os.path.dirname(args.outfile)).exists():
-    os.makedirs(Path(os.path.dirname(args.outfile)))
-
-console.print_task("loading binarization inputs")
-console.print_info(
-    f"loading scBoolSeq binarization (file={console.format_path(args.scboolseq[0])})"
-)
-console.print_info(
-    f"loading scBoolSeq distributions (file={Path(args.scboolseq[1]).resolve()})"
-)
-console.print_info(f"loading DEA binarization (file={console.format_path(args.dea)})")
-
-scboolseq_bin = pd.read_csv(args.scboolseq[0], index_col=0, sep=",")
-
-scboolseq_distribution = pd.read_csv(args.scboolseq[1], index_col=0, sep=",").iloc[:, 0]
-
-dea_bin = pd.read_csv(args.dea, index_col=0, sep=",")
-
-console.print_task("binarizing clusters (sources=scBoolSeq, DEA)")
-
-if not set(scboolseq_bin.columns) == set(scboolseq_bin.columns):
-    raise KeyError("column names different in scboolseq and dea dataframes")
-if not set(scboolseq_bin.index) == set(scboolseq_bin.index):
-    raise KeyError("index names different in scboolseq and dea dataframes")
-
-merge_bin = pd.DataFrame(
-    data=np.nan, index=scboolseq_bin.index, columns=scboolseq_bin.columns
-)
-
-for idx in merge_bin.index:
-    for col in merge_bin.columns:
-        merge_bin.at[idx, col] = merge(
-            scboolseq_bin.loc[idx, col],
-            dea_bin.loc[idx, col],
-            scboolseq_distribution=scboolseq_distribution[col],
-        )
-
-pct_bin = pd.concat(
-    [
-        (~scboolseq_bin.isna()).sum(axis=1) / len(scboolseq_bin.columns),
-        (~dea_bin.isna()).sum(axis=1) / len(dea_bin.columns),
-        (~merge_bin.isna()).sum(axis=1) / len(merge_bin.columns),
-    ],
-    axis=1,
-    keys=["scboolseq", "dea", "merge"],
-).round(5)
-
-console.print_result(
-    "proportion of binarized values\n\n" f"{format_binarization_proportions(pct_bin)}"
-)
-
-console.print_task(f"saving binarized matrix (file={console.format_path(args.outfile)})")
-
-merge_bin.to_csv(args.outfile, sep=",", index=True)
-
-if args.pct_bin:
-    console.print_task(
-        f"saving binarization proportions (file={console.format_path(args.pct_bin)})"
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="bin_consensus",
+        description=(
+            "Binarize clusters by combining scBoolSeq and differential expression "
+            "analysis results."
+        ),
+        usage=f"python {script_name} [-h] --scboolseq <FILE> <FILE> --dea <FILE> --outfile <FILE> [<args>]",
+        formatter_class=cli.HelpFormatter,
     )
-    pct_bin.to_csv(args.pct_bin, sep=",", index=True)
+
+    parser.add_argument(
+        "--scboolseq",
+        dest="scboolseq",
+        type=lambda x: Path(x).resolve(),
+        nargs=2,
+        required=True,
+        metavar="FILE",
+        help=(
+            "input files storing scBoolSeq results: binarized clusters then gene-specific "
+            "distributions (required)"
+        ),
+    )
+
+    parser.add_argument(
+        "--dea",
+        dest="dea",
+        type=lambda x: Path(x).resolve(),
+        required=True,
+        metavar="FILE",
+        help="input file storing DEA results (required)",
+    )
+
+    parser.add_argument(
+        "--outfile",
+        dest="outfile",
+        type=lambda x: Path(x).resolve(),
+        required=True,
+        metavar="FILE",
+        help="output file storing predicted binarized values (format: csv)",
+    )
+
+    parser.add_argument(
+        "--pct-bin",
+        dest="pct_bin",
+        type=lambda x: Path(x).resolve(),
+        required=False,
+        default=None,
+        metavar="FILE",
+        help="output file storing proportion of binarized values (format: csv)",
+    )
+
+    args = parser.parse_args()
+
+    if not Path(os.path.dirname(args.outfile)).exists():
+        os.makedirs(Path(os.path.dirname(args.outfile)))
+
+    console.print_task("loading binarization inputs")
+    console.print_info(
+        f"loading scBoolSeq binarization (file={console.format_path(args.scboolseq[0])})"
+    )
+    console.print_info(
+        f"loading scBoolSeq distributions (file={Path(args.scboolseq[1]).resolve()})"
+    )
+    console.print_info(f"loading DEA binarization (file={console.format_path(args.dea)})")
+
+    scboolseq_bin = pd.read_csv(args.scboolseq[0], index_col=0, sep=",")
+
+    scboolseq_distribution = pd.read_csv(args.scboolseq[1], index_col=0, sep=",").iloc[:, 0]
+
+    dea_bin = pd.read_csv(args.dea, index_col=0, sep=",")
+
+    console.print_task("binarizing clusters (sources=scBoolSeq, DEA)")
+
+    if not set(scboolseq_bin.columns) == set(scboolseq_bin.columns):
+        raise KeyError("column names different in scboolseq and dea dataframes")
+    if not set(scboolseq_bin.index) == set(scboolseq_bin.index):
+        raise KeyError("index names different in scboolseq and dea dataframes")
+
+    merge_bin = pd.DataFrame(
+        data=np.nan, index=scboolseq_bin.index, columns=scboolseq_bin.columns
+    )
+
+    for idx in merge_bin.index:
+        for col in merge_bin.columns:
+            merge_bin.at[idx, col] = merge(
+                scboolseq_bin.loc[idx, col],
+                dea_bin.loc[idx, col],
+                scboolseq_distribution=scboolseq_distribution[col],
+            )
+
+    pct_bin = pd.concat(
+        [
+            (~scboolseq_bin.isna()).sum(axis=1) / len(scboolseq_bin.columns),
+            (~dea_bin.isna()).sum(axis=1) / len(dea_bin.columns),
+            (~merge_bin.isna()).sum(axis=1) / len(merge_bin.columns),
+        ],
+        axis=1,
+        keys=["scboolseq", "dea", "merge"],
+    ).round(5)
+
+    console.print_result(
+        "proportion of binarized values\n\n" f"{format_binarization_proportions(pct_bin)}"
+    )
+
+    console.print_task(f"saving binarized matrix (file={console.format_path(args.outfile)})")
+
+    merge_bin.to_csv(args.outfile, sep=",", index=True)
+
+    if args.pct_bin:
+        console.print_task(
+            f"saving binarization proportions (file={console.format_path(args.pct_bin)})"
+        )
+        pct_bin.to_csv(args.pct_bin, sep=",", index=True)
+
+
+if __name__ == "__main__":
+    main()

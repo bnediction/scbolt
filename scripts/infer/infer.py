@@ -343,278 +343,283 @@ See Chevalier et al. (2024):
 https://hal.science/hal-04629083/document
 """
 
-parser = argparse.ArgumentParser(
-    prog="infer",
-    description=parser_description,
-    usage=(f"python {script_name} [min | submin | diverse] " "<FILE> <FILE> [<args>]"),
-    formatter_class=cli.HelpFormatter,
-)
-parser.add_argument(
-    "action",
-    choices=["min", "submin", "diverse"],
-    metavar="[min | submin | diverse]",
-    help="BoNesis inference action to run",
-)
-add_bonesis_arguments(parser)
-parser.add_argument(
-    "--initial-witness",
-    dest="initial_witness",
-    type=lambda value: Path(value).resolve(),
-    required=False,
-    default=None,
-    metavar="FILE",
-    help=(
-        "structural witness used as a soft warm start for subset-minimal "
-        "enumeration"
-    ),
-)
-parser.add_argument(
-    "--config-formats",
-    dest="config_formats",
-    nargs="+",
-    choices=["cfg", "csv", "json"],
-    default=["csv"],
-    metavar="[csv | cfg | json]",
-    help="output formats used for exporting Boolean configurations (default: csv)",
-)
-parser.add_argument(
-    "--limit",
-    dest="limit",
-    type=int,
-    required=False,
-    default=None,
-    metavar="INT",
-    help=(
-        "number of diverse subset minimal solutions; if not specified, "
-        "enumerate all subset minimal solutions (default: None)"
-    ),
-)
-parser.add_argument(
-    "--graph-formats",
-    dest="graph_formats",
-    nargs="+",
-    choices=["dot", "neato", "circo", "fdp", "sfdp"],
-    default=[],
-    metavar="[dot | neato | circo | fdp | sfdp]",
-    help=(
-        "Graphviz layout programs used for exporting Boolean network "
-        "associated influence graphs (default: none)"
-    ),
-)
-parser.add_argument(
-    "--remove-isolated-nodes",
-    dest="remove_isolated_nodes",
-    required=False,
-    action="store_true",
-    help=(
-        "remove nodes without interaction with another node when printing "
-        "influence graph"
-    ),
-)
-
-args = parser.parse_args()
-reset_solver_timeout_status(args.timeout_status_file)
-
-bo, canonical, _ = initialize_bonesis(
-    args,
-    allow_skipping_nodes=False,
-    default_canonical=True,
-)
-apply_bonesis_mode(bo, args.bonesis_mode)
-
-if args.initial_witness is not None:
-    if args.action != "submin":
-        parser.error("--initial-witness is only supported with action 'submin'")
-
-    witness = read_structural_witness(args.initial_witness)
-    if witness:
-        witness = canonicalize_structural_witness(witness)
-        apply_structural_witness_heuristics(bo, witness)
-        console.print_info(
-            "applying canonical structural warm start "
-            f"(file={console.format_path(args.initial_witness)})"
-        )
-    elif not args.initial_witness.is_file():
-        console.print_warning(
-            "structural warm-start witness is unavailable "
-            f"(file={console.format_path(args.initial_witness)})"
-        )
-
-normalized_to_original_gene_names = {
-    gene.replace("-", "_"): gene for gene in bo.domain.nodes if "-" in gene
-}
-if normalized_to_original_gene_names:
-    console.print_debug(
-        "restoring gene names "
-        "(phase=post-inference, reason=unsupported '-' characters, "
-        f"genes={console.format_mapping(normalized_to_original_gene_names)})"
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="infer",
+        description=parser_description,
+        usage=(f"python {script_name} [min | submin | diverse] " "<FILE> <FILE> [<args>]"),
+        formatter_class=cli.HelpFormatter,
+    )
+    parser.add_argument(
+        "action",
+        choices=["min", "submin", "diverse"],
+        metavar="[min | submin | diverse]",
+        help="BoNesis inference action to run",
+    )
+    add_bonesis_arguments(parser)
+    parser.add_argument(
+        "--initial-witness",
+        dest="initial_witness",
+        type=lambda value: Path(value).resolve(),
+        required=False,
+        default=None,
+        metavar="FILE",
+        help=(
+            "structural witness used as a soft warm start for subset-minimal "
+            "enumeration"
+        ),
+    )
+    parser.add_argument(
+        "--config-formats",
+        dest="config_formats",
+        nargs="+",
+        choices=["cfg", "csv", "json"],
+        default=["csv"],
+        metavar="[csv | cfg | json]",
+        help="output formats used for exporting Boolean configurations (default: csv)",
+    )
+    parser.add_argument(
+        "--limit",
+        dest="limit",
+        type=int,
+        required=False,
+        default=None,
+        metavar="INT",
+        help=(
+            "number of diverse subset minimal solutions; if not specified, "
+            "enumerate all subset minimal solutions (default: None)"
+        ),
+    )
+    parser.add_argument(
+        "--graph-formats",
+        dest="graph_formats",
+        nargs="+",
+        choices=["dot", "neato", "circo", "fdp", "sfdp"],
+        default=[],
+        metavar="[dot | neato | circo | fdp | sfdp]",
+        help=(
+            "Graphviz layout programs used for exporting Boolean network "
+            "associated influence graphs (default: none)"
+        ),
+    )
+    parser.add_argument(
+        "--remove-isolated-nodes",
+        dest="remove_isolated_nodes",
+        required=False,
+        action="store_true",
+        help=(
+            "remove nodes without interaction with another node when printing "
+            "influence graph"
+        ),
     )
 
-config_predicates = get_configuration_predicates(bo)
-predicate_configs = defaultdict(list)
-for config, predicate in config_predicates.items():
-    predicate_configs[predicate].append(config)
-if "trapspace" in predicate_configs:
-    console.print_debug(
-        "trapspace predicates detected; "
-        "principal trap spaces will be computed for: "
-        f"{', '.join(map(str, predicate_configs['trapspace']))}"
+    args = parser.parse_args()
+    reset_solver_timeout_status(args.timeout_status_file)
+
+    bo, canonical, _ = initialize_bonesis(
+        args,
+        allow_skipping_nodes=False,
+        default_canonical=True,
     )
+    apply_bonesis_mode(bo, args.bonesis_mode)
 
-rename_cfgs = {}
-for predicate, cfg_names in predicate_configs.items():
-    grouped = defaultdict(list)
-    for cfg_name in cfg_names:
-        if isinstance(cfg_name, tuple):
-            grouped[cfg_name[0]].append(cfg_name)
-    for name, tuples in grouped.items():
-        if len(tuples) == 1 and tuples[0][1] == 0:
-            rename_cfgs[tuples[0]] = name
-if rename_cfgs:
-    renamed_configs = ", ".join(map(str, rename_cfgs))
-    console.print_debug(
-        "simplifying configuration names "
-        f"(reason=tuple-based names, configurations={renamed_configs})"
-    )
+    if args.initial_witness is not None:
+        if args.action != "submin":
+            parser.error("--initial-witness is only supported with action 'submin'")
 
-if args.action == "min":
-    console.print_task("computing Boolean network solution (objective=minimize edges)")
+        witness = read_structural_witness(args.initial_witness)
+        if witness:
+            witness = canonicalize_structural_witness(witness)
+            apply_structural_witness_heuristics(bo, witness)
+            console.print_info(
+                "applying canonical structural warm start "
+                f"(file={console.format_path(args.initial_witness)})"
+            )
+        elif not args.initial_witness.is_file():
+            console.print_warning(
+                "structural warm-start witness is unavailable "
+                f"(file={console.format_path(args.initial_witness)})"
+            )
 
-    bo.custom("edge(A,B) :- clause(B,_,A,_). #minimize { 1@1,A,B: edge(A,B) }.")
-    bo.custom("#maximize { 1@10,N: constant(N) }.")
-
-    if args.minimize_self_loops:
-        bo.custom("#minimize { 1@100,A: edge(A,A) }.")
-
-    clingo_strategy = "usc"
-    view = bonesis.InfluenceGraphView(
-        bo,
-        mode=args.clingo_mode,
-        clingo_opt_strategy=clingo_strategy,
-        extra=("boolean-network", "configurations"),
-        progress=ptqdm,
-    )
-    view.standalone(output_filename=args.asp)
-
-    print_node_reference(*get_node_sets(bo))
-    print_solver_options(
-        args.clingo_mode,
-        clingo_strategy,
-        args.max_clauses,
-        canonical,
-        jobs=args.jobs,
-    )
-    console.print_warning("this may take some time.")
-    deadline = SolverDeadline(args.timeout)
-    try:
-        solution = next_solution(view, deadline)
-    except SolverTimeout:
-        exit_solver_timeout(args.timeout_status_file)
-
-    _, bn, configs = solution
-
+    normalized_to_original_gene_names = {
+        gene.replace("-", "_"): gene for gene in bo.domain.nodes if "-" in gene
+    }
     if normalized_to_original_gene_names:
-        for old, new in normalized_to_original_gene_names.items():
-            bn.rename(old, new)
+        console.print_debug(
+            "restoring gene names "
+            "(phase=post-inference, reason=unsupported '-' characters, "
+            f"genes={console.format_mapping(normalized_to_original_gene_names)})"
+        )
 
+    config_predicates = get_configuration_predicates(bo)
+    predicate_configs = defaultdict(list)
+    for config, predicate in config_predicates.items():
+        predicate_configs[predicate].append(config)
     if "trapspace" in predicate_configs:
-        for cfg_name in predicate_configs["trapspace"]:
-            cfg_state = configs[cfg_name]
-            trapspace = bn.principal_trapspace(cfg_state)
-            configs[cfg_name] = {
-                key: value for key, value in trapspace.items() if value != "*"
-            }
-
-    for old, new in rename_cfgs.items():
-        configs[new] = configs.pop(old)
-
-    write_solution(
-        bn=bn,
-        configurations=configs,
-        outdir=args.solution,
-        config_formats=args.config_formats,
-        graph_formats=args.graph_formats,
-        remove_isolated_nodes=args.remove_isolated_nodes,
-    )
-
-elif args.action == "submin":
-    if args.limit not in [None, 0]:
-        console.print_task(
-            "enumerating Boolean network solutions "
-            f"(kind=subset-minimal, limit={args.limit})"
-        )
-    else:
-        console.print_task(
-            "enumerating Boolean network solutions (kind=subset-minimal)"
+        console.print_debug(
+            "trapspace predicates detected; "
+            "principal trap spaces will be computed for: "
+            f"{', '.join(map(str, predicate_configs['trapspace']))}"
         )
 
-    print_node_reference(*get_node_sets(bo))
-    console.print_warning("this may take some time.")
+    rename_cfgs = {}
+    for predicate, cfg_names in predicate_configs.items():
+        grouped = defaultdict(list)
+        for cfg_name in cfg_names:
+            if isinstance(cfg_name, tuple):
+                grouped[cfg_name[0]].append(cfg_name)
+        for name, tuples in grouped.items():
+            if len(tuples) == 1 and tuples[0][1] == 0:
+                rename_cfgs[tuples[0]] = name
+    if rename_cfgs:
+        renamed_configs = ", ".join(map(str, rename_cfgs))
+        console.print_debug(
+            "simplifying configuration names "
+            f"(reason=tuple-based names, configurations={renamed_configs})"
+        )
 
-    view = bonesis.InfluenceGraphView(
-        bo,
-        solutions="subset-minimal",
-        extra=("boolean-network", "configurations"),
-        limit=args.limit if args.limit is not None else 0,
-        progress=ptqdm,
-        **get_subset_minimal_clingo_settings(args.jobs),
-    )
-    view.standalone(output_filename=args.asp)
+    if args.action == "min":
+        console.print_task("computing Boolean network solution (objective=minimize edges)")
 
-    deadline = SolverDeadline(args.timeout)
-    try:
-        bns = run_bn_view(
-            view=view,
+        bo.custom("edge(A,B) :- clause(B,_,A,_). #minimize { 1@1,A,B: edge(A,B) }.")
+        bo.custom("#maximize { 1@10,N: constant(N) }.")
+
+        if args.minimize_self_loops:
+            bo.custom("#minimize { 1@100,A: edge(A,A) }.")
+
+        clingo_strategy = "usc"
+        view = bonesis.InfluenceGraphView(
+            bo,
+            mode=args.clingo_mode,
+            clingo_opt_strategy=clingo_strategy,
+            extra=("boolean-network", "configurations"),
+            progress=ptqdm,
+        )
+        view.standalone(output_filename=args.asp)
+
+        print_node_reference(*get_node_sets(bo))
+        print_solver_options(
+            args.clingo_mode,
+            clingo_strategy,
+            args.max_clauses,
+            canonical,
+            jobs=args.jobs,
+        )
+        console.print_warning("this may take some time.")
+        deadline = SolverDeadline(args.timeout)
+        try:
+            solution = next_solution(view, deadline)
+        except SolverTimeout:
+            exit_solver_timeout(args.timeout_status_file)
+
+        _, bn, configs = solution
+
+        if normalized_to_original_gene_names:
+            for old, new in normalized_to_original_gene_names.items():
+                bn.rename(old, new)
+
+        if "trapspace" in predicate_configs:
+            for cfg_name in predicate_configs["trapspace"]:
+                cfg_state = configs[cfg_name]
+                trapspace = bn.principal_trapspace(cfg_state)
+                configs[cfg_name] = {
+                    key: value for key, value in trapspace.items() if value != "*"
+                }
+
+        for old, new in rename_cfgs.items():
+            configs[new] = configs.pop(old)
+
+        write_solution(
+            bn=bn,
+            configurations=configs,
             outdir=args.solution,
             config_formats=args.config_formats,
             graph_formats=args.graph_formats,
-            normalized_to_original_gene_names=normalized_to_original_gene_names,
-            trapspace_configurations=predicate_configs.get("trapspace", []),
-            rename_cfgs=rename_cfgs,
             remove_isolated_nodes=args.remove_isolated_nodes,
-            deadline=deadline,
         )
-    except SolverTimeout:
-        exit_solver_timeout(args.timeout_status_file)
 
-elif args.action == "diverse":
-    if args.limit not in [None, 0]:
-        console.print_task(
-            "sampling Boolean network solutions " f"(kind=sparsest, limit={args.limit})"
+    elif args.action == "submin":
+        if args.limit not in [None, 0]:
+            console.print_task(
+                "enumerating Boolean network solutions "
+                f"(kind=subset-minimal, limit={args.limit})"
+            )
+        else:
+            console.print_task(
+                "enumerating Boolean network solutions (kind=subset-minimal)"
+            )
+
+        print_node_reference(*get_node_sets(bo))
+        console.print_warning("this may take some time.")
+
+        view = bonesis.InfluenceGraphView(
+            bo,
+            solutions="subset-minimal",
+            extra=("boolean-network", "configurations"),
+            limit=args.limit if args.limit is not None else 0,
+            progress=ptqdm,
+            **get_subset_minimal_clingo_settings(args.jobs),
         )
-    else:
-        console.print_task("sampling Boolean network solutions (kind=sparsest)")
+        view.standalone(output_filename=args.asp)
 
-    print_node_reference(*get_node_sets(bo))
-    console.print_warning("this may take some time.")
+        deadline = SolverDeadline(args.timeout)
+        try:
+            bns = run_bn_view(
+                view=view,
+                outdir=args.solution,
+                config_formats=args.config_formats,
+                graph_formats=args.graph_formats,
+                normalized_to_original_gene_names=normalized_to_original_gene_names,
+                trapspace_configurations=predicate_configs.get("trapspace", []),
+                rename_cfgs=rename_cfgs,
+                remove_isolated_nodes=args.remove_isolated_nodes,
+                deadline=deadline,
+            )
+        except SolverTimeout:
+            exit_solver_timeout(args.timeout_status_file)
 
-    view = bonesis.DiverseBooleanNetworksView(
-        bo,
-        extra=("configurations",),
-        limit=args.limit if args.limit is not None else 0,
-        progress=ptqdm,
-    )
-    view.standalone(output_filename=args.asp)
+    elif args.action == "diverse":
+        if args.limit not in [None, 0]:
+            console.print_task(
+                "sampling Boolean network solutions " f"(kind=sparsest, limit={args.limit})"
+            )
+        else:
+            console.print_task("sampling Boolean network solutions (kind=sparsest)")
 
-    deadline = SolverDeadline(args.timeout)
-    try:
-        bns = run_bn_view(
-            view=view,
-            outdir=args.solution,
-            config_formats=args.config_formats,
-            graph_formats=args.graph_formats,
-            normalized_to_original_gene_names=normalized_to_original_gene_names,
-            trapspace_configurations=predicate_configs.get("trapspace", []),
-            rename_cfgs=rename_cfgs,
-            remove_isolated_nodes=args.remove_isolated_nodes,
-            deadline=deadline,
+        print_node_reference(*get_node_sets(bo))
+        console.print_warning("this may take some time.")
+
+        view = bonesis.DiverseBooleanNetworksView(
+            bo,
+            extra=("configurations",),
+            limit=args.limit if args.limit is not None else 0,
+            progress=ptqdm,
         )
-    except SolverTimeout:
-        exit_solver_timeout(args.timeout_status_file)
+        view.standalone(output_filename=args.asp)
 
-if args.action in ["submin", "diverse"]:
-    write_ensemble_influence_graphs(
-        bns=bns,
-        components=bo.domain.nodes,
-        outdir=Path(args.solution) / "influence_graph",
-    )
+        deadline = SolverDeadline(args.timeout)
+        try:
+            bns = run_bn_view(
+                view=view,
+                outdir=args.solution,
+                config_formats=args.config_formats,
+                graph_formats=args.graph_formats,
+                normalized_to_original_gene_names=normalized_to_original_gene_names,
+                trapspace_configurations=predicate_configs.get("trapspace", []),
+                rename_cfgs=rename_cfgs,
+                remove_isolated_nodes=args.remove_isolated_nodes,
+                deadline=deadline,
+            )
+        except SolverTimeout:
+            exit_solver_timeout(args.timeout_status_file)
+
+    if args.action in ["submin", "diverse"]:
+        write_ensemble_influence_graphs(
+            bns=bns,
+            components=bo.domain.nodes,
+            outdir=Path(args.solution) / "influence_graph",
+        )
+
+
+if __name__ == "__main__":
+    main()

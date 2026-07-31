@@ -33,288 +33,293 @@ def read_gene2go(path: Path):
         return Gene2GoReader(gene2go_path, taxids=[10090]).get_ns2assc()
 
 
-parser = argparse.ArgumentParser(
-    prog="goea",
-    description="Perform Gene Ontology enrichment analysis.",
-    usage=f"python {script_name} [-h] <FILE> <FILE> --background <LITERAL> --go <FILE> (--gene2go <FILE> | --annotations <FILE>) [<args>]",
-    formatter_class=cli.HelpFormatter,
-)
-
-parser.add_argument(
-    "infile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="input file storing gene sets for each spreadsheet (format: xlsx)",
-)
-
-parser.add_argument(
-    "outfile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="output file containing gene ontology enrichment results (format: xlsx)",
-)
-
-parser.add_argument(
-    "--background",
-    dest="background",
-    type=str,
-    required=True,
-    metavar="LITERAL",
-    help="spreadsheet name containing background gene set",
-)
-
-parser.add_argument(
-    "--go",
-    dest="go",
-    type=lambda x: Path(x).resolve(),
-    required=True,
-    metavar="FILE",
-    help="input file containing the Gene Ontology DAG (format: obo)",
-)
-
-parser.add_argument(
-    "--annotations",
-    dest="annotations",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    default=None,
-    metavar="FILE",
-    help=(
-        "input file containing gene-to-GO annotations (format: annotation.tab; cannot "
-        "be used with --gene2go)"
-    ),
-)
-
-parser.add_argument(
-    "--gene2go",
-    dest="gene2go",
-    type=lambda x: Path(x).resolve(),
-    required=False,
-    default=None,
-    metavar="FILE",
-    help=(
-        "input file containing NCBI gene-to-GO annotations (format: gene2go; cannot "
-        "be used with --annotations)"
-    ),
-)
-
-parser.add_argument(
-    "--organism",
-    dest="organism",
-    choices=["mouse", "human", "escherichia-coli"],
-    default="mouse",
-    required=False,
-    metavar="[mouse | human | escherichia-coli]",
-    help="gene-related organism (default: mouse)",
-)
-
-parser.add_argument(
-    "--gene-type",
-    dest="gene_type",
-    type=str,
-    required=False,
-    default="name",
-    metavar="[name | gene_id | ensembl_id | <database>]",
-    help="gene identifier input format in infile (default: name)",
-)
-
-parser.add_argument(
-    "--geneinfo-version",
-    dest="geneinfo_version",
-    action=cli.Store_version,
-    allow_current=False,
-    allow_bundled=True,
-    allow_date=False,
-    allow_path=True,
-    required=False,
-    default="bundled",
-    help="NCBI gene_info source used for gene name standardization (default: bundled)",
-)
-
-args = parser.parse_args()
-
-if args.gene2go is None and args.annotations is None:
-    raise ValueError(
-        "one of the following arguments is required: --gene2go or --annotations"
-    )
-elif args.gene2go is not None and args.annotations is not None:
-    raise ValueError(
-        "the following arguments cannot be used simultaneously: --gene2go and --annotations"
-    )
-else:
-    annotations_type = "gene_id" if args.gene2go else "MGI"
-
-if not Path(os.path.dirname(args.outfile)).exists():
-    os.makedirs(Path(os.path.dirname(args.outfile)))
-
-identifiers = bt.resources.ncbi.identifiers(
-    organism=args.organism,
-    version=args.geneinfo_version,
-)
-
-console.print_task(f"loading gene set workbook (file={console.format_path(args.infile)})")
-with ExcelFile(args.infile) as file:
-    study_geneset = {}
-    for sheet_name in file.sheet_names:
-        df = file.parse(sheet_name, header=None)
-        study_geneset[sheet_name] = set(df[df.columns[0]])
-
-background_geneset = study_geneset[args.background]
-del study_geneset[args.background]
-
-if args.gene_type != annotations_type:
-    console.print_debug(
-        f"standardizing gene identifiers ({args.gene_type} -> {annotations_type})"
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="goea",
+        description="Perform Gene Ontology enrichment analysis.",
+        usage=f"python {script_name} [-h] <FILE> <FILE> --background <LITERAL> --go <FILE> (--gene2go <FILE> | --annotations <FILE>) [<args>]",
+        formatter_class=cli.HelpFormatter,
     )
 
-for cluster, geneset in study_geneset.items():
-    geneset = (
+    parser.add_argument(
+        "infile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="input file storing gene sets for each spreadsheet (format: xlsx)",
+    )
+
+    parser.add_argument(
+        "outfile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="output file containing gene ontology enrichment results (format: xlsx)",
+    )
+
+    parser.add_argument(
+        "--background",
+        dest="background",
+        type=str,
+        required=True,
+        metavar="LITERAL",
+        help="spreadsheet name containing background gene set",
+    )
+
+    parser.add_argument(
+        "--go",
+        dest="go",
+        type=lambda x: Path(x).resolve(),
+        required=True,
+        metavar="FILE",
+        help="input file containing the Gene Ontology DAG (format: obo)",
+    )
+
+    parser.add_argument(
+        "--annotations",
+        dest="annotations",
+        type=lambda x: Path(x).resolve(),
+        required=False,
+        default=None,
+        metavar="FILE",
+        help=(
+            "input file containing gene-to-GO annotations (format: annotation.tab; cannot "
+            "be used with --gene2go)"
+        ),
+    )
+
+    parser.add_argument(
+        "--gene2go",
+        dest="gene2go",
+        type=lambda x: Path(x).resolve(),
+        required=False,
+        default=None,
+        metavar="FILE",
+        help=(
+            "input file containing NCBI gene-to-GO annotations (format: gene2go; cannot "
+            "be used with --annotations)"
+        ),
+    )
+
+    parser.add_argument(
+        "--organism",
+        dest="organism",
+        choices=["mouse", "human", "escherichia-coli"],
+        default="mouse",
+        required=False,
+        metavar="[mouse | human | escherichia-coli]",
+        help="gene-related organism (default: mouse)",
+    )
+
+    parser.add_argument(
+        "--gene-type",
+        dest="gene_type",
+        type=str,
+        required=False,
+        default="name",
+        metavar="[name | gene_id | ensembl_id | <database>]",
+        help="gene identifier input format in infile (default: name)",
+    )
+
+    parser.add_argument(
+        "--geneinfo-version",
+        dest="geneinfo_version",
+        action=cli.Store_version,
+        allow_current=False,
+        allow_bundled=True,
+        allow_date=False,
+        allow_path=True,
+        required=False,
+        default="bundled",
+        help="NCBI gene_info source used for gene name standardization (default: bundled)",
+    )
+
+    args = parser.parse_args()
+
+    if args.gene2go is None and args.annotations is None:
+        raise ValueError(
+            "one of the following arguments is required: --gene2go or --annotations"
+        )
+    elif args.gene2go is not None and args.annotations is not None:
+        raise ValueError(
+            "the following arguments cannot be used simultaneously: --gene2go and --annotations"
+        )
+    else:
+        annotations_type = "gene_id" if args.gene2go else "MGI"
+
+    if not Path(os.path.dirname(args.outfile)).exists():
+        os.makedirs(Path(os.path.dirname(args.outfile)))
+
+    identifiers = bt.resources.ncbi.identifiers(
+        organism=args.organism,
+        version=args.geneinfo_version,
+    )
+
+    console.print_task(f"loading gene set workbook (file={console.format_path(args.infile)})")
+    with ExcelFile(args.infile) as file:
+        study_geneset = {}
+        for sheet_name in file.sheet_names:
+            df = file.parse(sheet_name, header=None)
+            study_geneset[sheet_name] = set(df[df.columns[0]])
+
+    background_geneset = study_geneset[args.background]
+    del study_geneset[args.background]
+
+    if args.gene_type != annotations_type:
+        console.print_debug(
+            f"standardizing gene identifiers ({args.gene_type} -> {annotations_type})"
+        )
+
+    for cluster, geneset in study_geneset.items():
+        geneset = (
+            identifiers(
+                geneset,
+                input_type=args.gene_type,
+                output_type=annotations_type,
+            )
+            if args.gene_type != annotations_type
+            else geneset
+        )
+        geneset = set(
+            map(lambda gene_id: int(gene_id) if gene_id.isnumeric() else None, geneset)
+        )
+        geneset.discard(None)
+        study_geneset[cluster] = geneset
+
+    background_geneset = (
         identifiers(
-            geneset,
+            background_geneset,
             input_type=args.gene_type,
             output_type=annotations_type,
         )
         if args.gene_type != annotations_type
-        else geneset
+        else background_geneset
     )
-    geneset = set(
-        map(lambda gene_id: int(gene_id) if gene_id.isnumeric() else None, geneset)
-    )
-    geneset.discard(None)
-    study_geneset[cluster] = geneset
-
-background_geneset = (
-    identifiers(
-        background_geneset,
-        input_type=args.gene_type,
-        output_type=annotations_type,
-    )
-    if args.gene_type != annotations_type
-    else background_geneset
-)
-background_geneset = set(
-    map(
-        lambda gene_id: int(gene_id) if gene_id.isnumeric() else None,
-        background_geneset,
-    )
-)
-background_geneset.discard(None)
-
-go_file = args.go
-if go_file is None:
-    raise ValueError("argument --go is required")
-
-console.print_task(f"loading gene ontology (file={console.format_path(go_file)})")
-
-go_dag = GODag(obo_file=go_file, prt=open(os.devnull, "w"))
-
-with open(go_file, "r") as go_reader:
-    go_definitions = dict()
-    for line in go_reader:
-        if re.search(r"^id: GO:[0-9]{7}", line):
-            _id = re.findall("GO:[0-9]{7}|$", line)[0]
-        elif re.search(r'^def: ".+\."', line):
-            _definition = re.findall(r'^def: ".+\."|$', line)[0]
-            _definition = re.sub('^def: "', "", _definition)
-            _definition = re.sub('"$', "", _definition)
-        elif line == "\n":
-            if "_id" in locals() and "_definition" in locals():
-                if _id != "" and _definition != "":
-                    go_definitions[_id] = _definition
-                del _id, _definition
-            elif "_id" in locals():
-                del _id
-            elif "_definition" in locals():
-                del _definition
-            else:
-                continue
-
-console.print_task(
-    "loading gene-to-GO associations "
-    f"(file={console.format_path(args.gene2go if args.gene2go else args.annotations)})"
-)
-with console.suppress_output():
-    if args.gene2go:
-        associations = read_gene2go(args.gene2go)
-    else:
-        annotations = GafReader(args.annotations)
-        associations = annotations.get_ns2assc()
-
-for namespace, gene_id2go in associations.items():
-    console.print_info(f"{namespace} {len(gene_id2go):,} annotated {args.organism} genes")
-
-console.print_task("performing gene ontology enrichment analysis (method=GOEA)")
-
-goea = GOEnrichmentStudyNS(
-    pop=background_geneset,
-    ns2assoc=associations,
-    godag=go_dag,
-    propagate_counts=False,
-    alpha=0.05,
-    methods=["fdr_bh"],
-    log=open(os.devnull, "w"),
-)
-
-for cluster, geneset in study_geneset.items():
-    _goea_all_results = goea.run_study(study_ids=geneset, log=open(os.devnull, "w"))
-    _goea_significant_results = [
-        result for result in _goea_all_results if result.p_fdr_bh < 0.05
-    ]
-    if not _goea_significant_results:
-        console.print_warning(f"no GOEA enrichment results for cluster {cluster}")
-    else:
-        console.print_result(
-            f"{len(_goea_significant_results)} enrichment results for cluster {cluster}"
+    background_geneset = set(
+        map(
+            lambda gene_id: int(gene_id) if gene_id.isnumeric() else None,
+            background_geneset,
         )
-        with console.suppress_output():
-            goea.wr_xlsx(
-                f"{os.path.dirname(args.outfile)}/{cluster}", _goea_significant_results
-            )
+    )
+    background_geneset.discard(None)
 
-console.print_task(f"saving GOEA workbook (file={console.format_path(args.outfile)})")
+    go_file = args.go
+    if go_file is None:
+        raise ValueError("argument --go is required")
 
-with ExcelWriter(args.outfile) as xlsx_writer:
-    for cluster in study_geneset.keys():
-        xlsx_infile = f"{os.path.dirname(args.outfile)}/{cluster}"
-        if os.path.isfile(xlsx_infile):
-            goea_results = read_excel(xlsx_infile, sheet_name=0)
-            for index, row in goea_results.iterrows():
-                _go = row["GO"]
-                if _go in go_definitions:
-                    goea_results.at[index, "definition"] = go_definitions[_go]
-            column_names = list(goea_results.columns)
-            idx_study_items, idx_definition = column_names.index(
-                "study_items"
-            ), column_names.index("definition")
-            column_names[idx_definition], column_names[idx_study_items] = (
-                column_names[idx_study_items],
-                column_names[idx_definition],
-            )
-            goea_results = goea_results[column_names]
-            sort_columns = []
-            ascending = []
+    console.print_task(f"loading gene ontology (file={console.format_path(go_file)})")
 
-            if "NS" in goea_results.columns:
-                goea_results = goea_results.assign(
-                    _namespace_order=goea_results["NS"]
-                    .map(GO_NAMESPACE_ORDER)
-                    .fillna(len(GO_NAMESPACE_ORDER))
-                )
-                sort_columns.append("_namespace_order")
-                ascending.append(True)
+    go_dag = GODag(obo_file=go_file, prt=open(os.devnull, "w"))
 
-            if "p_fdr_bh" in goea_results.columns:
-                sort_columns.append("p_fdr_bh")
-                ascending.append(True)
+    with open(go_file, "r") as go_reader:
+        go_definitions = dict()
+        for line in go_reader:
+            if re.search(r"^id: GO:[0-9]{7}", line):
+                _id = re.findall("GO:[0-9]{7}|$", line)[0]
+            elif re.search(r'^def: ".+\."', line):
+                _definition = re.findall(r'^def: ".+\."|$', line)[0]
+                _definition = re.sub('^def: "', "", _definition)
+                _definition = re.sub('"$', "", _definition)
+            elif line == "\n":
+                if "_id" in locals() and "_definition" in locals():
+                    if _id != "" and _definition != "":
+                        go_definitions[_id] = _definition
+                    del _id, _definition
+                elif "_id" in locals():
+                    del _id
+                elif "_definition" in locals():
+                    del _definition
+                else:
+                    continue
 
-            if sort_columns:
-                goea_results = goea_results.sort_values(
-                    by=sort_columns,
-                    ascending=ascending,
-                    kind="mergesort",
-                ).drop(columns="_namespace_order", errors="ignore")
-
-            goea_results.to_excel(xlsx_writer, sheet_name=cluster, index=False)
-            os.remove(xlsx_infile)
+    console.print_task(
+        "loading gene-to-GO associations "
+        f"(file={console.format_path(args.gene2go if args.gene2go else args.annotations)})"
+    )
+    with console.suppress_output():
+        if args.gene2go:
+            associations = read_gene2go(args.gene2go)
         else:
-            console.print_warning(f"file {xlsx_infile} not found")
+            annotations = GafReader(args.annotations)
+            associations = annotations.get_ns2assc()
+
+    for namespace, gene_id2go in associations.items():
+        console.print_info(f"{namespace} {len(gene_id2go):,} annotated {args.organism} genes")
+
+    console.print_task("performing gene ontology enrichment analysis (method=GOEA)")
+
+    goea = GOEnrichmentStudyNS(
+        pop=background_geneset,
+        ns2assoc=associations,
+        godag=go_dag,
+        propagate_counts=False,
+        alpha=0.05,
+        methods=["fdr_bh"],
+        log=open(os.devnull, "w"),
+    )
+
+    for cluster, geneset in study_geneset.items():
+        _goea_all_results = goea.run_study(study_ids=geneset, log=open(os.devnull, "w"))
+        _goea_significant_results = [
+            result for result in _goea_all_results if result.p_fdr_bh < 0.05
+        ]
+        if not _goea_significant_results:
+            console.print_warning(f"no GOEA enrichment results for cluster {cluster}")
+        else:
+            console.print_result(
+                f"{len(_goea_significant_results)} enrichment results for cluster {cluster}"
+            )
+            with console.suppress_output():
+                goea.wr_xlsx(
+                    f"{os.path.dirname(args.outfile)}/{cluster}", _goea_significant_results
+                )
+
+    console.print_task(f"saving GOEA workbook (file={console.format_path(args.outfile)})")
+
+    with ExcelWriter(args.outfile) as xlsx_writer:
+        for cluster in study_geneset.keys():
+            xlsx_infile = f"{os.path.dirname(args.outfile)}/{cluster}"
+            if os.path.isfile(xlsx_infile):
+                goea_results = read_excel(xlsx_infile, sheet_name=0)
+                for index, row in goea_results.iterrows():
+                    _go = row["GO"]
+                    if _go in go_definitions:
+                        goea_results.at[index, "definition"] = go_definitions[_go]
+                column_names = list(goea_results.columns)
+                idx_study_items, idx_definition = column_names.index(
+                    "study_items"
+                ), column_names.index("definition")
+                column_names[idx_definition], column_names[idx_study_items] = (
+                    column_names[idx_study_items],
+                    column_names[idx_definition],
+                )
+                goea_results = goea_results[column_names]
+                sort_columns = []
+                ascending = []
+
+                if "NS" in goea_results.columns:
+                    goea_results = goea_results.assign(
+                        _namespace_order=goea_results["NS"]
+                        .map(GO_NAMESPACE_ORDER)
+                        .fillna(len(GO_NAMESPACE_ORDER))
+                    )
+                    sort_columns.append("_namespace_order")
+                    ascending.append(True)
+
+                if "p_fdr_bh" in goea_results.columns:
+                    sort_columns.append("p_fdr_bh")
+                    ascending.append(True)
+
+                if sort_columns:
+                    goea_results = goea_results.sort_values(
+                        by=sort_columns,
+                        ascending=ascending,
+                        kind="mergesort",
+                    ).drop(columns="_namespace_order", errors="ignore")
+
+                goea_results.to_excel(xlsx_writer, sheet_name=cluster, index=False)
+                os.remove(xlsx_infile)
+            else:
+                console.print_warning(f"file {xlsx_infile} not found")
+
+
+if __name__ == "__main__":
+    main()

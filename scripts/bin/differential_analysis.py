@@ -77,170 +77,176 @@ def sign_likelihood(
     return interaction_signs
 
 
-script_name = Path(__file__).name
-
-parser = argparse.ArgumentParser(
-    prog="differential_analysis",
-    description="""Compute pairwise inter-cluster predecessor scores from binarized meta-observations.""",
-    usage=f"python {script_name} [-h] <FILE> <PATH> [<args>]",
-    formatter_class=cli.HelpFormatter,
-)
-
-parser.add_argument(
-    "infile",
-    type=lambda x: Path(x).resolve(),
-    metavar="FILE",
-    help="input file storing binarized meta-observations (format: csv)",
-)
-
-parser.add_argument(
-    dest="outpath",
-    type=lambda x: Path(x).resolve(),
-    metavar="PATH",
-    help="output directory storing sign likelihood and pairwise predecessor scores",
-)
-
-parser.add_argument(
-    "--depth",
-    "--radius",
-    dest="radius",
-    type=int,
-    required=False,
-    default=3,
-    metavar="INT",
-    help="maximum path length between a source and a target (default: 3)",
-)
-
-parser.add_argument(
-    "--min-path-number",
-    dest="min_path_number",
-    type=int,
-    required=False,
-    default=1,
-    metavar="INT",
-    help=(
-        "minimum number of paths required to consider a gene pair as source-target "
-        "candidates (default: 1)"
-    ),
-)
-
-parser.add_argument(
-    "--base",
-    dest="base",
-    type=int,
-    required=False,
-    default=2,
-    metavar="INT",
-    help="base in the non-exponential weighting function (default: 2)",
-)
-
-parser.add_argument(
-    "--relative-threshold",
-    dest="threshold",
-    type=float,
-    action=cli.Range,
-    min=0.0,
-    max=1.0,
-    required=False,
-    default=0.75,
-    help=(
-        "relative path-score threshold required to consider a source-target gene pair "
-        "(default: 0.75)"
-    ),
-)
-
-parser.add_argument(
-    "--enable-loop",
-    dest="enable_loop",
-    required=False,
-    action="store_true",
-    help="allow mutual influences between genes in a pair",
-)
-
-args = parser.parse_args()
-if args.base <= 1:
-    raise ValueError(f"incorrect value for `base` argument : {args.base}")
-
-
 def nexponential_fun(base, radius):
     return 1 / base ** np.arange(0, radius)
 
 
-bdc = bt.logic.ba.BooleanPredecessorInference
+script_name = Path(__file__).name
 
-console.print_task(f"loading binarized matrix (file={console.format_path(args.infile)})")
 
-meta_bin = pd.read_csv(args.infile, index_col=0).transpose()
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="differential_analysis",
+        description="""Compute pairwise inter-cluster predecessor scores from binarized meta-observations.""",
+        usage=f"python {script_name} [-h] <FILE> <PATH> [<args>]",
+        formatter_class=cli.HelpFormatter,
+    )
 
-collectri_db = dc.get_collectri(organism="mouse", split_complexes=True)
-grn = collectri_to_grn(collectri_db, sign_label="weight", remove_pmid=True)
+    parser.add_argument(
+        "infile",
+        type=lambda x: Path(x).resolve(),
+        metavar="FILE",
+        help="input file storing binarized meta-observations (format: csv)",
+    )
 
-console.print_info(f"grn: {len(grn.nodes)} genes; {len(grn.edges)} interactions")
+    parser.add_argument(
+        dest="outpath",
+        type=lambda x: Path(x).resolve(),
+        metavar="PATH",
+        help="output directory storing sign likelihood and pairwise predecessor scores",
+    )
 
-identifiers = bt.resources.ncbi.identifiers()
-identifiers(meta_bin, axis=1, copy=False)
-identifiers(grn, copy=False)
-gene_set_before_cleaning = set(meta_bin.columns)
-gene_removal(meta_bin, grn, copy=False)
-gene_set = set(meta_bin.columns)
+    parser.add_argument(
+        "--depth",
+        "--radius",
+        dest="radius",
+        type=int,
+        required=False,
+        default=3,
+        metavar="INT",
+        help="maximum path length between a source and a target (default: 3)",
+    )
 
-console.print_info(
-    f"dataframe: {len(gene_set_before_cleaning)} genes; {len(gene_set_before_cleaning)- len(gene_set)}/{len(gene_set_before_cleaning)} genes removed (no matching with grn genes)"
-)
+    parser.add_argument(
+        "--min-path-number",
+        dest="min_path_number",
+        type=int,
+        required=False,
+        default=1,
+        metavar="INT",
+        help=(
+            "minimum number of paths required to consider a gene pair as source-target "
+            "candidates (default: 1)"
+        ),
+    )
 
-console.print_task("checking successors")
+    parser.add_argument(
+        "--base",
+        dest="base",
+        type=int,
+        required=False,
+        default=2,
+        metavar="INT",
+        help="base in the non-exponential weighting function (default: 2)",
+    )
 
-console.print_info("extracting paths (method=depth-first search)")
-interaction_scores = bt.logic.ig.interaction_scores_from_walks(
-    graph=grn,
-    weights=nexponential_fun(base=args.base, radius=args.radius),
-    max_depth=args.radius,
-    genes=gene_set,
-)
+    parser.add_argument(
+        "--relative-threshold",
+        dest="threshold",
+        type=float,
+        action=cli.Range,
+        min=0.0,
+        max=1.0,
+        required=False,
+        default=0.75,
+        help=(
+            "relative path-score threshold required to consider a source-target gene pair "
+            "(default: 0.75)"
+        ),
+    )
 
-console.print_info("estimating pairwise gene sign likelihood")
-interaction_signs = sign_likelihood(
-    interaction_scores=interaction_scores,
-    gene_set=gene_set,
-    minimum_path_number=args.min_path_number,
-    relative_threshold=args.threshold,
-    enable_loop=args.enable_loop,
-)
+    parser.add_argument(
+        "--enable-loop",
+        dest="enable_loop",
+        required=False,
+        action="store_true",
+        help="allow mutual influences between genes in a pair",
+    )
 
-with open(f"{args.outpath}/sign_likelihood.json", "w") as outfile:
-    json.dump(interaction_signs, outfile)
+    args = parser.parse_args()
+    if args.base <= 1:
+        raise ValueError(f"incorrect value for `base` argument : {args.base}")
 
-console.print_info("testing predecessors (method=differential Boolean calculus)")
 
-score_matrix = OrderedDict({condition: {} for condition in meta_bin.index})
-for c1, c2 in itertools.product(meta_bin.index, repeat=2):
-    score_matrix[c1][c2] = 0
+    bdc = bt.logic.ba.BooleanPredecessorInference
 
-for source, targets in interaction_signs.items():
-    for target, sign in targets.items():
-        pair_df = meta_bin.loc[:, [source, target]]
-        for c1, c2 in itertools.product(meta_bin.index, repeat=2):
-            _predecessor = bdc.pairwise_predecessor_test(
-                source_v1=pair_df.loc[c1, source],
-                source_v2=pair_df.loc[c2, source],
-                target_v1=pair_df.loc[c1, target],
-                target_v2=pair_df.loc[c2, target],
-                sign=sign,
-            )
-            if _predecessor is True:
-                score_matrix[c1][c2] += 1
-            elif _predecessor is False:
-                score_matrix[c1][c2] -= 1
-            else:
-                pass
+    console.print_task(f"loading binarized matrix (file={console.format_path(args.infile)})")
 
-score_df = pd.DataFrame.from_dict(score_matrix, orient="index")
+    meta_bin = pd.read_csv(args.infile, index_col=0).transpose()
 
-console.print_task(
-    f"saving differential analysis outputs (directory={os.path.relpath(args.outpath)})"
-)
+    collectri_db = dc.get_collectri(organism="mouse", split_complexes=True)
+    grn = collectri_to_grn(collectri_db, sign_label="weight", remove_pmid=True)
 
-score_df.to_csv(f"{args.outpath}/pairwise_predecessor_scores.csv", sep=",", index=True)
+    console.print_info(f"grn: {len(grn.nodes)} genes; {len(grn.edges)} interactions")
 
-console.print_result("pairwise scores:")
-print(f"\n{score_df}\n")
+    identifiers = bt.resources.ncbi.identifiers()
+    identifiers(meta_bin, axis=1, copy=False)
+    identifiers(grn, copy=False)
+    gene_set_before_cleaning = set(meta_bin.columns)
+    gene_removal(meta_bin, grn, copy=False)
+    gene_set = set(meta_bin.columns)
+
+    console.print_info(
+        f"dataframe: {len(gene_set_before_cleaning)} genes; {len(gene_set_before_cleaning)- len(gene_set)}/{len(gene_set_before_cleaning)} genes removed (no matching with grn genes)"
+    )
+
+    console.print_task("checking successors")
+
+    console.print_info("extracting paths (method=depth-first search)")
+    interaction_scores = bt.logic.ig.interaction_scores_from_walks(
+        graph=grn,
+        weights=nexponential_fun(base=args.base, radius=args.radius),
+        max_depth=args.radius,
+        genes=gene_set,
+    )
+
+    console.print_info("estimating pairwise gene sign likelihood")
+    interaction_signs = sign_likelihood(
+        interaction_scores=interaction_scores,
+        gene_set=gene_set,
+        minimum_path_number=args.min_path_number,
+        relative_threshold=args.threshold,
+        enable_loop=args.enable_loop,
+    )
+
+    with open(f"{args.outpath}/sign_likelihood.json", "w") as outfile:
+        json.dump(interaction_signs, outfile)
+
+    console.print_info("testing predecessors (method=differential Boolean calculus)")
+
+    score_matrix = OrderedDict({condition: {} for condition in meta_bin.index})
+    for c1, c2 in itertools.product(meta_bin.index, repeat=2):
+        score_matrix[c1][c2] = 0
+
+    for source, targets in interaction_signs.items():
+        for target, sign in targets.items():
+            pair_df = meta_bin.loc[:, [source, target]]
+            for c1, c2 in itertools.product(meta_bin.index, repeat=2):
+                _predecessor = bdc.pairwise_predecessor_test(
+                    source_v1=pair_df.loc[c1, source],
+                    source_v2=pair_df.loc[c2, source],
+                    target_v1=pair_df.loc[c1, target],
+                    target_v2=pair_df.loc[c2, target],
+                    sign=sign,
+                )
+                if _predecessor is True:
+                    score_matrix[c1][c2] += 1
+                elif _predecessor is False:
+                    score_matrix[c1][c2] -= 1
+                else:
+                    pass
+
+    score_df = pd.DataFrame.from_dict(score_matrix, orient="index")
+
+    console.print_task(
+        f"saving differential analysis outputs (directory={os.path.relpath(args.outpath)})"
+    )
+
+    score_df.to_csv(f"{args.outpath}/pairwise_predecessor_scores.csv", sep=",", index=True)
+
+    console.print_result("pairwise scores:")
+    print(f"\n{score_df}\n")
+
+
+if __name__ == "__main__":
+    main()
