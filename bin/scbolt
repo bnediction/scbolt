@@ -101,6 +101,9 @@ command -v sed >/dev/null 2>&1 || sed() { "${SCBOLT_TOOL}" sed "$@"; }
 command -v tee >/dev/null 2>&1 || tee() { "${SCBOLT_TOOL}" tee "$@"; }
 
 restore_terminal() {
+    if [ -n "${terminal_device}" ]; then
+        printf '\033[?25h' > "${terminal_device}" 2> /dev/null || true
+    fi
     if [ -n "${terminal_state}" ] && [ -n "${terminal_device}" ]; then
         stty "${terminal_state}" < "${terminal_device}" 2> /dev/null || true
     fi
@@ -2118,6 +2121,9 @@ run_make_build_with_params() {
             > "${stdout_pipe}" \
             2> "${stderr_pipe}"
         status=$?
+    fi
+    if [ -n "${terminal_device}" ]; then
+        printf '\033[?25h' > "${terminal_device}" 2> /dev/null || true
     fi
     wait "${stdout_tee_pid}" 2> /dev/null || true
     wait "${stderr_tee_pid}" 2> /dev/null || true

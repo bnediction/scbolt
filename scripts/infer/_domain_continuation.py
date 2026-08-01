@@ -10,10 +10,18 @@ from typing import Collection, Iterable, Literal, Sequence
 
 DomainOutcome = Literal["sat", "unsat", "unknown", "cancelled"]
 DomainUnknownReason = Literal["capacity"]
-DomainPhase = Literal["acquisition", "expansion", "refresh", "completion"]
+DomainPhase = Literal[
+    "acquisition",
+    "expansion",
+    "refresh",
+    "completion",
+    "refinement",
+]
 DomainLeaderUpdate = Literal["improved", "joined", "unchanged"]
 
-_DOMAIN_EXPANSION_COALESCE_THRESHOLD = 3
+_DOMAIN_TERMINAL_STEP_FRACTION = 0.01
+_DOMAIN_TERMINAL_STEP_MINIMUM = 3
+_DOMAIN_TERMINAL_STEP_MAXIMUM = 10
 _SOLVER_RANDOM_FREQUENCY = "0.01"
 
 
@@ -35,6 +43,7 @@ class DomainCandidateResult:
     solution: tuple[str, ...] = ()
     witness: tuple[str, ...] = ()
     unknown_reason: DomainUnknownReason | None = None
+    optimum_certified: bool = False
 
 
 @dataclass
@@ -66,6 +75,107 @@ class DomainWaveLeader:
 
         self.frontier_candidates.add(candidate_index)
         return "joined"
+
+
+@dataclass
+class DomainPortfolioLaunchState:
+    """Coordinate a grounded memory probe and staggered worker launches."""
+
+    probe_required: bool
+    probe_seconds: float
+    launch_interval_seconds: float
+    probe_complete: bool = field(init=False)
+    _probe_started_at: float | None = field(default=None, init=False)
+    _last_launch_at: float | None = field(default=None, init=False)
+
+    def __post_init__(self) -> None:
+        if self.probe_seconds < 0:
+            raise ValueError("memory probe duration cannot be negative")
+        if self.launch_interval_seconds < 0:
+            raise ValueError("candidate launch interval cannot be negative")
+        self.probe_complete = not self.probe_required
+
+    def mark_submitted(self, now: float) -> None:
+        """Record one worker submission."""
+
+        self._last_launch_at = now
+
+    def mark_probe_candidate_ready(self, now: float) -> None:
+        """Start the probe once its first worker has completed grounding."""
+
+        if self.probe_required and self._probe_started_at is None:
+            self._probe_started_at = now
+
+    def update_probe(self, now: float, *, has_pending: bool) -> None:
+        """Complete the probe after its observation window or worker exit."""
+
+        if self.probe_complete or self._probe_started_at is None:
+            return
+        if (
+            not has_pending
+            or now - self._probe_started_at >= self.probe_seconds
+        ):
+            self.probe_complete = True
+
+    def ready_for_launch(self, now: float, *, has_pending: bool) -> bool:
+        """Report whether another worker may be submitted now."""
+
+        if not self.probe_required:
+            return True
+        if not self.probe_complete:
+            # Retry a sole probe worker if its predecessor failed before
+            # completing grounding.
+            return not has_pending and self._probe_started_at is None
+        if self._last_launch_at is None:
+            return True
+        return now - self._last_launch_at >= self.launch_interval_seconds
+
+
+@dataclass
+class DomainMemoryEstimator:
+    """Retain a conservative per-worker estimate across domain waves."""
+
+    _candidate_cost_floor: float = field(default=0.0, init=False)
+    _cost_per_problem_unit: float = field(default=0.0, init=False)
+
+    def observe(
+        self,
+        candidate_cost: float,
+        *,
+        domain_size: int,
+        max_clause: int,
+    ) -> None:
+        """Retain a measured candidate cost without lowering prior bounds."""
+
+        self._validate_problem(domain_size, max_clause)
+        if candidate_cost <= 0:
+            return
+        self._candidate_cost_floor = max(
+            self._candidate_cost_floor,
+            candidate_cost,
+        )
+        self._cost_per_problem_unit = max(
+            self._cost_per_problem_unit,
+            candidate_cost / (domain_size * max_clause),
+        )
+
+    def estimate(self, *, domain_size: int, max_clause: int) -> float | None:
+        """Estimate one worker while scaling for domain and clause growth."""
+
+        self._validate_problem(domain_size, max_clause)
+        if self._candidate_cost_floor <= 0:
+            return None
+        return max(
+            self._candidate_cost_floor,
+            self._cost_per_problem_unit * domain_size * max_clause,
+        )
+
+    @staticmethod
+    def _validate_problem(domain_size: int, max_clause: int) -> None:
+        if domain_size < 1:
+            raise ValueError("candidate domain size must be positive")
+        if max_clause < 1:
+            raise ValueError("maximum clause count must be positive")
 
 
 def solution_objective(
@@ -108,16 +218,26 @@ def domain_expansion_gains(
     )
 
 
-def domain_wave_solver_settings(
-    phase: DomainPhase,
+def terminal_refinement_solver_settings(
     mode: str,
-    strategy: str,
-) -> tuple[str, str]:
-    """Use linear branch-and-bound only while refreshing a domain."""
+    *,
+    optimum_certified: bool,
+) -> tuple[str, str] | None:
+    """Select the complete-domain refinement portfolio strategy."""
 
-    if phase == "refresh":
+    if not optimum_certified and mode != "ignore":
         return "opt", "bb,lin"
-    return mode, strategy
+    return None
+
+
+def solver_result_certifies_optimum(
+    mode: str,
+    *,
+    interrupted: bool,
+) -> bool:
+    """Report whether a completed candidate proves its optimum."""
+
+    return mode in {"opt", "optN"} and not interrupted
 
 
 def minimum_domain_gain(expansion_size: int, minimum_yield: float) -> int:
@@ -172,7 +292,14 @@ def expansion_domain_size(current_size: int, complete_size: int) -> int:
     _validate_domain_sizes(current_size, complete_size)
     remaining = complete_size - current_size
     expansion = ceil(remaining / 2)
-    if expansion <= _DOMAIN_EXPANSION_COALESCE_THRESHOLD:
+    terminal_step = max(
+        _DOMAIN_TERMINAL_STEP_MINIMUM,
+        min(
+            _DOMAIN_TERMINAL_STEP_MAXIMUM,
+            ceil(complete_size * _DOMAIN_TERMINAL_STEP_FRACTION),
+        ),
+    )
+    if expansion <= terminal_step:
         return complete_size
     return current_size + expansion
 
@@ -278,6 +405,7 @@ def select_best_candidate(
         satisfiable,
         key=lambda result: (
             *solution_objective(result.solution, important),
+            result.optimum_certified,
             -result.candidate.index,
         ),
     )

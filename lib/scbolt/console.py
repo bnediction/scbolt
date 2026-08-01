@@ -35,12 +35,22 @@ def suppress_output(
 
 @contextlib.contextmanager
 def guard_progress_input(file=sys.stdout) -> Iterator[None]:
-    """Prevent typed input from corrupting a transient progress display."""
+    """Guard input and hide the cursor during a transient progress display."""
 
     terminal_fd = None
     original_attributes = None
+    cursor_hidden = False
+    is_terminal = getattr(file, "isatty", lambda: False)()
 
-    if termios is not None and getattr(file, "isatty", lambda: False)():
+    if is_terminal:
+        try:
+            file.write("\033[?25l")
+            file.flush()
+            cursor_hidden = True
+        except (OSError, ValueError):
+            pass
+
+    if termios is not None and is_terminal:
         try:
             terminal_fd = file.fileno()
             original_attributes = termios.tcgetattr(terminal_fd)
@@ -69,6 +79,12 @@ def guard_progress_input(file=sys.stdout) -> Iterator[None]:
                     original_attributes,
                 )
             except OSError:
+                pass
+        if cursor_hidden:
+            try:
+                file.write("\033[?25h")
+                file.flush()
+            except (OSError, ValueError):
                 pass
 
 

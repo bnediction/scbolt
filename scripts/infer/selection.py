@@ -11,27 +11,30 @@ from functools import partial
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Event, Lock
-from typing import Any, Callable, Collection, Iterable, Mapping, Sequence
+from typing import Any, Callable, Collection, Iterable, Mapping, NoReturn, Sequence
 
 import bonesis
 from bonesis.asp_encoding import clingo_encode
 from _domain_continuation import (
     DomainCandidate,
     DomainCandidateResult,
+    DomainMemoryEstimator,
     DomainPhase,
+    DomainPortfolioLaunchState,
     DomainWaveLeader,
     bounded_midpoint,
     build_candidate_wave,
     continuation_base_domain,
     domain_expansion_gains,
-    domain_wave_solver_settings,
     expansion_domain_size,
     initial_domain_size,
     memory_limited_portfolio_size,
     minimum_domain_gain,
     outcome_counts,
     select_best_candidate,
+    solver_result_certifies_optimum,
     solution_objective,
+    terminal_refinement_solver_settings,
 )
 from _witness import (
     apply_structural_witness_heuristics,
@@ -72,6 +75,7 @@ from scbolt.runtime import (
 bonesis.settings["quiet"] = True
 script_name = Path(__file__).name
 DOMAIN_MEMORY_PROBE_SECONDS = 2.0
+DOMAIN_MEMORY_LAUNCH_INTERVAL_SECONDS = 2.0
 DOMAIN_MEMORY_COST_FACTOR = 1.10
 DOMAIN_FRONTIER_GRACE_SECONDS = 2 * 60.0
 
@@ -687,12 +691,24 @@ def solve_domain_candidate(
         interrupt_solver_view(view, cancel_handler=False)
         close_progress(view)
         return DomainCandidateResult(candidate, "cancelled")
+    events.put(("ready", candidate.index, current_rss_bytes()))
 
     outcome = "sat"
+    optimum_certified = False
     solution = ()
     structural_model = ()
     try:
         solution, structural_model = next(iterator)
+        # In opt mode BoNesis can return the last witness after Control.interrupt().
+        # Only natural solver exhaustion certifies that witness as optimal.
+        optimum_certified = solver_result_certifies_optimum(
+            clingo_mode,
+            interrupted=(
+                cancelled.is_set()
+                or active_views.candidate_interrupted(candidate.index)
+                or getattr(view, "interrupted", False)
+            ),
+        )
     except StopIteration:
         outcome = (
             "cancelled"
@@ -717,6 +733,7 @@ def solve_domain_candidate(
         outcome=outcome,
         solution=tuple(sorted(solution)),
         witness=tuple(structural_model),
+        optimum_certified=optimum_certified,
     )
 
 
@@ -738,17 +755,12 @@ def run_domain_wave(
     important_nodes: set[str],
     memory_limit: int | None,
     on_model: Callable[[frozenset[str], Sequence[str], Sequence[str]], bool],
+    memory_estimator: DomainMemoryEstimator | None = None,
 ) -> tuple[DomainCandidateResult, ...]:
     """Evaluate one domain wave while rendering all progress in the parent."""
 
     if not candidates:
         return ()
-
-    wave_clingo_mode, wave_clingo_strategy = domain_wave_solver_settings(
-        phase,
-        clingo_mode,
-        clingo_strategy,
-    )
 
     progress_stream = sys.stdout
     close_progress_stream = False
@@ -872,10 +884,34 @@ def run_domain_wave(
     memory_baseline = (
         current_rss_bytes() if memory_limit is not None else None
     )
-    maximum_candidate_cost = 0.0
-    memory_probe_started_at = 0.0
-    memory_probe_complete = memory_limit is None
-    portfolio_size = len(candidates) if memory_probe_complete else 1
+    candidate_domain_size = len(candidates[0].nodes)
+    estimated_candidate_cost = (
+        memory_estimator.estimate(
+            domain_size=candidate_domain_size,
+            max_clause=max_clause,
+        )
+        if memory_estimator is not None
+        else None
+    )
+    maximum_candidate_cost = estimated_candidate_cost or 0.0
+    launch_state = DomainPortfolioLaunchState(
+        probe_required=(
+            memory_limit is not None and estimated_candidate_cost is None
+        ),
+        probe_seconds=DOMAIN_MEMORY_PROBE_SECONDS,
+        launch_interval_seconds=DOMAIN_MEMORY_LAUNCH_INTERVAL_SECONDS,
+    )
+    portfolio_size = (
+        memory_limited_portfolio_size(
+            memory_limit,
+            memory_baseline,
+            estimated_candidate_cost,
+            jobs=len(candidates),
+            cost_factor=DOMAIN_MEMORY_COST_FACTOR,
+        )
+        if launch_state.probe_complete
+        else 1
+    )
 
     def submit_candidate(candidate: DomainCandidate) -> None:
         future = executor.submit(
@@ -884,8 +920,8 @@ def run_domain_wave(
             candidate,
             max_clause=max_clause,
             witness=witness,
-            clingo_mode=wave_clingo_mode,
-            clingo_strategy=wave_clingo_strategy,
+            clingo_mode=clingo_mode,
+            clingo_strategy=clingo_strategy,
             clingo_configuration=clingo_configuration,
             events=events,
             active_views=active_views,
@@ -893,11 +929,14 @@ def run_domain_wave(
         )
         futures[future] = candidate
         pending.add(future)
+        launch_state.mark_submitted(time.monotonic())
 
-    def observe_memory() -> tuple[int | None, float | None]:
+    def observe_memory(
+        rss_sample: int | None = None,
+    ) -> tuple[int | None, float | None]:
         nonlocal maximum_candidate_cost
 
-        rss = current_rss_bytes()
+        rss = current_rss_bytes() if rss_sample is None else rss_sample
         if rss is None or memory_limit is None or memory_baseline is None:
             return rss, None
         if pending:
@@ -906,6 +945,12 @@ def run_domain_wave(
                 maximum_candidate_cost,
                 candidate_cost,
             )
+            if memory_estimator is not None:
+                memory_estimator.observe(
+                    candidate_cost,
+                    domain_size=candidate_domain_size,
+                    max_clause=max_clause,
+                )
         return rss, maximum_candidate_cost
 
     def update_portfolio_size() -> tuple[int | None, float | None]:
@@ -924,7 +969,18 @@ def run_domain_wave(
     def can_launch_candidate() -> bool:
         if not candidate_queue:
             return False
-        if not memory_probe_complete:
+        now = time.monotonic()
+        if not launch_state.ready_for_launch(
+            now,
+            has_pending=bool(pending),
+        ):
+            return False
+        if not launch_state.probe_complete:
+            return True
+        if any(
+            futures[future].index in memory_interrupted
+            for future in pending
+        ):
             return False
         if not pending:
             return True
@@ -1000,6 +1056,11 @@ def run_domain_wave(
 
     def process_event(event) -> None:
         kind, candidate_index, *payload = event
+        if kind == "ready":
+            launch_state.mark_probe_candidate_ready(time.monotonic())
+            observe_memory(payload[0])
+            return
+
         bar = bars[candidate_index]
         if kind == "postfix":
             values = payload[0]
@@ -1046,19 +1107,18 @@ def run_domain_wave(
     try:
         progress_input_guard.__enter__()
         submit_candidate(candidate_queue.pop(0))
-        memory_probe_started_at = time.monotonic()
         while pending or candidate_queue:
             if stop_reason is None:
-                if not memory_probe_complete:
+                if not launch_state.probe_complete:
                     observe_memory()
-                    memory_probe_complete = (
-                        time.monotonic() - memory_probe_started_at
-                        >= DOMAIN_MEMORY_PROBE_SECONDS
+                    launch_state.update_probe(
+                        time.monotonic(),
+                        has_pending=bool(pending),
                     )
-                if memory_probe_complete:
+                if launch_state.probe_complete:
                     update_portfolio_size()
-                    while launch_candidate():
-                        pass
+                while launch_candidate():
+                    pass
             try:
                 event = events.get(timeout=0.05)
             except Empty:
@@ -1098,6 +1158,13 @@ def run_domain_wave(
                 return_when=FIRST_COMPLETED,
             )
             pending = set(current_pending)
+            if phase in {"completion", "refinement"} and stop_reason is None:
+                for future in done:
+                    if future.result().optimum_certified:
+                        stop_reason = "portfolio-optimal"
+                        cancelled.set()
+                        active_views.interrupt_all()
+                        break
             if stop_reason is not None and not pending:
                 break
 
@@ -1154,6 +1221,8 @@ class DomainContinuationState:
     solution: tuple[str, ...]
     witness: tuple[str, ...]
     complete_domain_unsat: bool = False
+    complete_domain_optimal: bool = False
+    terminal_refinement_used: bool = False
 
 
 def print_domain_wave_summary(
@@ -1203,6 +1272,27 @@ def print_domain_wave_summary(
         )
 
 
+def _raise_unresolved_complete_domain(
+    results: Sequence[DomainCandidateResult],
+    *,
+    phase: str,
+) -> NoReturn:
+    """Classify a complete-domain portfolio that returned no witness."""
+
+    capacity_count = sum(
+        result.unknown_reason == "capacity" for result in results
+    )
+    if capacity_count:
+        raise SolverCapacityError(
+            "ASP grounding exceeded Clasp's internal program-node limit "
+            f"in {capacity_count}/{len(results)} complete-domain "
+            f"{phase} workers"
+        )
+    raise RuntimeError(
+        f"complete-domain {phase} portfolio ended without a result"
+    )
+
+
 def continue_domain_at_clause_bound(
     bo: bonesis.BoNesis,
     *,
@@ -1226,6 +1316,7 @@ def continue_domain_at_clause_bound(
     memory_limit: int | None,
     on_model: Callable[[frozenset[str], Sequence[str], Sequence[str]], bool],
     on_selected: Callable[[frozenset[str], Sequence[str], Sequence[str]], None],
+    memory_estimator: DomainMemoryEstimator | None = None,
 ) -> DomainContinuationState:
     """Acquire or only expand a witness at one clause bound."""
 
@@ -1279,6 +1370,7 @@ def continue_domain_at_clause_bound(
                 important_nodes=important_nodes,
                 memory_limit=memory_limit,
                 on_model=on_model,
+                memory_estimator=memory_estimator,
             )
             selected = select_best_candidate(results, important_nodes)
             print_domain_wave_summary(
@@ -1394,6 +1486,7 @@ def continue_domain_at_clause_bound(
             important_nodes=important_nodes,
             memory_limit=memory_limit,
             on_model=on_model,
+            memory_estimator=memory_estimator,
         )
         selected = select_best_candidate(results, important_nodes)
         print_domain_wave_summary(
@@ -1470,6 +1563,7 @@ def continue_domain_at_clause_bound(
                 important_nodes=important_nodes,
                 memory_limit=memory_limit,
                 on_model=on_model,
+                memory_estimator=memory_estimator,
             )
             selected = select_best_candidate(results, important_nodes)
             print_domain_wave_summary(
@@ -1544,6 +1638,7 @@ def continue_domain_at_clause_bound(
         important_nodes=important_nodes,
         memory_limit=memory_limit,
         on_model=on_model,
+        memory_estimator=memory_estimator,
     )
     selected = select_best_candidate(results, important_nodes)
     print_domain_wave_summary(
@@ -1556,10 +1651,96 @@ def continue_domain_at_clause_bound(
     if selected is not None:
         adopt_candidate(selected)
 
+    completion_counts = outcome_counts(results)
+    if selected is None and completion_counts["unsat"]:
+        return DomainContinuationState(
+            current_domain,
+            current_solution,
+            current_witness,
+            complete_domain_unsat=True,
+        )
+
+    complete_domain_optimal = bool(
+        selected is not None and selected.optimum_certified
+    )
+    refinement_settings = terminal_refinement_solver_settings(
+        clingo_mode,
+        optimum_certified=complete_domain_optimal,
+    )
+    if refinement_settings is None and selected is None:
+        _raise_unresolved_complete_domain(results, phase="completion")
+    terminal_refinement_used = refinement_settings is not None
+    if refinement_settings is not None:
+        refinement_mode, refinement_strategy = refinement_settings
+        wave += 1
+        candidates = build_candidate_wave(
+            complete_domain,
+            current_domain,
+            target_size=len(complete_domain),
+            jobs=jobs,
+            seed=seed,
+            clause_bound=max_clause,
+            wave=wave,
+        )
+        console.print_debug(
+            "refining complete domain with solver portfolio "
+            f"(mode={refinement_mode}, strategy={refinement_strategy}, "
+            f"candidates={len(candidates)})",
+            flush=True,
+        )
+        results = run_domain_wave(
+            bo,
+            candidates,
+            phase="refinement",
+            wave=wave,
+            max_clause=max_clause,
+            witness=current_witness,
+            incumbent_solution=current_solution,
+            clingo_mode=refinement_mode,
+            clingo_strategy=refinement_strategy,
+            clingo_configuration=clingo_configuration,
+            patience_seconds=0.0,
+            clause_patience=clause_patience,
+            deadline=deadline,
+            important_nodes=important_nodes,
+            memory_limit=memory_limit,
+            on_model=on_model,
+            memory_estimator=memory_estimator,
+        )
+        selected = select_best_candidate(results, important_nodes)
+        print_domain_wave_summary(
+            phase="refinement",
+            max_clause=max_clause,
+            wave=wave,
+            results=results,
+            selected=selected,
+        )
+        if selected is not None:
+            adopt_candidate(selected)
+
+        refinement_counts = outcome_counts(results)
+        if selected is None and refinement_counts["unsat"]:
+            return DomainContinuationState(
+                current_domain,
+                current_solution,
+                current_witness,
+                complete_domain_unsat=True,
+                terminal_refinement_used=True,
+            )
+        if selected is None:
+            _raise_unresolved_complete_domain(results, phase="refinement")
+        if not selected.optimum_certified:
+            raise RuntimeError(
+                "complete-domain refinement ended without an optimum certificate"
+            )
+        complete_domain_optimal = True
+
     return DomainContinuationState(
         current_domain,
         current_solution,
         current_witness,
+        complete_domain_optimal=complete_domain_optimal,
+        terminal_refinement_used=terminal_refinement_used,
     )
 
 
@@ -2038,6 +2219,8 @@ def main() -> None:
                     "domain memory: "
                     f"limit={format_memory_size(args.memory_limit)}, "
                     f"probe={DOMAIN_MEMORY_PROBE_SECONDS:g}s, "
+                    "launch interval="
+                    f"{DOMAIN_MEMORY_LAUNCH_INTERVAL_SECONDS:g}s, "
                     "candidate margin="
                     f"{DOMAIN_MEMORY_COST_FACTOR - 1:.0%}",
                     flush=True,
@@ -2075,6 +2258,11 @@ def main() -> None:
             write_structural_witness(current_witness, args.witness)
 
         deadline = SolverDeadline(args.timeout)
+        domain_memory_estimator = (
+            DomainMemoryEstimator()
+            if args.domain_continuation and args.memory_limit is not None
+            else None
+        )
 
         for stage_index, max_clause in enumerate(bounds, start=1):
             if stage_index > 1:
@@ -2103,6 +2291,8 @@ def main() -> None:
             )
             stage_patience = SolverPatience(stage_patience_seconds)
             stage_best = [None]
+            complete_domain_optimal = False
+            terminal_refinement_used = False
             retain_model = partial(
                 store_retained_model,
                 retained,
@@ -2136,6 +2326,7 @@ def main() -> None:
                         memory_limit=args.memory_limit,
                         on_model=retain_model,
                         on_selected=retain_selected,
+                        memory_estimator=domain_memory_estimator,
                     )
                 except SolverTimeout:
                     exit_solver_timeout(args.timeout_status_file)
@@ -2145,11 +2336,21 @@ def main() -> None:
                     print_clause_bound_patience_warning(
                         max_clause,
                         retained["objective"],
-                        node_total=len(complete_domain),
+                        node_total=len(retained["domain"]),
                         important_total=len(important_nodes_in_domain),
                         patience=args.clause_bound_patience,
                     )
                     continue
+                except SolverCapacityError as error:
+                    capacity_error = make_solver_capacity_error(
+                        error,
+                        domain_continuation=True,
+                        clause_continuation_parameter=(
+                            args.clause_continuation_parameter
+                        ),
+                    )
+                    console.print_warning(str(capacity_error), flush=True)
+                    exit_solver_capacity(args.timeout_status_file)
 
                 if continuation.complete_domain_unsat:
                     if is_target:
@@ -2169,8 +2370,23 @@ def main() -> None:
                 current_domain = continuation.domain
                 solution = continuation.solution
                 current_witness = continuation.witness
+                complete_domain_optimal = continuation.complete_domain_optimal
+                terminal_refinement_used = (
+                    continuation.terminal_refinement_used
+                )
             if solution and current_witness:
                 retain_model(current_domain, solution, current_witness)
+
+            stage_clingo_mode, stage_clingo_strategy = (
+                ("opt", "bb,lin")
+                if terminal_refinement_used
+                else (clingo_mode, clingo_strategy)
+            )
+            if complete_domain_optimal:
+                console.print_debug(
+                    "complete-domain optimum certified by domain portfolio",
+                    flush=True,
+                )
 
             stage_bo = fork_bonesis(
                 bo,
@@ -2189,18 +2405,18 @@ def main() -> None:
             if current_witness:
                 extra_clingo_options.insert(0, "--heuristic=Domain")
             view_settings = get_filter_clingo_settings(
-                clingo_mode,
-                clingo_strategy,
+                stage_clingo_mode,
+                stage_clingo_strategy,
                 args.clingo_configuration,
                 *extra_clingo_options,
             )
 
             view = bonesis.NodesView(
                 stage_bo,
-                mode=clingo_mode,
+                mode=stage_clingo_mode,
                 extra=structural_witness,
                 intermediate_model_cb=intermediate_solution,
-                clingo_opt_strategy=clingo_strategy,
+                clingo_opt_strategy=stage_clingo_strategy,
                 progress=make_stage_progress(
                     description,
                     retained["objective"],
@@ -2213,11 +2429,12 @@ def main() -> None:
                 view.standalone(output_filename=args.asp)
 
             try:
-                solution, current_witness = next_solution(
-                    view,
-                    deadline,
-                    stage_patience,
-                )
+                if not args.domain_continuation:
+                    solution, current_witness = next_solution(
+                        view,
+                        deadline,
+                        stage_patience,
+                    )
             except SolverTimeout:
                 exit_solver_timeout(args.timeout_status_file)
             except SolverPatienceExpired:
@@ -2229,7 +2446,7 @@ def main() -> None:
                 print_clause_bound_patience_warning(
                     max_clause,
                     retained["objective"],
-                    node_total=len(complete_domain),
+                    node_total=len(retained["domain"]),
                     important_total=len(important_nodes_in_domain),
                     patience=args.clause_bound_patience,
                 )

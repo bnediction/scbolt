@@ -8,19 +8,22 @@ sys.path.insert(0, str(REPO_ROOT / "scripts" / "infer"))
 
 from _domain_continuation import (  # noqa: E402
     DomainCandidateResult,
+    DomainMemoryEstimator,
+    DomainPortfolioLaunchState,
     DomainWaveLeader,
     bounded_midpoint,
     build_candidate_wave,
     continuation_base_domain,
     domain_expansion_gains,
-    domain_wave_solver_settings,
     expansion_domain_size,
     initial_domain_size,
     memory_limited_portfolio_size,
     minimum_domain_gain,
     outcome_counts,
     select_best_candidate,
+    solver_result_certifies_optimum,
     solution_objective,
+    terminal_refinement_solver_settings,
 )
 
 complete = {f"g{i}" for i in range(20)}
@@ -31,6 +34,10 @@ assert expansion_domain_size(12, 20) == 16
 assert expansion_domain_size(13, 20) == 17
 assert expansion_domain_size(14, 20) == 20
 assert expansion_domain_size(17, 20) == 20
+assert expansion_domain_size(537, 550) == 544
+assert expansion_domain_size(538, 550) == 550
+assert expansion_domain_size(5177, 5198) == 5188
+assert expansion_domain_size(5178, 5198) == 5198
 assert bounded_midpoint(3, 20) == 12
 assert minimum_domain_gain(120, 0.10) == 12
 assert minimum_domain_gain(5, 0.99) == 5
@@ -57,6 +64,53 @@ assert memory_limited_portfolio_size(
     jobs=16,
     cost_factor=1.10,
 ) == 16
+
+managed_launches = DomainPortfolioLaunchState(
+    probe_required=True,
+    probe_seconds=2.0,
+    launch_interval_seconds=2.0,
+)
+assert managed_launches.ready_for_launch(0.0, has_pending=False)
+managed_launches.mark_submitted(0.0)
+assert not managed_launches.ready_for_launch(5.0, has_pending=True)
+managed_launches.mark_probe_candidate_ready(5.0)
+managed_launches.update_probe(6.9, has_pending=True)
+assert not managed_launches.probe_complete
+managed_launches.update_probe(7.0, has_pending=True)
+assert managed_launches.probe_complete
+assert managed_launches.ready_for_launch(7.0, has_pending=True)
+managed_launches.mark_submitted(7.0)
+assert not managed_launches.ready_for_launch(8.9, has_pending=True)
+# Later workers do not need to finish grounding before the next staggered
+# submission; only the initial memory probe is grounding-aware.
+assert managed_launches.ready_for_launch(9.0, has_pending=True)
+
+failed_probe = DomainPortfolioLaunchState(
+    probe_required=True,
+    probe_seconds=2.0,
+    launch_interval_seconds=2.0,
+)
+failed_probe.mark_submitted(0.0)
+assert failed_probe.ready_for_launch(1.0, has_pending=False)
+
+unmanaged_launches = DomainPortfolioLaunchState(
+    probe_required=False,
+    probe_seconds=2.0,
+    launch_interval_seconds=2.0,
+)
+assert unmanaged_launches.probe_complete
+assert unmanaged_launches.ready_for_launch(0.0, has_pending=True)
+
+memory_estimator = DomainMemoryEstimator()
+assert memory_estimator.estimate(domain_size=100, max_clause=1) is None
+memory_estimator.observe(1000, domain_size=100, max_clause=1)
+assert memory_estimator.estimate(domain_size=100, max_clause=1) == 1000
+assert memory_estimator.estimate(domain_size=200, max_clause=1) == 2000
+assert memory_estimator.estimate(domain_size=100, max_clause=2) == 2000
+# Smaller follow-up domains retain the absolute observed floor.
+assert memory_estimator.estimate(domain_size=50, max_clause=1) == 1000
+memory_estimator.observe(2500, domain_size=200, max_clause=1)
+assert memory_estimator.estimate(domain_size=200, max_clause=1) == 2500
 assert memory_limited_portfolio_size(
     50,
     10,
@@ -69,18 +123,22 @@ assert domain_expansion_gains(
     ("g0", "g1", "g2"),
     {"g1", "g2"},
 ) == (1, 1)
-assert domain_wave_solver_settings("acquisition", "optN", "usc") == (
+assert terminal_refinement_solver_settings(
     "optN",
-    "usc",
-)
-assert domain_wave_solver_settings("expansion", "opt", "bb,inc") == (
+    optimum_certified=False,
+) == ("opt", "bb,lin")
+assert terminal_refinement_solver_settings(
     "opt",
-    "bb,inc",
-)
-assert domain_wave_solver_settings("refresh", "optN", "usc") == (
-    "opt",
-    "bb,lin",
-)
+    optimum_certified=True,
+) is None
+assert terminal_refinement_solver_settings(
+    "ignore",
+    optimum_certified=False,
+) is None
+assert solver_result_certifies_optimum("opt", interrupted=False)
+assert solver_result_certifies_optimum("optN", interrupted=False)
+assert not solver_result_certifies_optimum("opt", interrupted=True)
+assert not solver_result_certifies_optimum("ignore", interrupted=False)
 
 complete_550 = {f"n{i}" for i in range(550)}
 selected_500 = {f"n{i}" for i in range(500)}
@@ -97,7 +155,7 @@ while clause_sizes[-1] < len(complete_550):
     clause_sizes.append(
         expansion_domain_size(clause_sizes[-1], len(complete_550))
     )
-assert clause_sizes == [500, 525, 538, 544, 550]
+assert clause_sizes == [500, 525, 538, 550]
 
 clause_wave = build_candidate_wave(
     complete_550,
@@ -278,11 +336,19 @@ assert full_wave != build_candidate_wave(
     clause_bound=2,
     wave=3,
 )
-assert domain_wave_solver_settings("completion", "opt", "bb,inc") == (
-    "opt",
-    "bb,inc",
+refinement_wave = build_candidate_wave(
+    complete,
+    complete,
+    target_size=len(complete),
+    jobs=8,
+    seed=10,
+    clause_bound=1,
+    wave=4,
 )
-
+assert all(
+    candidate.nodes == frozenset(complete) for candidate in refinement_wave
+)
+assert refinement_wave != full_wave
 results = (
     DomainCandidateResult(wave[0], "sat", ("g0", "g3"), ("node(g0)",)),
     DomainCandidateResult(
@@ -303,6 +369,21 @@ assert outcome_counts(results) == {
     "unknown": 1,
     "cancelled": 0,
 }
+
+uncertified = DomainCandidateResult(
+    wave[0],
+    "sat",
+    ("g0", "g1"),
+    ("node(g0)",),
+)
+certified = DomainCandidateResult(
+    wave[1],
+    "sat",
+    ("g0", "g1"),
+    ("node(g0)",),
+    optimum_certified=True,
+)
+assert select_best_candidate((uncertified, certified), {"g0"}) == certified
 
 capacity_result = DomainCandidateResult(
     wave[2],
