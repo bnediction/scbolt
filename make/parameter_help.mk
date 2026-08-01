@@ -274,6 +274,11 @@ parameter_help_hint_DOROTHEA_LEVELS = A, B, C, D or any combination
 parameter_help_description_DOROTHEA_LEVELS = DoRothEA confidence levels.
 parameter_help_hint_MAX_CLAUSES = $(parameter_help_positive_integer)
 parameter_help_description_MAX_CLAUSES = Maximum number of conjunctive terms joined by OR in each Boolean update function.
+parameter_help_hint_BOUNDED_NONREACH = >= 1, optional
+parameter_help_description_BOUNDED_NONREACH = Number of certificate iterations used for non-reachability constraints.
+parameter_help_note_BOUNDED_NONREACH = Empty values use the complete default bound from BoNesis.
+parameter_help_note2_BOUNDED_NONREACH = Configuration targets use the regulatory-domain size; observation targets use a tighter target-specific bound.
+parameter_help_note3_BOUNDED_NONREACH = Final non-reachability constraints remain bounded to one iteration.
 parameter_help_hint_CLAUSE_CONTINUATION_SOFT = $(parameter_help_bool)
 parameter_help_hint_CLAUSE_CONTINUATION_RELAXED = $(parameter_help_bool)
 parameter_help_hint_CLAUSE_CONTINUATION_SEED = $(parameter_help_bool)

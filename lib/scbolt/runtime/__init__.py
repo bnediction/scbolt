@@ -1,5 +1,6 @@
 """Runtime controls shared by scBOLT scripts."""
 
+from ._memory import release_unused_memory
 from ._solver import (
     SolverCapacityError,
     close_solver_progress,
@@ -42,6 +43,7 @@ __all__ = [
     "iter_solutions",
     "next_solution",
     "parse_solver_timeout",
+    "release_unused_memory",
     "reset_solver_timeout_status",
     "single_thread",
 ]

@@ -209,6 +209,17 @@ class ProjectConfigurationTests(unittest.TestCase):
             result.stderr,
         )
 
+    def test_bounded_nonreach_uses_native_bonesis_name(self) -> None:
+        settings = exported("bounded-nonreach: 20\n")
+        self.assertEqual(settings["BOUNDED_NONREACH"], "20")
+
+        result = run_helper("export", "bounded_nonreach: 20\n")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(
+            "unknown configuration key 'bounded_nonreach'",
+            result.stderr,
+        )
+
     def test_shared_and_deprecated_hvg_keys_are_rejected(self) -> None:
         for key in (
             "hvg-method",

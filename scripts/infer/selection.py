@@ -3,6 +3,7 @@ import os
 import resource
 import sys
 import time
+from collections import OrderedDict
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from contextlib import ExitStack
@@ -26,15 +27,17 @@ from scbolt.inference._continuation import (
     DomainWaveLeader,
     bounded_midpoint,
     build_candidate_wave,
+    candidate_fits_memory_budget,
     continuation_base_domain,
     domain_expansion_gains,
     expansion_domain_size,
     initial_domain_size,
-    memory_limited_portfolio_size,
     minimum_domain_gain,
     outcome_counts,
+    portfolio_objective_ceiling,
     select_best_candidate,
     solution_objective,
+    solution_reaches_domain_ceiling,
     solver_result_certifies_optimum,
     stalled_domain_solver_settings,
     terminal_refinement_solver_settings,
@@ -60,6 +63,7 @@ from scbolt.runtime import (
     iter_solver_view,
     next_solution,
     parse_solver_timeout,
+    release_unused_memory,
     reset_solver_timeout_status,
 )
 from utils import (
@@ -77,6 +81,17 @@ DOMAIN_MEMORY_PROBE_SECONDS = 2.0
 DOMAIN_MEMORY_LAUNCH_INTERVAL_SECONDS = 2.0
 DOMAIN_MEMORY_COST_FACTOR = 1.10
 DOMAIN_FRONTIER_GRACE_SECONDS = 2 * 60.0
+
+
+@dataclass
+class DomainWaveMemoryUsage:
+    """Track the process-wide RSS peak observed during one domain wave."""
+
+    peak_rss: int | None = None
+
+    def observe(self, rss: int | None) -> None:
+        if rss is not None:
+            self.peak_rss = max(self.peak_rss or 0, rss)
 
 
 def parse_memory_limit(value: str) -> int | None:
@@ -491,6 +506,8 @@ def fork_bonesis(
         graph = bo.domain.subgraph(tuple(domain_nodes))
     domain = bonesis.domains.InfluenceGraph(graph, **domain_options)
     stage = bonesis.BoNesis(domain, bo.data)
+    for name, value in bo.aspmodel.constants.items():
+        stage.set_constant(name, value)
     stage.manager.reset_from(bo.manager)
 
     apply_structural_witness_heuristics(stage, witness)
@@ -726,7 +743,7 @@ def solve_domain_candidate(
     )
 
 
-def run_domain_wave(
+def _run_domain_wave(
     bo: bonesis.BoNesis,
     candidates: Sequence[DomainCandidate],
     *,
@@ -745,6 +762,7 @@ def run_domain_wave(
     memory_limit: int | None,
     on_model: Callable[[frozenset[str], Sequence[str], Sequence[str]], bool],
     memory_estimator: DomainMemoryEstimator | None = None,
+    memory_usage: DomainWaveMemoryUsage,
 ) -> tuple[DomainCandidateResult, ...]:
     """Evaluate one domain wave while rendering all progress in the parent."""
 
@@ -800,6 +818,9 @@ def run_domain_wave(
     displayed_objectives = {
         candidate.index: incumbent_objective for candidate in candidates
     }
+    candidate_states = {
+        candidate.index: "queued" for candidate in candidates
+    }
 
     def format_candidate_objective(candidate_index: int) -> Mapping[str, str]:
         """Format the best inherited or locally observed candidate score."""
@@ -811,6 +832,13 @@ def run_domain_wave(
             else (total,)
         )
         return score_formatters[candidate_index](score)
+
+    def format_candidate_postfix(candidate_index: int) -> Mapping[str, str]:
+        """Format candidate state and objective for one domain bar."""
+
+        fields = OrderedDict(format_candidate_objective(candidate_index))
+        fields["state"] = candidate_states[candidate_index]
+        return fields
 
     candidate_width = len(str(len(candidates)))
     progress_label = f"Domain {phase}"
@@ -830,7 +858,7 @@ def run_domain_wave(
                 f"[candidate={candidate.index:>{candidate_width}}/"
                 f"{len(candidates)}]"
             ),
-            postfix=format_candidate_objective(candidate.index),
+            postfix={},
             position=position,
             file=progress_stream,
             bar_format="{desc}: {n_fmt:>4}it ({elapsed}{postfix})",
@@ -838,6 +866,11 @@ def run_domain_wave(
         )
         for position, candidate in enumerate(candidates, start=1)
     }
+    for candidate in candidates:
+        bars[candidate.index].set_postfix(
+            format_candidate_postfix(candidate.index),
+            refresh=True,
+        )
     progress_display_closed = False
 
     def close_progress_display() -> None:
@@ -861,8 +894,16 @@ def run_domain_wave(
     candidate_by_index = {
         candidate.index: candidate for candidate in candidates
     }
+    wave_objective_ceiling = portfolio_objective_ceiling(
+        candidates,
+        important_nodes,
+    )
     observed_models = {}
-    wave_patience = SolverPatience(patience_seconds)
+    wave_patience = SolverPatience(
+        patience_seconds,
+        start_immediately=False,
+    )
+    wave_patience_started = False
     wave_leader = DomainWaveLeader(objective=incumbent_objective)
     stop_reason = None
     memory_interrupted = set()
@@ -876,6 +917,7 @@ def run_domain_wave(
     memory_baseline = (
         current_rss_bytes() if memory_limit is not None else None
     )
+    memory_usage.observe(memory_baseline)
     candidate_domain_size = len(candidates[0].nodes)
     estimated_candidate_cost = (
         memory_estimator.estimate(
@@ -891,19 +933,29 @@ def run_domain_wave(
             memory_limit is not None and estimated_candidate_cost is None
         ),
         probe_seconds=DOMAIN_MEMORY_PROBE_SECONDS,
-        launch_interval_seconds=DOMAIN_MEMORY_LAUNCH_INTERVAL_SECONDS,
+        launch_interval_seconds=(
+            DOMAIN_MEMORY_LAUNCH_INTERVAL_SECONDS
+            if memory_limit is not None
+            else 0.0
+        ),
     )
-    portfolio_size = (
-        memory_limited_portfolio_size(
-            memory_limit,
-            memory_baseline,
-            estimated_candidate_cost,
-            jobs=len(candidates),
-            cost_factor=DOMAIN_MEMORY_COST_FACTOR,
+    grounding_candidates = set()
+
+    def set_candidate_state(
+        candidate_index: int,
+        state: str,
+        *,
+        refresh: bool = False,
+    ) -> None:
+        """Update one candidate bar state while preserving its score."""
+
+        if candidate_states.get(candidate_index) == state:
+            return
+        candidate_states[candidate_index] = state
+        bars[candidate_index].set_postfix(
+            format_candidate_postfix(candidate_index),
+            refresh=refresh,
         )
-        if launch_state.probe_complete
-        else 1
-    )
 
     def submit_candidate(candidate: DomainCandidate) -> None:
         future = executor.submit(
@@ -921,6 +973,9 @@ def run_domain_wave(
         )
         futures[future] = candidate
         pending.add(future)
+        if memory_limit is not None:
+            grounding_candidates.add(candidate.index)
+        set_candidate_state(candidate.index, "grounding", refresh=True)
         launch_state.mark_submitted(time.monotonic())
 
     def observe_memory(
@@ -929,7 +984,12 @@ def run_domain_wave(
         nonlocal maximum_candidate_cost
 
         rss = current_rss_bytes() if rss_sample is None else rss_sample
-        if rss is None or memory_limit is None or memory_baseline is None:
+        memory_usage.observe(rss)
+        if (
+            rss is None
+            or memory_limit is None
+            or memory_baseline is None
+        ):
             return rss, None
         if pending:
             candidate_cost = max(0, rss - memory_baseline) / len(pending)
@@ -944,19 +1004,6 @@ def run_domain_wave(
                     max_clause=max_clause,
                 )
         return rss, maximum_candidate_cost
-
-    def update_portfolio_size() -> tuple[int | None, float | None]:
-        nonlocal portfolio_size
-
-        rss, candidate_cost = observe_memory()
-        portfolio_size = memory_limited_portfolio_size(
-            memory_limit,
-            memory_baseline,
-            candidate_cost,
-            jobs=len(candidates),
-            cost_factor=DOMAIN_MEMORY_COST_FACTOR,
-        )
-        return rss, candidate_cost
 
     def can_launch_candidate() -> bool:
         if not candidate_queue:
@@ -974,15 +1021,14 @@ def run_domain_wave(
             for future in pending
         ):
             return False
-        if not pending:
-            return True
-        rss, candidate_cost = update_portfolio_size()
-        if len(pending) >= portfolio_size:
-            return False
-        if rss is None or candidate_cost is None:
-            return True
-        projected_rss = rss + DOMAIN_MEMORY_COST_FACTOR * candidate_cost
-        return projected_rss <= memory_limit
+        rss, candidate_cost = observe_memory()
+        return candidate_fits_memory_budget(
+            memory_limit,
+            rss,
+            candidate_cost,
+            cost_factor=DOMAIN_MEMORY_COST_FACTOR,
+            reserved_candidates=len(grounding_candidates),
+        )
 
     def launch_candidate() -> bool:
         if not can_launch_candidate():
@@ -1026,7 +1072,10 @@ def run_domain_wave(
         if memory_limit is None:
             return
         rss, _ = observe_memory()
-        if rss is None or rss <= memory_limit:
+        if (
+            rss is None
+            or rss <= memory_limit
+        ):
             return
         if any(
             futures[future].index in memory_interrupted
@@ -1039,6 +1088,7 @@ def run_domain_wave(
         if active_views.interrupt_one(candidate_index):
             active_count = len(active_views.active_candidates())
             memory_interrupted.add(candidate_index)
+            set_candidate_state(candidate_index, "stopping", refresh=True)
             print_wave_warning(
                 "memory limit reached; reducing domain portfolio "
                 f"(active={active_count} -> {active_count - 1}, "
@@ -1047,8 +1097,19 @@ def run_domain_wave(
             )
 
     def process_event(event) -> None:
+        nonlocal stop_reason, wave_patience_started
+
         kind, candidate_index, *payload = event
         if kind == "ready":
+            grounding_candidates.discard(candidate_index)
+            set_candidate_state(candidate_index, "solving", refresh=True)
+            if not wave_patience_started:
+                wave_patience.start()
+                wave_patience_started = True
+            else:
+                wave_patience.ensure_remaining(
+                    DOMAIN_FRONTIER_GRACE_SECONDS,
+                )
             launch_state.mark_probe_candidate_ready(time.monotonic())
             observe_memory(payload[0])
             return
@@ -1065,7 +1126,12 @@ def run_domain_wave(
                     objective,
                     displayed_objectives[candidate_index],
                 )
-                values = format_candidate_objective(candidate_index)
+                values = format_candidate_postfix(candidate_index)
+            else:
+                values = {
+                    **format_candidate_postfix(candidate_index),
+                    **values,
+                }
             bar.set_postfix(values, refresh=False)
         elif kind == "update":
             bar.update(payload[0])
@@ -1073,11 +1139,19 @@ def run_domain_wave(
             bar.refresh()
         elif kind == "model":
             solution, structural_model = payload
+            candidate = candidate_by_index[candidate_index]
+            objective = solution_objective(solution, important_nodes)
+            candidate_optimal = solution_reaches_domain_ceiling(
+                solution,
+                candidate.nodes,
+                important_nodes,
+            )
             observed_models[candidate_index] = DomainCandidateResult(
-                candidate=candidate_by_index[candidate_index],
+                candidate=candidate,
                 outcome="sat",
                 solution=solution,
                 witness=structural_model,
+                optimum_certified=candidate_optimal,
             )
             leader_update = wave_leader.update(
                 candidate_index,
@@ -1091,11 +1165,13 @@ def run_domain_wave(
                     DOMAIN_FRONTIER_GRACE_SECONDS,
                 )
             if on_model(
-                candidate_by_index[candidate_index].nodes,
+                candidate.nodes,
                 solution,
                 structural_model,
             ):
                 clause_patience.reset()
+            if objective == wave_objective_ceiling and stop_reason is None:
+                stop_reason = "portfolio-optimal"
 
     progress_input_guard = console.guard_progress_input(progress_stream)
     try:
@@ -1110,7 +1186,7 @@ def run_domain_wave(
                         has_pending=bool(pending),
                     )
                 if launch_state.probe_complete:
-                    update_portfolio_size()
+                    observe_memory()
                 while launch_candidate():
                     pass
             try:
@@ -1125,20 +1201,24 @@ def run_domain_wave(
                     except Empty:
                         break
 
-            remaining = deadline.remaining()
-            if remaining is not None and remaining <= 0:
-                stop_reason = "timeout"
-            else:
-                patience_remaining = clause_patience.remaining()
-                if patience_remaining is not None and patience_remaining <= 0:
-                    stop_reason = "clause-patience"
+            if stop_reason is None:
+                remaining = deadline.remaining()
+                if remaining is not None and remaining <= 0:
+                    stop_reason = "timeout"
                 else:
-                    patience_remaining = wave_patience.remaining()
+                    patience_remaining = clause_patience.remaining()
                     if (
                         patience_remaining is not None
                         and patience_remaining <= 0
                     ):
-                        stop_reason = "domain-patience"
+                        stop_reason = "clause-patience"
+                    else:
+                        patience_remaining = wave_patience.remaining()
+                        if (
+                            patience_remaining is not None
+                            and patience_remaining <= 0
+                        ):
+                            stop_reason = "domain-patience"
 
             if stop_reason is None:
                 enforce_memory_limit()
@@ -1151,6 +1231,10 @@ def run_domain_wave(
                 timeout=0,
                 return_when=FIRST_COMPLETED,
             )
+            for future in done:
+                candidate_index = futures[future].index
+                grounding_candidates.discard(candidate_index)
+                set_candidate_state(candidate_index, "done")
             pending = set(current_pending)
             if phase in {"completion", "refinement"} and stop_reason is None:
                 for future in done:
@@ -1171,8 +1255,15 @@ def run_domain_wave(
         results = []
         for future, candidate in futures.items():
             result = future.result()
-            if candidate.index in observed_models and result.outcome == "cancelled":
-                result = observed_models[candidate.index]
+            observed_result = observed_models.get(candidate.index)
+            if observed_result is not None and (
+                result.outcome == "cancelled"
+                or (
+                    observed_result.optimum_certified
+                    and not result.optimum_certified
+                )
+            ):
+                result = observed_result
             elif result.outcome == "cancelled" and (
                 candidate.index in memory_interrupted
                 or stop_reason == "domain-patience"
@@ -1202,6 +1293,68 @@ def run_domain_wave(
         raise SolverPatienceExpired
 
     return tuple(results)
+
+
+def run_domain_wave(
+    bo: bonesis.BoNesis,
+    candidates: Sequence[DomainCandidate],
+    *,
+    phase: DomainPhase,
+    wave: int,
+    max_clause: int,
+    witness: Iterable[str],
+    incumbent_solution: Iterable[str],
+    clingo_mode: str,
+    clingo_strategy: str,
+    clingo_configuration: str | None,
+    patience_seconds: float,
+    clause_patience: SolverPatience,
+    deadline: SolverDeadline,
+    important_nodes: set[str],
+    memory_limit: int | None,
+    on_model: Callable[[frozenset[str], Sequence[str], Sequence[str]], bool],
+    memory_estimator: DomainMemoryEstimator | None = None,
+) -> tuple[DomainCandidateResult, ...]:
+    """Evaluate one domain wave and release its solver memory afterward."""
+
+    memory_usage = DomainWaveMemoryUsage()
+    try:
+        return _run_domain_wave(
+            bo,
+            candidates,
+            phase=phase,
+            wave=wave,
+            max_clause=max_clause,
+            witness=witness,
+            incumbent_solution=incumbent_solution,
+            clingo_mode=clingo_mode,
+            clingo_strategy=clingo_strategy,
+            clingo_configuration=clingo_configuration,
+            patience_seconds=patience_seconds,
+            clause_patience=clause_patience,
+            deadline=deadline,
+            important_nodes=important_nodes,
+            memory_limit=memory_limit,
+            on_model=on_model,
+            memory_estimator=memory_estimator,
+            memory_usage=memory_usage,
+        )
+    finally:
+        memory_before_release = current_rss_bytes()
+        memory_usage.observe(memory_before_release)
+        release_unused_memory()
+        memory_after_release = current_rss_bytes()
+        if memory_usage.peak_rss is not None and memory_after_release is not None:
+            peak = format_memory_size(memory_usage.peak_rss)
+            if memory_limit is not None:
+                peak = f"{peak}/{format_memory_size(memory_limit)}"
+            released = max(0, memory_usage.peak_rss - memory_after_release)
+            console.print_debug(
+                "domain wave memory "
+                f"(peak={peak}, released={format_memory_size(released)}, "
+                f"remaining={format_memory_size(memory_after_release)})",
+                flush=True,
+            )
 
 
 @dataclass(frozen=True)

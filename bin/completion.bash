@@ -71,7 +71,7 @@ _scbolt_complete_config_files() {
     while IFS= read -r item; do
         if [ -d "${item}" ]; then
             COMPREPLY+=("${prefix}${item}/")
-        elif [[ "${item}" == *.yml || "${item}" == *.yaml || "${item}" == *.mk ]]; then
+        elif [[ "${item}" == *.yml || "${item}" == *.yaml || "${item}" == *.json || "${item}" == *.mk ]]; then
             COMPREPLY+=("${prefix}${item}")
         fi
     done < <(compgen -f -- "${current}")

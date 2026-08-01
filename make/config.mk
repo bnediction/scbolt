@@ -1655,6 +1655,15 @@ define check_inference_status
 		else \
 			$(call print_error,solver grounding capacity reached: no solution found); \
 		fi; \
+	elif [ $$exit_status -eq 137 ]; then \
+		if [ -s $(if $(strip $(6)),$(6),$@) ]; then \
+			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$(if $(strip $(7)),$(7),$(if $(strip $(6)),$(6),$@)),,$(call solution_metadata_args,partial,$(if $(strip $(6)),$(6),$@),$(5)));) \
+			$(call print_warning,inference process killed by the operating system $(lparen)signal=KILL; likely out of memory$(rparen)); \
+		elif [ -n "$(4)" ] && [ -s "$(4)" ]; then \
+			$(call keep_inference_fallback,$(4),$(2),,inference process killed by the operating system $(lparen)signal=KILL; likely out of memory$(rparen),$(5)) \
+		else \
+			$(call print_error,inference process killed by the operating system $(lparen)signal=KILL; likely out of memory$(rparen): no solution found); \
+		fi; \
 	elif [ $$exit_status -eq 130 ] || [ $$exit_status -eq 143 ]; then \
 		if [ -s $(if $(strip $(6)),$(6),$@) ]; then \
 			$(if $(strip $(2)),$(call write_scbolt_metadata,$(2),$(if $(strip $(7)),$(7),$(if $(strip $(6)),$(6),$@)),$(if $(strip $(3)),$(3)=$$(effective_inference_timeout)),$(call solution_metadata_args,partial,$(if $(strip $(6)),$(6),$@),$(5)));) \

@@ -12,15 +12,17 @@ DomainPortfolioLaunchState = continuation.DomainPortfolioLaunchState
 DomainWaveLeader = continuation.DomainWaveLeader
 bounded_midpoint = continuation.bounded_midpoint
 build_candidate_wave = continuation.build_candidate_wave
+candidate_fits_memory_budget = continuation.candidate_fits_memory_budget
 continuation_base_domain = continuation.continuation_base_domain
 domain_expansion_gains = continuation.domain_expansion_gains
 expansion_domain_size = continuation.expansion_domain_size
 initial_domain_size = continuation.initial_domain_size
-memory_limited_portfolio_size = continuation.memory_limited_portfolio_size
 minimum_domain_gain = continuation.minimum_domain_gain
 outcome_counts = continuation.outcome_counts
+portfolio_objective_ceiling = continuation.portfolio_objective_ceiling
 select_best_candidate = continuation.select_best_candidate
 solution_objective = continuation.solution_objective
+solution_reaches_domain_ceiling = continuation.solution_reaches_domain_ceiling
 solver_result_certifies_optimum = continuation.solver_result_certifies_optimum
 stalled_domain_solver_settings = continuation.stalled_domain_solver_settings
 terminal_refinement_solver_settings = continuation.terminal_refinement_solver_settings
@@ -42,27 +44,23 @@ assert minimum_domain_gain(120, 0.10) == 12
 assert minimum_domain_gain(5, 0.99) == 5
 assert minimum_domain_gain(5, 0) == 0
 assert minimum_domain_gain(120, 0.099) == 12
-assert memory_limited_portfolio_size(
-    50,
-    10,
-    5,
-    jobs=16,
+assert candidate_fits_memory_budget(45, 3, 4, cost_factor=1.10)
+assert not candidate_fits_memory_budget(45, 41, 4, cost_factor=1.10)
+assert candidate_fits_memory_budget(None, None, None, cost_factor=1.10)
+assert candidate_fits_memory_budget(
+    45,
+    3,
+    4,
     cost_factor=1.10,
-) == 7
-assert memory_limited_portfolio_size(
-    50,
-    49,
-    5,
-    jobs=16,
+    reserved_candidates=8,
+)
+assert not candidate_fits_memory_budget(
+    45,
+    3,
+    4,
     cost_factor=1.10,
-) == 1
-assert memory_limited_portfolio_size(
-    None,
-    None,
-    None,
-    jobs=16,
-    cost_factor=1.10,
-) == 16
+    reserved_candidates=9,
+)
 
 managed_launches = DomainPortfolioLaunchState(
     probe_required=True,
@@ -80,8 +78,8 @@ assert managed_launches.probe_complete
 assert managed_launches.ready_for_launch(7.0, has_pending=True)
 managed_launches.mark_submitted(7.0)
 assert not managed_launches.ready_for_launch(8.9, has_pending=True)
-# Later workers do not need to finish grounding before the next staggered
-# submission; only the initial memory probe is grounding-aware.
+# After the initial probe, later groundings may overlap at the staggered
+# interval; the coordinator reserves their projected memory separately.
 assert managed_launches.ready_for_launch(9.0, has_pending=True)
 
 failed_probe = DomainPortfolioLaunchState(
@@ -95,10 +93,19 @@ assert failed_probe.ready_for_launch(1.0, has_pending=False)
 unmanaged_launches = DomainPortfolioLaunchState(
     probe_required=False,
     probe_seconds=2.0,
-    launch_interval_seconds=2.0,
+    launch_interval_seconds=0.0,
 )
 assert unmanaged_launches.probe_complete
 assert unmanaged_launches.ready_for_launch(0.0, has_pending=True)
+
+estimated_launches = DomainPortfolioLaunchState(
+    probe_required=False,
+    probe_seconds=2.0,
+    launch_interval_seconds=2.0,
+)
+estimated_launches.mark_submitted(0.0)
+assert not estimated_launches.ready_for_launch(1.9, has_pending=True)
+assert estimated_launches.ready_for_launch(2.0, has_pending=True)
 
 memory_estimator = DomainMemoryEstimator()
 assert memory_estimator.estimate(domain_size=100, max_clause=1) is None
@@ -110,13 +117,7 @@ assert memory_estimator.estimate(domain_size=100, max_clause=2) == 2000
 assert memory_estimator.estimate(domain_size=50, max_clause=1) == 1000
 memory_estimator.observe(2500, domain_size=200, max_clause=1)
 assert memory_estimator.estimate(domain_size=200, max_clause=1) == 2500
-assert memory_limited_portfolio_size(
-    50,
-    10,
-    0,
-    jobs=16,
-    cost_factor=1.10,
-) == 16
+assert candidate_fits_memory_budget(50, 49, 0, cost_factor=1.10)
 assert domain_expansion_gains(
     ("g0", "g1"),
     ("g0", "g1", "g2"),
@@ -143,6 +144,31 @@ assert solver_result_certifies_optimum("opt", interrupted=False)
 assert solver_result_certifies_optimum("optN", interrupted=False)
 assert not solver_result_certifies_optimum("opt", interrupted=True)
 assert not solver_result_certifies_optimum("ignore", interrupted=False)
+assert solution_reaches_domain_ceiling(
+    ("g0", "g1", "g2"),
+    {"g0", "g1", "g2"},
+    {"g0", "g3"},
+)
+assert not solution_reaches_domain_ceiling(
+    ("g0", "g1"),
+    {"g0", "g1", "g2"},
+    {"g0", "g3"},
+)
+unequal_ceiling_candidates = (
+    continuation.DomainCandidate(1, frozenset({"g0", "g2"})),
+    continuation.DomainCandidate(2, frozenset({"g0", "g1"})),
+)
+assert portfolio_objective_ceiling(
+    unequal_ceiling_candidates,
+    {"g0", "g1"},
+) == (2, 2)
+assert solution_objective(
+    unequal_ceiling_candidates[0].nodes,
+    {"g0", "g1"},
+) < portfolio_objective_ceiling(
+    unequal_ceiling_candidates,
+    {"g0", "g1"},
+)
 
 complete_550 = {f"n{i}" for i in range(550)}
 selected_500 = {f"n{i}" for i in range(500)}

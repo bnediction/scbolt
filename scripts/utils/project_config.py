@@ -203,6 +203,7 @@ def _parameters() -> dict[str, Parameter]:
     add("dorothea-compatibility", "DOROTHEA_COMPATIBILITY", BOOLEAN)
     add("dorothea-levels", "DOROTHEA_LEVELS", STRING_LIST)
     add("max-clauses", "MAX_CLAUSES", INTEGER)
+    add("bounded-nonreach", "BOUNDED_NONREACH", INTEGER)
     add("clause-continuation-soft", "CLAUSE_CONTINUATION_SOFT", BOOLEAN)
     add("clause-continuation-relaxed", "CLAUSE_CONTINUATION_RELAXED", BOOLEAN)
     add("clause-continuation-seed", "CLAUSE_CONTINUATION_SEED", BOOLEAN)

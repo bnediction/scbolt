@@ -121,8 +121,6 @@ class DomainPortfolioLaunchState:
     def ready_for_launch(self, now: float, *, has_pending: bool) -> bool:
         """Report whether another worker may be submitted now."""
 
-        if not self.probe_required:
-            return True
         if not self.probe_complete:
             # Retry a sole probe worker if its predecessor failed before
             # completing grounding.
@@ -187,6 +185,33 @@ def solution_objective(
 
     nodes = set(solution)
     return len(nodes & set(important_nodes)), len(nodes)
+
+
+def solution_reaches_domain_ceiling(
+    solution: Iterable[str],
+    domain_nodes: Collection[str],
+    important_nodes: Collection[str],
+) -> bool:
+    """Report whether a solution reaches the domain objective upper bound."""
+
+    return solution_objective(
+        solution,
+        important_nodes,
+    ) == solution_objective(domain_nodes, important_nodes)
+
+
+def portfolio_objective_ceiling(
+    candidates: Collection[DomainCandidate],
+    important_nodes: Collection[str],
+) -> tuple[int, int]:
+    """Return the best objective upper bound among candidate domains."""
+
+    if not candidates:
+        raise ValueError("domain portfolio cannot be empty")
+    return max(
+        solution_objective(candidate.nodes, important_nodes)
+        for candidate in candidates
+    )
 
 
 def continuation_base_domain(
@@ -264,31 +289,29 @@ def minimum_domain_gain(expansion_size: int, minimum_yield: float) -> int:
     return max(1, ceil(expansion_size * minimum_yield))
 
 
-def memory_limited_portfolio_size(
+def candidate_fits_memory_budget(
     memory_limit: int | None,
-    memory_baseline: int | None,
+    current_rss: int | None,
     candidate_cost: float | None,
     *,
-    jobs: int,
     cost_factor: float,
-) -> int:
-    """Estimate how many equal-cost candidates fit in the memory budget."""
+    reserved_candidates: int = 0,
+) -> bool:
+    """Report whether one additional candidate fits the current RSS budget."""
 
-    if jobs < 1:
-        raise ValueError("domain continuation jobs must be positive")
     if cost_factor < 1:
         raise ValueError("candidate memory cost factor must be at least one")
+    if reserved_candidates < 0:
+        raise ValueError("reserved candidate count cannot be negative")
     if (
         memory_limit is None
-        or memory_baseline is None
+        or current_rss is None
         or candidate_cost is None
         or candidate_cost <= 0
     ):
-        return jobs
-
-    candidate_budget = max(0, memory_limit - memory_baseline)
-    capacity = int(candidate_budget / (cost_factor * candidate_cost))
-    return max(1, min(jobs, capacity))
+        return True
+    reserved_cost = cost_factor * candidate_cost * (reserved_candidates + 1)
+    return current_rss + reserved_cost <= memory_limit
 
 
 def initial_domain_size(required_size: int, complete_size: int) -> int:

@@ -476,7 +476,7 @@ run_project_config_helper() {
 
 configuration_format() {
     case "${1,,}" in
-        *.yml|*.yaml) printf '%s\n' yaml ;;
+        *.yml|*.yaml|*.json) printf '%s\n' yaml ;;
         *.mk) printf '%s\n' make ;;
         *) return 1 ;;
     esac
@@ -688,6 +688,11 @@ resolve_project_params() {
         return 0
     fi
 
+    if [ -f "${PWD}/params.json" ]; then
+        printf '%s\n' "params.json"
+        return 0
+    fi
+
     if [ -f "${PWD}/params.mk" ]; then
         printf '%s\n' "params.mk"
         return 0
@@ -737,11 +742,11 @@ require_params_file() {
     if [ -z "${format}" ]; then
         if [ -n "${failure_message}" ]; then
             printf '%s\n' \
-                "Configuration file must have a .yml, .yaml, or .mk extension: ${params}" >&2
+                "Configuration file must have a .yml, .yaml, .json, or .mk extension: ${params}" >&2
             print_error "${failure_message}"
         else
             print_error \
-                "Configuration file must have a .yml, .yaml, or .mk extension: ${params}"
+                "Configuration file must have a .yml, .yaml, .json, or .mk extension: ${params}"
         fi
         exit 1
     fi
@@ -1032,6 +1037,10 @@ default_init_params() {
         printf '%s\n' "scbolt.yml"
         return 0
     fi
+    if [ -f "${PWD}/params.json" ]; then
+        printf '%s\n' "params.json"
+        return 0
+    fi
     if [ -f "${PWD}/params.mk" ]; then
         printf '%s\n' "params.mk"
         return 0
@@ -1317,7 +1326,7 @@ ensure_init_params_file() {
     format="$(configuration_format "${params}" 2>/dev/null || true)"
     if [ -z "${format}" ]; then
         printf '%s\n' \
-            "Configuration file must have a .yml, .yaml, or .mk extension: ${params}" >&2
+            "Configuration file must have a .yml, .yaml, .json, or .mk extension: ${params}" >&2
         print_error "${failure_message}"
         exit 1
     fi
@@ -2082,6 +2091,7 @@ run_make_build_with_params() {
     local interrupted=0
     local recipe_ran=false
     local stale_warning=false
+    local memory_killed=false
     local build_start_seconds
     local elapsed_seconds
     local elapsed
@@ -2136,6 +2146,10 @@ run_make_build_with_params() {
     if grep -qE ' - WARNING - (stale|untracked|missing module metadata)' "${stdout_file}"; then
         stale_warning=true
     fi
+    if grep -q ' - WARNING - inference process killed by the operating system ' \
+            "${stdout_file}"; then
+        memory_killed=true
+    fi
     final_status="${status}"
     if [ "${interrupted}" -eq 1 ]; then
         final_status=130
@@ -2168,7 +2182,10 @@ run_make_build_with_params() {
 
     case "${final_status}" in
         0)
-            if [ "${recipe_ran}" = "true" ]; then
+            if [ "${memory_killed}" = "true" ]; then
+                print_kept_intermediate_results_if_inference_ran \
+                    "${params}" "${stdout_file}" "${target_label}" "$@"
+            elif [ "${recipe_ran}" = "true" ]; then
                 print_success_status "${target_label}"
             elif [ "${stale_warning}" = "true" ]; then
                 print_warning_status "already built" "${target_label}"

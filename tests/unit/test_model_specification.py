@@ -13,11 +13,11 @@ normalize_model_specification = import_module(
 def assert_invalid(
     value,
     expected_message: str,
-    error_type: type[Exception] = ValueError,
+    expected_error: type[Exception] = ValueError,
 ) -> None:
     try:
         normalize_model_specification(value)
-    except error_type as error:
+    except expected_error as error:
         assert str(error) == expected_message
     else:
         raise AssertionError(f"invalid specification accepted: {value!r}")

@@ -611,7 +611,7 @@ target_params_max-consts-soft = \
 	CLINGO_CONFIG_CONSTS CLINGO_MODE_CONSTS CLINGO_STRATEGY_CONSTS \
 	CLINGO_THREADS TIMEOUT_CONSTS
 target_params_max-nodes-relaxed = \
-	$(prior_knowledge_params) MAX_CLAUSES \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
 	CLAUSE_CONTINUATION_RELAXED PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_RELAXED PATIENCE_DOMAIN_WAVE \
 	$(domain_continuation_policy_params) \
@@ -619,7 +619,7 @@ target_params_max-nodes-relaxed = \
 	CLINGO_CONFIG_RELAXED CLINGO_MODE_RELAXED CLINGO_STRATEGY_RELAXED \
 	CLINGO_THREADS TIMEOUT_RELAXED
 target_params_max-nodes-seed = \
-	$(prior_knowledge_params) MAX_CLAUSES \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
 	CLAUSE_CONTINUATION_SEED PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_SEED PATIENCE_DOMAIN_WAVE \
 	$(domain_continuation_policy_params) \
@@ -627,7 +627,7 @@ target_params_max-nodes-seed = \
 	CLINGO_CONFIG_SEED CLINGO_MODE_SEED CLINGO_STRATEGY_SEED \
 	CLINGO_THREADS TIMEOUT_SEED
 target_params_max-nodes-lock = \
-	$(prior_knowledge_params) MAX_CLAUSES \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
 	CLAUSE_CONTINUATION_LOCK PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_LOCK PATIENCE_DOMAIN_WAVE \
 	$(domain_continuation_policy_params) \
@@ -635,13 +635,13 @@ target_params_max-nodes-lock = \
 	CLINGO_CONFIG_LOCK CLINGO_MODE_LOCK CLINGO_STRATEGY_LOCK \
 	CLINGO_THREADS TIMEOUT_LOCK
 target_params_bn-min = \
-	$(prior_knowledge_params) MAX_CLAUSES MIN_SELF_LOOP_INFER \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH MIN_SELF_LOOP_INFER \
 	CLINGO_MODE_MIN GRAPH_FORMATS
 target_params_bn-submin = \
-	$(prior_knowledge_params) MAX_CLAUSES \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 target_params_bn-diverse = \
-	$(prior_knowledge_params) MAX_CLAUSES \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 
 sensitive_params_load-fastq = $(foreach condition,$(conditions),$(call sra_var,$(condition)))
@@ -715,7 +715,7 @@ sensitive_params_max-consts-soft = \
 	CLINGO_CONFIG_CONSTS CLINGO_MODE_CONSTS CLINGO_STRATEGY_CONSTS \
 	CLINGO_THREADS TIMEOUT_CONSTS SEED
 sensitive_params_max-nodes-relaxed = \
-	$(prior_knowledge_params) MAX_CLAUSES \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
 	CLAUSE_CONTINUATION_RELAXED PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_RELAXED PATIENCE_DOMAIN_WAVE \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),\
@@ -723,7 +723,7 @@ sensitive_params_max-nodes-relaxed = \
 	CLINGO_CONFIG_RELAXED CLINGO_MODE_RELAXED CLINGO_STRATEGY_RELAXED \
 	CLINGO_THREADS TIMEOUT_RELAXED SEED
 sensitive_params_max-nodes-seed = \
-	$(prior_knowledge_params) MAX_CLAUSES \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
 	CLAUSE_CONTINUATION_SEED PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_SEED PATIENCE_DOMAIN_WAVE \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),\
@@ -731,7 +731,7 @@ sensitive_params_max-nodes-seed = \
 	CLINGO_CONFIG_SEED CLINGO_MODE_SEED CLINGO_STRATEGY_SEED \
 	CLINGO_THREADS TIMEOUT_SEED SEED
 sensitive_params_max-nodes-lock = \
-	$(prior_knowledge_params) MAX_CLAUSES \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
 	CLAUSE_CONTINUATION_LOCK PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_LOCK PATIENCE_DOMAIN_WAVE \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),\
@@ -739,13 +739,13 @@ sensitive_params_max-nodes-lock = \
 	CLINGO_CONFIG_LOCK CLINGO_MODE_LOCK CLINGO_STRATEGY_LOCK \
 	CLINGO_THREADS TIMEOUT_LOCK SEED
 sensitive_params_bn-min = \
-	$(prior_knowledge_params) MAX_CLAUSES MIN_SELF_LOOP_INFER \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH MIN_SELF_LOOP_INFER \
 	CLINGO_MODE_MIN GRAPH_FORMATS SEED
 sensitive_params_bn-submin = \
-	$(prior_knowledge_params) MAX_CLAUSES \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS SEED
 sensitive_params_bn-diverse = \
-	$(prior_knowledge_params) MAX_CLAUSES \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS SEED
 
 runtime_envs_load-fastq = scbolt-fastq
@@ -826,7 +826,8 @@ method_config_param_set = \
 	BIN_DEA_ONLY_HVG BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
 	BIN_LOGFC BIN_CORRECTION BIN_ALPHA \
 	BIN_METHOD \
-	MAX_CLAUSES DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS \
+	MAX_CLAUSES BOUNDED_NONREACH \
+	DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS \
 	$(clause_continuation_params) \
 	$(clause_bound_patience_params) \
 	$(domain_continuation_params) \

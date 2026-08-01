@@ -269,6 +269,7 @@ $(eval SPEC_FILE ?= spec.yml)               # BoNesis model specification file
 # MIN_DOMAIN_YIELD is a fraction in [0,1); zero disables domain refreshes.
 # MAX_DOMAIN_REFRESHES bounds constant-size retries per expansion.
 $(eval MAX_CLAUSES ?= 8)                    # maximum conjunctive terms per Boolean update function
+$(eval BOUNDED_NONREACH ?=)                 # optional non-reachability certificate iterations
 $(eval PRIOR_KNOWLEDGE ?= collectri)        # prior GRN domain
 $(eval GENEINFO_VERSION ?= bundled)         # NCBI gene_info source
 $(eval OMNIPATH_VERSION ?= latest)          # OmniPath resource version

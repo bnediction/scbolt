@@ -45,6 +45,18 @@ metadata_capacity="$(
 )"
 grep -Fq -- '--solution-status partial' <<< "${metadata_capacity}"
 
+metadata_killed="$(
+    make -f "${repo_root}/Makefile" --no-print-directory \
+        PARAMS="${repo_root}/tests/fixtures/params.mk" \
+        TEST_SOLUTION="${tmpdir}/solution.txt" \
+        --eval='override write_scbolt_metadata = echo "$(4)"' \
+        --eval='override print_warning = :' \
+        --eval='.PHONY: __test_killed_metadata' \
+        --eval='__test_killed_metadata: ; @exit_status=137; $(call check_inference_status,,max-nodes-soft,,,,${TEST_SOLUTION})' \
+        __test_killed_metadata
+)"
+grep -Fq -- '--solution-status partial' <<< "${metadata_killed}"
+
 set +e
 metadata_interrupt="$(
     make -f "${repo_root}/Makefile" --no-print-directory \

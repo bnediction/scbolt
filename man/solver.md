@@ -114,6 +114,13 @@ The corresponding selection modules are:
 | `max-nodes-seed` | complete | Introduce hard constraints, or forward the `RELAXED` solution and witness when none exist. |
 | `max-nodes-lock` | complete | Improve a witness computed by `SEED` within the domain retained by `RELAXED`, or forward the `SEED` output unchanged. |
 
+Ordinary non-reachability certificates use up to one refinement iteration per
+domain node by default. The optional shared `bounded-nonreach` parameter can replace
+this complete bound with a fixed positive number for `RELAXED`, `SEED`, `LOCK`,
+and final Boolean-network inference. It does not bound biological transition
+paths. Final non-reachability constraints, whose target is a fixed point or an
+attractor, remain bounded internally to one iteration.
+
 The procedure is a domain-reduction heuristic. Selecting one admissible optimum
 at an intermediate stage is not formally equivalent to solving all constraints
 simultaneously because tied intermediate solutions may retain different node
@@ -323,17 +330,19 @@ wave leader, and the remaining workers continue searching for a better
 objective until the shared wave patience expires or every worker finishes.
 
 Every acquisition and expansion wave owns one shared patience clock. The clock
-starts with the wave, and the inherited solution establishes its initial best
-objective. A witness whose lexicographic objective `(important nodes, total
-nodes)` is strictly better than the current leader resets the full configured
-patience. A different candidate reaching the current leader objective for the
-first time joins the objective frontier and guarantees that at least two
-minutes remain, capped by the configured patience. This operation never
-shortens a longer remaining delay. Repeated equal objectives from a candidate
-already on the frontier, and local improvements that remain globally inferior,
-do not change the clock. Newly competitive search branches therefore receive a
-short opportunity to progress without extending a wave by one complete
-patience period per candidate.
+is inactive during the initial grounding and starts for its full configured
+duration when the first candidate enters solving. Each later candidate entering
+solving guarantees that at least two minutes remain, capped by the configured
+patience. The inherited solution establishes the initial best objective. A
+witness whose lexicographic objective `(important nodes, total nodes)` is
+strictly better than the current leader resets the full configured patience. A
+different candidate reaching the current leader objective for the first time
+joins the objective frontier and provides the same two-minute guarantee. These
+operations never shorten a longer remaining delay. Repeated equal objectives
+from a candidate already on the frontier, and local improvements that remain
+globally inferior, do not change the clock. Newly available or competitive
+search branches therefore receive a short opportunity to progress without
+extending a wave by one complete patience period per candidate.
 
 When the shared patience expires, all unresolved workers are interrupted and
 queued candidates are not started. Candidates that already produced a witness
@@ -504,30 +513,33 @@ candidate, and retains the maximum observed candidate cost. It then estimates
 the portfolio width as:
 
 ```text
-floor((memory - baseline RSS) / (1.10 * candidate cost))
+floor((0.90 * memory - baseline RSS) / (1.10 * candidate cost))
 ```
 
 The result is bounded between one and `jobs`. Remaining candidates are then
-submitted at two-second intervals up to that width; their groundings may still
-run concurrently. Later waves reuse the largest observed cost instead of
-waiting for another complete probe. That bound never decreases and is scaled
-with both candidate-domain size and the active clause bound before the next
-wave starts. If no positive incremental cost can be measured, `jobs` is used
-and the live memory guard remains authoritative. As the wave runs, the maximum
-per-candidate cost is updated conservatively and the estimated width may
-decrease. A queued candidate is admitted only below that width and when:
+submitted at two-second intervals up to that width. At most one candidate is
+grounding at a time, while candidates that completed grounding may solve
+concurrently. Later waves reuse the largest observed cost instead of waiting
+for another complete probe. That bound never decreases and is scaled with both
+candidate-domain size and the active clause bound before the next wave starts.
+If no positive incremental cost can be measured, `jobs` is used and the live
+memory guard remains authoritative. As the wave runs, the maximum per-candidate
+cost is updated conservatively and the estimated width may decrease. A queued
+candidate is admitted only below that width and when:
 
 ```text
-current RSS + 1.10 * maximum observed candidate cost <= memory
+current RSS + 1.10 * maximum observed candidate cost <= 0.90 * memory
 ```
 
-The 10% candidate-cost margin accounts for continued Clingo growth after a
-measurement without reserving a second fixed fraction of the complete memory
-budget. If resident memory nevertheless exceeds `memory`, the least advanced
-active candidate is interrupted before another candidate is considered, while
-at least one solver instance is always retained. A candidate that already
-emitted a witness remains eligible for selection; otherwise a
-memory-interrupted candidate is reported as `UNKNOWN`.
+The 10% scheduling headroom absorbs allocations occurring between coordinator
+measurements. The separate 10% candidate-cost margin accounts for continued
+Clingo growth after a measurement. If resident memory nevertheless exceeds the
+scheduling budget, the least advanced active candidate is interrupted before
+another candidate is considered, while at least one solver instance is always
+retained. After every wave, scBOLT collects unreachable Python objects and, on
+Linux, asks glibc to return unused native arenas to the operating system. A
+candidate that already emitted a witness remains eligible for selection;
+otherwise a memory-interrupted candidate is reported as `UNKNOWN`.
 
 This policy adapts effective portfolio width as domains and Clingo groundings
 grow. It is a scheduling guard rather than an operating-system hard limit: one
@@ -628,6 +640,12 @@ flow is:
 for q in 1..max_clauses:
     while no witness exists:
         evaluate candidate domains in parallel
+
+        first candidate enters solving:
+            start shared wave patience
+
+        each later candidate enters solving:
+            ensure min(2m, configured wave patience) remains
 
         first SAT:
             set the wave leader
@@ -776,6 +794,7 @@ used. They define the problem itself rather than the solver strategy.
 
 | Parameter | Meaning |
 | --- | --- |
+| `bounded-nonreach` | Optional shared non-reachability certificate bound. When omitted, BoNesis uses the number of nodes in the regulatory domain. |
 | `minimize-self-loops-constants` | Whether `max-consts-soft` additionally minimizes one-node feedbacks while optimizing strong constants. |
 | `timeout-soft` | Total solver-runtime limit for the soft node-selection stage. |
 | `timeout-consts` | Total solver-runtime limit for strong-constant optimization. |
@@ -804,7 +823,7 @@ parameter, while the patience is uniform across enabled stages.
 | Parameter | Meaning |
 | --- | --- |
 | `domain-continuation-<stage>` | Enable adaptive first-witness search and progressive witness-guided expansion; `LOCK` expands only a witness computed by `SEED`. |
-| `domain-wave-patience` | Full shared stagnation time after an improvement of the best objective within an acquisition, expansion, refresh, or complete-domain wave. A new candidate reaching the same frontier guarantees up to two minutes remain. |
+| `domain-wave-patience` | Full shared solving stagnation time within an acquisition, expansion, refresh, or complete-domain wave. It starts when the first candidate completes grounding. Each later candidate entering solving or first reaching the same objective frontier guarantees up to two minutes remain. |
 | `minimum-domain-yield` | Minimum cumulative retained-node gain per node added during one domain expansion. Values must be at least 0 and below 1; zero disables constant-size refreshes. |
 | `maximum-domain-refreshes` | Maximum number of constant-size domain refreshes before expansion resumes. Zero disables refreshes. |
 | `memory` | Soft resident-memory budget used to queue and reduce the candidate portfolio while retaining at least one solver instance. |

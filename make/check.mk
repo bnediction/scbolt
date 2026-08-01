@@ -830,6 +830,10 @@ else ifeq ($(HELP),false)
 	if grep -q -- '--max-clauses' "$${dry_run}"; then \
 		$(call check_positive_integer_diagnostic,$(MAX_CLAUSES),MAX_CLAUSES,method); \
 	fi; \
+	if grep -q -- '--bounded-nonreach' "$${dry_run}"; then \
+		$(call check_positive_integer_diagnostic,\
+			$(BOUNDED_NONREACH),BOUNDED_NONREACH,method); \
+	fi; \
 	$(foreach parameter,$(clause_continuation_params),\
 		if grep -q '$(parameter)' "$${dry_run}"; then \
 			$(call check_bool_diagnostic,$($(parameter)),$(parameter),method); \

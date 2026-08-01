@@ -845,6 +845,7 @@ $(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution) $(if $(geneinfo_
 $(max_nodes_relaxed) $(max_nodes_relaxed_witness) &: $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-relaxed)
 	$(call require_bonesis_parameters,max-nodes-relaxed)
+	$(call require_optional_positive_integer,BOUNDED_NONREACH)
 	$(call require_bool,CLAUSE_CONTINUATION_RELAXED,max-nodes-relaxed)
 	$(call require_bool,DOMAIN_CONTINUATION_RELAXED,max-nodes-relaxed)
 	$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),$(call require_half_open_unit_interval,MIN_DOMAIN_YIELD))
@@ -873,6 +874,7 @@ $(max_nodes_relaxed) $(max_nodes_relaxed_witness) &: $(bonesis_model) $(max_cons
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode relaxed --max-clauses $(MAX_CLAUSES) \
+		$(if $(strip $(BOUNDED_NONREACH)),--bounded-nonreach $(BOUNDED_NONREACH)) \
 		$(if $(strip $(CLINGO_CONFIG_RELAXED)),--clingo-configuration $(CLINGO_CONFIG_RELAXED)) \
 		--clingo-mode $(CLINGO_MODE_RELAXED) \
 		--clingo-strategy $(CLINGO_STRATEGY_RELAXED) \
@@ -891,6 +893,7 @@ $(max_nodes_relaxed) $(max_nodes_relaxed_witness) &: $(bonesis_model) $(max_cons
 $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_relaxed_witness) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-seed)
 	$(call require_bonesis_parameters,max-nodes-seed)
+	$(call require_optional_positive_integer,BOUNDED_NONREACH)
 	$(call require_bool,CLAUSE_CONTINUATION_SEED,max-nodes-seed)
 	$(call require_bool,DOMAIN_CONTINUATION_SEED,max-nodes-seed)
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),$(call require_half_open_unit_interval,MIN_DOMAIN_YIELD))
@@ -921,6 +924,7 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_relaxed_wi
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--bonesis-mode hard --max-clauses $(MAX_CLAUSES) \
+		$(if $(strip $(BOUNDED_NONREACH)),--bounded-nonreach $(BOUNDED_NONREACH)) \
 		$(if $(strip $(CLINGO_CONFIG_SEED)),--clingo-configuration $(CLINGO_CONFIG_SEED)) \
 		--clingo-mode $(CLINGO_MODE_SEED) \
 		--clingo-strategy $(CLINGO_STRATEGY_SEED) \
@@ -939,6 +943,7 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_relaxed_wi
 $(max_nodes_lock) $(max_nodes_lock_witness) &: $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-lock)
 	$(call require_bonesis_parameters,max-nodes-lock)
+	$(call require_optional_positive_integer,BOUNDED_NONREACH)
 	$(call require_bool,CLAUSE_CONTINUATION_LOCK,max-nodes-lock)
 	$(call require_bool,DOMAIN_CONTINUATION_LOCK,max-nodes-lock)
 	$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),$(call require_half_open_unit_interval,MIN_DOMAIN_YIELD))
@@ -992,6 +997,7 @@ $(max_nodes_lock) $(max_nodes_lock_witness) &: $(bonesis_model) $(max_nodes_rela
 			--domain $(prior_knowledge) --organism $(ORGANISM) \
 			$(prior_knowledge_args) \
 			--bonesis-mode hard --max-clauses $(MAX_CLAUSES) \
+			$(if $(strip $(BOUNDED_NONREACH)),--bounded-nonreach $(BOUNDED_NONREACH)) \
 			$(if $(strip $(CLINGO_CONFIG_LOCK)),--clingo-configuration $(CLINGO_CONFIG_LOCK)) \
 			--clingo-mode $(CLINGO_MODE_LOCK) \
 			--clingo-strategy $(CLINGO_STRATEGY_LOCK) \
@@ -1006,6 +1012,7 @@ $(max_nodes_lock) $(max_nodes_lock_witness) &: $(bonesis_model) $(max_nodes_rela
 $(bn_min): $(bonesis_model) $(max_nodes_lock) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,bn-min)
 	$(call require_bonesis_parameters,bn-min)
+	$(call require_optional_positive_integer,BOUNDED_NONREACH)
 	$(call require_bool,MIN_SELF_LOOP_INFER,bn-min)
 	mkdir -p $(@D)
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py min \
@@ -1016,7 +1023,8 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock) $(if $(geneinfo_dependency),| $(ge
 		--domain $(prior_knowledge) \
 		--organism $(ORGANISM) \
 		$(prior_knowledge_args) \
-		--max-clauses $(MAX_CLAUSES) $(min_self_loop_infer) \
+		--max-clauses $(MAX_CLAUSES) \
+		$(if $(strip $(BOUNDED_NONREACH)),--bounded-nonreach $(BOUNDED_NONREACH)) $(min_self_loop_infer) \
 		--clingo-mode $(CLINGO_MODE_MIN) --jobs 1 \
 		--graph-formats $(GRAPH_FORMATS)
 		if command -v dot >/dev/null 2>&1; then
@@ -1037,6 +1045,7 @@ __check-bn-diverse-outputs:
 $(bn_submin)&: $(bonesis_model) $(max_nodes_lock) $(max_nodes_lock_witness) | __check-bn-submin-outputs $(geneinfo_dependency)
 	$(call print_rule,bn-submin)
 	$(call require_bonesis_parameters,bn-submin)
+	$(call require_optional_positive_integer,BOUNDED_NONREACH)
 	rm -rf $(bn_submin_dir)
 	mkdir -p $(bn_submin_dir)
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py submin \
@@ -1049,6 +1058,7 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock) $(max_nodes_lock_witness) | __
 		--organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--max-clauses $(MAX_CLAUSES) \
+		$(if $(strip $(BOUNDED_NONREACH)),--bounded-nonreach $(BOUNDED_NONREACH)) \
 		--jobs $(JOBS) \
 		$(if $(strip $(INFER_LIMIT)),--limit $(INFER_LIMIT)) \
 		--config-formats $(CONFIG_FORMATS) \
@@ -1059,6 +1069,7 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock) $(max_nodes_lock_witness) | __
 $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-diverse-outputs $(geneinfo_dependency)
 	$(call print_rule,bn-diverse)
 	$(call require_bonesis_parameters,bn-diverse)
+	$(call require_optional_positive_integer,BOUNDED_NONREACH)
 	rm -rf $(bn_diverse_dir)
 	mkdir -p $(bn_diverse_dir)
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py diverse \
@@ -1070,6 +1081,7 @@ $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-diverse-outputs 
 		--organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--max-clauses $(MAX_CLAUSES) \
+		$(if $(strip $(BOUNDED_NONREACH)),--bounded-nonreach $(BOUNDED_NONREACH)) \
 		--jobs $(JOBS) \
 		$(if $(strip $(INFER_LIMIT)),--limit $(INFER_LIMIT)) \
 		--config-formats $(CONFIG_FORMATS) \

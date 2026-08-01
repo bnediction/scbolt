@@ -308,6 +308,7 @@ complete_scbolt "${project}" 2 scbolt bn-submin "" \
 grep -qx -- '--trust-target=' "${tmpdir}/module-completion.out"
 grep -qx -- '--trust-existing' "${tmpdir}/module-completion.out"
 grep -qx -- '--max-clauses=' "${tmpdir}/module-completion.out"
+grep -qx -- '--bounded-nonreach=' "${tmpdir}/module-completion.out"
 ! grep -qx -- '--trust-existing=' "${tmpdir}/module-completion.out"
 ! grep -qx -- '--max-clause=' "${tmpdir}/module-completion.out"
 ! grep -qx -- '--canonical-filter=' "${tmpdir}/module-completion.out"
@@ -368,6 +369,11 @@ grep -qx -- '--clause-continuation-soft=true' \
 complete_scbolt "${project}" 2 scbolt max-nodes-soft \
     "--max-clauses=" > "${tmpdir}/numeric-completion.out"
 ! grep -q '[^[:space:]]' "${tmpdir}/numeric-completion.out"
+
+complete_scbolt "${project}" 2 scbolt max-nodes-soft "" \
+    > "${tmpdir}/soft-module-completion.out"
+! grep -qx -- '--bounded-nonreach=' \
+    "${tmpdir}/soft-module-completion.out"
 
 cat > "${project}/completion.yml" <<'EOF'
 conditions: [ctrl, treated]
@@ -731,7 +737,7 @@ if (
     printf '%s\n' "expected init with missing file to fail" >&2
     exit 1
 fi
-grep -qx 'Configuration file must have a .yml, .yaml, or .mk extension: us' \
+grep -qx 'Configuration file must have a .yml, .yaml, .json, or .mk extension: us' \
     "${tmpdir}/missing-init.err"
 grep -qx '✗ scBOLT project update failed.' "${tmpdir}/missing-init.err"
 
@@ -857,11 +863,13 @@ expect_make_args -f "${makefile}" bn-submin PARAMS=override.mk
 run_scbolt "${project}" PARAMS=override.mk bn-submin
 expect_make_args -f "${makefile}" bn-submin PARAMS=override.mk
 
-run_scbolt "${project}" bn-submin --max-clauses=12 --clingo-strategy-seed=bb,inc
+run_scbolt "${project}" bn-submin --max-clauses=12 \
+    --bounded-nonreach=20 --clingo-strategy-seed=bb,inc
 expect_make_args \
     -f "${makefile}" \
     bn-submin \
     MAX_CLAUSES=12 \
+    BOUNDED_NONREACH=20 \
     CLINGO_STRATEGY_SEED=bb,inc \
     "PARAMS=${project}/spaced.mk"
 

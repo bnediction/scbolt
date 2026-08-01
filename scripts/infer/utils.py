@@ -244,6 +244,19 @@ def add_bonesis_arguments(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--bounded-nonreach",
+        dest="bounded_nonreach",
+        action=cli.Range,
+        type=int,
+        min=1,
+        required=False,
+        default=None,
+        help=(
+            "number of certificate iterations used for non-reachability "
+            "constraints; omission uses the regulatory-domain size"
+        ),
+    )
+    parser.add_argument(
         "--canonical",
         dest="canonical",
         action=cli.Store_boolean,
@@ -355,6 +368,8 @@ def initialize_bonesis(
 
     pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
     bo = bonesis.BoNesis(pkn, mstates_cfg)
+    if args.bounded_nonreach is not None:
+        bo.set_constant("bounded_nonreach", args.bounded_nonreach)
     with open(args.spec, "r") as file:
         load_bonesis_code(
             bo,

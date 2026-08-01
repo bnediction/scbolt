@@ -41,13 +41,30 @@ class SolverDeadline:
 class SolverPatience:
     """Track a resettable deadline since the latest solver improvement."""
 
-    def __init__(self, patience: float = 0.0) -> None:
+    def __init__(
+        self,
+        patience: float = 0.0,
+        *,
+        start_immediately: bool = True,
+    ) -> None:
         self._duration = patience if patience > 0 else None
         self._lock = Lock()
         self._claimed = False
         self._expires_at = (
-            time.monotonic() + patience if self._duration is not None else None
+            time.monotonic() + patience
+            if self._duration is not None and start_immediately
+            else None
         )
+
+    def start(self) -> None:
+        """Start a delayed patience without restarting an active deadline."""
+
+        if self._duration is None:
+            return
+        with self._lock:
+            if self._claimed or self._expires_at is not None:
+                return
+            self._expires_at = time.monotonic() + self._duration
 
     def reset(self) -> None:
         """Restart the patience after a solver objective improvement."""

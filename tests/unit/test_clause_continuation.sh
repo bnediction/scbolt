@@ -58,6 +58,7 @@ grep -qx 'PATIENCE_DOMAIN_WAVE=5m' <<< "${defaults}"
     <<< "${defaults}"
 grep -qx 'MIN_DOMAIN_YIELD=0.10' <<< "${defaults}"
 grep -qx 'MAX_DOMAIN_REFRESHES=1' <<< "${defaults}"
+grep -qx 'BOUNDED_NONREACH=' <<< "${defaults}"
 grep -qx 'CLINGO_THREADS=1' <<< "${defaults}"
 ! grep -Eq '^JOBS_CLINGO_(SOFT|CONSTS|RELAXED|SEED|LOCK)=' <<< "${defaults}"
 
@@ -159,6 +160,12 @@ done
     "${repo_root}/Makefile")" -eq 4 ]]
 
 [[ "$(grep -Fc -- '--jobs $(CLINGO_THREADS)' "${repo_root}/Makefile")" -eq 5 ]]
+[[ "$(grep -Fc -- '--bounded-nonreach $(BOUNDED_NONREACH)' \
+    "${repo_root}/Makefile")" -eq 6 ]]
+grep -Fq 'bo.set_constant("bounded_nonreach", args.bounded_nonreach)' \
+    "${repo_root}/scripts/infer/utils.py"
+grep -Fq 'for name, value in bo.aspmodel.constants.items()' \
+    "${repo_root}/scripts/infer/selection.py"
 
 grep -Fq -- \
     '$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),--domain-continuation-expansion-only)' \
@@ -173,6 +180,7 @@ grep -Fq 'PATIENCE_DOMAIN_WAVE' <<< "${seed_help}"
 ! grep -Fq 'PATIENCE_CLAUSE_BOUND_SEED' <<< "${seed_help}"
 ! grep -Fq 'PATIENCE_DOMAIN_WAVE_SEED' <<< "${seed_help}"
 grep -Fq 'DOMAIN_CONTINUATION_SEED' <<< "${seed_help}"
+grep -Fq 'BOUNDED_NONREACH' <<< "${seed_help}"
 grep -Fq 'MIN_DOMAIN_YIELD' <<< "${seed_help}"
 grep -Fq 'MAX_DOMAIN_REFRESHES' <<< "${seed_help}"
 grep -Fq 'CLINGO_THREADS' <<< "${seed_help}"
@@ -189,6 +197,7 @@ soft_help="$(
         --params="${repo_root}/tests/fixtures/params.mk"
 )"
 grep -Fq 'DOMAIN_CONTINUATION_SOFT   false' <<< "${soft_help}"
+! grep -Fq 'BOUNDED_NONREACH' <<< "${soft_help}"
 grep -Fq 'MIN_DOMAIN_YIELD' <<< "${soft_help}"
 grep -Fq 'MAX_DOMAIN_REFRESHES' <<< "${soft_help}"
 grep -Fq 'Ignored when domain continuation is disabled' <<< "${soft_help}"
@@ -202,6 +211,7 @@ grep -Fq 'PATIENCE_DOMAIN_WAVE' <<< "${lock_help}"
 ! grep -Fq 'PATIENCE_CLAUSE_BOUND_LOCK' <<< "${lock_help}"
 ! grep -Fq 'PATIENCE_DOMAIN_WAVE_LOCK' <<< "${lock_help}"
 grep -Fq 'DOMAIN_CONTINUATION_LOCK' <<< "${lock_help}"
+grep -Fq 'BOUNDED_NONREACH' <<< "${lock_help}"
 grep -Fq 'MIN_DOMAIN_YIELD' <<< "${lock_help}"
 grep -Fq 'MAX_DOMAIN_REFRESHES' <<< "${lock_help}"
 grep -Fq \

@@ -141,6 +141,15 @@ with patch("scbolt.runtime._timeout.time.monotonic", return_value=100.0) as cloc
     patience.ensure_remaining(600.0)
     assert patience.remaining() == 300.0
 
+    delayed_patience = SolverPatience(300.0, start_immediately=False)
+    assert delayed_patience.remaining() is None
+    clock.return_value = 400.0
+    delayed_patience.start()
+    assert delayed_patience.remaining() == 300.0
+    clock.return_value = 450.0
+    delayed_patience.start()
+    assert delayed_patience.remaining() == 250.0
+
 try:
     SolverPatience(1.0).ensure_remaining(-1.0)
 except ValueError:
