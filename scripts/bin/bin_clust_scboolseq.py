@@ -1,28 +1,27 @@
-#!/usr/bin/env python
 
 import argparse
 import os
 from collections import namedtuple
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional, Sequence, Union, cast
+from typing import cast
 
 import anndata as ad
 import bonesistools as bt
 import numpy as np
 from pandas import DataFrame, Index, MultiIndex, Series
-
 from scbolt import cli, console, omics
 
 omics.set_default_plot_params(bt.omics.pl)
 
 
-class Predict(object):
+class Predict:
     def __init__(
         self,
-        nans_threshold: Optional[float] = None,
-        bimodal_threshold: Optional[float] = None,
-        zeroinf_threshold: Optional[float] = None,
-        unimodal_threshold: Optional[float] = None,
+        nans_threshold: float | None = None,
+        bimodal_threshold: float | None = None,
+        zeroinf_threshold: float | None = None,
+        unimodal_threshold: float | None = None,
     ):
         if (
             nans_threshold is None
@@ -44,9 +43,9 @@ class Predict(object):
 
     def __call__(
         self,
-        data: Union[Series, DataFrame],
-        category: Union[str, Series],
-    ) -> Union[Series, DataFrame]:
+        data: Series | DataFrame,
+        category: str | Series,
+    ) -> Series | DataFrame:
         if isinstance(data, Series) and isinstance(category, str):
             return self._predict_series(data, category)
         if isinstance(data, DataFrame) and isinstance(category, Series):
@@ -93,13 +92,13 @@ class Predict(object):
         unimodal_threshold: float,
     ):
         if not isinstance(nans_threshold, float):
-            raise ValueError("`nans_threshold` argument is not a float.")
+            raise TypeError("`nans_threshold` argument is not a float.")
         elif not isinstance(bimodal_threshold, float):
-            raise ValueError("`bimodal_threshold` argument is not a float.")
+            raise TypeError("`bimodal_threshold` argument is not a float.")
         elif not isinstance(zeroinf_threshold, float):
-            raise ValueError("`zeroinf_threshold` argument is not a float.")
+            raise TypeError("`zeroinf_threshold` argument is not a float.")
         elif not isinstance(unimodal_threshold, float):
-            raise ValueError("`unimodal_threshold` argument is not a float.")
+            raise TypeError("`unimodal_threshold` argument is not a float.")
         elif nans_threshold < 0 or nans_threshold > 1:
             raise ValueError(
                 f"`nans_threshold` value ({nans_threshold}) not in range [0-1]."
@@ -117,7 +116,7 @@ class Predict(object):
                 f"`unimodal_threshold` value ({unimodal_threshold}) not in range [0.5-1]."
             )
 
-    def _prediction_index(self, data: Union[Series, DataFrame]) -> Index:
+    def _prediction_index(self, data: Series | DataFrame) -> Index:
         iterables = [
             data.index.get_level_values(level).unique()
             for level in range(data.index.nlevels - 1)
@@ -254,7 +253,7 @@ def count_binarized_values(
     obs_df: DataFrame,
     columns: Sequence[str],
     group: str,
-    condition: Optional[str] = None,
+    condition: str | None = None,
     dropna: bool = False,
 ) -> DataFrame:
     group_columns = [group, condition] if condition else [group]
@@ -266,7 +265,7 @@ def count_binarized_values(
         names=group_columns,
     )
     if len(group_columns) == 1:
-        populations: Union[Index, MultiIndex] = population_index.get_level_values(0)
+        populations: Index | MultiIndex = population_index.get_level_values(0)
     else:
         populations = population_index
 
@@ -478,11 +477,6 @@ def main() -> None:
     adata = ad.read_h5ad(args.infile)
 
     metadata = [args.cluster, args.condition] if args.condition else [args.cluster]
-    convert_metadata = (
-        {category: "category" for category in metadata}
-        if isinstance(metadata, list)
-        else "category"
-    )
 
     console.print_info(f"converting layer '{args.expression}' into dataframe")
     cell_df = bt.omics.tl.to_dataframe(
@@ -503,10 +497,9 @@ def main() -> None:
             set(cluster_counts.index.get_level_values(0).unique())
         )
         if clusters_to_remove:
+            removed_clusters = "+".join(map(str, clusters_to_remove))
             console.print_info(
-                "removing clusters (clusters={0})".format(
-                    "+".join(map(str, clusters_to_remove))
-                )
+                f"removing clusters (clusters={removed_clusters})"
             )
             cluster_counts = cluster_counts.drop(list(clusters_to_remove))
 

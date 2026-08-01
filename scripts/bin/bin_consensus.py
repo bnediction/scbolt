@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 
 import argparse
 import os
@@ -6,7 +5,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
 from scbolt import cli, console
 
 
@@ -127,9 +125,9 @@ def main() -> None:
 
     console.print_task("binarizing clusters (sources=scBoolSeq, DEA)")
 
-    if not set(scboolseq_bin.columns) == set(scboolseq_bin.columns):
+    if set(scboolseq_bin.columns) != set(dea_bin.columns):
         raise KeyError("column names different in scboolseq and dea dataframes")
-    if not set(scboolseq_bin.index) == set(scboolseq_bin.index):
+    if set(scboolseq_bin.index) != set(dea_bin.index):
         raise KeyError("index names different in scboolseq and dea dataframes")
 
     merge_bin = pd.DataFrame(

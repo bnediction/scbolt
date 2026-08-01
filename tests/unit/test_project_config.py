@@ -1,14 +1,12 @@
-#!/usr/bin/env python3
 """Unit tests for the public scbolt.yml loader."""
 
 from __future__ import annotations
 
-from pathlib import Path
 import subprocess
 import tempfile
 import textwrap
 import unittest
-
+from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 HELPER = REPO / "scripts" / "utils" / "project_config.py"

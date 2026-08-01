@@ -216,10 +216,14 @@ explicitly overridden, scBOLT uses an anytime-oriented Clingo mode and
 branch-and-bound strategy suitable for producing intermediate witnesses.
 Explicit `clingo-mode-<stage>` and
 `clingo-strategy-<stage>` values govern clause bounds and every initial domain
-wave. Domain continuation has one terminal refinement exception described
-below: after an uncertified complete-domain wave, scBOLT uses `opt` with
-`bb,lin` for one additional solver portfolio initialized from the best retained
-witness. Explicit `ignore` mode disables that optimization refinement.
+wave. If domain expansion reaches the clause-bound patience under a strategy
+other than `bb,lin`, scBOLT retains its best domain and witness, resets that
+patience once, and resumes the same clause bound with `opt` and `bb,lin`. A
+second expiration advances to the next clause bound. Domain continuation also
+has one terminal refinement exception described below: after an uncertified
+complete-domain wave, scBOLT uses `opt` with `bb,lin` for one additional solver
+portfolio initialized from the best retained witness. Explicit `ignore` mode
+disables both optimization fallbacks.
 
 Clause continuation is available for `SOFT`, `RELAXED`, `SEED`, and `LOCK` node
 selection stages. It does not apply to the `CONSTS` stage.
@@ -457,14 +461,21 @@ therefore strict but cannot block domain growth. Setting either
 and preserves direct midpoint expansion.
 
 Acquisition, expansion, constant-size refresh, and the initial complete-domain
-wave all use the Clingo mode and strategy selected by the user. This lets an
-anytime strategy such as `bb,inc` grow witnesses quickly without paying the
-cost of linear refinement on every intermediate domain. Only after the complete
-domain is reached, and only when its portfolio has not certified the optimum,
-does one additional complete-domain portfolio resume from the best witness with
-`opt` and `bb,lin`. This terminal refinement portfolio occurs at most once per
-clause bound. It is skipped after certification and when the user explicitly
-selects `ignore`.
+wave use the Clingo mode and strategy selected by the user. This lets an anytime
+strategy such as `bb,inc` grow witnesses quickly without paying the cost of
+linear refinement on every intermediate domain. If no global objective
+improvement occurs before the clause-bound patience while the domain is still
+incomplete, one strategy fallback may resume expansion at the same clause bound
+with `opt` and `bb,lin`. The fallback starts from the retained domain and witness
+and receives a fresh clause-bound patience. If it also stalls, scBOLT advances
+to the next clause bound. No fallback is performed when the current strategy is
+already `bb,lin` or the mode is `ignore`.
+
+After the complete domain is reached, and only when its portfolio has not
+certified the optimum, one additional complete-domain portfolio resumes from
+the best witness with `opt` and `bb,lin`. This terminal refinement portfolio
+occurs at most once per clause bound. It is skipped after certification and
+when the user explicitly selects `ignore`.
 
 Domain yield and solver optimality are independent. A candidate may have a
 certified optimum with low yield, while an uncertified intermediate witness may
@@ -678,6 +689,14 @@ for q in 1..max_clauses:
             preserve the previous witness
             reduce the expansion step or diversify added nodes
 
+        clause-bound patience reached before the complete domain:
+            if the mode is not ignore and the strategy is not bb,lin:
+                retain the best domain and witness
+                switch once to opt + bb,lin at the same q
+                reset clause-bound patience and resume expansion
+            otherwise:
+                continue with q+1
+
     if domain continuation is enabled:
         evaluate deterministic complete-domain solver profiles in parallel
         stop immediately if one worker certifies the global optimum
@@ -800,7 +819,7 @@ is run. A forwarded or absent witness makes `LOCK` forward the `SEED` output
 instead. Each stage remains independently enabled through its
 `domain-continuation-<stage>` parameter, while the wave patience is uniform
 across enabled stages. `maximum-domain-refreshes` is shared by all enabled stages
-and defaults to two retries per expansion size.
+and defaults to one refresh per expansion size, after the initial wave.
 
 ### Clingo Optimization
 
@@ -823,7 +842,7 @@ The following configuration shows the default seed strategy.
 domain-continuation-seed: true
 clause-continuation-seed: true
 minimum-domain-yield: 0.10
-maximum-domain-refreshes: 2
+maximum-domain-refreshes: 1
 
 domain-wave-patience: 5m
 clause-bound-patience: 30m
@@ -864,7 +883,7 @@ without a new acquisition phase:
 domain-continuation-lock: true
 clause-continuation-lock: true
 minimum-domain-yield: 0.10
-maximum-domain-refreshes: 2
+maximum-domain-refreshes: 1
 
 domain-wave-patience: 5m
 clause-bound-patience: 30m

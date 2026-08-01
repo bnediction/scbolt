@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 
 import argparse
 import math
@@ -13,12 +12,11 @@ import numpy as np
 import pandas as pd
 import pypairs
 import rdata
-
 from scbolt import cli, console, omics
 
 omics.set_default_plot_params(bt.omics.pl)
 
-setattr(pd.DataFrame, "iteritems", pd.DataFrame.items)
+pd.DataFrame.iteritems = pd.DataFrame.items
 script_name = Path(__file__).name
 
 
@@ -28,9 +26,9 @@ def marker_pairs_converter(
     output_type: str = "symbol",
 ):
     """Convert marker pairs from ensembl_id into their corresponding aliases."""
-    converted_marker_pairs = dict()
+    converted_marker_pairs = {}
     for cc, pairs in ensembl_id_marker_pairs.items():
-        cycle_pairs = list()
+        cycle_pairs = []
         for _, (first, second) in pairs.iterrows():
             first_alias = identifiers.conversion(
                 first,
@@ -77,8 +75,8 @@ def format_range(values):
 
 def format_count_range(values):
     lower, upper = values
-    lower = int(math.ceil(lower))
-    upper = "inf" if math.isinf(upper) else int(math.floor(upper))
+    lower = math.ceil(lower)
+    upper = "inf" if math.isinf(upper) else math.floor(upper)
     return f"{lower}..{upper}"
 
 
@@ -387,7 +385,7 @@ def main() -> None:
                 category=FutureWarning,
                 module=r"pypairs(\.|$)",
             )
-            scores = pypairs.pairs.cyclone(adata, marker_pairs)
+            pypairs.pairs.cyclone(adata, marker_pairs)
         adata.X = None
         adata.obs.rename(
             columns={

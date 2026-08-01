@@ -1,10 +1,10 @@
-"""Validation helpers for Boolean model specifications."""
+"""Boolean inference support for scBOLT."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping, Sequence
+from pathlib import Path
 from typing import Any
-
 
 SPECIFICATION_SECTIONS = (
     "constraints",
@@ -14,11 +14,46 @@ SPECIFICATION_SECTIONS = (
 )
 
 
+def should_forward_previous_solution(
+    new_constraints: bool,
+    initial_witness: Iterable[str],
+) -> bool:
+    """Return whether this stage can forward its predecessor unchanged."""
+
+    return not new_constraints and not tuple(initial_witness)
+
+
+def write_influence_graph(
+    boolean_network: Any,
+    outdir: str | Path,
+    programs: Sequence[str] = ("dot",),
+    remove_isolated_nodes: bool = False,
+) -> None:
+    """Write a Boolean network influence graph using Graphviz."""
+
+    influence_graph = boolean_network.to_influence_graph()
+
+    if remove_isolated_nodes:
+        isolated_nodes = [
+            node for node, degree in influence_graph.degree if degree == 0
+        ]
+        influence_graph.remove_nodes_from(isolated_nodes)
+
+    graph = influence_graph.to_pydot()
+    outdir = Path(outdir)
+    for program in programs:
+        graph.write(
+            outdir / f"ig.{program}",
+            prog=program,
+            format="raw",
+        )
+
+
 def normalize_model_specification(value: Any) -> dict[str, list[str]]:
     """Validate and normalize a Boolean model specification mapping."""
 
     if not isinstance(value, Mapping):
-        raise ValueError("model specification must be a YAML mapping")
+        raise TypeError("model specification must be a YAML mapping")
 
     unknown_sections = sorted(set(value) - set(SPECIFICATION_SECTIONS))
     if unknown_sections:
@@ -36,11 +71,11 @@ def normalize_model_specification(value: Any) -> dict[str, list[str]]:
             specification[key] = []
             continue
         if not isinstance(values, list):
-            raise ValueError(
+            raise TypeError(
                 f"model specification section '{key}' must be a list"
             )
         if not all(isinstance(item, str) for item in values):
-            raise ValueError(
+            raise TypeError(
                 f"model specification section '{key}' must contain only strings"
             )
         specification[key] = values

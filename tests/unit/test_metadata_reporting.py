@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import importlib.util
 import subprocess
 import tempfile
@@ -102,8 +100,8 @@ printf '%b\n' \\
 scbolt_root := {REPO_ROOT}
 PARAMS := {REPO_ROOT / 'tests' / 'fixtures' / 'params.mk'}
 
-include $(scbolt_root)/mk/config.mk
-include $(scbolt_root)/mk/modules.mk
+include $(scbolt_root)/make/config.mk
+include $(scbolt_root)/make/modules.mk
 
 override reset_stages := load-matrix filtering normalization bin-cells bin-dea bin-consensus
 override target_dry_run_modules = $(reset_stages)
@@ -151,8 +149,8 @@ inspect:
 scbolt_root := {REPO_ROOT}
 PARAMS := {REPO_ROOT / 'tests' / 'fixtures' / 'params.mk'}
 
-include $(scbolt_root)/mk/config.mk
-include $(scbolt_root)/mk/modules.mk
+include $(scbolt_root)/make/config.mk
+include $(scbolt_root)/make/modules.mk
 
 override reset_stages := {' '.join(many_modules)}
 override target_dry_run_modules = $(reset_stages)

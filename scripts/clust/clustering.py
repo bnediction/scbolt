@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import os
 import random
@@ -8,7 +6,6 @@ from pathlib import Path
 import anndata as ad
 import bonesistools as bt
 import numpy as np
-
 from scbolt import cli, console, omics
 from scbolt.runtime import single_thread
 

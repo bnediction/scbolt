@@ -1,6 +1,5 @@
-#!/usr/bin/env python
-
 import sys
+from importlib import import_module
 from pathlib import Path
 
 import pandas as pd
@@ -9,8 +8,10 @@ from pandas.testing import assert_frame_equal
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "lib"))
 
-from scbolt.omics import check_exported_composition  # noqa: E402
-from scbolt.omics import composition_rows, compute_condition_composition
+omics = import_module("scbolt.omics")
+check_exported_composition = omics.check_exported_composition
+composition_rows = omics.composition_rows
+compute_condition_composition = omics.compute_condition_composition
 
 
 def test_condition_enrichment_by_label_corrects_condition_imbalance() -> None:

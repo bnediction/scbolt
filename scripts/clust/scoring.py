@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import json
 import os
@@ -8,7 +6,6 @@ from pathlib import Path
 import anndata as ad
 import bonesistools as bt
 import pandas as pd
-
 from scbolt import cli, console
 
 CLUSTER_INFO_ROWS = ["cells", "proportion", "median_expression", "median_reads"]
@@ -261,7 +258,7 @@ def main() -> None:
         "estimating over-representation p-values " f"(correction={args.correction})"
     )
 
-    info = dict()
+    info = {}
     ora_results = {}
     pvals = {}
     pvals_adj = {}
@@ -269,7 +266,7 @@ def main() -> None:
     signature_names = list(signatures)
     for group in sorted(adata.obs[args.cluster].unique()):
         group_adata = adata[adata.obs[args.cluster] == group]
-        group_info = dict()
+        group_info = {}
         group_info["cells"] = group_adata.n_obs
         group_info["proportion"] = round(group_adata.n_obs / adata.n_obs, ndigits=6)
         group_info["median_expression"] = group_adata.obs["n_features"].median()

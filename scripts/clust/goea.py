@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import gzip
 import os
@@ -14,7 +12,6 @@ from goatools.anno.genetogo_reader import Gene2GoReader
 from goatools.goea.go_enrichment_ns import GOEnrichmentStudyNS
 from goatools.obo_parser import GODag
 from pandas import ExcelFile, ExcelWriter, read_excel
-
 from scbolt import cli, console
 
 script_name = Path(__file__).name
@@ -27,9 +24,8 @@ def read_gene2go(path: Path):
 
     with tempfile.TemporaryDirectory(prefix="scbolt-gene2go-") as tmpdir:
         gene2go_path = Path(tmpdir) / "gene2go"
-        with gzip.open(path, "rb") as infile:
-            with gene2go_path.open("wb") as outfile:
-                shutil.copyfileobj(infile, outfile)
+        with gzip.open(path, "rb") as infile, gene2go_path.open("wb") as outfile:
+            shutil.copyfileobj(infile, outfile)
         return Gene2GoReader(gene2go_path, taxids=[10090]).get_ns2assc()
 
 
@@ -178,10 +174,9 @@ def main() -> None:
             if args.gene_type != annotations_type
             else geneset
         )
-        geneset = set(
-            map(lambda gene_id: int(gene_id) if gene_id.isnumeric() else None, geneset)
-        )
-        geneset.discard(None)
+        geneset = {
+            int(gene_id) for gene_id in geneset if gene_id.isnumeric()
+        }
         study_geneset[cluster] = geneset
 
     background_geneset = (
@@ -193,13 +188,11 @@ def main() -> None:
         if args.gene_type != annotations_type
         else background_geneset
     )
-    background_geneset = set(
-        map(
-            lambda gene_id: int(gene_id) if gene_id.isnumeric() else None,
-            background_geneset,
-        )
-    )
-    background_geneset.discard(None)
+    background_geneset = {
+        int(gene_id)
+        for gene_id in background_geneset
+        if gene_id.isnumeric()
+    }
 
     go_file = args.go
     if go_file is None:
@@ -207,10 +200,11 @@ def main() -> None:
 
     console.print_task(f"loading gene ontology (file={console.format_path(go_file)})")
 
-    go_dag = GODag(obo_file=go_file, prt=open(os.devnull, "w"))
+    with Path(os.devnull).open("w") as null_log:
+        go_dag = GODag(obo_file=go_file, prt=null_log)
 
     with open(go_file, "r") as go_reader:
-        go_definitions = dict()
+        go_definitions = {}
         for line in go_reader:
             if re.search(r"^id: GO:[0-9]{7}", line):
                 _id = re.findall("GO:[0-9]{7}|$", line)[0]
@@ -246,36 +240,41 @@ def main() -> None:
 
     console.print_task("performing gene ontology enrichment analysis (method=GOEA)")
 
-    goea = GOEnrichmentStudyNS(
-        pop=background_geneset,
-        ns2assoc=associations,
-        godag=go_dag,
-        propagate_counts=False,
-        alpha=0.05,
-        methods=["fdr_bh"],
-        log=open(os.devnull, "w"),
-    )
+    with Path(os.devnull).open("w") as null_log:
+        goea = GOEnrichmentStudyNS(
+            pop=background_geneset,
+            ns2assoc=associations,
+            godag=go_dag,
+            propagate_counts=False,
+            alpha=0.05,
+            methods=["fdr_bh"],
+            log=null_log,
+        )
 
-    for cluster, geneset in study_geneset.items():
-        _goea_all_results = goea.run_study(study_ids=geneset, log=open(os.devnull, "w"))
-        _goea_significant_results = [
-            result for result in _goea_all_results if result.p_fdr_bh < 0.05
-        ]
-        if not _goea_significant_results:
-            console.print_warning(f"no GOEA enrichment results for cluster {cluster}")
-        else:
-            console.print_result(
-                f"{len(_goea_significant_results)} enrichment results for cluster {cluster}"
+        for cluster, geneset in study_geneset.items():
+            _goea_all_results = goea.run_study(
+                study_ids=geneset,
+                log=null_log,
             )
-            with console.suppress_output():
-                goea.wr_xlsx(
-                    f"{os.path.dirname(args.outfile)}/{cluster}", _goea_significant_results
+            _goea_significant_results = [
+                result for result in _goea_all_results if result.p_fdr_bh < 0.05
+            ]
+            if not _goea_significant_results:
+                console.print_warning(f"no GOEA enrichment results for cluster {cluster}")
+            else:
+                console.print_result(
+                    f"{len(_goea_significant_results)} enrichment results for cluster {cluster}"
                 )
+                with console.suppress_output():
+                    goea.wr_xlsx(
+                        f"{os.path.dirname(args.outfile)}/{cluster}",
+                        _goea_significant_results,
+                    )
 
     console.print_task(f"saving GOEA workbook (file={console.format_path(args.outfile)})")
 
     with ExcelWriter(args.outfile) as xlsx_writer:
-        for cluster in study_geneset.keys():
+        for cluster in study_geneset:
             xlsx_infile = f"{os.path.dirname(args.outfile)}/{cluster}"
             if os.path.isfile(xlsx_infile):
                 goea_results = read_excel(xlsx_infile, sheet_name=0)

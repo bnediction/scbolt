@@ -1,9 +1,8 @@
-#!/usr/bin/env python3
-
 import argparse
 import sys
 import tempfile
 import time
+from importlib import import_module
 from pathlib import Path
 from threading import Event, Timer
 from unittest.mock import patch
@@ -11,20 +10,21 @@ from unittest.mock import patch
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "lib"))
 
-from scbolt.runtime import (  # noqa: E402
-    SolverCapacityError,
-    SolverDeadline,
-    SolverPatience,
-    SolverPatienceExpired,
-    SolverTimeout,
-    exit_solver_capacity,
-    exit_solver_timeout,
-    format_duration,
-    interrupt_solver_view,
-    iter_solutions,
-    parse_solver_timeout,
-    reset_solver_timeout_status,
-)
+runtime = import_module("scbolt.runtime")
+SolverCapacityError = runtime.SolverCapacityError
+SolverDeadline = runtime.SolverDeadline
+SolverPatience = runtime.SolverPatience
+SolverPatienceExpired = runtime.SolverPatienceExpired
+SolverTimeout = runtime.SolverTimeout
+close_solver_progress = runtime.close_solver_progress
+exit_solver_capacity = runtime.exit_solver_capacity
+exit_solver_timeout = runtime.exit_solver_timeout
+format_duration = runtime.format_duration
+interrupt_solver_view = runtime.interrupt_solver_view
+iter_solutions = runtime.iter_solutions
+next_solution = runtime.next_solution
+parse_solver_timeout = runtime.parse_solver_timeout
+reset_solver_timeout_status = runtime.reset_solver_timeout_status
 
 
 class ImmediateView:
@@ -95,6 +95,24 @@ class InvalidView:
         raise RuntimeError("unrelated solver failure")
 
 
+class ProgressBar:
+    def __init__(self):
+        self.leave = True
+        self.cleared = False
+        self.closed = False
+
+    def clear(self):
+        self.cleared = True
+
+    def close(self):
+        self.closed = True
+
+
+class ProgressView(ImmediateView):
+    def __init__(self):
+        self._progressbar = ProgressBar()
+
+
 assert parse_solver_timeout("30") == 30.0
 assert parse_solver_timeout("30s") == 30.0
 assert parse_solver_timeout("1.5m") == 90.0
@@ -142,6 +160,18 @@ try:
     assert next(solutions) == "solution"
 finally:
     solutions.close()
+
+view = ProgressView()
+assert next_solution(view) == "solution"
+assert not view._progressbar.leave
+assert view._progressbar.cleared
+assert view._progressbar.closed
+
+view = ProgressView()
+close_solver_progress(view)
+assert not view._progressbar.leave
+assert view._progressbar.cleared
+assert view._progressbar.closed
 
 view = ReinitializingView()
 solutions = iter_solutions(view)

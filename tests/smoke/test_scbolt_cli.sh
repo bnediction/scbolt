@@ -62,11 +62,11 @@ fi
 case "${status}" in
     0) ;;
     124|130|143)
-        printf 'make: *** [mk/cli.mk:999: %s] Error %s\n' "${2:-target}" "${status}" >&2
+        printf 'make: *** [make/cli.mk:999: %s] Error %s\n' "${2:-target}" "${status}" >&2
         ;;
     *)
         printf '%s\n' "${SCBOLT_TEST_MAKE_STDERR:-real underlying error}" >&2
-        printf 'make: *** [mk/cli.mk:999: %s] Error %s\n' "${2:-target}" "${status}" >&2
+        printf 'make: *** [make/cli.mk:999: %s] Error %s\n' "${2:-target}" "${status}" >&2
         ;;
 esac
 exit "${status}"

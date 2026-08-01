@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import os
 import re
@@ -9,7 +7,6 @@ import anndata as ad
 import bonesistools as bt
 import pandas as pd
 import scanpy as sc
-
 from scbolt import cli, console, omics
 
 script_name = Path(__file__).name
@@ -162,10 +159,8 @@ def main() -> None:
         raise ValueError(f"unsupported input format: {from_format}")
 
     adata.obs.index = pd.Index(
-        map(
-            lambda barcode: re.sub("[^ATCG]", "", re.sub("^.*:", "", barcode)),
-            adata.obs.index,
-        )
+        re.sub("[^ATCG]", "", re.sub("^.*:", "", barcode))
+        for barcode in adata.obs.index
     )
 
     if args.only_hvg:

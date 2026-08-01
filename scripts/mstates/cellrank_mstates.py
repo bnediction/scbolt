@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import math
 import os
@@ -10,7 +8,6 @@ import anndata as ad
 import bonesistools as bt
 import cellrank as cr
 import numpy as np
-
 from scbolt import cli, console, omics
 
 omics.set_default_plot_params(bt.omics.pl)

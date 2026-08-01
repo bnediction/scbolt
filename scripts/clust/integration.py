@@ -1,10 +1,9 @@
-#!/usr/bin/env python
 
 import argparse
 import os
 import random
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional, Sequence
 
 import anndata as ad
 import bonesistools as bt
@@ -14,7 +13,6 @@ import scanorama
 import scanpy as sc
 from anndata import AnnData
 from bonesistools.omics import _typing as omics_typing
-
 from scbolt import cli, console, omics
 from scbolt.omics import (
     check_exported_composition,
@@ -29,10 +27,10 @@ omics.set_default_plot_params(bt.omics.pl)
 @omics_typing.anndata_checker
 def clean_adata(
     adata: AnnData,
-    obs: Optional[Sequence[str]] = None,
-    var: Optional[Sequence[str]] = None,
+    obs: Sequence[str] | None = None,
+    var: Sequence[str] | None = None,
     copy: bool = False,
-) -> Optional[AnnData]:
+) -> AnnData | None:
 
     adata = adata.copy() if copy else adata
 
@@ -44,17 +42,17 @@ def clean_adata(
         for _var in var:
             if _var in adata.var.columns:
                 del adata.var[_var]
-    if "pca" in adata.uns.keys():
+    if "pca" in adata.uns:
         del adata.uns["pca"]
-    if "neighbors" in adata.uns.keys():
+    if "neighbors" in adata.uns:
         del adata.uns["neighbors"]
-    if "shared_neighbors" in adata.uns.keys():
+    if "shared_neighbors" in adata.uns:
         del adata.uns["shared_neighbors"]
-    if "cluster" in adata.uns.keys():
+    if "cluster" in adata.uns:
         del adata.uns["cluster"]
-    if "tsne" in adata.uns.keys():
+    if "tsne" in adata.uns:
         del adata.uns["tsne"]
-    if "umap" in adata.uns.keys():
+    if "umap" in adata.uns:
         del adata.uns["umap"]
     del adata.obsm, adata.obsp, adata.varm, adata.varp
 
@@ -65,7 +63,7 @@ def compute_shared_neighbors_if_needed(
     adata: AnnData,
     args: argparse.Namespace,
     *,
-    context: Optional[str] = None,
+    context: str | None = None,
 ) -> None:
     if args.adjacency != "snn":
         return
@@ -87,7 +85,7 @@ def namespace_obs_names(
     condition: str,
     sep: str = ":",
     copy: bool = False,
-) -> Optional[AnnData]:
+) -> AnnData | None:
     adata = adata.copy() if copy else adata
     barcodes = adata.obs_names.astype(str)
     adata.obs["barcode"] = barcodes
@@ -546,7 +544,7 @@ def main() -> None:
         console.print_info(f"selecting reference condition (condition={reference})")
 
         console.print_info(f"splitting datasets (conditions={', '.join(args.labels)})")
-        adatas = dict()
+        adatas = {}
         for label in args.labels:
             adatas[label] = adata[adata.obs["condition"] == label].to_memory()
 
@@ -687,7 +685,7 @@ def main() -> None:
         console.print_info("integrating data (method=scanorama)")
 
         console.print_info(f"splitting datasets (conditions={'+'.join(args.labels)})")
-        adatas = dict()
+        adatas = {}
         for label in args.labels:
             adatas[label] = adata[adata.obs["condition"] == label].to_memory()
 

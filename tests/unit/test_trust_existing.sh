@@ -25,8 +25,8 @@ run_helper() {
 scbolt_root := $(CURDIR)
 makefile_path := $(scbolt_root)/Makefile
 
-include $(scbolt_root)/mk/config.mk
-include $(scbolt_root)/mk/modules.mk
+include $(scbolt_root)/make/config.mk
+include $(scbolt_root)/make/modules.mk
 
 .PHONY: inspect
 inspect:

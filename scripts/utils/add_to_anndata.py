@@ -1,20 +1,18 @@
-#!/usr/bin/env python
 
 import argparse
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence, Union, cast
+from typing import cast
 
 import anndata as ad
 import pandas as pd
-
 from scbolt import cli, console, omics
 
-PathLike = Union[str, Path]
 category = pd.Categorical
 
 
 def generate_unique_index_name(
-    dfs: Union[pd.DataFrame, Sequence[pd.DataFrame]],
+    dfs: pd.DataFrame | Sequence[pd.DataFrame],
     base: str = "index",
 ) -> str:
     dfs = [dfs] if isinstance(dfs, pd.DataFrame) else dfs
@@ -259,7 +257,7 @@ def main() -> None:
             cols_to_remove = set(adata.obs.columns) & set(df.columns)
             if cols_to_remove:
                 console.print_debug(
-                    "removing columns (table=adata.obs, columns={0})".format(
+                    "removing columns (table=adata.obs, columns={})".format(
                         "+".join(map(str, cols_to_remove))
                     )
                 )
@@ -271,7 +269,7 @@ def main() -> None:
             cols_to_remove = set(adata.var.columns) & set(df.columns)
             if cols_to_remove:
                 console.print_debug(
-                    "removing columns (table=adata.var, columns={0})".format(
+                    "removing columns (table=adata.var, columns={})".format(
                         "+".join(map(str, cols_to_remove))
                     )
                 )
@@ -284,7 +282,7 @@ def main() -> None:
             "loading tabular annotations "
             f"(files={', '.join(console.format_path(file) for file in args.csv)})"
         )
-        dfs = dict()
+        dfs = {}
         add_prefix = args.add_prefix or []
         for name, file in zip(labels, args.csv):
             df = pd.read_csv(file, sep=args.sep, index_col=args.index).astype(args.type)
@@ -300,24 +298,24 @@ def main() -> None:
         value_columns = [column for column in csv_df.columns if column != label_column]
         if args.axis in [0, "obs"]:
             adata_df = adata.obs.copy()
-            cols_to_remove = set(adata_df.columns) & set(csv_df.columns) - set(
-                [label_column]
+            cols_to_remove = (
+                set(adata_df.columns) & set(csv_df.columns) - {label_column}
             )
             if cols_to_remove:
                 console.print_debug(
-                    "removing columns (table=adata.obs, columns={0})".format(
+                    "removing columns (table=adata.obs, columns={})".format(
                         "+".join(map(str, cols_to_remove))
                     )
                 )
                 adata_df = adata_df.drop(list(cols_to_remove), axis=1)
         else:
             adata_df = adata.var.copy()
-            cols_to_remove = set(adata_df.columns) & set(csv_df.columns) - set(
-                [label_column]
+            cols_to_remove = (
+                set(adata_df.columns) & set(csv_df.columns) - {label_column}
             )
             if cols_to_remove:
                 console.print_debug(
-                    "removing columns (table=adata.var, columns={0})".format(
+                    "removing columns (table=adata.var, columns={})".format(
                         "+".join(map(str, cols_to_remove))
                     )
                 )

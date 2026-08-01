@@ -11,12 +11,12 @@ makefile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 scbolt_root := $(patsubst %/,%,$(dir $(makefile_path)))
 scbolt_version := $(strip $(file <$(scbolt_root)/VERSION))
 
-include $(scbolt_root)/mk/config.mk
-include $(scbolt_root)/mk/modules.mk
-include $(scbolt_root)/mk/parameter_help.mk
-include $(scbolt_root)/mk/cli.mk
-include $(scbolt_root)/mk/check.mk
-include $(scbolt_root)/mk/clean.mk
+include $(scbolt_root)/make/config.mk
+include $(scbolt_root)/make/modules.mk
+include $(scbolt_root)/make/parameter_help.mk
+include $(scbolt_root)/make/cli.mk
+include $(scbolt_root)/make/check.mk
+include $(scbolt_root)/make/clean.mk
 
 ## preserve target even if make is killed or interrupted
 .PRECIOUS: $(max_nodes_soft_solution)

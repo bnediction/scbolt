@@ -1,31 +1,12 @@
-#!/usr/bin/env python3
-
-import ast
+import sys
+from importlib import import_module
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "lib"))
 
-
-def load_write_influence_graph():
-    """Load the export helper without importing inference dependencies."""
-
-    path = REPO_ROOT / "scripts" / "infer" / "infer.py"
-    tree = ast.parse(path.read_text(), filename=str(path))
-    function = next(
-        node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef)
-        and node.name == "write_influence_graph"
-    )
-    module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
-    namespace = {
-        "MPBooleanNetwork": object,
-        "to_bonesistools_boolean_network": lambda _: boolean_network,
-    }
-    exec(compile(module, str(path), "exec"), namespace)
-    return namespace["write_influence_graph"]
+write_influence_graph = import_module("scbolt.inference").write_influence_graph
 
 
 class FakeDot:
@@ -58,12 +39,11 @@ class FakeBooleanNetwork:
 
 
 boolean_network = FakeBooleanNetwork()
-write_influence_graph = load_write_influence_graph()
 
 with TemporaryDirectory() as tmpdir:
     outdir = Path(tmpdir)
     write_influence_graph(
-        object(),
+        boolean_network,
         outdir,
         programs=("dot", "neato"),
         remove_isolated_nodes=True,

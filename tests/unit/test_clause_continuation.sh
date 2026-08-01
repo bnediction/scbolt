@@ -12,8 +12,8 @@ run_helper() {
 
     make -s -C "${repo_root}" -f - "$@" > "${outfile}" <<'MAKE'
 diagnostic_mode = true
-include mk/default_params.mk
-include mk/modules.mk
+include make/default_params.mk
+include make/modules.mk
 
 .PHONY: all
 all:
@@ -57,7 +57,7 @@ grep -qx 'PATIENCE_DOMAIN_WAVE=5m' <<< "${defaults}"
 ! grep -Eq '^PATIENCE_(CLAUSE_BOUND|DOMAIN_WAVE)_(SOFT|RELAXED|SEED|LOCK)=' \
     <<< "${defaults}"
 grep -qx 'MIN_DOMAIN_YIELD=0.10' <<< "${defaults}"
-grep -qx 'MAX_DOMAIN_REFRESHES=2' <<< "${defaults}"
+grep -qx 'MAX_DOMAIN_REFRESHES=1' <<< "${defaults}"
 grep -qx 'CLINGO_THREADS=1' <<< "${defaults}"
 ! grep -Eq '^JOBS_CLINGO_(SOFT|CONSTS|RELAXED|SEED|LOCK)=' <<< "${defaults}"
 
@@ -290,10 +290,10 @@ grep -Fq -- \
     "${repo_root}/Makefile"
 grep -Fq -- \
     "__max-nodes-relaxed: \$(max_nodes_relaxed) \$(max_nodes_relaxed_witness)" \
-    "${repo_root}/mk/cli.mk"
+    "${repo_root}/make/cli.mk"
 grep -Fq -- \
     "__max-nodes-lock: \$(max_nodes_lock) \$(max_nodes_lock_witness)" \
-    "${repo_root}/mk/cli.mk"
+    "${repo_root}/make/cli.mk"
 grep -Fq \
     'if should_forward_previous_solution(new_constraints, initial_witness):' \
     "${repo_root}/scripts/infer/selection.py"

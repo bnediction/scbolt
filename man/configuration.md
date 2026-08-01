@@ -369,7 +369,7 @@ needed in new projects.
 | `domain-continuation-lock` | `DOMAIN_CONTINUATION_LOCK` | `true`. |
 | `domain-wave-patience` | `PATIENCE_DOMAIN_WAVE` | `5m`. |
 | `minimum-domain-yield` | `MIN_DOMAIN_YIELD` | `0.10`. |
-| `maximum-domain-refreshes` | `MAX_DOMAIN_REFRESHES` | `2`. |
+| `maximum-domain-refreshes` | `MAX_DOMAIN_REFRESHES` | `1`. |
 | `clingo-threads` | `CLINGO_THREADS` | `1`. |
 | `clingo-config-<stage>` | `CLINGO_CONFIG_<STAGE>` | Named configuration or file. |
 | `clingo-mode-<stage>` | `CLINGO_MODE_<STAGE>` | Stage-dependent. |

@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import math
 import os
@@ -8,7 +6,6 @@ from pathlib import Path
 import anndata as ad
 import bonesistools as bt
 import pandas as pd
-
 from scbolt import cli, console, omics
 
 script_name = Path(__file__).name
@@ -169,7 +166,7 @@ def main() -> None:
     if args.filter_genes:
         console.print_info(f"filtering genes (file={console.format_path(args.filter_genes)})")
         with open(args.filter_genes) as file:
-            var_subset = [line.strip() for line in file.readlines()]
+            var_subset = [line.strip() for line in file]
 
     console.print_task(f"ranking genes (scope=groups, method={args.method})")
 

@@ -1,11 +1,8 @@
-#!/usr/bin/env python
-
 import argparse
 from pathlib import Path
 from typing import Any
 
 import anndata as ad
-
 from scbolt import cli, console, omics
 
 

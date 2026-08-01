@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import os
 import re
@@ -12,7 +10,6 @@ import numpy as np
 import stream as st
 from networkx.classes.graph import Graph
 from rpy2.rinterface import ListSexpVector
-
 from scbolt import cli, console, omics
 
 omics.set_default_plot_params(bt.omics.pl)
@@ -329,7 +326,7 @@ def main() -> None:
         adata.obs["kmeans"].transform(get_stream_cluster).astype("category")
     )
 
-    epg_to_flat = dict()
+    epg_to_flat = {}
     for node, attributes in adata.uns["flat_tree"]._node.items():
         epg_to_flat[node] = attributes["label"]
 
@@ -339,13 +336,12 @@ def main() -> None:
         .astype("category")
         .cat.add_categories(sorted(epg_to_flat.values()))
     )
-    for node in epg_to_flat.keys():
+    for node, macrostate in epg_to_flat.items():
         _true = adata.obs["node"] == node
-        adata.obs["macrostate"][_true] = str(epg_to_flat[node])
+        adata.obs["macrostate"][_true] = str(macrostate)
 
     if args.size is not None:
-        flat_to_epg = dict((v, k) for k, v in epg_to_flat.items())
-        extension = dict()
+        flat_to_epg = {v: k for k, v in epg_to_flat.items()}
         size = adata.obs["macrostate"].value_counts()
         for i, v in size.items():
             if v < args.size:
@@ -361,7 +357,7 @@ def main() -> None:
     info_str = info_str[:-2]
     console.print_info(info_str)
 
-    groups = set([args.obs]).union({"kmeans", "macrostate"})
+    groups = {args.obs, "kmeans", "macrostate"}
 
     console.print_task(f"plotting STREAM outputs (directory={os.path.relpath(outpath)})")
     for group in groups:

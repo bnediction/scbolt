@@ -1,40 +1,37 @@
-#!/usr/bin/env python
-
 import argparse
 import json
 from collections import defaultdict
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Optional, Sequence
+from typing import Any
 
 import bonesis
 import bonesistools as bt
 import pandas as pd
 from mpbn import MPBooleanNetwork
-from _witness import (
+from scbolt import cli, console
+from scbolt.inference import write_influence_graph
+from scbolt.inference._witness import (
     apply_structural_witness_heuristics,
     canonicalize_structural_witness,
     read_structural_witness,
 )
-from utils import (
-    add_bonesis_arguments,
-    apply_bonesis_mode,
-    close_progress,
-    get_clingo_parallel_mode,
-    get_node_sets,
-    initialize_bonesis,
-    next_solution,
-    print_solver_options,
-    print_node_reference,
-    ptqdm,
-)
-
-from scbolt import cli, console
 from scbolt.runtime import (
     SolverDeadline,
     SolverTimeout,
+    close_solver_progress,
     exit_solver_timeout,
+    get_subset_minimal_clingo_settings,
     iter_solutions,
+    next_solution,
     reset_solver_timeout_status,
+)
+from utils import (
+    add_bonesis_arguments,
+    apply_bonesis_mode,
+    get_node_sets,
+    initialize_bonesis,
+    ptqdm,
 )
 
 bonesis.settings["quiet"] = True
@@ -107,19 +104,6 @@ def get_configuration_predicates(bo) -> dict:
     return predicates
 
 
-def get_subset_minimal_clingo_settings(jobs):
-    """Return parallel Clingo settings for subset-minimal enumeration."""
-
-    parallel_jobs, parallel_option = get_clingo_parallel_mode(jobs)
-
-    if parallel_option:
-        return {"parallel": None, "clingo_options": [parallel_option]}
-    if parallel_jobs <= 1:
-        return {}
-
-    return {"parallel": min(parallel_jobs, 14)}
-
-
 def write_noi(bn: MPBooleanNetwork, file):
     """Write non-constant Boolean network components to a text file."""
 
@@ -135,33 +119,6 @@ def to_bonesistools_boolean_network(
     """Adapt MPBN only for bonesistools graph export APIs."""
 
     return bt.logic.bn.BooleanNetwork(bn.copy())
-
-
-def write_influence_graph(
-    bn: MPBooleanNetwork,
-    outdir,
-    programs=("dot",),
-    remove_isolated_nodes=False,
-):
-    """Write the Boolean network influence graph using Graphviz."""
-
-    graph_bn = to_bonesistools_boolean_network(bn)
-    influence_graph = graph_bn.to_influence_graph()
-
-    if remove_isolated_nodes:
-        isolated_nodes = [
-            node for node, degree in influence_graph.degree if degree == 0
-        ]
-        influence_graph.remove_nodes_from(isolated_nodes)
-
-    graph = influence_graph.to_pydot()
-
-    for program in programs:
-        graph.write(
-            outdir / f"ig.{program}",
-            prog=program,
-            format="raw",
-        )
 
 
 def write_configurations(cfgs, file):
@@ -234,7 +191,7 @@ def write_solution(
 
     if graph_formats:
         write_influence_graph(
-            bn,
+            to_bonesistools_boolean_network(bn),
             outdir,
             programs=graph_formats,
             remove_isolated_nodes=remove_isolated_nodes,
@@ -274,11 +231,11 @@ def run_bn_view(
     outdir: str | Path,
     config_formats: Sequence[str],
     graph_formats: Sequence[str],
-    normalized_to_original_gene_names: Optional[Mapping[str, str]] = None,
-    trapspace_configurations: Optional[Sequence[Any]] = None,
-    rename_cfgs: Optional[Mapping[Any, Any]] = None,
+    normalized_to_original_gene_names: Mapping[str, str] | None = None,
+    trapspace_configurations: Sequence[Any] | None = None,
+    rename_cfgs: Mapping[Any, Any] | None = None,
     remove_isolated_nodes: bool = False,
-    deadline: Optional[SolverDeadline] = None,
+    deadline: SolverDeadline | None = None,
 ) -> list[MPBooleanNetwork]:
     """Enumerate, post-process and export Boolean network view solutions."""
 
@@ -323,7 +280,7 @@ def run_bn_view(
             )
     finally:
         solutions.close()
-        close_progress(view)
+        close_solver_progress(view)
 
     return bns
 
@@ -497,8 +454,8 @@ def main() -> None:
         )
         view.standalone(output_filename=args.asp)
 
-        print_node_reference(*get_node_sets(bo))
-        print_solver_options(
+        console.print_node_reference(*get_node_sets(bo))
+        console.print_solver_options(
             args.clingo_mode,
             clingo_strategy,
             args.max_clauses,
@@ -549,7 +506,7 @@ def main() -> None:
                 "enumerating Boolean network solutions (kind=subset-minimal)"
             )
 
-        print_node_reference(*get_node_sets(bo))
+        console.print_node_reference(*get_node_sets(bo))
         console.print_warning("this may take some time.")
 
         view = bonesis.InfluenceGraphView(
@@ -586,7 +543,7 @@ def main() -> None:
         else:
             console.print_task("sampling Boolean network solutions (kind=sparsest)")
 
-        print_node_reference(*get_node_sets(bo))
+        console.print_node_reference(*get_node_sets(bo))
         console.print_warning("this may take some time.")
 
         view = bonesis.DiverseBooleanNetworksView(

@@ -9,7 +9,7 @@ and runtime environments behind it.
    utility commands, and starts the selected workflow target.
 2. `scripts/utils/project_config.py` validates public `scbolt.yml` files and
    translates their kebab-case keys into typed internal parameters.
-3. `Makefile` and `mk/` define the dependency graph, parameter validation,
+3. `Makefile` and `make/` define the dependency graph, parameter validation,
    rebuild decisions, logging, and metadata sidecars.
 4. `scripts/` and `lib/scbolt/` implement the scientific and runtime tasks.
 5. `envs/` defines the isolated environments used by local backends; the Docker
@@ -35,7 +35,7 @@ The regular installer creates an autonomous runtime:
   bin/
   envs/
   lib/
-  mk/
+  make/
   scripts/
 ```
 

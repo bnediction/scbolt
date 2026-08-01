@@ -1,12 +1,9 @@
-#!/usr/bin/env python
-
 import argparse
 import os
 from pathlib import Path
 
 import anndata as ad
 import bonesistools as bt
-
 from scbolt import cli, console, omics
 
 omics.set_default_plot_params(bt.omics.pl)

@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import os
 from pathlib import Path
@@ -8,9 +6,8 @@ import anndata as ad
 import bonesistools as bt
 import numpy as np
 import pandas as pd
-from scboolseq import scBoolSeq
-
 from scbolt import cli, console, omics
+from scboolseq import scBoolSeq
 
 script_name = Path(__file__).name
 
@@ -155,7 +152,7 @@ def main() -> None:
     if args.filter_genes:
         console.print_info(f"filtering genes (file={console.format_path(args.filter_genes)})")
         with open(args.filter_genes) as file:
-            counts_df = counts_df[[line.strip() for line in file.readlines()]]
+            counts_df = counts_df[[line.strip() for line in file]]
 
     console.print_task("binarizing cells (method=scBoolSeq)")
 
@@ -177,15 +174,15 @@ def main() -> None:
     cell_df = cell_df.reindex(columns=adata.var.index)
     criteria_df = criteria_df.reindex(index=adata.var.index)
     criteria_df.loc[missing_genes, "Category"] = "Discarded"
-    if not list(cell_df.index) == list(adata.obs.index):
+    if list(cell_df.index) != list(adata.obs.index):
         raise pd.errors.IndexingError(
             "Index values in 'cell_df' not sorted with observations in 'adata'"
         )
-    elif not list(cell_df.columns) == list(adata.var.index):
+    elif list(cell_df.columns) != list(adata.var.index):
         raise pd.errors.IndexingError(
             "Column values in 'cell_df' not sorted with variables in 'adata'"
         )
-    elif not list(criteria_df.index) == list(adata.var.index):
+    elif list(criteria_df.index) != list(adata.var.index):
         raise pd.errors.IndexingError(
             "Column values in 'criteria_df' not sorted with variables in 'adata'"
         )

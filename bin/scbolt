@@ -31,7 +31,7 @@ SCBOLT_SCRIPT="$(resolve_script_path)"
 SCBOLT_BIN_DIR="$(dirname "${SCBOLT_SCRIPT}")"
 SCBOLT_ROOT="$(cd "${SCBOLT_BIN_DIR}/.." && pwd)"
 SCBOLT_MAKEFILE="${SCBOLT_ROOT}/Makefile"
-SCBOLT_DEFAULT_PARAMS="${SCBOLT_ROOT}/mk/default_params.mk"
+SCBOLT_DEFAULT_PARAMS="${SCBOLT_ROOT}/make/default_params.mk"
 SCBOLT_TOOL="${SCBOLT_BIN_DIR}/scbolt-tool"
 SCBOLT_PROJECT_CONFIG_HELPER="${SCBOLT_ROOT}/scripts/utils/project_config.py"
 SCBOLT_VERSION_FILE="${SCBOLT_ROOT}/VERSION"
@@ -391,7 +391,7 @@ if [ ! -f "${SCBOLT_MAKEFILE}" ]; then
 fi
 
 if [ ! -f "${SCBOLT_DEFAULT_PARAMS}" ]; then
-    print_installation_error "mk/default_params.mk"
+    print_installation_error "make/default_params.mk"
     exit 1
 fi
 

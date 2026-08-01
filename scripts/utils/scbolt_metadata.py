@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from __future__ import annotations
 
 import argparse
@@ -9,7 +7,7 @@ import os
 import re
 import subprocess
 import sys
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
@@ -270,7 +268,7 @@ def local_conda_runtime_environment(env: str) -> dict[str, object] | None:
     }
 
 
-@lru_cache(maxsize=None)
+@cache
 def container_metadata(
     backend: RuntimeBackend,
     container_engine: str,
@@ -305,8 +303,7 @@ def container_metadata(
         ],
         check=False,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if result.returncode != 0:
         message = result.stderr.strip() or result.stdout.strip()
@@ -333,7 +330,7 @@ def container_metadata(
     }
 
 
-@lru_cache(maxsize=None)
+@cache
 def runtime_environment(
     env: str,
     backend: RuntimeBackend,
@@ -373,8 +370,7 @@ def runtime_environment(
         command,
         check=False,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if result.returncode != 0:
         message = result.stderr.strip() or result.stdout.strip()

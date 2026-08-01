@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import tempfile
 import warnings
@@ -7,7 +5,6 @@ from pathlib import Path
 
 import bonesistools as bt
 import pandas as pd
-
 from scbolt import cli, console, omics
 
 script_name = Path(__file__).name

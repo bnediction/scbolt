@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from itertools import combinations
 from math import ceil
-from typing import Collection, Iterable, Literal, Sequence
+from typing import Literal
 
 DomainOutcome = Literal["sat", "unsat", "unknown", "cancelled"]
 DomainUnknownReason = Literal["capacity"]
@@ -216,6 +217,17 @@ def domain_expansion_gains(
         max(0, len(current & important) - len(previous & important)),
         max(0, len(current) - len(previous)),
     )
+
+
+def stalled_domain_solver_settings(
+    mode: str,
+    strategy: str,
+) -> tuple[str, str] | None:
+    """Select a complementary solver after domain expansion stalls."""
+
+    if mode != "ignore" and strategy != "bb,lin":
+        return "opt", "bb,lin"
+    return None
 
 
 def terminal_refinement_solver_settings(

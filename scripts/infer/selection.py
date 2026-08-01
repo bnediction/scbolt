@@ -1,21 +1,23 @@
-#!/usr/bin/env python
-
 import argparse
 import os
 import resource
 import sys
 import time
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from contextlib import ExitStack
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Event, Lock
-from typing import Any, Callable, Collection, Iterable, Mapping, NoReturn, Sequence
+from typing import Any, NoReturn
 
 import bonesis
 from bonesis.asp_encoding import clingo_encode
-from _domain_continuation import (
+from scbolt import cli, console
+from scbolt.inference import should_forward_previous_solution
+from scbolt.inference._continuation import (
     DomainCandidate,
     DomainCandidateResult,
     DomainMemoryEstimator,
@@ -32,44 +34,41 @@ from _domain_continuation import (
     minimum_domain_gain,
     outcome_counts,
     select_best_candidate,
-    solver_result_certifies_optimum,
     solution_objective,
+    solver_result_certifies_optimum,
+    stalled_domain_solver_settings,
     terminal_refinement_solver_settings,
 )
-from _witness import (
+from scbolt.inference._witness import (
     apply_structural_witness_heuristics,
     read_structural_witness,
     structural_witness,
     structural_witness_clause_bound,
     structural_witness_nodes,
 )
-from utils import (
-    TQDM_TO_TTY,
-    add_bonesis_arguments,
-    apply_bonesis_mode,
-    close_progress,
-    get_node_sets,
-    initialize_bonesis,
-    next_solution,
-    print_solver_options,
-    print_node_reference,
-    ptqdm,
-)
-
-from scbolt import cli, console
 from scbolt.runtime import (
     SolverCapacityError,
     SolverDeadline,
     SolverPatience,
     SolverPatienceExpired,
     SolverTimeout,
+    close_solver_progress,
     exit_solver_capacity,
     exit_solver_timeout,
     format_duration,
     interrupt_solver_view,
     iter_solver_view,
+    next_solution,
     parse_solver_timeout,
     reset_solver_timeout_status,
+)
+from utils import (
+    TQDM_TO_TTY,
+    add_bonesis_arguments,
+    apply_bonesis_mode,
+    get_node_sets,
+    initialize_bonesis,
+    ptqdm,
 )
 
 bonesis.settings["quiet"] = True
@@ -390,8 +389,7 @@ def write_lines(lines: Iterable[str], file: Path) -> None:
     file.parent.mkdir(parents=True, exist_ok=True)
     temporary = file.with_name(f".{file.name}.tmp")
     with open(temporary, "w") as stream:
-        for line in lines:
-            stream.write(f"{line}\n")
+        stream.writelines(f"{line}\n" for line in lines)
     os.replace(temporary, file)
 
 
@@ -405,15 +403,6 @@ def write_structural_witness(witness: Iterable[str], file: Path) -> None:
     """Write an executable structural witness as ASP facts."""
 
     write_lines((f"{atom}." for atom in sorted(set(witness))), file)
-
-
-def should_forward_previous_solution(
-    new_constraints: bool,
-    initial_witness: Iterable[str],
-) -> bool:
-    """Return whether this stage can forward its predecessor unchanged."""
-
-    return not new_constraints and not tuple(initial_witness)
 
 
 def clause_continuation_bounds(
@@ -681,7 +670,7 @@ def solve_domain_candidate(
     try:
         iterator = iter_solver_view(view)
     except SolverCapacityError:
-        close_progress(view)
+        close_solver_progress(view)
         return DomainCandidateResult(
             candidate,
             "unknown",
@@ -689,7 +678,7 @@ def solve_domain_candidate(
         )
     if not active_views.register(candidate.index, view):
         interrupt_solver_view(view, cancel_handler=False)
-        close_progress(view)
+        close_solver_progress(view)
         return DomainCandidateResult(candidate, "cancelled")
     events.put(("ready", candidate.index, current_rss_bytes()))
 
@@ -726,7 +715,7 @@ def solve_domain_candidate(
             solution, structural_model = best_model[0]
     finally:
         active_views.unregister(candidate.index)
-        close_progress(view)
+        close_solver_progress(view)
 
     return DomainCandidateResult(
         candidate=candidate,
@@ -762,11 +751,14 @@ def run_domain_wave(
     if not candidates:
         return ()
 
+    progress_stream_context = ExitStack()
     progress_stream = sys.stdout
     close_progress_stream = False
     if TQDM_TO_TTY:
         try:
-            progress_stream = open("/dev/tty", "w")
+            progress_stream = progress_stream_context.enter_context(
+                console.open_terminal_stream()
+            )
             close_progress_stream = True
         except OSError:
             pass
@@ -1069,8 +1061,10 @@ def run_domain_wave(
                     values["score"],
                     has_important_nodes=bool(important_nodes),
                 )
-                if objective > displayed_objectives[candidate_index]:
-                    displayed_objectives[candidate_index] = objective
+                displayed_objectives[candidate_index] = max(
+                    objective,
+                    displayed_objectives[candidate_index],
+                )
                 values = format_candidate_objective(candidate_index)
             bar.set_postfix(values, refresh=False)
         elif kind == "update":
@@ -1179,12 +1173,10 @@ def run_domain_wave(
             result = future.result()
             if candidate.index in observed_models and result.outcome == "cancelled":
                 result = observed_models[candidate.index]
-            elif (
+            elif result.outcome == "cancelled" and (
                 candidate.index in memory_interrupted
-                and result.outcome == "cancelled"
+                or stop_reason == "domain-patience"
             ):
-                result = DomainCandidateResult(candidate, "unknown")
-            elif stop_reason == "domain-patience" and result.outcome == "cancelled":
                 result = DomainCandidateResult(candidate, "unknown")
             results.append(result)
         if stop_reason == "domain-patience":
@@ -1202,8 +1194,7 @@ def run_domain_wave(
                 executor.shutdown(wait=True, cancel_futures=True)
             finally:
                 progress_input_guard.__exit__(*sys.exc_info())
-                if close_progress_stream:
-                    progress_stream.close()
+                progress_stream_context.close()
 
     if stop_reason == "timeout":
         raise SolverTimeout
@@ -1991,11 +1982,11 @@ def main() -> None:
         dest="max_domain_refreshes",
         type=int,
         required=False,
-        default=2,
+        default=1,
         metavar="INT",
         help=(
             "maximum number of constant-size domain refreshes before expansion "
-            "resumes; 0 disables domain refreshes (default: 2)"
+            "resumes; 0 disables domain refreshes (default: 1)"
         ),
     )
     parser.add_argument(
@@ -2152,13 +2143,13 @@ def main() -> None:
             )
 
         effective_clingo_strategy = args.clingo_strategy or "bb,dec"
-        print_node_reference(
+        console.print_node_reference(
             nodes_in_data,
             nodes_in_domain,
             domain_edges,
             flush=True,
         )
-        print_solver_options(
+        console.print_solver_options(
             args.clingo_mode,
             effective_clingo_strategy,
             args.max_clauses,
@@ -2303,54 +2294,84 @@ def main() -> None:
             retain_selected = partial(retain_model, force=True)
 
             if args.domain_continuation:
-                try:
-                    continuation = continue_domain_at_clause_bound(
-                        bo,
-                        max_clause=max_clause,
-                        initial_domain=current_domain,
-                        initial_solution=solution,
-                        initial_witness=current_witness,
-                        expansion_only=args.domain_continuation_expansion_only,
-                        required_nodes=required_nodes,
-                        important_nodes=important_nodes_in_domain,
-                        jobs=args.domain_continuation_jobs,
-                        seed=args.domain_continuation_seed,
-                        clingo_mode=clingo_mode,
-                        clingo_strategy=clingo_strategy,
-                        clingo_configuration=args.clingo_configuration,
-                        domain_patience_seconds=args.domain_wave_patience,
-                        minimum_domain_yield=args.min_domain_yield,
-                        max_domain_refreshes=args.max_domain_refreshes,
-                        clause_patience=stage_patience,
-                        deadline=deadline,
-                        memory_limit=args.memory_limit,
-                        on_model=retain_model,
-                        on_selected=retain_selected,
-                        memory_estimator=domain_memory_estimator,
-                    )
-                except SolverTimeout:
-                    exit_solver_timeout(args.timeout_status_file)
-                except SolverPatienceExpired:
-                    solution = tuple(retained["solution"])
-                    current_witness = tuple(retained["witness"])
-                    print_clause_bound_patience_warning(
-                        max_clause,
-                        retained["objective"],
-                        node_total=len(retained["domain"]),
-                        important_total=len(important_nodes_in_domain),
-                        patience=args.clause_bound_patience,
-                    )
+                continuation = None
+                domain_clingo_mode = clingo_mode
+                domain_clingo_strategy = clingo_strategy
+                while continuation is None:
+                    try:
+                        continuation = continue_domain_at_clause_bound(
+                            bo,
+                            max_clause=max_clause,
+                            initial_domain=current_domain,
+                            initial_solution=solution,
+                            initial_witness=current_witness,
+                            expansion_only=args.domain_continuation_expansion_only,
+                            required_nodes=required_nodes,
+                            important_nodes=important_nodes_in_domain,
+                            jobs=args.domain_continuation_jobs,
+                            seed=args.domain_continuation_seed,
+                            clingo_mode=domain_clingo_mode,
+                            clingo_strategy=domain_clingo_strategy,
+                            clingo_configuration=args.clingo_configuration,
+                            domain_patience_seconds=args.domain_wave_patience,
+                            minimum_domain_yield=args.min_domain_yield,
+                            max_domain_refreshes=args.max_domain_refreshes,
+                            clause_patience=stage_patience,
+                            deadline=deadline,
+                            memory_limit=args.memory_limit,
+                            on_model=retain_model,
+                            on_selected=retain_selected,
+                            memory_estimator=domain_memory_estimator,
+                        )
+                    except SolverTimeout:
+                        exit_solver_timeout(args.timeout_status_file)
+                    except SolverPatienceExpired:
+                        solution = tuple(retained["solution"])
+                        current_witness = tuple(retained["witness"])
+                        current_domain = frozenset(retained["domain"])
+                        print_clause_bound_patience_warning(
+                            max_clause,
+                            retained["objective"],
+                            node_total=len(current_domain),
+                            important_total=len(important_nodes_in_domain),
+                            patience=args.clause_bound_patience,
+                        )
+                        fallback_settings = stalled_domain_solver_settings(
+                            domain_clingo_mode,
+                            domain_clingo_strategy,
+                        )
+                        if (
+                            fallback_settings is None
+                            or not solution
+                            or not current_witness
+                        ):
+                            break
+                        domain_clingo_mode, domain_clingo_strategy = (
+                            fallback_settings
+                        )
+                        terminal_refinement_used = True
+                        stage_patience = SolverPatience(stage_patience_seconds)
+                        console.print_info(
+                            "switching domain continuation solver "
+                            f"(max clauses={max_clause}, "
+                            f"mode={domain_clingo_mode}, "
+                            f"strategy={domain_clingo_strategy}, "
+                            f"domain={len(current_domain)})",
+                            flush=True,
+                        )
+                    except SolverCapacityError as error:
+                        capacity_error = make_solver_capacity_error(
+                            error,
+                            domain_continuation=True,
+                            clause_continuation_parameter=(
+                                args.clause_continuation_parameter
+                            ),
+                        )
+                        console.print_warning(str(capacity_error), flush=True)
+                        exit_solver_capacity(args.timeout_status_file)
+
+                if continuation is None:
                     continue
-                except SolverCapacityError as error:
-                    capacity_error = make_solver_capacity_error(
-                        error,
-                        domain_continuation=True,
-                        clause_continuation_parameter=(
-                            args.clause_continuation_parameter
-                        ),
-                    )
-                    console.print_warning(str(capacity_error), flush=True)
-                    exit_solver_capacity(args.timeout_status_file)
 
                 if continuation.complete_domain_unsat:
                     if is_target:
@@ -2372,7 +2393,8 @@ def main() -> None:
                 current_witness = continuation.witness
                 complete_domain_optimal = continuation.complete_domain_optimal
                 terminal_refinement_used = (
-                    continuation.terminal_refinement_used
+                    terminal_refinement_used
+                    or continuation.terminal_refinement_used
                 )
             if solution and current_witness:
                 retain_model(current_domain, solution, current_witness)
@@ -2582,8 +2604,8 @@ def main() -> None:
         view.standalone(output_filename=args.asp)
 
         nodes_in_data, nodes_in_domain, domain_edges = get_node_sets(bo)
-        print_node_reference(nodes_in_data, nodes_in_domain, domain_edges)
-        print_solver_options(
+        console.print_node_reference(nodes_in_data, nodes_in_domain, domain_edges)
+        console.print_solver_options(
             args.clingo_mode,
             clingo_strategy,
             args.max_clauses,

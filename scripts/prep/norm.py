@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import os
 from pathlib import Path
@@ -7,9 +5,8 @@ from pathlib import Path
 import anndata as ad
 import bonesistools as bt
 import numpy as np
-from scipy import sparse
-
 from scbolt import cli, console, omics
+from scipy import sparse
 
 
 def normalize_by_library_size(adata, layer, target_sum=1e4):

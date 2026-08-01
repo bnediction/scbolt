@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import math
 import os
@@ -9,7 +7,6 @@ import anndata as ad
 import bonesistools as bt
 import pandas as pd
 from pandas import ExcelWriter
-
 from scbolt import cli, console
 
 script_name = Path(__file__).name

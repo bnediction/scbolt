@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import clingo
-
 
 STRUCTURAL_ATOM_ARITIES = {
     "node": 1,

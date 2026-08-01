@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import os
 import sys
@@ -7,7 +5,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
 import pysam
-
 from scbolt import cli, console
 
 
@@ -60,26 +57,31 @@ def copy_bam_tags(
     kept_reads = 0
     skipped_reads = 0
 
-    with pysam.AlignmentFile(infile, "rb", threads=jobs) as bam_in:
-        with pysam.AlignmentFile(
-            outfile, "wb", template=bam_in, threads=jobs
-        ) as bam_out:
-            for read in bam_in:
-                if barcodes is not None:
-                    if not read.has_tag(barcode_tag):
-                        skipped_reads += 1
-                        continue
-                    if read.get_tag(barcode_tag) not in barcodes:
-                        skipped_reads += 1
-                        continue
+    with (
+        pysam.AlignmentFile(infile, "rb", threads=jobs) as bam_in,
+        pysam.AlignmentFile(
+            outfile,
+            "wb",
+            template=bam_in,
+            threads=jobs,
+        ) as bam_out,
+    ):
+        for read in bam_in:
+            if barcodes is not None:
+                if not read.has_tag(barcode_tag):
+                    skipped_reads += 1
+                    continue
+                if read.get_tag(barcode_tag) not in barcodes:
+                    skipped_reads += 1
+                    continue
 
-                for source, destination in tags.items():
-                    if read.has_tag(source):
-                        value, value_type = read.get_tag(source, with_value_type=True)
-                        read.set_tag(destination, value, value_type=value_type)
-                        copied[(source, destination)] += 1
-                bam_out.write(read)
-                kept_reads += 1
+            for source, destination in tags.items():
+                if read.has_tag(source):
+                    value, value_type = read.get_tag(source, with_value_type=True)
+                    read.set_tag(destination, value, value_type=value_type)
+                    copied[(source, destination)] += 1
+            bam_out.write(read)
+            kept_reads += 1
 
     return copied, kept_reads, skipped_reads
 

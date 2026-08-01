@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import inspect
 import math
@@ -16,7 +14,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-
 from scbolt import cli, console, omics
 
 omics.set_default_plot_params(bt.omics.pl)
@@ -184,15 +181,16 @@ def main() -> None:
             stacklevel=1,
         )
 
-    if args.batch_size is None:
-        args.batch_size = len(counts)
-    elif args.batch_size > len(counts):
-        args.batch_size = len(counts)
+    sample_count = len(counts)
+    if args.batch_size is None or args.batch_size > sample_count:
+        args.batch_size = sample_count
 
-    if args.smooth_batch_size is None:
-        args.smooth_batch_size = min(len(counts), args.batch_size)
-    elif args.smooth_batch_size > len(counts) or args.smooth_batch_size > args.batch_size:
-        args.smooth_batch_size = min(len(counts), args.batch_size)
+    maximum_smooth_batch_size = min(sample_count, args.batch_size)
+    if (
+        args.smooth_batch_size is None
+        or args.smooth_batch_size > maximum_smooth_batch_size
+    ):
+        args.smooth_batch_size = maximum_smooth_batch_size
 
     with console.suppress_output():
         chunk_number = math.ceil(len(counts) / args.batch_size)
@@ -227,8 +225,7 @@ def main() -> None:
         np.random.shuffle(subsamples_indices)
     subsamples = np.array_split(subsamples_indices, chunk_number)
 
-    predictions = list()
-    results = list()
+    predictions = []
 
     console.print_task("predicting cell potencies")
 

@@ -279,7 +279,7 @@ $(eval DOROTHEA_LEVELS ?= A B C)            # DoRothEA confidence levels
 $(eval PATIENCE_CLAUSE_BOUND ?= 30m)        # shared intermediate clause-bound patience
 $(eval PATIENCE_DOMAIN_WAVE ?= 5m)          # shared domain-wave patience
 $(eval MIN_DOMAIN_YIELD ?= 0.10)            # minimum productive domain expansion yield
-$(eval MAX_DOMAIN_REFRESHES ?= 2)           # maximum constant-size domain refreshes
+$(eval MAX_DOMAIN_REFRESHES ?= 1)           # maximum constant-size domain refreshes
 $(eval CLINGO_THREADS ?= 1)                 # threads for the stage-level Clingo solver
 
 clause_continuation_clingo_default_strategy := bb,lin

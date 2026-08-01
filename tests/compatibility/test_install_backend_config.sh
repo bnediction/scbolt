@@ -11,7 +11,7 @@ source_copy="${tmpdir}/cli/source"
 home="${tmpdir}/cli/home"
 xdg_config="${tmpdir}/cli/config"
 mkdir -p "${source_copy}" "${home}" "${xdg_config}"
-for entry in Makefile VERSION install bin envs lib mk scripts; do
+for entry in Makefile VERSION install bin envs lib make scripts; do
     cp -R "${repo_root}/${entry}" "${source_copy}/"
 done
 HOME="${home}" XDG_CONFIG_HOME="${xdg_config}" \

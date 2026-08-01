@@ -1,16 +1,15 @@
-#!/usr/bin/env python3
-
 from __future__ import annotations
 
 import json
 import sys
 import tempfile
+from importlib import import_module
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "utils"))
 
-import check_conda_env as check  # noqa: E402
+check = import_module("check_conda_env")
 
 
 def write_distribution(site_packages: Path) -> None:

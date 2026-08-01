@@ -75,7 +75,7 @@ resolve_user_path_list_var = $(eval override $(1) := \
 	$(call resolve_path_list_from,$($(1)),$(call path_origin_base,$(1))))
 uniq = $(if $(1),$(firstword $(1)) $(call uniq,$(filter-out $(firstword $(1)),$(1))))
 
-include $(scbolt_root)/mk/default_params.mk
+include $(scbolt_root)/make/default_params.mk
 
 ifeq ($(DEFAULT_CONFIG),true)
 override PARAMS := (defaults)

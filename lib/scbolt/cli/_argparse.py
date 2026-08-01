@@ -1,13 +1,14 @@
-#!/usr/bin/env python
+from __future__ import annotations
 
 import argparse
 import math
 import re
 import shutil
 import textwrap
+from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
-from typing import Sequence, Union, cast
+from typing import cast
 
 
 class HelpFormatter(argparse.HelpFormatter):
@@ -80,7 +81,7 @@ class HelpFormatter(argparse.HelpFormatter):
         return "\n".join(lines)
 
 
-def Memory(value: str) -> Union[str, None]:
+def Memory(value: str) -> str | None:
     value = value.strip()
     if value == "":
         return None
@@ -121,7 +122,7 @@ class Store_version(argparse.Action):
         self.allow_bundled = kwargs.pop("allow_bundled", False)
         self.allow_date = kwargs.pop("allow_date", True)
         self.allow_path = kwargs.pop("allow_path", False)
-        default = kwargs["default"] if "default" in kwargs else None
+        default = kwargs.get("default")
         values = ["latest"]
         if self.allow_current:
             values.insert(0, "current")
@@ -137,13 +138,11 @@ class Store_version(argparse.Action):
                 "metavar": f"[{' | '.join(values)}]",
                 "default": default,
                 "help": (
-                    kwargs["help"]
-                    if "help" in kwargs
-                    else f"database version (default: {default})"
+                    kwargs.get("help", f"database version (default: {default})")
                 ),
             }
         )
-        super(Store_version, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(
         self,
@@ -218,8 +217,8 @@ class Range(argparse.Action):
 
     def __init__(
         self,
-        min: Union[float, int, None] = None,
-        max: Union[float, int, None] = None,
+        min: float | None = None,
+        max: float | None = None,
         *args,
         **kwargs,
     ):
@@ -235,7 +234,7 @@ class Range(argparse.Action):
         self.min = min
         self.max = max
         kwargs.update({"nargs": None, "metavar": f"[{self.min}-{self.max}]"})
-        super(Range, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_string=None):
         if not (self.min <= value <= self.max):
@@ -250,8 +249,8 @@ class Min_and_max(argparse.Action):
     def __init__(
         self,
         type: type = float,
-        min: Union[float, int] = -math.inf,
-        max: Union[float, int] = math.inf,
+        min: float = -math.inf,
+        max: float = math.inf,
         allowed_none: bool = True,
         *args,
         **kwargs,
@@ -281,7 +280,7 @@ class Min_and_max(argparse.Action):
         )
         if "default" not in kwargs:
             kwargs["default"] = [self.min, self.max]
-        super(Min_and_max, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
         values = cast(Sequence[str], values)
@@ -304,12 +303,15 @@ class Min_and_max(argparse.Action):
         checked_values = []
         for i in range(2):
             v = convert(self, values[i])
-            if v is not None and not isinstance(v, str):
-                if not self.min <= v <= self.max:
-                    raise argparse.ArgumentTypeError(
-                        self,
-                        f"expected values between {self.min} and {self.max}, but received {v}",
-                    )
+            if (
+                v is not None
+                and not isinstance(v, str)
+                and not self.min <= v <= self.max
+            ):
+                raise argparse.ArgumentTypeError(
+                    self,
+                    f"expected values between {self.min} and {self.max}, but received {v}",
+                )
             checked_values.append(v)
         if not any(v is None or isinstance(v, str) for v in checked_values):
             checked_values.sort()
@@ -326,10 +328,10 @@ class Str_or_min_and_max(argparse.Action):
 
     def __init__(
         self,
-        strings: Union[str, Sequence[str]],
+        strings: str | Sequence[str],
         type: type = float,
-        min: Union[float, int] = -math.inf,
-        max: Union[float, int] = math.inf,
+        min: float = -math.inf,
+        max: float = math.inf,
         allowed_none: bool = True,
         *args,
         **kwargs,
@@ -376,7 +378,7 @@ class Str_or_min_and_max(argparse.Action):
         )
         if "default" not in kwargs:
             kwargs["default"] = [self.min, self.max]
-        super(Str_or_min_and_max, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
         values = cast(Sequence[str], values)
@@ -400,7 +402,7 @@ class Str_or_min_and_max(argparse.Action):
         if len(values) == 1:
             if values[0] in self.strings:
                 setattr(namespace, self.dest, values[0])
-                return None
+                return
             elif isinstance(values[0], str):
                 raise argparse.ArgumentTypeError(
                     self,
@@ -413,12 +415,11 @@ class Str_or_min_and_max(argparse.Action):
         elif len(values) == 2:
             for i in range(2):
                 v = convert(self, values[i])
-                if v is not None:
-                    if not self.min <= v <= self.max:
-                        raise argparse.ArgumentTypeError(
-                            self,
-                            f"expected values between {self.min} and {self.max}, but received {v}",
-                        )
+                if v is not None and not self.min <= v <= self.max:
+                    raise argparse.ArgumentTypeError(
+                        self,
+                        f"expected values between {self.min} and {self.max}, but received {v}",
+                    )
                 checked_values.append(v)
             if not any(v is None for v in checked_values):
                 checked_values.sort()
@@ -428,7 +429,7 @@ class Str_or_min_and_max(argparse.Action):
                 if checked_values[1] is None:
                     checked_values[1] = self.max
             setattr(namespace, self.dest, checked_values)
-            return None
+            return
         else:
             raise argparse.ArgumentTypeError(
                 self,
@@ -440,7 +441,7 @@ class Store_boolean(argparse.Action):
 
     def __init__(self, *args, **kwargs):
         kwargs.update({"type": str, "metavar": "BOOL"})
-        super(Store_boolean, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_string=None):
         if value.lower() in ("0", "n", "no", "false"):
@@ -456,7 +457,7 @@ class Store_prefix(argparse.Action):
 
     def __init__(self, *args, **kwargs):
         kwargs.update({"type": str, "metavar": "LITERAL"})
-        super(Store_prefix, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_string=None):
         if value:
@@ -504,11 +505,11 @@ class Store_dict(argparse.Action):
             kwargs["nargs"] = "+"
 
         kwargs["metavar"] = f"{metavar_key}{sep}{metavar_value}"
-        super(Store_dict, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
         values = cast(Sequence[str], values)
-        setattr(namespace, self.dest, dict())
+        setattr(namespace, self.dest, {})
         for element in values:
             k, v = element.split(self.sep)
             k = self.type_key(k)
@@ -519,11 +520,10 @@ class Store_dict(argparse.Action):
 class Store_organism(argparse.Action):
 
     def __init__(self, *args, **kwargs):
-        default = kwargs["default"] if "default" in kwargs else None
-        choices = (
-            kwargs["choices"]
-            if "choices" in kwargs
-            else ["mouse", "human", "escherichia-coli"]
+        default = kwargs.get("default")
+        choices = kwargs.get(
+            "choices",
+            ["mouse", "human", "escherichia-coli"],
         )
         kwargs.update(
             {
@@ -531,14 +531,13 @@ class Store_organism(argparse.Action):
                 "choices": choices,
                 "metavar": "ORGANISM",
                 "default": default,
-                "help": (
-                    kwargs["help"]
-                    if "help" in kwargs
-                    else f"common name of the organism of interest (default: {default})"
+                "help": kwargs.get(
+                    "help",
+                    f"common name of the organism of interest (default: {default})",
                 ),
             }
         )
-        super(Store_organism, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_string=None):
 
@@ -550,12 +549,12 @@ class Store_organism(argparse.Action):
 class Required_length(argparse.Action):
 
     def __init__(
-        self, min: int = 0, max: Union[int, float] = math.inf, *args, **kwargs
+        self, min: int = 0, max: float = math.inf, *args, **kwargs
     ):
         self.min = min
         self.max = max
         kwargs.update({"nargs": "*"})
-        super(Required_length, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
         values = cast(Sequence[object], values)
@@ -577,7 +576,7 @@ class Store_axis(argparse.Action):
                 "choices": ["0", "1", "obs", "var"],
             }
         )
-        super(Store_axis, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_string=None):
         if value == "0":
@@ -594,15 +593,14 @@ class Store_type(argparse.Action):
         kwargs.update(
             {
                 "type": str,
-                "choices": (
-                    ["str", "int", "float", "complex", "bool", "category"]
-                    if "choices" not in kwargs
-                    else kwargs["choices"]
+                "choices": kwargs.get(
+                    "choices",
+                    ["str", "int", "float", "complex", "bool", "category"],
                 ),
                 "metavar": "TYPE",
             }
         )
-        super(Store_type, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_string=None):
 
@@ -660,12 +658,12 @@ class Store_metric(argparse.Action):
             {
                 "type": str,
                 "choices": choices,
-                "default": kwargs["default"] if "default" in kwargs else "euclidean",
+                "default": kwargs.get("default", "euclidean"),
                 "metavar": "METRIC",
-                "help": kwargs["help"] if "help" in kwargs else "distance metric",
+                "help": kwargs.get("help", "distance metric"),
             }
         )
-        super(Store_metric, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_string=None):
         setattr(namespace, self.dest, value)
@@ -675,15 +673,12 @@ class Bonesis_mode(argparse.Action):
 
     def check_bonesis_mode(self, v):
         if v in ["soft", "relaxed", "hard"]:
-            return None
+            return
         else:
             raise argparse.ArgumentError(self, f"invalid parameter value: {v}")
 
     def __init__(self, *args, **kwargs):
-        if "required" in kwargs:
-            required = kwargs["required"]
-        else:
-            required = False
+        required = kwargs.get("required", False)
         if "default" in kwargs:
             self.check_bonesis_mode(kwargs["default"])
             default = kwargs["default"]
@@ -702,10 +697,10 @@ class Bonesis_mode(argparse.Action):
                 "required": required,
                 "default": default,
                 "metavar": "[soft | relaxed | hard]",
-                "help": kwargs["help"] if "help" in kwargs else help,
+                "help": kwargs.get("help", help),
             }
         )
-        super(Bonesis_mode, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_string=None):
         self.check_bonesis_mode(value)
@@ -718,7 +713,7 @@ class Clingo_mode(argparse.Action):
     ENUM_PREFIX = "enum,"
 
     def __init__(self, *args, **kwargs):
-        default = kwargs.get("default", None)
+        default = kwargs.get("default")
         if default is not None:
             self._check_mode(default)
         kwargs.update(
@@ -726,14 +721,14 @@ class Clingo_mode(argparse.Action):
                 "type": str,
                 "default": default,
                 "metavar": "[opt | optN | ignore | enum,<bound>[,<bound>...]]",
-                "help": (
-                    kwargs["help"]
-                    if "help" in kwargs
-                    else f"clingo optimization mode: opt, optN, ignore, or enum,<bound>[,<bound>...] (default: {default})"
+                "help": kwargs.get(
+                    "help",
+                    "clingo optimization mode: opt, optN, ignore, or "
+                    f"enum,<bound>[,<bound>...] (default: {default})",
                 ),
             }
         )
-        super(Clingo_mode, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_string=None):
         self._check_mode(value)
@@ -741,11 +736,11 @@ class Clingo_mode(argparse.Action):
 
     def _check_mode(self, value):
         if value in self.VALID_MODES:
-            return None
+            return
         if value.startswith(self.ENUM_PREFIX):
             bounds = value.removeprefix(self.ENUM_PREFIX).split(",")
             if bounds and all(self._is_int(bound) for bound in bounds):
-                return None
+                return
             raise argparse.ArgumentError(
                 self,
                 f"invalid parameter value: expected enum,<bound>[,<bound>...] but received {value}",
@@ -766,8 +761,8 @@ class Clingo_mode(argparse.Action):
 class Clingo_strategy(argparse.Action):
 
     def check_strategy(self, v):
-        if v.startswith("bb") or v.startswith("usc"):
-            return None
+        if v.startswith(("bb", "usc")):
+            return
         else:
             raise argparse.ArgumentError(self, f"invalid parameter value: {v}")
 
@@ -782,14 +777,13 @@ class Clingo_strategy(argparse.Action):
                 "type": str,
                 "default": default,
                 "metavar": "[bb[,<method>] | usc[,<method>]]",
-                "help": (
-                    kwargs["help"]
-                    if "help" in kwargs
-                    else f"clingo optimization strategy (default: {default})"
+                "help": kwargs.get(
+                    "help",
+                    f"clingo optimization strategy (default: {default})",
                 ),
             }
         )
-        super(Clingo_strategy, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_string=None):
         self.check_strategy(value)
@@ -812,13 +806,11 @@ class Clingo_parallel_mode(argparse.Action):
                 "default": default,
                 "metavar": "INT",
                 "help": (
-                    kwargs["help"]
-                    if "help" in kwargs
-                    else f"number of Clingo jobs (default: {default})"
+                    kwargs.get("help", f"number of Clingo jobs (default: {default})")
                 ),
             }
         )
-        super(Clingo_parallel_mode, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_string=None):
         setattr(namespace, self.dest, self._normalize_parallel_mode(value))
@@ -869,7 +861,7 @@ class Clingo_parallel_mode(argparse.Action):
 
 class Bonesis_domain(argparse.Action):
 
-    VALID_DOMAINS = {"collectri", "dorothea"}
+    VALID_DOMAINS = frozenset({"collectri", "dorothea"})
 
     def check_domain(self, value):
         if value in self.VALID_DOMAINS:
@@ -905,11 +897,11 @@ class Bonesis_domain(argparse.Action):
                 "required": required,
                 "default": default,
                 "metavar": "[collectri | dorothea | FILE]",
-                "help": kwargs["help"] if "help" in kwargs else help,
+                "help": kwargs.get("help", help),
             }
         )
 
-        super(Bonesis_domain, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_string=None):
         value = self.check_domain(value)

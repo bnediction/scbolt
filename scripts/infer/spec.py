@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import os
 from pathlib import Path
@@ -8,15 +6,14 @@ import bonesis
 import bonesistools as bt
 import pandas as pd
 import yaml
-from _specification import normalize_model_specification
+from scbolt import cli, console
+from scbolt.inference import normalize_model_specification
 from utils import (
     get_cfg,
     load_bonesis_code,
     load_prior_network,
     remove_forbidden_nodes,
 )
-
-from scbolt import cli, console
 
 bonesis.settings["quiet"] = True
 script_name = Path(__file__).name
@@ -331,8 +328,7 @@ The model specification file (format: yml) recognizes four sections:
     console.print_task(f"saving Boolean specification (file={model_path})")
 
     with open(args.model, "w") as file:
-        for constraint in dynamical_constraints:
-            file.write(f"{constraint}\n")
+        file.writelines(f"{constraint}\n" for constraint in dynamical_constraints)
 
     console.print_task(f"saving CSV table (file={console.format_path(args.metastates)})")
 
@@ -342,22 +338,19 @@ The model specification file (format: yml) recognizes four sections:
     console.print_task(f"saving node list (file={important_nodes_path})")
 
     with open(args.important_nodes, "w") as file:
-        for node in sorted(important_nodes):
-            file.write(f"{node}\n")
+        file.writelines(f"{node}\n" for node in sorted(important_nodes))
 
     mandatory_nodes_path = console.format_path(args.mandatory_nodes)
     console.print_task(f"saving node list (file={mandatory_nodes_path})")
 
     with open(args.mandatory_nodes, "w") as file:
-        for node in sorted(mandatory_nodes):
-            file.write(f"{node}\n")
+        file.writelines(f"{node}\n" for node in sorted(mandatory_nodes))
 
     forbidden_nodes_path = console.format_path(args.forbidden_nodes)
     console.print_task(f"saving node list (file={forbidden_nodes_path})")
 
     with open(args.forbidden_nodes, "w") as file:
-        for node in sorted(forbidden_nodes):
-            file.write(f"{node}\n")
+        file.writelines(f"{node}\n" for node in sorted(forbidden_nodes))
 
 
 if __name__ == "__main__":

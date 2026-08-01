@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import json
 import os
@@ -7,14 +5,13 @@ from pathlib import Path
 
 import bonesistools as bt
 import pandas as pd
-
 from scbolt import cli, console
 
 
 def file2signatures(file):
-    signatures_d = dict()
+    signatures_d = {}
     for sheetname, signature in file.items():
-        if not sheetname == "Description":
+        if sheetname != "Description":
             cell_type = sheetname.split(".txt", 1)[0]
             gene_symbols = [
                 gene for gene in list(signature["Gene Symbol"]) if isinstance(gene, str)
@@ -24,7 +21,7 @@ def file2signatures(file):
 
 
 def df2signatures(df):
-    signatures_d = dict()
+    signatures_d = {}
     for cell_type, signatures in df.items():
         gene_symbols = [gene for gene in signatures if isinstance(gene, str)]
         signatures_d[cell_type] = gene_symbols

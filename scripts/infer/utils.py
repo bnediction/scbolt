@@ -1,28 +1,22 @@
-#!/usr/bin/env python
-
 import argparse
 import inspect
 import os
 import sys
 from collections import OrderedDict
+from collections.abc import Callable, Mapping, Sequence
+from contextlib import ExitStack
 from numbers import Number
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import Any
 
 import bonesis
 import bonesistools as bt
 import pandas as pd
 from pandas import DataFrame
 from pandas._typing import Axis
-from tqdm import tqdm
-
 from scbolt import cli, console
-from scbolt.runtime import (
-    SolverDeadline,
-    SolverPatience,
-    iter_solutions,
-    parse_solver_timeout,
-)
+from scbolt.runtime import get_clingo_parallel_mode, parse_solver_timeout
+from tqdm import tqdm
 
 DISABLE_TQDM = os.getenv("TQDM_DISABLE", "0") == "1"
 TQDM_TO_TTY = os.getenv("TQDM_TO_TTY", "0") == "1"
@@ -36,10 +30,13 @@ class ptqdm(tqdm):
         kwargs["leave"] = False
         kwargs.setdefault("dynamic_ncols", True)
 
+        self._tqdm_file_context = ExitStack()
         self._tqdm_file = None
         if TQDM_TO_TTY and "file" not in kwargs:
             try:
-                self._tqdm_file = open("/dev/tty", "w")
+                self._tqdm_file = self._tqdm_file_context.enter_context(
+                    console.open_terminal_stream()
+                )
                 kwargs.setdefault("file", self._tqdm_file)
             except OSError:
                 pass
@@ -54,7 +51,7 @@ class ptqdm(tqdm):
     def close(self):
         super().close()
         if self._tqdm_file is not None:
-            self._tqdm_file.close()
+            self._tqdm_file_context.close()
             self._tqdm_file = None
 
     def set_postfix(self, ordered_dict=None, refresh=True, **kwargs):
@@ -353,7 +350,7 @@ def initialize_bonesis(
     if args.filter_grn:
         console.print_info(f"filtering prior network (genes={args.filter_grn})")
         with open(args.filter_grn) as file:
-            nodes = [line.strip() for line in file.readlines()]
+            nodes = [line.strip() for line in file]
         grn = grn.subgraph(nodes)
 
     pkn = bonesis.domains.InfluenceGraph(grn, **pkn_options)
@@ -411,89 +408,7 @@ def get_node_sets(bo: bonesis.BoNesis) -> tuple[set, set, int]:
     return nodes_in_data, set(bo.domain.nodes), bo.domain.number_of_edges()
 
 
-def print_node_reference(nodes_in_data, nodes_in_domain, domain_edges, **kwargs):
-    """Print data and regulatory-domain sizes."""
-
-    console.print_info(
-        f"input graph: data nodes={len(nodes_in_data)}, "
-        f"domain nodes={len(nodes_in_domain)}, domain edges={domain_edges}",
-        **kwargs,
-    )
-
-
-def print_solver_options(
-    mode,
-    strategy,
-    max_clause,
-    canonical,
-    configuration=None,
-    jobs=None,
-    **kwargs,
-):
-    """Print the effective solver and Boolean encoding settings."""
-
-    solver_options = []
-    strategy = (
-        "unused"
-        if mode == "ignore" or mode.startswith("enum,")
-        else strategy
-    )
-    if configuration is not None:
-        solver_options.append(f"config={configuration}")
-    solver_options.extend(
-        [
-            f"mode={mode}",
-            f"strategy={strategy}",
-        ]
-    )
-    if jobs is not None:
-        solver_options.append(f"threads={jobs}")
-
-    console.print_options(
-        f"clingo solver: {', '.join(solver_options)}",
-        **kwargs,
-    )
-    console.print_options(
-        "encoding: "
-        f"max clauses={max_clause}, canonical={str(canonical).lower()}",
-        **kwargs,
-    )
-
-
-def get_clingo_parallel_mode(value: str) -> tuple[int | None, str | None]:
-    """Translate a Clingo parallel-mode argument for Python or CLI usage."""
-
-    if "," in value:
-        return None, f"--parallel-mode={value}"
-    return int(value), None
-
-
-def close_progress(view: Any) -> None:
-    """Close and clear a BoNesis view progress bar when present."""
-
-    progressbar = getattr(view, "_progressbar", None)
-    if progressbar is not None:
-        progressbar.leave = False
-        progressbar.clear()
-        progressbar.close()
-
-
-def next_solution(
-    view: Any,
-    deadline: Optional[SolverDeadline] = None,
-    patience: Optional[SolverPatience] = None,
-) -> Any:
-    """Return the next view solution and clear its progress bar."""
-
-    solutions = iter_solutions(view, deadline, patience)
-    try:
-        return next(solutions)
-    finally:
-        solutions.close()
-        close_progress(view)
-
-
-def get_cfg(df: DataFrame, axis: Axis = 0, identifiers: Optional[Any] = None) -> dict:
+def get_cfg(df: DataFrame, axis: Axis = 0, identifiers: Any | None = None) -> dict:
     """
     Convert configurations from dataframe format into dictionary format.
 
@@ -564,7 +479,7 @@ def load_prior_network(
     domain: str,
     organism: str,
     identifiers: Any,
-    dorothea_levels: Optional[Sequence[str]] = None,
+    dorothea_levels: Sequence[str] | None = None,
     omnipath_version: str = "latest",
     hcop_version: str = "bundled",
     dorothea_api: str = "modern",

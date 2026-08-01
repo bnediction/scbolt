@@ -1,10 +1,7 @@
-#!/usr/bin/env python
-
 import argparse
 from pathlib import Path
 
 import anndata as ad
-
 from scbolt import cli, console, omics
 
 script_name = Path(__file__).name

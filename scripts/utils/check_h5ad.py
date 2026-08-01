@@ -1,11 +1,8 @@
-#!/usr/bin/env python
-
 import argparse
 import sys
 from pathlib import Path
 
 import h5py
-
 from scbolt import cli, console
 
 script_name = Path(__file__).name

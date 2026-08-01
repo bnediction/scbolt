@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 from __future__ import annotations
 
 import os
@@ -30,7 +28,13 @@ def _latex_can_render_pdf() -> bool:
                 axis.text(0.5, 0.5, r"$x$")
                 figure.savefig(outfile)
         return True
-    except Exception:
+    except (
+        ImportError,
+        OSError,
+        RuntimeError,
+        ValueError,
+        subprocess.SubprocessError,
+    ):
         return False
 
 
@@ -60,7 +64,7 @@ def axis_label(label: str, component: int) -> str:
     """Return a TeX or plain-text axis label depending on TeX availability."""
 
     if use_latex_rendering():
-        return r"$\mathrm{{{}_{{{}}}}}$".format(label, component)
+        return rf"$\mathrm{{{label}_{{{component}}}}}$"
     return f"{label}{component}"
 
 

@@ -1,30 +1,29 @@
-#!/usr/bin/env python3
-
 import sys
+from importlib import import_module
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "scripts" / "infer"))
+sys.path.insert(0, str(REPO_ROOT / "lib"))
 
-from _domain_continuation import (  # noqa: E402
-    DomainCandidateResult,
-    DomainMemoryEstimator,
-    DomainPortfolioLaunchState,
-    DomainWaveLeader,
-    bounded_midpoint,
-    build_candidate_wave,
-    continuation_base_domain,
-    domain_expansion_gains,
-    expansion_domain_size,
-    initial_domain_size,
-    memory_limited_portfolio_size,
-    minimum_domain_gain,
-    outcome_counts,
-    select_best_candidate,
-    solver_result_certifies_optimum,
-    solution_objective,
-    terminal_refinement_solver_settings,
-)
+continuation = import_module("scbolt.inference._continuation")
+DomainCandidateResult = continuation.DomainCandidateResult
+DomainMemoryEstimator = continuation.DomainMemoryEstimator
+DomainPortfolioLaunchState = continuation.DomainPortfolioLaunchState
+DomainWaveLeader = continuation.DomainWaveLeader
+bounded_midpoint = continuation.bounded_midpoint
+build_candidate_wave = continuation.build_candidate_wave
+continuation_base_domain = continuation.continuation_base_domain
+domain_expansion_gains = continuation.domain_expansion_gains
+expansion_domain_size = continuation.expansion_domain_size
+initial_domain_size = continuation.initial_domain_size
+memory_limited_portfolio_size = continuation.memory_limited_portfolio_size
+minimum_domain_gain = continuation.minimum_domain_gain
+outcome_counts = continuation.outcome_counts
+select_best_candidate = continuation.select_best_candidate
+solution_objective = continuation.solution_objective
+solver_result_certifies_optimum = continuation.solver_result_certifies_optimum
+stalled_domain_solver_settings = continuation.stalled_domain_solver_settings
+terminal_refinement_solver_settings = continuation.terminal_refinement_solver_settings
 
 complete = {f"g{i}" for i in range(20)}
 current = {"g0", "g1", "g2"}
@@ -135,6 +134,11 @@ assert terminal_refinement_solver_settings(
     "ignore",
     optimum_certified=False,
 ) is None
+assert stalled_domain_solver_settings("opt", "bb,inc") == ("opt", "bb,lin")
+assert stalled_domain_solver_settings("optN", "usc") == ("opt", "bb,lin")
+assert stalled_domain_solver_settings("opt", "bb,lin") is None
+assert stalled_domain_solver_settings("optN", "bb,lin") is None
+assert stalled_domain_solver_settings("ignore", "bb,inc") is None
 assert solver_result_certifies_optimum("opt", interrupted=False)
 assert solver_result_certifies_optimum("optN", interrupted=False)
 assert not solver_result_certifies_optimum("opt", interrupted=True)

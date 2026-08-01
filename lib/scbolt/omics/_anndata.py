@@ -1,10 +1,9 @@
-#!/usr/bin/env python
-
 from __future__ import annotations
 
 import os
 import tempfile
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 
 def include_available_features(

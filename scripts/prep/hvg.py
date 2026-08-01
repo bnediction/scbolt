@@ -1,12 +1,9 @@
-#!/usr/bin/env python
-
 import argparse
 import os
 from pathlib import Path
 
 import anndata as ad
 import bonesistools as bt
-
 from scbolt import cli, console
 from scbolt.omics import include_available_features
 
@@ -119,11 +116,10 @@ def main() -> None:
     adata = ad.read_h5ad(f"{args.infile}")
     available_features = list(adata.var.index)
 
-    if args.hvg is not None:
-        if args.hvg > len(adata.var):
-            raise ValueError(
-                f"invalid value for parameter 'hvg': number of hvg ({args.hvg}) is greater than number of genes in adata ({adata.n_vars})"
-            )
+    if args.hvg is not None and args.hvg > len(adata.var):
+        raise ValueError(
+            f"invalid value for parameter 'hvg': number of hvg ({args.hvg}) is greater than number of genes in adata ({adata.n_vars})"
+        )
 
     if "highly_variable" in adata.var:
         del adata.var["highly_variable"]
@@ -167,8 +163,7 @@ def main() -> None:
         )
 
     with open(args.outfile, "w") as file:
-        for gene in selected_features:
-            file.write(f"{gene}\n")
+        file.writelines(f"{gene}\n" for gene in selected_features)
 
 
 if __name__ == "__main__":

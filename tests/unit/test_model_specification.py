@@ -1,19 +1,23 @@
-#!/usr/bin/env python3
-
 import sys
+from importlib import import_module
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "scripts/infer"))
+sys.path.insert(0, str(REPO_ROOT / "lib"))
 
-from _specification import normalize_model_specification  # noqa: E402
+normalize_model_specification = import_module(
+    "scbolt.inference"
+).normalize_model_specification
 
 
-def assert_invalid(value, expected_message: str) -> None:
+def assert_invalid(
+    value,
+    expected_message: str,
+    error_type: type[Exception] = ValueError,
+) -> None:
     try:
         normalize_model_specification(value)
-    except ValueError as error:
+    except error_type as error:
         assert str(error) == expected_message
     else:
         raise AssertionError(f"invalid specification accepted: {value!r}")
@@ -33,7 +37,7 @@ assert normalized == {
     "forbidden-nodes": [],
 }
 
-assert_invalid([], "model specification must be a YAML mapping")
+assert_invalid([], "model specification must be a YAML mapping", TypeError)
 assert_invalid({}, "missing model specification section: constraints")
 assert_invalid(
     {"constraints": [], "unknown": []},
@@ -42,10 +46,12 @@ assert_invalid(
 assert_invalid(
     {"constraints": "a = b"},
     "model specification section 'constraints' must be a list",
+    TypeError,
 )
 assert_invalid(
     {"constraints": [1]},
     "model specification section 'constraints' must contain only strings",
+    TypeError,
 )
 
 print("model specification tests passed")

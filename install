@@ -21,7 +21,7 @@ scbolt_runtime_entries=(
     bin
     envs
     lib
-    mk
+    make
     scripts
 )
 scbolt_envs=(

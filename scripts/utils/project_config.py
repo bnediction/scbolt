@@ -1,18 +1,16 @@
-#!/usr/bin/env python3
 """Validate scBOLT project YAML and expose its internal settings."""
 
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
-from pathlib import Path
 import re
 import sys
-from typing import Iterable
+from collections.abc import Iterable
+from dataclasses import dataclass
+from pathlib import Path
 
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
-
 
 STRING = "string"
 BOOLEAN = "boolean"

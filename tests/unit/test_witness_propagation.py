@@ -1,31 +1,16 @@
-#!/usr/bin/env python3
-
-import ast
 import json
 import subprocess
 import sys
 import tempfile
+from importlib import import_module
 from pathlib import Path
-from typing import Iterable
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SELECTION = REPO_ROOT / "scripts" / "infer" / "selection.py"
+sys.path.insert(0, str(REPO_ROOT / "lib"))
 
-
-def load_policy():
-    tree = ast.parse(SELECTION.read_text(), filename=str(SELECTION))
-    function = next(
-        node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef)
-        and node.name == "should_forward_previous_solution"
-    )
-    namespace = {"Iterable": Iterable}
-    exec(compile(ast.Module([function], []), str(SELECTION), "exec"), namespace)
-    return namespace[function.name]
-
-
-should_forward = load_policy()
+should_forward = import_module(
+    "scbolt.inference"
+).should_forward_previous_solution
 
 # RELAXED or SEED forwards only when it adds no constraints and has no valid
 # warm start. LOCK always solves when an upstream witness is available.

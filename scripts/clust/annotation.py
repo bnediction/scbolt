@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import os
 from pathlib import Path
@@ -8,7 +6,6 @@ import anndata as ad
 import bonesistools as bt
 import matplotlib.pyplot as plt
 import pandas as pd
-
 from scbolt import cli, console, omics
 from scbolt.omics import (
     check_exported_composition,

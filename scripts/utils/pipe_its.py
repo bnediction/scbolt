@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import os
 from pathlib import Path
@@ -7,7 +5,6 @@ from pathlib import Path
 import anndata as ad
 import bonesistools as bt
 import pandas as pd
-
 from scbolt import cli, console, omics
 
 script_name = Path(__file__).name
@@ -238,7 +235,7 @@ def main() -> None:
         cols_to_remove = set(args.obs).intersection(set(adata.obs.columns))
         if cols_to_remove:
             console.print_debug(
-                "removing columns (dataset={0}, columns={1})".format(
+                "removing columns (dataset={}, columns={})".format(
                     name, "+".join(map(str, cols_to_remove))
                 )
             )
@@ -251,7 +248,7 @@ def main() -> None:
             cols_to_remove = set(args.var).intersection(set(adata.var.columns))
             if cols_to_remove:
                 console.print_debug(
-                    "removing columns (dataset={0}, columns={1})".format(
+                    "removing columns (dataset={}, columns={})".format(
                         name, "+".join(map(str, cols_to_remove))
                     )
                 )

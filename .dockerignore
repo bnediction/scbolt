@@ -16,8 +16,8 @@
 !lib/**
 !man/
 !man/**
-!mk/
-!mk/**
+!make/
+!make/**
 !scripts/
 !scripts/**
 !quickstart/

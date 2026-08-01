@@ -1,25 +1,24 @@
-#!/usr/bin/env python
+from __future__ import annotations
 
 import argparse
 import itertools
 import json
 import os
 from collections import OrderedDict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Optional
 
 import bonesistools as bt
 import decoupler as dc
 import networkx as nx
 import numpy as np
 import pandas as pd
-
 from scbolt import cli, console
 
 
 def collectri_to_grn(
     collectri: pd.DataFrame,
-    sign_label: Optional[str] = "weight",
+    sign_label: str | None = "weight",
     remove_pmid: bool = False,
 ) -> nx.MultiDiGraph:
     if sign_label is not None:
@@ -37,9 +36,9 @@ def collectri_to_grn(
 
 def gene_removal(
     df: pd.DataFrame, graph: nx.Graph, copy: bool = True
-) -> Optional[pd.DataFrame]:
+) -> pd.DataFrame | None:
     df = df.copy() if copy is True else df
-    genes_to_remove = list()
+    genes_to_remove = []
     for gene in df.columns:
         if gene not in graph.nodes:
             genes_to_remove.append(gene)
@@ -49,7 +48,7 @@ def gene_removal(
 
 def sign_likelihood(
     interaction_scores: dict,
-    gene_set: Optional[Iterable[str]] = None,
+    gene_set: Iterable[str] | None = None,
     minimum_path_number: int = 3,
     relative_threshold: float = 0.75,
     enable_loop: bool = False,

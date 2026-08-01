@@ -1,11 +1,10 @@
-#!/usr/bin/env python
 
 from ._argparse import (
     Bonesis_domain,
     Bonesis_mode,
     Clingo_mode,
-    Clingo_strategy,
     Clingo_parallel_mode,
+    Clingo_strategy,
     HelpFormatter,
     Memory,
     Min_and_max,

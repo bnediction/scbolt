@@ -1,9 +1,7 @@
-#!/usr/bin/env python3
 
 import ast
 import importlib.util
 from pathlib import Path
-
 
 REPO = Path(__file__).resolve().parents[2]
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 
 from __future__ import annotations
 
@@ -92,9 +91,12 @@ def read_environment_yaml(path: Path) -> tuple[str | None, list[PackageSpec]]:
             if not in_pip and (spec := parse_conda_spec(value)) is not None:
                 specs.append(spec)
             continue
-        if in_pip and line.startswith("      - "):
-            if spec := parse_pip_spec(line[8:].strip()):
-                specs.append(spec)
+        if (
+            in_pip
+            and line.startswith("      - ")
+            and (spec := parse_pip_spec(line[8:].strip()))
+        ):
+            specs.append(spec)
 
     return name, specs
 

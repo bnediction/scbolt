@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import os
 import warnings
@@ -9,7 +7,6 @@ import anndata as ad
 import bonesistools as bt
 import matplotlib.pyplot as plt
 import scvelo as scv
-
 from scbolt import cli, console, omics
 
 warnings.filterwarnings(
@@ -233,11 +230,12 @@ def main() -> None:
             )
             for txt in ax.texts:
                 txt.set_visible(False)
+            stream_plot_pdf = Path(f"{outpath}/stream_plot.pdf")
             try:
-                plt.savefig(Path(f"{outpath}/stream_plot.pdf"))
-            except Exception:
-                if os.path.isfile(Path(f"{outpath}/stream_plot.pdf")):
-                    os.remove(Path(f"{outpath}/stream_plot.pdf"))
+                plt.savefig(stream_plot_pdf)
+            except (OSError, OverflowError, RuntimeError, ValueError):
+                if os.path.isfile(stream_plot_pdf):
+                    os.remove(stream_plot_pdf)
                 plt.savefig(Path(f"{outpath}/stream_plot.png"))
             plt.close()
 
@@ -265,7 +263,7 @@ def main() -> None:
             outfile=Path(f"{outpath}/velocity_pseudotime.pdf"),
         )
 
-        fig, ax = bt.omics.pl.embedding(
+        _fig, ax = bt.omics.pl.embedding(
             adata,
             obs=args.cluster,
             representation="X_umap" if args.embedding == "umap" else "X_tsne",

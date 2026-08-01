@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 from __future__ import annotations
 
 import argparse
@@ -86,7 +84,7 @@ def command_tokens(command: str) -> list[str]:
 
 def script_token(tokens: list[str]) -> str | None:
     for token in tokens:
-        if token.endswith(".py") or token.endswith(".R"):
+        if token.endswith((".py", ".R")):
             return token
     return None
 
