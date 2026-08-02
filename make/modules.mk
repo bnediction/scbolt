@@ -378,7 +378,7 @@ clause_continuation = $(if $(filter true,$($(1))),--clause-continuation)
 domain_continuation_params = \
 	DOMAIN_CONTINUATION_SOFT DOMAIN_CONTINUATION_RELAXED \
 	DOMAIN_CONTINUATION_SEED DOMAIN_CONTINUATION_LOCK
-domain_wave_patience_params = PATIENCE_DOMAIN_WAVE
+domain_wave_patience_params = PATIENCE_DOMAIN_WAVE PATIENCE_DOMAIN_WAVE_LOCK
 domain_continuation_policy_params = MIN_DOMAIN_YIELD MAX_DOMAIN_REFRESHES
 domain_continuation = $(if $(filter true,$($(1))),--domain-continuation)
 clingo_threads_params = CLINGO_THREADS
@@ -629,7 +629,7 @@ target_params_max-nodes-seed = \
 target_params_max-nodes-lock = \
 	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
 	CLAUSE_CONTINUATION_LOCK PATIENCE_CLAUSE_BOUND \
-	DOMAIN_CONTINUATION_LOCK PATIENCE_DOMAIN_WAVE \
+	DOMAIN_CONTINUATION_LOCK PATIENCE_DOMAIN_WAVE_LOCK \
 	$(domain_continuation_policy_params) \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),MEMORY JOBS) \
 	CLINGO_CONFIG_LOCK CLINGO_MODE_LOCK CLINGO_STRATEGY_LOCK \
@@ -733,7 +733,7 @@ sensitive_params_max-nodes-seed = \
 sensitive_params_max-nodes-lock = \
 	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
 	CLAUSE_CONTINUATION_LOCK PATIENCE_CLAUSE_BOUND \
-	DOMAIN_CONTINUATION_LOCK PATIENCE_DOMAIN_WAVE \
+	DOMAIN_CONTINUATION_LOCK PATIENCE_DOMAIN_WAVE_LOCK \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),\
 		$(domain_continuation_policy_params) MEMORY JOBS) \
 	CLINGO_CONFIG_LOCK CLINGO_MODE_LOCK CLINGO_STRATEGY_LOCK \

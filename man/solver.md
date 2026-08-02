@@ -228,9 +228,10 @@ other than `bb,lin`, scBOLT retains its best domain and witness, resets that
 patience once, and resumes the same clause bound with `opt` and `bb,lin`. A
 second expiration advances to the next clause bound. Domain continuation also
 has one terminal refinement exception described below: after an uncertified
-complete-domain wave, scBOLT uses `opt` with `bb,lin` for one additional solver
-portfolio initialized from the best retained witness. Explicit `ignore` mode
-disables both optimization fallbacks.
+complete-domain wave run under another strategy, scBOLT uses `opt` with
+`bb,lin` for one additional solver portfolio initialized from the best retained
+witness. A wave already using `bb,lin`, or an explicit `ignore` mode, disables
+this additional refinement.
 
 Clause continuation is available for `SOFT`, `RELAXED`, `SEED`, and `LOCK` node
 selection stages. It does not apply to the `CONSTS` stage.
@@ -251,9 +252,10 @@ Domain continuation has up to four phases:
 3. **Complete-domain exploration:** independent Clingo instances receive the
    same retained witness and explore complementary deterministic search paths
    with the user-selected optimization strategy.
-4. **Terminal refinement:** when that portfolio does not certify the optimum,
-   another complete-domain portfolio resumes from its best witness using `opt`
-   with `bb,lin` and complementary deterministic search profiles.
+4. **Terminal refinement:** when that portfolio does not certify the optimum
+   and used another strategy, a complete-domain portfolio resumes from its best
+   witness using `opt` with `bb,lin` and complementary deterministic search
+   profiles.
 
 Stages that must solve without an initial witness can enter all four phases.
 When `LOCK` receives a structural witness computed by `SEED`, it skips the
@@ -266,7 +268,7 @@ no witness -> acquisition portfolio -> witness on D0
            -> expansion wave -> selected D1
            -> expansion wave -> selected D2 -> ...
            -> complete-domain portfolio with the selected strategy
-              -> certified optimum, or bb,lin refinement portfolio on G
+              -> certified optimum, or optional bb,lin refinement on G
 ```
 
 Every candidate contains all important and mandatory nodes. The remaining
@@ -332,17 +334,19 @@ objective until the shared wave patience expires or every worker finishes.
 Every acquisition and expansion wave owns one shared patience clock. The clock
 is inactive during the initial grounding and starts for its full configured
 duration when the first candidate enters solving. Each later candidate entering
-solving guarantees that at least two minutes remain, capped by the configured
-patience. The inherited solution establishes the initial best objective. A
+solving guarantees that at least 40% of the configured patience remains. The
+inherited solution establishes the initial best objective. A
 witness whose lexicographic objective `(important nodes, total nodes)` is
 strictly better than the current leader resets the full configured patience. A
 different candidate reaching the current leader objective for the first time
-joins the objective frontier and provides the same two-minute guarantee. These
-operations never shorten a longer remaining delay. Repeated equal objectives
-from a candidate already on the frontier, and local improvements that remain
-globally inferior, do not change the clock. Newly available or competitive
-search branches therefore receive a short opportunity to progress without
-extending a wave by one complete patience period per candidate.
+joins the objective frontier and provides the same proportional guarantee. The
+grace is the configured patience divided by 2.5: two minutes for a five-minute
+wave and four minutes for a ten-minute wave. These operations never shorten a
+longer remaining delay. Repeated equal objectives from a candidate already on
+the frontier, and local improvements that remain globally inferior, do not
+change the clock. Newly available or competitive search branches therefore
+receive a short opportunity to progress without extending a wave by one
+complete patience period per candidate.
 
 When the shared patience expires, all unresolved workers are interrupted and
 queued candidates are not started. Candidates that already produced a witness
@@ -374,8 +378,9 @@ After a witness is selected:
 11. a worker certifying the complete-domain optimum interrupts the remaining
     portfolio and makes further refinement unnecessary;
 12. otherwise, after shared wave patience, the best deterministic witness is
-    retained and a second `jobs`-wide portfolio resumes from it using `opt` and
-    `bb,lin` with distinct deterministic solver profiles;
+    retained; when the selected strategy differs from `bb,lin`, a second
+    `jobs`-wide portfolio resumes from it using `opt` and `bb,lin` with distinct
+    deterministic solver profiles;
 13. a certified refinement worker interrupts its siblings. At an intermediate
     clause bound, clause-bound patience limits this portfolio; at the target
     bound, only certification or the global stage timeout stops it.
@@ -432,11 +437,14 @@ and committing permanently to the node order that produced the first witness.
 
 Expansion sizes also use midpoints. After retaining a domain `D`, the next
 target lies halfway between `D` and `G`. If a complete expansion wave produces
-no successful candidate, scBOLT halves the expansion step and generates new
-candidate compositions while preserving `D` and its witness. A midpoint step
-at or below the adaptive terminal threshold is coalesced with all remaining
-nodes, avoiding successive tiny terminal expansions. The upper bound of 10
-keeps this shortcut conservative on large initial domains.
+no successful candidate and no definitive `UNSAT` result, scBOLT first spends
+the constant-size refresh budget on new candidate compositions. If none
+succeeds, it halves the expansion step while preserving `D` and its witness. At
+an irreducible one-node step, one `opt` and `bb,lin` portfolio is attempted; a
+second unresolved result marks continuation exhausted at that clause bound. A
+midpoint step at or below the adaptive terminal threshold is coalesced with all
+remaining nodes, avoiding successive tiny terminal expansions. The upper bound
+of 10 keeps this shortcut conservative on large initial domains.
 
 For a successful expansion from `D0` to `D1`, scBOLT measures:
 
@@ -461,13 +469,14 @@ protected set is therefore derived from the actual witness rather than from the
 numeric gain alone.
 
 At most `maximum-domain-refreshes` constant-size refresh waves are attempted for
-one expansion size. This limit is reset only after the domain size increases;
-objective improvements do not reset it. Reaching the limit or exhausting every
-distinct candidate composition advances to the next midpoint with the best
-retained witness even when the requested yield was not reached. The policy is
-therefore strict but cannot block domain growth. Setting either
-`minimum-domain-yield: 0` or `maximum-domain-refreshes: 0` disables yield-based refreshes
-and preserves direct midpoint expansion.
+one acquisition or expansion size. A fully unresolved wave consumes this same
+budget before the target size is reduced. After a successful expansion, its
+remaining budget may instead refresh an insufficient-yield shell. The limit is
+reset only after the domain size changes; objective improvements do not reset
+it. Reaching the limit or exhausting every distinct candidate composition
+advances the continuation policy with the best retained witness. Setting
+`maximum-domain-refreshes: 0` disables all constant-size refreshes, while
+`minimum-domain-yield: 0` disables only yield-based refreshes.
 
 Acquisition, expansion, constant-size refresh, and the initial complete-domain
 wave use the Clingo mode and strategy selected by the user. This lets an anytime
@@ -481,9 +490,10 @@ to the next clause bound. No fallback is performed when the current strategy is
 already `bb,lin` or the mode is `ignore`.
 
 After the complete domain is reached, and only when its portfolio has not
-certified the optimum, one additional complete-domain portfolio resumes from
-the best witness with `opt` and `bb,lin`. This terminal refinement portfolio
-occurs at most once per clause bound. It is skipped after certification and
+certified the optimum and used a strategy other than `bb,lin`, one additional
+complete-domain portfolio resumes from the best witness with `opt` and
+`bb,lin`. This terminal refinement portfolio occurs at most once per clause
+bound. It is skipped after certification, when `bb,lin` is already active, and
 when the user explicitly selects `ignore`.
 
 Domain yield and solver optimality are independent. A candidate may have a
@@ -553,7 +563,11 @@ individual candidate. Portable Python worker threads coordinate these controls
 on Linux and macOS; the Clingo solves themselves execute outside the Python
 GIL. Only the coordinator writes outputs and renders progress. An interactive
 terminal displays one reusable progress line per active candidate, whereas log
-files retain only completed wave summaries and solver outcomes.
+files retain only completed wave summaries and solver outcomes. The `certified`
+summary field counts candidates that proved optimality for their own evaluated
+domain, while `sat` counts successful candidates without such a certificate.
+These categories are exclusive. A certificate on an incomplete subdomain never
+stops the other domains.
 
 Worker profiles and their candidate-index tie-breaking are deterministic for a
 fixed `seed`, clause bound, wave and `jobs` value. Wall-clock patience and timeout
@@ -587,9 +601,10 @@ The combined domain and clause transition policy is:
   is a computational bottleneck. Continue searching smaller or compositionally
   different domains at the same clause bound.
 - **Expansion wave without a successful candidate:** retain the last successful
-  witness and domain, then reduce the expansion step or generate a new wave
-  with different additional nodes. Individual `UNKNOWN` candidates do not
-  block successful siblings.
+  witness and domain. When every candidate is unresolved, first refresh the
+  candidate compositions at the same size, up to
+  `maximum-domain-refreshes`; then reduce the expansion step. Individual
+  `UNKNOWN` candidates do not block successful siblings.
 - **Successful expansion with insufficient yield:** retain the best witness,
   protect its useful additions, and refresh only the remaining expansion shell
   at constant size. Continue expansion after the yield threshold,
@@ -598,11 +613,12 @@ The combined domain and clause transition policy is:
   as `SAT` and fully solved for its exact subdomain, but continue refreshing
   other compositions at the same size. Certification does not imply that a
   different subdomain cannot improve the retained objective.
-- **Minimal domain `UNKNOWN`:** try another deterministic candidate
-  composition when alternatives exist. If the minimal domain is fixed by the
-  required nodes, repeat attempts remain bounded by clause patience. At
-  `max-clauses`, only the stage timeout or user interruption can end the
-  unresolved search.
+- **Minimum unresolved boundary:** after the constant-size refresh budget is
+  exhausted and the domain step can no longer be reduced, try one portfolio
+  with `opt` and `bb,lin` when it differs from the current strategy. If that
+  portfolio remains unresolved, advance to the next clause bound. At
+  `max-clauses`, resume ordinary complete-domain target optimization from the
+  retained witness instead of repeating the same domain wave.
 - **Witness found:** make the first witness the wave leader, allow newly
   competitive candidates to join its objective frontier, then use the selected
   leader for expansion when shared wave patience expires.
@@ -645,7 +661,7 @@ for q in 1..max_clauses:
             start shared wave patience
 
         each later candidate enters solving:
-            ensure min(2m, configured wave patience) remains
+            ensure configured wave patience / 2.5 remains
 
         first SAT:
             set the wave leader
@@ -658,7 +674,7 @@ for q in 1..max_clauses:
 
         different candidate first reaches the leader objective:
             add it to the objective frontier
-            ensure min(2m, configured wave patience) remains
+            ensure configured wave patience / 2.5 remains
 
         repeated equal or globally inferior objective:
             do not reset shared wave patience
@@ -671,7 +687,10 @@ for q in 1..max_clauses:
             increase the target size and generate another wave
 
         UNKNOWN in the candidate wave:
-            reduce the target size or diversify candidate composition
+            refresh candidate compositions at the same size
+            after the refresh budget, reduce the target size
+            at the minimum size, try opt + bb,lin once
+            if still UNKNOWN, continue with q+1
 
         UNSAT on the complete domain:
             continue with q+1
@@ -686,7 +705,7 @@ for q in 1..max_clauses:
             reset shared wave patience
 
         new frontier candidate with an equal objective:
-            ensure min(2m, configured wave patience) remains
+            ensure configured wave patience / 2.5 remains
 
         one or more successful candidates:
             after wave completion, select the best candidate deterministically
@@ -705,7 +724,10 @@ for q in 1..max_clauses:
 
         no successful candidate:
             preserve the previous witness
-            reduce the expansion step or diversify added nodes
+            refresh added nodes at constant size
+            after the refresh budget, reduce the expansion step
+            at a one-node step, try opt + bb,lin once
+            if still unresolved, continue with q+1
 
         clause-bound patience reached before the complete domain:
             if the mode is not ignore and the strategy is not bb,lin:
@@ -823,7 +845,8 @@ parameter, while the patience is uniform across enabled stages.
 | Parameter | Meaning |
 | --- | --- |
 | `domain-continuation-<stage>` | Enable adaptive first-witness search and progressive witness-guided expansion; `LOCK` expands only a witness computed by `SEED`. |
-| `domain-wave-patience` | Full shared solving stagnation time within an acquisition, expansion, refresh, or complete-domain wave. It starts when the first candidate completes grounding. Each later candidate entering solving or first reaching the same objective frontier guarantees up to two minutes remain. |
+| `domain-wave-patience` | Full solving stagnation time within a `SOFT`, `RELAXED`, or `SEED` acquisition, expansion, refresh, or complete-domain wave. It defaults to five minutes. |
+| `domain-wave-patience-lock` | Equivalent wave patience for `LOCK`. It defaults to ten minutes because the last retained nodes are generally harder to consolidate. |
 | `minimum-domain-yield` | Minimum cumulative retained-node gain per node added during one domain expansion. Values must be at least 0 and below 1; zero disables constant-size refreshes. |
 | `maximum-domain-refreshes` | Maximum number of constant-size domain refreshes before expansion resumes. Zero disables refreshes. |
 | `memory` | Soft resident-memory budget used to queue and reduce the candidate portfolio while retaining at least one solver instance. |
@@ -836,15 +859,20 @@ slots for which no additional domain composition exists. For `LOCK`, candidate
 domains are supersets of the retained `SEED` core and no acquisition portfolio
 is run. A forwarded or absent witness makes `LOCK` forward the `SEED` output
 instead. Each stage remains independently enabled through its
-`domain-continuation-<stage>` parameter, while the wave patience is uniform
-across enabled stages. `maximum-domain-refreshes` is shared by all enabled stages
-and defaults to one refresh per expansion size, after the initial wave.
+`domain-continuation-<stage>` parameter. `SOFT`, `RELAXED`, and `SEED` share
+`domain-wave-patience`, while `LOCK` uses the longer
+`domain-wave-patience-lock`. Both clocks start when the first candidate
+completes grounding; each later candidate entering solving or first reaching
+the same objective frontier guarantees that at least 40% of the configured
+patience remains.
+`maximum-domain-refreshes` is shared by all enabled stages and defaults to one
+refresh per expansion size, after the initial wave.
 
 ### Clingo Optimization
 
 | Parameter | Meaning |
 | --- | --- |
-| `clingo-config-<stage>` | Named Clingo configuration or custom configuration file used by the stage. |
+| `clingo-config-<stage>` | Named Clingo solver preset or custom configuration file used by the stage; defaults to `auto`. |
 | `clingo-mode-<stage>` | Optimization handling mode: `opt` for anytime optimization, `optN` for optimum enumeration and certification, or `ignore` to disable optimization objectives and accept a satisfiable model. |
 | `clingo-strategy-<stage>` | Clingo optimization algorithm, such as branch-and-bound (`bb,*`) or unsatisfiable-core optimization (`usc,*`). |
 | `clingo-threads` | Number of threads used by the stage-level Clingo solver when domain continuation is disabled. |
@@ -852,6 +880,13 @@ and defaults to one refresh per expansion size, after the initial wave.
 The same value applies to every gene-selection stage, including
 `max-consts-soft`. Domain-continuation workers always use one Clingo thread and
 do not multiply `clingo-threads` by `jobs`.
+
+When domain continuation is enabled and no strategy is explicitly selected,
+`SOFT`, `RELAXED`, and `SEED` start their domain waves with `bb,inc`. `LOCK`
+always defaults to `opt` and `bb,lin`, because it consolidates an existing
+structural witness rather than acquiring one. If progress stalls, the existing
+strategy fallback resumes from the retained witness with `opt` and `bb,lin`.
+Without domain continuation, clause continuation keeps its `bb,lin` default.
 
 ### Illustrative Seed Configuration
 
@@ -870,9 +905,9 @@ timeout-seed: 24h
 jobs: 8
 clingo-threads: 1
 
-clingo-config-seed: null
+clingo-config-seed: auto
 clingo-mode-seed: opt
-clingo-strategy-seed: bb,lin
+clingo-strategy-seed: bb,inc
 ```
 
 At a clause bound without a witness, this configuration evaluates up to eight
@@ -880,11 +915,11 @@ candidate domains in parallel with one Clingo thread each. The first witness
 becomes the wave leader. Each strict improvement restarts the shared
 five-minute patience. The first time another candidate reaches the current
 leader objective, the remaining delay becomes the greater of its current value
-and two minutes. Once that patience expires, unresolved candidates become
-`UNKNOWN` and the best successful candidate becomes the common base of the
-following expansion wave. Expansion waves apply the same rule to larger
+and two minutes (`5m / 2.5`). Once that patience expires, unresolved candidates
+become `UNKNOWN` and the best successful candidate becomes the common base of
+the following expansion wave. Expansion waves apply the same rule to larger
 candidate domains. An expansion retaining less than 10%
-of its added capacity triggers up to two constant-size refresh waves before
+of its added capacity triggers up to one constant-size refresh wave before
 domain growth resumes. At the terminal boundary, up to eight deterministic
 solver profiles explore the same complete domain for an initial terminal wave;
 if none certifies the optimum, its best witness warm-starts a second portfolio
@@ -904,7 +939,7 @@ clause-continuation-lock: true
 minimum-domain-yield: 0.10
 maximum-domain-refreshes: 1
 
-domain-wave-patience: 5m
+domain-wave-patience-lock: 10m
 clause-bound-patience: 30m
 timeout-lock: 72h
 
@@ -917,18 +952,21 @@ during `LOCK`. The remaining slots sample nodes from the larger `RELAXED`
 domain. If `SEED` only forwarded `RELAXED`, if its solution is already global,
 or if it has no structural witness, scBOLT skips this solve. If
 `timeout-lock: 0`, it retains the `SEED` solution without launching a solver.
+Because `LOCK` already defaults to `bb,lin`, it does not repeat an uncertified
+complete-domain wave as a separate terminal refinement.
 
 ## Time Budgets and Partial Results
 
 Three time controls have distinct meanings:
 
-1. `domain-wave-patience` bounds stagnation of the best
-   portfolio objective within one acquisition or expansion wave. Its clock is
+1. `domain-wave-patience` (or `domain-wave-patience-lock` for `LOCK`)
+   bounds stagnation of the best portfolio objective within one acquisition or
+   expansion wave. Its clock is
    fully reset by the first wave witness and every strict leader improvement.
    The first time a different candidate reaches the current leader objective,
-   scBOLT guarantees that at least two minutes remain, capped by the configured
-   patience, without shortening a longer delay. Repeated equal results from an
-   existing frontier candidate and globally inferior results do not change it.
+   scBOLT guarantees that at least 40% of the configured patience remains,
+   without shortening a longer delay. Repeated equal results from an existing
+   frontier candidate and globally inferior results do not change it.
    Expiration interrupts all unresolved workers; workers without a witness
    become `UNKNOWN`, while successful candidates remain eligible for
    deterministic selection. Every constant-size refresh receives a new wave

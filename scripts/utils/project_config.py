@@ -214,6 +214,7 @@ def _parameters() -> dict[str, Parameter]:
     add("domain-continuation-seed", "DOMAIN_CONTINUATION_SEED", BOOLEAN)
     add("domain-continuation-lock", "DOMAIN_CONTINUATION_LOCK", BOOLEAN)
     add("domain-wave-patience", "PATIENCE_DOMAIN_WAVE", SCALAR)
+    add("domain-wave-patience-lock", "PATIENCE_DOMAIN_WAVE_LOCK", SCALAR)
     add("minimum-domain-yield", "MIN_DOMAIN_YIELD", NUMBER)
     add("maximum-domain-refreshes", "MAX_DOMAIN_REFRESHES", INTEGER)
     add("clingo-threads", "CLINGO_THREADS", INTEGER)

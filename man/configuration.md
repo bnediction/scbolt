@@ -367,7 +367,8 @@ needed in new projects.
 | `domain-continuation-relaxed` | `DOMAIN_CONTINUATION_RELAXED` | `true`. |
 | `domain-continuation-seed` | `DOMAIN_CONTINUATION_SEED` | `true`. |
 | `domain-continuation-lock` | `DOMAIN_CONTINUATION_LOCK` | `true`. |
-| `domain-wave-patience` | `PATIENCE_DOMAIN_WAVE` | `5m`. |
+| `domain-wave-patience` | `PATIENCE_DOMAIN_WAVE` | `5m` for `SOFT`, `RELAXED`, and `SEED`. |
+| `domain-wave-patience-lock` | `PATIENCE_DOMAIN_WAVE_LOCK` | `10m` for `LOCK`. |
 | `minimum-domain-yield` | `MIN_DOMAIN_YIELD` | `0.10`. |
 | `maximum-domain-refreshes` | `MAX_DOMAIN_REFRESHES` | `1`. |
 | `clingo-threads` | `CLINGO_THREADS` | `1`. |

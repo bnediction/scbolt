@@ -220,6 +220,13 @@ class ProjectConfigurationTests(unittest.TestCase):
             result.stderr,
         )
 
+    def test_lock_domain_patience_is_independent(self) -> None:
+        settings = exported(
+            "domain-wave-patience: 5m\ndomain-wave-patience-lock: 10m\n"
+        )
+        self.assertEqual(settings["PATIENCE_DOMAIN_WAVE"], "5m")
+        self.assertEqual(settings["PATIENCE_DOMAIN_WAVE_LOCK"], "10m")
+
     def test_shared_and_deprecated_hvg_keys_are_rejected(self) -> None:
         for key in (
             "hvg-method",

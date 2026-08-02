@@ -23,6 +23,7 @@ DomainLeaderUpdate = Literal["improved", "joined", "unchanged"]
 _DOMAIN_TERMINAL_STEP_FRACTION = 0.01
 _DOMAIN_TERMINAL_STEP_MINIMUM = 3
 _DOMAIN_TERMINAL_STEP_MAXIMUM = 10
+_DOMAIN_FRONTIER_GRACE_DIVISOR = 2.5
 _SOLVER_RANDOM_FREQUENCY = "0.01"
 
 
@@ -187,6 +188,14 @@ def solution_objective(
     return len(nodes & set(important_nodes)), len(nodes)
 
 
+def domain_frontier_grace_seconds(patience_seconds: float) -> float:
+    """Return the grace granted to a newly competitive domain worker."""
+
+    if patience_seconds < 0:
+        raise ValueError("domain wave patience cannot be negative")
+    return patience_seconds / _DOMAIN_FRONTIER_GRACE_DIVISOR
+
+
 def solution_reaches_domain_ceiling(
     solution: Iterable[str],
     domain_nodes: Collection[str],
@@ -257,12 +266,13 @@ def stalled_domain_solver_settings(
 
 def terminal_refinement_solver_settings(
     mode: str,
+    strategy: str,
     *,
     optimum_certified: bool,
 ) -> tuple[str, str] | None:
     """Select the complete-domain refinement portfolio strategy."""
 
-    if not optimum_certified and mode != "ignore":
+    if not optimum_certified and mode != "ignore" and strategy != "bb,lin":
         return "opt", "bb,lin"
     return None
 
@@ -337,6 +347,16 @@ def expansion_domain_size(current_size: int, complete_size: int) -> int:
     if expansion <= terminal_step:
         return complete_size
     return current_size + expansion
+
+
+def reduced_domain_expansion_size(expansion_size: int) -> int | None:
+    """Halve an unresolved expansion, or report its minimum boundary."""
+
+    if expansion_size < 1:
+        raise ValueError("domain expansion size must be positive")
+    if expansion_size == 1:
+        return None
+    return max(1, expansion_size // 2)
 
 
 def bounded_midpoint(lower: int, upper: int) -> int:

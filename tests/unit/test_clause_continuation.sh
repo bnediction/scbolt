@@ -39,7 +39,8 @@ all:
 		'domain_relaxed=$(call domain_continuation,DOMAIN_CONTINUATION_RELAXED)' \
 		'domain_seed=$(call domain_continuation,DOMAIN_CONTINUATION_SEED)' \
 		'domain_lock=$(call domain_continuation,DOMAIN_CONTINUATION_LOCK)' \
-		'domain_patience=$(PATIENCE_DOMAIN_WAVE)'
+		'domain_patience=$(PATIENCE_DOMAIN_WAVE)' \
+		'domain_patience_lock=$(PATIENCE_DOMAIN_WAVE_LOCK)'
 MAKE
 }
 
@@ -54,12 +55,16 @@ grep -qx 'DOMAIN_CONTINUATION_RELAXED=true' <<< "${defaults}"
 grep -qx 'DOMAIN_CONTINUATION_SEED=true' <<< "${defaults}"
 grep -qx 'DOMAIN_CONTINUATION_LOCK=true' <<< "${defaults}"
 grep -qx 'PATIENCE_DOMAIN_WAVE=5m' <<< "${defaults}"
-! grep -Eq '^PATIENCE_(CLAUSE_BOUND|DOMAIN_WAVE)_(SOFT|RELAXED|SEED|LOCK)=' \
-    <<< "${defaults}"
+grep -qx 'PATIENCE_DOMAIN_WAVE_LOCK=10m' <<< "${defaults}"
+! grep -Eq '^PATIENCE_CLAUSE_BOUND_(SOFT|RELAXED|SEED|LOCK)=' <<< "${defaults}"
+! grep -Eq '^PATIENCE_DOMAIN_WAVE_(SOFT|RELAXED|SEED)=' <<< "${defaults}"
 grep -qx 'MIN_DOMAIN_YIELD=0.10' <<< "${defaults}"
 grep -qx 'MAX_DOMAIN_REFRESHES=1' <<< "${defaults}"
 grep -qx 'BOUNDED_NONREACH=' <<< "${defaults}"
 grep -qx 'CLINGO_THREADS=1' <<< "${defaults}"
+for stage in SOFT CONSTS RELAXED SEED LOCK; do
+    grep -qx "CLINGO_CONFIG_${stage}=auto" <<< "${defaults}"
+done
 ! grep -Eq '^JOBS_CLINGO_(SOFT|CONSTS|RELAXED|SEED|LOCK)=' <<< "${defaults}"
 
 run_helper "${tmpdir}/defaults.out"
@@ -70,11 +75,11 @@ grep -qx 'soft_strategy=usc' "${tmpdir}/defaults.out"
 grep -qx 'relaxed=--clause-continuation' "${tmpdir}/defaults.out"
 grep -qx 'relaxed_patience=30m' "${tmpdir}/defaults.out"
 grep -qx 'relaxed_mode=opt' "${tmpdir}/defaults.out"
-grep -qx 'relaxed_strategy=bb,lin' "${tmpdir}/defaults.out"
+grep -qx 'relaxed_strategy=bb,inc' "${tmpdir}/defaults.out"
 grep -qx 'seed=--clause-continuation' "${tmpdir}/defaults.out"
 grep -qx 'seed_patience=30m' "${tmpdir}/defaults.out"
 grep -qx 'seed_mode=opt' "${tmpdir}/defaults.out"
-grep -qx 'seed_strategy=bb,lin' "${tmpdir}/defaults.out"
+grep -qx 'seed_strategy=bb,inc' "${tmpdir}/defaults.out"
 grep -qx 'lock=--clause-continuation' "${tmpdir}/defaults.out"
 grep -qx 'lock_patience=30m' "${tmpdir}/defaults.out"
 grep -qx 'lock_mode=opt' "${tmpdir}/defaults.out"
@@ -83,6 +88,8 @@ grep -qx 'domain_soft=' "${tmpdir}/defaults.out"
 grep -qx 'domain_relaxed=--domain-continuation' "${tmpdir}/defaults.out"
 grep -qx 'domain_seed=--domain-continuation' "${tmpdir}/defaults.out"
 grep -qx 'domain_lock=--domain-continuation' "${tmpdir}/defaults.out"
+grep -qx 'domain_patience=5m' "${tmpdir}/defaults.out"
+grep -qx 'domain_patience_lock=10m' "${tmpdir}/defaults.out"
 
 run_helper "${tmpdir}/shared-patience.out" \
     PATIENCE_CLAUSE_BOUND=17m \
@@ -92,6 +99,11 @@ grep -qx 'relaxed_patience=17m' "${tmpdir}/shared-patience.out"
 grep -qx 'seed_patience=17m' "${tmpdir}/shared-patience.out"
 grep -qx 'lock_patience=17m' "${tmpdir}/shared-patience.out"
 grep -qx 'domain_patience=90s' "${tmpdir}/shared-patience.out"
+grep -qx 'domain_patience_lock=10m' "${tmpdir}/shared-patience.out"
+
+run_helper "${tmpdir}/lock-domain-patience.out" PATIENCE_DOMAIN_WAVE_LOCK=12m
+grep -qx 'domain_patience=5m' "${tmpdir}/lock-domain-patience.out"
+grep -qx 'domain_patience_lock=12m' "${tmpdir}/lock-domain-patience.out"
 
 run_helper "${tmpdir}/disabled.out" \
     CLAUSE_CONTINUATION_SOFT=false \
@@ -109,12 +121,15 @@ grep -qx 'relaxed_strategy=usc' "${tmpdir}/disabled.out"
 grep -qx 'seed_mode=opt' "${tmpdir}/disabled.out"
 grep -qx 'seed_strategy=bb,inc' "${tmpdir}/disabled.out"
 grep -qx 'lock_mode=opt' "${tmpdir}/disabled.out"
-grep -qx 'lock_strategy=usc' "${tmpdir}/disabled.out"
+grep -qx 'lock_strategy=bb,lin' "${tmpdir}/disabled.out"
 
 run_helper "${tmpdir}/soft-enabled.out" CLAUSE_CONTINUATION_SOFT=true
 grep -qx 'soft=--clause-continuation' "${tmpdir}/soft-enabled.out"
 grep -qx 'soft_mode=opt' "${tmpdir}/soft-enabled.out"
 grep -qx 'soft_strategy=bb,lin' "${tmpdir}/soft-enabled.out"
+
+run_helper "${tmpdir}/soft-domain-enabled.out" DOMAIN_CONTINUATION_SOFT=true
+grep -qx 'soft_strategy=bb,inc' "${tmpdir}/soft-domain-enabled.out"
 
 run_helper "${tmpdir}/overridden.out" \
     CLAUSE_CONTINUATION_RELAXED=true \
@@ -140,9 +155,6 @@ for stage in SOFT RELAXED SEED LOCK; do
         "\$(call domain_continuation,DOMAIN_CONTINUATION_${stage})" \
         "${repo_root}/Makefile"
     grep -Fq -- \
-        '--domain-wave-patience "$(PATIENCE_DOMAIN_WAVE)"' \
-        "${repo_root}/Makefile"
-    grep -Fq -- \
         "--domain-continuation-jobs \$(JOBS)" \
         "${repo_root}/Makefile"
     grep -Fq -- \
@@ -155,6 +167,12 @@ for stage in SOFT RELAXED SEED LOCK; do
         "--max-domain-refreshes \$(MAX_DOMAIN_REFRESHES)" \
         "${repo_root}/Makefile"
 done
+
+[[ "$(grep -Fc -- '--domain-wave-patience "$(PATIENCE_DOMAIN_WAVE)"' \
+    "${repo_root}/Makefile")" -eq 3 ]]
+grep -Fq -- \
+    '--domain-wave-patience "$(PATIENCE_DOMAIN_WAVE_LOCK)"' \
+    "${repo_root}/Makefile"
 
 [[ "$(grep -Fc -- '--memory-limit "$(memory_normalized)"' \
     "${repo_root}/Makefile")" -eq 4 ]]
@@ -196,20 +214,19 @@ soft_help="$(
     "${repo_root}/bin/scbolt" max-nodes-soft help \
         --params="${repo_root}/tests/fixtures/params.mk"
 )"
-grep -Fq 'DOMAIN_CONTINUATION_SOFT   false' <<< "${soft_help}"
+grep -Eq 'DOMAIN_CONTINUATION_SOFT[[:space:]]+false' <<< "${soft_help}"
 ! grep -Fq 'BOUNDED_NONREACH' <<< "${soft_help}"
 grep -Fq 'MIN_DOMAIN_YIELD' <<< "${soft_help}"
 grep -Fq 'MAX_DOMAIN_REFRESHES' <<< "${soft_help}"
-grep -Fq 'Ignored when domain continuation is disabled' <<< "${soft_help}"
 
 lock_help="$(
     "${repo_root}/bin/scbolt" max-nodes-lock help \
         --params="${repo_root}/tests/fixtures/params.mk"
 )"
 grep -Fq 'PATIENCE_CLAUSE_BOUND' <<< "${lock_help}"
-grep -Fq 'PATIENCE_DOMAIN_WAVE' <<< "${lock_help}"
 ! grep -Fq 'PATIENCE_CLAUSE_BOUND_LOCK' <<< "${lock_help}"
-! grep -Fq 'PATIENCE_DOMAIN_WAVE_LOCK' <<< "${lock_help}"
+grep -Eq 'PATIENCE_DOMAIN_WAVE_LOCK[[:space:]]+10m' <<< "${lock_help}"
+! grep -Eq 'PATIENCE_DOMAIN_WAVE[[:space:]]' <<< "${lock_help}"
 grep -Fq 'DOMAIN_CONTINUATION_LOCK' <<< "${lock_help}"
 grep -Fq 'BOUNDED_NONREACH' <<< "${lock_help}"
 grep -Fq 'MIN_DOMAIN_YIELD' <<< "${lock_help}"

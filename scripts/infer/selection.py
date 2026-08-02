@@ -29,12 +29,14 @@ from scbolt.inference._continuation import (
     build_candidate_wave,
     candidate_fits_memory_budget,
     continuation_base_domain,
+    domain_frontier_grace_seconds,
     domain_expansion_gains,
     expansion_domain_size,
     initial_domain_size,
     minimum_domain_gain,
     outcome_counts,
     portfolio_objective_ceiling,
+    reduced_domain_expansion_size,
     select_best_candidate,
     solution_objective,
     solution_reaches_domain_ceiling,
@@ -80,7 +82,6 @@ script_name = Path(__file__).name
 DOMAIN_MEMORY_PROBE_SECONDS = 2.0
 DOMAIN_MEMORY_LAUNCH_INTERVAL_SECONDS = 2.0
 DOMAIN_MEMORY_COST_FACTOR = 1.10
-DOMAIN_FRONTIER_GRACE_SECONDS = 2 * 60.0
 
 
 @dataclass
@@ -903,6 +904,7 @@ def _run_domain_wave(
         patience_seconds,
         start_immediately=False,
     )
+    frontier_grace_seconds = domain_frontier_grace_seconds(patience_seconds)
     wave_patience_started = False
     wave_leader = DomainWaveLeader(objective=incumbent_objective)
     stop_reason = None
@@ -940,6 +942,7 @@ def _run_domain_wave(
         ),
     )
     grounding_candidates = set()
+    maximum_concurrent_candidates = 0
 
     def set_candidate_state(
         candidate_index: int,
@@ -958,6 +961,8 @@ def _run_domain_wave(
         )
 
     def submit_candidate(candidate: DomainCandidate) -> None:
+        nonlocal maximum_concurrent_candidates
+
         future = executor.submit(
             solve_domain_candidate,
             bo,
@@ -973,6 +978,10 @@ def _run_domain_wave(
         )
         futures[future] = candidate
         pending.add(future)
+        maximum_concurrent_candidates = max(
+            maximum_concurrent_candidates,
+            len(pending),
+        )
         if memory_limit is not None:
             grounding_candidates.add(candidate.index)
         set_candidate_state(candidate.index, "grounding", refresh=True)
@@ -991,8 +1000,14 @@ def _run_domain_wave(
             or memory_baseline is None
         ):
             return rss, None
-        if pending:
-            candidate_cost = max(0, rss - memory_baseline) / len(pending)
+        if maximum_concurrent_candidates:
+            # Solver allocations can remain resident after a worker finishes.
+            # Keep the denominator at the wave's concurrency high-water mark
+            # instead of attributing retained memory to the last pending worker.
+            candidate_cost = (
+                max(0, rss - memory_baseline)
+                / maximum_concurrent_candidates
+            )
             maximum_candidate_cost = max(
                 maximum_candidate_cost,
                 candidate_cost,
@@ -1108,7 +1123,7 @@ def _run_domain_wave(
                 wave_patience_started = True
             else:
                 wave_patience.ensure_remaining(
-                    DOMAIN_FRONTIER_GRACE_SECONDS,
+                    frontier_grace_seconds,
                 )
             launch_state.mark_probe_candidate_ready(time.monotonic())
             observe_memory(payload[0])
@@ -1162,7 +1177,7 @@ def _run_domain_wave(
                 wave_patience.reset()
             elif leader_update == "joined":
                 wave_patience.ensure_remaining(
-                    DOMAIN_FRONTIER_GRACE_SECONDS,
+                    frontier_grace_seconds,
                 )
             if on_model(
                 candidate.nodes,
@@ -1270,9 +1285,12 @@ def _run_domain_wave(
             ):
                 result = DomainCandidateResult(candidate, "unknown")
             results.append(result)
-        if stop_reason == "domain-patience":
+        if candidate_queue:
+            queued_outcome = (
+                "unknown" if stop_reason == "domain-patience" else "cancelled"
+            )
             results.extend(
-                DomainCandidateResult(candidate, "unknown")
+                DomainCandidateResult(candidate, queued_outcome)
                 for candidate in candidate_queue
             )
     finally:
@@ -1367,6 +1385,8 @@ class DomainContinuationState:
     complete_domain_unsat: bool = False
     complete_domain_optimal: bool = False
     terminal_refinement_used: bool = False
+    continuation_exhausted: bool = False
+    bb_lin_fallback_used: bool = False
 
 
 def print_domain_wave_summary(
@@ -1385,11 +1405,16 @@ def print_domain_wave_summary(
         f"phase={phase}",
         f"max clauses={max_clause}",
     ]
+    certified_count = sum(
+        result.outcome == "sat" and result.optimum_certified for result in results
+    )
     outcomes = [
-        f"sat={counts['sat']}",
+        f"certified={certified_count}",
+        f"sat={counts['sat'] - certified_count}",
         f"unsat={counts['unsat']}",
-        f"unknown={counts['unknown']}",
     ]
+    if counts["unknown"]:
+        outcomes.append(f"unknown={counts['unknown']}")
     if counts["cancelled"]:
         outcomes.append(f"cancelled={counts['cancelled']}")
     if selected is not None:
@@ -1468,6 +1493,10 @@ def continue_domain_at_clause_bound(
     current_domain = frozenset(initial_domain)
     current_solution = tuple(sorted(initial_solution))
     current_witness = tuple(initial_witness)
+    wave_clingo_mode = clingo_mode
+    wave_clingo_strategy = clingo_strategy
+    bb_lin_fallback_used = False
+    minimum_fallback_retry = False
     wave = 0
 
     if not current_domain:
@@ -1487,6 +1516,8 @@ def continue_domain_at_clause_bound(
         target_size = initial_domain_size(minimum_size, len(complete_domain))
 
         while not current_witness:
+            is_minimum_fallback_wave = minimum_fallback_retry
+            minimum_fallback_retry = False
             wave += 1
             candidates = build_candidate_wave(
                 complete_domain,
@@ -1497,6 +1528,7 @@ def continue_domain_at_clause_bound(
                 clause_bound=max_clause,
                 wave=wave,
             )
+            evaluated_domains = {candidate.nodes for candidate in candidates}
             results = run_domain_wave(
                 bo,
                 candidates,
@@ -1505,8 +1537,8 @@ def continue_domain_at_clause_bound(
                 max_clause=max_clause,
                 witness=(),
                 incumbent_solution=current_solution,
-                clingo_mode=clingo_mode,
-                clingo_strategy=clingo_strategy,
+                clingo_mode=wave_clingo_mode,
+                clingo_strategy=wave_clingo_strategy,
                 clingo_configuration=clingo_configuration,
                 patience_seconds=domain_patience_seconds,
                 clause_patience=clause_patience,
@@ -1524,6 +1556,70 @@ def continue_domain_at_clause_bound(
                 results=results,
                 selected=selected,
             )
+            refresh_count = 0
+            counts = outcome_counts(results)
+            while (
+                selected is None
+                and results
+                and counts["sat"] == 0
+                and counts["unsat"] == 0
+                and not is_minimum_fallback_wave
+                and refresh_count < max_domain_refreshes
+            ):
+                next_wave = wave + 1
+                candidates = build_candidate_wave(
+                    complete_domain,
+                    current_domain,
+                    target_size=target_size,
+                    jobs=jobs,
+                    seed=seed,
+                    clause_bound=max_clause,
+                    wave=next_wave,
+                    excluded_domains=evaluated_domains,
+                )
+                if not candidates:
+                    break
+
+                wave = next_wave
+                refresh_count += 1
+                evaluated_domains.update(
+                    candidate.nodes for candidate in candidates
+                )
+                console.print_debug(
+                    "refreshing unresolved domain "
+                    f"(attempt={refresh_count}/{max_domain_refreshes}, "
+                    f"size={target_size})",
+                    flush=True,
+                )
+                results = run_domain_wave(
+                    bo,
+                    candidates,
+                    phase="refresh",
+                    wave=wave,
+                    max_clause=max_clause,
+                    witness=(),
+                    incumbent_solution=current_solution,
+                    clingo_mode=wave_clingo_mode,
+                    clingo_strategy=wave_clingo_strategy,
+                    clingo_configuration=clingo_configuration,
+                    patience_seconds=domain_patience_seconds,
+                    clause_patience=clause_patience,
+                    deadline=deadline,
+                    important_nodes=important_nodes,
+                    memory_limit=memory_limit,
+                    on_model=on_model,
+                    memory_estimator=memory_estimator,
+                )
+                selected = select_best_candidate(results, important_nodes)
+                print_domain_wave_summary(
+                    phase="refresh",
+                    max_clause=max_clause,
+                    wave=wave,
+                    results=results,
+                    selected=selected,
+                )
+                counts = outcome_counts(results)
+
             if selected is not None:
                 current_domain = selected.candidate.nodes
                 current_solution = selected.solution
@@ -1535,7 +1631,6 @@ def continue_domain_at_clause_bound(
                 )
                 break
 
-            counts = outcome_counts(results)
             if target_size == len(complete_domain) and counts["unsat"]:
                 return DomainContinuationState(
                     current_domain,
@@ -1553,14 +1648,46 @@ def continue_domain_at_clause_bound(
                     target_size = min(len(complete_domain), target_size + 1)
                 continue
 
-            if counts["unknown"]:
+            if counts["unknown"] or counts["cancelled"]:
                 upper_unknown = min(upper_unknown, target_size)
                 lower = max(minimum_size, lower_unsat + 1)
                 upper = upper_unknown - 1
                 if lower <= upper:
-                    target_size = bounded_midpoint(lower, upper)
+                    next_target_size = bounded_midpoint(lower, upper)
                 else:
-                    target_size = max(minimum_size, min(target_size, upper_unknown))
+                    next_target_size = max(
+                        minimum_size,
+                        min(target_size, upper_unknown),
+                    )
+                if next_target_size == target_size:
+                    fallback_settings = stalled_domain_solver_settings(
+                        wave_clingo_mode,
+                        wave_clingo_strategy,
+                    )
+                    if fallback_settings is not None:
+                        wave_clingo_mode, wave_clingo_strategy = (
+                            fallback_settings
+                        )
+                        bb_lin_fallback_used = True
+                        minimum_fallback_retry = True
+                        console.print_info(
+                            "switching domain continuation solver "
+                            "(reason=minimum acquisition unresolved, "
+                            f"max clauses={max_clause}, "
+                            f"mode={wave_clingo_mode}, "
+                            f"strategy={wave_clingo_strategy}, "
+                            f"domain={target_size})",
+                            flush=True,
+                        )
+                        continue
+                    return DomainContinuationState(
+                        current_domain,
+                        current_solution,
+                        current_witness,
+                        continuation_exhausted=True,
+                        bb_lin_fallback_used=bb_lin_fallback_used,
+                    )
+                target_size = next_target_size
                 continue
 
             raise RuntimeError("domain continuation ended without a solver outcome")
@@ -1593,6 +1720,8 @@ def continue_domain_at_clause_bound(
         len(complete_domain),
     )
     while expansion_target < len(complete_domain):
+        is_minimum_fallback_wave = minimum_fallback_retry
+        minimum_fallback_retry = False
         expansion_base_domain = current_domain
         expansion_base_solution = current_solution
         expansion_size = expansion_target - len(expansion_base_domain)
@@ -1621,8 +1750,8 @@ def continue_domain_at_clause_bound(
             max_clause=max_clause,
             witness=current_witness,
             incumbent_solution=current_solution,
-            clingo_mode=clingo_mode,
-            clingo_strategy=clingo_strategy,
+            clingo_mode=wave_clingo_mode,
+            clingo_strategy=wave_clingo_strategy,
             clingo_configuration=clingo_configuration,
             patience_seconds=domain_patience_seconds,
             clause_patience=clause_patience,
@@ -1640,8 +1769,98 @@ def continue_domain_at_clause_bound(
             results=results,
             selected=selected,
         )
+        refresh_count = 0
+        refresh_space_exhausted = False
+        counts = outcome_counts(results)
+        while (
+            selected is None
+            and results
+            and counts["sat"] == 0
+            and counts["unsat"] == 0
+            and not is_minimum_fallback_wave
+            and refresh_count < max_domain_refreshes
+        ):
+            next_wave = wave + 1
+            candidates = build_candidate_wave(
+                complete_domain,
+                expansion_base_domain,
+                target_size=expansion_target,
+                jobs=jobs,
+                seed=seed,
+                clause_bound=max_clause,
+                wave=next_wave,
+                excluded_domains=evaluated_domains,
+            )
+            if not candidates:
+                refresh_space_exhausted = True
+                break
+
+            wave = next_wave
+            refresh_count += 1
+            evaluated_domains.update(candidate.nodes for candidate in candidates)
+            console.print_debug(
+                "refreshing unresolved domain "
+                f"(attempt={refresh_count}/{max_domain_refreshes}, "
+                f"size={expansion_target})",
+                flush=True,
+            )
+            results = run_domain_wave(
+                bo,
+                candidates,
+                phase="refresh",
+                wave=wave,
+                max_clause=max_clause,
+                witness=current_witness,
+                incumbent_solution=current_solution,
+                clingo_mode=wave_clingo_mode,
+                clingo_strategy=wave_clingo_strategy,
+                clingo_configuration=clingo_configuration,
+                patience_seconds=domain_patience_seconds,
+                clause_patience=clause_patience,
+                deadline=deadline,
+                important_nodes=important_nodes,
+                memory_limit=memory_limit,
+                on_model=on_model,
+                memory_estimator=memory_estimator,
+            )
+            selected = select_best_candidate(results, important_nodes)
+            print_domain_wave_summary(
+                phase="refresh",
+                max_clause=max_clause,
+                wave=wave,
+                results=results,
+                selected=selected,
+            )
+            counts = outcome_counts(results)
+
         if selected is None:
-            reduced_step = max(1, expansion_size // 2)
+            reduced_step = reduced_domain_expansion_size(expansion_size)
+            if reduced_step is None:
+                fallback_settings = stalled_domain_solver_settings(
+                    wave_clingo_mode,
+                    wave_clingo_strategy,
+                )
+                if fallback_settings is not None:
+                    wave_clingo_mode, wave_clingo_strategy = fallback_settings
+                    bb_lin_fallback_used = True
+                    minimum_fallback_retry = True
+                    console.print_info(
+                        "switching domain continuation solver "
+                        f"(reason=minimum expansion unresolved, "
+                        f"max clauses={max_clause}, "
+                        f"mode={wave_clingo_mode}, "
+                        f"strategy={wave_clingo_strategy}, "
+                        f"domain={len(expansion_base_domain)})",
+                        flush=True,
+                    )
+                    continue
+                return DomainContinuationState(
+                    current_domain,
+                    current_solution,
+                    current_witness,
+                    continuation_exhausted=True,
+                    bb_lin_fallback_used=bb_lin_fallback_used,
+                )
             expansion_target = len(expansion_base_domain) + reduced_step
             continue
 
@@ -1651,9 +1870,6 @@ def continue_domain_at_clause_bound(
             current_solution,
             important_nodes,
         )
-        refresh_count = 0
-        refresh_space_exhausted = False
-
         while (
             minimum_domain_yield > 0
             and important_gain == 0
@@ -1698,8 +1914,8 @@ def continue_domain_at_clause_bound(
                 max_clause=max_clause,
                 witness=current_witness,
                 incumbent_solution=current_solution,
-                clingo_mode=clingo_mode,
-                clingo_strategy=clingo_strategy,
+                clingo_mode=wave_clingo_mode,
+                clingo_strategy=wave_clingo_strategy,
                 clingo_configuration=clingo_configuration,
                 patience_seconds=domain_patience_seconds,
                 clause_patience=clause_patience,
@@ -1773,8 +1989,8 @@ def continue_domain_at_clause_bound(
         max_clause=max_clause,
         witness=current_witness,
         incumbent_solution=current_solution,
-        clingo_mode=clingo_mode,
-        clingo_strategy=clingo_strategy,
+        clingo_mode=wave_clingo_mode,
+        clingo_strategy=wave_clingo_strategy,
         clingo_configuration=clingo_configuration,
         patience_seconds=domain_patience_seconds,
         clause_patience=clause_patience,
@@ -1808,7 +2024,8 @@ def continue_domain_at_clause_bound(
         selected is not None and selected.optimum_certified
     )
     refinement_settings = terminal_refinement_solver_settings(
-        clingo_mode,
+        wave_clingo_mode,
+        wave_clingo_strategy,
         optimum_certified=complete_domain_optimal,
     )
     if refinement_settings is None and selected is None:
@@ -1885,6 +2102,7 @@ def continue_domain_at_clause_bound(
         current_witness,
         complete_domain_optimal=complete_domain_optimal,
         terminal_refinement_used=terminal_refinement_used,
+        bb_lin_fallback_used=bb_lin_fallback_used,
     )
 
 
@@ -2112,8 +2330,9 @@ def main() -> None:
         metavar="DURATION",
         help=(
             "full stagnation time after improving the best objective within one "
-            "domain-continuation wave; a new candidate first reaching the same "
-            "objective guarantees up to two minutes remain; suffixes s, m, h "
+            "domain-continuation wave; a candidate entering solving or first "
+            "reaching the best objective guarantees at least 40% of the "
+            "configured patience remains; suffixes s, m, h "
             "and d are supported, and 0 disables the patience (default: 0)"
         ),
     )
@@ -2138,8 +2357,8 @@ def main() -> None:
         default=1,
         metavar="INT",
         help=(
-            "maximum number of constant-size domain refreshes before expansion "
-            "resumes; 0 disables domain refreshes (default: 1)"
+            "maximum number of constant-size domain refreshes per domain size; "
+            "0 disables domain refreshes (default: 1)"
         ),
     )
     parser.add_argument(
@@ -2437,6 +2656,7 @@ def main() -> None:
             stage_best = [None]
             complete_domain_optimal = False
             terminal_refinement_used = False
+            direct_target_optimization = False
             retain_model = partial(
                 store_retained_model,
                 retained,
@@ -2548,7 +2768,26 @@ def main() -> None:
                 terminal_refinement_used = (
                     terminal_refinement_used
                     or continuation.terminal_refinement_used
+                    or continuation.bb_lin_fallback_used
                 )
+                if continuation.continuation_exhausted:
+                    message = (
+                        "domain continuation remained unresolved at its "
+                        f"minimum boundary (max clauses={max_clause}, "
+                        f"domain={len(current_domain)})"
+                    )
+                    if not is_target:
+                        console.print_warning(
+                            f"{message}; advancing clause bound",
+                            flush=True,
+                        )
+                        continue
+                    console.print_warning(
+                        f"{message}; falling back to complete-domain "
+                        "target optimization",
+                        flush=True,
+                    )
+                    direct_target_optimization = True
             if solution and current_witness:
                 retain_model(current_domain, solution, current_witness)
 
@@ -2557,7 +2796,18 @@ def main() -> None:
                 if terminal_refinement_used
                 else (clingo_mode, clingo_strategy)
             )
-            if complete_domain_optimal:
+            objective_ceiling_reached = solution_reaches_domain_ceiling(
+                solution,
+                complete_domain,
+                important_nodes_in_domain,
+            )
+            if objective_ceiling_reached:
+                console.print_debug(
+                    "complete-domain objective ceiling reached; "
+                    "stopping clause continuation",
+                    flush=True,
+                )
+            elif complete_domain_optimal:
                 console.print_debug(
                     "complete-domain optimum certified by domain portfolio",
                     flush=True,
@@ -2600,11 +2850,11 @@ def main() -> None:
                 ),
                 **view_settings,
             )
-            if is_target:
+            if is_target or objective_ceiling_reached:
                 view.standalone(output_filename=args.asp)
 
             try:
-                if not args.domain_continuation:
+                if not args.domain_continuation or direct_target_optimization:
                     solution, current_witness = next_solution(
                         view,
                         deadline,
@@ -2683,6 +2933,18 @@ def main() -> None:
                 current_domain = complete_domain
             write_structural_witness(current_witness, args.witness)
             write_node_solution(solution, args.solution)
+            if solution_reaches_domain_ceiling(
+                solution,
+                complete_domain,
+                important_nodes_in_domain,
+            ):
+                if not objective_ceiling_reached:
+                    console.print_debug(
+                        "complete-domain objective ceiling reached; "
+                        "stopping clause continuation",
+                        flush=True,
+                    )
+                break
 
         if not solution:
             raise make_no_solution_error(

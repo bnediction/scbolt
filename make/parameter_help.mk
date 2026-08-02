@@ -9,11 +9,13 @@ parameter_help_fraction = fraction
 parameter_help_file = file
 parameter_help_h5ad = h5ad file
 parameter_help_cellrank_methods = stability | top_n | eigengap | eigengap_coarse
-parameter_help_clingo_configs = clingo config
-parameter_help_clingo_config_note = clingo config: auto, frumpy, jumpy, tweety, handy, crafty, trendy, many.
+parameter_help_clingo_configs = solver preset or file
+parameter_help_clingo_config_description = Preset or file controlling how Clingo solves a problem.
+parameter_help_clingo_config_note = Named presets: auto, frumpy, jumpy, tweety, handy, crafty, trendy, many.
+parameter_help_clingo_config_note2 = auto selects a preset based on the problem type.
 parameter_help_clingo_mode_note = opt gives fast anytime solutions.
 parameter_help_clingo_mode_note2 = optN targets certified optima.
-parameter_help_clingo_mode_note3 = ignore disables optimization objectives and returns a satisfiable model.
+parameter_help_clingo_mode_note3 = ignore disables optimization objectives.
 parameter_help_clingo_strategy_note = bb,* uses branch-and-bound.
 parameter_help_clingo_strategy_note2 = usc,* uses unsat-core optimization.
 parameter_help_timeout_note = Use NUMBER[s|m|h|d]; empty value means no timeout.
@@ -27,9 +29,19 @@ parameter_help_note2_REPRESENTATION = X_tsne: t-SNE embedding.
 parameter_help_note3_REPRESENTATION = X_se: spectral embedding.
 parameter_help_hint_MEMORY = memory size
 parameter_help_description_MEMORY = Memory budget. Integers are interpreted as GB.
-parameter_help_note_MEMORY = Cell Ranger receives an integer GB value.
-parameter_help_note2_MEMORY = Velocyto receives MB per Samtools thread, computed from memory/jobs.
-parameter_help_note3_MEMORY = Domain continuation uses memory as a soft candidate-portfolio limit.
+parameter_help_memory_cellranger = $(strip \
+	$(filter cellranger,$(module_help_target)) \
+	$(if $(filter alignment,$(module_help_target)),\
+		$(filter cellranger,$(ALIGNMENT_TOOL))))
+parameter_help_memory_domain_targets = \
+	max-nodes-soft max-nodes-relaxed max-nodes-seed max-nodes-lock
+parameter_help_note_MEMORY = $(strip \
+	$(if $(parameter_help_memory_cellranger),\
+		Cell Ranger receives an integer GB value.,\
+	$(if $(filter velocyto,$(module_help_target)),\
+		Velocyto receives MB per Samtools thread$(comma) computed from memory/jobs.,\
+	$(if $(filter $(parameter_help_memory_domain_targets),$(module_help_target)),\
+		Domain continuation uses memory as a soft candidate-portfolio limit.))))
 parameter_help_hint_JOBS = $(parameter_help_positive_integer)
 parameter_help_description_JOBS = Maximum number of parallel workflow jobs.
 parameter_help_note_JOBS = Domain continuation evaluates up to jobs candidate domains simultaneously.
@@ -277,29 +289,32 @@ parameter_help_description_MAX_CLAUSES = Maximum number of conjunctive terms joi
 parameter_help_hint_BOUNDED_NONREACH = >= 1, optional
 parameter_help_description_BOUNDED_NONREACH = Number of certificate iterations used for non-reachability constraints.
 parameter_help_note_BOUNDED_NONREACH = Empty values use the complete default bound from BoNesis.
-parameter_help_note2_BOUNDED_NONREACH = Configuration targets use the regulatory-domain size; observation targets use a tighter target-specific bound.
-parameter_help_note3_BOUNDED_NONREACH = Final non-reachability constraints remain bounded to one iteration.
+parameter_help_note2_BOUNDED_NONREACH = Configuration targets use the regulatory-domain size.
+parameter_help_note3_BOUNDED_NONREACH = Observation targets use a tighter target-specific bound.
+parameter_help_note4_BOUNDED_NONREACH = Final non-reachability constraints remain bounded to one iteration.
 parameter_help_hint_CLAUSE_CONTINUATION_SOFT = $(parameter_help_bool)
 parameter_help_hint_CLAUSE_CONTINUATION_RELAXED = $(parameter_help_bool)
 parameter_help_hint_CLAUSE_CONTINUATION_SEED = $(parameter_help_bool)
 parameter_help_hint_CLAUSE_CONTINUATION_LOCK = $(parameter_help_bool)
-parameter_help_clause_continuation = Progressively increase clause bounds within one selection stage.
+parameter_help_clause_continuation = Progressively increase the clause bound up to max-clauses.
 parameter_help_description_CLAUSE_CONTINUATION_SOFT = $(parameter_help_clause_continuation)
 parameter_help_description_CLAUSE_CONTINUATION_RELAXED = $(parameter_help_clause_continuation)
 parameter_help_description_CLAUSE_CONTINUATION_SEED = $(parameter_help_clause_continuation)
 parameter_help_description_CLAUSE_CONTINUATION_LOCK = $(parameter_help_clause_continuation)
-parameter_help_clause_continuation_note = Clause bounds are local to one stage; unchanged constraint levels can forward their structural witness.
+parameter_help_clause_continuation_note = Reuse the best witness found at each bound to guide the next search.
 parameter_help_note_CLAUSE_CONTINUATION_SOFT = $(parameter_help_clause_continuation_note)
 parameter_help_note_CLAUSE_CONTINUATION_RELAXED = $(parameter_help_clause_continuation_note)
 parameter_help_note_CLAUSE_CONTINUATION_SEED = $(parameter_help_clause_continuation_note)
 parameter_help_note_CLAUSE_CONTINUATION_LOCK = $(parameter_help_clause_continuation_note)
 parameter_help_hint_PATIENCE_CLAUSE_BOUND = duration
-parameter_help_clause_bound_patience = Maximum time without a Clingo objective improvement before advancing an intermediate clause bound.
+parameter_help_clause_bound_patience = Maximum time without a Clingo objective improvement
 parameter_help_description_PATIENCE_CLAUSE_BOUND = $(parameter_help_clause_bound_patience)
-parameter_help_clause_bound_patience_note = Use NUMBER[s|m|h|d]; 0 or an empty value disables patience.
-parameter_help_clause_bound_patience_note2 = Ignored when clause continuation is disabled and at the target bound.
+parameter_help_clause_bound_patience_note = before advancing an intermediate clause bound.
+parameter_help_clause_bound_patience_note2 = Use NUMBER[s|m|h|d]; 0 or an empty value disables patience.
+parameter_help_clause_bound_patience_note3 = Ignored when clause continuation is disabled and at the target bound.
 parameter_help_note_PATIENCE_CLAUSE_BOUND = $(parameter_help_clause_bound_patience_note)
 parameter_help_note2_PATIENCE_CLAUSE_BOUND = $(parameter_help_clause_bound_patience_note2)
+parameter_help_note3_PATIENCE_CLAUSE_BOUND = $(parameter_help_clause_bound_patience_note3)
 parameter_help_hint_DOMAIN_CONTINUATION_SOFT = $(parameter_help_bool)
 parameter_help_hint_DOMAIN_CONTINUATION_RELAXED = $(parameter_help_bool)
 parameter_help_hint_DOMAIN_CONTINUATION_SEED = $(parameter_help_bool)
@@ -314,17 +329,20 @@ parameter_help_hint_PATIENCE_DOMAIN_WAVE = duration
 parameter_help_domain_wave_patience = Full stagnation time after improving the best objective within one wave.
 parameter_help_description_PATIENCE_DOMAIN_WAVE = $(parameter_help_domain_wave_patience)
 parameter_help_domain_wave_patience_note = Use NUMBER[s|m|h|d]; 0 or an empty value disables wave patience.
-parameter_help_domain_wave_patience_note2 = A new candidate reaching the same best objective guarantees up to 2m remain.
+parameter_help_domain_wave_patience_note2 = A candidate entering solving or joining the best objective guarantees at least 40% remains.
 parameter_help_note_PATIENCE_DOMAIN_WAVE = $(parameter_help_domain_wave_patience_note)
 parameter_help_note2_PATIENCE_DOMAIN_WAVE = $(parameter_help_domain_wave_patience_note2)
+parameter_help_hint_PATIENCE_DOMAIN_WAVE_LOCK = $(parameter_help_hint_PATIENCE_DOMAIN_WAVE)
+parameter_help_description_PATIENCE_DOMAIN_WAVE_LOCK = $(parameter_help_domain_wave_patience)
+parameter_help_note_PATIENCE_DOMAIN_WAVE_LOCK = $(parameter_help_domain_wave_patience_note)
+parameter_help_note2_PATIENCE_DOMAIN_WAVE_LOCK = $(parameter_help_domain_wave_patience_note2)
 parameter_help_hint_MIN_DOMAIN_YIELD = >= 0, < 1
 parameter_help_description_MIN_DOMAIN_YIELD = Minimum cumulative retained-node gain per node added during domain expansion.
-parameter_help_note_MIN_DOMAIN_YIELD = Low-yield expansions are refreshed at constant size. Zero disables yield-based domain refreshes.
-parameter_help_note2_MIN_DOMAIN_YIELD = Ignored when domain continuation is disabled.
+parameter_help_note_MIN_DOMAIN_YIELD = Low-yield expansions are refreshed at constant size.
+parameter_help_note2_MIN_DOMAIN_YIELD = Zero disables yield-based domain refreshes.
 parameter_help_hint_MAX_DOMAIN_REFRESHES = >= 0
-parameter_help_description_MAX_DOMAIN_REFRESHES = Maximum number of constant-size domain refreshes before expansion resumes.
+parameter_help_description_MAX_DOMAIN_REFRESHES = Maximum number of constant-size domain refreshes per domain size.
 parameter_help_note_MAX_DOMAIN_REFRESHES = Zero disables domain refreshes.
-parameter_help_note2_MAX_DOMAIN_REFRESHES = Ignored when domain continuation is disabled.
 parameter_help_hint_MIN_SELF_LOOP_CONSTS = $(parameter_help_bool)
 parameter_help_description_MIN_SELF_LOOP_CONSTS = Minimize one-node feedbacks.
 parameter_help_hint_MIN_SELF_LOOP_INFER = $(parameter_help_bool)
@@ -341,16 +359,21 @@ parameter_help_hint_CLINGO_CONFIG_CONSTS = $(parameter_help_clingo_configs)
 parameter_help_hint_CLINGO_CONFIG_RELAXED = $(parameter_help_clingo_configs)
 parameter_help_hint_CLINGO_CONFIG_SEED = $(parameter_help_clingo_configs)
 parameter_help_hint_CLINGO_CONFIG_LOCK = $(parameter_help_clingo_configs)
-parameter_help_description_CLINGO_CONFIG_SOFT = Clingo configuration.
-parameter_help_description_CLINGO_CONFIG_CONSTS = Clingo configuration.
-parameter_help_description_CLINGO_CONFIG_RELAXED = Clingo configuration.
-parameter_help_description_CLINGO_CONFIG_SEED = Clingo configuration.
-parameter_help_description_CLINGO_CONFIG_LOCK = Clingo configuration.
+parameter_help_description_CLINGO_CONFIG_SOFT = $(parameter_help_clingo_config_description)
+parameter_help_description_CLINGO_CONFIG_CONSTS = $(parameter_help_clingo_config_description)
+parameter_help_description_CLINGO_CONFIG_RELAXED = $(parameter_help_clingo_config_description)
+parameter_help_description_CLINGO_CONFIG_SEED = $(parameter_help_clingo_config_description)
+parameter_help_description_CLINGO_CONFIG_LOCK = $(parameter_help_clingo_config_description)
 parameter_help_note_CLINGO_CONFIG_SOFT = $(parameter_help_clingo_config_note)
 parameter_help_note_CLINGO_CONFIG_CONSTS = $(parameter_help_clingo_config_note)
 parameter_help_note_CLINGO_CONFIG_RELAXED = $(parameter_help_clingo_config_note)
 parameter_help_note_CLINGO_CONFIG_SEED = $(parameter_help_clingo_config_note)
 parameter_help_note_CLINGO_CONFIG_LOCK = $(parameter_help_clingo_config_note)
+parameter_help_note2_CLINGO_CONFIG_SOFT = $(parameter_help_clingo_config_note2)
+parameter_help_note2_CLINGO_CONFIG_CONSTS = $(parameter_help_clingo_config_note2)
+parameter_help_note2_CLINGO_CONFIG_RELAXED = $(parameter_help_clingo_config_note2)
+parameter_help_note2_CLINGO_CONFIG_SEED = $(parameter_help_clingo_config_note2)
+parameter_help_note2_CLINGO_CONFIG_LOCK = $(parameter_help_clingo_config_note2)
 
 parameter_help_hint_CLINGO_MODE_SOFT = opt | optN | ignore
 parameter_help_hint_CLINGO_MODE_CONSTS = opt | optN | ignore

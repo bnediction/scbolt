@@ -14,12 +14,14 @@ bounded_midpoint = continuation.bounded_midpoint
 build_candidate_wave = continuation.build_candidate_wave
 candidate_fits_memory_budget = continuation.candidate_fits_memory_budget
 continuation_base_domain = continuation.continuation_base_domain
+domain_frontier_grace_seconds = continuation.domain_frontier_grace_seconds
 domain_expansion_gains = continuation.domain_expansion_gains
 expansion_domain_size = continuation.expansion_domain_size
 initial_domain_size = continuation.initial_domain_size
 minimum_domain_gain = continuation.minimum_domain_gain
 outcome_counts = continuation.outcome_counts
 portfolio_objective_ceiling = continuation.portfolio_objective_ceiling
+reduced_domain_expansion_size = continuation.reduced_domain_expansion_size
 select_best_candidate = continuation.select_best_candidate
 solution_objective = continuation.solution_objective
 solution_reaches_domain_ceiling = continuation.solution_reaches_domain_ceiling
@@ -39,7 +41,14 @@ assert expansion_domain_size(537, 550) == 544
 assert expansion_domain_size(538, 550) == 550
 assert expansion_domain_size(5177, 5198) == 5188
 assert expansion_domain_size(5178, 5198) == 5198
+assert reduced_domain_expansion_size(12) == 6
+assert reduced_domain_expansion_size(3) == 1
+assert reduced_domain_expansion_size(2) == 1
+assert reduced_domain_expansion_size(1) is None
 assert bounded_midpoint(3, 20) == 12
+assert domain_frontier_grace_seconds(300.0) == 120.0
+assert domain_frontier_grace_seconds(600.0) == 240.0
+assert domain_frontier_grace_seconds(0.0) == 0.0
 assert minimum_domain_gain(120, 0.10) == 12
 assert minimum_domain_gain(5, 0.99) == 5
 assert minimum_domain_gain(5, 0) == 0
@@ -125,14 +134,27 @@ assert domain_expansion_gains(
 ) == (1, 1)
 assert terminal_refinement_solver_settings(
     "optN",
+    "usc",
     optimum_certified=False,
 ) == ("opt", "bb,lin")
 assert terminal_refinement_solver_settings(
     "opt",
+    "bb,inc",
     optimum_certified=True,
 ) is None
 assert terminal_refinement_solver_settings(
     "ignore",
+    "bb,inc",
+    optimum_certified=False,
+) is None
+assert terminal_refinement_solver_settings(
+    "opt",
+    "bb,lin",
+    optimum_certified=False,
+) is None
+assert terminal_refinement_solver_settings(
+    "optN",
+    "bb,lin",
     optimum_certified=False,
 ) is None
 assert stalled_domain_solver_settings("opt", "bb,inc") == ("opt", "bb,lin")
@@ -144,6 +166,14 @@ assert solver_result_certifies_optimum("opt", interrupted=False)
 assert solver_result_certifies_optimum("optN", interrupted=False)
 assert not solver_result_certifies_optimum("opt", interrupted=True)
 assert not solver_result_certifies_optimum("ignore", interrupted=False)
+
+try:
+    domain_frontier_grace_seconds(-1.0)
+except ValueError:
+    pass
+else:
+    raise AssertionError("negative domain wave patience was accepted")
+
 assert solution_reaches_domain_ceiling(
     ("g0", "g1", "g2"),
     {"g0", "g1", "g2"},

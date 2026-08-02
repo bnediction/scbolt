@@ -988,7 +988,7 @@ $(max_nodes_lock) $(max_nodes_lock_witness) &: $(bonesis_model) $(max_nodes_rela
 			$(if $(strip $(PATIENCE_CLAUSE_BOUND)),--clause-bound-patience "$(PATIENCE_CLAUSE_BOUND)") \
 			$(call domain_continuation,DOMAIN_CONTINUATION_LOCK) \
 			$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),--domain-continuation-expansion-only) \
-			$(if $(strip $(PATIENCE_DOMAIN_WAVE)),--domain-wave-patience "$(PATIENCE_DOMAIN_WAVE)") \
+			$(if $(strip $(PATIENCE_DOMAIN_WAVE_LOCK)),--domain-wave-patience "$(PATIENCE_DOMAIN_WAVE_LOCK)") \
 			$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),--min-domain-yield $(MIN_DOMAIN_YIELD)) \
 			$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),--max-domain-refreshes $(MAX_DOMAIN_REFRESHES)) \
 			--domain-continuation-jobs $(JOBS) \

@@ -101,6 +101,9 @@ module_help_output_note = $(strip $(module_help_output_note_$(module_help_target
 module_help_parameter_name = $(strip $(if $(filter true,$(SCBOLT_CLI)),\
 	$(if $(SCBOLT_PUBLIC_PARAMETER_$(1)),$(SCBOLT_PUBLIC_PARAMETER_$(1)),$(1)),\
 	$(1)))
+module_help_parameter_value = $(if $(filter MEMORY,$(1)),\
+	$(if $(memory_normalized),$(memory_normalized),$(MEMORY)),\
+	$($(1)))
 relative_to_launch = $(shell $(call system_tool,realpath) --relative-to="$(launch_dir)" "$(1)" 2>/dev/null || printf '%s' "$(1)")
 
 show_config_target = $(if $(TARGET),$(TARGET),all)
@@ -570,11 +573,9 @@ else
 		printf 'usage: make %s [PARAMS=<file>] [REFERENCES=<condition...>] [OLD_FILES=<file...>]\n\n' \
 			"$(module_help_target)"; \
 	fi; \
-	printf '%s\n' 'Description'; \
-	printf '%s\n' '-----------'; \
+	printf '$(bold)%s$(nc)\n' 'Description'; \
 	printf '%s\n\n' "$${description}"; \
-	printf '%s\n' 'Outputs'; \
-	printf '%s\n' '-------'; \
+	printf '$(bold)%s$(nc)\n' 'Outputs'; \
 	outputs=( $(foreach output,$(module_help_outputs),"$(output)") ); \
 	if [ "$${#outputs[@]}" -eq 0 ]; then \
 		printf '  none\n'; \
@@ -595,8 +596,7 @@ else
 			printf '\n  (%s)\n' "$(module_help_output_note)"; \
 		fi; \
 	fi; \
-	printf '\n%s\n' 'Dependencies'; \
-	printf '%s\n' '------------'; \
+	printf '\n$(bold)%s$(nc)\n' 'Dependencies'; \
 	dependency_count=0; \
 	$(foreach dep,$(module_help_deps),\
 		$(foreach target,$(RESET_TARGET_$(dep)),\
@@ -606,8 +606,7 @@ else
 	if [ "$${dependency_count}" -eq 0 ]; then \
 		printf '  none\n'; \
 	fi; \
-	printf '\n%s\n' 'Parameters'; \
-	printf '%s\n' '----------'; \
+	printf '\n$(bold)%s$(nc)\n' 'Parameters'; \
 	params=( $(foreach param,$(module_help_params),"$(param)") ); \
 	if [ "$${#params[@]}" -eq 0 ]; then \
 		printf '  none\n'; \
@@ -616,7 +615,7 @@ else
 		$(foreach param,$(module_help_params),\
 				print_parameter_help \
 					'$(call module_help_parameter_name,$(param))' \
-					"$$(format_parameter_value '$(param)' "$($(param))")" \
+					"$$(format_parameter_value '$(param)' "$(call module_help_parameter_value,$(param))")" \
 					'$(parameter_help_hint_$(param))' \
 					'$(parameter_help_description_$(param))' \
 					'$(parameter_help_note_$(param))' \
@@ -628,8 +627,7 @@ else
 				[ -n "$(module_help_has_prior_note)" ] || \
 				[ -n "$(module_help_has_spec_note)" ]; then \
 			printf '\n'; \
-			printf '%s\n' 'Notes'; \
-			printf '%s\n' '-----'; \
+			printf '$(bold)%s$(nc)\n' 'Notes'; \
 			if [ -n "$(module_help_has_bin_hvg)" ]; then \
 				printf '%s\n' 'Empty top HVG count means automatic estimation.'; \
 			fi; \
