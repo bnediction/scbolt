@@ -196,6 +196,25 @@ def domain_frontier_grace_seconds(patience_seconds: float) -> float:
     return patience_seconds / _DOMAIN_FRONTIER_GRACE_DIVISOR
 
 
+def clause_continuation_bounds(
+    max_clauses: int,
+    lower_bound: int = 1,
+) -> tuple[int, ...]:
+    """Return increasing clause bounds compatible with an initial witness."""
+
+    if max_clauses < 1:
+        raise ValueError("`max_clauses` must be greater than or equal to 1")
+    if lower_bound < 1:
+        raise ValueError("`lower_bound` must be greater than or equal to 1")
+    if lower_bound > max_clauses:
+        raise ValueError(
+            "initial structural witness requires "
+            f"max_clauses >= {lower_bound} (got {max_clauses})"
+        )
+
+    return tuple(range(lower_bound, max_clauses + 1))
+
+
 def solution_reaches_domain_ceiling(
     solution: Iterable[str],
     domain_nodes: Collection[str],

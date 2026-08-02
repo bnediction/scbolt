@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable
+import os
 from pathlib import Path
 
 import clingo
@@ -50,6 +51,18 @@ def read_structural_witness(file: Path | None) -> tuple[str, ...]:
                 )
             witness.append(str(atom))
     return tuple(sorted(set(witness)))
+
+
+def write_structural_witness(witness: Iterable[str], file: Path) -> None:
+    """Atomically write an executable structural witness as ASP facts."""
+
+    file.parent.mkdir(parents=True, exist_ok=True)
+    temporary = file.with_name(f".{file.name}.tmp")
+    with open(temporary, "w") as stream:
+        stream.writelines(
+            f"{atom}.\n" for atom in sorted(set(witness))
+        )
+    os.replace(temporary, file)
 
 
 def structural_witness_clause_bound(witness: Iterable[str]) -> int:

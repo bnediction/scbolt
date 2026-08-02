@@ -11,6 +11,7 @@ import pandas as pd
 from mpbn import MPBooleanNetwork
 from scbolt import cli, console
 from scbolt.inference import write_influence_graph
+from scbolt.inference._selection import ptqdm
 from scbolt.inference._witness import (
     apply_structural_witness_heuristics,
     canonicalize_structural_witness,
@@ -31,7 +32,6 @@ from utils import (
     apply_bonesis_mode,
     get_node_sets,
     initialize_bonesis,
-    ptqdm,
 )
 
 bonesis.settings["quiet"] = True

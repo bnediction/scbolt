@@ -13,6 +13,7 @@ DomainWaveLeader = continuation.DomainWaveLeader
 bounded_midpoint = continuation.bounded_midpoint
 build_candidate_wave = continuation.build_candidate_wave
 candidate_fits_memory_budget = continuation.candidate_fits_memory_budget
+clause_continuation_bounds = continuation.clause_continuation_bounds
 continuation_base_domain = continuation.continuation_base_domain
 domain_frontier_grace_seconds = continuation.domain_frontier_grace_seconds
 domain_expansion_gains = continuation.domain_expansion_gains
@@ -46,6 +47,8 @@ assert reduced_domain_expansion_size(3) == 1
 assert reduced_domain_expansion_size(2) == 1
 assert reduced_domain_expansion_size(1) is None
 assert bounded_midpoint(3, 20) == 12
+assert clause_continuation_bounds(4) == (1, 2, 3, 4)
+assert clause_continuation_bounds(4, 3) == (3, 4)
 assert domain_frontier_grace_seconds(300.0) == 120.0
 assert domain_frontier_grace_seconds(600.0) == 240.0
 assert domain_frontier_grace_seconds(0.0) == 0.0

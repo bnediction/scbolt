@@ -183,7 +183,7 @@ grep -Fq -- \
 grep -Fq 'bo.set_constant("bounded_nonreach", args.bounded_nonreach)' \
     "${repo_root}/scripts/infer/utils.py"
 grep -Fq 'for name, value in bo.aspmodel.constants.items()' \
-    "${repo_root}/scripts/infer/selection.py"
+    "${repo_root}/lib/scbolt/inference/_selection.py"
 
 grep -Fq -- \
     '$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),--domain-continuation-expansion-only)' \
@@ -242,7 +242,7 @@ grep -Fq \
     "${repo_root}/scripts/infer/selection.py"
 grep -Fq \
     '"{desc}: {n_fmt}it ({elapsed}{postfix})"' \
-    "${repo_root}/scripts/infer/selection.py"
+    "${repo_root}/lib/scbolt/inference/_selection.py"
 grep -Fq \
     'f"{stage_name} [{stage_index}/{len(bounds)}, "' \
     "${repo_root}/scripts/infer/selection.py"
@@ -252,37 +252,37 @@ grep -Fq \
 ! grep -Fq 'q={max_clause}' \
     "${repo_root}/scripts/infer/selection.py"
 ! grep -Fq 'candidate_patience' \
-    "${repo_root}/scripts/infer/selection.py"
+    "${repo_root}/lib/scbolt/inference/_portfolio.py"
 ! grep -Fq 'stop_on_first_witness' \
-    "${repo_root}/scripts/infer/selection.py"
+    "${repo_root}/lib/scbolt/inference/_portfolio.py"
 ! grep -Fq 'f"selected=' \
-    "${repo_root}/scripts/infer/selection.py"
+    "${repo_root}/lib/scbolt/inference/_portfolio.py"
 grep -Fq \
-    "f\"domain continuation [{', '.join(context)}]: \"" \
-    "${repo_root}/scripts/infer/selection.py"
+    "f\"domain continuation [{', '.join(context)}]: {result}" \
+    "${repo_root}/lib/scbolt/inference/_portfolio.py"
 grep -Fq \
-    "f\"{result} ({', '.join(outcomes)})\"" \
-    "${repo_root}/scripts/infer/selection.py"
+    "{', '.join(outcomes)})\"" \
+    "${repo_root}/lib/scbolt/inference/_portfolio.py"
 ! grep -Fq 'MAX_DOMAIN_REFRESH_WAVES' \
-    "${repo_root}/scripts/infer/selection.py"
+    "${repo_root}/lib/scbolt/inference/_portfolio.py"
 grep -Fq 'class InheritedObjectiveProgress(ptqdm):' \
-    "${repo_root}/scripts/infer/selection.py"
+    "${repo_root}/lib/scbolt/inference/_selection.py"
 grep -Fq 'retained["objective"],' \
     "${repo_root}/scripts/infer/selection.py"
 grep -Fq \
     '"no objective improvement within the clause-bound patience "' \
-    "${repo_root}/scripts/infer/selection.py"
+    "${repo_root}/lib/scbolt/inference/_selection.py"
 grep -Fq \
     'f"[max clauses={max_clause}, "' \
-    "${repo_root}/scripts/infer/selection.py"
+    "${repo_root}/lib/scbolt/inference/_selection.py"
 grep -Fq 'f"{solution_summary}"' \
-    "${repo_root}/scripts/infer/selection.py"
+    "${repo_root}/lib/scbolt/inference/_selection.py"
 ! grep -Fq 'models=' \
-    "${repo_root}/scripts/infer/selection.py"
+    "${repo_root}/lib/scbolt/inference/_selection.py"
 grep -Fq 'kwargs["leave"] = False' \
-    "${repo_root}/scripts/infer/utils.py"
+    "${repo_root}/lib/scbolt/inference/_selection.py"
 ! grep -Fq 'leave_progress' \
-    "${repo_root}/scripts/infer/utils.py"
+    "${repo_root}/lib/scbolt/inference/_selection.py"
 ! grep -Fq 'leave=is_target' \
     "${repo_root}/scripts/infer/selection.py"
 
@@ -308,7 +308,7 @@ grep -Fq \
     "${repo_root}/scripts/infer/selection.py"
 grep -Fq \
     'expansion-only domain continuation requires an initial' \
-    "${repo_root}/scripts/infer/selection.py"
+    "${repo_root}/lib/scbolt/inference/_portfolio.py"
 grep -Fq -- \
     "\$(max_nodes_lock) \$(max_nodes_lock_witness) &: \$(bonesis_model)" \
     "${repo_root}/Makefile"

@@ -1,11 +1,6 @@
 import argparse
 import inspect
-import os
-import sys
-from collections import OrderedDict
-from collections.abc import Callable, Mapping, Sequence
-from contextlib import ExitStack
-from numbers import Number
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -16,68 +11,6 @@ from pandas import DataFrame
 from pandas._typing import Axis
 from scbolt import cli, console
 from scbolt.runtime import get_clingo_parallel_mode, parse_solver_timeout
-from tqdm import tqdm
-
-DISABLE_TQDM = os.getenv("TQDM_DISABLE", "0") == "1"
-TQDM_TO_TTY = os.getenv("TQDM_TO_TTY", "0") == "1"
-
-
-class ptqdm(tqdm):
-    score_formatter: Callable[[Sequence[int]], Mapping[str, str]] | None = None
-    initial_postfix: Mapping[str, str] | None = None
-
-    def __init__(self, *args, **kwargs):
-        kwargs["leave"] = False
-        kwargs.setdefault("dynamic_ncols", True)
-
-        self._tqdm_file_context = ExitStack()
-        self._tqdm_file = None
-        if TQDM_TO_TTY and "file" not in kwargs:
-            try:
-                self._tqdm_file = self._tqdm_file_context.enter_context(
-                    console.open_terminal_stream()
-                )
-                kwargs.setdefault("file", self._tqdm_file)
-            except OSError:
-                pass
-        else:
-            kwargs.setdefault("file", sys.stdout)
-
-        if type(self).initial_postfix is not None:
-            kwargs.setdefault("postfix", type(self).initial_postfix)
-        kwargs.setdefault("disable", DISABLE_TQDM)
-        super().__init__(*args, **kwargs)
-
-    def close(self):
-        super().close()
-        if self._tqdm_file is not None:
-            self._tqdm_file_context.close()
-            self._tqdm_file = None
-
-    def set_postfix(self, ordered_dict=None, refresh=True, **kwargs):
-        score_formatter = type(self).score_formatter
-        if (
-            score_formatter is not None
-            and ordered_dict is not None
-            and "score" in ordered_dict
-        ):
-            ordered_dict = score_formatter(ordered_dict["score"])
-
-        postfix = OrderedDict([] if ordered_dict is None else ordered_dict)
-        for key in sorted(kwargs):
-            postfix[key] = kwargs[key]
-        for key, value in postfix.items():
-            if isinstance(value, Number):
-                postfix[key] = self.format_num(value)
-            elif not isinstance(value, str):
-                postfix[key] = str(value)
-
-        # tqdm strips string values, which removes deliberate numeric padding.
-        self.postfix = ", ".join(
-            f"{key}={value}" for key, value in postfix.items()
-        )
-        if refresh:
-            self.refresh()
 
 
 def add_bonesis_arguments(parser: argparse.ArgumentParser) -> None:
