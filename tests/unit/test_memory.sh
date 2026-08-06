@@ -65,6 +65,12 @@ domain_dry_run="$(
 grep -q -- '--memory-limit "512MiB"' <<< "${domain_dry_run}"
 grep -q -- "--param 'MEMORY=512MiB'" <<< "${domain_dry_run}"
 
+submin_dry_run="$(
+    make -C "${repo_root}" --always-make --dry-run LOGGING=false \
+        __bn-submin PARAMS=tests/fixtures/params.mk MEMORY=512MiB
+)"
+grep -q -- '--memory-limit "512MiB"' <<< "${submin_dry_run}"
+
 make -C "${repo_root}" check TARGET=velocyto PARAMS=tests/fixtures/params.mk \
     __check_externals__=false MEMORY=512MiB JOBS=16 ALIGNMENT_TOOL=cellranger \
     > "${tmpdir}/memory-check.out"

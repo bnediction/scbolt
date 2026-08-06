@@ -1037,7 +1037,7 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock) $(if $(geneinfo_dependency),| $(ge
 
 .PHONY: __check-bn-submin-outputs __check-bn-diverse-outputs
 __check-bn-submin-outputs:
-	$(call check_bn_outputs,$(bn_submin_dir),bn-submin,$(CONFIG_FORMATS),$(GRAPH_FORMATS),$(INFER_LIMIT))
+	$(call check_bn_outputs,$(bn_submin_dir),bn-submin,$(CONFIG_FORMATS),$(GRAPH_FORMATS),$(INFER_LIMIT),true)
 
 __check-bn-diverse-outputs:
 	$(call check_bn_outputs,$(bn_diverse_dir),bn-diverse,$(CONFIG_FORMATS),$(GRAPH_FORMATS),$(INFER_LIMIT))
@@ -1046,7 +1046,6 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock) $(max_nodes_lock_witness) | __
 	$(call print_rule,bn-submin)
 	$(call require_bonesis_parameters,bn-submin)
 	$(call require_optional_positive_integer,BOUNDED_NONREACH)
-	rm -rf $(bn_submin_dir)
 	mkdir -p $(bn_submin_dir)
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py submin \
 		$(word 1,$^) $(word 2,$^) \
@@ -1060,6 +1059,7 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock) $(max_nodes_lock_witness) | __
 		--max-clauses $(MAX_CLAUSES) \
 		$(if $(strip $(BOUNDED_NONREACH)),--bounded-nonreach $(BOUNDED_NONREACH)) \
 		--jobs $(JOBS) \
+		--memory-limit "$(memory_normalized)" \
 		$(if $(strip $(INFER_LIMIT)),--limit $(INFER_LIMIT)) \
 		--config-formats $(CONFIG_FORMATS) \
 		--graph-formats $(GRAPH_FORMATS) \

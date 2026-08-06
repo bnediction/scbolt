@@ -18,11 +18,13 @@ _scbolt_complete_words() {
     local choices="$1"
     local current="$2"
     local item
+    local -A seen=()
 
     COMPREPLY=()
     for item in ${choices}; do
-        if [[ "${item}" == "${current}"* ]]; then
+        if [[ "${item}" == "${current}"* && -z "${seen[${item}]+x}" ]]; then
             COMPREPLY+=("${item}")
+            seen["${item}"]=1
         fi
     done
 
@@ -34,15 +36,80 @@ _scbolt_complete_prefixed_words() {
     local choices="$2"
     local current="$3"
     local item
+    local -A seen=()
 
     COMPREPLY=()
     for item in ${choices}; do
-        if [[ "${item}" == "${current}"* ]]; then
+        if [[ "${item}" == "${current}"* && -z "${seen[${item}]+x}" ]]; then
             COMPREPLY+=("${prefix}${item}")
+            seen["${item}"]=1
         fi
     done
 
     _scbolt_keep_assignment_open
+}
+
+_scbolt_complete_usc_tactics() {
+    local prefix="$1"
+    local strategy_prefix="$2"
+    local current="$3"
+    local completed=""
+    local fragment="${current}"
+    local selected
+    local tactic
+
+    if [[ "${current}" == *,* ]]; then
+        completed="${current%,*}"
+        fragment="${current##*,}"
+    fi
+    selected=",${completed},"
+
+    COMPREPLY=()
+    for tactic in disjoint succinct stratify; do
+        if [[ "${selected}" != *",${tactic},"* && "${tactic}" == "${fragment}"* ]]; then
+            COMPREPLY+=(
+                "${prefix}${strategy_prefix}${completed:+${completed},}${tactic}"
+            )
+        fi
+    done
+}
+
+_scbolt_complete_clingo_strategy() {
+    local prefix="$1"
+    local current="$2"
+    local tactics
+
+    case "${current}" in
+        usc,k)
+            COMPREPLY=("${prefix}usc,k,")
+            compopt -o nospace 2> /dev/null || true
+            return 0
+            ;;
+        usc,k,)
+            COMPREPLY=("${prefix}usc,k,0")
+            compopt -o nospace 2> /dev/null || true
+            return 0
+            ;;
+    esac
+
+    if [[ "${current}" =~ ^usc,k,([0-9]+),(.*)$ ]]; then
+        _scbolt_complete_usc_tactics \
+            "${prefix}" "usc,k,${BASH_REMATCH[1]}," "${BASH_REMATCH[2]}"
+        return 0
+    fi
+    if [[ "${current}" =~ ^usc,(oll|one|pmres),(.*)$ ]]; then
+        _scbolt_complete_usc_tactics \
+            "${prefix}" "usc,${BASH_REMATCH[1]}," "${BASH_REMATCH[2]}"
+        return 0
+    fi
+    if [[ "${current}" == usc,k,* ]]; then
+        COMPREPLY=()
+        _scbolt_no_completion
+        return 0
+    fi
+
+    tactics="bb bb,lin bb,hier bb,inc bb,dec usc usc,oll usc,one usc,k, usc,pmres"
+    _scbolt_complete_prefixed_words "${prefix}" "${tactics}" "${current}"
 }
 
 _scbolt_complete_files() {
@@ -196,6 +263,11 @@ _scbolt_help_parameters() {
             continue
         fi
 
+        case "${line}" in
+            "  "[![:space:]]*) ;;
+            *) continue ;;
+        esac
+
         line="${line#"${line%%[![:space:]]*}"}"
         parameter="${line%%[[:space:]]*}"
         if [[ "${parameter}" =~ ^([A-Z][A-Z0-9_]*|[a-z][a-z0-9_.-]*)$ ]]; then
@@ -209,14 +281,14 @@ _scbolt_module_options() {
 
     printf '%s\n' --config= --references= --reset-target= --trust-target= --trust-existing --old-file= \
         --project-dir= --resources-dir= --memory= --jobs= --seed= --representation= --label-column= \
-        --backend= --logging= --help help
+        --backend= --help
     _scbolt_help_parameters "${target}"
 }
 
 _scbolt_run_options() {
     printf '%s\n' --config= --references= --reset-target= --trust-target= --trust-existing --old-file= \
         --project-dir= --resources-dir= --memory= --jobs= --seed= --representation= --label-column= \
-        --backend= --logging= --help
+        --backend= --help
 }
 
 _scbolt_diagnostic_options() {
@@ -248,7 +320,7 @@ _scbolt_init_selection_options() {
 _scbolt_init_parameter_options() {
     printf '%s\n' --conditions= --organism= --labels= --spec-file= --count-file= \
         --macrostate-file= --binarization-file= --project-dir= --resources-dir= \
-        --references= --backend= --logging= --jobs= --memory= --seed= --representation= --label-column=
+        --references= --backend= --jobs= --memory= --seed= --representation= --label-column=
 }
 
 _scbolt_complete_init_selection() {
@@ -329,10 +401,10 @@ _scbolt_target_from_args() {
                 case "${word}" in
                     "${command}")
                         ;;
-                    --config|--params|--project-dir|--resources-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target|--backend)
+                    --config|--params|--project-dir|--resources-dir|--references|--reset-target|--trust-target|--old-file|--target|--backend)
                         ((i++))
                         ;;
-                    --config=*|--params=*|--project-dir=*|--resources-dir=*|--references=*|--reset-target=*|--trust-target=*|--old-file=*|--logging=*|--target=*|--backend=*)
+                    --config=*|--params=*|--project-dir=*|--resources-dir=*|--references=*|--reset-target=*|--trust-target=*|--old-file=*|--target=*|--backend=*)
                         ;;
                     --*|*=*)
                         ;;
@@ -357,7 +429,7 @@ _scbolt_first_command() {
     for ((i = 1; i < COMP_CWORD; i++)); do
         word="${COMP_WORDS[i]}"
         case "${word}" in
-            --config|--params|--project-dir|--resources-dir|--references|--reset-target|--trust-target|--old-file|--logging|--target|--backend)
+            --config|--params|--project-dir|--resources-dir|--references|--reset-target|--trust-target|--old-file|--target|--backend)
                 ((i++))
                 ;;
             --*|*=*)
@@ -401,9 +473,6 @@ _scbolt_option_values() {
         --clingo-mode-*=)
             printf '%s\n' "opt optN ignore"
             ;;
-        --clingo-strategy-*=)
-            printf '%s\n' "bb bb,lin bb,hier bb,inc bb,dec usc usc,oll usc,one usc,k usc,pmres"
-            ;;
         --cotan-method=)
             printf '%s\n' "classic soft-merging strong-merging"
             ;;
@@ -446,7 +515,7 @@ _scbolt_option_values() {
         --velocity-mode=)
             printf '%s\n' "deterministic stochastic dynamical"
             ;;
-        --logging=|--binarization-dea-only-hvg=|--cell-cycle-correction=|\
+        --binarization-dea-only-hvg=|--cell-cycle-correction=|\
         --centered-pca=|--consistent-mad=|--cotan-only-hvg=|\
         --dorothea-compatibility=|--pca-only-hvg=|--scboolseq-only-hvg=|\
         --stream-collapse-parameter=|--stream-extend=|--stream-prune=|\
@@ -486,6 +555,13 @@ _scbolt_complete_option_value() {
     local current="$2"
     local prefix="$3"
     local choices
+
+    case "${option}" in
+        --clingo-strategy-*=)
+            _scbolt_complete_clingo_strategy "${prefix}" "${current}"
+            return 0
+            ;;
+    esac
 
     choices="$(_scbolt_option_values "${option}")"
     case "${option}" in
@@ -577,10 +653,6 @@ _scbolt() {
             ;;
         --project-dir=*)
             _scbolt_complete_files "--project-dir=" "${cur#--project-dir=}"
-            return 0
-            ;;
-        --logging=*)
-            _scbolt_complete_prefixed_words "--logging=" "true false" "${cur#--logging=}"
             return 0
             ;;
         --backend=*)

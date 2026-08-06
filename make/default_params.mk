@@ -16,7 +16,8 @@ $(eval PARAMS ?= params.mk)  # user parameter file (resolved relative to scBOLT 
 
 ## COMPUTING RESOURCES ##
 # MEMORY accepts an integer in GB, or a value with unit KB, MB, GB, TB, KiB,
-# MiB, GiB, or TiB. LOGGING=true persists command output in log files.
+# MiB, GiB, or TiB. LOGGING is an internal switch for nested Make calls;
+# public pipeline runs always persist command output in log files.
 MEMORY ?= 50
 JOBS ?= 16
 SEED ?= 10

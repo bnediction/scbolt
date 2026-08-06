@@ -111,6 +111,11 @@ complete_scbolt() {
         cd "${project_dir}"
         PATH="${repo_root}/bin:${PATH}"
         source "${repo_root}/bin/completion.bash"
+        if [ -n "${SCBOLT_TEST_COMPOPT_RECORD:-}" ]; then
+            compopt() {
+                printf '%s\n' "$*" >> "${SCBOLT_TEST_COMPOPT_RECORD}"
+            }
+        fi
         COMP_WORDS=("$@")
         COMP_CWORD="${cword}"
         COMP_LINE="${COMP_WORDS[*]}"
@@ -238,6 +243,25 @@ test ! -e "${record}"
 grep -qx '✗ Unsupported scbolt option: --stal' "${tmpdir}/bad-clean-option.err"
 grep -qx 'did you mean: scbolt clean --stale' "${tmpdir}/bad-clean-option.err"
 
+if run_scbolt "${project}" bn-submin --logging=false \
+    > "${tmpdir}/logging-option.out" 2> "${tmpdir}/logging-option.err"; then
+    printf '%s\n' "expected the removed logging option to fail" >&2
+    exit 1
+fi
+test ! -e "${record}"
+grep -qx '✗ Unsupported scbolt option: --logging' "${tmpdir}/logging-option.err"
+grep -qx 'Logging is enabled automatically for pipeline runs.' \
+    "${tmpdir}/logging-option.err"
+
+if run_scbolt "${project}" bn-submin LOGGING=false \
+    > "${tmpdir}/logging-assignment.out" 2> "${tmpdir}/logging-assignment.err"; then
+    printf '%s\n' "expected the removed logging assignment to fail" >&2
+    exit 1
+fi
+test ! -e "${record}"
+grep -qx '✗ Unsupported scbolt option: --logging' \
+    "${tmpdir}/logging-assignment.err"
+
 run_scbolt "${project}" annotation help --params=params.mk
 expect_make_args \
     -f "${makefile}" \
@@ -309,10 +333,16 @@ grep -qx -- '--trust-target=' "${tmpdir}/module-completion.out"
 grep -qx -- '--trust-existing' "${tmpdir}/module-completion.out"
 grep -qx -- '--max-clauses=' "${tmpdir}/module-completion.out"
 grep -qx -- '--bounded-nonreach=' "${tmpdir}/module-completion.out"
+[ "$(grep -Fxc -- '--memory=' "${tmpdir}/module-completion.out")" -eq 1 ]
+[ "$(grep -Fxc -- '--jobs=' "${tmpdir}/module-completion.out")" -eq 1 ]
 ! grep -qx -- '--trust-existing=' "${tmpdir}/module-completion.out"
 ! grep -qx -- '--max-clause=' "${tmpdir}/module-completion.out"
 ! grep -qx -- '--canonical-filter=' "${tmpdir}/module-completion.out"
 ! grep -qx -- '--canonical-infer=' "${tmpdir}/module-completion.out"
+! grep -qx -- '--logging=' "${tmpdir}/module-completion.out"
+! grep -qx -- 'help' "${tmpdir}/module-completion.out"
+! grep -Eq -- '^--(a|auto|before|ignore|opt)=$' \
+    "${tmpdir}/module-completion.out"
 
 complete_scbolt "${project}" 1 scbolt "" > "${tmpdir}/root-completion.out"
 grep -qx 'knnsc' "${tmpdir}/root-completion.out"
@@ -331,11 +361,46 @@ printf '%s\n' \
     --clingo-strategy-soft=usc \
     --clingo-strategy-soft=usc,oll \
     --clingo-strategy-soft=usc,one \
-    --clingo-strategy-soft=usc,k \
+    --clingo-strategy-soft=usc,k, \
     --clingo-strategy-soft=usc,pmres \
     > "${tmpdir}/clingo-strategy-completion.expected"
 diff -u "${tmpdir}/clingo-strategy-completion.expected" \
     "${tmpdir}/clingo-strategy-completion.out"
+
+SCBOLT_TEST_COMPOPT_RECORD="${tmpdir}/clingo-strategy-compopt.out" \
+    complete_scbolt "${project}" 2 scbolt max-nodes-soft \
+    "--clingo-strategy-soft=usc,k" \
+    > "${tmpdir}/clingo-strategy-k-completion.out"
+grep -qx -- '--clingo-strategy-soft=usc,k,' \
+    "${tmpdir}/clingo-strategy-k-completion.out"
+grep -qx -- '-o nospace' "${tmpdir}/clingo-strategy-compopt.out"
+
+SCBOLT_TEST_COMPOPT_RECORD="${tmpdir}/clingo-strategy-zero-compopt.out" \
+    complete_scbolt "${project}" 2 scbolt max-nodes-soft \
+    "--clingo-strategy-soft=usc,k," \
+    > "${tmpdir}/clingo-strategy-zero-completion.out"
+grep -qx -- '--clingo-strategy-soft=usc,k,0' \
+    "${tmpdir}/clingo-strategy-zero-completion.out"
+grep -qx -- '-o nospace' "${tmpdir}/clingo-strategy-zero-compopt.out"
+
+complete_scbolt "${project}" 2 scbolt max-nodes-soft \
+    "--clingo-strategy-soft=usc,k,48," \
+    > "${tmpdir}/clingo-strategy-tactics-completion.out"
+printf '%s\n' \
+    --clingo-strategy-soft=usc,k,48,disjoint \
+    --clingo-strategy-soft=usc,k,48,succinct \
+    --clingo-strategy-soft=usc,k,48,stratify \
+    > "${tmpdir}/clingo-strategy-tactics-completion.expected"
+diff -u "${tmpdir}/clingo-strategy-tactics-completion.expected" \
+    "${tmpdir}/clingo-strategy-tactics-completion.out"
+
+complete_scbolt "${project}" 2 scbolt max-nodes-soft \
+    "--clingo-strategy-soft=usc,k,48,disjoint,s" \
+    > "${tmpdir}/clingo-strategy-remaining-tactic-completion.out"
+grep -qx -- '--clingo-strategy-soft=usc,k,48,disjoint,succinct' \
+    "${tmpdir}/clingo-strategy-remaining-tactic-completion.out"
+grep -qx -- '--clingo-strategy-soft=usc,k,48,disjoint,stratify' \
+    "${tmpdir}/clingo-strategy-remaining-tactic-completion.out"
 
 complete_scbolt "${project}" 2 scbolt clustering \
     "--omics-hvg-method=b" > "${tmpdir}/hvg-method-completion.out"
@@ -477,11 +542,11 @@ grep -qx 'PARAMS=spaced.mk' "${project}/.scbolt"
         SCBOLT_TEST_MAKE_STDOUT='2026-01-01 00:00:00.000 - RULE - bn-submin' \
         "${scbolt}" bn-submin > "${tmpdir}/module-success.out"
 )
-expect_make_args -f "${makefile}" bn-submin "PARAMS=${project}/spaced.mk"
+expect_make_args -f "${makefile}" bn-submin "PARAMS=${project}/spaced.mk" LOGGING=true
 grep -qx '✓ completed: bn-submin' "${tmpdir}/module-success.out"
 
 run_scbolt "${project}" bn-min > "${tmpdir}/module-up-to-date.out"
-expect_make_args -f "${makefile}" bn-min "PARAMS=${project}/spaced.mk"
+expect_make_args -f "${makefile}" bn-min "PARAMS=${project}/spaced.mk" LOGGING=true
 grep -qx '⚠ up to date: bn-min' "${tmpdir}/module-up-to-date.out"
 
 (
@@ -510,7 +575,7 @@ grep -qx '⚠ up to date: max-nodes-lock (intermediate solution: 188/197)' \
         SCBOLT_TEST_MAKE_STDOUT='2026-01-01 00:00:00.000 - WARNING - stale module output: clustering (RESOLUTION: 0.40 -> 0.44)' \
         "${scbolt}" clustering > "${tmpdir}/module-already-built.out"
 )
-expect_make_args -f "${makefile}" clustering "PARAMS=${project}/spaced.mk"
+expect_make_args -f "${makefile}" clustering "PARAMS=${project}/spaced.mk" LOGGING=true
 grep -qx '⚠ already built: clustering' "${tmpdir}/module-already-built.out"
 
 if (
@@ -666,7 +731,7 @@ fi
 grep -qx '✗ No configuration file found.' "${tmpdir}/missing-show-init.err"
 
 run_scbolt "${project}" bn-submin
-expect_make_args -f "${makefile}" bn-submin "PARAMS=${project}/spaced.mk"
+expect_make_args -f "${makefile}" bn-submin "PARAMS=${project}/spaced.mk" LOGGING=true
 
 (
     cd "${project}"
@@ -679,7 +744,8 @@ expect_make_args \
     -f "${makefile}" \
     stream \
     REFERENCES=ctrl \
-    "PARAMS=${project}/spaced.mk"
+    "PARAMS=${project}/spaced.mk" \
+    LOGGING=true
 grep -qx '✓ completed: stream (ctrl)' "${tmpdir}/module-reference.out"
 
 (
@@ -694,7 +760,8 @@ expect_make_args \
     -f "${makefile}" \
     stream \
     "REFERENCES=ctrl treated integrated" \
-    "PARAMS=${project}/spaced.mk"
+    "PARAMS=${project}/spaced.mk" \
+    LOGGING=true
 grep -qx '✓ completed: stream' "${tmpdir}/module-full-reference.out"
 
 run_scbolt "${project}" clean
@@ -852,16 +919,16 @@ grep -qx 'Specification file: spec.yml (created)' "${tmpdir}/empty-init.out"
 grep -qx '✓ scBOLT project initialized.' "${tmpdir}/empty-init.out"
 
 run_scbolt "${project}" bn-submin --params=override.mk
-expect_make_args -f "${makefile}" bn-submin PARAMS=override.mk
+expect_make_args -f "${makefile}" bn-submin PARAMS=override.mk LOGGING=true
 
 run_scbolt "${project}" --params=override.mk bn-submin
-expect_make_args -f "${makefile}" bn-submin PARAMS=override.mk
+expect_make_args -f "${makefile}" bn-submin PARAMS=override.mk LOGGING=true
 
 run_scbolt "${project}" bn-submin PARAMS=override.mk
-expect_make_args -f "${makefile}" bn-submin PARAMS=override.mk
+expect_make_args -f "${makefile}" bn-submin PARAMS=override.mk LOGGING=true
 
 run_scbolt "${project}" PARAMS=override.mk bn-submin
-expect_make_args -f "${makefile}" bn-submin PARAMS=override.mk
+expect_make_args -f "${makefile}" bn-submin PARAMS=override.mk LOGGING=true
 
 run_scbolt "${project}" bn-submin --max-clauses=12 \
     --bounded-nonreach=20 --clingo-strategy-seed=bb,inc
@@ -871,21 +938,24 @@ expect_make_args \
     MAX_CLAUSES=12 \
     BOUNDED_NONREACH=20 \
     CLINGO_STRATEGY_SEED=bb,inc \
-    "PARAMS=${project}/spaced.mk"
+    "PARAMS=${project}/spaced.mk" \
+    LOGGING=true
 
 run_scbolt "${project}" bn-submin --resources-dir=shared-resources
 expect_make_args \
     -f "${makefile}" \
     bn-submin \
     RESOURCES_DIR=shared-resources \
-    "PARAMS=${project}/spaced.mk"
+    "PARAMS=${project}/spaced.mk" \
+    LOGGING=true
 
 run_scbolt "${project}" bn-submin --project-dir=shared-project
 expect_make_args \
     -f "${makefile}" \
     bn-submin \
     PROJECT_DIR=shared-project \
-    "PARAMS=${project}/spaced.mk"
+    "PARAMS=${project}/spaced.mk" \
+    LOGGING=true
 
 run_scbolt "${project}" bn-submin reset_target=clustering --reset-target=annotation \
     --reset-target velocity
@@ -895,7 +965,8 @@ expect_make_args \
     RESET_TARGET=clustering \
     CLI_RESET_TARGETS+=annotation \
     CLI_RESET_TARGETS+=velocity \
-    "PARAMS=${project}/spaced.mk"
+    "PARAMS=${project}/spaced.mk" \
+    LOGGING=true
 
 run_scbolt "${project}" bn-submin 'RESET_TARGET=clustering annotation' \
     '--reset-target=velocity potency'
@@ -904,7 +975,8 @@ expect_make_args \
     bn-submin \
     "RESET_TARGET=clustering annotation" \
     "CLI_RESET_TARGETS+=velocity potency" \
-    "PARAMS=${project}/spaced.mk"
+    "PARAMS=${project}/spaced.mk" \
+    LOGGING=true
 
 run_scbolt "${project}" bn-submin TRUST_TARGET=clustering --trust-target=annotation \
     --trust-target velocity
@@ -914,7 +986,8 @@ expect_make_args \
     TRUST_TARGET=clustering \
     CLI_TRUST_TARGETS+=annotation \
     CLI_TRUST_TARGETS+=velocity \
-    "PARAMS=${project}/spaced.mk"
+    "PARAMS=${project}/spaced.mk" \
+    LOGGING=true
 
 run_scbolt "${project}" bn-submin 'TRUST_TARGET=clustering annotation' \
     '--trust-target=velocity potency'
@@ -923,28 +996,32 @@ expect_make_args \
     bn-submin \
     "TRUST_TARGET=clustering annotation" \
     "CLI_TRUST_TARGETS+=velocity potency" \
-    "PARAMS=${project}/spaced.mk"
+    "PARAMS=${project}/spaced.mk" \
+    LOGGING=true
 
 run_scbolt "${project}" bn-submin --trust-existing
 expect_make_args \
     -f "${makefile}" \
     bn-submin \
     TRUST_EXISTING=true \
-    "PARAMS=${project}/spaced.mk"
+    "PARAMS=${project}/spaced.mk" \
+    LOGGING=true
 
 run_scbolt "${project}" --trust-existing bn-submin
 expect_make_args \
     -f "${makefile}" \
     bn-submin \
     TRUST_EXISTING=true \
-    "PARAMS=${project}/spaced.mk"
+    "PARAMS=${project}/spaced.mk" \
+    LOGGING=true
 
 run_scbolt "${project}" trust_existing=false bn-submin
 expect_make_args \
     -f "${makefile}" \
     bn-submin \
     TRUST_EXISTING=false \
-    "PARAMS=${project}/spaced.mk"
+    "PARAMS=${project}/spaced.mk" \
+    LOGGING=true
 
 if run_scbolt "${project}" bn-submin --trust-existing=true \
     > "${tmpdir}/trust-existing-value.out" \
@@ -968,7 +1045,8 @@ expect_make_args \
     "OLD_FILES=file1.h5ad file2.csv" \
     "CLI_OLD_FILES+=file3.h5ad file4.csv" \
     CLI_OLD_FILES+=file5.txt \
-    "PARAMS=${project}/spaced.mk"
+    "PARAMS=${project}/spaced.mk" \
+    LOGGING=true
 
 run_scbolt "${project}" --references="ctrl treated" check velocity --params=params.mk
 expect_make_args \
@@ -1039,7 +1117,7 @@ fallback_project="${tmpdir}/fallback"
 mkdir -p "${fallback_project}"
 printf '# fallback params\n' > "${fallback_project}/params.mk"
 run_scbolt "${fallback_project}" bn-submin
-expect_make_args -f "${makefile}" bn-submin PARAMS=params.mk
+expect_make_args -f "${makefile}" bn-submin PARAMS=params.mk LOGGING=true
 
 bad_install="${tmpdir}/bad-install"
 mkdir -p "${bad_install}/bin"

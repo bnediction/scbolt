@@ -71,34 +71,38 @@ make_solution_dir "${submin}/1"
 make_solution_dir "${submin}/2"
 make_solution_dir "${submin}/3"
 
-set +e
 output="$(
-    printf 'n\n' | make -C "${repo_root}" __check-bn-submin-outputs \
+    make -C "${repo_root}" __check-bn-submin-outputs \
         PARAMS="${params}" LOGGING=false 2>&1
 )"
-status="$?"
-set -e
+grep -q "Detected interrupted outputs for target 'bn-submin'" <<< "${output}"
+grep -q "Resuming partial Boolean network enumeration." <<< "${output}"
+test -d "${submin}/1"
 
-printf '%s\n' "${output}"
-test "${status}" -ne 0
-grep -q "Detected incomplete outputs for target 'bn-submin'" <<< "${output}"
-grep -q "infer/bn/submin/influence_graph/aggregate.pdf" <<< "${output}"
-grep -q "infer/bn/submin/influence_graph/aggregate_with_isolates.pdf" <<< "${output}"
-grep -q "infer/bn/submin/influence_graph/function_families.pdf" <<< "${output}"
-grep -q "infer/bn/submin/influence_graph/feedback_core.pdf" <<< "${output}"
-grep -q "infer/bn/submin/4/model.bnet" <<< "${output}"
-grep -q "infer/bn/submin/4/configs.csv" <<< "${output}"
-grep -q "more output(s)" <<< "${output}"
-case "${output}" in
-    *$'more output(s)\n\nRemove partial outputs and rerun inference?'*) ;;
-    *)
-        echo "missing blank line before incomplete-output prompt" >&2
-        exit 1
-        ;;
-esac
-! grep -q "infer/bn/submin/4/configs.cfg" <<< "${output}"
-! grep -q "infer/bn/submin/4/ig.neato" <<< "${output}"
-grep -q "Inference aborted." <<< "${output}"
+set +e
+exit_output="$(
+    printf '3\n' | make -C "${repo_root}" __check-bn-submin-outputs \
+        PARAMS="${params}" LOGGING=false SCBOLT_INTERACTIVE=true 2>&1
+)"
+exit_status="$?"
+set -e
+test "${exit_status}" -ne 0
+grep -q '^1) restart$' <<< "${exit_output}"
+grep -q '^2) resume$' <<< "${exit_output}"
+grep -q '^3) exit$' <<< "${exit_output}"
+grep -q 'Inference aborted.' <<< "${exit_output}"
+test -d "${submin}/1"
+
+printf '1\n' | make -C "${repo_root}" __check-bn-submin-outputs \
+    PARAMS="${params}" LOGGING=false SCBOLT_INTERACTIVE=true \
+    > "${tmpdir}/restart.out" 2>&1
+grep -q 'Partial outputs removed.' "${tmpdir}/restart.out"
+test ! -d "${submin}"
+
+mkdir -p "${submin}"
+make_solution_dir "${submin}/1"
+make_solution_dir "${submin}/2"
+make_solution_dir "${submin}/3"
 
 mkdir -p "${influence_graph}"
 touch \

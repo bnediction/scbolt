@@ -51,7 +51,7 @@ bin-cells bin-macrostates bin-dea bin-consensus binarization
 spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock
 bn-min bn-submin bn-diverse"
 SCBOLT_COMMANDS="init help version config progress check dry-run clean install ${SCBOLT_MODULES}"
-SCBOLT_COMMON_OPTIONS="--config --params --references --reset-target --trust-target --trust-existing --old-file --logging --target --backend"
+SCBOLT_COMMON_OPTIONS="--config --params --references --reset-target --trust-target --trust-existing --old-file --target --backend"
 SCBOLT_GLOBAL_OPTIONS="${SCBOLT_COMMON_OPTIONS} --raw"
 SCBOLT_OPTIONS_init="--remove --show --config --params --references --old-file --backend --help"
 SCBOLT_OPTIONS_clean="${SCBOLT_COMMON_OPTIONS} --all --stale --force --help"
@@ -375,6 +375,12 @@ print_unsupported_option() {
     else
         printf '%s\n' "Use a supported command option." >&2
     fi
+}
+
+reject_logging_override() {
+    print_error "Unsupported scbolt option: --logging"
+    printf '%s\n' "Logging is enabled automatically for pipeline runs." >&2
+    exit 1
 }
 
 print_installation_error() {
@@ -1131,7 +1137,7 @@ BINARIZATION_FILE|LABEL|SPEC_FILE)
 
 is_init_project_setting() {
     case "$1" in
-        ORGANISM|CONDITIONS|PROJECT_DIR|RESOURCES_DIR|BACKEND|MEMORY|JOBS|SEED|LOGGING)
+        ORGANISM|CONDITIONS|PROJECT_DIR|RESOURCES_DIR|BACKEND|MEMORY|JOBS|SEED)
             return 0
             ;;
         *)
@@ -1625,7 +1631,7 @@ collect_global_args() {
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
-            --config|--params|--references|--reset-target|--trust-target|--old-file|--logging|--target|--backend)
+            --config|--params|--references|--reset-target|--trust-target|--old-file|--target|--backend)
                 if [ "$#" -eq 1 ]; then
                     print_error "Missing value for $1"
                     exit 1
@@ -1655,6 +1661,9 @@ collect_global_args() {
                 print_error "Unsupported scbolt option: --level"
                 printf '%s\n' "Use '--raw' to display the raw config listing." >&2
                 exit 1
+                ;;
+            --logging|--logging=*|LOGGING=*|logging=*)
+                reject_logging_override
                 ;;
             --*=*|*=*)
                 leading_args+=("$1")
@@ -1763,16 +1772,8 @@ translate_args() {
                 make_args+=("CLI_OLD_FILES+=$1")
                 shift
                 ;;
-            --logging=*)
-                make_args+=("LOGGING=${arg#--logging=}")
-                ;;
-            --logging)
-                if [ "$#" -eq 0 ]; then
-                    print_error "Missing value for --logging"
-                    exit 1
-                fi
-                make_args+=("LOGGING=$1")
-                shift
+            --logging|--logging=*|LOGGING=*|logging=*)
+                reject_logging_override
                 ;;
             --raw)
                 make_args+=("CONFIG_RAW=true")
@@ -2121,6 +2122,7 @@ run_make_build_with_params() {
     set +e
     if [ -n "${terminal_device}" ]; then
         make -f "${SCBOLT_MAKEFILE}" "$@" "PARAMS=${params}" \
+            LOGGING=true \
             "SCBOLT_INTERACTIVE=true" \
             > "${stdout_pipe}" \
             2> "${stderr_pipe}" \
@@ -2128,6 +2130,7 @@ run_make_build_with_params() {
         status=$?
     else
         make -f "${SCBOLT_MAKEFILE}" "$@" "PARAMS=${params}" \
+            LOGGING=true \
             > "${stdout_pipe}" \
             2> "${stderr_pipe}"
         status=$?
@@ -2503,6 +2506,9 @@ case "${cmd}" in
                     fi
                     add_init_override BACKEND "$(validate_backend_value "$1")"
                     shift
+                    ;;
+                --logging|--logging=*|LOGGING=*|logging=*)
+                    reject_logging_override
                     ;;
                 --*=*)
                     add_init_override "${arg%%=*}" "${arg#*=}"

@@ -17,7 +17,6 @@ help_trust_existing_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--trust-existing], [TRUST_EXISTING=<bool>])
 help_old_file_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--old-file=<file>...], [OLD_FILES=<file...>])
-help_logging_option = $(if $(filter true,$(SCBOLT_CLI)), [--logging=<bool>], [LOGGING=<bool>])
 help_override_option = $(if $(filter true,$(SCBOLT_CLI)),\
 	 [--<parameter>=<value>...], [<PARAMETER>=<value>...])
 help_usage_width = $(shell \
@@ -115,7 +114,6 @@ show_config_conditions = $(if $(filter true,$(unnamed_condition)),(none),$(displ
 show_config_project_dir = $(call relative_to_launch,$(results))
 show_config_resources_dir = $(call relative_to_launch,$(resources_dir))
 show_config_old_files = $(foreach path,$(OLD_FILES),$(call relative_to_launch,$(path)))
-show_config_logging = $(if $(filter true,$(LOGGING)),enabled,$(if $(filter false,$(LOGGING)),disabled,$(LOGGING)))
 show_config_integration = $(if $(filter-out 1,$(words $(conditions))),$(INTEGRATION),none)
 show_config_embedding_label_X_umap = $(call toupper,$(embedding_method_X_umap))
 show_config_embedding_label_X_tsne = t-SNE
@@ -374,7 +372,6 @@ $(if $(filter docker,$(BACKEND)),@printf '%-16s : %s\n' 'Engine' "$(call show_co
 @printf '%-16s : %s\n' 'Jobs' "$(call show_config_display_value,$(JOBS))"
 @printf '%-16s : %s\n' 'Memory' "$(call show_config_display_value,$(memory_normalized))"
 @printf '%-16s : %s\n' 'Seed' "$(call show_config_display_value,$(SEED))"
-@printf '%-16s : %s\n' 'Logging' "$(call show_config_display_value,$(show_config_logging))"
 $(show_config_print_hvg)
 $(show_config_print_inference)
 $(show_config_print_old_files)
@@ -425,7 +422,7 @@ help: ## display help
 			hanging("usage: $(help_command) $(help_module_usage)$(help_params_option)" \
 				"$(help_references_option)$(help_reset_option)$(help_trust_option)" \
 				"$(help_trust_existing_option)" \
-				"$(help_old_file_option)$(help_logging_option)$(help_override_option)", \
+				"$(help_old_file_option)$(help_override_option)", \
 				$(help_usage_width), "       "); \
 			printf "\n"; \
 			paragraph("scBOLT is a software framework for Boolean network inference " \
@@ -445,7 +442,6 @@ help: ## display help
 					printf "  %-31s %s\n", "--trust-target=<module...>", "skip rebuilding modules"; \
 					printf "  %-31s %s\n", "--trust-existing", "skip rebuilding existing outputs"; \
 					printf "  %-31s %s\n", "--old-file=<file>", "trust existing DAG file"; \
-					printf "  %-31s %s\n", "--logging=<bool>", "enable logging"; \
 					printf "  %-31s %s\n", "--help", "display command help"; \
 					printf "  %-31s %s\n", "--<parameter>=<value>", "override configuration value"; \
 			} else { \
@@ -457,7 +453,6 @@ help: ## display help
 					printf "  %-31s %s\n", "TRUST_TARGET=<module...>", "skip rebuilding modules"; \
 					printf "  %-31s %s\n", "TRUST_EXISTING=<bool>", "skip rebuilding existing outputs"; \
 					printf "  %-31s %s\n", "OLD_FILES=<file...>", "trust existing DAG files"; \
-					printf "  %-31s %s\n", "LOGGING=<bool>", "enable logging"; \
 					printf "  %-31s %s\n", "CONFIG_RAW=true", "display raw config listing"; \
 					printf "  %-31s %s\n", "HELP=true", "display command help"; \
 					printf "  %-31s %s\n", "<PARAMETER>=<value>", "override Make parameter"; \

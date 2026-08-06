@@ -302,6 +302,11 @@ class ProjectConfigurationTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("unknown configuration key 'version'", result.stderr)
 
+    def test_logging_key_is_rejected(self) -> None:
+        result = run_helper("export", "logging: false\n")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("unknown configuration key 'logging'", result.stderr)
+
     def test_condition_not_declared_is_rejected(self) -> None:
         result = run_helper(
             "export",

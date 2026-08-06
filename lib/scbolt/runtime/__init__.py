@@ -1,6 +1,9 @@
 """Runtime controls shared by scBOLT scripts."""
 
 from ._memory import (
+    SOLVER_MEMORY_PROBE_SECONDS,
+    SolverMemoryPressure,
+    SolverMemorySupervisor,
     current_rss_bytes,
     format_memory_size,
     parse_memory_limit,
@@ -34,9 +37,12 @@ from ._timeout import (
 __all__ = [
     "SolverCapacityError",
     "SolverDeadline",
+    "SolverMemoryPressure",
+    "SolverMemorySupervisor",
     "SolverPatience",
     "SolverPatienceExpired",
     "SolverTimeout",
+    "SOLVER_MEMORY_PROBE_SECONDS",
     "close_solver_progress",
     "current_rss_bytes",
     "exit_solver_capacity",

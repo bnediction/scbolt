@@ -1,7 +1,11 @@
 import argparse
 import json
+import shutil
+import time
 from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
+from functools import partial
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +15,18 @@ import pandas as pd
 from mpbn import MPBooleanNetwork
 from scbolt import cli, console
 from scbolt.inference import write_influence_graph
-from scbolt.inference._selection import ptqdm
+from scbolt.inference._enumeration import (
+    BooleanNetworkEnumerationCheckpoint,
+    SignedEdge,
+    build_subset_minimal_blockers,
+    elapsed_since,
+    enumeration_fingerprint,
+)
+from scbolt.inference._selection import (
+    BooleanNetworkProgress,
+    fork_bonesis,
+    ptqdm,
+)
 from scbolt.inference._witness import (
     apply_structural_witness_heuristics,
     canonicalize_structural_witness,
@@ -19,12 +34,18 @@ from scbolt.inference._witness import (
 )
 from scbolt.runtime import (
     SolverDeadline,
+    SolverMemorySupervisor,
     SolverTimeout,
     close_solver_progress,
+    current_rss_bytes,
     exit_solver_timeout,
+    format_memory_size,
+    get_clingo_parallel_mode,
     get_subset_minimal_clingo_settings,
     iter_solutions,
     next_solution,
+    parse_memory_limit,
+    release_unused_memory,
     reset_solver_timeout_status,
 )
 from utils import (
@@ -119,6 +140,74 @@ def to_bonesistools_boolean_network(
     """Adapt MPBN only for bonesistools graph export APIs."""
 
     return bt.logic.bn.BooleanNetwork(bn.copy())
+
+
+def signed_influence_edges(
+    graph: Any,
+    rename_nodes: Mapping[str, str] | None = None,
+) -> frozenset[SignedEdge]:
+    """Return signed influence edges with optional node-name restoration."""
+
+    rename_nodes = rename_nodes or {}
+    return frozenset(
+        (
+            rename_nodes.get(str(source), str(source)),
+            rename_nodes.get(str(target), str(target)),
+            int(data["sign"]),
+        )
+        for source, target, data in graph.edges(data=True)
+    )
+
+
+def package_version(name: str) -> str:
+    """Return an installed package version for checkpoint compatibility."""
+
+    try:
+        return version(name)
+    except PackageNotFoundError:
+        return "missing"
+
+
+def subset_minimal_fingerprint(
+    args: argparse.Namespace,
+    *,
+    canonical: bool,
+) -> str:
+    """Fingerprint inputs defining subset-minimal solutions and their exports."""
+
+    files = [args.spec, args.mstates]
+    for path in (args.filter_grn, args.initial_witness):
+        if path is not None and path.is_file():
+            files.append(path)
+
+    domain = args.domain
+    if isinstance(domain, Path):
+        files.append(domain)
+        domain = "custom"
+
+    settings = {
+        "action": "submin",
+        "bonesis": package_version("bonesis"),
+        "bonesistools": package_version("bonesistools"),
+        "bounded_nonreach": args.bounded_nonreach,
+        "canonical": canonical,
+        "config_formats": args.config_formats,
+        "domain": domain,
+        "dorothea_api": args.dorothea_api,
+        "dorothea_compatibility": args.dorothea_compatibility,
+        "dorothea_levels": args.dorothea_levels,
+        "geneinfo_version": str(args.geneinfo_version),
+        "graph_formats": args.graph_formats,
+        "hcop_version": str(args.hcop_version),
+        "limit": args.limit,
+        "max_clauses": args.max_clauses,
+        "mpbn": package_version("mpbn"),
+        "omnipath_version": str(args.omnipath_version),
+        "organism": args.organism,
+        "remove_isolated_nodes": args.remove_isolated_nodes,
+        "separator": args.sep,
+    }
+    return enumeration_fingerprint(files, settings)
 
 
 def write_configurations(cfgs, file):
@@ -236,6 +325,12 @@ def run_bn_view(
     rename_cfgs: Mapping[Any, Any] | None = None,
     remove_isolated_nodes: bool = False,
     deadline: SolverDeadline | None = None,
+    checkpoint: BooleanNetworkEnumerationCheckpoint | None = None,
+    start_index: int = 0,
+    on_solution_written: Callable[
+        [int, MPBooleanNetwork, Collection[SignedEdge]], None
+    ]
+    | None = None,
 ) -> list[MPBooleanNetwork]:
     """Enumerate, post-process and export Boolean network view solutions."""
 
@@ -248,18 +343,19 @@ def run_bn_view(
 
     solutions = iter_solutions(view, deadline)
     try:
-        for i, solution in enumerate(solutions, start=1):
+        for offset, solution in enumerate(solutions, start=1):
+            i = start_index + offset
             if isinstance(view, bonesis.DiverseBooleanNetworksView):
                 bn, configs = solution
+                influence_edges = frozenset()
             elif isinstance(view, bonesis.InfluenceGraphView):
-                _, bn, configs = solution
+                influence_graph, bn, configs = solution
+                influence_edges = signed_influence_edges(influence_graph)
             else:
                 raise TypeError(f"unsupported BoNesis view type: {type(view).__name__}")
 
             for old, new in normalized_to_original_gene_names.items():
                 bn.rename(old, new)
-
-            bns.append(bn)
 
             # Keep bn-submin/bn-diverse configurations as returned by BoNesis.
             # for cfg_name in trapspace_configurations:
@@ -270,19 +366,270 @@ def run_bn_view(
             for old, new in rename_cfgs.items():
                 configs[new] = configs.pop(old)
 
-            write_solution(
-                bn=bn,
-                configurations=configs,
-                outdir=outdir / str(i),
-                config_formats=config_formats,
-                graph_formats=graph_formats,
-                remove_isolated_nodes=remove_isolated_nodes,
-            )
+            if checkpoint is None:
+                write_solution(
+                    bn=bn,
+                    configurations=configs,
+                    outdir=outdir / str(i),
+                    config_formats=config_formats,
+                    graph_formats=graph_formats,
+                    remove_isolated_nodes=remove_isolated_nodes,
+                )
+            else:
+                with checkpoint.atomic_solution_directory(i) as solution_dir:
+                    write_solution(
+                        bn=bn,
+                        configurations=configs,
+                        outdir=solution_dir,
+                        config_formats=config_formats,
+                        graph_formats=graph_formats,
+                        remove_isolated_nodes=remove_isolated_nodes,
+                    )
+
+            bns.append(bn)
+            if on_solution_written is not None:
+                on_solution_written(i, bn, influence_edges)
     finally:
         solutions.close()
         close_solver_progress(view)
 
     return bns
+
+
+def recover_subset_minimal_networks(
+    solution_directories: Sequence[Path],
+    *,
+    original_to_normalized_gene_names: Mapping[str, str],
+) -> tuple[list[MPBooleanNetwork], list[frozenset[SignedEdge]]]:
+    """Load complete networks and their internal signed influence graphs."""
+
+    networks = []
+    influence_graphs = []
+    for directory in solution_directories:
+        network = MPBooleanNetwork(str(directory / "model.bnet"))
+        networks.append(network)
+        influence_graphs.append(
+            signed_influence_edges(
+                network.influence_graph(),
+                rename_nodes=original_to_normalized_gene_names,
+            )
+        )
+    return networks, influence_graphs
+
+
+def enumerate_subset_minimal_networks(
+    bo: bonesis.BoNesis,
+    args: argparse.Namespace,
+    *,
+    canonical: bool,
+    normalized_to_original_gene_names: Mapping[str, str],
+    trapspace_configurations: Sequence[Any],
+    rename_cfgs: Mapping[Any, Any],
+) -> list[MPBooleanNetwork]:
+    """Enumerate subset-minimal networks with memory-aware checkpointing."""
+
+    outdir = Path(args.solution)
+    checkpoint = BooleanNetworkEnumerationCheckpoint(
+        outdir,
+        config_formats=args.config_formats,
+        graph_formats=args.graph_formats,
+        fingerprint=subset_minimal_fingerprint(args, canonical=canonical),
+    )
+    recovery = checkpoint.prepare(
+        force_restart=(outdir / ".scbolt.json").is_file(),
+    )
+    if recovery.reset_reason is not None:
+        message = (
+            "restarting Boolean network enumeration "
+            f"(reason={recovery.reset_reason})"
+        )
+        if recovery.reset_reason == "requested rebuild":
+            console.print_debug(message)
+        else:
+            console.print_warning(message)
+    if recovery.discarded_directories:
+        discarded = ",".join(path.name for path in recovery.discarded_directories)
+        console.print_warning(
+            "discarding incomplete Boolean network outputs "
+            f"(solutions={discarded})"
+        )
+
+    shutil.rmtree(outdir / "influence_graph", ignore_errors=True)
+    original_to_normalized_gene_names = {
+        original: normalized
+        for normalized, original in normalized_to_original_gene_names.items()
+    }
+    networks, influence_graphs = recover_subset_minimal_networks(
+        recovery.solution_directories,
+        original_to_normalized_gene_names=original_to_normalized_gene_names,
+    )
+    if networks:
+        console.print_info(
+            "resuming subset-minimal enumeration "
+            f"(generated={len(networks)})"
+        )
+
+    previous_elapsed = recovery.elapsed_seconds
+    active_started_at = time.monotonic()
+    deadline = SolverDeadline(args.timeout)
+    parallel_jobs, _ = get_clingo_parallel_mode(args.jobs)
+    if parallel_jobs is None:
+        jobs_value, parallel_mode = args.jobs.split(",", maxsplit=1)
+        current_jobs = int(jobs_value)
+    else:
+        current_jobs = min(parallel_jobs, 14)
+        parallel_mode = None
+    stalled_restarts = 0
+
+    def cumulative_elapsed() -> float:
+        return elapsed_since(active_started_at, previous_elapsed)
+
+    def solution_written(
+        index: int,
+        network: MPBooleanNetwork,
+        influence_edges: Collection[SignedEdge],
+    ) -> None:
+        networks.append(network)
+        influence_graphs.append(frozenset(influence_edges))
+        checkpoint.write_state(
+            solution_count=index,
+            elapsed_seconds=cumulative_elapsed(),
+        )
+
+    while args.limit in {None, 0} or len(networks) < args.limit:
+        working_bo = fork_bonesis(
+            bo,
+            max_clause=args.max_clauses,
+        )
+        blocker_program = build_subset_minimal_blockers(influence_graphs)
+        if blocker_program:
+            working_bo.custom(blocker_program)
+
+        if parallel_mode is None:
+            parallel_value = str(current_jobs)
+            working_bo.settings["parallel"] = current_jobs
+        else:
+            parallel_value = f"{current_jobs},{parallel_mode}"
+        clingo_settings = get_subset_minimal_clingo_settings(parallel_value)
+        remaining_limit = (
+            args.limit - len(networks)
+            if args.limit not in {None, 0}
+            else 0
+        )
+        supervisor = (
+            SolverMemorySupervisor(args.memory_limit)
+            if args.memory_limit is not None
+            else None
+        )
+        progress_started_at = time.time() - cumulative_elapsed()
+        view = bonesis.InfluenceGraphView(
+            working_bo,
+            solutions="subset-minimal",
+            extra=("boolean-network", "configurations"),
+            limit=remaining_limit,
+            progress=partial(
+                BooleanNetworkProgress,
+                label="Boolean network enumeration",
+                limit=args.limit,
+                initial=len(networks),
+                started_at=progress_started_at,
+                supervisor=supervisor,
+            ),
+            **clingo_settings,
+        )
+        view.standalone(output_filename=args.asp)
+
+        generated_before = len(networks)
+        runtime_error = None
+        if supervisor is not None:
+            supervisor.start(view)
+        try:
+            run_bn_view(
+                view=view,
+                outdir=outdir,
+                config_formats=args.config_formats,
+                graph_formats=args.graph_formats,
+                normalized_to_original_gene_names=(
+                    normalized_to_original_gene_names
+                ),
+                trapspace_configurations=trapspace_configurations,
+                rename_cfgs=rename_cfgs,
+                remove_isolated_nodes=args.remove_isolated_nodes,
+                deadline=deadline,
+                checkpoint=checkpoint,
+                start_index=generated_before,
+                on_solution_written=solution_written,
+            )
+        except RuntimeError as error:
+            runtime_error = error
+        finally:
+            if supervisor is not None:
+                supervisor.stop()
+
+        pressure = supervisor.memory_pressure() if supervisor is not None else None
+        if runtime_error is not None:
+            if pressure is None:
+                raise runtime_error
+            runtime_error.__traceback__ = None
+            runtime_error = None
+
+        memory_before_release = current_rss_bytes()
+        del view
+        del working_bo
+        release_unused_memory()
+        memory_after_release = current_rss_bytes()
+
+        if pressure is None:
+            break
+        if args.limit not in {None, 0} and len(networks) >= args.limit:
+            break
+
+        console.print_warning(
+            "enumeration memory pressure "
+            f"(rss={format_memory_size(pressure.rss)}, "
+            f"projected={format_memory_size(pressure.projected_rss)}, "
+            f"limit={format_memory_size(pressure.limit)})"
+        )
+        console.print_debug(
+            "checkpointed Boolean networks "
+            f"(complete={len(networks)})"
+        )
+        if memory_before_release is not None and memory_after_release is not None:
+            released = max(0, memory_before_release - memory_after_release)
+            console.print_debug(
+                "enumeration solver memory "
+                f"(released={format_memory_size(released)}, "
+                f"remaining={format_memory_size(memory_after_release)})"
+            )
+
+        generated_in_cycle = len(networks) - generated_before
+        if generated_in_cycle == 0:
+            stalled_restarts += 1
+            if current_jobs > 1:
+                current_jobs = max(1, current_jobs // 2)
+            elif stalled_restarts > 1:
+                raise RuntimeError(
+                    "enumeration cannot make progress within the configured "
+                    f"memory budget ({format_memory_size(args.memory_limit)})"
+                )
+        else:
+            stalled_restarts = 0
+
+        next_parallel_value = (
+            str(current_jobs)
+            if parallel_mode is None
+            else f"{current_jobs},{parallel_mode}"
+        )
+        console.print_info(
+            "restarting subset-minimal portfolio "
+            f"(jobs={next_parallel_value}, generated={len(networks)})"
+        )
+
+    checkpoint.write_state(
+        solution_count=len(networks),
+        elapsed_seconds=cumulative_elapsed(),
+    )
+    return networks
 
 
 parser_description = """Infer Most Permissive Boolean Networks using BoNesis.
@@ -345,6 +692,18 @@ def main() -> None:
         help=(
             "number of diverse subset minimal solutions; if not specified, "
             "enumerate all subset minimal solutions (default: None)"
+        ),
+    )
+    parser.add_argument(
+        "--memory-limit",
+        dest="memory_limit",
+        type=parse_memory_limit,
+        required=False,
+        default=None,
+        metavar="MEMORY",
+        help=(
+            "memory budget for resumable subset-minimal enumeration; "
+            "integers are interpreted as GB"
         ),
     )
     parser.add_argument(
@@ -509,28 +868,18 @@ def main() -> None:
         console.print_node_reference(*get_node_sets(bo))
         console.print_warning("this may take some time.")
 
-        view = bonesis.InfluenceGraphView(
-            bo,
-            solutions="subset-minimal",
-            extra=("boolean-network", "configurations"),
-            limit=args.limit if args.limit is not None else 0,
-            progress=ptqdm,
-            **get_subset_minimal_clingo_settings(args.jobs),
-        )
-        view.standalone(output_filename=args.asp)
-
-        deadline = SolverDeadline(args.timeout)
         try:
-            bns = run_bn_view(
-                view=view,
-                outdir=args.solution,
-                config_formats=args.config_formats,
-                graph_formats=args.graph_formats,
-                normalized_to_original_gene_names=normalized_to_original_gene_names,
-                trapspace_configurations=predicate_configs.get("trapspace", []),
+            bns = enumerate_subset_minimal_networks(
+                bo,
+                args,
+                canonical=canonical,
+                normalized_to_original_gene_names=(
+                    normalized_to_original_gene_names
+                ),
+                trapspace_configurations=predicate_configs.get(
+                    "trapspace", []
+                ),
                 rename_cfgs=rename_cfgs,
-                remove_isolated_nodes=args.remove_isolated_nodes,
-                deadline=deadline,
             )
         except SolverTimeout:
             exit_solver_timeout(args.timeout_status_file)
@@ -550,7 +899,11 @@ def main() -> None:
             bo,
             extra=("configurations",),
             limit=args.limit if args.limit is not None else 0,
-            progress=ptqdm,
+            progress=partial(
+                BooleanNetworkProgress,
+                label="Boolean network sampling",
+                limit=args.limit,
+            ),
         )
         view.standalone(output_filename=args.asp)
 
@@ -571,6 +924,7 @@ def main() -> None:
             exit_solver_timeout(args.timeout_status_file)
 
     if args.action in ["submin", "diverse"]:
+        console.print_result(f"Boolean networks: generated={len(bns)}")
         write_ensemble_influence_graphs(
             bns=bns,
             components=bo.domain.nodes,

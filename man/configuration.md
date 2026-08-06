@@ -215,7 +215,6 @@ needed in new projects.
 | `memory` | `MEMORY` | `50` GB; workflow memory budget. |
 | `jobs` | `JOBS` | `16`; workflow parallelism. |
 | `seed` | `SEED` | `10`; shared random seed. |
-| `logging` | `LOGGING` | `true`; persistent logs. |
 | `openblas-core-type` | `OPENBLAS_CORETYPE` | `HASWELL` on compatible x86-64 processors; numerical kernel profile. |
 | `organism` | `ORGANISM` | Required by organism-aware modules. |
 | `conditions` | `CONDITIONS` | Derived from mappings when omitted. |
@@ -228,6 +227,9 @@ needed in new projects.
 | `representation` | `REPRESENTATION` | `X_umap`; shared embedding key. |
 | `label-column` | `LABEL_COL` | `label`; cell annotation column. |
 | `labels` | `LABEL` | Cluster labels used by annotation. |
+
+Pipeline runs are always recorded in the project log directory. Logging is an
+internal runtime behavior and has no public configuration key.
 | `spec-file` | `SPEC_FILE` | `spec.yml`; Boolean inference specification. |
 | `old-files` | `OLD_FILES` | Existing DAG files to trust. |
 

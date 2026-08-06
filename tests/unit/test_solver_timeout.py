@@ -13,6 +13,7 @@ sys.path.insert(0, str(REPO_ROOT / "lib"))
 runtime = import_module("scbolt.runtime")
 SolverCapacityError = runtime.SolverCapacityError
 SolverDeadline = runtime.SolverDeadline
+SolverMemorySupervisor = runtime.SolverMemorySupervisor
 SolverPatience = runtime.SolverPatience
 SolverPatienceExpired = runtime.SolverPatienceExpired
 SolverTimeout = runtime.SolverTimeout
@@ -25,6 +26,24 @@ iter_solutions = runtime.iter_solutions
 next_solution = runtime.next_solution
 parse_solver_timeout = runtime.parse_solver_timeout
 reset_solver_timeout_status = runtime.reset_solver_timeout_status
+
+
+try:
+    SolverMemorySupervisor(0)
+except ValueError:
+    pass
+else:
+    raise AssertionError("non-positive solver memory limit was accepted")
+
+memory_supervisor = SolverMemorySupervisor(100)
+memory_supervisor._previous_rss = 40
+assert memory_supervisor._observe_rss(50) is None
+pressure = memory_supervisor._observe_rss(70)
+assert pressure is not None
+assert pressure.rss == 70
+assert pressure.projected_rss == 110
+assert pressure.limit == 100
+assert memory_supervisor._observe_rss(60) is pressure
 
 
 class ImmediateView:
@@ -82,6 +101,14 @@ class AsyncView:
         self.interrupted = True
 
 
+class MemoryView:
+    def __init__(self):
+        self.interrupted = Event()
+
+    def interrupt(self):
+        self.interrupted.set()
+
+
 class CapacityView:
     def __iter__(self):
         raise RuntimeError(
@@ -111,6 +138,22 @@ class ProgressBar:
 class ProgressView(ImmediateView):
     def __init__(self):
         self._progressbar = ProgressBar()
+
+
+rss_values = iter((40, 70))
+with patch(
+    "scbolt.runtime._memory.current_rss_bytes",
+    side_effect=lambda: next(rss_values, 70),
+):
+    view = MemoryView()
+    memory_supervisor = SolverMemorySupervisor(100)
+    memory_supervisor.probe_seconds = 0.01
+    memory_supervisor.start(view)
+    try:
+        assert view.interrupted.wait(0.5)
+        assert memory_supervisor.memory_pressure() is not None
+    finally:
+        memory_supervisor.stop()
 
 
 assert parse_solver_timeout("30") == 30.0

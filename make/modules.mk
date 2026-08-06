@@ -639,7 +639,7 @@ target_params_bn-min = \
 	CLINGO_MODE_MIN GRAPH_FORMATS
 target_params_bn-submin = \
 	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
-	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
+	MEMORY JOBS INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 target_params_bn-diverse = \
 	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
@@ -795,7 +795,7 @@ project_config_param_set = \
 	$(foreach condition,$(conditions),$(call gsm_var,$(condition))) \
 	LABEL SPEC_FILE
 core_config_param_set = \
-	PARAMS REFERENCES PROJECT_DIR INFERENCE_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING \
+	PARAMS REFERENCES PROJECT_DIR INFERENCE_DIR RESOURCES_DIR MEMORY JOBS SEED \
 	BACKEND SCBOLT_IMAGE SCBOLT_CONTAINER_ENGINE SCBOLT_CONTAINER_ARGS \
 	SCBOLT_CONTAINER_MOUNTS REPRESENTATION LABEL_COL OLD_FILES
 method_config_param_set = \
@@ -866,7 +866,7 @@ config_base_params = \
 	ORGANISM CONDITIONS \
 	$(foreach condition,$(conditions),$(call sra_var,$(condition))) \
 	$(foreach condition,$(conditions),$(call gsm_var,$(condition))) \
-	PARAMS REFERENCES PROJECT_DIR INFERENCE_DIR RESOURCES_DIR MEMORY JOBS SEED LOGGING \
+	PARAMS REFERENCES PROJECT_DIR INFERENCE_DIR RESOURCES_DIR MEMORY JOBS SEED \
 	BACKEND SCBOLT_IMAGE SCBOLT_CONTAINER_ENGINE SCBOLT_CONTAINER_ARGS \
 	SCBOLT_CONTAINER_MOUNTS REPRESENTATION LABEL_COL OLD_FILES
 config_params_from_modules = $(strip $(foreach module,$(1),$(target_params_$(module))))

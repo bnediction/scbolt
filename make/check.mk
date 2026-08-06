@@ -110,8 +110,9 @@ else ifeq ($(HELP),false)
 			file\ found*|*file*) printf '%s\n' "$${file_checks}";; \
 			backend:*|*environment\ manager*|GNU\ Make:*|Bash:*|\
 				scbolt-system\ environment:*|container\ engine:*|container\ runtime:*|\
-				conda\ environment*|*conda*) printf '%s\n' "$${conda_checks}";; \
-			command\ found*|*command*) printf '%s\n' "$${command_checks}";; \
+				scbolt-*\ environment:*|conda\ environment*|*conda*) \
+				printf '%s\n' "$${conda_checks}";; \
+			command\ *) printf '%s\n' "$${command_checks}";; \
 			*) printf '%s\n' "$${other_checks}";; \
 		esac; \
 	}; \
@@ -959,7 +960,7 @@ else ifeq ($(HELP),false)
 					$(call report_check_error,required container image not found: $(SCBOLT_IMAGE)); \
 				fi; \
 			else \
-				$(call report_check_error,required command not found: $(SCBOLT_CONTAINER_ENGINE)); \
+				$(call report_check_error,command $(SCBOLT_CONTAINER_ENGINE): missing); \
 			fi; \
 		elif [ "$${runtime_manager_available}" = "true" ]; then \
 			conda_envs="$${runtime_conda_envs}"; \
@@ -973,7 +974,7 @@ else ifeq ($(HELP),false)
 					conda_index=$$((conda_index + 1)); \
 					conda_report="$${conda_report_dir}/$${conda_index}.report"; \
 					conda_status="$${conda_report_dir}/$${conda_index}.status"; \
-					printf 'success\t%s\n' "conda environment found: $${env}" > "$${conda_report}"; \
+					: > "$${conda_report}"; \
 					env_yaml="$(scbolt_root)/envs/conda/$${env#scbolt-}.yml"; \
 					( \
 						$(python) $(scripts_dir)/utils/check_conda_env.py \
@@ -984,7 +985,9 @@ else ifeq ($(HELP),false)
 					) & \
 					conda_jobs="$${conda_jobs} $${conda_index}:$$!"; \
 				else \
-					$(call report_check_error,required conda environment not found: $${env}); \
+					check_failure_block "$${env} environment: missing" \
+						"reinstall the $(BACKEND) backend"; \
+					missing=1; \
 				fi; \
 			done; \
 			for conda_job in $${conda_jobs}; do \

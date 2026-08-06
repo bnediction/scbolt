@@ -850,9 +850,9 @@ endef
 
 define check_command_diagnostic
 if command -v $(1) >/dev/null 2>&1; then \
-	$(call check_success,command found: $(1)); \
+	$(call check_success,command $(1): found); \
 else \
-	$(call report_check_error,required command not found: $(1)); \
+	$(call report_check_error,command $(1): missing); \
 fi
 endef
 
@@ -1699,6 +1699,44 @@ endef
 
 define check_bn_outputs
 @if [ -d "$(1)" ]; then \
+	if [ "$(6)" = "true" ] && [ ! -f "$(1)/.scbolt.json" ]; then \
+		if [ "$(filter $(2),$(CLI_RESET_TARGETS))" = "$(2)" ]; then \
+			rm -rf "$(1)"; \
+			echo "Partial outputs removed." >&2; \
+			exit 0; \
+		fi; \
+		echo "Detected interrupted outputs for target '$(2)'." >&2; \
+		echo "Output directory: $(1)" >&2; \
+		if [ "$(SCBOLT_INTERACTIVE)" != "true" ]; then \
+			echo "Resuming partial Boolean network enumeration." >&2; \
+			exit 0; \
+		fi; \
+		while true; do \
+			if [ -t 0 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then \
+				printf "\n1) restart\n2) resume\n3) exit\n\nSelect action [2]: " > /dev/tty; \
+				if ! IFS= read -r ans < /dev/tty; then ans=3; fi; \
+				printf "\n" > /dev/tty; \
+			else \
+				printf "\n1) restart\n2) resume\n3) exit\n\nSelect action [2]: " >&2; \
+				if ! IFS= read -r ans; then ans=3; fi; \
+				printf "\n" >&2; \
+			fi; \
+			case "$$ans" in \
+				1) \
+					rm -rf "$(1)"; \
+					echo "Partial outputs removed." >&2; \
+					exit 0;; \
+				2|"") \
+					echo "Resuming partial Boolean network enumeration." >&2; \
+					exit 0;; \
+				3) \
+					echo "Inference aborted." >&2; \
+					exit 1;; \
+				*) echo "Invalid selection: $$ans" >&2;; \
+			esac; \
+		done; \
+		exit 0; \
+	fi; \
 	max_outputs=8; \
 	solution_limit="$(strip $(5))"; \
 	missing_outputs="$$($(call system_tool,mktemp))"; \

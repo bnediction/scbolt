@@ -247,7 +247,7 @@ def main() -> int:
     if not args.yaml.is_file():
         emit(
             "warning",
-            [f"conda environment yaml not found: {args.yaml} (env={args.env})"],
+            [f"{args.env} environment: unverifiable (yaml not found: {args.yaml})"],
         )
         return 0
 
@@ -255,14 +255,14 @@ def main() -> int:
     if name != args.env:
         emit(
             "warning",
-            [f"conda environment name differs from yaml: {args.env} != {name}"],
+            [f"{args.env} environment: name differs from yaml ({name})"],
         )
 
     try:
         installed = installed_environment(args.prefix)
     except (OSError, json.JSONDecodeError, KeyError) as error:
         emit(
-            "failure", [f"conda environment cannot be inspected: {args.env} ({error})"]
+            "failure", [f"{args.env} environment: invalid ({error})"]
         )
         return 1
 
@@ -270,9 +270,9 @@ def main() -> int:
     if warnings:
         details = "; ".join(warnings[:5])
         extra = f"; +{len(warnings) - 5} more" if len(warnings) > 5 else ""
-        emit("warning", [f"conda environment mismatch: {args.env} ({details}{extra})"])
+        emit("warning", [f"{args.env} environment: drifted ({details}{extra})"])
     else:
-        emit("success", [f"conda environment matches yaml: {args.env}"])
+        emit("success", [f"{args.env} environment: ready"])
 
     successes, git_warnings = check_git_packages(
         args.env,

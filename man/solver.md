@@ -793,6 +793,34 @@ changing the admissible solution set. Subsequent enumeration remains governed
 by projected domain-record enumeration. With parallel inference, the warm
 start is combined with the BoNesis subset-minimal solver portfolio.
 
+## Resumable Subset-Minimal Enumeration
+
+Each `bn-submin` network is written to a temporary directory and published
+atomically only after all of its requested files are complete. scBOLT samples
+the enumeration process RSS every second while refreshing the progress
+bar. As long as the projected RSS remains below `memory`, the original Clingo
+portfolio runs unchanged.
+
+When projected RSS reaches the configured budget, scBOLT interrupts the
+portfolio, retains every complete network, releases its solver state, and
+starts a fresh portfolio. Previously generated influence graphs and all their
+supergraphs are excluded, so enumeration continues with the remaining global
+subset minima. The progress count, elapsed time, and average rate remain
+cumulative across these restarts.
+
+After an external interruption, the next interactive invocation offers:
+
+```text
+1) restart
+2) resume
+3) exit
+```
+
+Resume is the default. Non-interactive invocations resume automatically. An
+incomplete network directory is discarded; complete numbered outputs remain
+available as checkpoints. `--reset-target=bn-submin` still requests a fresh
+enumeration.
+
 ## Configuration Reference
 
 `<stage>` denotes `soft`, `relaxed`, `seed`, or `lock`, except where a smaller

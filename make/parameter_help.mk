@@ -41,10 +41,15 @@ parameter_help_note_MEMORY = $(strip \
 	$(if $(filter velocyto,$(module_help_target)),\
 		Velocyto receives MB per Samtools thread$(comma) computed from memory/jobs.,\
 	$(if $(filter $(parameter_help_memory_domain_targets),$(module_help_target)),\
-		Domain continuation uses memory as a soft candidate-portfolio limit.))))
+		Domain continuation uses memory as a soft candidate-portfolio limit.,\
+	$(if $(filter bn-submin,$(module_help_target)),\
+		Subset-minimal enumeration checkpoints and restarts before exceeding memory.)))))
 parameter_help_hint_JOBS = $(parameter_help_positive_integer)
 parameter_help_description_JOBS = Maximum number of parallel workflow jobs.
-parameter_help_note_JOBS = Domain continuation evaluates up to jobs candidate domains simultaneously.
+parameter_help_note_JOBS = $(strip \
+	$(if $(filter bn-submin,$(module_help_target)),\
+		Subset-minimal enumeration uses up to jobs Clingo workers.,\
+		Domain continuation evaluates up to jobs candidate domains simultaneously.))
 parameter_help_hint_BACKEND = conda | mamba | micromamba | docker
 parameter_help_description_BACKEND = Backend used to execute module commands.
 parameter_help_hint_SCBOLT_IMAGE = container image

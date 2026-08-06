@@ -69,7 +69,6 @@ def _parameters() -> dict[str, Parameter]:
     add("memory", "MEMORY", SCALAR)
     add("jobs", "JOBS", INTEGER)
     add("seed", "SEED", INTEGER)
-    add("logging", "LOGGING", BOOLEAN)
     add("openblas-core-type", "OPENBLAS_CORETYPE")
     add("organism", "ORGANISM")
     add("conditions", "CONDITIONS", STRING_LIST)

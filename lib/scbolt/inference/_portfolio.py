@@ -805,7 +805,17 @@ def _run_domain_wave(
             for future in done:
                 candidate_index = futures[future].index
                 grounding_candidates.discard(candidate_index)
-                set_candidate_state(candidate_index, "done")
+                result = future.result()
+                if (
+                    result.outcome == "cancelled"
+                    or active_views.candidate_interrupted(candidate_index)
+                ):
+                    terminal_state = "interrupted"
+                elif result.optimum_certified:
+                    terminal_state = "certified"
+                else:
+                    terminal_state = result.outcome
+                set_candidate_state(candidate_index, terminal_state)
             pending = set(current_pending)
             if phase in {"completion", "refinement"} and stop_reason is None:
                 for future in done:

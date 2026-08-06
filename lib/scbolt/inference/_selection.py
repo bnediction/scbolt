@@ -9,6 +9,7 @@ from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from contextlib import ExitStack
 from numbers import Number
 from pathlib import Path
+from threading import Event, Thread
 from typing import Any
 
 import bonesis
@@ -81,6 +82,78 @@ class ptqdm(tqdm):
         # tqdm strips string values, which removes deliberate numeric padding.
         self.postfix = ", ".join(f"{key}={value}" for key, value in postfix.items())
         if refresh:
+            self.refresh()
+
+
+class BooleanNetworkProgress(ptqdm):
+    """Render BoNesis network enumeration as a regular scBOLT progress bar."""
+
+    _refresh_interval = 1.0
+
+    def __init__(
+        self,
+        *args,
+        label: str,
+        limit: int | None,
+        initial: int = 0,
+        started_at: float | None = None,
+        supervisor: Any | None = None,
+        **kwargs,
+    ) -> None:
+        self._label = label
+        self._supervisor = supervisor
+        self._refresh_stop = Event()
+        self._refresh_thread: Thread | None = None
+        requested_stream = kwargs.get("file")
+        kwargs.pop("bar_format", None)
+        kwargs["desc"] = label
+        kwargs["dynamic_ncols"] = False
+        kwargs["initial"] = initial
+        kwargs["ncols"] = 100
+        kwargs["smoothing"] = 0
+        kwargs["total"] = limit or None
+        kwargs["unit"] = "network"
+        if not limit:
+            kwargs["bar_format"] = (
+                "{desc}: {n_fmt} networks [{elapsed}, {rate_fmt}]"
+            )
+        super().__init__(*args, **kwargs)
+        if started_at is not None:
+            self.start_t = started_at
+            self.last_print_t = started_at
+            # The displayed count includes recovered networks, so rate and ETA
+            # must use that same cumulative count rather than only this cycle.
+            self.initial = 0
+        progress_stream = requested_stream or self._tqdm_file or sys.stdout
+        if not self.disable and progress_stream.isatty():
+            if self._supervisor is not None:
+                self._supervisor.attach_progress(self)
+            else:
+                self._refresh_thread = Thread(
+                    target=self._refresh_periodically,
+                    name="scbolt-network-progress",
+                    daemon=True,
+                )
+                self._refresh_thread.start()
+
+    def close(self) -> None:
+        if self._supervisor is not None:
+            self._supervisor.detach_progress(self)
+        self._refresh_stop.set()
+        if self._refresh_thread is not None:
+            self._refresh_thread.join()
+            self._refresh_thread = None
+        super().close()
+
+    def set_description_str(self, _desc=None, refresh=True) -> None:
+        """Keep the stable scBOLT label when BoNesis updates its counter."""
+
+        super().set_description_str(self._label, refresh=refresh)
+
+    def _refresh_periodically(self) -> None:
+        """Refresh elapsed time and average rate between network solutions."""
+
+        while not self._refresh_stop.wait(self._refresh_interval):
             self.refresh()
 
 

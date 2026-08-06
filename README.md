@@ -124,6 +124,8 @@ Generated files are written under `PROJECT_DIR` with separate namespaces:
 * `infer/`: BoNesis specifications, selected genes, and inferred Boolean networks;
 * `logs/`: command logs.
 
+Pipeline command output is always persisted in this directory.
+
 This avoids collisions with condition names such as `bin`, `infer`, or `logs`.
 
 ---
@@ -214,7 +216,6 @@ With `--all`, it asks before removing cache, logs, and all generated module outp
 | `--trust-target=<module...>`   | Trust all outputs from selected modules.              |
 | `--trust-existing`             | Trust every existing scBOLT DAG output.               |
 | `--old-file=<file>`            | Trust one existing scBOLT DAG file.                   |
-| `--logging=false`              | Disable persistent logging.                           |
 | `--help`                       | Display command-specific help when supported.         |
 | `--raw`                        | Display raw `config` listing.                         |
 | `--<key>=<value>`              | Override a public configuration key for one command.  |
@@ -236,7 +237,6 @@ Examples:
 scbolt bn-submin
 scbolt bn-submin --references=ctrl
 scbolt check velocity
-scbolt bn-submin --logging=false
 scbolt bn-submin --max-clauses=12
 ```
 
