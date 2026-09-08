@@ -175,7 +175,7 @@ grep -Fq -- \
     "${repo_root}/Makefile"
 
 [[ "$(grep -Fc -- '--memory-limit "$(memory_normalized)"' \
-    "${repo_root}/Makefile")" -eq 4 ]]
+    "${repo_root}/Makefile")" -eq 5 ]]
 
 [[ "$(grep -Fc -- '--jobs $(CLINGO_THREADS)' "${repo_root}/Makefile")" -eq 5 ]]
 [[ "$(grep -Fc -- '--bounded-nonreach $(BOUNDED_NONREACH)' \

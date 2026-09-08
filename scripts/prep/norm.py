@@ -132,7 +132,7 @@ def main() -> None:
     )
 
     if args.correction:
-        console.print_info("correcting unwanted effects (layer: correct)")
+        console.print_info("correcting unwanted effects (layer=correct)")
         adata.layers["correct"] = adata.layers["log-norm"].copy()
         bt.omics.tl.regress_out(
             adata,

@@ -101,6 +101,12 @@ class AsyncView:
         self.interrupted = True
 
 
+class AsyncBlockingView(BlockingView):
+    def __init__(self):
+        super().__init__()
+        self._solve_handler = SolveHandler()
+
+
 class MemoryView:
     def __init__(self):
         self.interrupted = Event()
@@ -258,7 +264,7 @@ except RuntimeError as error:
 else:
     raise AssertionError("unrelated solver failure was suppressed")
 
-view = BlockingView()
+view = AsyncBlockingView()
 started = time.monotonic()
 try:
     next(iter_solutions(view, SolverDeadline(0.05)))
@@ -268,6 +274,7 @@ else:
     raise AssertionError("deadline did not interrupt the view")
 elapsed = time.monotonic() - started
 assert view.interrupted
+assert not view._solve_handler.cancelled
 assert 0.03 <= elapsed < 1.0, elapsed
 
 view = BlockingView()

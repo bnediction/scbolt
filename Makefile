@@ -966,7 +966,7 @@ $(max_nodes_lock) $(max_nodes_lock_witness) &: $(bonesis_model) $(max_nodes_rela
 		$(call system_tool,cp) $(lastword $^) $(max_nodes_lock_witness); \
 		$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock) $(max_nodes_lock_witness),,$(call solution_metadata_args,global,$(max_nodes_lock),$(word 6,$^))); \
 	elif [ "$(strip $(TIMEOUT_LOCK))" = "0" ]; then \
-		$(call print_warning,TIMEOUT_LOCK=0: keeping seed solution); \
+		$(call print_warning,timeout: 0 (keeping seed solution)); \
 		$(call system_tool,cp) $(word 7,$^) $(max_nodes_lock); \
 		$(call system_tool,cp) $(lastword $^) $(max_nodes_lock_witness); \
 		$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock) $(max_nodes_lock_witness),,$(call solution_metadata_args,partial,$(max_nodes_lock),$(word 6,$^))); \

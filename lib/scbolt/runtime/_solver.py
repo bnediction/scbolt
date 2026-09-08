@@ -113,7 +113,9 @@ def iter_solutions(
             stop_reason = reason
             stopped.set()
 
-        interrupt_solver_view(view)
+        # Control.interrupt() is thread-safe. Cancelling the solve handle from
+        # this watchdog thread can race with the iterator's native Clingo state.
+        interrupt_solver_view(view, cancel_handler=False)
 
     if remaining is not None and remaining <= 0:
         initial_reason = _claim_solver_stop(deadline, patience)
