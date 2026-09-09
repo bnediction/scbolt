@@ -141,6 +141,90 @@ try:
     assert refined.complete_domain_optimal
     assert refined.terminal_refinement_used
     assert phases == ["completion", "refinement"]
+
+    phases.clear()
+
+    def unresolved_complete_domain(_bo, candidates, *, phase, **_kwargs):
+        phases.append(phase)
+        return tuple(
+            DomainCandidateResult(candidate, "unknown") for candidate in candidates
+        )
+
+    portfolio.run_domain_wave = unresolved_complete_domain
+    retained_solution = tuple(f"g{i}" for i in range(7))
+    retained_witness = tuple(f"node(g{i})" for i in range(7))
+    unresolved = run_continuation(
+        {f"g{i}" for i in range(8)},
+        initial_domain={f"g{i}" for i in range(8)},
+        initial_solution=retained_solution,
+        initial_witness=retained_witness,
+        expansion_only=True,
+        strategy="bb,lin",
+    )
+    assert unresolved.continuation_exhausted
+    assert not unresolved.complete_domain_unsat
+    assert not unresolved.complete_domain_optimal
+    assert unresolved.solution == retained_solution
+    assert unresolved.witness == retained_witness
+    assert phases == ["completion"]
+
+    phases.clear()
+
+    def unresolved_refinement(_bo, candidates, *, phase, **_kwargs):
+        phases.append(phase)
+        if phase == "completion":
+            solution = tuple(sorted(candidates[0].nodes - {"g7"}))
+            return tuple(
+                DomainCandidateResult(
+                    candidate,
+                    "sat",
+                    solution,
+                    tuple(f"node({node})" for node in solution),
+                )
+                for candidate in candidates
+            )
+        return tuple(
+            DomainCandidateResult(candidate, "unknown") for candidate in candidates
+        )
+
+    portfolio.run_domain_wave = unresolved_refinement
+    unresolved = run_continuation(
+        {f"g{i}" for i in range(8)},
+        initial_domain={f"g{i}" for i in range(8)},
+        initial_solution=retained_solution,
+        initial_witness=retained_witness,
+        expansion_only=True,
+    )
+    assert unresolved.continuation_exhausted
+    assert unresolved.terminal_refinement_used
+    assert unresolved.solution == retained_solution
+    assert unresolved.witness == retained_witness
+    assert phases == ["completion", "refinement"]
+
+    def capacity_limited_complete_domain(_bo, candidates, **_kwargs):
+        return tuple(
+            DomainCandidateResult(
+                candidate,
+                "unknown",
+                unknown_reason="capacity",
+            )
+            for candidate in candidates
+        )
+
+    portfolio.run_domain_wave = capacity_limited_complete_domain
+    try:
+        run_continuation(
+            {f"g{i}" for i in range(8)},
+            initial_domain={f"g{i}" for i in range(8)},
+            initial_solution=retained_solution,
+            initial_witness=retained_witness,
+            expansion_only=True,
+            strategy="bb,lin",
+        )
+    except portfolio.SolverCapacityError:
+        pass
+    else:
+        raise AssertionError("complete-domain capacity failure was suppressed")
 finally:
     portfolio.run_domain_wave = original_run_domain_wave
 

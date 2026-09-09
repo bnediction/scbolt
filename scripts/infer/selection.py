@@ -682,9 +682,11 @@ def main() -> None:
                 )
                 if continuation.continuation_exhausted:
                     message = (
-                        "domain continuation remained unresolved at its "
-                        f"minimum boundary (max clauses={max_clause}, "
-                        f"domain={len(current_domain)})"
+                        "domain continuation remained unresolved after "
+                        "exhausting its available solver paths "
+                        f"(max clauses={max_clause}, "
+                        f"retained solution={len(solution)}/"
+                        f"{len(current_domain)})"
                     )
                     if not is_target:
                         console.print_warning(

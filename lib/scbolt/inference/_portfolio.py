@@ -12,7 +12,7 @@ from contextlib import ExitStack
 from dataclasses import dataclass
 from queue import Empty, Queue
 from threading import Event, Lock
-from typing import Any, NoReturn
+from typing import Any
 
 import bonesis
 
@@ -938,12 +938,12 @@ def print_domain_wave_summary(
         )
 
 
-def _raise_unresolved_complete_domain(
+def _raise_complete_domain_capacity_error(
     results: Sequence[DomainCandidateResult],
     *,
     phase: str,
-) -> NoReturn:
-    """Classify a complete-domain portfolio that returned no witness."""
+) -> None:
+    """Raise when an unresolved complete domain exceeded Clasp capacity."""
 
     capacity_count = sum(result.unknown_reason == "capacity" for result in results)
     if capacity_count:
@@ -952,7 +952,6 @@ def _raise_unresolved_complete_domain(
             f"in {capacity_count}/{len(results)} complete-domain "
             f"{phase} workers"
         )
-    raise RuntimeError(f"complete-domain {phase} portfolio ended without a result")
 
 
 @dataclass(frozen=True)
@@ -1327,9 +1326,16 @@ class DomainContinuationRunner:
             optimum_certified=complete_domain_optimal,
         )
         if refinement_settings is None and evaluation.selected is None:
-            _raise_unresolved_complete_domain(
+            _raise_complete_domain_capacity_error(
                 evaluation.results,
                 phase="completion",
+            )
+            return DomainContinuationState(
+                self.current_domain,
+                self.current_solution,
+                self.current_witness,
+                continuation_exhausted=True,
+                bb_lin_fallback_used=self.bb_lin_fallback_used,
             )
         terminal_refinement_used = refinement_settings is not None
         if refinement_settings is not None:
@@ -1387,9 +1393,17 @@ class DomainContinuationRunner:
                 terminal_refinement_used=True,
             )
         if evaluation.selected is None:
-            _raise_unresolved_complete_domain(
+            _raise_complete_domain_capacity_error(
                 evaluation.results,
                 phase="refinement",
+            )
+            return DomainContinuationState(
+                self.current_domain,
+                self.current_solution,
+                self.current_witness,
+                terminal_refinement_used=True,
+                continuation_exhausted=True,
+                bb_lin_fallback_used=self.bb_lin_fallback_used,
             )
         if not evaluation.selected.optimum_certified:
             raise RuntimeError(
