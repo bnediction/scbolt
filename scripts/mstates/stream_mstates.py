@@ -1,16 +1,25 @@
 import argparse
 import os
 import re
+import warnings
 from pathlib import Path
 
 import anndata as ad
 import bonesistools as bt
 import matplotlib.pyplot as plt
 import numpy as np
-import stream as st
 from networkx.classes.graph import Graph
 from rpy2.rinterface import ListSexpVector
 from scbolt import cli, console, omics
+
+with warnings.catch_warnings():
+    warnings.filterwarnings(
+        "ignore",
+        message=r"pandas\.core\.index is deprecated.*",
+        category=FutureWarning,
+        module=r"rpy2\.robjects\.pandas2ri",
+    )
+    import stream as st
 
 omics.set_default_plot_params(bt.omics.pl)
 script_name = Path(__file__).name
@@ -360,6 +369,7 @@ def main() -> None:
     groups = {args.obs, "kmeans", "macrostate"}
 
     console.print_task(f"plotting STREAM outputs (directory={os.path.relpath(outpath)})")
+    n_components = 3 if representation_mtx.shape[1] > 2 else 2
     for group in groups:
         epg_plot = Path(f"{outpath}/epg_{group}.pdf")
         bt.omics.pl.trajectory(
@@ -367,21 +377,19 @@ def main() -> None:
             obs=group,
             representation=args.representation,
             graph_key="epg",
+            graph={"linewidth": 1.5},
             xlabel=omics.axis_label(embedding_label, 1),
             ylabel=omics.axis_label(embedding_label, 2),
             zlabel=omics.axis_label(embedding_label, 3),
             figwidth=6,
             alpha=0.7,
-            legend={
-                "title": group,
-                "ncol": 1,
-                "markerscale": 5,
-                "frameon": True,
-                "edgecolor": bt.omics.pl.get_color("black"),
-                "shadow": False,
-            },
+            legend=omics.embedding_legend(
+                bt.omics.pl,
+                title=group,
+                n_components=n_components,
+            ),
             labels={"fontsize": 14, "fontweight": "extra bold"},
-            n_components=3 if representation_mtx.shape[1] > 2 else 2,
+            n_components=n_components,
             background_visible=False,
             outfile=epg_plot,
         )

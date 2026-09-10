@@ -292,6 +292,7 @@ def main() -> None:
         embedding_label = args.representation
     plot_dir = os.path.relpath(args.outpath)
     console.print_task(f"plotting potency outputs (directory={plot_dir})")
+    n_components = 3 if adata.obsm[args.representation].shape[1] > 2 else 2
     for obs in ["score", "normalized_score", "potency"]:
         bt.omics.pl.embedding(
             adata,
@@ -302,15 +303,12 @@ def main() -> None:
             zlabel=omics.axis_label(embedding_label, 3),
             figwidth=6 if obs == "potency" else 8,
             s=8,
-            legend={
-                "title": obs,
-                "ncol": 1,
-                "markerscale": 5,
-                "frameon": True,
-                "edgecolor": bt.omics.pl.get_color("black"),
-                "shadow": False,
-            },
-            n_components=3 if adata.obsm[args.representation].shape[1] > 2 else 2,
+            legend=omics.embedding_legend(
+                bt.omics.pl,
+                title=obs,
+                n_components=n_components,
+            ),
+            n_components=n_components,
             background_visible=False,
             outfile=Path(f"{args.outpath}/cytotrace_{obs}.pdf"),
         )

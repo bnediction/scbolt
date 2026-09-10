@@ -195,6 +195,7 @@ def plot_embedding(
     args,
 ) -> None:
     embedding_label = console.format_embedding(method)
+    n_components = 3 if args.embedding_dimension > 2 else 2
     bt.omics.pl.embedding(
         adata,
         obs=obs,
@@ -203,15 +204,12 @@ def plot_embedding(
         ylabel=omics.axis_label(embedding_label, 2),
         zlabel=omics.axis_label(embedding_label, 3),
         figwidth=6,
-        legend={
-            "title": obs,
-            "ncol": 1,
-            "markerscale": 5,
-            "frameon": True,
-            "edgecolor": bt.omics.pl.get_color("black"),
-            "shadow": False,
-        },
-        n_components=3 if args.embedding_dimension > 2 else 2,
+        legend=omics.embedding_legend(
+            bt.omics.pl,
+            title=obs,
+            n_components=n_components,
+        ),
+        n_components=n_components,
         background_visible=False,
         outfile=outfile,
     )
@@ -755,14 +753,7 @@ def main() -> None:
         xlabel=omics.axis_label("PC", 1),
         ylabel=omics.axis_label("PC", 2),
         figwidth=6,
-        legend={
-            "title": "condition",
-            "ncol": 1,
-            "markerscale": 5,
-            "frameon": True,
-            "edgecolor": bt.omics.pl.get_color("black"),
-            "shadow": False,
-        },
+        legend=omics.embedding_legend(bt.omics.pl, title="condition"),
         background_visible=False,
         outfile=pc_plot,
     )

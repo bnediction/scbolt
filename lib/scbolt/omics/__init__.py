@@ -10,6 +10,7 @@ from ._composition import (
 from ._plotting import (
     axis_label,
     crop_pdf,
+    embedding_legend,
     plain_text_label,
     plot_categorical_embedding,
     plot_continuous_embedding,
@@ -25,6 +26,7 @@ __all__ = [
     "compute_condition_composition",
     "crop_pdf",
     "drop_expression_matrices",
+    "embedding_legend",
     "include_available_features",
     "plain_text_label",
     "plot_categorical_embedding",

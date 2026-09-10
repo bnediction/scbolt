@@ -300,6 +300,7 @@ def main() -> None:
 
     for obs, file in macrostate_files.items():
         if len(adata.obs[obs].cat.categories) > 0:
+            n_components = 3 if adata.obsm["X_umap"].shape[1] > 2 else 2
             bt.omics.pl.embedding(
                 adata,
                 obs=obs,
@@ -311,17 +312,15 @@ def main() -> None:
                 zlabel=omics.axis_label("UMAP", 3),
                 s=4,
                 labels={"fontsize": 15, "fontweight": "extra bold"},
-                legend={
-                    "title": obs,
-                    "ncol": math.ceil(
+                legend=omics.embedding_legend(
+                    bt.omics.pl,
+                    title=obs,
+                    ncol=math.ceil(
                         len(adata.obs[obs].astype("category").cat.categories) / 16
                     ),
-                    "markerscale": 5,
-                    "frameon": True,
-                    "edgecolor": bt.omics.pl.get_color("black"),
-                    "shadow": False,
-                },
-                n_components=3 if adata.obsm["X_umap"].shape[1] > 2 else 2,
+                    n_components=n_components,
+                ),
+                n_components=n_components,
                 background_visible=False,
                 outfile=file,
             )

@@ -68,6 +68,30 @@ def axis_label(label: str, component: int) -> str:
     return f"{label}{component}"
 
 
+def embedding_legend(
+    plotting,
+    *,
+    title: str | None = None,
+    ncol: int = 1,
+    n_components: int = 2,
+) -> dict[str, object]:
+    """Return the shared external legend configuration for embeddings."""
+
+    horizontal_anchor = 1.2 if n_components == 3 else 1.05
+    legend = {
+        "ncol": ncol,
+        "markerscale": 5,
+        "frameon": True,
+        "edgecolor": plotting.get_color("black"),
+        "shadow": False,
+        "bbox_to_anchor": (horizontal_anchor, 0.5),
+        "loc": "center left",
+    }
+    if title is not None:
+        legend["title"] = title
+    return legend
+
+
 def plain_text_label(label: str) -> str:
     """Convert common scBOLT TeX labels to plain text when TeX is unavailable."""
 
@@ -124,13 +148,7 @@ def plot_categorical_embedding(
         xlabel=axis_label(label, 1),
         ylabel=axis_label(label, 2),
         zlabel=axis_label(label, 3),
-        legend={
-            "ncol": 1,
-            "markerscale": 5,
-            "frameon": True,
-            "edgecolor": plotting.get_color("black"),
-            "shadow": False,
-        },
+        legend=embedding_legend(plotting, n_components=n_components),
         text={
             "fontsize": 12,
             "fontweight": "extra bold",

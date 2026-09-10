@@ -84,6 +84,7 @@ def plot_embedding(
     adata, method: str, representation: str, outfile: Path, args
 ) -> None:
     embedding_label = console.format_embedding(method)
+    n_components = 3 if args.embedding_dimension > 2 else 2
     bt.omics.pl.embedding(
         adata,
         obs="cluster",
@@ -92,15 +93,12 @@ def plot_embedding(
         ylabel=omics.axis_label(embedding_label, 2),
         zlabel=omics.axis_label(embedding_label, 3),
         figwidth=6,
-        legend={
-            "title": "clusters",
-            "ncol": 1,
-            "markerscale": 5,
-            "frameon": True,
-            "edgecolor": bt.omics.pl.get_color("black"),
-            "shadow": False,
-        },
-        n_components=3 if args.embedding_dimension > 2 else 2,
+        legend=omics.embedding_legend(
+            bt.omics.pl,
+            title="clusters",
+            n_components=n_components,
+        ),
+        n_components=n_components,
         background_visible=False,
         outfile=outfile,
     )

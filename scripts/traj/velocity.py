@@ -223,7 +223,7 @@ def main() -> None:
                 size=5,
                 color_map=color_map,
                 alpha=0.5,
-                legend_loc="best",
+                legend_loc="right margin",
                 legend_fontweight="bold",
                 figsize=(7, 4),
                 show=False,
@@ -232,13 +232,24 @@ def main() -> None:
                 txt.set_visible(False)
             stream_plot_pdf = Path(f"{outpath}/stream_plot.pdf")
             try:
-                plt.savefig(stream_plot_pdf)
+                plt.savefig(
+                    stream_plot_pdf,
+                    bbox_inches="tight",
+                    pad_inches=0.3,
+                )
             except (OSError, OverflowError, RuntimeError, ValueError):
                 if os.path.isfile(stream_plot_pdf):
                     os.remove(stream_plot_pdf)
-                plt.savefig(Path(f"{outpath}/stream_plot.png"))
+                plt.savefig(
+                    Path(f"{outpath}/stream_plot.png"),
+                    bbox_inches="tight",
+                    pad_inches=0.3,
+                )
             plt.close()
 
+        pseudotime_components = (
+            3 if adata.obsm["velocity_umap"].shape[1] > 2 else 2
+        )
         bt.omics.pl.embedding(
             adata,
             obs="velocity_pseudotime",
@@ -248,21 +259,23 @@ def main() -> None:
             zlabel=omics.axis_label(embedding_label, 3),
             figwidth=6,
             s=4,
-            legend={
-                "title": "pseudotime",
-                "ncol": 1,
-                "markerscale": 5,
-                "frameon": True,
-                "edgecolor": bt.omics.pl.get_color("black"),
-                "shadow": False,
-            },
-            n_components=3 if adata.obsm["velocity_umap"].shape[1] > 2 else 2,
+            legend=omics.embedding_legend(
+                bt.omics.pl,
+                title="pseudotime",
+                n_components=pseudotime_components,
+            ),
+            n_components=pseudotime_components,
             background_visible=False,
             colorbar_scale=0.3,
             colors="gnuplot",
             outfile=Path(f"{outpath}/velocity_pseudotime.pdf"),
         )
 
+        cluster_components = (
+            3
+            if adata.obsm["velocity_umap"].shape[1] > 2 and args.plot_3d is True
+            else 2
+        )
         _fig, ax = bt.omics.pl.embedding(
             adata,
             obs=args.cluster,
@@ -272,20 +285,13 @@ def main() -> None:
             zlabel=omics.axis_label(embedding_label, 3),
             figwidth=6,
             s=4,
-            legend={
-                "title": "clusters",
-                "ncol": 1,
-                "markerscale": 5,
-                "frameon": True,
-                "edgecolor": bt.omics.pl.get_color("black"),
-                "shadow": False,
-            },
-            colors=adata.uns["colors"],
-            n_components=(
-                3
-                if adata.obsm["velocity_umap"].shape[1] > 2 and args.plot_3d is True
-                else 2
+            legend=omics.embedding_legend(
+                bt.omics.pl,
+                title="clusters",
+                n_components=cluster_components,
             ),
+            colors=adata.uns["colors"],
+            n_components=cluster_components,
             background_visible=False,
         )
         plt.axis("off")
@@ -301,7 +307,11 @@ def main() -> None:
             node_size=100,
             node_color=color_map,
         )
-        plt.savefig(Path(f"{outpath}/paga.pdf"))
+        plt.savefig(
+            Path(f"{outpath}/paga.pdf"),
+            bbox_inches="tight",
+            pad_inches=0.3,
+        )
         plt.close()
 
     console.print_task(f"saving AnnData (file={console.format_path(args.outfile)})")
