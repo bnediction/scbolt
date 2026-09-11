@@ -61,6 +61,7 @@ grep -qx 'PATIENCE_DOMAIN_WAVE_LOCK=10m' <<< "${defaults}"
 grep -qx 'MIN_DOMAIN_YIELD=0.10' <<< "${defaults}"
 grep -qx 'MAX_DOMAIN_REFRESHES=1' <<< "${defaults}"
 grep -qx 'BOUNDED_NONREACH=' <<< "${defaults}"
+grep -qx 'STRONG_CONSTANTS_SCOPE=soft' <<< "${defaults}"
 grep -qx 'CLINGO_THREADS=1' <<< "${defaults}"
 for stage in SOFT CONSTS RELAXED SEED LOCK; do
     grep -qx "CLINGO_CONFIG_${stage}=auto" <<< "${defaults}"
@@ -286,20 +287,20 @@ grep -Fq 'kwargs["leave"] = False' \
 ! grep -Fq 'leave=is_target' \
     "${repo_root}/scripts/infer/selection.py"
 
-! grep -Fq -- \
-    "--initial-witness \$(dir \$(max_consts_soft))witness.lp" \
-    "${repo_root}/Makefile"
-! grep -Fq -- \
-    "--initial-witness \$(dir \$(max_nodes_relaxed))witness.lp" \
+grep -Fq -- \
+    "--initial-witness \$(consts_input_witness)" \
     "${repo_root}/Makefile"
 grep -Fq -- \
-    "--forward-witness \$(word 7,\$^)" \
+    "--forward-witness \$(relaxed_input_witness)" \
     "${repo_root}/Makefile"
 grep -Fq -- \
-    "--initial-witness \$(lastword \$^)" \
+    "--forward-witness \$(full_input_witness)" \
     "${repo_root}/Makefile"
 grep -Fq -- \
-    "--initial-witness \$(max_nodes_lock_witness)" \
+    "--initial-witness \$(max_nodes_seed_witness)" \
+    "${repo_root}/Makefile"
+grep -Fq -- \
+    "--initial-witness \$(final_selection_witness)" \
     "${repo_root}/Makefile"
 grep -Fq 'canonicalize_structural_witness(witness)' \
     "${repo_root}/scripts/infer/infer.py"
@@ -321,6 +322,9 @@ grep -Fq -- \
 grep -Fq -- \
     "__max-nodes-lock: \$(max_nodes_lock) \$(max_nodes_lock_witness)" \
     "${repo_root}/make/cli.mk"
+grep -Fq -- \
+    "__max-consts: \$(max_consts) \$(max_consts_witness)" \
+    "${repo_root}/make/cli.mk"
 grep -Fq \
     'if should_forward_previous_solution(new_constraints, initial_witness):' \
     "${repo_root}/scripts/infer/selection.py"
@@ -331,8 +335,8 @@ grep -Fq \
     'read_gene_list(args.filter_grn)' \
     "${repo_root}/scripts/infer/selection.py"
 grep -Fq \
-    'if [ ! -s "$(lastword $^)" ]; then' \
+    'elif [ ! -s "$(max_nodes_seed_witness)" ]; then' \
     "${repo_root}/Makefile"
 grep -Fq \
-    'metadata_solution_field,$(word 7,$^),forwarded-from' \
+    'metadata_solution_field,$(max_nodes_seed_solution),forwarded-from' \
     "${repo_root}/Makefile"

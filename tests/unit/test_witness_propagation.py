@@ -23,9 +23,35 @@ makefile = (REPO_ROOT / "Makefile").read_text()
 lock_recipe = makefile.split(
     "$(max_nodes_lock) $(max_nodes_lock_witness) &:", 1
 )[1].split("$(bn_min):", 1)[0]
-assert "metadata_solution_field,$(word 7,$^),forwarded-from" in lock_recipe
-assert "--filter-grn $(word 6,$^)" in lock_recipe
-assert "$(max_consts_soft)" not in lock_recipe
+assert "metadata_solution_field,$(max_nodes_seed_solution),forwarded-from" in lock_recipe
+assert "--filter-grn $(full_input)" in lock_recipe
+assert "--initial-witness $(max_nodes_seed_witness)" in lock_recipe
+
+consts_recipe = makefile.split(
+    "$(max_consts) $(max_consts_witness) &:", 1
+)[1].split("$(max_nodes_relaxed)", 1)[0]
+assert "--filter-grn $(consts_input)" in consts_recipe
+assert "--initial-witness $(consts_input_witness)" in consts_recipe
+assert "--witness $(max_consts_witness)" in consts_recipe
+assert "--bonesis-mode $(consts_mode)" in consts_recipe
+
+relaxed_recipe = makefile.split(
+    "$(max_nodes_relaxed) $(max_nodes_relaxed_witness) &:", 1
+)[1].split("$(max_nodes_seed)&:", 1)[0]
+assert "--filter-grn $(relaxed_input)" in relaxed_recipe
+assert "--forward-witness $(relaxed_input_witness)" in relaxed_recipe
+
+seed_recipe = makefile.split("$(max_nodes_seed)&:", 1)[1].split(
+    "$(max_nodes_lock)", 1
+)[0]
+assert "--filter-grn $(full_input)" in seed_recipe
+assert "--forward-witness $(full_input_witness)" in seed_recipe
+
+submin_recipe = makefile.split("$(bn_submin)&:", 1)[1].split(
+    "$(bn_diverse)&:", 1
+)[0]
+assert "--filter-grn $(final_selection)" in submin_recipe
+assert "--initial-witness $(final_selection_witness)" in submin_recipe
 
 with tempfile.TemporaryDirectory() as directory:
     directory = Path(directory)

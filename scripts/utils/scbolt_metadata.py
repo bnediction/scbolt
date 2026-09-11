@@ -1019,6 +1019,19 @@ def done_targets_for_targets(
 
 
 def write_metadata(args: argparse.Namespace) -> None:
+    strong_constants_fields = (
+        args.strong_constants_requested_scope,
+        args.strong_constants_executed_scope,
+        args.strong_constants_bonesis_mode,
+    )
+    if any(value is not None for value in strong_constants_fields) and not all(
+        value is not None for value in strong_constants_fields
+    ):
+        raise SystemExit(
+            "strong-constant metadata requires requested scope, executed scope, "
+            "and BoNesis mode"
+        )
+
     parameters = parse_parameters(args.param)
     solution = solution_payload(
         args.solution_status,
@@ -1073,6 +1086,15 @@ def write_metadata(args: argparse.Namespace) -> None:
         }
         if solution is not None:
             payload["solution"] = solution
+        if args.strong_constants_executed_scope is not None:
+            payload["strong_constants"] = {
+                "requested_scope": args.strong_constants_requested_scope,
+                "executed_scope": args.strong_constants_executed_scope,
+                "bonesis_mode": args.strong_constants_bonesis_mode,
+                "input_components": args.solution_total,
+                "retained_components": args.solution_kept,
+                "status": args.solution_status,
+            }
         with sidecar.open("w") as file:
             json.dump(payload, file, indent=2, sort_keys=True)
             file.write("\n")
@@ -1422,6 +1444,21 @@ def build_parser() -> argparse.ArgumentParser:
     write.add_argument("--solution-kept", type=int, default=None)
     write.add_argument("--solution-total", type=int, default=None)
     write.add_argument("--solution-forwarded-from", default=None)
+    write.add_argument(
+        "--strong-constants-requested-scope",
+        choices=["soft", "relaxed", "full", "none"],
+        default=None,
+    )
+    write.add_argument(
+        "--strong-constants-executed-scope",
+        choices=["soft", "relaxed", "full"],
+        default=None,
+    )
+    write.add_argument(
+        "--strong-constants-bonesis-mode",
+        choices=["soft", "relaxed", "hard"],
+        default=None,
+    )
     write.add_argument("--runtime-env", action="append", default=[])
     add_runtime_arguments(write)
     write.set_defaults(func=write_metadata)

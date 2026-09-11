@@ -19,8 +19,8 @@ include $(scbolt_root)/make/check.mk
 include $(scbolt_root)/make/clean.mk
 
 ## preserve target even if make is killed or interrupted
-.PRECIOUS: $(max_nodes_soft_solution)
-.PRECIOUS: $(max_consts_soft)
+.PRECIOUS: $(max_nodes_soft_solution) $(max_nodes_soft_witness)
+.PRECIOUS: $(max_consts) $(max_consts_witness)
 .PRECIOUS: $(max_nodes_relaxed) $(max_nodes_relaxed_witness)
 .PRECIOUS: $(max_nodes_seed)
 .PRECIOUS: $(max_nodes_lock) $(max_nodes_lock_witness)
@@ -773,24 +773,25 @@ $(bonesis_model)&: $(bin) $(wildcard $(SPEC_FILE)) $(if $(geneinfo_dependency),|
 	$(call system_tool,sort) -u $(word 5,$(bonesis_model)) -o $(word 5,$(bonesis_model))
 	$(call write_scbolt_metadata,spec,$(bonesis_model))
 
-$(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
+$(max_nodes_soft_solution) $(max_nodes_soft_witness) &: $(bonesis_model) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-soft)
 	$(call require_bonesis_parameters,max-nodes-soft)
 	$(call require_bool,CLAUSE_CONTINUATION_SOFT,max-nodes-soft)
 	$(call require_bool,DOMAIN_CONTINUATION_SOFT,max-nodes-soft)
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),$(call require_half_open_unit_interval,MIN_DOMAIN_YIELD))
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),$(call require_nonnegative_integer,MAX_DOMAIN_REFRESHES))
-	mkdir -p $(@D)
-	rm -f $(@D)/domain.txt
+	mkdir -p $(dir $(max_nodes_soft_solution))
+	rm -f $(dir $(max_nodes_soft_solution))domain.txt
 	set +e; \
 	$(call start_inference_timer) \
-	$(call trap_inference_interrupt,max-nodes-soft,TIMEOUT_SOFT,,$(max_nodes_soft_domain_size)); \
+	$(call trap_inference_interrupt,max-nodes-soft,TIMEOUT_SOFT,,$(max_nodes_soft_domain_size),$(max_nodes_soft_solution),$(max_nodes_soft_solution) $(max_nodes_soft_witness)); \
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/selection.py filter-nodes \
 		$(word 1,$^) $(word 2,$^) \
 		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
 		--forbidden-nodes $(word 5,$^) \
-		--asp $(@D)/nodes.sh --solution $@ \
-		--witness $(@D)/witness.lp \
+		--asp $(dir $(max_nodes_soft_solution))nodes.sh \
+		--solution $(max_nodes_soft_solution) \
+		--witness $(max_nodes_soft_witness) \
 		$(call clause_continuation,CLAUSE_CONTINUATION_SOFT) \
 		--clause-continuation-parameter CLAUSE_CONTINUATION_SOFT \
 		$(if $(strip $(PATIENCE_CLAUSE_BOUND)),--clause-bound-patience "$(PATIENCE_CLAUSE_BOUND)") \
@@ -809,40 +810,45 @@ $(max_nodes_soft_solution): $(bonesis_model) $(if $(geneinfo_dependency),| $(gen
 		--clingo-mode $(CLINGO_MODE_SOFT) \
 		--clingo-strategy $(CLINGO_STRATEGY_SOFT) \
 		--jobs $(CLINGO_THREADS) $(if $(strip $(TIMEOUT_SOFT)),--timeout "$(TIMEOUT_SOFT)") \
-		--timeout-status-file "$(@D)/.inference-timeout"; \
-	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
+		--timeout-status-file "$(dir $(max_nodes_soft_solution)).inference-timeout"; \
+	$(call capture_inference_exit_status,$(dir $(max_nodes_soft_solution)).inference-timeout) \
 	trap - INT TERM; \
 	set -e; \
-	$(call check_inference_status,$(TIMEOUT_SOFT),max-nodes-soft,TIMEOUT_SOFT,,$(max_nodes_soft_domain_size))
+	$(call check_inference_status,$(TIMEOUT_SOFT),max-nodes-soft,TIMEOUT_SOFT,,$(max_nodes_soft_domain_size),$(max_nodes_soft_solution),$(max_nodes_soft_solution) $(max_nodes_soft_witness))
 
-$(max_consts_soft): $(bonesis_model) $(max_nodes_soft_solution) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
-	$(call print_rule,max-consts-soft)
-	$(call require_bonesis_parameters,max-consts-soft)
-	$(call require_bool,MIN_SELF_LOOP_CONSTS,max-consts-soft)
-	mkdir -p $(@D)
+ifneq ($(strong_constants_enabled),)
+$(max_consts) $(max_consts_witness) &: $(bonesis_model) $(consts_input) $(consts_input_witness) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
+	$(call print_rule,max-consts)
+	$(call require_bonesis_parameters,max-consts)
+	$(call require_choice,STRONG_CONSTANTS_SCOPE,soft relaxed full,max-consts)
+	$(call require_bool,MIN_SELF_LOOP_CONSTS,max-consts)
+	mkdir -p $(dir $(max_consts))
 	set +e; \
 	$(call start_inference_timer) \
-	$(call trap_inference_interrupt,max-consts-soft,TIMEOUT_CONSTS,,$(lastword $^)); \
+	$(call trap_inference_interrupt,max-consts,TIMEOUT_CONSTS,,$(consts_input),$(max_consts),$(max_consts) $(max_consts_witness)); \
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/selection.py filter-consts \
-		$(word 1,$^) $(word 2,$^) \
-		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
-		--filter-grn $(lastword $^) \
-		--asp $(@D)/nodes.sh --solution $@ \
-		--witness $(@D)/witness.lp \
+		$(word 1,$(bonesis_model)) $(word 2,$(bonesis_model)) \
+		--important-nodes $(word 3,$(bonesis_model)) \
+		--mandatory-nodes $(word 4,$(bonesis_model)) \
+		--filter-grn $(consts_input) \
+		--initial-witness $(consts_input_witness) \
+		--asp $(dir $(max_consts))nodes.sh --solution $(max_consts) \
+		--witness $(max_consts_witness) \
 		--domain $(prior_knowledge) --organism $(ORGANISM) \
 		$(prior_knowledge_args) \
-		--bonesis-mode soft --max-clauses $(MAX_CLAUSES) $(min_self_loop_consts) \
+		--bonesis-mode $(consts_mode) --max-clauses $(MAX_CLAUSES) $(min_self_loop_consts) \
 		$(if $(strip $(CLINGO_CONFIG_CONSTS)),--clingo-configuration $(CLINGO_CONFIG_CONSTS)) \
 		--clingo-mode $(CLINGO_MODE_CONSTS) \
 		--clingo-strategy $(CLINGO_STRATEGY_CONSTS) \
 		--jobs $(CLINGO_THREADS) $(if $(strip $(TIMEOUT_CONSTS)),--timeout "$(TIMEOUT_CONSTS)") \
-		--timeout-status-file "$(@D)/.inference-timeout"; \
-	$(call capture_inference_exit_status,$(@D)/.inference-timeout) \
+		--timeout-status-file "$(dir $(max_consts)).inference-timeout"; \
+	$(call capture_inference_exit_status,$(dir $(max_consts)).inference-timeout) \
 	trap - INT TERM; \
 	set -e; \
-	$(call check_inference_status,$(TIMEOUT_CONSTS),max-consts-soft,TIMEOUT_CONSTS,,$(lastword $^))
+	$(call check_inference_status,$(TIMEOUT_CONSTS),max-consts,TIMEOUT_CONSTS,,$(consts_input),$(max_consts),$(max_consts) $(max_consts_witness))
+endif
 
-$(max_nodes_relaxed) $(max_nodes_relaxed_witness) &: $(bonesis_model) $(max_consts_soft) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
+$(max_nodes_relaxed) $(max_nodes_relaxed_witness) &: $(bonesis_model) $(relaxed_input) $(relaxed_input_witness) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-relaxed)
 	$(call require_bonesis_parameters,max-nodes-relaxed)
 	$(call require_optional_positive_integer,BOUNDED_NONREACH)
@@ -854,12 +860,14 @@ $(max_nodes_relaxed) $(max_nodes_relaxed_witness) &: $(bonesis_model) $(max_cons
 	$(call system_tool,rm) -f $(@D)/.forwarded
 	set +e; \
 	$(call start_inference_timer) \
-	$(call trap_inference_interrupt,max-nodes-relaxed,TIMEOUT_RELAXED,,$(lastword $^),$(max_nodes_relaxed),$(max_nodes_relaxed) $(max_nodes_relaxed_witness)); \
+	$(call trap_inference_interrupt,max-nodes-relaxed,TIMEOUT_RELAXED,,$(relaxed_input),$(max_nodes_relaxed),$(max_nodes_relaxed) $(max_nodes_relaxed_witness)); \
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/selection.py filter-nodes \
-		$(word 1,$^) $(word 2,$^) \
-		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
-		--filter-grn $(lastword $^) --asp $(@D)/nodes.sh \
+		$(word 1,$(bonesis_model)) $(word 2,$(bonesis_model)) \
+		--important-nodes $(word 3,$(bonesis_model)) \
+		--mandatory-nodes $(word 4,$(bonesis_model)) \
+		--filter-grn $(relaxed_input) --asp $(@D)/nodes.sh \
 		--solution $(max_nodes_relaxed) --witness $(max_nodes_relaxed_witness) \
+		--forward-witness $(relaxed_input_witness) \
 		--forwarded-status-file $(@D)/.forwarded \
 		$(call clause_continuation,CLAUSE_CONTINUATION_RELAXED) \
 		--clause-continuation-parameter CLAUSE_CONTINUATION_RELAXED \
@@ -884,13 +892,13 @@ $(max_nodes_relaxed) $(max_nodes_relaxed_witness) &: $(bonesis_model) $(max_cons
 	trap - INT TERM; \
 	set -e; \
 	if [ $$exit_status -eq 0 ] && [ -s $(@D)/.forwarded ]; then \
-		$(call write_forwarded_solution_metadata,max-nodes-relaxed,$(max_nodes_relaxed) $(max_nodes_relaxed_witness),$(lastword $^),$(max_nodes_relaxed),$(lastword $^)); \
+		$(call write_forwarded_solution_metadata,max-nodes-relaxed,$(max_nodes_relaxed) $(max_nodes_relaxed_witness),$(relaxed_input),$(max_nodes_relaxed),$(relaxed_input)); \
 	else \
-		$(call check_inference_status,$(TIMEOUT_RELAXED),max-nodes-relaxed,TIMEOUT_RELAXED,,$(lastword $^),$(max_nodes_relaxed),$(max_nodes_relaxed) $(max_nodes_relaxed_witness)); \
+		$(call check_inference_status,$(TIMEOUT_RELAXED),max-nodes-relaxed,TIMEOUT_RELAXED,,$(relaxed_input),$(max_nodes_relaxed),$(max_nodes_relaxed) $(max_nodes_relaxed_witness)); \
 	fi; \
 	$(call system_tool,rm) -f $(@D)/.forwarded
 
-$(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_relaxed_witness) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
+$(max_nodes_seed)&: $(bonesis_model) $(full_input) $(full_input_witness) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-seed)
 	$(call require_bonesis_parameters,max-nodes-seed)
 	$(call require_optional_positive_integer,BOUNDED_NONREACH)
@@ -903,13 +911,14 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_relaxed_wi
 	$(call system_tool,rm) -f $(@D)/.forwarded
 	set +e; \
 	$(call start_inference_timer) \
-	$(call trap_inference_interrupt,max-nodes-seed,TIMEOUT_SEED,,$(word 6,$^),$(@D)/comps.txt,$(max_nodes_seed)); \
+	$(call trap_inference_interrupt,max-nodes-seed,TIMEOUT_SEED,,$(full_input),$(max_nodes_seed_solution),$(max_nodes_seed)); \
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/selection.py filter-nodes \
-		$(word 1,$^) $(word 2,$^) \
-		--important-nodes $(word 3,$^) --mandatory-nodes $(word 4,$^) \
-		--filter-grn $(word 6,$^) --asp $(@D)/nodes.sh \
-		--solution $(@D)/comps.txt --witness $(@D)/witness.lp \
-		--forward-witness $(word 7,$^) \
+		$(word 1,$(bonesis_model)) $(word 2,$(bonesis_model)) \
+		--important-nodes $(word 3,$(bonesis_model)) \
+		--mandatory-nodes $(word 4,$(bonesis_model)) \
+		--filter-grn $(full_input) --asp $(@D)/nodes.sh \
+		--solution $(max_nodes_seed_solution) --witness $(max_nodes_seed_witness) \
+		--forward-witness $(full_input_witness) \
 		--forwarded-status-file $(@D)/.forwarded \
 		$(call clause_continuation,CLAUSE_CONTINUATION_SEED) \
 		--clause-continuation-parameter CLAUSE_CONTINUATION_SEED \
@@ -934,13 +943,13 @@ $(max_nodes_seed)&: $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_relaxed_wi
 	trap - INT TERM; \
 	set -e; \
 	if [ $$exit_status -eq 0 ] && [ -s $(@D)/.forwarded ]; then \
-		$(call write_forwarded_solution_metadata,max-nodes-seed,$(max_nodes_seed),$(word 6,$^),$(@D)/comps.txt,$(word 6,$^)); \
+		$(call write_forwarded_solution_metadata,max-nodes-seed,$(max_nodes_seed),$(full_input),$(max_nodes_seed_solution),$(full_input)); \
 	else \
-		$(call check_inference_status,$(TIMEOUT_SEED),max-nodes-seed,TIMEOUT_SEED,,$(word 6,$^),$(@D)/comps.txt,$(max_nodes_seed)); \
+		$(call check_inference_status,$(TIMEOUT_SEED),max-nodes-seed,TIMEOUT_SEED,,$(full_input),$(max_nodes_seed_solution),$(max_nodes_seed)); \
 	fi; \
 	$(call system_tool,rm) -f $(@D)/.forwarded
 
-$(max_nodes_lock) $(max_nodes_lock_witness) &: $(bonesis_model) $(max_nodes_relaxed) $(max_nodes_seed) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
+$(max_nodes_lock) $(max_nodes_lock_witness) &: $(bonesis_model) $(full_input) $(max_nodes_seed) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,max-nodes-lock)
 	$(call require_bonesis_parameters,max-nodes-lock)
 	$(call require_optional_positive_integer,BOUNDED_NONREACH)
@@ -949,40 +958,40 @@ $(max_nodes_lock) $(max_nodes_lock_witness) &: $(bonesis_model) $(max_nodes_rela
 	$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),$(call require_half_open_unit_interval,MIN_DOMAIN_YIELD))
 	$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),$(call require_nonnegative_integer,MAX_DOMAIN_REFRESHES))
 	mkdir -p $(dir $(max_nodes_lock))
-	seed_forwarded_from="$$($(call metadata_solution_field,$(word 7,$^),forwarded-from) 2>/dev/null || true)"; \
+	seed_forwarded_from="$$($(call metadata_solution_field,$(max_nodes_seed_solution),forwarded-from) 2>/dev/null || true)"; \
 	if [ -n "$${seed_forwarded_from}" ]; then \
 		$(call print_debug,no hard constraints added: forwarding seed solution); \
-		$(call system_tool,cp) $(word 7,$^) $(max_nodes_lock); \
-		$(call system_tool,cp) $(lastword $^) $(max_nodes_lock_witness); \
-		$(call write_forwarded_solution_metadata,max-nodes-lock,$(max_nodes_lock) $(max_nodes_lock_witness),$(word 7,$^),$(max_nodes_lock),$(word 6,$^)); \
-	elif [ ! -s "$(lastword $^)" ]; then \
+		$(call system_tool,cp) $(max_nodes_seed_solution) $(max_nodes_lock); \
+		$(call system_tool,cp) $(max_nodes_seed_witness) $(max_nodes_lock_witness); \
+		$(call write_forwarded_solution_metadata,max-nodes-lock,$(max_nodes_lock) $(max_nodes_lock_witness),$(max_nodes_seed_solution),$(max_nodes_lock),$(full_input)); \
+	elif [ ! -s "$(max_nodes_seed_witness)" ]; then \
 		$(call print_debug,no structural witness available: forwarding seed solution); \
-		$(call system_tool,cp) $(word 7,$^) $(max_nodes_lock); \
-		$(call system_tool,cp) $(lastword $^) $(max_nodes_lock_witness); \
-		$(call write_forwarded_solution_metadata,max-nodes-lock,$(max_nodes_lock) $(max_nodes_lock_witness),$(word 7,$^),$(max_nodes_lock),$(word 6,$^)); \
-	elif [ "$$($(call metadata_solution_field,$(word 7,$^),status) 2>/dev/null || true)" = "global" ]; then \
+		$(call system_tool,cp) $(max_nodes_seed_solution) $(max_nodes_lock); \
+		$(call system_tool,cp) $(max_nodes_seed_witness) $(max_nodes_lock_witness); \
+		$(call write_forwarded_solution_metadata,max-nodes-lock,$(max_nodes_lock) $(max_nodes_lock_witness),$(max_nodes_seed_solution),$(max_nodes_lock),$(full_input)); \
+	elif [ "$$($(call metadata_solution_field,$(max_nodes_seed_solution),status) 2>/dev/null || true)" = "global" ]; then \
 		$(call print_debug,solution already globally optimal: skipping lock optimization); \
-		$(call system_tool,cp) $(word 7,$^) $(max_nodes_lock); \
-		$(call system_tool,cp) $(lastword $^) $(max_nodes_lock_witness); \
-		$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock) $(max_nodes_lock_witness),,$(call solution_metadata_args,global,$(max_nodes_lock),$(word 6,$^))); \
+		$(call system_tool,cp) $(max_nodes_seed_solution) $(max_nodes_lock); \
+		$(call system_tool,cp) $(max_nodes_seed_witness) $(max_nodes_lock_witness); \
+		$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock) $(max_nodes_lock_witness),,$(call solution_metadata_args,global,$(max_nodes_lock),$(full_input))); \
 	elif [ "$(strip $(TIMEOUT_LOCK))" = "0" ]; then \
 		$(call print_warning,timeout: 0 (keeping seed solution)); \
-		$(call system_tool,cp) $(word 7,$^) $(max_nodes_lock); \
-		$(call system_tool,cp) $(lastword $^) $(max_nodes_lock_witness); \
-		$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock) $(max_nodes_lock_witness),,$(call solution_metadata_args,partial,$(max_nodes_lock),$(word 6,$^))); \
+		$(call system_tool,cp) $(max_nodes_seed_solution) $(max_nodes_lock); \
+		$(call system_tool,cp) $(max_nodes_seed_witness) $(max_nodes_lock_witness); \
+		$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock) $(max_nodes_lock_witness),,$(call solution_metadata_args,partial,$(max_nodes_lock),$(full_input))); \
 	else \
-		$(call system_tool,cp) $(word 7,$^) $(max_nodes_lock); \
-		$(call system_tool,cp) $(lastword $^) $(max_nodes_lock_witness); \
+		$(call system_tool,cp) $(max_nodes_seed_solution) $(max_nodes_lock); \
+		$(call system_tool,cp) $(max_nodes_seed_witness) $(max_nodes_lock_witness); \
 		set +e; \
 		$(call start_inference_timer) \
-		$(call trap_inference_interrupt,max-nodes-lock,TIMEOUT_LOCK,$(word 7,$^),$(word 6,$^),$(max_nodes_lock),$(max_nodes_lock) $(max_nodes_lock_witness)); \
-		$(call system_tool,cat) $(word 4,$^) $(word 7,$^) | $(call system_tool,sort) -u > $(dir $(max_nodes_lock))mandatory.txt; \
+		$(call trap_inference_interrupt,max-nodes-lock,TIMEOUT_LOCK,$(max_nodes_seed_solution),$(full_input),$(max_nodes_lock),$(max_nodes_lock) $(max_nodes_lock_witness)); \
+		$(call system_tool,cat) $(word 4,$(bonesis_model)) $(max_nodes_seed_solution) | $(call system_tool,sort) -u > $(dir $(max_nodes_lock))mandatory.txt; \
 		$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/selection.py filter-nodes \
-			$(word 1,$^) $(word 2,$^) \
-			--important-nodes $(word 3,$^) --mandatory-nodes $(dir $(max_nodes_lock))mandatory.txt \
-			--filter-grn $(word 6,$^) --asp $(dir $(max_nodes_lock))nodes.sh \
+			$(word 1,$(bonesis_model)) $(word 2,$(bonesis_model)) \
+			--important-nodes $(word 3,$(bonesis_model)) --mandatory-nodes $(dir $(max_nodes_lock))mandatory.txt \
+			--filter-grn $(full_input) --asp $(dir $(max_nodes_lock))nodes.sh \
 			--solution $(max_nodes_lock) --witness $(max_nodes_lock_witness) \
-			--initial-witness $(lastword $^) \
+			--initial-witness $(max_nodes_seed_witness) \
 			$(call clause_continuation,CLAUSE_CONTINUATION_LOCK) \
 			--clause-continuation-parameter CLAUSE_CONTINUATION_LOCK \
 			$(if $(strip $(PATIENCE_CLAUSE_BOUND)),--clause-bound-patience "$(PATIENCE_CLAUSE_BOUND)") \
@@ -1006,10 +1015,10 @@ $(max_nodes_lock) $(max_nodes_lock_witness) &: $(bonesis_model) $(max_nodes_rela
 		$(call capture_inference_exit_status,$(dir $(max_nodes_lock)).inference-timeout) \
 		trap - INT TERM; \
 		set -e; \
-		$(call check_inference_status,$(TIMEOUT_LOCK),max-nodes-lock,TIMEOUT_LOCK,$(word 7,$^),$(word 6,$^),$(max_nodes_lock),$(max_nodes_lock) $(max_nodes_lock_witness)); \
+		$(call check_inference_status,$(TIMEOUT_LOCK),max-nodes-lock,TIMEOUT_LOCK,$(max_nodes_seed_solution),$(full_input),$(max_nodes_lock),$(max_nodes_lock) $(max_nodes_lock_witness)); \
 	fi
 
-$(bn_min): $(bonesis_model) $(max_nodes_lock) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
+$(bn_min): $(bonesis_model) $(final_selection) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
 	$(call print_rule,bn-min)
 	$(call require_bonesis_parameters,bn-min)
 	$(call require_optional_positive_integer,BOUNDED_NONREACH)
@@ -1017,7 +1026,7 @@ $(bn_min): $(bonesis_model) $(max_nodes_lock) $(if $(geneinfo_dependency),| $(ge
 	mkdir -p $(@D)
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py min \
 		$(word 1,$^) $(word 2,$^) \
-		--filter-grn $(lastword $^) \
+		--filter-grn $(final_selection) \
 		--asp $(@D)/min.sh \
 		--solution $(basename $@) \
 		--domain $(prior_knowledge) \
@@ -1042,15 +1051,15 @@ __check-bn-submin-outputs:
 __check-bn-diverse-outputs:
 	$(call check_bn_outputs,$(bn_diverse_dir),bn-diverse,$(CONFIG_FORMATS),$(GRAPH_FORMATS),$(INFER_LIMIT))
 
-$(bn_submin)&: $(bonesis_model) $(max_nodes_lock) $(max_nodes_lock_witness) | __check-bn-submin-outputs $(geneinfo_dependency)
+$(bn_submin)&: $(bonesis_model) $(final_selection) $(final_selection_witness) | __check-bn-submin-outputs $(geneinfo_dependency)
 	$(call print_rule,bn-submin)
 	$(call require_bonesis_parameters,bn-submin)
 	$(call require_optional_positive_integer,BOUNDED_NONREACH)
 	mkdir -p $(bn_submin_dir)
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py submin \
 		$(word 1,$^) $(word 2,$^) \
-		--filter-grn $(max_nodes_lock) \
-		--initial-witness $(max_nodes_lock_witness) \
+		--filter-grn $(final_selection) \
+		--initial-witness $(final_selection_witness) \
 		--asp $(bn_submin_dir)/submin.sh \
 		--solution $(bn_submin_dir) \
 		--domain $(prior_knowledge) \
@@ -1066,7 +1075,7 @@ $(bn_submin)&: $(bonesis_model) $(max_nodes_lock) $(max_nodes_lock_witness) | __
 		--remove-isolated-nodes
 	$(call write_scbolt_metadata,bn-submin,$(bn_submin_metadata))
 
-$(bn_diverse)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-diverse-outputs $(geneinfo_dependency)
+$(bn_diverse)&: $(bonesis_model) $(final_selection) | __check-bn-diverse-outputs $(geneinfo_dependency)
 	$(call print_rule,bn-diverse)
 	$(call require_bonesis_parameters,bn-diverse)
 	$(call require_optional_positive_integer,BOUNDED_NONREACH)
@@ -1074,7 +1083,7 @@ $(bn_diverse)&: $(bonesis_model) $(max_nodes_lock) | __check-bn-diverse-outputs 
 	mkdir -p $(bn_diverse_dir)
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py diverse \
 		$(word 1,$^) $(word 2,$^) \
-		--filter-grn $(lastword $^) \
+		--filter-grn $(final_selection) \
 		--asp $(bn_diverse_dir)/diverse.sh \
 		--solution $(bn_diverse_dir) \
 		--domain $(prior_knowledge) \

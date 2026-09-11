@@ -48,7 +48,7 @@ alignment cellranger star qc velocyto
 filtering normalization clustering dea scoring goea annotation
 velocity potency cotan cellrank stream knnsc macrostates
 bin-cells bin-macrostates bin-dea bin-consensus binarization
-spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock
+spec max-nodes-soft max-consts max-nodes-relaxed max-nodes-seed max-nodes-lock
 bn-min bn-submin bn-diverse"
 SCBOLT_COMMANDS="init help version config progress check dry-run clean install ${SCBOLT_MODULES}"
 SCBOLT_COMMON_OPTIONS="--config --params --references --reset-target --trust-target --trust-existing --old-file --target --backend"
@@ -518,8 +518,11 @@ load_yaml_configuration() {
         return 1
     fi
     while IFS=$'\t' read -r name value || [ -n "${name}" ]; do
+        if [ -z "${name}" ] && [ -z "${value}" ]; then
+            continue
+        fi
         case "${name}" in
-            ""|*[!A-Za-z0-9_]*)
+            *[!A-Za-z0-9_]*)
                 rm -f "${report}"
                 print_error "Invalid internal configuration variable: ${name}"
                 return 1
@@ -555,6 +558,9 @@ load_parameter_mappings() {
         return 1
     fi
     while IFS=$'\t' read -r key variable kind; do
+        if [ -z "${key}" ] && [ -z "${variable}" ] && [ -z "${kind}" ]; then
+            continue
+        fi
         public_parameter_variables["${key}"]="${variable}"
         public_parameter_keys["${variable}"]="${key}"
         if [ "${kind}" = "condition" ]; then
@@ -1913,7 +1919,7 @@ print_kept_intermediate_results() {
 interrupted_inference_module() {
     local stdout_file="$1"
 
-    { grep -E ' - RULE - (max-nodes-soft|max-consts-soft|max-nodes-relaxed|max-nodes-seed|max-nodes-lock|bn-min|bn-submin|bn-diverse)( |$)' \
+    { grep -E ' - RULE - (max-nodes-soft|max-consts|max-nodes-relaxed|max-nodes-seed|max-nodes-lock|bn-min|bn-submin|bn-diverse)( |$)' \
         "${stdout_file}" || true; } \
         | tail -n 1 \
         | sed -E 's/^.* - RULE - ([^ ]+).*$/\1/'
@@ -1963,7 +1969,7 @@ target_label_with_intermediate_status() {
 
     target_module="${target_label%% *}"
     case "${target_module}" in
-        max-nodes-soft|max-consts-soft|max-nodes-relaxed|max-nodes-seed|max-nodes-lock)
+        max-nodes-soft|max-consts|max-nodes-relaxed|max-nodes-seed|max-nodes-lock)
             ;;
         *)
             printf '%s\n' "${target_label}"

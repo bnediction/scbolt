@@ -347,6 +347,8 @@ grep -qx -- '--bounded-nonreach=' "${tmpdir}/module-completion.out"
 complete_scbolt "${project}" 1 scbolt "" > "${tmpdir}/root-completion.out"
 grep -qx 'knnsc' "${tmpdir}/root-completion.out"
 grep -qx 'bn-submin' "${tmpdir}/root-completion.out"
+grep -qx 'max-consts' "${tmpdir}/root-completion.out"
+! grep -qx 'max-consts-soft' "${tmpdir}/root-completion.out"
 ! grep -qx 'diagnostics' "${tmpdir}/root-completion.out"
 ! grep -qx -- '--backend=' "${tmpdir}/root-completion.out"
 
@@ -439,6 +441,17 @@ complete_scbolt "${project}" 2 scbolt max-nodes-soft "" \
     > "${tmpdir}/soft-module-completion.out"
 ! grep -qx -- '--bounded-nonreach=' \
     "${tmpdir}/soft-module-completion.out"
+
+complete_scbolt "${project}" 2 scbolt max-consts \
+    "--strong-constants-scope=" > "${tmpdir}/strong-constants-scope-completion.out"
+printf '%s\n' \
+    '--strong-constants-scope=soft' \
+    '--strong-constants-scope=relaxed' \
+    '--strong-constants-scope=full' \
+    '--strong-constants-scope=none' \
+    > "${tmpdir}/strong-constants-scope-completion.expected"
+diff -u "${tmpdir}/strong-constants-scope-completion.expected" \
+    "${tmpdir}/strong-constants-scope-completion.out"
 
 cat > "${project}/completion.yml" <<'EOF'
 conditions: [ctrl, treated]

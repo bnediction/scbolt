@@ -80,6 +80,7 @@ bin-hvg-top: null
 zeroes-are-zeroes: false
 
 max-clauses: 4
+strong-constants-scope: soft
 inference-limit: 10000
 spec-file: spec.yml
 ```
@@ -360,6 +361,7 @@ internal runtime behavior and has no public configuration key.
 | `dorothea-compatibility` | `DOROTHEA_COMPATIBILITY` | `true`. |
 | `dorothea-levels` | `DOROTHEA_LEVELS` | `[A, B, C]`. |
 | `max-clauses` | `MAX_CLAUSES` | `8`. |
+| `strong-constants-scope` | `STRONG_CONSTANTS_SCOPE` | `soft`; one of `soft`, `relaxed`, `full`, or `none`. |
 | `clause-continuation-soft` | `CLAUSE_CONTINUATION_SOFT` | `false`. |
 | `clause-continuation-relaxed` | `CLAUSE_CONTINUATION_RELAXED` | `true`. |
 | `clause-continuation-seed` | `CLAUSE_CONTINUATION_SEED` | `true`. |

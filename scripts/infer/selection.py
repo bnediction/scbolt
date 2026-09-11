@@ -40,6 +40,7 @@ from scbolt.inference._selection import (
     write_node_solution,
 )
 from scbolt.inference._witness import (
+    apply_structural_witness_heuristics,
     read_structural_witness,
     structural_witness,
     structural_witness_clause_bound,
@@ -551,6 +552,7 @@ def main() -> None:
                 retained["domain"] = current_domain
 
             is_target = max_clause == args.max_clauses
+            has_later_clause_bound = stage_index < len(bounds)
             stage_name = "Target optimization" if is_target else "Clause continuation"
             clingo_mode = args.clingo_mode
             clingo_strategy = effective_clingo_strategy
@@ -608,7 +610,7 @@ def main() -> None:
                         )
                     except SolverTimeout:
                         exit_solver_timeout(args.timeout_status_file)
-                    except SolverPatienceExpired:
+                    except SolverPatienceExpired as error:
                         solution = tuple(retained["solution"])
                         current_witness = tuple(retained["witness"])
                         current_domain = frozenset(retained["domain"])
@@ -620,8 +622,8 @@ def main() -> None:
                             patience=args.clause_bound_patience,
                         )
                         fallback_settings = stalled_domain_solver_settings(
-                            domain_clingo_mode,
-                            domain_clingo_strategy,
+                            error.clingo_mode or domain_clingo_mode,
+                            error.clingo_strategy or domain_clingo_strategy,
                         )
                         if (
                             fallback_settings is None
@@ -713,7 +715,7 @@ def main() -> None:
                 complete_domain,
                 important_nodes_in_domain,
             )
-            if objective_ceiling_reached:
+            if objective_ceiling_reached and has_later_clause_bound:
                 console.print_debug(
                     "complete-domain objective ceiling reached; "
                     "stopping clause continuation",
@@ -850,7 +852,7 @@ def main() -> None:
                 complete_domain,
                 important_nodes_in_domain,
             ):
-                if not objective_ceiling_reached:
+                if not objective_ceiling_reached and has_later_clause_bound:
                     console.print_debug(
                         "complete-domain objective ceiling reached; "
                         "stopping clause continuation",
@@ -873,6 +875,14 @@ def main() -> None:
 
     elif args.action == "filter-consts":
         console.print_task("maximizing strong constants")
+
+        initial_witness = read_structural_witness(args.initial_witness)
+        if initial_witness:
+            apply_structural_witness_heuristics(bo, initial_witness)
+            console.print_info(
+                "applying structural warm start "
+                f"(file={console.format_path(args.initial_witness)})"
+            )
 
         bo.maximize_strong_constants()
         if args.minimize_self_loops:
@@ -913,6 +923,9 @@ def main() -> None:
                 ),
                 **ptqdm.initial_postfix,
             }
+        extra_clingo_options = ["--opt-usc-shrink=inv", clingo_parallel_option]
+        if initial_witness:
+            extra_clingo_options.insert(0, "--heuristic=Domain")
         view = bonesis.NonStrongConstantNodesView(
             bo,
             mode=args.clingo_mode,
@@ -924,8 +937,7 @@ def main() -> None:
                 args.clingo_mode,
                 clingo_strategy,
                 args.clingo_configuration,
-                "--opt-usc-shrink=inv",
-                clingo_parallel_option,
+                *extra_clingo_options,
             ),
         )
         view.standalone(output_filename=args.asp)

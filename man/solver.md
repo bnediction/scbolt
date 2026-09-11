@@ -109,10 +109,10 @@ The corresponding selection modules are:
 | Module | Active constraint level | Purpose |
 | --- | --- | --- |
 | `max-nodes-soft` | soft | Maximize satisfiable nodes under the least expensive constraint set. |
-| `max-consts-soft` | soft | Identify strong constants and retain components contributing dynamical variability. |
-| `max-nodes-relaxed` | soft + intermediate | Introduce non-reachability constraints, or forward the `CONSTS` solution when none exist. |
-| `max-nodes-seed` | complete | Introduce hard constraints, or forward the `RELAXED` solution and witness when none exist. |
-| `max-nodes-lock` | complete | Improve a witness computed by `SEED` within the domain retained by `RELAXED`, or forward the `SEED` output unchanged. |
+| `max-consts` | configured | Identify strong constants under the selected scope and retain components contributing dynamical variability. |
+| `max-nodes-relaxed` | soft + intermediate | Introduce non-reachability constraints, or forward the preceding solution when none exist. |
+| `max-nodes-seed` | complete | Introduce hard constraints, or forward the preceding solution and witness when none exist. |
+| `max-nodes-lock` | complete | Improve a witness computed by `SEED` within the preceding domain, or forward the `SEED` output unchanged. |
 
 Ordinary non-reachability certificates use up to one refinement iteration per
 domain node by default. The optional shared `bounded-nonreach` parameter can replace
@@ -127,10 +127,29 @@ simultaneously because tied intermediate solutions may retain different node
 sets. The staged procedure nevertheless avoids exposing the most expensive
 constraints to the complete initial domain.
 
-Strong-constant optimization is restricted to the early soft stage. Components
-identified as strong constants can be removed before harder constraints are
-introduced, reducing the domain without treating uniform Boolean assignments as
-dynamic regulatory signals.
+Strong constancy is an existential property evaluated under the constraints
+active at the selected stage. Consequently, changing its scope can change which
+components are eliminated. `strong-constants-scope` controls the position of
+the single `max-consts` pass:
+
+| Scope | Selection order |
+| --- | --- |
+| `soft` | `max-nodes-soft` -> `max-consts` -> `max-nodes-relaxed` -> `max-nodes-seed` -> `max-nodes-lock` |
+| `relaxed` | `max-nodes-soft` -> `max-nodes-relaxed` -> `max-consts` -> `max-nodes-seed` -> `max-nodes-lock` |
+| `full` | `max-nodes-soft` -> `max-nodes-relaxed` -> `max-nodes-seed` -> `max-nodes-lock` -> `max-consts` |
+| `none` | `max-nodes-soft` -> `max-nodes-relaxed` -> `max-nodes-seed` -> `max-nodes-lock` |
+
+The default `soft` scope preserves the early elimination used to improve
+tractability. `relaxed` delays elimination until intermediate constraints are
+active. `full` evaluates strong constancy with the complete specification and
+is translated internally to BoNesis mode `hard`. `none` disables only
+strong-constant optimization and elimination; all node-selection stages still
+run.
+
+`full` does not by itself establish a global lexicographic optimum. That claim
+requires the preceding complete node selection to have been certified globally
+optimal. After a `SEED` or `LOCK` timeout, strong-constant optimization remains
+conditional on the retained domain.
 
 The optional `forbidden-nodes` specification excludes components before the
 `SOFT` stage. These components are removed from both the macrostate table and
@@ -141,10 +160,11 @@ forbidden components cannot be reintroduced downstream.
 Structural witnesses follow the active constraint level rather than a fixed
 module name. A stage that introduces constraints computes a witness for its new
 problem. A stage that introduces no constraints forwards the previous solution
-and witness without solving. The status and coverage of a forwarded partial
-solution are preserved. Its sidecar also records the immediate source so that a
-later `LOCK` stage can distinguish a witness computed by `SEED` from one merely
-forwarded by it.
+and witness without solving. `max-consts` uses its input witness only as a
+solver heuristic and emits a new witness for its filtered domain. The status
+and coverage of a forwarded partial solution are preserved. Its sidecar also
+records the immediate source so that a later `LOCK` stage can distinguish a
+witness computed by `SEED` from one merely forwarded by it.
 
 | Intermediate constraints | Hard constraints | `RELAXED` witness | `SEED` witness |
 | --- | --- | --- | --- |
@@ -153,10 +173,10 @@ forwarded by it.
 | absent | present | absent | computed by `SEED` |
 | present | present | computed | recomputed by `SEED` |
 
-The witness produced under `SOFT` constraints is not forwarded through
-`CONSTS`, because strong-constant selection changes the regulatory domain. A
-`RELAXED` witness is likewise never treated as already feasible after hard
-constraints are introduced.
+An input witness is never copied unchanged through `max-consts`, because
+strong-constant selection changes the regulatory domain. The post-consts
+witness is used by the next stage. A `RELAXED` witness is likewise never treated
+as already feasible after hard constraints are introduced.
 
 The `seed` and `lock` stages retain distinct roles. `max-nodes-seed` may return
 a partial bounded-time solution after introducing hard constraints. In this
@@ -234,7 +254,7 @@ witness. A wave already using `bb,lin`, or an explicit `ignore` mode, disables
 this additional refinement.
 
 Clause continuation is available for `SOFT`, `RELAXED`, `SEED`, and `LOCK` node
-selection stages. It does not apply to the `CONSTS` stage.
+selection stages. It does not apply to `max-consts`.
 
 ## Domain Continuation
 
@@ -633,13 +653,13 @@ restricted permanently to the first clause bound nor limited to first-witness
 acquisition.
 
 Domain continuation supports the `SOFT`, `RELAXED`, `SEED`, and `LOCK`
-node-selection stages. It does not apply to the `CONSTS` stage. `SOFT`,
+node-selection stages. It does not apply to `max-consts`. `SOFT`,
 `RELAXED`, and `SEED` use adaptive acquisition when they must solve without a
 witness. `LOCK` is expansion-only for a witness computed by `SEED`; it forwards
 the `SEED` output in all other cases.
 
-It is enabled by default for `SEED` and `LOCK`, and disabled by default for
-`SOFT` and `RELAXED` while the strategy remains under experimental validation.
+It is enabled by default for `RELAXED`, `SEED`, and `LOCK`, and disabled by
+default for `SOFT`.
 
 Domain and clause continuation are independent. With clause continuation
 disabled, domain continuation operates directly at `max-clauses`. With domain
@@ -845,7 +865,8 @@ used. They define the problem itself rather than the solver strategy.
 | Parameter | Meaning |
 | --- | --- |
 | `bounded-nonreach` | Optional shared non-reachability certificate bound. When omitted, BoNesis uses the number of nodes in the regulatory domain. |
-| `minimize-self-loops-constants` | Whether `max-consts-soft` additionally minimizes one-node feedbacks while optimizing strong constants. |
+| `strong-constants-scope` | Stage at which strong constants are eliminated: `soft`, `relaxed`, `full`, or `none`. |
+| `minimize-self-loops-constants` | Whether `max-consts` additionally minimizes one-node feedbacks while optimizing strong constants. |
 | `timeout-soft` | Total solver-runtime limit for the soft node-selection stage. |
 | `timeout-consts` | Total solver-runtime limit for strong-constant optimization. |
 | `timeout-relaxed` | Total solver-runtime limit after intermediate constraints are introduced. |
@@ -906,7 +927,7 @@ refresh per expansion size, after the initial wave.
 | `clingo-threads` | Number of threads used by the stage-level Clingo solver when domain continuation is disabled. |
 
 The same value applies to every gene-selection stage, including
-`max-consts-soft`. Domain-continuation workers always use one Clingo thread and
+`max-consts`. Domain-continuation workers always use one Clingo thread and
 do not multiply `clingo-threads` by `jobs`.
 
 When domain continuation is enabled and no strategy is explicitly selected,

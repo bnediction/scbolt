@@ -23,6 +23,16 @@ class SolverTimeout(TimeoutError):
 class SolverPatienceExpired(TimeoutError):
     """Signal that no solver improvement occurred within the patience."""
 
+    def __init__(
+        self,
+        *,
+        clingo_mode: str | None = None,
+        clingo_strategy: str | None = None,
+    ) -> None:
+        super().__init__()
+        self.clingo_mode = clingo_mode
+        self.clingo_strategy = clingo_strategy
+
 
 class SolverDeadline:
     """Track one monotonic deadline shared by successive solver views."""

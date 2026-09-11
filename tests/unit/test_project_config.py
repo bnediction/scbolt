@@ -220,6 +220,22 @@ class ProjectConfigurationTests(unittest.TestCase):
             result.stderr,
         )
 
+    def test_strong_constants_scope_accepts_supported_values(self) -> None:
+        for scope in ("soft", "relaxed", "full", "none"):
+            with self.subTest(scope=scope):
+                settings = exported(f"strong-constants-scope: {scope}\n")
+                self.assertEqual(settings["STRONG_CONSTANTS_SCOPE"], scope)
+
+    def test_unknown_strong_constants_scope_is_rejected(self) -> None:
+        result = run_helper("export", "strong-constants-scope: early\n")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(
+            "unsupported value 'early' for configuration key "
+            "'strong-constants-scope' (supported values: soft, relaxed, "
+            "full, none)",
+            result.stderr,
+        )
+
     def test_lock_domain_patience_is_independent(self) -> None:
         settings = exported(
             "domain-wave-patience: 5m\ndomain-wave-patience-lock: 10m\n"

@@ -3,6 +3,7 @@
 check_default_targets = $(progress_default_targets)
 check_targets = $(strip $(if $(TARGET),$(TARGET),$(check_default_targets)))
 check_unknown_targets = $(filter-out $(reset_stages),$(check_targets))
+check_target_params = $(call uniq,$(foreach target,$(check_targets),$(target_params_$(target))))
 check_target_label = $(if $(filter 1,$(words $(check_targets))),target '$(check_targets)',targets '$(check_targets)')
 check_scbolt_version := $(scbolt_version)
 check_scbolt_executable := $(strip $(if $(strip $(SCBOLT_EXECUTABLE)),\
@@ -834,6 +835,11 @@ else ifeq ($(HELP),false)
 	if grep -q -- '--bounded-nonreach' "$${dry_run}"; then \
 		$(call check_positive_integer_diagnostic,\
 			$(BOUNDED_NONREACH),BOUNDED_NONREACH,method); \
+	fi; \
+	if [ -n "$(filter STRONG_CONSTANTS_SCOPE,$(check_target_params))" ]; then \
+		$(call check_choice_diagnostic,\
+			$(STRONG_CONSTANTS_SCOPE),$(strong_constants_scopes),\
+			STRONG_CONSTANTS_SCOPE,method); \
 	fi; \
 	$(foreach parameter,$(clause_continuation_params),\
 		if grep -q '$(parameter)' "$${dry_run}"; then \

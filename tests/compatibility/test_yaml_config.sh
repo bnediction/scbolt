@@ -15,6 +15,22 @@ trap 'rm -rf "${tmpdir}"' EXIT
     | sed '/^PARAMS=/d' > "${tmpdir}/yaml.config"
 diff -u "${tmpdir}/legacy.config" "${tmpdir}/yaml.config"
 
+cat > "${tmpdir}/config-python" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "${1:-}" = "-c" ]; then
+    exit 0
+fi
+python3 "$@"
+printf '\n'
+EOF
+chmod +x "${tmpdir}/config-python"
+SCBOLT_CONFIG_PYTHON="${tmpdir}/config-python" \
+    "${scbolt}" spec help --config="${yaml}" \
+    > "${tmpdir}/blank-line-runner.out"
+grep -Fq 'usage: scbolt spec' "${tmpdir}/blank-line-runner.out"
+
 "${scbolt}" dry-run knnsc --params="${legacy}" \
     | sed -E 's#/tmp/scbolt-[A-Za-z0-9]+#/tmp/scbolt-TMP#g' \
     > "${tmpdir}/legacy.dry-run"

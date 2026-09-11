@@ -6,7 +6,7 @@ filtering normalization clustering dea scoring goea annotation
 velocity potency
 cotan cellrank stream knnsc macrostates
 bin-cells bin-macrostates bin-dea bin-consensus binarization
-spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock
+spec max-nodes-soft max-consts max-nodes-relaxed max-nodes-seed max-nodes-lock
 bn-min bn-submin bn-diverse"
 
 _scbolt_utilities="init version help config progress check dry-run clean install"
@@ -505,6 +505,9 @@ _scbolt_option_values() {
             ;;
         --star-barcode-filter=)
             printf '%s\n' "auto threshold top"
+            ;;
+        --strong-constants-scope=)
+            printf '%s\n' "soft relaxed full none"
             ;;
         --stream-clustering-method=)
             printf '%s\n' "kmeans ap sc"

@@ -127,12 +127,15 @@ bonesis_model =                 $(infer_dir)/spec/model.bo \
                                 $(infer_dir)/spec/forbidden.txt
 max_nodes_soft =                $(infer_dir)/genes/soft/comps.txt
 max_nodes_soft_solution =       $(max_nodes_soft)
+max_nodes_soft_witness =        $(infer_dir)/genes/soft/witness.lp
 max_nodes_soft_domain_size =    $(tmpdir)/max-nodes-soft-domain.count
-max_consts_soft =               $(infer_dir)/genes/consts/comps.txt
+max_consts =                    $(infer_dir)/genes/consts/comps.txt
+max_consts_witness =            $(infer_dir)/genes/consts/witness.lp
 max_nodes_relaxed =             $(infer_dir)/genes/relaxed/comps.txt
 max_nodes_relaxed_witness =     $(infer_dir)/genes/relaxed/witness.lp
-max_nodes_seed =                $(infer_dir)/genes/seed/comps.txt \
-                                $(infer_dir)/genes/seed/witness.lp
+max_nodes_seed_solution =       $(infer_dir)/genes/seed/comps.txt
+max_nodes_seed_witness =        $(infer_dir)/genes/seed/witness.lp
+max_nodes_seed =                $(max_nodes_seed_solution) $(max_nodes_seed_witness)
 max_nodes_lock =                $(infer_dir)/genes/lock/comps.txt
 max_nodes_lock_witness =        $(infer_dir)/genes/lock/witness.lp
 bn_min =                        $(infer_dir)/bn/min/model.bnet
@@ -144,6 +147,58 @@ bn_submin_metadata = $(bn_submin_dir)
 bn_diverse_dir = $(infer_dir)/bn/diverse
 bn_diverse = $(bn_diverse_dir)/influence_graph/aggregate.pdf
 bn_diverse_metadata = $(bn_diverse_dir)
+
+strong_constants_enabled = $(filter soft relaxed full,$(STRONG_CONSTANTS_SCOPE))
+consts_input_soft = $(max_nodes_soft_solution)
+consts_input_relaxed = $(max_nodes_relaxed)
+consts_input_full = $(max_nodes_lock)
+consts_input = $(consts_input_$(STRONG_CONSTANTS_SCOPE))
+consts_input_witness_soft = $(max_nodes_soft_witness)
+consts_input_witness_relaxed = $(max_nodes_relaxed_witness)
+consts_input_witness_full = $(max_nodes_lock_witness)
+consts_input_witness = $(consts_input_witness_$(STRONG_CONSTANTS_SCOPE))
+consts_mode_soft = soft
+consts_mode_relaxed = relaxed
+consts_mode_full = hard
+consts_mode = $(consts_mode_$(STRONG_CONSTANTS_SCOPE))
+
+relaxed_input = $(strip $(if $(filter soft,$(STRONG_CONSTANTS_SCOPE)),\
+	$(max_consts),$(max_nodes_soft_solution)))
+relaxed_input_witness = $(strip $(if $(filter soft,$(STRONG_CONSTANTS_SCOPE)),\
+	$(max_consts_witness),$(max_nodes_soft_witness)))
+full_input = $(strip $(if $(filter relaxed,$(STRONG_CONSTANTS_SCOPE)),\
+	$(max_consts),$(max_nodes_relaxed)))
+full_input_witness = $(strip $(if $(filter relaxed,$(STRONG_CONSTANTS_SCOPE)),\
+	$(max_consts_witness),$(max_nodes_relaxed_witness)))
+final_selection = $(strip $(if $(filter full,$(STRONG_CONSTANTS_SCOPE)),\
+	$(max_consts),$(max_nodes_lock)))
+final_selection_witness = $(strip $(if $(filter full,$(STRONG_CONSTANTS_SCOPE)),\
+	$(max_consts_witness),$(max_nodes_lock_witness)))
+
+gene_selection_stages = max-nodes-soft \
+	$(if $(filter soft,$(STRONG_CONSTANTS_SCOPE)),max-consts) \
+	max-nodes-relaxed \
+	$(if $(filter relaxed,$(STRONG_CONSTANTS_SCOPE)),max-consts) \
+	max-nodes-seed max-nodes-lock \
+	$(if $(filter full,$(STRONG_CONSTANTS_SCOPE)),max-consts)
+gene_selection_stages_reverse = \
+	$(if $(filter full,$(STRONG_CONSTANTS_SCOPE)),max-consts) \
+	max-nodes-lock max-nodes-seed \
+	$(if $(filter relaxed,$(STRONG_CONSTANTS_SCOPE)),max-consts) \
+	max-nodes-relaxed \
+	$(if $(filter soft,$(STRONG_CONSTANTS_SCOPE)),max-consts) \
+	max-nodes-soft
+
+gene_selection_output_max-nodes-soft = $(max_nodes_soft_solution)
+gene_selection_output_max-consts = $(max_consts)
+gene_selection_output_max-nodes-relaxed = $(max_nodes_relaxed)
+gene_selection_output_max-nodes-seed = $(max_nodes_seed_solution)
+gene_selection_output_max-nodes-lock = $(max_nodes_lock)
+gene_selection_input_max-nodes-soft = $(max_nodes_soft_domain_size)
+gene_selection_input_max-consts = $(consts_input)
+gene_selection_input_max-nodes-relaxed = $(relaxed_input)
+gene_selection_input_max-nodes-seed = $(full_input)
+gene_selection_input_max-nodes-lock = $(full_input)
 
 $(foreach condition,$(conditions),$(eval $(call find_paths_for_conditions,$(condition))))
 $(foreach reference,$(references_default),$(eval $(call find_paths_for_references,$(reference))))
@@ -388,7 +443,7 @@ reset_stages = \
 	filtering normalization clustering dea scoring goea annotation \
 	velocity potency cotan cellrank stream knnsc macrostates \
 	bin-cells bin-macrostates bin-dea bin-consensus binarization \
-	spec max-nodes-soft max-consts-soft max-nodes-relaxed \
+	spec max-nodes-soft max-consts max-nodes-relaxed \
 	max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
 
 progress_deps_load-matrix =
@@ -422,13 +477,18 @@ progress_deps_binarization = $(if $(BINARIZATION_FILE),,\
 	$(if $(filter consensus,$(BIN_METHOD)),bin-consensus))))
 progress_deps_spec = $(if $(BINARIZATION_FILE),,binarization)
 progress_deps_max-nodes-soft = spec
-progress_deps_max-consts-soft = spec max-nodes-soft
-progress_deps_max-nodes-relaxed = spec max-consts-soft
-progress_deps_max-nodes-seed = spec max-nodes-relaxed
+progress_deps_max-consts = $(if $(strong_constants_enabled),spec \
+	$(if $(filter soft,$(STRONG_CONSTANTS_SCOPE)),max-nodes-soft,\
+	$(if $(filter relaxed,$(STRONG_CONSTANTS_SCOPE)),max-nodes-relaxed,max-nodes-lock)))
+progress_deps_max-nodes-relaxed = spec max-nodes-soft \
+	$(if $(filter soft,$(STRONG_CONSTANTS_SCOPE)),max-consts)
+progress_deps_max-nodes-seed = spec max-nodes-relaxed \
+	$(if $(filter relaxed,$(STRONG_CONSTANTS_SCOPE)),max-consts)
 progress_deps_max-nodes-lock = spec max-nodes-relaxed max-nodes-seed
-progress_deps_bn-min = spec max-nodes-lock
-progress_deps_bn-submin = spec max-nodes-lock
-progress_deps_bn-diverse = spec max-nodes-lock
+progress_deps_bn-min = spec max-nodes-lock \
+	$(if $(filter full,$(STRONG_CONSTANTS_SCOPE)),max-consts)
+progress_deps_bn-submin = $(progress_deps_bn-min)
+progress_deps_bn-diverse = $(progress_deps_bn-min)
 
 RESET_TARGET_load-fastq = $(fastq_target)
 RESET_TARGET_load-matrix = $(load_matrix_target)
@@ -457,8 +517,8 @@ RESET_TARGET_bin-dea = $(bin_dea)
 RESET_TARGET_bin-consensus = $(bin_consensus)
 RESET_TARGET_binarization = $(bin)
 RESET_TARGET_spec = $(bonesis_model)
-RESET_TARGET_max-nodes-soft = $(max_nodes_soft)
-RESET_TARGET_max-consts-soft = $(max_consts_soft)
+RESET_TARGET_max-nodes-soft = $(max_nodes_soft_solution) $(max_nodes_soft_witness)
+RESET_TARGET_max-consts = $(max_consts) $(max_consts_witness)
 RESET_TARGET_max-nodes-relaxed = $(max_nodes_relaxed) $(max_nodes_relaxed_witness)
 RESET_TARGET_max-nodes-seed = $(max_nodes_seed)
 RESET_TARGET_max-nodes-lock = $(max_nodes_lock) $(max_nodes_lock_witness)
@@ -606,12 +666,12 @@ target_params_max-nodes-soft = \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SOFT)),MEMORY JOBS) \
 	CLINGO_CONFIG_SOFT CLINGO_MODE_SOFT CLINGO_STRATEGY_SOFT \
 	CLINGO_THREADS TIMEOUT_SOFT
-target_params_max-consts-soft = \
-	$(prior_knowledge_params) MAX_CLAUSES MIN_SELF_LOOP_CONSTS \
+target_params_max-consts = \
+	$(prior_knowledge_params) MAX_CLAUSES STRONG_CONSTANTS_SCOPE MIN_SELF_LOOP_CONSTS \
 	CLINGO_CONFIG_CONSTS CLINGO_MODE_CONSTS CLINGO_STRATEGY_CONSTS \
 	CLINGO_THREADS TIMEOUT_CONSTS
 target_params_max-nodes-relaxed = \
-	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
 	CLAUSE_CONTINUATION_RELAXED PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_RELAXED PATIENCE_DOMAIN_WAVE \
 	$(domain_continuation_policy_params) \
@@ -619,7 +679,7 @@ target_params_max-nodes-relaxed = \
 	CLINGO_CONFIG_RELAXED CLINGO_MODE_RELAXED CLINGO_STRATEGY_RELAXED \
 	CLINGO_THREADS TIMEOUT_RELAXED
 target_params_max-nodes-seed = \
-	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
 	CLAUSE_CONTINUATION_SEED PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_SEED PATIENCE_DOMAIN_WAVE \
 	$(domain_continuation_policy_params) \
@@ -627,7 +687,7 @@ target_params_max-nodes-seed = \
 	CLINGO_CONFIG_SEED CLINGO_MODE_SEED CLINGO_STRATEGY_SEED \
 	CLINGO_THREADS TIMEOUT_SEED
 target_params_max-nodes-lock = \
-	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
 	CLAUSE_CONTINUATION_LOCK PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_LOCK PATIENCE_DOMAIN_WAVE_LOCK \
 	$(domain_continuation_policy_params) \
@@ -635,13 +695,14 @@ target_params_max-nodes-lock = \
 	CLINGO_CONFIG_LOCK CLINGO_MODE_LOCK CLINGO_STRATEGY_LOCK \
 	CLINGO_THREADS TIMEOUT_LOCK
 target_params_bn-min = \
-	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH MIN_SELF_LOOP_INFER \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
+	MIN_SELF_LOOP_INFER \
 	CLINGO_MODE_MIN GRAPH_FORMATS
 target_params_bn-submin = \
-	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
 	MEMORY JOBS INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 target_params_bn-diverse = \
-	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 
 sensitive_params_load-fastq = $(foreach condition,$(conditions),$(call sra_var,$(condition)))
@@ -710,12 +771,12 @@ sensitive_params_max-nodes-soft = \
 		$(domain_continuation_policy_params) MEMORY JOBS) \
 	CLINGO_CONFIG_SOFT CLINGO_MODE_SOFT CLINGO_STRATEGY_SOFT \
 	CLINGO_THREADS TIMEOUT_SOFT SEED
-sensitive_params_max-consts-soft = \
-	$(prior_knowledge_params) MAX_CLAUSES MIN_SELF_LOOP_CONSTS \
+sensitive_params_max-consts = \
+	$(prior_knowledge_params) MAX_CLAUSES STRONG_CONSTANTS_SCOPE MIN_SELF_LOOP_CONSTS \
 	CLINGO_CONFIG_CONSTS CLINGO_MODE_CONSTS CLINGO_STRATEGY_CONSTS \
 	CLINGO_THREADS TIMEOUT_CONSTS SEED
 sensitive_params_max-nodes-relaxed = \
-	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
 	CLAUSE_CONTINUATION_RELAXED PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_RELAXED PATIENCE_DOMAIN_WAVE \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_RELAXED)),\
@@ -723,7 +784,7 @@ sensitive_params_max-nodes-relaxed = \
 	CLINGO_CONFIG_RELAXED CLINGO_MODE_RELAXED CLINGO_STRATEGY_RELAXED \
 	CLINGO_THREADS TIMEOUT_RELAXED SEED
 sensitive_params_max-nodes-seed = \
-	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
 	CLAUSE_CONTINUATION_SEED PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_SEED PATIENCE_DOMAIN_WAVE \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_SEED)),\
@@ -731,7 +792,7 @@ sensitive_params_max-nodes-seed = \
 	CLINGO_CONFIG_SEED CLINGO_MODE_SEED CLINGO_STRATEGY_SEED \
 	CLINGO_THREADS TIMEOUT_SEED SEED
 sensitive_params_max-nodes-lock = \
-	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
 	CLAUSE_CONTINUATION_LOCK PATIENCE_CLAUSE_BOUND \
 	DOMAIN_CONTINUATION_LOCK PATIENCE_DOMAIN_WAVE_LOCK \
 	$(if $(filter true,$(DOMAIN_CONTINUATION_LOCK)),\
@@ -739,13 +800,14 @@ sensitive_params_max-nodes-lock = \
 	CLINGO_CONFIG_LOCK CLINGO_MODE_LOCK CLINGO_STRATEGY_LOCK \
 	CLINGO_THREADS TIMEOUT_LOCK SEED
 sensitive_params_bn-min = \
-	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH MIN_SELF_LOOP_INFER \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
+	MIN_SELF_LOOP_INFER \
 	CLINGO_MODE_MIN GRAPH_FORMATS SEED
 sensitive_params_bn-submin = \
-	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS SEED
 sensitive_params_bn-diverse = \
-	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH \
+	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS SEED
 
 runtime_envs_load-fastq = scbolt-fastq
@@ -772,7 +834,7 @@ runtime_envs_bin-dea = scbolt-core
 runtime_envs_bin-consensus = scbolt-core
 runtime_envs_spec = scbolt-bonesis
 runtime_envs_max-nodes-soft = scbolt-bonesis
-runtime_envs_max-consts-soft = scbolt-bonesis
+runtime_envs_max-consts = scbolt-bonesis
 runtime_envs_max-nodes-relaxed = scbolt-bonesis
 runtime_envs_max-nodes-seed = scbolt-bonesis
 runtime_envs_max-nodes-lock = scbolt-bonesis
@@ -826,7 +888,7 @@ method_config_param_set = \
 	BIN_DEA_ONLY_HVG BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS \
 	BIN_LOGFC BIN_CORRECTION BIN_ALPHA \
 	BIN_METHOD \
-	MAX_CLAUSES BOUNDED_NONREACH \
+	MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
 	DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS \
 	$(clause_continuation_params) \
 	$(clause_bound_patience_params) \
@@ -853,13 +915,13 @@ config_all_modules = \
 	filtering normalization clustering dea scoring goea annotation \
 	velocity potency cotan cellrank stream knnsc macrostates \
 	bin-cells bin-macrostates bin-dea bin-consensus binarization \
-	spec max-nodes-soft max-consts-soft max-nodes-relaxed \
+	spec max-nodes-soft max-consts max-nodes-relaxed \
 	max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
 config_workflow_modules = \
 	load-fastq load-matrix alignment cellranger star qc velocyto \
 	filtering normalization clustering dea annotation velocity potency \
 	macrostates cotan cellrank stream knnsc bin-cells bin-macrostates \
-	bin-dea bin-consensus binarization spec max-nodes-soft max-consts-soft \
+	bin-dea bin-consensus binarization spec max-nodes-soft max-consts \
 	max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
 config_default_modules = $(if $(strip $(input_routes)),$(config_workflow_modules),$(config_all_modules))
 config_base_params = \

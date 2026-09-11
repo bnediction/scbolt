@@ -10,10 +10,15 @@ precious_targets="$(printf '%s\n' "${make_database}" | grep '^\.PRECIOUS:')"
 
 for output in \
     genes/soft/comps.txt \
+    genes/soft/witness.lp \
     genes/consts/comps.txt \
+    genes/consts/witness.lp \
     genes/relaxed/comps.txt \
+    genes/relaxed/witness.lp \
     genes/seed/comps.txt \
-    genes/lock/comps.txt; do
+    genes/seed/witness.lp \
+    genes/lock/comps.txt \
+    genes/lock/witness.lp; do
     if [[ " ${precious_targets} " != *"/infer/${output} "* ]]; then
         printf 'gene-selection partial output is not precious: %s\n' \
             "${output}" >&2

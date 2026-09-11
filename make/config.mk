@@ -828,6 +828,14 @@ public_parameter_variable = SCBOLT_PUBLIC_PARAMETER_$(call internal_parameter_na
 parameter_name = $(strip $(if $($(call public_parameter_variable,$(1))),\
 	$($(call public_parameter_variable,$(1))),\
 	$(call internal_parameter_name,$(1))))
+strong_constants_scopes := soft relaxed full none
+strong_constants_scope_valid := $(filter $(STRONG_CONSTANTS_SCOPE),$(strong_constants_scopes))
+ifeq ($(strip $(filter check __%,$(MAKECMDGOALS)) $(__check_mode)),)
+ifneq ($(strong_constants_scope_valid),$(strip $(STRONG_CONSTANTS_SCOPE)))
+$(error unsupported value for parameter $(call parameter_name,STRONG_CONSTANTS_SCOPE): \
+	$(STRONG_CONSTANTS_SCOPE) (supported values: soft, relaxed, full, none))
+endif
+endif
 parameter_context = $(wordlist 2,$(words $(strip $(1))),$(strip $(1)))
 parameter_description = $(strip $(call parameter_label,$(1),$(2),$(3)) \
 	$(call parameter_name,$(2)) $(call parameter_context,$(2)))
@@ -1291,9 +1299,15 @@ $(python) $(scripts_dir)/utils/scbolt_metadata.py write \
 	$(call metadata_param_args,$(1)) \
 	$(call metadata_extra_param_args,$(3)) \
 	$(4) \
+	$(metadata_module_args_$(1)) \
 	$(call metadata_runtime_env_args,$(1)) \
 	$(metadata_backend_args)
 endef
+
+metadata_module_args_max-consts = \
+	--strong-constants-requested-scope "$(STRONG_CONSTANTS_SCOPE)" \
+	--strong-constants-executed-scope "$(STRONG_CONSTANTS_SCOPE)" \
+	--strong-constants-bonesis-mode "$(consts_mode)"
 
 define write_scbolt_metadata
 $(if $(strip $(sensitive_params_$(1)) $(runtime_envs_$(1))),\
@@ -1554,7 +1568,7 @@ $(call write_scbolt_metadata,$(1),$(2),,--solution-status "$${forwarded_solution
 endef
 timeout_param_for_module = \
 	$(if $(filter max-nodes-soft,$(1)),TIMEOUT_SOFT,\
-	$(if $(filter max-consts-soft,$(1)),TIMEOUT_CONSTS,\
+	$(if $(filter max-consts,$(1)),TIMEOUT_CONSTS,\
 	$(if $(filter max-nodes-relaxed,$(1)),TIMEOUT_RELAXED,\
 	$(if $(filter max-nodes-seed,$(1)),TIMEOUT_SEED,\
 	$(if $(filter max-nodes-lock,$(1)),TIMEOUT_LOCK)))))
@@ -1618,18 +1632,18 @@ endef
 
 define finalize_interrupted_lock_gene_selection
 @if [ ! -s "$(max_nodes_lock)" ] \
-		&& [ -s "$(firstword $(max_nodes_seed))" ] \
-		&& [ -s "$(max_nodes_relaxed)" ] \
+		&& [ -s "$(max_nodes_seed_solution)" ] \
+		&& [ -s "$(full_input)" ] \
 		&& { [ -f "$(dir $(max_nodes_lock))nodes.sh" ] \
 			|| [ -f "$(dir $(max_nodes_lock))mandatory.txt" ]; }; then \
 	mkdir -p "$(dir $(max_nodes_lock))"; \
-	$(call system_tool,cp) "$(firstword $(max_nodes_seed))" "$(max_nodes_lock)"; \
-	if [ -e "$(lastword $(max_nodes_seed))" ]; then \
-		$(call system_tool,cp) "$(lastword $(max_nodes_seed))" "$(max_nodes_lock_witness)"; \
+	$(call system_tool,cp) "$(max_nodes_seed_solution)" "$(max_nodes_lock)"; \
+	if [ -e "$(max_nodes_seed_witness)" ]; then \
+		$(call system_tool,cp) "$(max_nodes_seed_witness)" "$(max_nodes_lock_witness)"; \
 	else \
 		: > "$(max_nodes_lock_witness)"; \
 	fi; \
-	$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock) $(max_nodes_lock_witness),$(call interrupted_timeout_param,max-nodes-lock),$(call solution_metadata_args,partial,$(max_nodes_lock),$(max_nodes_relaxed))); \
+	$(call write_scbolt_metadata,max-nodes-lock,$(max_nodes_lock) $(max_nodes_lock_witness),$(call interrupted_timeout_param,max-nodes-lock),$(call solution_metadata_args,partial,$(max_nodes_lock),$(full_input))); \
 fi
 endef
 

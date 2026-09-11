@@ -815,7 +815,7 @@ def _run_domain_wave(
                     terminal_state = "certified"
                 else:
                     terminal_state = result.outcome
-                set_candidate_state(candidate_index, terminal_state)
+                set_candidate_state(candidate_index, terminal_state, refresh=True)
             pending = set(current_pending)
             if phase in {"completion", "refinement"} and stop_reason is None:
                 for future in done:
@@ -871,7 +871,10 @@ def _run_domain_wave(
     if stop_reason == "timeout":
         raise SolverTimeout
     if stop_reason == "clause-patience":
-        raise SolverPatienceExpired
+        raise SolverPatienceExpired(
+            clingo_mode=clingo_mode,
+            clingo_strategy=clingo_strategy,
+        )
 
     return tuple(results)
 

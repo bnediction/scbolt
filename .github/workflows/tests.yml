@@ -18,6 +18,7 @@ jobs:
       - run: bash tests/unit/test_trust_existing.sh
       - run: python3 tests/unit/test_domain_continuation.py
       - run: python3 tests/unit/test_witness_propagation.py
+      - run: python3 tests/unit/test_strong_constants_scope.py
       - run: python3 tests/unit/test_expression_layers.py
       - run: python3 tests/unit/test_plotting.py
       - run: python3 tests/unit/test_script_entrypoints.py

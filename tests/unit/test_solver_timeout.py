@@ -28,6 +28,14 @@ parse_solver_timeout = runtime.parse_solver_timeout
 reset_solver_timeout_status = runtime.reset_solver_timeout_status
 
 
+patience_error = SolverPatienceExpired(
+    clingo_mode="opt",
+    clingo_strategy="bb,lin",
+)
+assert patience_error.clingo_mode == "opt"
+assert patience_error.clingo_strategy == "bb,lin"
+
+
 try:
     SolverMemorySupervisor(0)
 except ValueError:

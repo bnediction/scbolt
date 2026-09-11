@@ -30,6 +30,7 @@ class Parameter:
     conditional: bool = False
     shared: bool = False
     effective_variable: str = ""
+    choices: tuple[str, ...] = ()
 
 
 def _condition_suffix(condition: str) -> str:
@@ -39,8 +40,18 @@ def _condition_suffix(condition: str) -> str:
 def _parameters() -> dict[str, Parameter]:
     parameters: dict[str, Parameter] = {}
 
-    def add(key: str, variable: str, kind: str = STRING) -> None:
-        parameters[key] = Parameter(variable=variable, kind=kind)
+    def add(
+        key: str,
+        variable: str,
+        kind: str = STRING,
+        *,
+        choices: tuple[str, ...] = (),
+    ) -> None:
+        parameters[key] = Parameter(
+            variable=variable,
+            kind=kind,
+            choices=choices,
+        )
 
     def conditional(
         key: str,
@@ -203,6 +214,11 @@ def _parameters() -> dict[str, Parameter]:
     add("dorothea-levels", "DOROTHEA_LEVELS", STRING_LIST)
     add("max-clauses", "MAX_CLAUSES", INTEGER)
     add("bounded-nonreach", "BOUNDED_NONREACH", INTEGER)
+    add(
+        "strong-constants-scope",
+        "STRONG_CONSTANTS_SCOPE",
+        choices=("soft", "relaxed", "full", "none"),
+    )
     add("clause-continuation-soft", "CLAUSE_CONTINUATION_SOFT", BOOLEAN)
     add("clause-continuation-relaxed", "CLAUSE_CONTINUATION_RELAXED", BOOLEAN)
     add("clause-continuation-seed", "CLAUSE_CONTINUATION_SEED", BOOLEAN)
@@ -440,6 +456,14 @@ def load(path: Path) -> tuple[dict[str, str], list[str]]:
     settings: dict[str, str] = {}
     for key, parameter, node in direct:
         value = _value(path, key, node, parameter.kind)
+        if parameter.choices and value not in parameter.choices:
+            choices = ", ".join(parameter.choices)
+            raise _error(
+                path,
+                node,
+                f"unsupported value {value!r} for configuration key {key!r} "
+                f"(supported values: {choices})",
+            )
         settings[parameter.variable] = value
     if not conditions_explicit and conditions:
         settings["CONDITIONS"] = " ".join(conditions)
@@ -573,6 +597,11 @@ def scaffold(overrides: list[str]) -> None:
             value = _initializer_value(raw_value, parameter.kind)
         except ConfigurationError as error:
             raise ConfigurationError(f"invalid initializer {name.lower()}: {error}") from error
+        if parameter.choices and value not in parameter.choices:
+            choices = ", ".join(parameter.choices)
+            raise ConfigurationError(
+                f"invalid initializer {name.lower()}: supported values are {choices}"
+            )
         if condition:
             mapping = values.get(key)
             if not isinstance(mapping, dict):

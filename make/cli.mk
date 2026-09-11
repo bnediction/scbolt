@@ -61,7 +61,7 @@ progress_unknown_targets = $(filter-out $(reset_stages),$(progress_targets))
 module_help_target = $(strip $(TARGET))
 module_help_unknown_targets = $(filter-out $(reset_stages),$(module_help_target))
 module_help_prior_note_targets = \
-	max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock \
+	max-nodes-soft max-consts max-nodes-relaxed max-nodes-seed max-nodes-lock \
 	bn-min bn-submin bn-diverse
 module_help_has_prior_note = $(filter $(module_help_prior_note_targets),$(module_help_target))
 module_help_hidden_params = \
@@ -71,7 +71,7 @@ module_help_params = $(call uniq,$(filter-out $(module_help_hidden_params),\
 module_help_deps = $(call uniq,$(progress_deps_$(module_help_target)))
 module_help_targets = $(RESET_TARGET_$(module_help_target))
 module_help_has_bin_hvg = $(filter BIN_HVG_TOP,$(module_help_params))
-module_help_has_spec_note = $(filter spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse,$(module_help_target))
+module_help_has_spec_note = $(filter spec max-nodes-soft max-consts max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse,$(module_help_target))
 module_help_solution_note = $(if $(filter-out 0,$(strip $(INFER_LIMIT))),\
 	up to $(INFER_LIMIT) solutions,\
 	$(if $(strip $(INFER_LIMIT)),\
@@ -132,19 +132,20 @@ show_config_macrostate_embedding = $(call show_config_embedding_label,$(show_con
 show_config_analytic_modules = \
 	velocity potency cotan cellrank stream knnsc \
 	bin-cells bin-macrostates bin-dea bin-consensus binarization spec \
-	max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock \
+	max-nodes-soft max-consts max-nodes-relaxed max-nodes-seed max-nodes-lock \
 	bn-min bn-submin bn-diverse
 show_config_visible_modules = $(if $(strip $(input_routes)),$(show_config_analytic_modules),$(show_config_modules))
 show_config_param_modules = $(call uniq,$(strip \
 	$(filter $(show_config_visible_modules),$(show_config_modules)) \
 	$(if $(filter macrostates,$(show_config_modules)),$(MACROSTATE_METHOD))))
 show_config_inference_modules = \
-	spec max-nodes-soft max-consts-soft max-nodes-relaxed max-nodes-seed max-nodes-lock \
+	spec max-nodes-soft max-consts max-nodes-relaxed max-nodes-seed max-nodes-lock \
 	bn-min bn-submin bn-diverse
 show_config_has_inference = $(filter $(show_config_inference_modules),$(show_config_param_modules))
 show_config_inference_params = \
 	PRIOR_KNOWLEDGE OMNIPATH_VERSION HCOP_VERSION \
-	DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS MAX_CLAUSES
+	DOROTHEA_API DOROTHEA_COMPATIBILITY DOROTHEA_LEVELS MAX_CLAUSES \
+	STRONG_CONSTANTS_SCOPE
 show_config_has_omics_hvg = $(filter clustering,$(show_config_modules))
 show_config_bin_hvg_modules = bin-cells bin-dea bin-consensus spec
 show_config_has_bin_hvg = \
@@ -319,7 +320,8 @@ $(if $(filter collectri dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'HCO
 $(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'DoRothEA API' "$(call show_config_display_value,$(DOROTHEA_API))")
 $(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Compatibility' "$(call show_config_display_value,$(DOROTHEA_COMPATIBILITY))")
 $(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Levels' "$(call show_config_display_value,$(DOROTHEA_LEVELS))")
-@printf '%-16s : %s\n' 'Max clauses' "$(call show_config_display_value,$(MAX_CLAUSES))")
+@printf '%-16s : %s\n' 'Max clauses' "$(call show_config_display_value,$(MAX_CLAUSES))"
+@printf '%-16s : %s\n' 'Strong constants' "$(call show_config_display_value,$(STRONG_CONSTANTS_SCOPE))")
 endef
 
 define show_config_print_hvg
@@ -1074,12 +1076,17 @@ __spec: $(bonesis_model)
 .PHONY: max-nodes-soft __max-nodes-soft
 max-nodes-soft: ## maximize nodes (soft constraints)
 	$(call run_logged,max-nodes-soft)
-__max-nodes-soft: $(max_nodes_soft)
+__max-nodes-soft: $(max_nodes_soft_solution) $(max_nodes_soft_witness)
 
-.PHONY: max-consts-soft __max-consts-soft
-max-consts-soft: ## maximize strong constants (soft constraints)
-	$(call run_logged,max-consts-soft)
-__max-consts-soft: $(max_consts_soft)
+.PHONY: max-consts __max-consts
+max-consts: ## eliminate strong constants at the configured constraint scope
+	$(call run_logged,max-consts)
+ifneq ($(strong_constants_enabled),)
+__max-consts: $(max_consts) $(max_consts_witness)
+else
+__max-consts:
+	$(call print_warning,strong-constants-scope: none (strong-constant elimination disabled))
+endif
 
 .PHONY: max-nodes-relaxed __max-nodes-relaxed
 max-nodes-relaxed: ## maximize nodes (relaxed constraints)
@@ -1096,8 +1103,8 @@ max-nodes-lock: ## maximize nodes (hard constraints, stage 2)
 	$(call run_logged,max-nodes-lock)
 __max-nodes-lock: $(max_nodes_lock) $(max_nodes_lock_witness)
 
-interrupted_gene_selection_targets = max-nodes-soft max-consts-soft \
-	max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse
+interrupted_gene_selection_targets = $(gene_selection_stages) \
+	bn-min bn-submin bn-diverse
 
 .PHONY: __finalize-interrupted-gene-selection-results
 ifeq ($(filter $(INTERRUPTED_TARGET),$(interrupted_gene_selection_targets)),)
@@ -1106,26 +1113,28 @@ __finalize-interrupted-gene-selection-results:
 else
 __finalize-interrupted-gene-selection-results:
 	$(call ensure_partial_gene_selection_metadata,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain_size))
-	$(call ensure_partial_gene_selection_metadata,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution))
-	$(call ensure_partial_gene_selection_metadata,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft))
-	$(call ensure_partial_gene_selection_metadata,max-nodes-seed,$(firstword $(max_nodes_seed)),$(max_nodes_relaxed))
-	$(call ensure_partial_gene_selection_metadata,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed))
+	$(if $(strong_constants_enabled),$(call ensure_partial_gene_selection_metadata,max-consts,$(max_consts),$(consts_input)))
+	$(call ensure_partial_gene_selection_metadata,max-nodes-relaxed,$(max_nodes_relaxed),$(relaxed_input))
+	$(call ensure_partial_gene_selection_metadata,max-nodes-seed,$(max_nodes_seed_solution),$(full_input))
+	$(call ensure_partial_gene_selection_metadata,max-nodes-lock,$(max_nodes_lock),$(full_input))
 	$(call finalize_interrupted_lock_gene_selection)
 endif
 
 .PHONY: __kept-gene-selection-results
 kept_gene_selection_modules = $(if $(strip $(INTERRUPTED_INFERENCE_MODULE)),$(INTERRUPTED_INFERENCE_MODULE),\
-	max-nodes-lock max-nodes-seed max-nodes-relaxed max-consts-soft max-nodes-soft)
+	$(gene_selection_stages_reverse))
 maybe_report_kept_gene_selection_result = \
 	$(if $(filter $(1),$(kept_gene_selection_modules)),$(call report_kept_gene_selection_result,$(1),$(2),$(3),$(4)))
 
 __kept-gene-selection-results:
 	@mkdir -p "$(tmpdir)"
 	@rm -f "$(tmpdir)/kept-gene-selection-reported"
-	$(call maybe_report_kept_gene_selection_result,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed),$(tmpdir)/kept-gene-selection-reported)
-	$(call maybe_report_kept_gene_selection_result,max-nodes-seed,$(firstword $(max_nodes_seed)),$(max_nodes_relaxed),$(tmpdir)/kept-gene-selection-reported)
-	$(call maybe_report_kept_gene_selection_result,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft),$(tmpdir)/kept-gene-selection-reported)
-	$(call maybe_report_kept_gene_selection_result,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution),$(tmpdir)/kept-gene-selection-reported)
+	$(if $(filter full,$(STRONG_CONSTANTS_SCOPE)),$(call maybe_report_kept_gene_selection_result,max-consts,$(max_consts),$(consts_input),$(tmpdir)/kept-gene-selection-reported))
+	$(call maybe_report_kept_gene_selection_result,max-nodes-lock,$(max_nodes_lock),$(full_input),$(tmpdir)/kept-gene-selection-reported)
+	$(call maybe_report_kept_gene_selection_result,max-nodes-seed,$(max_nodes_seed_solution),$(full_input),$(tmpdir)/kept-gene-selection-reported)
+	$(if $(filter relaxed,$(STRONG_CONSTANTS_SCOPE)),$(call maybe_report_kept_gene_selection_result,max-consts,$(max_consts),$(consts_input),$(tmpdir)/kept-gene-selection-reported))
+	$(call maybe_report_kept_gene_selection_result,max-nodes-relaxed,$(max_nodes_relaxed),$(relaxed_input),$(tmpdir)/kept-gene-selection-reported)
+	$(if $(filter soft,$(STRONG_CONSTANTS_SCOPE)),$(call maybe_report_kept_gene_selection_result,max-consts,$(max_consts),$(consts_input),$(tmpdir)/kept-gene-selection-reported))
 	$(call maybe_report_kept_gene_selection_result,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain_size),$(tmpdir)/kept-gene-selection-reported)
 	@rm -f "$(tmpdir)/kept-gene-selection-reported"
 
@@ -1133,7 +1142,7 @@ __kept-gene-selection-results:
 intermediate_gene_selection_modules = \
 	$(if $(strip $(INTERMEDIATE_GENE_SELECTION_MODULE)),\
 		$(INTERMEDIATE_GENE_SELECTION_MODULE),\
-		max-nodes-lock max-nodes-seed max-nodes-relaxed max-consts-soft max-nodes-soft)
+		$(gene_selection_stages_reverse))
 maybe_report_intermediate_gene_selection_status = \
 	$(if $(filter $(1),$(intermediate_gene_selection_modules)),\
 		$(call report_intermediate_gene_selection_status,$(1),$(2),$(3),$(4)))
@@ -1141,10 +1150,12 @@ maybe_report_intermediate_gene_selection_status = \
 __intermediate-gene-selection-status:
 	@mkdir -p "$(tmpdir)"
 	@rm -f "$(tmpdir)/intermediate-gene-selection-reported"
-	$(call maybe_report_intermediate_gene_selection_status,max-nodes-lock,$(max_nodes_lock),$(max_nodes_relaxed),$(tmpdir)/intermediate-gene-selection-reported)
-	$(call maybe_report_intermediate_gene_selection_status,max-nodes-seed,$(firstword $(max_nodes_seed)),$(max_nodes_relaxed),$(tmpdir)/intermediate-gene-selection-reported)
-	$(call maybe_report_intermediate_gene_selection_status,max-nodes-relaxed,$(max_nodes_relaxed),$(max_consts_soft),$(tmpdir)/intermediate-gene-selection-reported)
-	$(call maybe_report_intermediate_gene_selection_status,max-consts-soft,$(max_consts_soft),$(max_nodes_soft_solution),$(tmpdir)/intermediate-gene-selection-reported)
+	$(if $(filter full,$(STRONG_CONSTANTS_SCOPE)),$(call maybe_report_intermediate_gene_selection_status,max-consts,$(max_consts),$(consts_input),$(tmpdir)/intermediate-gene-selection-reported))
+	$(call maybe_report_intermediate_gene_selection_status,max-nodes-lock,$(max_nodes_lock),$(full_input),$(tmpdir)/intermediate-gene-selection-reported)
+	$(call maybe_report_intermediate_gene_selection_status,max-nodes-seed,$(max_nodes_seed_solution),$(full_input),$(tmpdir)/intermediate-gene-selection-reported)
+	$(if $(filter relaxed,$(STRONG_CONSTANTS_SCOPE)),$(call maybe_report_intermediate_gene_selection_status,max-consts,$(max_consts),$(consts_input),$(tmpdir)/intermediate-gene-selection-reported))
+	$(call maybe_report_intermediate_gene_selection_status,max-nodes-relaxed,$(max_nodes_relaxed),$(relaxed_input),$(tmpdir)/intermediate-gene-selection-reported)
+	$(if $(filter soft,$(STRONG_CONSTANTS_SCOPE)),$(call maybe_report_intermediate_gene_selection_status,max-consts,$(max_consts),$(consts_input),$(tmpdir)/intermediate-gene-selection-reported))
 	$(call maybe_report_intermediate_gene_selection_status,max-nodes-soft,$(max_nodes_soft_solution),$(max_nodes_soft_domain_size),$(tmpdir)/intermediate-gene-selection-reported)
 	@rm -f "$(tmpdir)/intermediate-gene-selection-reported"
 
