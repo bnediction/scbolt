@@ -12,6 +12,7 @@ from typing import Any
 import bonesis
 import bonesistools as bt
 import pandas as pd
+from boolean import BooleanAlgebra
 from mpbn import MPBooleanNetwork
 from scbolt import cli, console
 from scbolt.inference import write_influence_graph
@@ -57,6 +58,7 @@ from utils import (
 
 bonesis.settings["quiet"] = True
 script_name = Path(__file__).name
+_BOOLEAN_SYMBOL_CHARACTERS = (".", ":", "_", "-")
 
 AGGREGATED_INFLUENCE_GRAPH_GRAPH_ATTR: Mapping[str, str] = {
     "ratio": "compress",
@@ -136,10 +138,16 @@ def write_noi(bn: MPBooleanNetwork, file):
 
 def to_bonesistools_boolean_network(
     bn: MPBooleanNetwork,
+    *,
+    boolean_algebra: BooleanAlgebra | None = None,
 ) -> bt.logic.bn.BooleanNetwork:
     """Adapt MPBN only for bonesistools graph export APIs."""
 
-    return bt.logic.bn.BooleanNetwork(bn.copy())
+    if boolean_algebra is None:
+        boolean_algebra = BooleanAlgebra(
+            allowed_in_token=_BOOLEAN_SYMBOL_CHARACTERS,
+        )
+    return bt.logic.bn.BooleanNetwork(bn.copy(), ba=boolean_algebra)
 
 
 def signed_influence_edges(
@@ -297,9 +305,20 @@ def write_ensemble_influence_graphs(
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    ensemble = bt.logic.bn.BooleanNetworkEnsemble(components=components)
+    boolean_algebra = BooleanAlgebra(
+        allowed_in_token=_BOOLEAN_SYMBOL_CHARACTERS,
+    )
+    ensemble = bt.logic.bn.BooleanNetworkEnsemble(
+        components=components,
+        ba=boolean_algebra,
+    )
     for bn in bns:
-        ensemble.append(to_bonesistools_boolean_network(bn))
+        ensemble.append(
+            to_bonesistools_boolean_network(
+                bn,
+                boolean_algebra=boolean_algebra,
+            )
+        )
 
     if not bns:
         raise RuntimeError("cannot export aggregated influence graphs: no BN solution")
