@@ -9,9 +9,14 @@ tmpdir="$(mktemp -d)"
 
 trap 'rm -rf "${tmpdir}"' EXIT
 
-"${scbolt}" config --raw --params="${legacy}" \
+run_standalone_scbolt() (
+    cd "${tmpdir}"
+    "${scbolt}" "$@"
+)
+
+run_standalone_scbolt config --raw --params="${legacy}" \
     | sed '/^PARAMS=/d' > "${tmpdir}/legacy.config"
-"${scbolt}" config --raw --config="${yaml}" \
+run_standalone_scbolt config --raw --config="${yaml}" \
     | sed '/^PARAMS=/d' > "${tmpdir}/yaml.config"
 diff -u "${tmpdir}/legacy.config" "${tmpdir}/yaml.config"
 
@@ -27,27 +32,27 @@ printf '\n'
 EOF
 chmod +x "${tmpdir}/config-python"
 SCBOLT_CONFIG_PYTHON="${tmpdir}/config-python" \
-    "${scbolt}" spec help --config="${yaml}" \
+    run_standalone_scbolt spec help --config="${yaml}" \
     > "${tmpdir}/blank-line-runner.out"
 grep -Fq 'usage: scbolt spec' "${tmpdir}/blank-line-runner.out"
 
-"${scbolt}" dry-run knnsc --params="${legacy}" \
+run_standalone_scbolt dry-run knnsc --params="${legacy}" \
     | sed -E 's#/tmp/scbolt-[A-Za-z0-9]+#/tmp/scbolt-TMP#g' \
     > "${tmpdir}/legacy.dry-run"
-"${scbolt}" dry-run knnsc --config="${yaml}" \
+run_standalone_scbolt dry-run knnsc --config="${yaml}" \
     | sed -E 's#/tmp/scbolt-[A-Za-z0-9]+#/tmp/scbolt-TMP#g' \
     > "${tmpdir}/yaml.dry-run"
 diff -u "${tmpdir}/legacy.dry-run" "${tmpdir}/yaml.dry-run"
 
-"${scbolt}" config --raw --config="${yaml}" --neighbors=14 \
+run_standalone_scbolt config --raw --config="${yaml}" --neighbors=14 \
     > "${tmpdir}/override.config"
 grep -qx 'NEIGHBORS=14' "${tmpdir}/override.config"
 
-"${scbolt}" config --raw --config="${yaml}" --alignment-tool=cellranger \
+run_standalone_scbolt config --raw --config="${yaml}" --alignment-tool=cellranger \
     > "${tmpdir}/alignment-override.config"
 grep -qx 'ALIGNMENT_TOOL=cellranger' "${tmpdir}/alignment-override.config"
 
-"${scbolt}" config --raw --config="${yaml}" --omics-hvg-method=binning \
+run_standalone_scbolt config --raw --config="${yaml}" --omics-hvg-method=binning \
     --bin-hvg-method=loess > "${tmpdir}/hvg-override.config"
 grep -qx 'OMICS_HVG_METHOD=binning' "${tmpdir}/hvg-override.config"
 grep -qx 'BIN_HVG_METHOD=loess' "${tmpdir}/hvg-override.config"
@@ -95,24 +100,24 @@ count-file:
   ctrl: ctrl-counts.h5ad
   treated: treated-counts.h5ad
 EOF
-"${scbolt}" config --raw --config="${tmpdir}/count-files.yml" \
+run_standalone_scbolt config --raw --config="${tmpdir}/count-files.yml" \
     > "${tmpdir}/count-files.config"
 grep -Fqx "COUNT_FILE_CTRL=${tmpdir}/ctrl-counts.h5ad" \
     "${tmpdir}/count-files.config"
 grep -Fqx "COUNT_FILE_TREATED=${tmpdir}/treated-counts.h5ad" \
     "${tmpdir}/count-files.config"
 touch "${tmpdir}/ctrl-counts.h5ad" "${tmpdir}/treated-counts.h5ad"
-"${scbolt}" dry-run filtering --config="${tmpdir}/count-files.yml" \
+run_standalone_scbolt dry-run filtering --config="${tmpdir}/count-files.yml" \
     > "${tmpdir}/count-files.dry-run"
-grep -Fq "filter.py ${tmpdir}/ctrl-counts.h5ad" \
+grep -Fq "filter.py ctrl-counts.h5ad" \
     "${tmpdir}/count-files.dry-run"
-grep -Fq "filter.py ${tmpdir}/treated-counts.h5ad" \
+grep -Fq "filter.py treated-counts.h5ad" \
     "${tmpdir}/count-files.dry-run"
 
-"${scbolt}" config --raw --config="${tmpdir}/count-files.yml" \
+run_standalone_scbolt config --raw --config="${tmpdir}/count-files.yml" \
     --count-file-ctrl=override-counts.h5ad \
     > "${tmpdir}/count-files-override.config"
-grep -Fqx "COUNT_FILE_CTRL=${repo_root}/override-counts.h5ad" \
+grep -Fqx "COUNT_FILE_CTRL=${tmpdir}/override-counts.h5ad" \
     "${tmpdir}/count-files-override.config"
 
 cat > "${tmpdir}/macrostate-files.yml" <<'EOF'
@@ -120,7 +125,7 @@ conditions: [ctrl, treated]
 macrostate-file-ctrl: ctrl-mstates.h5ad
 macrostate-file-treated: treated-mstates.h5ad
 EOF
-"${scbolt}" config --raw --config="${tmpdir}/macrostate-files.yml" \
+run_standalone_scbolt config --raw --config="${tmpdir}/macrostate-files.yml" \
     > "${tmpdir}/macrostate-files.config"
 grep -Fqx "MACROSTATE_FILE_CTRL=${tmpdir}/ctrl-mstates.h5ad" \
     "${tmpdir}/macrostate-files.config"
@@ -131,9 +136,36 @@ cat > "${tmpdir}/shared-macrostate-file.yml" <<'EOF'
 conditions: [ctrl, treated]
 macrostate-file: all-mstates.h5ad
 EOF
-"${scbolt}" config --raw --config="${tmpdir}/shared-macrostate-file.yml" \
+run_standalone_scbolt config --raw --config="${tmpdir}/shared-macrostate-file.yml" \
     > "${tmpdir}/shared-macrostate-file.config"
 grep -Fqx "MACROSTATE_FILE=${tmpdir}/all-mstates.h5ad" \
     "${tmpdir}/shared-macrostate-file.config"
+
+locator_project="${tmpdir}/locator-project"
+mkdir -p "${locator_project}/config" "${locator_project}/work"
+cat > "${locator_project}/.scbolt" <<'EOF'
+CONFIG=config/scbolt.yml
+EOF
+cat > "${locator_project}/config/scbolt.yml" <<'EOF'
+project-dir: project
+resources-dir: resources
+spec-file: config/spec.yml
+old-files: [project/omics/annot/annot.h5ad]
+count-file: data/counts.h5ad
+EOF
+(
+    cd "${locator_project}/work"
+    "${scbolt}" config --raw > "${tmpdir}/locator-project.config"
+)
+grep -Fqx "PROJECT_DIR=${locator_project}/project" \
+    "${tmpdir}/locator-project.config"
+grep -Fqx "RESOURCES_DIR=${locator_project}/resources" \
+    "${tmpdir}/locator-project.config"
+grep -Fqx "SPEC_FILE=${locator_project}/config/spec.yml" \
+    "${tmpdir}/locator-project.config"
+grep -Fqx "OLD_FILES=${locator_project}/project/omics/annot/annot.h5ad" \
+    "${tmpdir}/locator-project.config"
+grep -Fqx "COUNT_FILE=${locator_project}/data/counts.h5ad" \
+    "${tmpdir}/locator-project.config"
 
 printf '%s\n' "YAML configuration compatibility tests passed"

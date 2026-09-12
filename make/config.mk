@@ -157,11 +157,13 @@ override repeat_msk_url :=
 endif
 endif
 
-path_origin_base = $(if $(filter command line,$(origin $(1))),$(launch_dir),$(params_dir))
-resolve_user_path_var = $(eval override $(1) := \
-	$(call resolve_optional_path_from,$($(1)),$(call path_origin_base,$(1))))
 SCBOLT_PROJECT_ROOT ?=
 resolved_scbolt_project_root := $(call resolve_optional_path_from,$(SCBOLT_PROJECT_ROOT),$(launch_dir))
+configuration_path_base := $(if $(and $(filter true,$(SCBOLT_CONFIG_MODE)),\
+	$(strip $(resolved_scbolt_project_root))),$(resolved_scbolt_project_root),$(params_dir))
+path_origin_base = $(if $(filter command line,$(origin $(1))),$(launch_dir),$(configuration_path_base))
+resolve_user_path_var = $(eval override $(1) := \
+	$(call resolve_optional_path_from,$($(1)),$(call path_origin_base,$(1))))
 resources_dir_base := $(if $(filter command line,$(origin RESOURCES_DIR)),$(launch_dir),\
 	$(if $(strip $(resolved_scbolt_project_root)),$(resolved_scbolt_project_root),$(params_dir)))
 override RESOURCES_DIR := $(call resolve_optional_path_from,$(RESOURCES_DIR),$(resources_dir_base))

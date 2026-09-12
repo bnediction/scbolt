@@ -98,9 +98,10 @@ old-files:
   - apl/bin/consensus/knnsc/mstates_bin.csv
 ```
 
-Relative paths in `scbolt.yml` are resolved relative to the configuration-file
-directory. Relative `--old-file=<file>` paths are resolved relative to the
-launch directory.
+Relative paths in a project YAML file are resolved relative to the directory
+containing `.scbolt`. Without a project locator, they are resolved relative to
+the configuration-file directory. Relative `--old-file=<file>` paths are
+resolved relative to the launch directory.
 
 `old-files` is more granular than `--trust-target`: it trusts only the listed
 files, not every output produced by the corresponding module.

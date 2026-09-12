@@ -30,9 +30,12 @@ represents an empty optional value, for example automatic HVG estimation:
 bin-hvg-top: null
 ```
 
-Relative paths in `scbolt.yml` are resolved relative to the directory that
-contains the YAML file. Relative command-line paths are resolved from the
-launch directory.
+When a `.scbolt` locator is active, relative paths in its selected YAML file
+are resolved from the directory containing `.scbolt`. The YAML file can
+therefore live in a subdirectory such as `config/` without moving project
+outputs or inputs into that subdirectory. A standalone YAML file used without
+a `.scbolt` locator keeps its own directory as the path base. Relative
+command-line paths are resolved from the launch directory.
 
 The schema has no `version` key. Unknown keys, duplicate keys, incorrect YAML
 types, and invalid condition names are rejected with their source line and
