@@ -138,6 +138,16 @@ show_config_visible_modules = $(if $(strip $(input_routes)),$(show_config_analyt
 show_config_param_modules = $(call uniq,$(strip \
 	$(filter $(show_config_visible_modules),$(show_config_modules)) \
 	$(if $(filter macrostates,$(show_config_modules)),$(MACROSTATE_METHOD))))
+show_config_max_nodes_modules = \
+	max-nodes-soft max-nodes-relaxed max-nodes-seed max-nodes-lock
+show_config_bn_modules = bn-min bn-submin bn-diverse
+show_config_param_section_modules = $(call uniq,$(strip \
+	$(filter-out $(show_config_max_nodes_modules) max-consts \
+		$(show_config_bn_modules),$(show_config_param_modules)) \
+	$(foreach module,$(show_config_max_nodes_modules),\
+		$(filter $(module),$(show_config_param_modules))) \
+	$(filter max-consts,$(show_config_param_modules)) \
+	$(filter $(show_config_bn_modules),$(show_config_param_modules))))
 show_config_inference_modules = \
 	spec max-nodes-soft max-consts max-nodes-relaxed max-nodes-seed max-nodes-lock \
 	bn-min bn-submin bn-diverse
@@ -166,8 +176,12 @@ show_config_var_command = printf '%-$(2)s: %s\n' \
 	'$(call show_config_var_label,$(1))' "$(call show_config_var_value,$(1))";
 show_config_print_vars = $(foreach var,$(strip $(1)),$(call show_config_var_command,$(var),$(2)))
 show_config_section_title = $(1) parameters
+show_config_module_hidden_inference_params = $(filter-out \
+	$(if $(filter max-consts,$(1)),STRONG_CONSTANTS_SCOPE),\
+	$(show_config_inference_params))
 show_config_module_params = $(call uniq,\
-	$(filter-out $(show_config_inference_params) $(show_config_hvg_params),$(target_params_$(1))))
+	$(filter-out $(call show_config_module_hidden_inference_params,$(1)) \
+		$(show_config_hvg_params),$(target_params_$(1))))
 show_config_module_label_width = $(call show_config_label_width,$(call show_config_module_params,$(1)))
 
 define command_help_header
@@ -378,7 +392,7 @@ $(show_config_print_hvg)
 $(show_config_print_inference)
 $(show_config_print_old_files)
 $(show_config_print_pipeline)
-$(foreach module,$(show_config_param_modules),$(call show_config_print_param_section,$(module)))
+$(foreach module,$(show_config_param_section_modules),$(call show_config_print_param_section,$(module)))
 endef
 
 ## END UTILITY VARIABLES ##

@@ -80,6 +80,32 @@ def dry_run(scope: str) -> str:
     return result.stdout
 
 
+def rendered_config(
+    scope: str,
+    target: str = "max-consts",
+    project_dir: Path | None = None,
+) -> str:
+    project_option = [] if project_dir is None else [f"PROJECT_DIR={project_dir}"]
+    result = subprocess.run(
+        [
+            "make",
+            "-s",
+            "-f",
+            str(MAKEFILE),
+            f"PARAMS={PARAMS}",
+            f"TARGET={target}",
+            f"STRONG_CONSTANTS_SCOPE={scope}",
+            *project_option,
+            "config",
+        ],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout
+
+
 def assert_endswith(value: str, suffix: str) -> None:
     assert value.endswith(suffix), f"{value!r} does not end with {suffix!r}"
 
@@ -179,6 +205,32 @@ for scope, expected in expected_routes.items():
     inference_command = output[inference_start:]
     assert f"--filter-grn {route['final-selection']}" in inference_command
     assert f"--initial-witness {route['final-witness']}" in inference_command
+
+config = rendered_config("relaxed")
+assert "Strong constants : relaxed" in config
+max_consts_config = config.split("max-consts parameters\n", 1)[1].split("\n\n", 1)[0]
+assert any(
+    label.strip() == "strong constants scope" and value.strip() == "relaxed"
+    for line in max_consts_config.splitlines()
+    if ":" in line
+    for label, value in [line.split(":", 1)]
+)
+
+config = rendered_config("relaxed", target="bn-submin")
+selection_sections = [
+    "max-nodes-soft parameters",
+    "max-nodes-relaxed parameters",
+    "max-nodes-seed parameters",
+    "max-nodes-lock parameters",
+    "max-consts parameters",
+]
+section_positions = [config.index(section) for section in selection_sections]
+assert section_positions == sorted(section_positions)
+
+with tempfile.TemporaryDirectory() as directory:
+    project = Path(directory) / "project"
+    rendered_config("relaxed", project_dir=project)
+    assert not project.exists()
 
 invalid = subprocess.run(
     [

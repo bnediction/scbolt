@@ -342,8 +342,18 @@ memory_mb := $(word 3,$(memory_values))
 memory_velocyto := $(word 4,$(memory_values))
 memory_valid := $(if $(memory_normalized),true,false)
 is_memory_size = $(if $(call memory_conversion_values,$(1),1),true,false)
-is_creatable_path = $(shell { test -n "$(strip $(1))" && $(call system_tool,mkdir) -p "$(strip $(1))"; } \
-	>/dev/null 2>&1 && echo true || echo false)
+is_creatable_path = $(shell \
+	path="$(strip $(1))"; \
+	if [ -n "$$path" ]; then \
+		candidate="$$path"; \
+		while [ ! -e "$$candidate" ] && [ ! -L "$$candidate" ]; do \
+			parent="$${candidate%/*}"; \
+			[ "$$parent" != "$$candidate" ] || parent=.; \
+			[ -n "$$parent" ] || parent=/; \
+			candidate="$$parent"; \
+		done; \
+		test -d "$$candidate" && test -w "$$candidate" && test -x "$$candidate"; \
+	fi >/dev/null 2>&1 && echo true || echo false)
 
 raw_conditions := $(strip $(call tolower, $(CONDITIONS)))
 unnamed_condition := $(if $(raw_conditions),false,true)
@@ -1021,7 +1031,7 @@ define check_path_diagnostic
 if [ -z "$(strip $(1))" ]; then \
 	$(call report_check_error,required path $(call parameter_label,$(1),$(2),$(3)) \
 		not defined: $(call parameter_name,$(2))); \
-elif mkdir -p "$(strip $(1))" >/dev/null 2>&1; then \
+elif [ "$(call is_creatable_path,$(1))" = true ]; then \
 	$(call check_success,$(call parameter_label,$(1),$(2),$(3)) valid: $(call parameter_name,$(2))=$(strip $(1))); \
 else \
 	$(call report_check_error,invalid path for $(call parameter_label,$(1),$(2),$(3)) $(call parameter_name,$(2)): $(strip $(1))); \

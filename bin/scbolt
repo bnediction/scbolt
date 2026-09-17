@@ -2080,7 +2080,10 @@ format_elapsed_duration() {
 }
 
 filter_make_error_lines() {
-    grep -vE '^make(\[[0-9]+\])?: \*\*\* \[[^]]+\] Error [0-9]+$'
+    grep -vE \
+        -e '^make(\[[0-9]+\])?: \*\*\* \[[^]]+\] Error [0-9]+$' \
+        -e '/tmp/tmp[^:[:space:]]*: line [0-9]+: [0-9]+ Killed[[:space:]]+python .*[/]scripts/infer/(selection|infer)\.py([[:space:]]|$)' \
+        -e '^ERROR conda\.cli\.main_run:execute\([0-9]+\): .*scripts/infer/(selection|infer)\.py.* failed\. \(See above for error\)$'
 }
 
 run_make_build_with_params() {

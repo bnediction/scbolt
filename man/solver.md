@@ -29,13 +29,15 @@ candidate domain considered by domain continuation.
 
 Three complementary strategies control the complexity of this optimization:
 
-1. progressive constraint relaxation;
-2. clause continuation;
-3. domain continuation.
+1. staged constraint enforcement;
+2. clause continuation through successive clause-bound expansion;
+3. domain continuation through adaptive witness acquisition and
+   witness-guided domain expansion.
 
-The strategies act on different axes. Constraint relaxation changes `C`,
-clause continuation changes `q`, and domain continuation changes `D` to first
-acquire a witness `W` and then lift it progressively to the complete domain.
+The strategies act on different axes. Staged constraint enforcement changes
+`C`, clause continuation increases `q`, and domain continuation changes `D`,
+first to acquire a structural witness `W` and then to expand it towards the
+complete domain `G`.
 
 ## Solver Outcomes
 
@@ -67,7 +69,7 @@ extended beyond the problem that was actually proved unsatisfiable:
   additional nodes and interactions may restore satisfiability;
 - `UNSAT` at clause bound `q` does not imply `UNSAT` at a larger clause bound
   because additional clauses increase the expressiveness of Boolean functions;
-- `UNSAT` under the complete hard constraint set does not describe a relaxed
+- `UNSAT` under the complete specification does not describe a relaxed
   problem from which some constraints were removed.
 
 ### `UNKNOWN`
@@ -75,17 +77,17 @@ extended beyond the problem that was actually proved unsatisfiable:
 `UNKNOWN` means that no witness and no proof of unsatisfiability were obtained
 within the allocated search budget. Typical causes include:
 
-- domain-continuation patience expiration;
-- clause-continuation patience expiration before any witness;
+- `domain-wave-patience` expiration;
+- `clause-bound-patience` expiration before any witness;
 - the stage-wide timeout;
 - user interruption;
-- an explicit solver interruption.
+- an explicit solver interruption;
 - an internal solver-capacity limit reached while grounding the ASP program.
 
 `UNKNOWN` must never be reported or interpreted as `UNSAT`. It indicates a
 computational bottleneck rather than a logical conclusion.
 
-## Progressive Constraint Relaxation
+## Staged Constraint Enforcement
 
 Formal synthesis requires all active constraints to be satisfied
 simultaneously. Large regulatory domains combined with expensive dynamical
@@ -104,7 +106,8 @@ The constraint hierarchy is:
 3. **Hard constraints:** universal properties such as constraints over all
    fixed points or the reachability of all relevant attractors.
 
-The corresponding selection modules are:
+The available selection modules are listed below; their execution order is
+determined by `strong-constants-scope`.
 
 | Module | Active constraint level | Purpose |
 | --- | --- | --- |
@@ -113,6 +116,10 @@ The corresponding selection modules are:
 | `max-nodes-relaxed` | soft + intermediate | Introduce non-reachability constraints, or forward the preceding solution when none exist. |
 | `max-nodes-seed` | complete | Introduce hard constraints, or forward the preceding solution and witness when none exist. |
 | `max-nodes-lock` | complete | Improve a witness computed by `SEED` within the preceding domain, or forward the `SEED` output unchanged. |
+
+`RELAXED` combines the soft and intermediate constraints. It is relaxed only
+relative to the complete specification because hard constraints are not yet
+enforced.
 
 Ordinary non-reachability certificates use up to one refinement iteration per
 domain node by default. The optional shared `bounded-nonreach` parameter can replace
@@ -140,16 +147,20 @@ the single `max-consts` pass:
 | `none` | `max-nodes-soft` -> `max-nodes-relaxed` -> `max-nodes-seed` -> `max-nodes-lock` |
 
 The default `soft` scope preserves the early elimination used to improve
-tractability. `relaxed` delays elimination until intermediate constraints are
-active. `full` evaluates strong constancy with the complete specification and
-is translated internally to BoNesis mode `hard`. `none` disables only
-strong-constant optimization and elimination; all node-selection stages still
-run.
+tractability. `relaxed` places elimination after `max-nodes-relaxed`, so
+intermediate constraints are included when present. `full` evaluates strong
+constancy with the complete specification and is translated internally to
+BoNesis mode `hard`. `none` disables only strong-constant optimization and
+elimination; all node-selection stages still run.
 
-`full` does not by itself establish a global lexicographic optimum. That claim
-requires the preceding complete node selection to have been certified globally
-optimal. After a `SEED` or `LOCK` timeout, strong-constant optimization remains
-conditional on the retained domain.
+The `full` scope evaluates strong constancy under the complete specification but
+does not by itself establish a global lexicographic optimum. Even when the
+preceding node-count optimum is globally certified, strong-constant optimization
+remains conditional on the particular node-optimal domain retained, unless tied
+domains are optimized jointly. After a `SEED` or `LOCK` timeout, it is instead
+conditional on the potentially partial retained domain. A timeout never moves
+`max-consts` to an earlier scope: any retained partial result was evaluated under
+the requested constraint scope.
 
 The optional `forbidden-nodes` specification excludes components before the
 `SOFT` stage. These components are removed from both the macrostate table and
@@ -166,34 +177,38 @@ and coverage of a forwarded partial solution are preserved. Its sidecar also
 records the immediate source so that a later `LOCK` stage can distinguish a
 witness computed by `SEED` from one merely forwarded by it.
 
-| Intermediate constraints | Hard constraints | `RELAXED` witness | `SEED` witness |
+| Intermediate constraints | Hard constraints | `RELAXED` action | `SEED` action |
 | --- | --- | --- | --- |
-| absent | absent | absent | absent |
-| present | absent | computed | forwarded from `RELAXED` |
-| absent | present | absent | computed by `SEED` |
-| present | present | computed | recomputed by `SEED` |
+| absent | absent | Forward the input solution and witness. | Forward the immediate predecessor's solution and witness. |
+| present | absent | Compute a new solution and witness. | Forward the immediate predecessor's solution and witness. |
+| absent | present | Forward the input solution and witness. | Compute a new solution and witness. |
+| present | present | Compute a new solution and witness. | Compute a new solution and witness. |
+
+The immediate predecessor of `SEED` may be `max-consts` when
+`strong-constants-scope` is `relaxed`. Forwarding describes the action rather
+than the presence of a non-empty witness: an empty input witness remains empty.
 
 An input witness is never copied unchanged through `max-consts`, because
 strong-constant selection changes the regulatory domain. The post-consts
-witness is used by the next stage. A `RELAXED` witness is likewise never treated
-as already feasible after hard constraints are introduced.
+witness is used by the next stage. A witness received by `SEED` is likewise
+never treated as already feasible after hard constraints are introduced.
 
 The `seed` and `lock` stages retain distinct roles. `max-nodes-seed` may return
 a partial bounded-time solution after introducing hard constraints. In this
 case, `max-nodes-lock` makes the selected nodes mandatory and tries to improve
-coverage within the domain retained in `RELAXED/comps.txt`. It first stores the
-incoming solution and witness as its fallback; a new `LOCK` result replaces
-them, while interruption or absence of improvement retains them.
+coverage within the complete `SEED` input domain. It first stores the incoming
+solution and witness as its fallback; a new `LOCK` result replaces them, while
+interruption or absence of improvement retains them.
 
-When no hard constraints are introduced, `SEED` forwards the `RELAXED`
-solution and witness. `LOCK` then forwards the `SEED` outputs too, without
-starting another solve. This remains true when the `RELAXED` solution is
-partial: its `comps.txt` is the authoritative downstream domain, so nodes
-omitted by `RELAXED` are never reintroduced by `SEED` or `LOCK`. Improving that
-partial reduction requires rerunning `RELAXED` with a different budget or
-solver policy.
+When no hard constraints are introduced, `SEED` forwards its immediate
+predecessor's solution and witness. `LOCK` then forwards the `SEED` outputs too,
+without starting another solve. This remains true when the predecessor's
+solution is partial: its `comps.txt` is the authoritative downstream domain, so
+omitted nodes are never reintroduced by `SEED` or `LOCK`. Improving that partial
+reduction requires rerunning the stage that produced it with a different budget
+or solver policy.
 
-## Clause Continuation
+## Clause Continuation: Successive Clause-Bound Expansion
 
 The number of clauses allowed in each Boolean update function strongly affects
 the size of the ASP search space. Clause continuation replaces one direct solve
@@ -220,8 +235,10 @@ continuation starts at the smallest compatible bound instead of returning to
 
 Intermediate clause bounds use a patience limit measuring time since the most
 recent objective improvement. Every improved solution resets this patience.
-The target bound `max-clauses` disables clause patience: it terminates only after
-certified optimality, the stage-wide timeout, or user interruption.
+The target bound `max-clauses` disables clause patience. An ordinary stage-level
+solve then terminates only after certified optimality, the stage-wide timeout,
+or user interruption. Domain-continuation portfolios remain governed by their
+separate wave-patience and terminal-refinement policy.
 
 The transition policy at an intermediate clause bound is:
 
@@ -256,11 +273,16 @@ this additional refinement.
 Clause continuation is available for `SOFT`, `RELAXED`, `SEED`, and `LOCK` node
 selection stages. It does not apply to `max-consts`.
 
-## Domain Continuation
+It is enabled by default for `RELAXED`, `SEED`, and `LOCK`, and disabled by
+default for `SOFT`.
+
+## Domain Continuation: Adaptive Witness Acquisition and Witness-Guided Expansion
 
 Domain continuation addresses a different bottleneck: a complete regulatory
 domain may be too large for Clingo to find or improve a witness directly, even
-when a satisfiable subdomain would provide an effective warm start.
+when a satisfiable subdomain would provide an effective warm start. Its full
+control flow also includes complete-domain exploration and optional terminal
+refinement.
 
 Domain continuation has up to four phases:
 
@@ -342,9 +364,11 @@ The first acquisition wave starts halfway between the required-node domain and
 the complete domain. A wave containing only `UNSAT` candidates moves the next
 target halfway toward the complete domain. A wave containing `UNKNOWN`
 candidates moves the target halfway toward the remaining smaller interval.
-When no interior size remains, scBOLT changes deterministic candidate
-compositions at the same boundary until clause patience or the stage timeout
-decides the transition.
+At an unresolved boundary, scBOLT first changes deterministic candidate
+compositions at the same size within the refresh budget. It then reduces the
+target size when possible, or tries the one-time `opt` and `bb,lin` fallback at
+the minimum boundary before declaring continuation exhausted for that clause
+bound.
 
 Portfolio workers use one Clingo thread each. Finding the first satisfiable
 witness does not terminate the acquisition wave. The first witness becomes the
@@ -417,7 +441,7 @@ using a more restrictive prior network.
 When `SEED` computed its witness, the initial `LOCK` domain is the union of its
 selected nodes and the nodes required by the lock problem. Every expansion
 candidate contains this complete core. The candidate universe is exactly the
-domain retained by `RELAXED`; witnessed nodes are mandatory solver constraints,
+complete `SEED` input domain; witnessed nodes are mandatory solver constraints,
 while newly tested nodes remain optional. A forwarded or absent witness
 bypasses lock solving rather than starting a new acquisition portfolio.
 
@@ -536,40 +560,40 @@ its clause bound sequentially; it does not run several clause bounds at once.
 When domain continuation is disabled, the ordinary stage-level solver instead
 uses `clingo-threads`. These controls are never multiplied.
 
-Each wave starts with one probe candidate. Once that candidate has completed
-ASP grounding, the coordinator monitors the resident memory of the complete
-selection process for two seconds, subtracts the RSS measured before the
-candidate, and retains the maximum observed candidate cost. It then estimates
-the portfolio width as:
+When no worker-cost estimate is available, a wave starts with one probe
+candidate. Once that candidate has completed ASP grounding, the coordinator
+observes the resident memory of the complete selection process for two seconds.
+The observed process-wide RSS increase and concurrency high-water mark provide
+a conservative per-worker estimate. Later waves reuse the largest retained
+estimate, scaled with candidate-domain size and the active clause bound, rather
+than repeating the probe.
+
+After the probe, or immediately when a previous estimate is available,
+remaining candidates are considered at two-second intervals up to `jobs`.
+Several candidates may therefore ground concurrently. Before submitting
+another candidate, the coordinator reserves memory for every worker still
+grounding and for the proposed worker:
 
 ```text
-floor((0.90 * memory - baseline RSS) / (1.10 * candidate cost))
+current RSS
++ 1.10 * estimated candidate cost * (grounding workers + 1)
+<= memory
 ```
 
-The result is bounded between one and `jobs`. Remaining candidates are then
-submitted at two-second intervals up to that width. At most one candidate is
-grounding at a time, while candidates that completed grounding may solve
-concurrently. Later waves reuse the largest observed cost instead of waiting
-for another complete probe. That bound never decreases and is scaled with both
-candidate-domain size and the active clause bound before the next wave starts.
-If no positive incremental cost can be measured, `jobs` is used and the live
-memory guard remains authoritative. As the wave runs, the maximum per-candidate
-cost is updated conservatively and the estimated width may decrease. A queued
-candidate is admitted only below that width and when:
+The 10% candidate-cost margin accounts for continued Clingo growth after a
+measurement. There is no separately precomputed static portfolio width or 90%
+memory ceiling: admission is reevaluated before every launch. If no positive
+incremental cost can be measured, the live memory guard remains authoritative.
+As the wave runs, the retained per-worker estimate can increase but never
+decrease.
 
-```text
-current RSS + 1.10 * maximum observed candidate cost <= 0.90 * memory
-```
-
-The 10% scheduling headroom absorbs allocations occurring between coordinator
-measurements. The separate 10% candidate-cost margin accounts for continued
-Clingo growth after a measurement. If resident memory nevertheless exceeds the
-scheduling budget, the least advanced active candidate is interrupted before
-another candidate is considered, while at least one solver instance is always
-retained. After every wave, scBOLT collects unreachable Python objects and, on
-Linux, asks glibc to return unused native arenas to the operating system. A
-candidate that already emitted a witness remains eligible for selection;
-otherwise a memory-interrupted candidate is reported as `UNKNOWN`.
+If resident memory nevertheless exceeds `memory`, the least advanced active
+candidate is interrupted before another candidate is considered, while at
+least one solver instance is always retained. After every wave, scBOLT collects
+unreachable Python objects and, on Linux, asks glibc to return unused native
+arenas to the operating system. A candidate that already emitted a witness
+remains eligible for selection; otherwise a memory-interrupted candidate is
+reported as `UNKNOWN`.
 
 This policy adapts effective portfolio width as domains and Clingo groundings
 grow. It is a scheduling guard rather than an operating-system hard limit: one
@@ -582,12 +606,13 @@ patience clock and leader objective belong to the coordinating wave, not to an
 individual candidate. Portable Python worker threads coordinate these controls
 on Linux and macOS; the Clingo solves themselves execute outside the Python
 GIL. Only the coordinator writes outputs and renders progress. An interactive
-terminal displays one reusable progress line per active candidate, whereas log
-files retain only completed wave summaries and solver outcomes. The `certified`
-summary field counts candidates that proved optimality for their own evaluated
-domain, while `sat` counts successful candidates without such a certificate.
-These categories are exclusive. A certificate on an incomplete subdomain never
-stops the other domains.
+terminal displays one reusable progress line per portfolio candidate, including
+its queued, grounding, solving, or terminal state, whereas log files retain
+only completed wave summaries and solver outcomes. The `certified` summary
+field counts candidates that proved optimality for their own evaluated domain,
+while `sat` counts successful candidates without such a certificate. These
+categories are exclusive. A certificate on an incomplete subdomain never stops
+the other domains.
 
 Worker profiles and their candidate-index tie-breaking are deterministic for a
 fixed `seed`, clause bound, wave and `jobs` value. Wall-clock patience and timeout
@@ -620,6 +645,12 @@ The combined domain and clause transition policy is:
 - **Complete domain `UNKNOWN` without a witness:** the complete-domain search
   is a computational bottleneck. Continue searching smaller or compositionally
   different domains at the same clause bound.
+- **Unresolved complete-domain portfolio with a retained witness:** preserve
+  the incumbent solution and its witness rather than failing. At an
+  intermediate clause bound, advance to the next bound. At `max-clauses`, fall
+  back to ordinary complete-domain target optimization from that incumbent. A
+  Clasp capacity failure remains an explicit capacity outcome handled by the
+  existing partial- or fallback-solution policy.
 - **Expansion wave without a successful candidate:** retain the last successful
   witness and domain. When every candidate is unresolved, first refresh the
   candidate compositions at the same size, up to
@@ -710,7 +741,8 @@ for q in 1..max_clauses:
             refresh candidate compositions at the same size
             after the refresh budget, reduce the target size
             at the minimum size, try opt + bb,lin once
-            if still UNKNOWN, continue with q+1
+            if still UNKNOWN at an intermediate q, continue with q+1
+            if still UNKNOWN at max_clauses, use target optimization
 
         UNSAT on the complete domain:
             continue with q+1
@@ -747,7 +779,8 @@ for q in 1..max_clauses:
             refresh added nodes at constant size
             after the refresh budget, reduce the expansion step
             at a one-node step, try opt + bb,lin once
-            if still unresolved, continue with q+1
+            if still unresolved at an intermediate q, continue with q+1
+            if still unresolved at max_clauses, use target optimization
 
         clause-bound patience reached before the complete domain:
             if the mode is not ignore and the strategy is not bb,lin:
@@ -763,9 +796,18 @@ for q in 1..max_clauses:
 
         otherwise, after domain-wave patience:
             retain the best witness
-            start one complete-domain jobs-wide portfolio with opt + bb,lin
-            at an intermediate q, stop at clause-bound patience
-            at max_clauses, stop only at certification or the stage timeout
+            if mode is not ignore and strategy differs from bb,lin:
+                start one complete-domain jobs-wide portfolio with opt + bb,lin
+                at an intermediate q, stop at clause-bound patience
+                at max_clauses, stop only at certification or the stage timeout
+            otherwise:
+                do not repeat the same refinement strategy
+
+        if completion or refinement remains unresolved:
+            preserve the incumbent solution and witness
+            surface Clasp capacity to the partial/fallback policy
+            at an intermediate q, continue with q+1
+            at max_clauses, run ordinary complete-domain target optimization
 
     otherwise:
         optimize the complete domain at q with one stage-level instance,
@@ -780,9 +822,9 @@ for q in 1..max_clauses:
         continue with q+1
 ```
 
-Constraint relaxation surrounds this control flow: each selection module uses
-its own active constraint set and passes a reduced domain or structural witness
-to the next module.
+Staged constraint enforcement surrounds this control flow: each selection
+module uses its own active constraint set and passes a reduced domain or
+structural witness to the next module.
 
 `LOCK` enters the same control flow after the acquisition loop only when
 `SEED` computed a witness:
@@ -790,7 +832,7 @@ to the next module.
 ```text
 SEED witness + mandatory witnessed nodes -> initial lock domain
                                            -> expansion portfolios
-                                           -> complete relaxed domain
+                                           -> complete SEED input domain
                                            -> optional refinement portfolio
 ```
 
@@ -818,15 +860,22 @@ start is combined with the BoNesis subset-minimal solver portfolio.
 Each `bn-submin` network is written to a temporary directory and published
 atomically only after all of its requested files are complete. scBOLT samples
 the enumeration process RSS every second while refreshing the progress
-bar. As long as the projected RSS remains below `memory`, the original Clingo
-portfolio runs unchanged.
+bar. The projection adds twice the most recent non-negative one-second RSS
+growth to the current RSS. As long as the projected RSS remains below `memory`,
+the current Clingo portfolio runs uninterrupted. A plain integer `jobs` value
+starts at no more than 14 parallel Clingo workers; an explicit Clingo parallel
+mode retains its requested width.
 
 When projected RSS reaches the configured budget, scBOLT interrupts the
 portfolio, retains every complete network, releases its solver state, and
 starts a fresh portfolio. Previously generated influence graphs and all their
 supergraphs are excluded, so enumeration continues with the remaining global
 subset minima. The progress count, elapsed time, and average rate remain
-cumulative across these restarts.
+cumulative across these restarts. If a memory-limited cycle produces no
+complete network, the next portfolio uses half as many workers. Repeated failure
+with one worker reports that enumeration cannot progress within the configured
+memory budget. A cycle that checkpoints at least one network retains its
+current portfolio width.
 
 After an external interruption, the next interactive invocation offers:
 
@@ -838,7 +887,9 @@ After an external interruption, the next interactive invocation offers:
 
 Resume is the default. Non-interactive invocations resume automatically. An
 incomplete network directory is discarded; complete numbered outputs remain
-available as checkpoints. `--reset-target=bn-submin` still requests a fresh
+available as checkpoints. The checkpoint fingerprint covers the inference
+inputs and settings; incompatible checkpoints restart automatically rather
+than mixing solution spaces. `--reset-target=bn-submin` still requests a fresh
 enumeration.
 
 ## Configuration Reference
@@ -860,12 +911,12 @@ Resource-version parameters such as `geneinfo-version`, `omnipath-version`,
 `dorothea-levels` also affect the complete domain when a built-in prior is
 used. They define the problem itself rather than the solver strategy.
 
-### Constraint Relaxation
+### Staged Constraint Enforcement
 
 | Parameter | Meaning |
 | --- | --- |
 | `bounded-nonreach` | Optional shared non-reachability certificate bound. When omitted, BoNesis uses the number of nodes in the regulatory domain. |
-| `strong-constants-scope` | Stage at which strong constants are eliminated: `soft`, `relaxed`, `full`, or `none`. |
+| `strong-constants-scope` | Constraint scope and placement of the single `max-consts` pass: `soft`, `relaxed`, or `full`; `none` disables it. |
 | `minimize-self-loops-constants` | Whether `max-consts` additionally minimizes one-node feedbacks while optimizing strong constants. |
 | `timeout-soft` | Total solver-runtime limit for the soft node-selection stage. |
 | `timeout-consts` | Total solver-runtime limit for strong-constant optimization. |
@@ -896,7 +947,7 @@ parameter, while the patience is uniform across enabled stages.
 | `domain-continuation-<stage>` | Enable adaptive first-witness search and progressive witness-guided expansion; `LOCK` expands only a witness computed by `SEED`. |
 | `domain-wave-patience` | Full solving stagnation time within a `SOFT`, `RELAXED`, or `SEED` acquisition, expansion, refresh, or complete-domain wave. It defaults to five minutes. |
 | `domain-wave-patience-lock` | Equivalent wave patience for `LOCK`. It defaults to ten minutes because the last retained nodes are generally harder to consolidate. |
-| `minimum-domain-yield` | Minimum cumulative retained-node gain per node added during one domain expansion. Values must be at least 0 and below 1; zero disables constant-size refreshes. |
+| `minimum-domain-yield` | Minimum cumulative retained-node gain per node added during one domain expansion. Values must be at least 0 and below 1; zero disables yield-triggered refreshes. |
 | `maximum-domain-refreshes` | Maximum number of constant-size domain refreshes before expansion resumes. Zero disables refreshes. |
 | `memory` | Soft resident-memory budget used to queue and reduce the candidate portfolio while retaining at least one solver instance. |
 
@@ -915,7 +966,7 @@ completes grounding; each later candidate entering solving or first reaching
 the same objective frontier guarantees that at least 40% of the configured
 patience remains.
 `maximum-domain-refreshes` is shared by all enabled stages and defaults to one
-refresh per expansion size, after the initial wave.
+refresh after the initial wave at each acquisition or expansion size.
 
 ### Clingo Optimization
 
@@ -926,9 +977,9 @@ refresh per expansion size, after the initial wave.
 | `clingo-strategy-<stage>` | Clingo optimization algorithm, such as branch-and-bound (`bb,*`) or unsatisfiable-core optimization (`usc,*`). |
 | `clingo-threads` | Number of threads used by the stage-level Clingo solver when domain continuation is disabled. |
 
-The same value applies to every gene-selection stage, including
-`max-consts`. Domain-continuation workers always use one Clingo thread and
-do not multiply `clingo-threads` by `jobs`.
+`clingo-threads` applies to every gene-selection stage, including `max-consts`.
+Domain-continuation workers always use one Clingo thread and do not multiply
+`clingo-threads` by `jobs`.
 
 When domain continuation is enabled and no strategy is explicitly selected,
 `SOFT`, `RELAXED`, and `SEED` start their domain waves with `bb,inc`. `LOCK`
@@ -936,6 +987,16 @@ always defaults to `opt` and `bb,lin`, because it consolidates an existing
 structural witness rather than acquiring one. If progress stalls, the existing
 strategy fallback resumes from the retained witness with `opt` and `bb,lin`.
 Without domain continuation, clause continuation keeps its `bb,lin` default.
+
+### Final Boolean Network Inference
+
+| Parameter | Meaning |
+| --- | --- |
+| `clingo-mode-min` | Optimization handling mode used by `bn-min`; it defaults to `optN`. |
+| `minimize-self-loops-inference` | Whether `bn-min` additionally minimizes one-node feedbacks. |
+| `inference-limit` | Maximum number of networks generated by `bn-submin` or `bn-diverse`; an empty value or zero enumerates all available solutions. |
+| `configuration-formats` | Configuration export formats used by `bn-submin` and `bn-diverse`. |
+| `graph-formats` | Graphviz layouts exported for inferred Boolean networks. |
 
 ### Illustrative Seed Configuration
 
@@ -997,9 +1058,9 @@ clingo-threads: 1
 ```
 
 Each candidate contains every witnessed node, because these nodes are mandatory
-during `LOCK`. The remaining slots sample nodes from the larger `RELAXED`
-domain. If `SEED` only forwarded `RELAXED`, if its solution is already global,
-or if it has no structural witness, scBOLT skips this solve. If
+during `LOCK`. The remaining slots sample nodes from the larger `SEED` input
+domain. If `SEED` only forwarded its immediate predecessor, if its solution is
+already global, or if it has no structural witness, scBOLT skips this solve. If
 `timeout-lock: 0`, it retains the `SEED` solution without launching a solver.
 Because `LOCK` already defaults to `bb,lin`, it does not repeat an uncertified
 complete-domain wave as a separate terminal refinement.
@@ -1009,8 +1070,8 @@ complete-domain wave as a separate terminal refinement.
 Three time controls have distinct meanings:
 
 1. `domain-wave-patience` (or `domain-wave-patience-lock` for `LOCK`)
-   bounds stagnation of the best portfolio objective within one acquisition or
-   expansion wave. Its clock is
+   bounds stagnation of the best portfolio objective within one acquisition,
+   expansion, refresh, or complete-domain wave. Its clock is
    fully reset by the first wave witness and every strict leader improvement.
    The first time a different candidate reaches the current leader objective,
    scBOLT guarantees that at least 40% of the configured patience remains,

@@ -319,9 +319,6 @@ endif
 endif
 endif
 
-$(if $(filter true,$(call is_creatable_path,$(PROJECT_DIR))),$(shell $(call system_tool,mkdir) -p "$(results)"))
-$(if $(filter true,$(call is_creatable_path,$(RESOURCES_DIR))),$(shell $(call system_tool,mkdir) -p "$(resources_dir)"))
-
 check_mode := $(filter check,$(MAKECMDGOALS))$(__check_mode)
 
 ifneq ($(check_mode),)

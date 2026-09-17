@@ -59,6 +59,9 @@ fi
 if [ -n "${SCBOLT_TEST_MAKE_STDOUT_RAW:-}" ]; then
     printf '%s' "${SCBOLT_TEST_MAKE_STDOUT_RAW}"
 fi
+if [ -n "${SCBOLT_TEST_MAKE_STDERR_RAW:-}" ]; then
+    printf '%s' "${SCBOLT_TEST_MAKE_STDERR_RAW}" >&2
+fi
 case "${status}" in
     0) ;;
     124|130|143)
@@ -701,6 +704,24 @@ fi
 grep -qx 'real underlying error' "${tmpdir}/module-failed.err"
 grep -qx '✗ failed: stream' "${tmpdir}/module-failed.err"
 ! grep -q '^make.*\*\*\*' "${tmpdir}/module-failed.err"
+
+conda_killed_line='Domain refinement [max clauses=5, wave=2] /tmp/tmp8jhcavbv: line 3: 51439 Killed python /repo/scripts/infer/selection.py filter-nodes'
+conda_failed_line='ERROR conda.cli.main_run:execute(125): `conda run python /repo/scripts/infer/selection.py filter-nodes` failed. (See above for error)'
+(
+    cd "${project}"
+    PATH="${fakebin}:${PATH}" \
+        SCBOLT_TEST_RECORD="${record}" \
+        SCBOLT_TEST_MAKE_STDOUT='2026-01-01 00:00:00.000 - WARNING - inference process killed by the operating system (signal=KILL; likely out of memory)' \
+        SCBOLT_TEST_MAKE_STDERR_RAW="${conda_killed_line}"$'\n'"${conda_failed_line}"$'\n' \
+        SCBOLT_TEST_KEPT_RESULT='max-nodes-seed partial (745/746)' \
+        "${scbolt}" max-nodes-seed > "${tmpdir}/module-memory-killed.out" \
+        2> "${tmpdir}/module-memory-killed.err"
+)
+grep -q 'inference process killed by the operating system' \
+    "${tmpdir}/module-memory-killed.out"
+grep -qx '✓ kept partial solution: 745/746' \
+    "${tmpdir}/module-memory-killed.out"
+test ! -s "${tmpdir}/module-memory-killed.err"
 
 if (
     cd "${project}"
