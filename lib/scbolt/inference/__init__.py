@@ -23,6 +23,36 @@ def should_forward_previous_solution(
     return not new_constraints and not tuple(initial_witness)
 
 
+def ensemble_feedback_induced_graph(
+    influence_graphs: Iterable[Any],
+    aggregated_graph: Any,
+    *,
+    include_selfloops: bool = True,
+) -> Any:
+    """Induce an aggregate on feedback nodes found in each source graph.
+
+    Node membership is evaluated before aggregation. Edge counts and frequencies
+    remain those of the complete aggregate, including edges that do not
+    participate in feedback in an individual source graph. Consequently, cycles
+    in the returned graph need not occur in any one source graph.
+    """
+
+    feedback_nodes = set()
+    graph_count = 0
+    for graph in influence_graphs:
+        graph_count += 1
+        feedback_nodes.update(
+            graph.feedback_nodes(include_selfloops=include_selfloops)
+        )
+
+    if graph_count == 0:
+        raise ValueError("expected at least one influence graph")
+
+    feedback_graph = aggregated_graph.copy()
+    feedback_graph.remove_nodes_from(set(feedback_graph) - feedback_nodes)
+    return feedback_graph
+
+
 def write_influence_graph(
     boolean_network: Any,
     outdir: str | Path,

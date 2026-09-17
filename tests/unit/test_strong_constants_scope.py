@@ -357,3 +357,64 @@ with tempfile.TemporaryDirectory() as directory:
         text=True,
     )
     assert stale.stdout.strip() == "stale"
+
+    relaxed_target = directory_path / "relaxed.txt"
+    relaxed_target.write_text("A\nB\n", encoding="utf-8")
+    subprocess.run(
+        [
+            sys.executable,
+            str(METADATA),
+            "write",
+            "--module",
+            "max-nodes-relaxed",
+            "--target",
+            str(relaxed_target),
+            "--params-file",
+            str(params),
+            "--git-hash",
+            "test",
+            "--param",
+            "STRONG_CONSTANTS_SCOPE=full",
+        ],
+        check=True,
+    )
+    for equivalent_scope in ("relaxed", "none"):
+        state = subprocess.run(
+            [
+                sys.executable,
+                str(METADATA),
+                "state",
+                "--module",
+                "max-nodes-relaxed",
+                "--target",
+                str(relaxed_target),
+                "--param",
+                f"STRONG_CONSTANTS_SCOPE={equivalent_scope}",
+                "--field",
+                "status",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        assert state.stdout.strip() == "done"
+
+    state = subprocess.run(
+        [
+            sys.executable,
+            str(METADATA),
+            "state",
+            "--module",
+            "max-nodes-relaxed",
+            "--target",
+            str(relaxed_target),
+            "--param",
+            "STRONG_CONSTANTS_SCOPE=soft",
+            "--field",
+            "status",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert state.stdout.strip() == "stale"

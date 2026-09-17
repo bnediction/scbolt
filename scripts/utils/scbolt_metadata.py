@@ -607,6 +607,31 @@ def changed_parameters(
     return changes
 
 
+def strong_constants_scope_effect(module: str, scope: str) -> str:
+    """Return the part of the strong-constant route affecting one module."""
+
+    if module == "max-nodes-relaxed":
+        return "soft" if scope == "soft" else "after-relaxed"
+    if module in {"max-nodes-seed", "max-nodes-lock"}:
+        return scope if scope in {"soft", "relaxed"} else "after-lock"
+    return scope
+
+
+def parameter_change_affects_module(
+    module: str,
+    name: str,
+    stored_value: str,
+    current_value: str,
+) -> bool:
+    """Return whether one parameter change can alter a module's output."""
+
+    if name != "STRONG_CONSTANTS_SCOPE":
+        return True
+    return strong_constants_scope_effect(
+        module, stored_value
+    ) != strong_constants_scope_effect(module, current_value)
+
+
 def format_path(path: Path) -> str:
     try:
         return str(path.relative_to(Path.cwd()))
@@ -894,6 +919,33 @@ def state_for_targets(
         )
         stored_module = metadata.get("module")
         metadata_mismatch = stored_module != module or stored_hash != expected_hash
+        raw_changes = changed_parameters(metadata, parameters)
+        changes = [
+            change
+            for change in raw_changes
+            if parameter_change_affects_module(module, *change)
+        ]
+        ignored_changes = [
+            change
+            for change in raw_changes
+            if not parameter_change_affects_module(module, *change)
+        ]
+        if metadata_mismatch and stored_module == module and ignored_changes:
+            equivalent_parameters = dict(parameters)
+            for name, stored_value, _current_value in ignored_changes:
+                equivalent_parameters[name] = stored_value
+            equivalent_hash = (
+                metadata_hash(
+                    equivalent_parameters,
+                    runtime_backend,
+                    current_container,
+                    current_runtime,
+                )
+                if current_runtime
+                else config_hash(equivalent_parameters)
+            )
+            if stored_hash == equivalent_hash:
+                metadata_mismatch = False
         if partial_solution or metadata_mismatch:
             stale_targets.append(target)
 
@@ -904,7 +956,6 @@ def state_for_targets(
                     grouped_messages[message].append(label)
 
             if metadata_mismatch:
-                changes = changed_parameters(metadata, parameters)
                 changes_messages = runtime_changes(
                     metadata,
                     runtime_backend,

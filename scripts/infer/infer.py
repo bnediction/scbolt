@@ -15,7 +15,10 @@ import pandas as pd
 from boolean import BooleanAlgebra
 from mpbn import MPBooleanNetwork
 from scbolt import cli, console
-from scbolt.inference import write_influence_graph
+from scbolt.inference import (
+    ensemble_feedback_induced_graph,
+    write_influence_graph,
+)
 from scbolt.inference._enumeration import (
     BooleanNetworkEnumerationCheckpoint,
     SignedEdge,
@@ -105,7 +108,7 @@ AGGREGATED_INFLUENCE_GRAPH_OPTIONS: Mapping[str, Mapping[str, Any]] = {
     },
     "feedback_core.pdf": {
         **AGGREGATED_INFLUENCE_GRAPH_BASE_OPTIONS,
-        "collapse": "feedback",
+        "collapse": None,
         "drop_isolates": True,
     },
 }
@@ -302,6 +305,9 @@ def write_ensemble_influence_graphs(
 ) -> None:
     """Write aggregated influence graphs for an inferred BN ensemble."""
 
+    if not bns:
+        raise RuntimeError("cannot export aggregated influence graphs: no BN solution")
+
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -312,26 +318,30 @@ def write_ensemble_influence_graphs(
         components=components,
         ba=boolean_algebra,
     )
+    networks = []
     for bn in bns:
-        ensemble.append(
-            to_bonesistools_boolean_network(
-                bn,
-                boolean_algebra=boolean_algebra,
-            )
+        network = to_bonesistools_boolean_network(
+            bn,
+            boolean_algebra=boolean_algebra,
         )
-
-    if not bns:
-        raise RuntimeError("cannot export aggregated influence graphs: no BN solution")
+        ensemble.append(network)
+        networks.append(network)
 
     console.print_task(
         "generating aggregated influence graphs "
         f"(folder={console.format_path(outdir)})"
     )
     graph = ensemble.to_influence_graph()
+    feedback_graph = ensemble_feedback_induced_graph(
+        (network.to_influence_graph() for network in networks),
+        graph,
+        include_selfloops=False,
+    )
 
     for filename, options in AGGREGATED_INFLUENCE_GRAPH_OPTIONS.items():
         outfile = outdir / filename
-        graph.to_pydot(**options).write_pdf(str(outfile))
+        output_graph = feedback_graph if filename == "feedback_core.pdf" else graph
+        output_graph.to_pydot(**options).write_pdf(str(outfile))
 
 
 def run_bn_view(
