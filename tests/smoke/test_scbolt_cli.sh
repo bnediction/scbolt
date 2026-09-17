@@ -1,5 +1,19 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
+
+report_failure() {
+    local status="$1"
+    local source="$2"
+    local line="$3"
+    local command="$4"
+
+    trap - ERR
+    printf 'FAILED %s:%s (exit %s): %s\n' \
+        "${source}" "${line}" "${status}" "${command}" >&2
+    exit "${status}"
+}
+
+trap 'report_failure "$?" "${BASH_SOURCE[0]}" "${LINENO}" "${BASH_COMMAND}"' ERR
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 scbolt="${repo_root}/bin/scbolt"
@@ -707,11 +721,12 @@ grep -qx '✗ failed: stream' "${tmpdir}/module-failed.err"
 
 conda_killed_line='Domain refinement [max clauses=5, wave=2] /tmp/tmp8jhcavbv: line 3: 51439 Killed python /repo/scripts/infer/selection.py filter-nodes'
 conda_failed_line='ERROR conda.cli.main_run:execute(125): `conda run python /repo/scripts/infer/selection.py filter-nodes` failed. (See above for error)'
+memory_killed_stdout=$'2026-01-01 00:00:00.000 - RULE - max-nodes-seed\n2026-01-01 00:00:01.000 - WARNING - inference process killed by the operating system (signal=KILL; likely out of memory)'
 (
     cd "${project}"
     PATH="${fakebin}:${PATH}" \
         SCBOLT_TEST_RECORD="${record}" \
-        SCBOLT_TEST_MAKE_STDOUT='2026-01-01 00:00:00.000 - WARNING - inference process killed by the operating system (signal=KILL; likely out of memory)' \
+        SCBOLT_TEST_MAKE_STDOUT="${memory_killed_stdout}" \
         SCBOLT_TEST_MAKE_STDERR_RAW="${conda_killed_line}"$'\n'"${conda_failed_line}"$'\n' \
         SCBOLT_TEST_KEPT_RESULT='max-nodes-seed partial (745/746)' \
         "${scbolt}" max-nodes-seed > "${tmpdir}/module-memory-killed.out" \
