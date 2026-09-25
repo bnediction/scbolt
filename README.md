@@ -61,7 +61,7 @@ scbolt install docker
 ```
 
 The Docker backend uses the image tag matching the installed scBOLT version;
-for example, scBOLT `1.0` selects `ghcr.io/bnediction/scbolt:1.0`.
+for example, scBOLT `1.0.0` selects `ghcr.io/bnediction/scbolt:1.0.0`.
 
 `scbolt install --completions` repairs the Bash completion without changing a
 runtime backend.
