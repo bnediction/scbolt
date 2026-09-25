@@ -3,8 +3,6 @@ FROM mambaorg/micromamba:debian12-slim
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG SCBOLT_ENV_FILES="align bonesis cellrank core cotan fastq potency scboolseq stream velocity velocyto"
-ARG SCBOLT_VERSION=unknown
-ARG SCBOLT_GIT_COMMIT=unknown
 
 USER root
 
@@ -42,6 +40,9 @@ RUN for env_file in ${SCBOLT_ENV_FILES}; do \
     done \
     && micromamba clean --all --yes \
     && rm -rf /tmp/scbolt-conda-envs
+
+ARG SCBOLT_VERSION=unknown
+ARG SCBOLT_GIT_COMMIT=unknown
 
 COPY --chown=$MAMBA_USER:$MAMBA_USER . /opt/scbolt
 
