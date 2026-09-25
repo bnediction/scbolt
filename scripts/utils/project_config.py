@@ -240,7 +240,6 @@ def _parameters() -> dict[str, Parameter]:
         add(f"clingo-mode-{stage}", f"CLINGO_MODE_{suffix}")
         add(f"clingo-strategy-{stage}", f"CLINGO_STRATEGY_{suffix}")
         add(f"timeout-{stage}", f"TIMEOUT_{suffix}", SCALAR)
-    add("clingo-mode-min", "CLINGO_MODE_MIN")
     add("minimize-self-loops-constants", "MIN_SELF_LOOP_CONSTS", BOOLEAN)
     add("minimize-self-loops-inference", "MIN_SELF_LOOP_INFER", BOOLEAN)
     add("configuration-formats", "CONFIG_FORMATS", STRING_LIST)

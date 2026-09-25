@@ -133,7 +133,7 @@ dependencies:
       - beautifulsoup4==4.15.0
       - biodivine-aeon==1.4.2
       - bonesis==0.7.0
-      - bonesistools==1.6.0
+      - bonesistools==1.7.0
       - boolean-py==5.0
       - cffi==2.1.0
       - clingo==5.8.0

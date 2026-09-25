@@ -16,6 +16,7 @@ from boolean import BooleanAlgebra
 from mpbn import MPBooleanNetwork
 from scbolt import cli, console
 from scbolt.inference import (
+    configure_minimum_network_objectives,
     ensemble_feedback_induced_graph,
     write_influence_graph,
 )
@@ -29,7 +30,6 @@ from scbolt.inference._enumeration import (
 from scbolt.inference._selection import (
     BooleanNetworkProgress,
     fork_bonesis,
-    ptqdm,
 )
 from scbolt.inference._witness import (
     apply_structural_witness_heuristics,
@@ -47,7 +47,6 @@ from scbolt.runtime import (
     get_clingo_parallel_mode,
     get_subset_minimal_clingo_settings,
     iter_solutions,
-    next_solution,
     parse_memory_limit,
     release_unused_memory,
     reset_solver_timeout_status,
@@ -356,6 +355,7 @@ def run_bn_view(
     deadline: SolverDeadline | None = None,
     checkpoint: BooleanNetworkEnumerationCheckpoint | None = None,
     start_index: int = 0,
+    solution_progress: Any | None = None,
     on_solution_written: Callable[
         [int, MPBooleanNetwork, Collection[SignedEdge]], None
     ]
@@ -418,9 +418,13 @@ def run_bn_view(
             bns.append(bn)
             if on_solution_written is not None:
                 on_solution_written(i, bn, influence_edges)
+            if solution_progress is not None:
+                solution_progress.update()
     finally:
         solutions.close()
         close_solver_progress(view)
+        if solution_progress is not None:
+            solution_progress.close()
 
     return bns
 
@@ -665,7 +669,7 @@ parser_description = """Infer Most Permissive Boolean Networks using BoNesis.
 
 Three actions are proposed:
     - min:
-        inference of a Boolean network minimizing the number of interactions
+        enumeration of Boolean networks minimizing the number of interactions
     - submin:
         enumeration of Boolean networks associated with subset-minimal
         influence graphs
@@ -719,8 +723,8 @@ def main() -> None:
         default=None,
         metavar="INT",
         help=(
-            "number of diverse subset minimal solutions; if not specified, "
-            "enumerate all subset minimal solutions (default: None)"
+            "maximum number of Boolean networks to generate; if not specified, "
+            "enumerate all available solutions (default: None)"
         ),
     )
     parser.add_argument(
@@ -824,27 +828,36 @@ def main() -> None:
         )
 
     if args.action == "min":
-        console.print_task("computing Boolean network solution (objective=minimize edges)")
+        if args.limit not in [None, 0]:
+            console.print_task(
+                "enumerating Boolean network solutions "
+                f"(kind=minimum-interaction, limit={args.limit})"
+            )
+        else:
+            console.print_task(
+                "enumerating Boolean network solutions "
+                "(kind=minimum-interaction)"
+            )
 
-        bo.custom("edge(A,B) :- clause(B,_,A,_). #minimize { 1@1,A,B: edge(A,B) }.")
-        bo.custom("#maximize { 1@10,N: constant(N) }.")
-
-        if args.minimize_self_loops:
-            bo.custom("#minimize { 1@100,A: edge(A,A) }.")
+        configure_minimum_network_objectives(
+            bo,
+            minimize_self_loops=args.minimize_self_loops,
+        )
 
         clingo_strategy = "usc"
         view = bonesis.InfluenceGraphView(
             bo,
-            mode=args.clingo_mode,
+            mode="optN",
             clingo_opt_strategy=clingo_strategy,
             extra=("boolean-network", "configurations"),
-            progress=ptqdm,
+            limit=args.limit if args.limit is not None else 0,
+            progress=False,
         )
         view.standalone(output_filename=args.asp)
 
         console.print_node_reference(*get_node_sets(bo))
         console.print_solver_options(
-            args.clingo_mode,
+            "optN",
             clingo_strategy,
             args.max_clauses,
             canonical,
@@ -853,35 +866,27 @@ def main() -> None:
         console.print_warning("this may take some time.")
         deadline = SolverDeadline(args.timeout)
         try:
-            solution = next_solution(view, deadline)
+            bns = run_bn_view(
+                view=view,
+                outdir=args.solution,
+                config_formats=args.config_formats,
+                graph_formats=args.graph_formats,
+                normalized_to_original_gene_names=(
+                    normalized_to_original_gene_names
+                ),
+                trapspace_configurations=predicate_configs.get(
+                    "trapspace", []
+                ),
+                rename_cfgs=rename_cfgs,
+                remove_isolated_nodes=args.remove_isolated_nodes,
+                deadline=deadline,
+                solution_progress=BooleanNetworkProgress(
+                    label="Minimum-interaction network enumeration",
+                    limit=args.limit,
+                ),
+            )
         except SolverTimeout:
             exit_solver_timeout(args.timeout_status_file)
-
-        _, bn, configs = solution
-
-        if normalized_to_original_gene_names:
-            for old, new in normalized_to_original_gene_names.items():
-                bn.rename(old, new)
-
-        if "trapspace" in predicate_configs:
-            for cfg_name in predicate_configs["trapspace"]:
-                cfg_state = configs[cfg_name]
-                trapspace = bn.principal_trapspace(cfg_state)
-                configs[cfg_name] = {
-                    key: value for key, value in trapspace.items() if value != "*"
-                }
-
-        for old, new in rename_cfgs.items():
-            configs[new] = configs.pop(old)
-
-        write_solution(
-            bn=bn,
-            configurations=configs,
-            outdir=args.solution,
-            config_formats=args.config_formats,
-            graph_formats=args.graph_formats,
-            remove_isolated_nodes=args.remove_isolated_nodes,
-        )
 
     elif args.action == "submin":
         if args.limit not in [None, 0]:
@@ -952,7 +957,7 @@ def main() -> None:
         except SolverTimeout:
             exit_solver_timeout(args.timeout_status_file)
 
-    if args.action in ["submin", "diverse"]:
+    if args.action in ["min", "submin", "diverse"]:
         console.print_result(f"Boolean networks: generated={len(bns)}")
         write_ensemble_influence_graphs(
             bns=bns,

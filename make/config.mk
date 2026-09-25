@@ -1725,12 +1725,12 @@ endef
 
 define check_bn_outputs
 @if [ -d "$(1)" ]; then \
+	if [ "$(filter $(2),$(CLI_RESET_TARGETS))" = "$(2)" ]; then \
+		rm -rf "$(1)"; \
+		echo "Partial outputs removed." >&2; \
+		exit 0; \
+	fi; \
 	if [ "$(6)" = "true" ] && [ ! -f "$(1)/.scbolt.json" ]; then \
-		if [ "$(filter $(2),$(CLI_RESET_TARGETS))" = "$(2)" ]; then \
-			rm -rf "$(1)"; \
-			echo "Partial outputs removed." >&2; \
-			exit 0; \
-		fi; \
 		echo "Detected interrupted outputs for target '$(2)'." >&2; \
 		echo "Output directory: $(1)" >&2; \
 		if [ "$(SCBOLT_INTERACTIVE)" != "true" ]; then \

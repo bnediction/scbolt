@@ -10,6 +10,7 @@ params="${tmpdir}/params.mk"
 project="${tmpdir}/project"
 submin="${project}/infer/bn/submin"
 influence_graph="${submin}/influence_graph"
+minimum="${project}/infer/bn/min"
 
 cat > "${params}" <<MK
 PROJECT_DIR = ${project}
@@ -43,6 +44,9 @@ assert_reset_build_target() {
 }
 
 assert_reset_build_target \
+    bn-min \
+    "${minimum}/influence_graph/aggregate.pdf"
+assert_reset_build_target \
     bn-submin \
     "${submin}/influence_graph/aggregate.pdf"
 assert_reset_build_target \
@@ -54,6 +58,14 @@ default_formats="$(
     awk -F= '$1 == "CONFIG_FORMATS" { print $2; exit }' <<< "${default_config}"
 )"
 test "${default_formats}" = "csv"
+
+mkdir -p "${minimum}/1"
+touch "${minimum}/1/model.bnet"
+make -C "${repo_root}" __check-bn-min-outputs \
+    PARAMS="${params}" LOGGING=false CLI_RESET_TARGETS+=bn-min \
+    > "${tmpdir}/min-reset.out" 2>&1
+grep -q 'Partial outputs removed.' "${tmpdir}/min-reset.out"
+test ! -d "${minimum}"
 
 make_solution_dir() {
     local dir="$1"

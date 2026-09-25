@@ -74,9 +74,7 @@ module_help_has_bin_hvg = $(filter BIN_HVG_TOP,$(module_help_params))
 module_help_has_spec_note = $(filter spec max-nodes-soft max-consts max-nodes-relaxed max-nodes-seed max-nodes-lock bn-min bn-submin bn-diverse,$(module_help_target))
 module_help_solution_note = $(if $(filter-out 0,$(strip $(INFER_LIMIT))),\
 	up to $(INFER_LIMIT) solutions,\
-	$(if $(strip $(INFER_LIMIT)),\
-		up to all satisfiable solutions,\
-		up to all satisfiable solutions))
+	all available solutions)
 module_help_outputs_bn-submin = \
 	$(bn_submin_dir)/*/model.bnet \
 	$(bn_submin_dir)/*/configs.csv \
@@ -84,6 +82,13 @@ module_help_outputs_bn-submin = \
 	$(bn_submin_dir)/influence_graph/aggregate_with_isolates.pdf \
 	$(bn_submin_dir)/influence_graph/function_families.pdf \
 	$(bn_submin_dir)/influence_graph/feedback_core.pdf
+module_help_outputs_bn-min = \
+	$(bn_min_dir)/*/model.bnet \
+	$(bn_min_dir)/*/configs.csv \
+	$(bn_min_dir)/influence_graph/aggregate.pdf \
+	$(bn_min_dir)/influence_graph/aggregate_with_isolates.pdf \
+	$(bn_min_dir)/influence_graph/function_families.pdf \
+	$(bn_min_dir)/influence_graph/feedback_core.pdf
 module_help_outputs_bn-diverse = \
 	$(bn_diverse_dir)/*/model.bnet \
 	$(bn_diverse_dir)/*/configs.csv \
@@ -91,6 +96,7 @@ module_help_outputs_bn-diverse = \
 	$(bn_diverse_dir)/influence_graph/aggregate_with_isolates.pdf \
 	$(bn_diverse_dir)/influence_graph/function_families.pdf \
 	$(bn_diverse_dir)/influence_graph/feedback_core.pdf
+module_help_output_note_bn-min = $(module_help_solution_note)
 module_help_output_note_bn-submin = $(module_help_solution_note)
 module_help_output_note_bn-diverse = $(module_help_solution_note)
 module_help_outputs = $(strip $(if $(module_help_outputs_$(module_help_target)),\
@@ -1174,7 +1180,7 @@ __intermediate-gene-selection-status:
 	@rm -f "$(tmpdir)/intermediate-gene-selection-reported"
 
 .PHONY: bn-min __bn-min
-bn-min: ## infer one minimum-edge BN
+bn-min: ## enumerate minimum-interaction BNs
 	$(call run_logged,bn-min)
 __bn-min: $(bn_min)
 

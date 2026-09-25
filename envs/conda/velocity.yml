@@ -114,7 +114,7 @@ dependencies:
   - readline=8.3=h853b02a_0
   - s2n=1.7.5=h7e3ee7f_1
   - scanpy=1.10.3=pyhd8ed1ab_0
-  - scikit-learn=1.5.2=py311h57cc02b_1
+  - scikit-learn=1.6.1=py311h57cc02b_0
   - scipy=1.11.4=py311h64a7726_0
   - scvelo=0.3.4=pyhd8ed1ab_0
   - seaborn=0.13.2=hd8ed1ab_3
@@ -142,7 +142,7 @@ dependencies:
   - zstd=1.5.7=hb78ec9c_6
   - pip:
       - astutils==0.0.6
-      - bonesistools==1.6.0
+      - bonesistools==1.7.0
       - boolean-py==5.0
       - cffi==2.1.0
       - clingo==5.8.0

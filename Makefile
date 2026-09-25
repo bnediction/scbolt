@@ -1018,31 +1018,33 @@ $(max_nodes_lock) $(max_nodes_lock_witness) &: $(bonesis_model) $(full_input) $(
 		$(call check_inference_status,$(TIMEOUT_LOCK),max-nodes-lock,TIMEOUT_LOCK,$(max_nodes_seed_solution),$(full_input),$(max_nodes_lock),$(max_nodes_lock) $(max_nodes_lock_witness)); \
 	fi
 
-$(bn_min): $(bonesis_model) $(final_selection) $(if $(geneinfo_dependency),| $(geneinfo_dependency))
+.PHONY: __check-bn-min-outputs
+__check-bn-min-outputs:
+	$(call check_bn_outputs,$(bn_min_dir),bn-min,$(CONFIG_FORMATS),$(GRAPH_FORMATS),$(INFER_LIMIT))
+
+$(bn_min): $(bonesis_model) $(final_selection) | __check-bn-min-outputs $(geneinfo_dependency)
 	$(call print_rule,bn-min)
 	$(call require_bonesis_parameters,bn-min)
 	$(call require_optional_positive_integer,BOUNDED_NONREACH)
 	$(call require_bool,MIN_SELF_LOOP_INFER,bn-min)
-	mkdir -p $(@D)
+	rm -rf $(bn_min_dir)
+	mkdir -p $(bn_min_dir)
 	$(call conda_run_inference,scbolt-bonesis) python $(scripts_dir)/infer/infer.py min \
 		$(word 1,$^) $(word 2,$^) \
 		--filter-grn $(final_selection) \
-		--asp $(@D)/min.sh \
-		--solution $(basename $@) \
+		--asp $(bn_min_dir)/min.sh \
+		--solution $(bn_min_dir) \
 		--domain $(prior_knowledge) \
 		--organism $(ORGANISM) \
 		$(prior_knowledge_args) \
 		--max-clauses $(MAX_CLAUSES) \
 		$(if $(strip $(BOUNDED_NONREACH)),--bounded-nonreach $(BOUNDED_NONREACH)) $(min_self_loop_infer) \
-		--clingo-mode $(CLINGO_MODE_MIN) --jobs 1 \
-		--graph-formats $(GRAPH_FORMATS)
-		if command -v dot >/dev/null 2>&1; then
-		    for file in $(@D)/*.dot; do
-		        [ -e "$${file}" ] || continue
-		        dot -Tpdf "$${file}" -o "$${file%.dot}.pdf"
-		    done
-		fi
-	$(call write_scbolt_metadata,bn-min,$@)
+		--jobs 1 \
+		$(if $(strip $(INFER_LIMIT)),--limit $(INFER_LIMIT)) \
+		--config-formats $(CONFIG_FORMATS) \
+		--graph-formats $(GRAPH_FORMATS) \
+		--remove-isolated-nodes
+	$(call write_scbolt_metadata,bn-min,$(bn_min_metadata))
 
 .PHONY: __check-bn-submin-outputs __check-bn-diverse-outputs
 __check-bn-submin-outputs:

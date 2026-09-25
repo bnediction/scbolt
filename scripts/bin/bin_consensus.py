@@ -8,7 +8,7 @@ import pandas as pd
 from scbolt import cli, console
 
 
-def merge(scboolseq_val, dea_val, scboolseq_distribution):
+def consensus_value(scboolseq_val, dea_val, scboolseq_distribution):
     if scboolseq_distribution == "Discarded":
         return dea_val
     if scboolseq_distribution == "ZeroInf":
@@ -130,13 +130,13 @@ def main() -> None:
     if set(scboolseq_bin.index) != set(dea_bin.index):
         raise KeyError("index names different in scboolseq and dea dataframes")
 
-    merge_bin = pd.DataFrame(
+    consensus_bin = pd.DataFrame(
         data=np.nan, index=scboolseq_bin.index, columns=scboolseq_bin.columns
     )
 
-    for idx in merge_bin.index:
-        for col in merge_bin.columns:
-            merge_bin.at[idx, col] = merge(
+    for idx in consensus_bin.index:
+        for col in consensus_bin.columns:
+            consensus_bin.at[idx, col] = consensus_value(
                 scboolseq_bin.loc[idx, col],
                 dea_bin.loc[idx, col],
                 scboolseq_distribution=scboolseq_distribution[col],
@@ -146,10 +146,10 @@ def main() -> None:
         [
             (~scboolseq_bin.isna()).sum(axis=1) / len(scboolseq_bin.columns),
             (~dea_bin.isna()).sum(axis=1) / len(dea_bin.columns),
-            (~merge_bin.isna()).sum(axis=1) / len(merge_bin.columns),
+            (~consensus_bin.isna()).sum(axis=1) / len(consensus_bin.columns),
         ],
         axis=1,
-        keys=["scboolseq", "dea", "merge"],
+        keys=["scboolseq", "dea", "consensus"],
     ).round(5)
 
     console.print_result(
@@ -158,7 +158,7 @@ def main() -> None:
 
     console.print_task(f"saving binarized matrix (file={console.format_path(args.outfile)})")
 
-    merge_bin.to_csv(args.outfile, sep=",", index=True)
+    consensus_bin.to_csv(args.outfile, sep=",", index=True)
 
     if args.pct_bin:
         console.print_task(

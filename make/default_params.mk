@@ -342,8 +342,7 @@ $(eval GRAPH_FORMATS ?= dot)                 # Graphviz layouts to export
 
 ## BONESIS-MIN ##
 $(eval MIN_SELF_LOOP_INFER ?= true)         # minimize one-node feedbacks at inference stage
-$(eval CLINGO_MODE_MIN ?= optN)         # Clingo optimization mode
 
-## BONESIS-DIVERSE / BONESIS-SUBMIN ##
-$(eval INFER_LIMIT ?=)                      # diverse/subset-minimal solution limit
+## BOOLEAN NETWORK ENUMERATION ##
+$(eval INFER_LIMIT ?=)                      # generated solution limit
 # If empty, enumerate all available solutions for the selected inference target.

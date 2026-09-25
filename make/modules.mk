@@ -138,7 +138,9 @@ max_nodes_seed_witness =        $(infer_dir)/genes/seed/witness.lp
 max_nodes_seed =                $(max_nodes_seed_solution) $(max_nodes_seed_witness)
 max_nodes_lock =                $(infer_dir)/genes/lock/comps.txt
 max_nodes_lock_witness =        $(infer_dir)/genes/lock/witness.lp
-bn_min =                        $(infer_dir)/bn/min/model.bnet
+bn_min_dir =                    $(infer_dir)/bn/min
+bn_min =                        $(bn_min_dir)/influence_graph/aggregate.pdf
+bn_min_metadata =               $(bn_min_dir)
 
 bn_submin_dir = $(infer_dir)/bn/submin
 bn_submin = $(bn_submin_dir)/influence_graph/aggregate.pdf
@@ -519,9 +521,10 @@ RESET_TARGET_max-consts = $(max_consts) $(max_consts_witness)
 RESET_TARGET_max-nodes-relaxed = $(max_nodes_relaxed) $(max_nodes_relaxed_witness)
 RESET_TARGET_max-nodes-seed = $(max_nodes_seed)
 RESET_TARGET_max-nodes-lock = $(max_nodes_lock) $(max_nodes_lock_witness)
-RESET_TARGET_bn-min = $(bn_min)
+RESET_TARGET_bn-min = $(bn_min_metadata)
 RESET_TARGET_bn-submin = $(bn_submin_metadata)
 RESET_TARGET_bn-diverse = $(bn_diverse_metadata)
+RESET_BUILD_TARGET_bn-min = $(bn_min)
 RESET_BUILD_TARGET_bn-submin = $(bn_submin)
 RESET_BUILD_TARGET_bn-diverse = $(bn_diverse)
 
@@ -693,8 +696,7 @@ target_params_max-nodes-lock = \
 	CLINGO_THREADS TIMEOUT_LOCK
 target_params_bn-min = \
 	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
-	MIN_SELF_LOOP_INFER \
-	CLINGO_MODE_MIN GRAPH_FORMATS
+	MIN_SELF_LOOP_INFER INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
 target_params_bn-submin = \
 	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
 	MEMORY JOBS INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS
@@ -798,8 +800,7 @@ sensitive_params_max-nodes-lock = \
 	CLINGO_THREADS TIMEOUT_LOCK SEED
 sensitive_params_bn-min = \
 	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
-	MIN_SELF_LOOP_INFER \
-	CLINGO_MODE_MIN GRAPH_FORMATS SEED
+	MIN_SELF_LOOP_INFER INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS SEED
 sensitive_params_bn-submin = \
 	$(prior_knowledge_params) MAX_CLAUSES BOUNDED_NONREACH STRONG_CONSTANTS_SCOPE \
 	INFER_LIMIT CONFIG_FORMATS GRAPH_FORMATS SEED
@@ -898,7 +899,7 @@ method_config_param_set = \
 	CLINGO_MODE_RELAXED CLINGO_STRATEGY_RELAXED TIMEOUT_RELAXED \
 	CLINGO_MODE_SEED CLINGO_STRATEGY_SEED TIMEOUT_SEED \
 	CLINGO_MODE_LOCK CLINGO_STRATEGY_LOCK TIMEOUT_LOCK \
-	CLINGO_MODE_MIN CONFIG_FORMATS GRAPH_FORMATS MIN_SELF_LOOP_CONSTS \
+	CONFIG_FORMATS GRAPH_FORMATS MIN_SELF_LOOP_CONSTS \
 	MIN_SELF_LOOP_INFER INFER_LIMIT
 external_resource_config_param_set = \
 	STAR_WHITELIST COUNT_FILES $(count_file_params) BINARIZATION_FILE \

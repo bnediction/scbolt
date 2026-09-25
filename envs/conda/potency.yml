@@ -356,7 +356,7 @@ dependencies:
   - zstd=1.5.7=hb78ec9c_6
   - pip:
       - astutils==0.0.6
-      - bonesistools==1.6.0
+      - bonesistools==1.7.0
       - boolean-py==5.0
       - cffi==2.1.0
       - clingo==5.8.0

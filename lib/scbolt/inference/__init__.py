@@ -23,6 +23,22 @@ def should_forward_previous_solution(
     return not new_constraints and not tuple(initial_witness)
 
 
+def configure_minimum_network_objectives(
+    bo: Any,
+    *,
+    minimize_self_loops: bool,
+) -> None:
+    """Configure interaction minimization without a constant objective."""
+
+    bo.custom(
+        "edge(A,B) :- clause(B,_,A,_). "
+        "#minimize { 1@10,A,B: edge(A,B) }."
+    )
+
+    if minimize_self_loops:
+        bo.custom("#minimize { 1@1,A: edge(A,A) }.")
+
+
 def ensemble_feedback_induced_graph(
     influence_graphs: Iterable[Any],
     aggregated_graph: Any,

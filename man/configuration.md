@@ -383,7 +383,6 @@ internal runtime behavior and has no public configuration key.
 | `clingo-mode-<stage>` | `CLINGO_MODE_<STAGE>` | Stage-dependent. |
 | `clingo-strategy-<stage>` | `CLINGO_STRATEGY_<STAGE>` | Stage-dependent. |
 | `timeout-<stage>` | `TIMEOUT_<STAGE>` | Stage-dependent duration. |
-| `clingo-mode-min` | `CLINGO_MODE_MIN` | `optN`. |
 | `minimize-self-loops-constants` | `MIN_SELF_LOOP_CONSTS` | `true`. |
 | `minimize-self-loops-inference` | `MIN_SELF_LOOP_INFER` | `true`. |
 | `configuration-formats` | `CONFIG_FORMATS` | `[csv]`. |
