@@ -412,15 +412,16 @@ usage() {
 }
 
 init_help() {
-    printf '%s\n\n' "usage: scbolt init [<scbolt.yml>] [options]"
+    printf '%s\n' "usage: scbolt init [<file>] [--<parameter>=<value> ...]"
+    printf '%s\n' "       scbolt init --show"
+    printf '%s\n\n' "       scbolt init --remove"
     printf '%s\n' "Create, update, or remove a scBOLT project configuration."
     printf '%s\n\n' "New YAML projects also receive a Boolean inference spec.yml."
     printf '%sParameters%s\n' "${stdout_bold}" "${stdout_nc}"
-    printf '  %-31s %s\n' '<scbolt.yml>' 'configuration file to use'
+    printf '  %-31s %s\n' '<file>' 'project configuration file to use'
     printf '  %-31s %s\n' '--remove' 'remove active project configuration'
     printf '  %-31s %s\n' '--show' 'display active configuration file'
-    printf '  %-31s %s\n' '--<key>=<value>' 'initialize a new configuration file'
-    printf '  %-31s %s\n' '<key>=<value>' 'initialize a new configuration file'
+    printf '  %-31s %s\n' '--<parameter>=<value>' 'initialize a new configuration file'
     printf '  %-31s %s\n' '--help' 'display this help'
 }
 
@@ -728,7 +729,7 @@ require_params_file() {
         fi
         printf '\n' >&2
         printf '%s\n' "Run:" >&2
-        printf '  %s\n' "scbolt init <scbolt.yml>" >&2
+        printf '  %s\n' "scbolt init [<file>]" >&2
         printf '%s\n' "or:" >&2
         printf '  %s\n' "scbolt <target> --config=<file>" >&2
         exit 1
@@ -939,11 +940,17 @@ run_in_docker() {
     local params_path
     local mount
     local image_id
+    local image_version
     local image_digests
     local docker_args=()
     local docker_mount_roots=()
     local docker_mount_args=()
     shift 4
+
+    if [ -z "${SCBOLT_RELEASE_VERSION}" ] || [ "${SCBOLT_RELEASE_VERSION}" = "unknown" ]; then
+        print_error "Cannot use Docker without a known scBOLT version"
+        exit 1
+    fi
 
     if ! command -v "${engine}" >/dev/null 2>&1; then
         print_error "Docker backend requested but command not found: ${engine}"
@@ -956,7 +963,20 @@ run_in_docker() {
     fi
 
     image_id="$("${engine}" image inspect "${image}" --format '{{.Id}}' 2>/dev/null || true)"
-    image_digests="$("${engine}" image inspect "${image}" --format '{{join .RepoDigests " "}}' 2>/dev/null || true)"
+    if [ -z "${image_id}" ]; then
+        print_error "Cannot identify Docker image: ${image}"
+        exit 1
+    fi
+    image_version="$("${engine}" image inspect "${image_id}" \
+        --format '{{index .Config.Labels "org.opencontainers.image.version"}}' 2>/dev/null || true)"
+    case "${image_version}" in
+        ""|"<no value>") image_version="unknown" ;;
+    esac
+    if [ "${image_version}" != "${SCBOLT_RELEASE_VERSION}" ]; then
+        print_error "Docker image version mismatch: scBOLT ${SCBOLT_RELEASE_VERSION}, image ${image_version} (${image})"
+        exit 1
+    fi
+    image_digests="$("${engine}" image inspect "${image_id}" --format '{{join .RepoDigests " "}}' 2>/dev/null || true)"
 
     docker_add_mount_root "${PWD}"
     if project_file="$(find_project_file)"; then
@@ -995,7 +1015,7 @@ run_in_docker() {
         -e SCBOLT_IMAGE_REPO_DIGESTS="${image_digests}" \
         -e HOME=/tmp/scbolt-home \
         -e MPLCONFIGDIR=/tmp/scbolt-matplotlib \
-        "${image}" \
+        "${image_id}" \
         "$@"
 }
 
@@ -1466,7 +1486,7 @@ init_project() {
     INIT_SPECIFICATION_CREATED=false
 
     if [ "$#" -gt 1 ]; then
-        print_error "Usage: scbolt init <scbolt.yml>"
+        print_error "Usage: scbolt init [<file>] [--<parameter>=<value> ...]"
         exit 1
     fi
 
@@ -2094,6 +2114,7 @@ run_make_build_with_params() {
     local stderr_file
     local stdout_pipe
     local stderr_pipe
+    local terminal_owner_file
     local stdout_tee_pid
     local stderr_tee_pid
     local status=0
@@ -2114,7 +2135,9 @@ run_make_build_with_params() {
     stderr_file="${capture_dir}/stderr"
     stdout_pipe="${capture_dir}/stdout.pipe"
     stderr_pipe="${capture_dir}/stderr.pipe"
+    terminal_owner_file="${capture_dir}/terminal-owner"
     mkfifo "${stdout_pipe}" "${stderr_pipe}"
+    : > "${terminal_owner_file}"
 
     (tee "${stdout_file}" < "${stdout_pipe}" | filter_make_error_lines || true) &
     stdout_tee_pid=$!
@@ -2123,6 +2146,7 @@ run_make_build_with_params() {
 
     terminate_make_process() {
         interrupted=1
+        rm -f "${terminal_owner_file}"
         trap - INT TERM
     }
 
@@ -2130,7 +2154,8 @@ run_make_build_with_params() {
     build_start_seconds="${SECONDS}"
     set +e
     if [ -n "${terminal_device}" ]; then
-        make -f "${SCBOLT_MAKEFILE}" "$@" "PARAMS=${params}" \
+        SCBOLT_TERMINAL_OWNER_FILE="${terminal_owner_file}" \
+            make -f "${SCBOLT_MAKEFILE}" "$@" "PARAMS=${params}" \
             LOGGING=true \
             "SCBOLT_INTERACTIVE=true" \
             > "${stdout_pipe}" \
@@ -2138,12 +2163,14 @@ run_make_build_with_params() {
             < "${terminal_device}"
         status=$?
     else
-        make -f "${SCBOLT_MAKEFILE}" "$@" "PARAMS=${params}" \
+        SCBOLT_TERMINAL_OWNER_FILE="${terminal_owner_file}" \
+            make -f "${SCBOLT_MAKEFILE}" "$@" "PARAMS=${params}" \
             LOGGING=true \
             > "${stdout_pipe}" \
             2> "${stderr_pipe}"
         status=$?
     fi
+    rm -f "${terminal_owner_file}"
     if [ -n "${terminal_device}" ]; then
         printf '\033[?25h' > "${terminal_device}" 2> /dev/null || true
     fi

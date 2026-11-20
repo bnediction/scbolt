@@ -26,23 +26,22 @@ scbolt version
 scbolt check
 ```
 
-The regular installer intentionally has different semantics:
-
-```sh
-./install
-```
-
-It copies an autonomous runtime into `~/.local/lib/scbolt`. This is the mode
-distributed to users and should continue to work after the source checkout is
+The regular `./install` command instead copies the autonomous user runtime to
+`~/.local/lib/scbolt`, where it remains usable after the source checkout is
 removed.
 
 ## Documentation Layout
 
 - [`architecture.md`](architecture.md) describes the launcher, configuration,
   Make orchestration, runtime backends, and installation layout.
+- [`completion.md`](completion.md) describes dynamic Bash completion and its
+  maintenance.
+- [`solver.md`](solver.md) records solver orchestration and control flow.
 - [`testing.md`](testing.md) describes the test categories and CI guarantees.
-- [`man/`](../man/README.md) contains commands and scientific workflow guides
-  intended for scBOLT users.
+- [the user manual](../man/README.md) introduces project operation and links
+  the user-facing guides.
+- [the command reference](../man/commands.md) inventories public modules,
+  entry points, and common execution paths.
 
 ## Development Checks
 

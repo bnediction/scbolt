@@ -9,7 +9,8 @@ import sys
 import warnings
 from collections.abc import Generator, Mapping
 from pathlib import Path
-from typing import TextIO
+from threading import Lock
+from typing import Any, TextIO
 
 try:
     import termios
@@ -17,12 +18,39 @@ except ImportError:  # pragma: no cover - unavailable on non-POSIX systems
     termios = None
 
 
+_console_write_lock = Lock()
+
+
+def _terminal_output_active() -> bool:
+    owner_file = os.getenv("SCBOLT_TERMINAL_OWNER_FILE")
+    return owner_file is None or Path(owner_file).is_file()
+
+
+class _TerminalStream:
+    """Suppress writes after the launching scBOLT process releases the terminal."""
+
+    def __init__(self, stream: TextIO) -> None:
+        self._stream = stream
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._stream, name)
+
+    def write(self, value: str) -> int:
+        if not _terminal_output_active():
+            return len(value)
+        return self._stream.write(value)
+
+    def flush(self) -> None:
+        if _terminal_output_active():
+            self._stream.flush()
+
+
 @contextlib.contextmanager
-def open_terminal_stream() -> Generator[TextIO, None, None]:
+def open_terminal_stream() -> Generator[_TerminalStream, None, None]:
     """Open the controlling terminal for transient progress output."""
 
     with Path("/dev/tty").open("w") as stream:
-        yield stream
+        yield _TerminalStream(stream)
 
 
 @contextlib.contextmanager
@@ -110,8 +138,48 @@ def format_message(level: str, message: str | None = None) -> str:
     return f"{timestamp} - {level} - {message}"
 
 
-def print_task(message: str | None = None, file=sys.stdout, flush=True) -> None:
-    print(format_message("TASK", message), file=file, flush=flush)
+def _print_message(
+    level: str,
+    message: str | None,
+    file: TextIO | None,
+    flush: bool,
+) -> None:
+    """Print one message without racing transient terminal progress."""
+
+    line = format_message(level, message)
+    if file is not None:
+        print(line, file=file, flush=flush)
+        return
+
+    logfile = os.getenv("LOGFILE")
+    if (
+        os.getenv("TQDM_TO_TTY") == "1"
+        and os.getenv("SCBOLT_LOGGING_TO_FILE") == "true"
+        and logfile is not None
+    ):
+        try:
+            with (
+                _console_write_lock,
+                open_terminal_stream() as terminal,
+                Path(logfile).open("a", encoding="utf-8") as log_stream,
+            ):
+                print(line, file=terminal, flush=flush)
+                print(line, file=log_stream, flush=flush)
+            return
+        except OSError:
+            # Falling back to stdout preserves both terminal and tee logging
+            # when no controlling terminal is available.
+            pass
+
+    print(line, file=sys.stdout, flush=flush)
+
+
+def print_task(
+    message: str | None = None,
+    file: TextIO | None = None,
+    flush: bool = True,
+) -> None:
+    _print_message("TASK", message, file, flush)
 
 
 def format_path(path: str | Path) -> str:
@@ -154,24 +222,44 @@ def format_mapping(values: Mapping[object, object]) -> str:
     return "{" + ", ".join(sorted(pairs)) + "}"
 
 
-def print_info(message: str | None = None, file=sys.stdout, flush=True) -> None:
-    print(format_message("INFO", message), file=file, flush=flush)
+def print_info(
+    message: str | None = None,
+    file: TextIO | None = None,
+    flush: bool = True,
+) -> None:
+    _print_message("INFO", message, file, flush)
 
 
-def print_options(message: str | None = None, file=sys.stdout, flush=True) -> None:
-    print(format_message("OPTIONS", message), file=file, flush=flush)
+def print_options(
+    message: str | None = None,
+    file: TextIO | None = None,
+    flush: bool = True,
+) -> None:
+    _print_message("OPTIONS", message, file, flush)
 
 
-def print_warning(message: str | None = None, file=sys.stdout, flush=True) -> None:
-    print(format_message("WARNING", message), file=file, flush=flush)
+def print_warning(
+    message: str | None = None,
+    file: TextIO | None = None,
+    flush: bool = True,
+) -> None:
+    _print_message("WARNING", message, file, flush)
 
 
-def print_debug(message: str | None = None, file=sys.stdout, flush=True) -> None:
-    print(format_message("DEBUG", message), file=file, flush=flush)
+def print_debug(
+    message: str | None = None,
+    file: TextIO | None = None,
+    flush: bool = True,
+) -> None:
+    _print_message("DEBUG", message, file, flush)
 
 
-def print_result(message: str | None = None, file=sys.stdout, flush=True) -> None:
-    print(format_message("RESULT", message), file=file, flush=flush)
+def print_result(
+    message: str | None = None,
+    file: TextIO | None = None,
+    flush: bool = True,
+) -> None:
+    _print_message("RESULT", message, file, flush)
 
 
 def print_node_reference(

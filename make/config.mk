@@ -1342,6 +1342,7 @@ container_mount_roots = $(call uniq,\
 	$(params_dir) \
 	$(patsubst %/,%,$(dir $(results))) \
 	$(patsubst %/,%,$(dir $(resources_dir))) \
+	$(if $(strip $(SCBOLT_TERMINAL_OWNER_FILE)),$(patsubst %/,%,$(dir $(SCBOLT_TERMINAL_OWNER_FILE)))) \
 	$(tmpdir) \
 	$(SCBOLT_CONTAINER_MOUNTS))
 container_mount_args = $(foreach path,$(strip $(container_mount_roots)),-v "$(path):$(path)")
@@ -1354,6 +1355,7 @@ container_runtime_env = \
 	-e LOKY_MAX_CPU_COUNT="$(LOKY_MAX_CPU_COUNT)" \
 	-e PYTHONPATH="$(lib_dir)$(if $(PYTHONPATH),:$(PYTHONPATH))" \
 	-e PYTHONUNBUFFERED="$(PYTHONUNBUFFERED)" \
+	$(if $(strip $(SCBOLT_TERMINAL_OWNER_FILE)),-e SCBOLT_TERMINAL_OWNER_FILE="$(SCBOLT_TERMINAL_OWNER_FILE)") \
 	-e HOME="$(tmpdir)" \
 	-e MPLCONFIGDIR="$(tmpdir)/matplotlib"
 container_cellrank_env = $(container_runtime_env) \

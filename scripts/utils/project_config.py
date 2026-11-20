@@ -265,7 +265,7 @@ def _error(path: Path, node: Node | None, message: str) -> ConfigurationError:
 
 def _scalar(path: Path, key: str, node: Node) -> str:
     if not isinstance(node, ScalarNode):
-        raise _error(path, node, f"configuration key {key!r} must be a scalar")
+        raise _error(path, node, f"configuration parameter {key!r} must be a scalar")
     if any(character in node.value for character in "\r\n\0\t"):
         raise _error(path, node, f"configuration value {key!r} must be a single line")
     return node.value
@@ -308,7 +308,7 @@ def _value(path: Path, key: str, node: Node, kind: str) -> str:
             item_tags = string_tags if kind in {STRING_LIST, STRING_OR_LIST} else string_tags | number_tags
             valid = all(isinstance(item, ScalarNode) and item.tag in item_tags for item in node.value)
     if not valid:
-        raise _error(path, node, f"configuration key {key!r} must be {expected}")
+        raise _error(path, node, f"configuration parameter {key!r} must be {expected}")
     if isinstance(node, SequenceNode):
         return " ".join(_scalar(path, key, item) for item in node.value)
     value = _scalar(path, key, node)
@@ -354,16 +354,16 @@ def load(path: Path) -> tuple[dict[str, str], list[str]]:
     conditions_explicit = False
     for key_node, value_node in root.value:
         if not isinstance(key_node, ScalarNode) or key_node.tag != "tag:yaml.org,2002:str":
-            raise _error(path, key_node, "configuration keys must be strings")
+            raise _error(path, key_node, "configuration parameter names must be strings")
         key = key_node.value
         if key in seen:
             first = seen[key].start_mark.line + 1
-            raise _error(path, key_node, f"duplicate configuration key {key!r} (first defined at line {first})")
+            raise _error(path, key_node, f"duplicate configuration parameter {key!r} (first defined at line {first})")
         seen[key] = key_node
         parameter = PARAMETERS.get(key)
         flattened = None if parameter is not None else _conditional_parameter(key)
         if parameter is None and flattened is None:
-            raise _error(path, key_node, f"unknown configuration key {key!r}")
+            raise _error(path, key_node, f"unknown configuration parameter {key!r}")
         if flattened is not None:
             base, condition, parameter = flattened
             condition_node = ScalarNode("tag:yaml.org,2002:str", condition)
@@ -404,7 +404,7 @@ def load(path: Path) -> tuple[dict[str, str], list[str]]:
             raise _error(
                 path,
                 node,
-                f"configuration key {key!r} cannot combine a shared file "
+                f"configuration parameter {key!r} cannot combine a shared file "
                 "with condition-specific files",
             )
 
@@ -448,7 +448,7 @@ def load(path: Path) -> tuple[dict[str, str], list[str]]:
         raise _error(
             path,
             node,
-            f"configuration key {key!r} must be indexed by condition "
+            f"configuration parameter {key!r} must be indexed by condition "
             "when named conditions are used",
         )
 
@@ -460,7 +460,7 @@ def load(path: Path) -> tuple[dict[str, str], list[str]]:
             raise _error(
                 path,
                 node,
-                f"unsupported value {value!r} for configuration key {key!r} "
+                f"unsupported value {value!r} for configuration parameter {key!r} "
                 f"(supported values: {choices})",
             )
         settings[parameter.variable] = value

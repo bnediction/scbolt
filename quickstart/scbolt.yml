@@ -1,31 +1,38 @@
+# Compact Nestorowa tutorial using prepared Boolean inputs.
 organism: mouse
 conditions: []
 project-dir: project
-old-files: [project/omics/annot/annot.h5ad]
+binarization-file: data/mstates_bin.csv
 spec-file: spec.yml
-jobs: 16
+
+jobs: 4
+memory: 8
 seed: 10
 
 geneinfo-version: bundled
-prior-knowledge: dorothea
-omnipath-version: 2025-08-13
-hcop-version: bundled
-dorothea-api: legacy
-dorothea-compatibility: true
-dorothea-levels: [A]
+prior-knowledge: data/interactions.csv
 
-representation: X_se
+# Keep the tutorial focused on staged node selection and BN enumeration.
+strong-constants-scope: none
+max-clauses: 5
+bounded-nonreach: 20
+inference-limit: 10
 
-macrostate-method: stream
-macrostate-size: 25
-stream-cluster-number: 20
-stream-alpha: 0.01
-stream-mu: 0.02
-stream-lambda: 0.01
-stream-extend: true
-stream-extend-parameter: 0.8
-stream-prune: false
+timeout-relaxed: 2m
+timeout-seed: 5m
+timeout-lock: "0"
 
-bin-hvg-top: 40
-max-clauses: 8
-inference-limit: 100
+# These strategies were the fastest on this compact domain.
+clingo-mode-relaxed: optN
+clingo-strategy-relaxed: usc
+clingo-mode-seed: opt
+clingo-strategy-seed: bb,inc
+
+clause-continuation-soft: false
+domain-continuation-soft: false
+clause-continuation-relaxed: false
+domain-continuation-relaxed: false
+clause-continuation-seed: false
+domain-continuation-seed: false
+clause-continuation-lock: false
+domain-continuation-lock: false

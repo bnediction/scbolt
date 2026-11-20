@@ -31,6 +31,7 @@ cat > "${fakebin}/make" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 status="${SCBOLT_TEST_MAKE_STATUS:-0}"
+terminal_owner_record="${SCBOLT_TEST_TERMINAL_OWNER_RECORD:-}"
 for arg in "$@"; do
     if [ "${arg}" = "__reference-context" ]; then
         references="${SCBOLT_TEST_REFERENCES:-}"
@@ -66,6 +67,16 @@ for arg in "$@"; do
             ;;
     esac
 done
+if [ -n "${terminal_owner_record}" ]; then
+    terminal_owner_state=missing
+    if [ -n "${SCBOLT_TERMINAL_OWNER_FILE:-}" ] \
+            && [ -f "${SCBOLT_TERMINAL_OWNER_FILE}" ]; then
+        terminal_owner_state=active
+    fi
+    printf '%s\t%s\n' \
+        "${terminal_owner_state}" "${SCBOLT_TERMINAL_OWNER_FILE:-}" \
+        > "${terminal_owner_record}"
+fi
 printf '%s\n' "$@" > "${SCBOLT_TEST_RECORD}"
 if [ -n "${SCBOLT_TEST_MAKE_STDOUT:-}" ]; then
     printf '%s\n' "${SCBOLT_TEST_MAKE_STDOUT}"
@@ -313,11 +324,15 @@ expect_make_args -f "${makefile}" clean HELP=true SCBOLT_CLI=true PARAMS=params.
     cd "${project}"
     "${scbolt}" init --help > "${tmpdir}/init-help.out"
 )
-grep -qx 'usage: scbolt init \[<scbolt.yml>\] \[options\]' "${tmpdir}/init-help.out"
+grep -Fqx 'usage: scbolt init [<file>] [--<parameter>=<value> ...]' \
+    "${tmpdir}/init-help.out"
+grep -Fqx '       scbolt init --show' "${tmpdir}/init-help.out"
+grep -Fqx '       scbolt init --remove' "${tmpdir}/init-help.out"
 grep -q '^Parameters$' "${tmpdir}/init-help.out"
 grep -q '^  --remove' "${tmpdir}/init-help.out"
 grep -q '^  --show' "${tmpdir}/init-help.out"
-grep -q '^  <key>=<value>' "${tmpdir}/init-help.out"
+grep -q '^  --<parameter>=<value>' "${tmpdir}/init-help.out"
+! grep -Eq '^  <(key|parameter)>=<value>' "${tmpdir}/init-help.out"
 ! grep -q -- '-h' "${tmpdir}/init-help.out"
 
 complete_scbolt "${project}" 2 scbolt init "" > "${tmpdir}/init-completion-before.out"
@@ -607,6 +622,21 @@ grep -qx '⚠ up to date: max-nodes-lock (intermediate solution: 188/197)' \
 )
 expect_make_args -f "${makefile}" clustering "PARAMS=${project}/spaced.mk" LOGGING=true
 grep -qx '⚠ already built: clustering' "${tmpdir}/module-already-built.out"
+
+terminal_owner_record="${tmpdir}/terminal-owner.record"
+(
+    cd "${project}"
+    PATH="${fakebin}:${PATH}" \
+        SCBOLT_TEST_RECORD="${record}" \
+        SCBOLT_TEST_TERMINAL_OWNER_RECORD="${terminal_owner_record}" \
+        SCBOLT_TEST_MAKE_STDOUT='2026-01-01 00:00:00.000 - RULE - stream' \
+        "${scbolt}" stream > "${tmpdir}/terminal-owner.out"
+)
+IFS=$'\t' read -r terminal_owner_state terminal_owner_file \
+    < "${terminal_owner_record}"
+[ "${terminal_owner_state}" = active ]
+[ -n "${terminal_owner_file}" ]
+[ ! -e "${terminal_owner_file}" ]
 
 if (
     cd "${project}"

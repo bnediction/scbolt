@@ -1,17 +1,16 @@
-# Bash completion
+# Bash Completion
 
-scBOLT installs its Bash completion in the standard user directory:
+The completion implementation lives in `bin/completion.bash`. A regular
+`./install` copies it to:
 
 ```text
 ~/.local/share/bash-completion/completions/scbolt
 ```
 
-The installed file is a symbolic link to `bin/completion.bash`. Restart the
-shell after installation, source the file directly, or repair the link with:
-
-```bash
-scbolt install --completions
-```
+An editable `./install --dev` instead creates a symbolic link to the working
+tree. Both modes install completion automatically when they install the
+`scbolt` command. The installed runtime also retains
+`scbolt install --completions` as a low-level repair command.
 
 ## Commands and modules
 
@@ -33,8 +32,8 @@ scbolt check --<TAB>
 ```
 
 Module options are read dynamically from `scbolt <module> help`, so help and
-completion share the same parameter registry. Public YAML keys are exposed as
-dash-separated command-line options:
+completion share the same parameter registry. Configuration parameters are
+exposed as dash-separated command-line options:
 
 ```text
 omics-hvg-method          -> --omics-hvg-method=

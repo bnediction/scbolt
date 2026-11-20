@@ -1,33 +1,59 @@
-# BoNesis observations and dynamical constraints.
+# BoNesis observations and dynamical constraints from the hematopoiesis case study.
 constraints:
-  - hsc = ~obs('HSC')
-  - mpp = obs('MPP')
-  - lmpp = fixed(obs('LMPP'))
-  - cmp = fixed(obs('CMP'))
-  - mep = fixed(obs('MEP'))
-  - gmp = fixed(obs('GMP'))
-  - hsc >= mpp
-  - mpp >= lmpp
-  - mpp >= cmp
-  - cmp >= mep
-  - cmp >= gmp
-  - mep != gmp
+  - s0 = ~obs('S0')
+  - s2 = fixed(~obs('S2'))
+  - s3 = ~obs('S3')
+  - s4 = fixed(~obs('S4'))
+  - s5 = fixed(~obs('S5'))
+  - s2 != s4
+  - s2 != s5
+  - s4 != s5
+  - ~obs('S1') >= s0 >= s2
+  - s0 >= s3 >= s4
+  - s3 >= s5
+  - s3 / s2
+  - s0 >> 'fixpoints' ^ {obs('S2'), obs('S4'), obs('S5')}
+  - s3 >> 'fixpoints' ^ {obs('S4'), obs('S5')}
 
-# Nodes prioritized during gene selection.
+# Feedback membership was established in individual inferred networks.
 important-nodes:
-  - Mpo
-  - Elane
-  - Ctsg
-  - Ltf
-  - Camp
-  - S100a8
-  - S100a9
-  - Car1
-  - Car2
-  - Pf4
+  - Ar
+  - Bach2
+  - Cebpa
+  - Ctcf
+  - E2f2
+  - E2f4
+  - Egr1
+  - Epas1
+  - Esr1
+  - Ets1
+  - Foxm1
+  - Gata2
+  - Irf2
+  - Klf5
+  - Lef1
+  - Lyl1
+  - Myb
+  - Myc
+  - Nfe2l2
+  - Nfkb1
+  - Nr1h3
+  - Pou2f1
+  - Pou2f2
+  - Pou5f1
+  - Pparg
+  - Rara
+  - Runx3
+  - Sp1
+  - Srebf1
+  - Tal1
+  - Tcf3
+  - Tcf4
+  - Tfap2a
+  - Tfap2c
+  - Trp53
+  - Yy1
+  - Zeb2
 
-# Nodes retained in every selected domain.
 mandatory-nodes: []
-
-# Nodes removed before gene selection.
 forbidden-nodes: []

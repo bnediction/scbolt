@@ -282,6 +282,14 @@ grep -Fq 'f"{solution_summary}"' \
     "${repo_root}/lib/scbolt/inference/_selection.py"
 grep -Fq 'kwargs["leave"] = False' \
     "${repo_root}/lib/scbolt/inference/_selection.py"
+grep -Fq 'return disp_trim(rendered, self.ncols)' \
+    "${repo_root}/lib/scbolt/inference/_selection.py"
+grep -Fq 'progress_options["ncols"] = max(1, terminal_columns - 1)' \
+    "${repo_root}/lib/scbolt/inference/_portfolio.py"
+grep -Fq 'if tqdm_nrows is not None:' \
+    "${repo_root}/lib/scbolt/inference/_portfolio.py"
+grep -Fq 'except (KeyboardInterrupt, SystemExit):' \
+    "${repo_root}/lib/scbolt/inference/_portfolio.py"
 ! grep -Fq 'leave_progress' \
     "${repo_root}/lib/scbolt/inference/_selection.py"
 ! grep -Fq 'leave=is_target' \

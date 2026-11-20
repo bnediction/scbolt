@@ -13,7 +13,8 @@ and runtime environments behind it.
    rebuild decisions, logging, and metadata sidecars.
 4. `scripts/` and `lib/scbolt/` implement the scientific and runtime tasks.
 5. `envs/` defines the isolated environments used by local backends; the Docker
-   backend executes the same public command inside the selected image.
+   backend verifies the image's scBOLT version and executes the public command
+   using the verified image ID.
 
 Make variable names are an internal contract shared by recipes, parameter
 validation, and JSON metadata. Public YAML and CLI names are mapped centrally
@@ -57,9 +58,11 @@ The effective configuration follows this precedence:
 ```text
 CLI overrides
 > project configuration
-> global configuration
 > defaults
 ```
+
+When no project or CLI value selects a backend, the launcher uses the backend
+recorded during installation.
 
 The YAML loader rejects unknown keys and emits Make assignments plus public-name
 metadata. Make consumes those assignments without exposing its file format as

@@ -46,6 +46,13 @@ ARG SCBOLT_GIT_COMMIT=unknown
 
 COPY --chown=$MAMBA_USER:$MAMBA_USER . /opt/scbolt
 
+RUN source_version="$(cat /opt/scbolt/VERSION)" \
+    && if [ "${SCBOLT_VERSION}" != "${source_version}" ]; then \
+        printf 'scBOLT image version mismatch: build=%s, source=%s\n' \
+            "${SCBOLT_VERSION}" "${source_version}" >&2; \
+        exit 1; \
+    fi
+
 ENV SCBOLT_HOME=/opt/scbolt \
     SCBOLT_GIT_COMMIT=${SCBOLT_GIT_COMMIT} \
     SCBOLT_IN_DOCKER=true \

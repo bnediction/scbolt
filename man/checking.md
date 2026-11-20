@@ -5,8 +5,8 @@ runtime environments, and external commands needed to build a selected scBOLT
 module. It also reports the numerical reproducibility profile of the selected
 runtime.
 
-The check is intentionally target-aware: it should validate what the selected
-target will actually use, not every parameter in the project.
+The check is target-aware: it validates what the selected target uses, not
+every parameter in the project.
 
 ## Usage
 
@@ -18,275 +18,47 @@ Examples:
 
 ```bash
 scbolt check velocity
-scbolt check bin-dea --reset-target=bin-dea
-scbolt check bin-cells --macrostate-files=case/macrostate.h5ad
-scbolt check max-nodes-seed
+scbolt check bin-cells --macrostate-file=case/macrostate.h5ad
 ```
 
-The module argument selects what to inspect. `--reset-target`,
-`--trust-target`, `--trust-existing`, and `--old-file` are applied before
-checking because they affect the rebuilt pipeline segment.
+Validation honors rebuild and trust options.
 
-## Execution Model
+## Diagnostic Output
 
-`scbolt check` works in two phases.
+Diagnostics are grouped by parameters, files and metadata, runtime, numerical
+reproducibility, and final status.
 
-First, it asks the internal workflow engine what would run. This dry-run defines
-what will be checked. If it is empty, the target is already up to date; runtime
-and numerical checks are still reported alongside:
-
-```text
-Runtime
-  ✓ backend: conda
-  ✓ environment manager: conda 24.7.1
-  ✓ GNU Make: 4.3
-  ✓ Bash: 5.1.16
-  ✓ scbolt-system environment: available
-
-Numerical reproducibility
-  ✓ profile: openblas-haswell
-  ✓ CPU microarchitecture: Meteor Lake
-  ✓ numerical threads: 1
-
-Other
-  ✓ target '<module>' already up to date
-
-Status
-  Check passed for target '<module>'.
-```
-
-Otherwise, `scbolt check` inspects the dry-run output and validates only the
-parameters, resources, and tools that appear in the rebuilt segment.
-
-Second, it prints grouped diagnostics. The output order is:
-
-1. project parameters
-2. core parameters
-3. method parameters
-4. external resource parameters
-5. files and AnnData metadata
-6. runtime environments and commands
-7. numerical reproducibility
-8. other checks
-9. final status
-
-Diagnostic statuses are:
-
-```text
-✓ successful check
-⚠ non-blocking warning
-✗ blocking error
-```
+| Symbol | Meaning |
+| --- | --- |
+| `✓` | Successful check |
+| `⚠` | Non-blocking warning |
+| `✗` | Blocking error |
 
 A single blocking error makes `scbolt check` exit with a non-zero status. The
 final `Status` section reports the numbers of blocking errors and warnings.
 
 ## Parameter Taxonomy
 
-scBOLT configuration values are organized into four conceptual categories.
-This taxonomy is used by `scbolt check`, `scbolt config`, and target-specific
-validation.
+| Category | Covers | Examples |
+| --- | --- | --- |
+| Project | Biological datasets and interpretations | `organism`, `conditions`, `sra`, `labels` |
+| Core | Shared execution and output settings | `project-dir`, `memory`, `jobs`, `seed` |
+| Method | Analytical and solver choices | `alignment-tool`, `macrostate-method`, `max-clauses` |
+| External resources | Files and versioned resources | `count-file`, `prior-knowledge`, `hcop-version` |
 
-When validating a target, only parameter categories required by the selected
-target should be checked. The pipeline should avoid failing early for unrelated
-missing parameters.
-
-Core parameters are intentionally strict: outside diagnostic commands such as
-`scbolt check` and `scbolt config`, invalid core parameters fail during global
-pipeline initialization.
-
-### Project Parameters
-
-Project parameters describe the biological project, datasets, and user-defined
-interpretations. They generally depend on the studied biological dataset or
-case study and are expected to be customized by users.
-
-Examples:
-
-- `organism`
-- `conditions`
-- `sra`
-- `labels`
-- `constraints`
-
-These parameters should only be validated by targets requiring user-defined
-biological information.
-
-Example output:
-
-```text
-Project parameters
-  ✓ labels=Prom1 Prom2 Rep (needed by target 'annotation')
-  ✗ required project parameter not defined: labels (needed by target 'annotation')
-```
-
-### Core Parameters
-
-Core parameters control global pipeline execution, reproducibility, resources,
-runtime behavior, output organization, and shared cross-module conventions.
-
-Examples:
-
-- project configuration
-- `references`
-- `project-dir`
-- `resources-dir`
-- `memory`
-- `jobs`
-- `seed`
-- `logging`
-- `representation`
-- `label-column`
-- `old-files`
-
-Core parameters usually have defaults and are not tied to a specific analytical
-method. They are validated during pipeline initialization, except in diagnostic
-modes where missing target-specific values should not prevent inspection of
-unrelated targets.
-
-Example output:
-
-```text
-Core parameters
-  ✓ jobs=16
-  ✓ representation=X_umap
-```
-
-### Method Parameters
-
-Method parameters control preprocessing, clustering, trajectory inference,
-binarization, Boolean inference, exports, and solver behavior. They define the
-analytical behavior of the pipeline.
-
-Examples:
-
-- `alignment-tool`
-- `star-barcode-filter`
-- `consistent-mad`
-- `cell-cycle-correction`
-- `pca-dimensions`
-- `centered-pca`
-- `velocity-only-hvg`
-- `macrostate-method`
-- `knnsc-embedding`
-- `knnsc-min-cluster-size`
-- `binarization-method`
-- `bin-hvg-method`
-- `max-clauses`
-- `clause-continuation-<stage>`
-- `clingo-<setting>-<stage>`
-- `timeout-<stage>`
-
-Method parameters should only be validated by targets using the associated
-method or module.
-
-Example output:
-
-```text
-Method parameters
-  ✓ knnsc-embedding=X_umap (needed by target 'knnsc')
-  ✗ unsupported value for method parameter binarization-method (supported values: scboolseq, dea, consensus)
-```
-
-### External Resource Parameters
-
-External resource parameters reference files, custom resources, or precomputed
-artifacts used by the pipeline.
-
-Examples:
-
-- `star-whitelist`
-- `count-file`
-- `binarization-file`
-- `macrostate-file`
-- `prior-knowledge`
-- `geneinfo-version`
-- `omnipath-version`
-- `hcop-version`
-- `clingo-config-<stage>`
-
-`prior-knowledge` may refer to symbolic built-in resources (`collectri`,
-`dorothea`) or to a user-provided file. `geneinfo-version` and
-`omnipath-version` select the database versions used for gene identifiers and
-OmniPath-derived priors. `hcop-version` selects the orthology resource used for
-non-human CollecTRI/DoRothEA priors. `clingo-config-<stage>` may refer to named Clingo
-configurations (`auto`, `frumpy`, `jumpy`, `tweety`, `handy`, `crafty`,
-`trendy`, `many`) or to custom configuration files.
-
-External resource parameters should only be validated when the corresponding
-resource or file is effectively required by the selected target.
-
-Example output:
-
-```text
-External resources
-  ✓ macrostate-file=case/macrostate.h5ad (needed by target 'bin-dea')
-  ✗ required file not found: case/macrostate.h5ad
-```
+Project, method, and resource parameters are checked only when the selected
+target uses them. Core parameters are validated for every pipeline run.
 
 ## File, Command, and Environment Checks
 
-`scbolt check` validates external resources used by the rebuilt segment.
-
-File checks include resources such as:
-
-- the active project configuration;
-- reference genome archive sources;
-- RepeatMasker annotation source for Velocyto;
-- user-provided `count-file` or `macrostate-file`;
-- custom prior networks;
-- custom Clingo configuration files.
-
-Command checks currently include tools that are actually visible in the dry-run,
-for example:
-
-- `conda`
-- `cellranger`
-- `dot`
-
-Conda environment checks verify that referenced `scbolt-*` environments exist.
-They also compare installed packages with the corresponding `envs/conda/*.yml` file.
-Mismatches are warnings, not failures, because users may intentionally keep a
-newer or patched environment.
-
-Example:
-
-```text
-Runtime
-  ✓ conda environment found: scbolt-core
-  ⚠ conda environment mismatch: scbolt-core (bonesistools: 1.1.6->1.2.3; mpbn: 4.4->4.2)
-```
-
-For git-installed packages, the checker can validate the installed commit when
-the package exposes PEP 610 metadata. This is used for packages such as
-`bonesis` and `scvelo`.
+`scbolt check` validates files, commands, and `scbolt-*` environments required
+by the selected target. Environment drift is reported as a warning so locally
+patched runtimes remain usable.
 
 ## AnnData Dependency Validation
 
-`scbolt check <target>` validates AnnData metadata dependencies before
-executing a target.
-
-The validation inspects the first existing AnnData boundary files that would be
-consumed by the selected target, per relevant reference, and verifies that all
-required fields are present.
-
-The check is lightweight:
-
-- it does not load the full AnnData object;
-- it inspects only HDF5 metadata (`obs`, `var`, `obsm`, `obsp`, `layers`);
-- it fails early with a clear error message when a required field is missing.
-
-`provides` lists only fields that are needed by downstream modules. It is not
-intended to be an exhaustive inventory of all fields created by each script.
-
-Most AnnData-to-AnnData targets preserve input metadata. Their effective output
-metadata is therefore:
-
-```text
-input metadata + provides
-```
-
-unless a target explicitly rewrites or drops fields.
+Existing AnnData inputs are checked for required `obs`, `var`, `obsm`, `obsp`,
+and `layers` fields without loading the full expression matrix.
 
 ### Validation Output
 
@@ -304,89 +76,22 @@ Files and metadata
   ✗ h5ad metadata: obsm 'X_umap' missing (/path/to/file.h5ad, reference: ctrl)
 ```
 
-### Validation Strategy
+### External Entry Points
 
-The AnnData checker reasons over the rebuilt pipeline segment:
+| Entry point | Required AnnData metadata |
+| --- | --- |
+| `count-file` | `counts` in `layers` |
+| `macrostate-file` | `log-norm` in `layers`, `macrostate` in `obs`, and the configured `representation` in `obsm` |
 
-1. Run the target dry-run with `--reset-target`, `--trust-target`,
-   `--trust-existing`, and `--old-file` options applied.
-2. Extract the ordered list of AnnData-producing and AnnData-consuming commands
-   that will actually run.
-3. Parse each known script command into an operation:
-   - input H5AD files;
-   - output H5AD files;
-   - required metadata fields;
-   - provided metadata fields;
-   - whether downstream metadata is preserved from the input.
-4. Walk operations backward from downstream to upstream and propagate unresolved
-   metadata requirements to the boundary files that already exist.
-5. Validate only those unresolved requirements against existing H5AD files.
+A shared multi-condition `macrostate-file` also requires `condition` in `obs`.
+The `loess` binarization HVG method additionally requires `counts` in `layers`.
+Named layers are used instead of `adata.X`.
 
-Example: if `scbolt check potency --reset-target=normalization` rebuilds
-normalization, clustering, annotation, and potency, then `potency` may require
-`counts` as a layer. This should not necessarily be checked only one step before
-`potency`; the checker should know that `counts` is required at the rebuilt
-segment boundary and then preserved through the rebuilt AnnData steps.
+## AnnData Input Contracts
 
-Non-AnnData artifacts stay outside this H5AD metadata table and are checked
-by existing file or target dependency checks. For example, CellRank uses
-`potency.csv` and requires its `score` column; the workflow extracts this
-column and inserts it into a temporary H5AD as `cytotrace_score` before running
-the CellRank script.
-
-### `count-file`
-
-`count-file` is a count-level AnnData entry point. It maps each named condition
-to one H5AD file. When defined, filtering consumes these files directly instead
-of depending on Velocyto or public GEO matrix loading. Gene-name
-standardization is applied by `filter.py`, so count files, GEO matrices, and
-Velocyto outputs share the same downstream contract.
-Each file must contain `counts` in `layers`; `adata.X` is not used as a
-fallback expression matrix.
-
-Input routes are mutually exclusive:
-
-```text
-sra | gsm | count-file | macrostate-file | binarization-file
-```
-
-Only one input-route family should be defined at a time.
-
-### `macrostate-file`
-
-`macrostate-file` is a special external AnnData boundary for users restarting
-the pipeline at binarization. It accepts either one multi-condition AnnData file
-or one AnnData file indexed by each condition. When defined,
-`bin-cells`, `bin-macrostates`, and `bin-dea` depend on a prepared temporary
-copy of these files instead of depending on internally generated macrostate
-H5AD/CSV pairs.
-
-The user-provided file must contain:
-
-- `log-norm` in `layers`;
-- `macrostate` in `obs`;
-- `condition` in `obs`, required when a single file is used for a
-  multi-condition project;
-- the configured `representation` in `obsm`.
-
-Expression is always read from these named layers. `adata.X` is not used as a
-fallback expression matrix.
-
-If downstream HVG selection uses `bin-hvg-method: loess`, the file must also
-contain:
-
-- `counts` in `layers`.
-
-For multi-condition projects, the preparation step prefixes `macrostate` values
-with condition values so that downstream binarization sees globally unique
-macrostate labels. This matches the behavior of internally generated macrostate
-CSVs.
-
-## AnnData Target Dependency Specification
-
-The following table documents fields that are required or provided for
-downstream use. It is intentionally not a complete inventory of every field
-produced by each script.
+The following sections document fields required from inputs and fields made
+available to downstream modules. They are not exhaustive inventories of every
+field present in each output.
 
 ### Velocyto
 
@@ -522,10 +227,8 @@ Provides:
 
 - no downstream AnnData metadata
 
-The pipeline consumes `potency.csv` downstream. The optional potency H5AD
-contains `cytotrace_*` fields, but it is not the CellRank input used by the
-workflow. The downstream CellRank recipe requires the `score` column from
-`potency.csv`.
+When CellRank uses potency results, `potency.csv` provides a `score` column.
+The optional potency H5AD is not used for this handoff.
 
 ### COTAN
 
@@ -553,9 +256,8 @@ Provides:
 
 - `macrostate` in `obs`
 
-`cytotrace_score` is added to a temporary CellRank input H5AD from `potency.csv`
-inside the CellRank recipe. It is not expected to exist in the pre-existing
-velocity H5AD.
+`cytotrace_score` is derived from `potency.csv` and is absent from the velocity
+H5AD input contract for CellRank.
 
 ### STREAM
 
@@ -613,41 +315,13 @@ Requires:
 
 ## Reading the Output
 
-The most useful way to read `scbolt check` output is from top to bottom.
-
-Parameter failures usually mean the selected module cannot even be configured.
-File and H5AD failures mean the module could start, but one of its inputs is
-missing or does not contain the expected metadata. Conda and command failures
-mean the local installation is incomplete or different from the repository
-environment files.
-
-Warnings are non-blocking. They point to local differences that may be
-intentional, for example a patched conda environment or a package installed
-from a local checkout.
-
-For example:
-
-```text
-Method parameters
-  ✓ binarization_method=consensus (needed by target 'binarization')
-
-Files and metadata
-  ✓ h5ad metadata: layer 'log-norm' found (reference: input)
-  ✗ h5ad metadata: obs 'macrostate' missing (/path/to/macrostate.h5ad, reference: input)
-
-Runtime
-  ⚠ conda environment mismatch: scbolt-core (bonesistools: 1.1.6->1.2.3)
-```
-
-In this example, the target is configured correctly, but the provided AnnData
-file cannot be used for binarization because it lacks `obs["macrostate"]`.
+Parameter errors identify invalid settings; file and metadata errors identify
+missing or incompatible inputs; runtime errors identify unavailable tools or
+environments. Warnings remain non-blocking.
 
 ## Limitations
 
-`scbolt check` is a preflight check. It does not execute analytical recipes and
-cannot prove that a target will complete successfully.
-
-In particular, it does not validate:
+`scbolt check` does not execute analyses or validate:
 
 - numerical shape compatibility beyond visible H5AD groups and keys;
 - semantic consistency of AnnData metadata values such as `cluster`,
@@ -656,7 +330,3 @@ In particular, it does not validate:
 - exact package solver reproducibility;
 - runtime memory requirements;
 - solver convergence.
-
-It is designed to catch configuration mistakes, missing files, missing metadata,
-missing environments, and obvious target-specific incompatibilities before a
-long pipeline step starts.

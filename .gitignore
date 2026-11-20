@@ -99,6 +99,8 @@ logs/
 *tmp/
 todo.*
 *.pdf
+!man/fig/scbolt-modules.pdf
+!man/fig/scbolt-modules.png
 *.yml
 !envs/
 !envs/*.yml
@@ -120,8 +122,11 @@ public/
 llc/
 *.md
 !README.md
+!quickstart/.scbolt
 !quickstart/scbolt.yml
 !quickstart/spec.yml
+!quickstart/data/
+!quickstart/data/*.csv
 !man/*.md
 !docs/*.md
 plot_clustering_grid.py

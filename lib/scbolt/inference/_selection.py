@@ -14,6 +14,7 @@ from typing import Any
 
 import bonesis
 from tqdm import tqdm
+from tqdm.utils import disp_trim
 
 from scbolt import console
 from scbolt.runtime import SolverCapacityError, SolverPatience, format_duration
@@ -54,6 +55,12 @@ class ptqdm(tqdm):
             kwargs.setdefault("postfix", type(self).initial_postfix)
         kwargs.setdefault("disable", DISABLE_TQDM)
         super().__init__(*args, **kwargs)
+
+    def __str__(self) -> str:
+        """Keep custom meter formats on one physical terminal line."""
+
+        rendered = super().__str__()
+        return disp_trim(rendered, self.ncols) if self.ncols else rendered
 
     def close(self):
         super().close()

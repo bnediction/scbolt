@@ -150,7 +150,7 @@ class ProjectConfigurationTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn(
-            "configuration key 'macrostate-file' cannot combine a shared file "
+            "configuration parameter 'macrostate-file' cannot combine a shared file "
             "with condition-specific files",
             result.stderr,
         )
@@ -166,7 +166,7 @@ class ProjectConfigurationTests(unittest.TestCase):
                 result = run_helper("export", f"{key}: []\n")
                 self.assertEqual(result.returncode, 1)
                 self.assertIn(
-                    f"unknown configuration key '{key}'",
+                    f"unknown configuration parameter '{key}'",
                     result.stderr,
                 )
 
@@ -205,7 +205,7 @@ class ProjectConfigurationTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn(
-            "unknown configuration key 'binarization-include-nodes'",
+            "unknown configuration parameter 'binarization-include-nodes'",
             result.stderr,
         )
 
@@ -216,7 +216,7 @@ class ProjectConfigurationTests(unittest.TestCase):
         result = run_helper("export", "bounded_nonreach: 20\n")
         self.assertEqual(result.returncode, 1)
         self.assertIn(
-            "unknown configuration key 'bounded_nonreach'",
+            "unknown configuration parameter 'bounded_nonreach'",
             result.stderr,
         )
 
@@ -230,7 +230,7 @@ class ProjectConfigurationTests(unittest.TestCase):
         result = run_helper("export", "strong-constants-scope: early\n")
         self.assertEqual(result.returncode, 1)
         self.assertIn(
-            "unsupported value 'early' for configuration key "
+            "unsupported value 'early' for configuration parameter "
             "'strong-constants-scope' (supported values: soft, relaxed, "
             "full, none)",
             result.stderr,
@@ -253,7 +253,7 @@ class ProjectConfigurationTests(unittest.TestCase):
                 result = run_helper("export", f"{key}: loess\n")
                 self.assertEqual(result.returncode, 1)
                 self.assertIn(
-                    f"unknown configuration key '{key}'",
+                    f"unknown configuration parameter '{key}'",
                     result.stderr,
                 )
 
@@ -264,7 +264,7 @@ class ProjectConfigurationTests(unittest.TestCase):
         result = run_helper("export", "alignment_tool: cellranger\n")
         self.assertEqual(result.returncode, 1)
         self.assertIn(
-            "unknown configuration key 'alignment_tool'",
+            "unknown configuration parameter 'alignment_tool'",
             result.stderr,
         )
 
@@ -294,7 +294,7 @@ class ProjectConfigurationTests(unittest.TestCase):
     def test_unknown_key_reports_its_location(self) -> None:
         result = run_helper("export", "neigbors: 14\n")
         self.assertEqual(result.returncode, 1)
-        self.assertIn(":1:1: unknown configuration key 'neigbors'", result.stderr)
+        self.assertIn(":1:1: unknown configuration parameter 'neigbors'", result.stderr)
 
     def test_duplicate_key_reports_both_definitions(self) -> None:
         result = run_helper(
@@ -303,7 +303,7 @@ class ProjectConfigurationTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn(
-            ":2:1: duplicate configuration key 'neighbors' "
+            ":2:1: duplicate configuration parameter 'neighbors' "
             "(first defined at line 1)",
             result.stderr,
         )
@@ -316,12 +316,12 @@ class ProjectConfigurationTests(unittest.TestCase):
     def test_version_key_is_rejected(self) -> None:
         result = run_helper("export", "version: 1\n")
         self.assertEqual(result.returncode, 1)
-        self.assertIn("unknown configuration key 'version'", result.stderr)
+        self.assertIn("unknown configuration parameter 'version'", result.stderr)
 
     def test_logging_key_is_rejected(self) -> None:
         result = run_helper("export", "logging: false\n")
         self.assertEqual(result.returncode, 1)
-        self.assertIn("unknown configuration key 'logging'", result.stderr)
+        self.assertIn("unknown configuration parameter 'logging'", result.stderr)
 
     def test_condition_not_declared_is_rejected(self) -> None:
         result = run_helper(

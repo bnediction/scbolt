@@ -1,10 +1,6 @@
 # Rebuild Controls
 
-scBOLT exposes four controls for changing how existing outputs are treated by
-the build engine.
-
-They are intentionally separate from biological entry-point configuration such
-as `count-file`, `macrostate-file`, or `binarization-file`.
+scBOLT exposes four controls for reusing or rebuilding existing outputs.
 
 ## `--reset-target`
 
@@ -14,8 +10,7 @@ as `count-file`, `macrostate-file`, or `binarization-file`.
 scbolt bn-submin --reset-target=clustering
 ```
 
-This is useful when a module should be recomputed even if its outputs already
-exist. Successful recipes replace the corresponding outputs.
+The selected module and its downstream modules are rebuilt.
 
 Multiple modules can be provided by quoting a space-separated list, or by
 repeating the option:
@@ -25,8 +20,6 @@ scbolt bn-submin --reset-target="clustering annotation"
 scbolt bn-submin --reset-target=clustering --reset-target=annotation
 ```
 
-Repeated `--reset-target=<module>` options are combined by the launcher.
-
 ## `--trust-target`
 
 `--trust-target` trusts all outputs produced by one or more modules.
@@ -35,59 +28,34 @@ Repeated `--reset-target=<module>` options are combined by the launcher.
 scbolt bn-submin --trust-target=clustering
 ```
 
-This is the module-level equivalent of `old-files`: every output registered for
-the selected module is treated as an existing trusted file.
-
-Multiple modules can be provided by quoting a space-separated list, or by
-repeating the option:
-
-```bash
-scbolt bn-submin --trust-target="clustering annotation"
-scbolt bn-submin --trust-target=clustering --trust-target=annotation
-```
-
-Repeated `--trust-target=<module>` options are combined by the launcher.
+Every output registered for the selected module is trusted. Multiple modules
+use the same repeated or space-separated forms as `--reset-target`.
 
 ## `--trust-existing`
 
-`--trust-existing` trusts every known scBOLT DAG output that is already present
+`--trust-existing` trusts every known scBOLT output that is already present
 when the command starts.
 
 ```bash
 scbolt bn-submin --trust-existing
 ```
 
-Missing outputs are not fabricated or trusted: the workflow builds them normally.
-This makes `--trust-existing` useful when resuming a project whose existing
-outputs should be accepted without listing each module or file individually.
+Missing outputs are built normally.
 
-Trust only affects timestamp-based rebuild decisions. Metadata drift
-is still reported so that changes in parameters, dependencies, or runtime
-environments remain visible.
+Trust affects rebuild decisions, but metadata drift is still reported so that
+changes in parameters, dependencies, or runtime environments remain visible.
 
-`--reset-target` has absolute priority. Outputs from the reset module and every
-downstream module scheduled for reconstruction are excluded from trust,
-including trust requested through `--trust-target`, `--trust-existing`, or
-`old-files`. Existing outputs on unrelated DAG branches remain trusted.
+`--reset-target` overrides all trust controls for the selected module and its
+downstream modules.
 
 ## `old-files` and `--old-file`
 
-`old-files` trusts individual files already belonging to the scBOLT DAG.
-Reference-level single-cell files live under `project-dir/omics/`; Boolean
-abstractions and inference outputs stay under `project-dir/bin/` and the
-configured `project-dir/inference-dir/`.
+`old-files` trusts individual files belonging to the scBOLT workflow.
 
 ```bash
 scbolt bn-submin \
   --old-file=apl/omics/annot/integrated/annot.h5ad \
   --old-file=apl/bin/consensus/knnsc/mstates_bin.csv
-```
-
-Several files can also be provided as a quoted space-separated list:
-
-```bash
-scbolt bn-submin \
-  --old-file="apl/omics/annot/integrated/annot.h5ad apl/bin/consensus/knnsc/mstates_bin.csv"
 ```
 
 Permanent project-level declarations can be added to `scbolt.yml`:
@@ -98,10 +66,8 @@ old-files:
   - apl/bin/consensus/knnsc/mstates_bin.csv
 ```
 
-Relative paths in a project YAML file are resolved relative to the directory
-containing `.scbolt`. Without a project locator, they are resolved relative to
-the configuration-file directory. Relative `--old-file=<file>` paths are
-resolved relative to the launch directory.
+YAML and command-line paths follow the rules in
+[configuration.md](configuration.md).
 
 `old-files` is more granular than `--trust-target`: it trusts only the listed
 files, not every output produced by the corresponding module.
@@ -117,19 +83,8 @@ files, not every output produced by the corresponding module.
 
 ## Validation
 
-Active trusted old files must exist. An `old-files` entry excluded by
-`--reset-target` is not validated as trusted because that output will be rebuilt.
-
-`scbolt check <module>` reports:
-
-```text
-SUCCESS old file found: apl/omics/annot/integrated/annot.h5ad
-FAIL old file not found: apl/bin/consensus/knnsc/mstates_bin.csv
-```
-
-If an old file is not a known scBOLT target, scBOLT warns but does not fail.
-This keeps the mechanism usable for advanced workflows while making the
-boundary explicit.
+Active `old-files` entries are valid only when their files exist. Unknown
+scBOLT targets produce a warning rather than an error.
 
 Old files are not exempt from downstream content validation. For example, if an
 old AnnData file is consumed by a downstream module, `scbolt check` still

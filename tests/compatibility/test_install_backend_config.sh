@@ -95,6 +95,14 @@ set -euo pipefail
 
 case "${1:-}" in
     image)
+        case "$*" in
+            *org.opencontainers.image.version*)
+                printf '%s\n' "${SCBOLT_TEST_IMAGE_VERSION:-}"
+                ;;
+            *'{{.Id}}'*)
+                printf '%s\n' 'sha256:test'
+                ;;
+        esac
         exit 0
         ;;
     run)
@@ -107,14 +115,118 @@ exit 1
 SH
 chmod +x "${fake_engine}"
 
-SCBOLT_TEST_CONTAINER_LOG="${container_log}" \
-    "${repo_root}/bin/scbolt" config --default --raw \
-    --backend=docker \
-    --container-engine="${fake_engine}" \
-    --container-image=scbolt:test \
+docker_test_home="${tmpdir}/docker-runtime/home"
+docker_test_config="${tmpdir}/docker-runtime/config"
+mkdir -p "${docker_test_home}" "${docker_test_config}/scbolt"
+scbolt_command="${repo_root}/bin/scbolt"
+image_version="${scbolt_version}"
+
+run_docker_config() {
+    HOME="${docker_test_home}" XDG_CONFIG_HOME="${docker_test_config}" \
+    SCBOLT_TEST_CONTAINER_LOG="${container_log}" \
+    SCBOLT_TEST_IMAGE_VERSION="${image_version}" \
+        "${scbolt_command}" config --default --raw \
+        --backend=docker --container-engine="${fake_engine}" "$@"
+}
+
+run_docker_config --container-image="scbolt:${scbolt_version}" \
     --container-args=--network=none \
     --container-mounts="${mount_path}"
 grep -Fxq -- 'run' "${container_log}"
 grep -Fxq -- '--network=none' "${container_log}"
 grep -Fxq -- "${mount_path}:${mount_path}" "${container_log}"
-grep -Fxq -- 'scbolt:test' "${container_log}"
+grep -Fxq -- "SCBOLT_IMAGE=scbolt:${scbolt_version}" "${container_log}"
+grep -Fxq -- 'sha256:test' "${container_log}"
+
+for image_version in 0.0.0 99.0.0 '' '<no value>' unknown; do
+    rm -f "${container_log}"
+    if run_docker_config --container-image="scbolt:${scbolt_version}" \
+            > "${tmpdir}/image-version.out" 2>&1; then
+        printf 'unexpectedly accepted image version: %s\n' "${image_version}" >&2
+        exit 1
+    fi
+    grep -Fq "Docker image version mismatch: scBOLT ${scbolt_version}, image" \
+        "${tmpdir}/image-version.out"
+    test ! -e "${container_log}"
+done
+
+# Images selected by the project or installed configuration follow the same rule.
+image_version=0.0.0
+printf '%s\n' 'container-image: scbolt:0.0.0' > "${tmpdir}/docker.yml"
+if run_docker_config --config="${tmpdir}/docker.yml" \
+        > "${tmpdir}/project-image.out" 2>&1; then
+    printf '%s\n' 'unexpectedly accepted incompatible project image' >&2
+    exit 1
+fi
+grep -Fq 'image 0.0.0 (scbolt:0.0.0)' "${tmpdir}/project-image.out"
+test ! -e "${container_log}"
+
+printf '%s\n' 'SCBOLT_IMAGE = scbolt:0.0.0' \
+    > "${docker_test_config}/scbolt/config.mk"
+if run_docker_config > "${tmpdir}/installed-image.out" 2>&1; then
+    printf '%s\n' 'unexpectedly accepted incompatible installed image' >&2
+    exit 1
+fi
+grep -Fq 'image 0.0.0 (scbolt:0.0.0)' "${tmpdir}/installed-image.out"
+test ! -e "${container_log}"
+
+# Check both upgrade and downgrade mismatches against an isolated runtime.
+scbolt_command="${installed_root}/bin/scbolt"
+for launcher_version in 1.0.0 1.0.1; do
+    printf '%s\n' "${launcher_version}" > "${installed_root}/VERSION"
+    for image_version in 1.0.0 1.0.1; do
+        rm -f "${container_log}"
+        if [ "${launcher_version}" = "${image_version}" ]; then
+            run_docker_config --container-image="scbolt:${image_version}"
+            grep -Fxq -- 'sha256:test' "${container_log}"
+        else
+            if run_docker_config --container-image="scbolt:${image_version}" \
+                    > "${tmpdir}/changed-version.out" 2>&1; then
+                printf 'unexpectedly accepted scBOLT %s with image %s\n' \
+                    "${launcher_version}" "${image_version}" >&2
+                exit 1
+            fi
+            grep -Fq "Docker image version mismatch: scBOLT ${launcher_version}, image ${image_version}" \
+                "${tmpdir}/changed-version.out"
+            test ! -e "${container_log}"
+        fi
+    done
+done
+
+# A missing launcher version cannot establish image compatibility.
+for launcher_version in '' unknown; do
+    printf '%s\n' "${launcher_version}" > "${installed_root}/VERSION"
+    rm -f "${container_log}"
+    if run_docker_config > "${tmpdir}/unknown-version.out" 2>&1; then
+        printf '%s\n' 'unexpectedly accepted an unknown launcher version' >&2
+        exit 1
+    fi
+    grep -Fq 'Cannot use Docker without a known scBOLT version' \
+        "${tmpdir}/unknown-version.out"
+    test ! -e "${container_log}"
+done
+
+# Installation validates the image before recording the Docker backend.
+mkdir -p "${tmpdir}/fakebin"
+ln -s "${fake_engine}" "${tmpdir}/fakebin/docker"
+install_case=0
+for image_version in "${scbolt_version}" 0.0.0 ''; do
+    install_case=$((install_case + 1))
+    install_home="${tmpdir}/image-install/${install_case}/home"
+    install_config="${tmpdir}/image-install/${install_case}/config"
+    mkdir -p "${install_home}" "${install_config}"
+    if PATH="${tmpdir}/fakebin:${PATH}" \
+        HOME="${install_home}" XDG_CONFIG_HOME="${install_config}" \
+        SCBOLT_TEST_IMAGE_VERSION="${image_version}" \
+            "${repo_root}/install" --backend=docker --env=core \
+            > "${tmpdir}/image-install.out" 2>&1; then
+        test "${image_version}" = "${scbolt_version}"
+        grep -Fxq 'BACKEND = docker' "${install_config}/scbolt/config.mk"
+    else
+        test "${image_version}" != "${scbolt_version}"
+        grep -Fq 'Docker image version mismatch' "${tmpdir}/image-install.out"
+        test ! -e "${install_config}/scbolt/config.mk"
+    fi
+done
+
+printf '%s\n' 'installation and Docker version compatibility tests passed'

@@ -403,6 +403,7 @@ install_backend_config() {
 
 install_docker_backend() {
     local docker_command
+    local image_version
 
     docker_command="$(command -v docker 2>/dev/null || true)"
     if [ -z "${docker_command}" ]; then
@@ -411,11 +412,23 @@ install_docker_backend() {
         return 1
     fi
 
-    install_backend_config
     if ! docker image inspect "${default_image}" >/dev/null 2>&1; then
         echo "pulling Docker image '${default_image}'."
         docker pull "${default_image}" || return_or_interrupt "$?"
     fi
+    image_version="$(docker image inspect "${default_image}" \
+        --format '{{index .Config.Labels "org.opencontainers.image.version"}}' 2>/dev/null || true)"
+    case "${image_version}" in
+        ""|"<no value>") image_version="unknown" ;;
+    esac
+    if [ -z "${scbolt_version}" ] || [ "${scbolt_version}" = "unknown" ] \
+            || [ "${image_version}" != "${scbolt_version}" ]; then
+        printf 'Docker image version mismatch: scBOLT %s, image %s (%s)\n' \
+            "${scbolt_version:-unknown}" "${image_version}" "${default_image}" >&2
+        print_backend_failure
+        return 1
+    fi
+    install_backend_config
     print_install_success "docker backend"
 }
 

@@ -71,6 +71,18 @@ DOMAIN_MEMORY_LAUNCH_INTERVAL_SECONDS = 2.0
 DOMAIN_MEMORY_COST_FACTOR = 1.10
 
 
+def _domain_progress_layout(
+    candidate_count: int,
+    terminal_rows: int,
+) -> tuple[int, int | None]:
+    """Return reserved rows and the optional tqdm visibility bound."""
+
+    total_rows = candidate_count + 1
+    progress_rows = min(total_rows, max(1, terminal_rows - 1))
+    tqdm_nrows = progress_rows if progress_rows < total_rows else None
+    return progress_rows, tqdm_nrows
+
+
 @dataclass
 class DomainWaveMemoryUsage:
     """Track the process-wide RSS peak observed during one domain wave."""
@@ -299,6 +311,7 @@ def run_domain_wave(
     """Evaluate one domain wave and release its solver memory afterward."""
 
     memory_usage = DomainWaveMemoryUsage()
+    report_memory_release = True
     try:
         return _run_domain_wave(
             bo,
@@ -320,12 +333,19 @@ def run_domain_wave(
             memory_estimator=memory_estimator,
             memory_usage=memory_usage,
         )
+    except (KeyboardInterrupt, SystemExit):
+        report_memory_release = False
+        raise
     finally:
         memory_before_release = current_rss_bytes()
         memory_usage.observe(memory_before_release)
         release_unused_memory()
         memory_after_release = current_rss_bytes()
-        if memory_usage.peak_rss is not None and memory_after_release is not None:
+        if (
+            report_memory_release
+            and memory_usage.peak_rss is not None
+            and memory_after_release is not None
+        ):
             peak = format_memory_size(memory_usage.peak_rss)
             if memory_limit is not None:
                 peak = f"{peak}/{format_memory_size(memory_limit)}"
@@ -380,11 +400,20 @@ def _run_domain_wave(
     progress_options = {}
     if progress_stream.isatty():
         try:
-            terminal_rows = os.get_terminal_size(progress_stream.fileno()).lines
+            terminal_size = os.get_terminal_size(progress_stream.fileno())
+            terminal_rows = terminal_size.lines
+            terminal_columns = terminal_size.columns
         except OSError:
             terminal_rows = len(candidates) + 2
-        progress_rows = min(len(candidates) + 1, max(1, terminal_rows - 1))
-        progress_options["nrows"] = progress_rows
+            terminal_columns = 80
+        progress_rows, tqdm_nrows = _domain_progress_layout(
+            len(candidates),
+            terminal_rows,
+        )
+        if tqdm_nrows is not None:
+            progress_options["nrows"] = tqdm_nrows
+        progress_options["ncols"] = max(1, terminal_columns - 1)
+        progress_options["dynamic_ncols"] = False
 
         # Reserve the complete display before tqdm writes into it. This keeps
         # progress lines out of the terminal scrollback and gives cleanup a
@@ -425,7 +454,9 @@ def _run_domain_wave(
     def format_candidate_postfix(candidate_index: int) -> Mapping[str, str]:
         """Format candidate state and objective for one domain bar."""
 
-        fields = OrderedDict(format_candidate_objective(candidate_index))
+        fields: OrderedDict[str, str] = OrderedDict(
+            format_candidate_objective(candidate_index)
+        )
         fields["state"] = candidate_states[candidate_index]
         return fields
 

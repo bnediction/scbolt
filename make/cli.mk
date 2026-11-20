@@ -116,7 +116,20 @@ show_config_modules = $(if $(TARGET),$(call target_dry_run_modules,$(TARGET)),$(
 show_config_file = $(call relative_to_launch,$(PARAMS))
 show_config_none = (none)
 show_config_display_value = $(if $(strip $(1)),$(1),$(show_config_none))
-show_config_conditions = $(if $(filter true,$(unnamed_condition)),(none),$(display_conditions_label))
+show_config_list_params = \
+	SCBOLT_CONTAINER_ARGS SCBOLT_CONTAINER_MOUNTS CONDITIONS REFERENCES OLD_FILES \
+	LABEL SRA SRA_% COUNT_FILES MACROSTATE_FILES \
+	GENE_EXPRESSION GENE_COUNTS CELL_EXPRESSION CELL_READS MAD_DEVIATION \
+	KNNSC_DIMENSION KNNSC_CENTRALITY_% KNNSC_PERIPHERY_% BIN_INCLUDE_NODES \
+	DOROTHEA_LEVELS CONFIG_FORMATS GRAPH_FORMATS
+show_config_hidden_list_values = $(wordlist 5,$(words $(strip $(1))),$(strip $(1)))
+show_config_summarize_list = $(strip \
+	$(wordlist 1,4,$(strip $(1))) \
+	$(if $(call show_config_hidden_list_values,$(1)),\
+		... ($(words $(call show_config_hidden_list_values,$(1))) more)))
+show_config_display_list = $(call show_config_display_value,$(call show_config_summarize_list,$(1)))
+show_config_is_list_param = $(filter $(show_config_list_params),$(1))
+show_config_conditions = $(if $(filter true,$(unnamed_condition)),(none),$(call show_config_display_list,$(display_conditions_label)))
 show_config_project_dir = $(call relative_to_launch,$(results))
 show_config_resources_dir = $(call relative_to_launch,$(resources_dir))
 show_config_old_files = $(foreach path,$(OLD_FILES),$(call relative_to_launch,$(path)))
@@ -172,7 +185,7 @@ show_config_hvg_params = \
 	BIN_HVG_METHOD BIN_HVG_TOP BIN_HVG_SPAN BIN_HVG_BINS
 show_config_relative_path = $(if $(strip $(1)),$(call relative_to_launch,$(1)))
 show_config_raw_var_value = $(if $(filter MEMORY,$(1)),$(if $(strip $(MEMORY)),$(memory_normalized),),$(if $(filter SPEC_FILE,$(1)),$(call show_config_relative_path,$(SPEC_FILE)),$(if $(filter REFERENCES,$(1)),$(display_references_label),$($(1)))))
-show_config_var_value = $(call show_config_display_value,$(call show_config_raw_var_value,$(1)))
+show_config_var_value = $(if $(call show_config_is_list_param,$(1)),$(call show_config_display_list,$(call show_config_raw_var_value,$(1))),$(call show_config_display_value,$(call show_config_raw_var_value,$(1))))
 show_config_var_label = $(call tolower,$(subst _, ,$(call module_help_parameter_name,$(1))))
 show_config_label_width = $(shell printf '%s\n' \
 	$(foreach var,$(strip $(1)),'$(call show_config_var_label,$(var))') \
@@ -339,7 +352,7 @@ $(if $(filter collectri dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Omn
 $(if $(filter collectri dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'HCOP' "$(call show_config_display_value,$(HCOP_VERSION))")
 $(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'DoRothEA API' "$(call show_config_display_value,$(DOROTHEA_API))")
 $(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Compatibility' "$(call show_config_display_value,$(DOROTHEA_COMPATIBILITY))")
-$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Levels' "$(call show_config_display_value,$(DOROTHEA_LEVELS))")
+$(if $(filter dorothea,$(PRIOR_KNOWLEDGE)),@printf '%-16s : %s\n' 'Levels' "$(call show_config_display_list,$(DOROTHEA_LEVELS))")
 @printf '%-16s : %s\n' 'Max clauses' "$(call show_config_display_value,$(MAX_CLAUSES))"
 @printf '%-16s : %s\n' 'Strong constants' "$(call show_config_display_value,$(STRONG_CONSTANTS_SCOPE))")
 endef

@@ -26,10 +26,6 @@ scBOLT combines transcriptome-derived state abstractions, user-defined dynamical
   <img src="man/fig/scbolt-overview.png" alt="scbolt-overview" width="700"/>
 </p>
 
-### Under the hood
-
-scBOLT relies on the BoNesis framework for exact Boolean network synthesis.
-
 # Installation
 
 scBOLT uses a Bash command-line launcher. Native execution is supported on
@@ -40,18 +36,18 @@ or [Micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-i
 Docker is the supported execution backend on macOS and Windows and is also
 available on Linux.
 
-Clone scBOLT and run the installer:
+Clone the scBOLT release and run the installer:
 
 ```sh
-git clone https://github.com/bnediction/scbolt.git scbolt
+git clone --branch v1.0.0 --depth 1 https://github.com/bnediction/scbolt.git
 cd scbolt
 ./install
 ```
 
 The installer copies an autonomous runtime to `~/.local/lib/scbolt`, installs
-the `scbolt` command in `~/.local/bin`, and installs Bash completion. The source
-checkout can then be removed. Install or replace the selected runtime backend
-explicitly:
+the `scbolt` command in `~/.local/bin`, and installs Bash completion. Restart
+the shell to enable completion. The source checkout can then be removed.
+Install or replace the selected runtime backend explicitly:
 
 ```sh
 scbolt install conda
@@ -59,15 +55,6 @@ scbolt install mamba
 scbolt install micromamba
 scbolt install docker
 ```
-
-The Docker backend uses the image tag matching the installed scBOLT version;
-for example, scBOLT `1.0.0` selects `ghcr.io/bnediction/scbolt:1.0.0`.
-
-`scbolt install --completions` repairs the Bash completion without changing a
-runtime backend.
-
-Contributors can instead link the command to a working tree with
-`./install --dev`; see the [developer documentation](docs/README.md).
 
 Initialize a project in any working directory:
 
@@ -101,178 +88,148 @@ The following resources are only required when starting from raw sequencing data
 * Reference genomes and RepeatMasker annotations are downloaded automatically
   for supported organisms when needed.
 
-For long-term reproducibility in raw FASTQ mode, back up `RESOURCES_DIR`
+For long-term reproducibility in raw FASTQ mode, back up the configured `resources-dir`
 together with the project. scBOLT does not redistribute large third-party
 reference archives.
 
 # Quickstart
 
-A minimal runnable example is available in `quickstart/`. It uses the built-in
-Nestorowa hematopoiesis dataset from BoNesisTools and runs scBOLT without any
-manual data download.
+A minimal runnable example is available in `quickstart/`. It ships a compact
+Boolean macrostate table and signed interaction domain derived from the
+Nestorowa hematopoiesis case study, so it requires neither a data download nor
+single-cell preprocessing.
 
-See `quickstart/README.md` for the commands.
-
----
-
-# Output Layout
-
-Generated files are written under `PROJECT_DIR` with separate namespaces:
-
-* `omics/`: reference-level single-cell objects, plots, trajectories, and macrostates;
-* `bin/`: Boolean abstractions of cells and macrostates;
-* `infer/`: BoNesis specifications, selected genes, and inferred Boolean networks;
-* `logs/`: command logs.
-
-Pipeline command output is always persisted in this directory.
-
-This avoids collisions with condition names such as `bin`, `infer`, or `logs`.
+See [the quickstart guide](quickstart/README.md) for the commands.
 
 ---
 
-# Usage
+# Documentation
 
-Display available modules:
+The [user manual](man/README.md) documents the public `scbolt` interface.
+It begins with the commands required for a first project, then exposes the
+individual modules and controls available for advanced workflows.
+
+## First-Time Users
+
+| Start here | Purpose |
+| --- | --- |
+| [Quickstart](quickstart/README.md) | Run a small complete example without downloading a dataset manually. |
+| [User manual](man/README.md) | Learn the project files, generic commands, and recommended execution loop. |
+| [Command reference](man/commands.md) | Choose an input route, analytical module, or final inference command. |
+| [Project configuration](man/configuration.md) | Configure analyses and Boolean constraints. |
+
+## Going Further
+
+| Guide | Purpose |
+| --- | --- |
+| [Checking](man/checking.md) | Diagnose target-specific parameters, files, AnnData metadata, runtimes, and commands. |
+| [Rebuild controls](man/rebuilds.md) | Recompute or trust selected modules and files. |
+| [Output states](man/states.md) | Interpret completed, stale, untracked, and pending outputs. |
+| [Solver strategies](man/solver.md) | Configure and interpret large gene-selection problems. |
+| [Utilities](man/utilities.md) | Use project inspection, progress, cleaning, and runtime commands. |
+
+Implementation, testing, and contributor documentation live in
+[`docs/`](docs/README.md).
+
+---
+
+# Command Line
+
+scBOLT is target-driven: name the result to build, and missing dependencies are
+scheduled automatically.
+
+```text
+scbolt <module...> [--config=<file>] [--references=<condition...>]
+       [--reset-target=<module...>] [--trust-target=<module...>]
+       [--trust-existing] [--old-file=<file>...]
+       [--<parameter>=<value>...]
+```
+
+Discover modules and inspect generated, target-specific help with:
 
 ```bash
 scbolt help
+scbolt <module> help
 ```
 
-Display command-specific help:
+The command-specific help reports outputs, dependencies, effective parameters,
+accepted values, and relevant notes.
 
-```bash
-scbolt init --help
-scbolt config help
-scbolt check --help
-scbolt progress --help
-scbolt clean help
-```
-
-Create, update, inspect, or remove the project configuration:
+## First Project
 
 ```bash
 scbolt init
-scbolt init <scbolt.yml>
-scbolt init --show
-scbolt init --remove
-```
-
-For a new YAML project, `scbolt init` creates both the scientific configuration
-and its Boolean inference specification. See
-[`man/configuration.md`](man/configuration.md) for the schema and legacy-project
-migration.
-
-Run a module:
-
-```bash
-scbolt <module...>
-```
-
-Display effective configuration:
-
-```bash
-scbolt config
-```
-
-Preview execution without running:
-
-```bash
-scbolt dry-run <module>
-```
-
-Validate inputs, dependencies, runtime requirements, and numerical
-reproducibility:
-
-```bash
-scbolt check <module>
-```
-
-Display workflow progress:
-
-```bash
-scbolt progress
-scbolt progress --all
+# Edit scbolt.yml and spec.yml.
+scbolt config bn-submin
+scbolt check bn-submin
+scbolt bn-submin
 scbolt progress bn-submin
 ```
 
-Clean cache and logs, optionally with selected module outputs:
+The final command may execute a complete workflow or only its missing final
+stages, depending on the configured input route and existing outputs.
 
-```bash
-scbolt clean
-scbolt clean --all
-scbolt clean macrostates bn-submin
-```
+## Generic Commands
 
-Without modules, `scbolt clean` asks before removing cache and logs.
-With `--all`, it asks before removing cache, logs, and all generated module outputs.
+| Command | Purpose |
+| --- | --- |
+| `scbolt init` | Create or update the project configuration. |
+| `scbolt config [<module>]` | Display effective configuration. |
+| `scbolt check <module>` | Validate the selected workflow and runtime. |
+| `scbolt dry-run <module>` | Preview the commands that would execute. |
+| `scbolt progress [<module...>]` | Report configuration-aware output state. |
+| `scbolt clean [<module...>]` | Remove selected generated outputs. |
+| `scbolt install <backend>` | Install or replace a runtime backend. |
 
-## Common options
+See [the utilities guide](man/utilities.md) for all modes.
 
-| Option                         | Description                                           |
-| ------------------------------ | ----------------------------------------------------- |
-| `--config=<file>`              | Select the public YAML configuration.                 |
-| `--references=<condition...>`  | Restrict execution to selected references.            |
-| `--reset-target=<module...>`   | Rebuild from these modules.                           |
-| `--trust-target=<module...>`   | Trust all outputs from selected modules.              |
-| `--trust-existing`             | Trust every existing scBOLT DAG output.               |
-| `--old-file=<file>`            | Trust one existing scBOLT DAG file.                   |
-| `--help`                       | Display command-specific help when supported.         |
-| `--raw`                        | Display raw `config` listing.                         |
-| `--<key>=<value>`              | Override a public configuration key for one command.  |
-| `--prior-knowledge=<resource>` | Use `collectri`, `dorothea`, or a custom regulatory network. |
+## Input Entry Points
 
-`--trust-existing` only trusts known DAG outputs present when the command
-starts; missing outputs are built normally. `--reset-target` always takes
-priority and excludes the requested rebuild path from trust.
+| Available input | Parameter | Workflow starts from |
+| --- | --- | --- |
+| SRA run accessions | `sra` | FASTQ retrieval, alignment, and counting |
+| GEO Sample accessions | `gsm` | Public count-matrix retrieval |
+| Local count AnnData files | `count-file` | Filtering |
+| Local macrostate AnnData files | `macrostate-file` | Binarization |
+| Local binarization CSV | `binarization-file` | Boolean specification |
+| Existing scBOLT output files | `old-files` | First missing downstream stage |
 
-Legacy `params.mk` projects and `--params=<file>` remain supported during the
-transition, but new projects should use `scbolt.yml`.
+Source input routes are mutually exclusive. `old-files` is instead a trust
+declaration for files already belonging to the scBOLT workflow. File contracts,
+condition-aware forms, and reuse controls are documented in the
+[command reference](man/commands.md), [checking guide](man/checking.md), and
+[rebuild guide](man/rebuilds.md).
 
-Advanced documentation is available in: `man/`, including rebuild controls in
-`man/rebuilds.md`.
+## Common Options
 
-Examples:
+| Option | Description |
+| --- | --- |
+| `--config=<file>` | Select another public YAML configuration (default: `scbolt.yml`). |
+| `--project-dir=<dir>` | Override the generated-output directory (default: `project`). |
+| `--resources-dir=<dir>` | Override the external-resource directory (default: `resources`). |
+| `--references=<condition...>` | Restrict reference-level execution. |
+| `--reset-target=<module...>` | Rebuild from selected modules. |
+| `--trust-target=<module...>` | Trust all outputs from selected modules. |
+| `--trust-existing` | Trust known DAG outputs already present. |
+| `--old-file=<file>` | Trust one existing DAG file. |
+| `--<parameter>=<value>` | Override a configuration parameter for one command. |
+| `--help` | Display command-specific help. |
 
-```bash
-scbolt bn-submin
-scbolt bn-submin --references=ctrl
-scbolt check velocity
-scbolt bn-submin --max-clauses=12
-```
+`scbolt.yml` is the default project configuration file. Persistent scientific
+choices belong there; command-line overrides are temporary.
 
-Internally, scBOLT uses GNU Make as its workflow engine; Make syntax is not part
-of the normal user interface.
+## Output Layout
 
-### Starting from custom macrostates
+Generated files are written below `<project-dir>`:
 
-```bash
-scbolt bn-submin --macrostate-file=my_macrostates.h5ad
-```
+| Directory | Contents |
+| --- | --- |
+| `omics/` | Single-cell objects, plots, trajectories, and macrostates |
+| `bin/` | Cell and macrostate Boolean abstractions |
+| `infer/` | Specifications, selected components, witnesses, and inferred BNs |
+| `logs/` | Persisted output from public commands |
 
-Required AnnData fields:
-
-```text
-layers:
-  log-norm
-
-obs:
-  macrostate
-  condition (for multi-condition projects)
-
-obsm:
-  X_umap, X_tsne, or X_se (matching REPRESENTATION)
-```
-
-scBOLT reads expression from the named layers and does not use `adata.X` as a
-fallback for this entry point.
-
-### Starting from precomputed binarizations
-
-```bash
-scbolt bn-submin --binarization-file=my_binarization.csv
-```
-
-This allows scBOLT to integrate with existing single-cell analysis workflows and external trajectory inference methods.
+By default, these directories are created under `project/`.
 
 ---
 

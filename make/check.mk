@@ -598,7 +598,9 @@ else ifeq ($(HELP),false)
 		$(call check_parameter_diagnostic,$(CONDITIONS),CONDITIONS,project); \
 	fi; \
 	$(call check_parameter_diagnostic,$(ORGANISM),ORGANISM,project); \
-	if [ -z "$(input_route_parameters)" ]; then \
+	if [ -z "$(input_route_parameters)" ] \
+			&& { grep -qE '"RULE" "(load-fastq|load-matrix)( |")' "$${dry_run}" \
+				|| [ -n "$(filter load-matrix,$(check_targets))" ]; }; then \
 		$(call report_check_error,required input route not defined: define one of \
 			$(check_input_route_choices)); \
 	fi; \

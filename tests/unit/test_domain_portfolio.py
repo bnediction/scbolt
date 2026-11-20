@@ -1,6 +1,9 @@
+import io
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+
+from tqdm.utils import disp_len
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "lib"))
@@ -20,6 +23,81 @@ assert parse_memory_limit("") is None
 assert parse_memory_limit("50") == 50_000_000_000
 assert parse_memory_limit("1GiB") == 1_073_741_824
 assert format_memory_size(50_000_000_000) == "50.0GB"
+assert portfolio._domain_progress_layout(16, 18) == (17, None)
+assert portfolio._domain_progress_layout(16, 17) == (16, 16)
+
+progress_output = io.StringIO()
+progress = portfolio.ptqdm(
+    total=float("inf"),
+    desc="Domain acquisition [candidate=16/16]",
+    file=progress_output,
+    bar_format="{desc}: {n_fmt:>4}it ({elapsed}{postfix})",
+    dynamic_ncols=False,
+    ncols=96,
+)
+progress.set_postfix(
+    {
+        "important": "0/5",
+        "total": "   0/4588",
+        "state": "interrupted",
+    },
+    refresh=False,
+)
+rendered_progress = str(progress)
+progress.close()
+assert disp_len(rendered_progress) <= 96
+assert "important=0/5, total=   0/4588, state=" in rendered_progress
+
+original_internal_wave = portfolio._run_domain_wave
+original_current_rss = portfolio.current_rss_bytes
+original_release_memory = portfolio.release_unused_memory
+original_print_debug = portfolio.console.print_debug
+memory_release_events = []
+debug_messages = []
+
+
+def interrupted_domain_wave(*_args, **_kwargs):
+    raise KeyboardInterrupt
+
+
+try:
+    portfolio._run_domain_wave = interrupted_domain_wave
+    portfolio.current_rss_bytes = lambda: 1_000_000_000
+    portfolio.release_unused_memory = lambda: memory_release_events.append("released")
+    portfolio.console.print_debug = lambda message, **_kwargs: debug_messages.append(
+        message
+    )
+    try:
+        portfolio.run_domain_wave(
+            SimpleNamespace(),
+            (),
+            phase="acquisition",
+            wave=1,
+            max_clause=1,
+            witness=(),
+            incumbent_solution=(),
+            clingo_mode="opt",
+            clingo_strategy="bb,inc",
+            clingo_configuration="auto",
+            patience_seconds=300.0,
+            clause_patience=SolverPatience(0.0),
+            deadline=SolverDeadline(0.0),
+            important_nodes=set(),
+            memory_limit=50_000_000_000,
+            on_model=lambda *_args: False,
+        )
+    except KeyboardInterrupt:
+        pass
+    else:
+        raise AssertionError("domain-wave interruption was suppressed")
+finally:
+    portfolio._run_domain_wave = original_internal_wave
+    portfolio.current_rss_bytes = original_current_rss
+    portfolio.release_unused_memory = original_release_memory
+    portfolio.console.print_debug = original_print_debug
+
+assert memory_release_events == ["released"]
+assert debug_messages == []
 
 
 def run_continuation(
